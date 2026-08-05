@@ -1,6 +1,6 @@
 import {useCallback, useDeferredValue, useEffect, useMemo, useState} from "react"
 
-import {SectionRail, type SectionRailItem} from "@agenta/entity-ui"
+import {type SectionRailItem} from "@agenta/entity-ui"
 import {PageLayout} from "@agenta/ui"
 import {App, Input, Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -135,35 +135,50 @@ const TemplatesGalleryPage = () => {
     const hasQuery = deferredQuery.length > 0
 
     return (
-        <PageLayout className="grow min-h-0">
-            <div className="mx-auto flex min-h-0 w-full max-w-[1200px] flex-1 flex-col gap-5 pt-6">
-                <div className="flex shrink-0 flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+        <PageLayout className="grow min-h-0 !p-0">
+            {/* Same rail as the template detail page: its own surface, bled to the page edges,
+                carrying the divider — so browsing and choosing read as two halves of one screen. */}
+            <div className="flex min-h-0 w-full flex-1 flex-col lg:flex-row">
+                <aside className="box-border flex w-full shrink-0 flex-col gap-6 border-0 border-solid border-colorBorderSecondary px-6 py-6 lg:w-[280px] lg:border-r lg:bg-colorFillQuaternary">
                     <div className="flex min-w-0 flex-col gap-1.5">
                         <Typography.Title level={2} className="!m-0 !text-[24px] !leading-tight">
                             {TEMPLATES_GALLERY.title}
                         </Typography.Title>
-                        <Typography.Text className="max-w-[560px] !text-[13px] !text-[var(--ag-colorTextSecondary)]">
+                        <Typography.Text className="!text-[13px] !text-[var(--ag-colorTextSecondary)]">
                             {TEMPLATES_GALLERY.subtitle}
                         </Typography.Text>
                     </div>
 
+                    <nav className="flex flex-col gap-0.5">
+                        {railItems.map((item) => (
+                            <button
+                                key={item.value}
+                                type="button"
+                                onClick={() => handleCategoryChange(item.value)}
+                                className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors ${
+                                    item.value === active
+                                        ? "bg-colorFillSecondary text-colorText"
+                                        : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
+                                }`}
+                            >
+                                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                                <span className="shrink-0 text-xs text-colorTextTertiary">
+                                    {item.count}
+                                </span>
+                            </button>
+                        ))}
+                    </nav>
+                </aside>
+
+                <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-10 py-6">
                     <Input
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         allowClear
                         prefix={<Search size={14} className="text-[var(--ag-colorTextTertiary)]" />}
                         placeholder={TEMPLATES_GALLERY.searchPlaceholder}
-                        className="w-full sm:w-[280px]"
+                        className="w-full sm:w-[320px] self-end"
                     />
-                </div>
-
-                <SectionRail
-                    items={railItems}
-                    value={active}
-                    onChange={handleCategoryChange}
-                    railWidth="w-[160px]"
-                    fill
-                >
                     {resultCount === 0 ? (
                         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-[var(--ag-colorBorder)] px-6 py-12 text-center">
                             <Typography.Text className="text-xs text-[var(--ag-colorTextSecondary)]">
@@ -194,7 +209,7 @@ const TemplatesGalleryPage = () => {
                             ))}
                         </div>
                     )}
-                </SectionRail>
+                </div>
             </div>
 
             <TemplateSetupDrawer
