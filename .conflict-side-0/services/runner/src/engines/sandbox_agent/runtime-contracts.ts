@@ -338,6 +338,14 @@ export interface SessionEnvironment {
    */
   parkedApprovals: Map<string, ParkedApproval>;
   /**
+   * Frozen approval bytes and single-use authorization records for commits that reference
+   * workspace files (`@ag.file`). Session-scoped so a parked approval survives to its live
+   * resume and commits the exact bytes the human saw; the turn drops it whenever it did not
+   * park, and a cold resume gets a new environment and therefore an empty store, which is what
+   * forces a fresh gate rather than executing bytes nobody approved.
+   */
+  commitAuthorization?: import("./approved-content.ts").CommitAuthorizationState;
+  /**
    * The FIRST parked gate this turn, a convenience for per-turn-uniform reads (logging, the
    * gate-type check, the shared history/credential validation). Undefined when the map is empty.
    * The multi-answer resume and the all-parkable park check read `parkedApprovals`, not this.

@@ -60,6 +60,10 @@ import { conciseError } from "./errors.ts";
 import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import { findSwallowedPiError } from "./pi-error.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
+import {
+  buildApprovedContentWiring,
+  createCommitAuthorizationState,
+} from "./approved-content.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import {
   RUN_LIMIT_TRIPPED,
@@ -125,6 +129,10 @@ export async function runTurn(
   env.parkedApprovals.clear();
   env.parkedApproval = undefined;
   env.approvalGateCount = 0;
+  // A fresh turn never inherits an approval. Only a resume may consume records minted before
+  // the park; anything else starts empty, so no call can execute on the strength of an approval
+  // raised for an earlier turn.
+  if (!opts.resume) env.commitAuthorization = undefined;
   env.nonParkablePauseCount = 0;
   // Hoisted so the catch can flush a partial trace (mirroring the pre-split `otel?` handling —
   // a createOtel throw must still return `{ ok: false }`, not propagate raw) and the finally can
@@ -704,6 +712,26 @@ export async function runTurn(
         );
       }
     };
+    // `@ag.file` markers: resolve and freeze at the gate, verify and consume at the relay. The
+    // relay hook runs on EVERY harness and does not depend on a dialog, which is what keeps a
+    // forged request file from executing a commit the guard's non-Pi `ask` pass-through would
+    // otherwise let through. Built before the responder because the gate hook is one of its
+    // callbacks.
+    env.commitAuthorization ??= createCommitAuthorizationState();
+    const approvedContent = buildApprovedContentWiring({
+      state: env.commitAuthorization,
+      isDaytona: plan.isDaytona,
+      workspaceCwd: plan.workspace.cwd,
+      sandbox: env.sandbox,
+      callback: request.toolCallback as ToolCallbackContext | undefined,
+      runContext: request.runContext,
+      permissionPlan,
+      toolSpecs: plan.tools.toolSpecs,
+      turnId: request.turnId ?? "",
+      sessionId,
+      log: logger,
+    });
+
     // Build the per-turn permission handler WITHOUT attaching to the live session: the
     // session-lifetime `onPermissionRequest` (in acquireEnvironment) routes into it via
     // `currentTurn`. A capturing shim reuses attachPermissionResponder unchanged; its
@@ -759,6 +787,9 @@ export async function runTurn(
       // call, so the seam consumes the grant instead of asking the human a second time.
       onExecutableGateAllowed: (info) =>
         executionGrants.grant(info.toolName, info.args),
+      // Runs only after a non-deny verdict, and only for a gate about to pause: a denied call
+      // must perform zero workspace reads.
+      onResolveApprovedContent: approvedContent.onResolveApprovedContent,
       // Record EVERY parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume each one live. Fires per pending gate, so parallel gated tool calls in one turn
       // all park, each keyed by its own tool-call id. `info.gateType` names the ACP gate type so
@@ -839,6 +870,7 @@ export async function runTurn(
           writePausedAnswer: relayWritesPausedAnswer(
             plan.tools.clientToolPauseDisposition,
           ),
+          authorizer: approvedContent.authorizer,
         },
       );
       // Ordering invariant: the relay's stale-file sweep must complete before the
@@ -1149,5 +1181,11 @@ export async function runTurn(
     // orphan it.
     await activeTurn?.toolRelay?.stop().catch(() => {});
     if (activeTurn) activeTurn.toolRelay = undefined;
+    // Release the turn's frozen approval bytes unless a gate parked on them. A parked approval
+    // is the ONE case that must survive: the human is about to answer it, and the resume commits
+    // the exact bytes they saw. Everything else — a finished turn, an abort, a denial, a crash —
+    // drops the whole store, which is the backstop against a long-lived parked session leaking
+    // megabytes of frozen content.
+    if (env.parkedApprovals.size === 0) env.commitAuthorization = undefined;
   }
 }

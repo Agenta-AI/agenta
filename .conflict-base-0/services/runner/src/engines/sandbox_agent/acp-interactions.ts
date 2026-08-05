@@ -116,6 +116,27 @@ export interface AttachPermissionResponderInput {
     args: unknown;
   }) => void;
   /**
+   * Resolve and freeze the workspace content a gated call references, returning the manifest
+   * the approval card renders (paths, sizes, digests, executable bits, and the diff for a field
+   * replaced from one file).
+   *
+   * Called ONLY after a non-deny verdict, and only for a gate that is about to pause. That
+   * ordering is a security property, not a nicety: a denied call must perform ZERO workspace
+   * reads, because reading a file for a call that will never run leaks its existence and its
+   * content into runner memory, spends the turn's byte budget, and on Daytona runs a process
+   * inside the sandbox for a call the policy already refused.
+   *
+   * A failure fails the gate CLOSED: no card is shown, no authorization is minted, and nothing
+   * executes. The human must never be asked to approve a change the runner could not render in
+   * full — in particular a replacement whose old side could not be fetched, since approving a
+   * new text without the text it replaces is the one thing the card exists to prevent.
+   */
+  onResolveApprovedContent?: (input: {
+    toolName: string | undefined;
+    toolCallId: string | undefined;
+    args: unknown;
+  }) => Promise<{ ok: true; manifest?: unknown } | { ok: false; reason: string }>;
+  /**
    * Resolved tool specs by name for the Pi gates. PRESENCE marks a Pi run and turns Pi gate
    * envelope detection on; it must stay absent for Claude. The pre-filter is the dialog TITLE,
    * and a Claude gate whose ACP title happens to be the literal dialog title (editing a file
@@ -154,6 +175,7 @@ export function attachPermissionResponder({
   onUserApprovalGate,
   onPiGateAllowed,
   onExecutableGateAllowed,
+  onResolveApprovedContent,
   piToolSpecsByName,
   toolSpecsByName,
 }: AttachPermissionResponderInput): void {
@@ -198,6 +220,7 @@ export function attachPermissionResponder({
     id: string,
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
+    manifest?: unknown,
   ): void => {
     // Signal the parkable gate so a keep-alive resume can record the pending permission id and
     // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
@@ -222,6 +245,11 @@ export function attachPermissionResponder({
         toolCall: stampResolvedName(req?.toolCall, gate),
         availableReplies: stringArray(req?.availableReplies),
         options: req?.options,
+        // The manifest rides the LIVE event only. It carries the readable substance of the
+        // change (a diff, file digests), and the durable interaction row below deliberately
+        // keeps only the model's own arguments: the resolved content must not be persisted
+        // into an interaction row on every gated commit.
+        ...(manifest === undefined ? {} : { manifest }),
       },
     });
     createdInteractionIds.add(eventId);
@@ -233,6 +261,46 @@ export function attachPermissionResponder({
       toolCallId,
     );
     onPause?.();
+  };
+
+  /**
+   * Pause a gate that is about to ask a human, resolving any approved content first.
+   *
+   * Ordering: the verdict is already known to be non-deny when this runs, so a denied call
+   * never reaches a workspace read. A resolution failure denies the gate rather than showing a
+   * card, because a card the runner could not build in full would ask for an approval that
+   * means less than it appears to.
+   */
+  const pauseWithApprovedContent = async (
+    req: any,
+    id: string,
+    gate: GateDescriptor,
+    gateType: ParkedApprovalGateType,
+    availableReplies: string[],
+    toolCallId: string | undefined,
+  ): Promise<void> => {
+    if (!onResolveApprovedContent) {
+      pauseUserApproval(req, id, gate, gateType);
+      return;
+    }
+    const outcome = await onResolveApprovedContent({
+      toolName: gate.toolName,
+      toolCallId,
+      args: gate.args,
+    });
+    if (outcome.ok) {
+      pauseUserApproval(req, id, gate, gateType, outcome.manifest);
+      return;
+    }
+    log?.(
+      `[HITL] approved-content resolution failed id=${id} tool=${gate.toolName}: ` +
+        `${outcome.reason}; deny (fail closed)`,
+    );
+    if (!id) {
+      onPause?.();
+      return;
+    }
+    await replyPermission(id, "deny", availableReplies, toolCallId);
   };
 
   const pauseClientTool = (
@@ -418,7 +486,14 @@ export function attachPermissionResponder({
       raw: req,
     });
     if (verdict.kind === "pendingApproval" || !id) {
-      pauseUserApproval(req, id, gate, "pi-acp-permission");
+      await pauseWithApprovedContent(
+        req,
+        id,
+        gate,
+        "pi-acp-permission",
+        availableReplies,
+        envelope.toolCallId,
+      );
       return;
     }
     // The grant must exist BEFORE the harness reply: the extension writes the execute record
@@ -515,11 +590,13 @@ export function attachPermissionResponder({
       raw: req,
     });
     if (verdict.kind === "pendingApproval" || !id) {
-      pauseUserApproval(
+      await pauseWithApprovedContent(
         req,
         id,
         gate,
         isCodex ? "codex-acp-permission" : "claude-acp-permission",
+        availableReplies,
+        stringValue(toolCall?.toolCallId),
       );
       return;
     }

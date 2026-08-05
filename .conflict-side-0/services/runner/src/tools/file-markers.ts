@@ -51,6 +51,14 @@ export interface ResolveMarkersResult {
   /** The arguments with every marker replaced by its text. */
   args: unknown;
   manifest: ImportManifest;
+  /**
+   * Each marker with the file it resolved to, in operation then pointer order.
+   *
+   * S3b freezes one value PER MARKER (one authorization record per marker), so it needs the
+   * per-marker text, not only the substituted arguments. The manifest carries sizes and digests
+   * for the card; this carries the bytes the record will bind.
+   */
+  markers: ResolvedMarker[];
 }
 
 export class MarkerResolutionError extends Error {
@@ -167,18 +175,31 @@ function operationsOf(args: unknown): unknown[] | null {
   return Array.isArray(operations) ? operations : null;
 }
 
-function setAtPointer(root: unknown, pointer: string, next: unknown): void {
+/**
+ * Substitute one marker's text into an OPERATION.
+ *
+ * The root is the operation, not its `value`, because the pointer `/` means "the marker IS the
+ * whole value" — `{"operation": "set", "target": [...], "value": {"@ag.file": "..."}}`. That is
+ * the project's founding use case (replace an oversized instructions field from one file), and
+ * it cannot be expressed by writing THROUGH a pointer into `value`: there is no parent inside
+ * `value` to write to. So `/` assigns `operation.value` itself, and every deeper pointer
+ * navigates into `value` as a JSON Pointer.
+ */
+export function setAtPointer(
+  operation: unknown,
+  pointer: string,
+  next: unknown,
+): void {
+  const root = operation as Record<string, unknown>;
   if (pointer === "/" || pointer === "") {
-    throw new MarkerResolutionError(
-      "source_invalid",
-      "a marker cannot replace the whole operation value",
-    );
+    root.value = next;
+    return;
   }
   const tokens = pointer
     .split("/")
     .slice(1)
     .map((token) => token.replace(/~1/g, "/").replace(/~0/g, "~"));
-  let node: Record<string, unknown> | unknown[] = root as Record<
+  let node: Record<string, unknown> | unknown[] = root.value as Record<
     string,
     unknown
   >;
@@ -205,7 +226,7 @@ export async function resolveFileMarkers(
 ): Promise<ResolveMarkersResult> {
   const markers = findAllMarkers(args);
   if (markers.length === 0) {
-    return { args, manifest: { entries: [], totalBytes: 0 } };
+    return { args, manifest: { entries: [], totalBytes: 0 }, markers: [] };
   }
 
   const resolved: ResolvedMarker[] = [];
@@ -253,11 +274,12 @@ export async function resolveFileMarkers(
       string,
       unknown
     >;
-    setAtPointer(operation.value, marker.valuePointer, marker.file.content);
+    setAtPointer(operation, marker.valuePointer, marker.file.content);
   }
 
   return {
     args: next,
+    markers: resolved,
     manifest: {
       entries: resolved.map((marker) => ({
         operationIndex: marker.operationIndex,

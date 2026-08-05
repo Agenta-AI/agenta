@@ -752,7 +752,11 @@ export async function runTurn(
       onPause: () => pause.pause(),
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
       onAllowedExecution: (id) => pause.markAllowedExecution(id),
-      onAnsweredDeny: (id) => pause.markAnsweredDeny(id),
+      onAnsweredDeny: (id) => {
+        pause.markAnsweredDeny(id);
+        // A denied call keeps no approved content. See `onDenied`.
+        approvedContent.onDenied(id);
+      },
       onNonParkablePause: () => {
         env.nonParkablePauseCount += 1;
       },
@@ -790,6 +794,7 @@ export async function runTurn(
       // Runs only after a non-deny verdict, and only for a gate about to pause: a denied call
       // must perform zero workspace reads.
       onResolveApprovedContent: approvedContent.onResolveApprovedContent,
+      shouldRegateStaleApproval: approvedContent.shouldRegateStaleApproval,
       // Record EVERY parkable permission gate (only in keep-alive park mode) so the dispatch can
       // resume each one live. Fires per pending gate, so parallel gated tool calls in one turn
       // all park, each keyed by its own tool-call id. `info.gateType` names the ACP gate type so
@@ -925,6 +930,9 @@ export async function runTurn(
         if (decision.reply === "reject") {
           run.markToolCallDenied(decision.toolCallId);
           pause.markAnsweredDeny(decision.toolCallId);
+          // Before the harness is answered, and for the same reason as the ACP deny path above:
+          // the records this call parked on must not outlive the human's "no".
+          approvedContent.onDenied(decision.toolCallId);
         }
         // Answer this gate on the live session. Each parked gate holds its OWN pending
         // `respondPermission` on the harness, so answering them one by one settles each

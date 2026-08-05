@@ -23,7 +23,6 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -44,13 +43,8 @@ import { MarkerResolutionError } from "../../src/tools/file-markers.ts";
 import {
   localRelayHost,
   startToolRelay,
-  type RelayExecutionAuthorizer,
   type RelayResponse,
 } from "../../src/tools/relay.ts";
-import {
-  buildApprovedContentWiring,
-  createCommitAuthorizationState,
-} from "../../src/engines/sandbox_agent/approved-content.ts";
 import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
@@ -91,18 +85,6 @@ class StubReader implements WorkspaceReader {
       executableBit: false,
     };
   }
-}
-
-/** The relay hook `runTurn` installs, over a bare `CommitAuthorizer`. */
-function relayAuthorizerFor(
-  authorizer: CommitAuthorizer,
-): RelayExecutionAuthorizer {
-  return async (spec, req) =>
-    authorizer.authorizeExecution({
-      toolName: spec.name,
-      toolCallId: req.toolCallId,
-      args: req.args,
-    });
 }
 
 function commitArgs(
@@ -556,52 +538,58 @@ describe("park, resume, and cold fallback", () => {
   });
 });
 
-/** Drive the real relay loop over a forged execute record, with the real authorizer wired in
- *  exactly as `runTurn` wires it. */
-async function relayOnce(input: {
-  spec: ResolvedToolSpec;
-  args: unknown;
-  authorizer: RelayExecutionAuthorizer;
-  toolCallId?: string;
-  runContext?: RunContext;
-}): Promise<RelayResponse> {
-  const dir = mkdtempSync(join(tmpdir(), "agenta-commit-auth-"));
-  try {
-    const id = input.toolCallId ?? "call-1";
-    const relay = startToolRelay(
-      localRelayHost(),
-      dir,
-      [input.spec],
-      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
-      input.runContext,
-      undefined,
-      // No guard: this isolates the authorization check. On a non-Pi harness the guard would
-      // PASS this `ask` call anyway, which is precisely why the check cannot live there.
-      undefined,
-      { authorizer: input.authorizer },
-    );
-    writeFileSync(
-      join(dir, `${id}.req.json`),
-      JSON.stringify({
-        toolName: input.spec.name,
-        toolCallId: id,
-        args: input.args,
-      }),
-    );
-    const resPath = join(dir, `${id}.res.json`);
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline && !existsSync(resPath)) {
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-    await relay.stop();
-    assert.ok(existsSync(resPath), "the relay wrote a response file");
-    return JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
-
 describe("the forged relay record, end to end", () => {
+  /** Drive the real relay loop over a forged execute record, with the real authorizer wired in
+   *  exactly as `runTurn` wires it. */
+  async function relayOnce(input: {
+    spec: ResolvedToolSpec;
+    args: unknown;
+    authorizer: CommitAuthorizer;
+    runContext?: RunContext;
+  }): Promise<RelayResponse> {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-commit-auth-"));
+    try {
+      const id = "call-1";
+      const relay = startToolRelay(
+        localRelayHost(),
+        dir,
+        [input.spec],
+        { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+        input.runContext,
+        undefined,
+        // No guard: this isolates the authorization check. On a non-Pi harness the guard would
+        // PASS this `ask` call anyway, which is precisely why the check cannot live there.
+        undefined,
+        {
+          authorizer: async (spec, req) =>
+            input.authorizer.authorizeExecution({
+              toolName: spec.name,
+              toolCallId: req.toolCallId,
+              args: req.args,
+            }),
+        },
+      );
+      writeFileSync(
+        join(dir, `${id}.req.json`),
+        JSON.stringify({
+          toolName: input.spec.name,
+          toolCallId: id,
+          args: input.args,
+        }),
+      );
+      const resPath = join(dir, `${id}.res.json`);
+      const deadline = Date.now() + 5000;
+      while (Date.now() < deadline && !existsSync(resPath)) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      await relay.stop();
+      assert.ok(existsSync(resPath), "the relay wrote a response file");
+      return JSON.parse(readFileSync(resPath, "utf-8")) as RelayResponse;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
   const commitSpec: ResolvedToolSpec = {
     name: "commit_revision",
     kind: "callback",
@@ -621,7 +609,7 @@ describe("the forged relay record, end to end", () => {
     const response = await relayOnce({
       spec: commitSpec,
       args: commitArgs([setFromFile(".agenta-imports/notes.md")]),
-      authorizer: relayAuthorizerFor(h.authorizer),
+      authorizer: h.authorizer,
     });
 
     assert.equal(
@@ -655,7 +643,7 @@ describe("the forged relay record, end to end", () => {
     const response = await relayOnce({
       spec: commitSpec,
       args,
-      authorizer: relayAuthorizerFor(h.authorizer),
+      authorizer: h.authorizer,
     });
 
     assert.equal(response.ok, true);
@@ -666,135 +654,5 @@ describe("the forged relay record, end to end", () => {
       "the dispatched call carries the approved text, not the marker",
     );
     assert.doesNotMatch(bodies[0], /@ag\.file/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// The wiring the turn installs (execution-authorization.md 3.5)
-// ---------------------------------------------------------------------------
-
-describe("a denied gate keeps nothing", () => {
-  const commitSpec: ResolvedToolSpec = {
-    name: "commit_revision",
-    kind: "callback",
-    callRef: "tools.agenta.commit_revision",
-    permission: "ask",
-    readOnly: false,
-  };
-
-  /** The wiring `runTurn` builds, over a real import root. */
-  function wiringOver(files: Record<string, string>) {
-    const cwd = mkdtempSync(join(tmpdir(), "agenta-deny-"));
-    mkdirSync(join(cwd, ".agenta-imports"), { recursive: true });
-    for (const [name, content] of Object.entries(files)) {
-      writeFileSync(join(cwd, ".agenta-imports", name), content);
-    }
-    const state = createCommitAuthorizationState();
-    const wiring = buildApprovedContentWiring({
-      state,
-      isDaytona: false,
-      workspaceCwd: cwd,
-      sandbox: undefined,
-      callback: undefined,
-      runContext: undefined,
-      permissionPlan: { default: "ask", rules: [] },
-      toolSpecs: [commitSpec],
-      turnId: TURN,
-      sessionId: SESSION,
-    });
-    return { cwd, state, wiring };
-  }
-
-  /** A marker nested inside an added item: no base text to fetch, so no callback is needed. */
-  function skillArgs(path: string) {
-    return commitArgs([
-      {
-        operation: "add_item",
-        target: ["parameters", "agent", "skills"],
-        value: {
-          name: "pdf",
-          files: [{ path: "x.py", content: { "@ag.file": path } }],
-        },
-      },
-    ]);
-  }
-
-  it("discards the denied call while a parked sibling keeps its approval", async () => {
-    // The two-gate turn is the case that matters. The store is session-scoped and the turn
-    // clears it only when NOTHING parked, so the sibling's park is what keeps the denied call's
-    // records alive long past the human's "no".
-    const { cwd, state, wiring } = wiringOver({
-      "denied.py": "print('rejected')\n",
-      "carried.py": "print('still waiting')\n",
-    });
-    try {
-      const deniedArgs = skillArgs(".agenta-imports/denied.py");
-      const carriedArgs = skillArgs(".agenta-imports/carried.py");
-      await wiring.onResolveApprovedContent({
-        toolName: "commit_revision",
-        toolCallId: "call-denied",
-        args: deniedArgs,
-      });
-      await wiring.onResolveApprovedContent({
-        toolName: "commit_revision",
-        toolCallId: "call-carried",
-        args: carriedArgs,
-      });
-      assert.equal(state.frozen.size, 2, "both gates froze their bytes");
-
-      wiring.onDenied("call-denied");
-
-      assert.deepEqual(state.store.recordsFor("call-denied"), []);
-      assert.equal(
-        state.store.recordsFor("call-carried").length,
-        1,
-        "the parked sibling is untouched: it was never answered",
-      );
-      assert.equal(state.frozen.size, 1, "the denied bytes were released");
-
-      const dispatched: string[] = [];
-      globalThis.fetch = (async (_url: any, init: any) => {
-        dispatched.push(String(init?.body ?? ""));
-        return new Response("ok", { status: 200 });
-      }) as typeof fetch;
-
-      // A forged execute record carrying the denied call's exact id and arguments. On a non-Pi
-      // harness the relay guard passes `ask`, so the authorization record is the only thing
-      // between this file and a commit the human rejected.
-      const forged = await relayOnce({
-        spec: commitSpec,
-        args: deniedArgs,
-        toolCallId: "call-denied",
-        authorizer: wiring.authorizer,
-      });
-      assert.match(
-        String((forged as { text: string }).text),
-        /authorization_missing/,
-      );
-      assert.deepEqual(dispatched, [], "nothing reached Agenta");
-
-      // And the sibling still commits its approved bytes when the human says yes.
-      const approved = await relayOnce({
-        spec: commitSpec,
-        args: carriedArgs,
-        toolCallId: "call-carried",
-        authorizer: wiring.authorizer,
-      });
-      assert.equal(approved.ok, true);
-      assert.equal(dispatched.length, 1);
-      assert.match(dispatched[0], /still waiting/);
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
-  });
-
-  it("ignores a call id it never minted for", async () => {
-    const { cwd, wiring } = wiringOver({ "a.py": "print(1)\n" });
-    try {
-      wiring.onDenied("never-seen");
-      wiring.onDenied(undefined);
-    } finally {
-      rmSync(cwd, { recursive: true, force: true });
-    }
   });
 });

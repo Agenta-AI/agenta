@@ -220,6 +220,47 @@ describe("LocalWorkspaceReader", () => {
     assert.equal(file.executableBit, true);
   });
 
+  it("refuses a symbolic link in place of the import ROOT", async () => {
+    // The root is opened before the descriptor walk starts, so a link here would be followed and
+    // every confined open below it would be confined to the ATTACKER's directory instead of the
+    // workspace. Without O_NOFOLLOW on the root open this read succeeds.
+    const outside = mkdtempSync(join(tmpdir(), "agenta-outside-"));
+    writeFileSync(join(outside, "id_rsa"), "PRIVATE KEY MATERIAL\n");
+    rmSync(root, { recursive: true, force: true });
+    symlinkSync(outside, root);
+    try {
+      await assert.rejects(
+        () => reader().readImportFile("id_rsa"),
+        (error: ImportError) => {
+          assert.equal(error.code, "source_invalid");
+          assert.match(error.message, /symbolic link/);
+          return true;
+        },
+      );
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a root symlink even when its target stays INSIDE the workspace", async () => {
+    // Staying inside the workspace is not the property the root check defends. A link is refused
+    // for its own sake, so the reader never has to reason about where a link points.
+    const inside = join(cwd, "real-imports");
+    mkdirSync(inside);
+    writeFileSync(join(inside, "notes.md"), "inside\n");
+    rmSync(root, { recursive: true, force: true });
+    symlinkSync(inside, root);
+
+    await assert.rejects(
+      () => reader().readImportFile("notes.md"),
+      (error: ImportError) => {
+        assert.equal(error.code, "source_invalid");
+        assert.match(error.message, /symbolic link/);
+        return true;
+      },
+    );
+  });
+
   it("refuses a symbolic link at the final component", async () => {
     writeFileSync(join(cwd, "secret.txt"), "top secret\n");
     symlinkSync(join(cwd, "secret.txt"), join(root, "link.txt"));
@@ -285,6 +326,54 @@ describe("LocalWorkspaceReader", () => {
       },
     );
   });
+
+  // Malformed UTF-8 (contract 4.2). The bytes that matter are the ones a U+FFFD test cannot
+  // catch: the replacement character encodes as EF BF BD, so any rule that exempts a buffer
+  // holding 0xEF lets a whole class of invalid sequences through as mojibake.
+  for (const [name, bytes] of [
+    ["an invalid sequence beginning with 0xEF", Buffer.from([0xef, 0x28])],
+    [
+      "valid text carrying a stray 0xEF",
+      Buffer.concat([
+        Buffer.from("hello "),
+        Buffer.from([0xef, 0xff, 0xfe]),
+        Buffer.from(" world"),
+      ]),
+    ],
+    ["a truncated multi-byte sequence", Buffer.from([0xe2, 0x82])],
+    ["an invalid sequence with no 0xEF at all", Buffer.from([0xc3, 0x28])],
+  ] as const) {
+    it(`refuses ${name}`, async () => {
+      writeFileSync(join(root, "notes.md"), bytes);
+      await assert.rejects(
+        () => reader().readImportFile("notes.md"),
+        (error: ImportError) => {
+          assert.equal(error.code, "source_unsupported_content");
+          assert.match(error.message, /not valid UTF-8/);
+          return true;
+        },
+      );
+    });
+  }
+
+  for (const [name, bytes] of [
+    ["text holding a literal replacement character", Buffer.from("a � b")],
+    [
+      "text behind a byte-order mark",
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("bom text")]),
+    ],
+  ] as const) {
+    it(`imports ${name} byte for byte`, async () => {
+      writeFileSync(join(root, "notes.md"), bytes);
+      const file = await reader().readImportFile("notes.md");
+      // The committed content must re-encode to the bytes on disk. A decoder that dropped the
+      // BOM, or substituted anything, would leave `bytes` describing one thing and `digest`
+      // another, and the card would show a size the commit does not carry.
+      assert.deepEqual(Buffer.from(file.content, "utf8"), Buffer.from(bytes));
+      assert.equal(file.bytes, bytes.byteLength);
+      assert.equal(file.digest, digestOf(file.content));
+    });
+  }
 
   it("lists what exists when the file is missing", async () => {
     // A wrong path is nearly always a near miss, so the answer names what IS there.
@@ -391,38 +480,75 @@ describe("DaytonaWorkspaceReader", () => {
   const cwd = "/workspace";
   const abs = `${cwd}/${IMPORT_ROOT}`;
 
-  it("reads a file that passes the descendant test", async () => {
-    const { exec } = fakeExec({
-      realpath: () => ({ stdout: Buffer.from(`${abs}/a.md\n`), exitCode: 0 }),
-      "find:stat": () => ({
-        stdout: framed([["f", "644", "5", ""]]),
-        exitCode: 0,
-      }),
-      cat: () => ({ stdout: Buffer.from("hello"), exitCode: 0 }),
-    });
-    // `realpath` is asked for the root and the target; one handler answers both, so the
-    // descendant test compares `<root>/a.md` against itself resolved.
+  /**
+   * A reader over a fake sandbox. `types` names the OWN type (`%y`) of any path the walk asks
+   * about; a path with no entry is a directory, except the last one, which is the file. `realpath`
+   * defaults to identity, so the descendant tests compare a path against itself resolved.
+   */
+  function daytonaReader(options: {
+    types?: Record<string, string>;
+    realpath?: (target: string) => string;
+    content?: string;
+  } = {}) {
+    const calls: string[][] = [];
     const reader = new DaytonaWorkspaceReader(cwd, async (argv) => {
+      calls.push(argv);
       if (argv[0] === "realpath") {
-        const target = argv[argv.length - 1];
-        return { stdout: Buffer.from(`${target}\n`), exitCode: 0 };
+        const resolved = (options.realpath ?? ((t: string) => t))(
+          argv[argv.length - 1],
+        );
+        return { stdout: Buffer.from(`${resolved}\n`), exitCode: 0 };
       }
-      return exec(argv);
+      if (argv[0] === "find" && findKey(argv) === "find:stat") {
+        const paths = argv.slice(1, argv.indexOf("-maxdepth"));
+        return {
+          stdout: framed(
+            paths.map((target, index) => [
+              options.types?.[target] ??
+                (index === paths.length - 1 ? "f" : "d"),
+              "644",
+              "5",
+              "",
+            ]),
+          ),
+          exitCode: 0,
+        };
+      }
+      if (argv[0] === "cat") {
+        return {
+          stdout: Buffer.from(options.content ?? "hello"),
+          exitCode: 0,
+        };
+      }
+      return { stdout: Buffer.alloc(0), exitCode: 1 };
     });
+    return { reader, calls };
+  }
 
-    const file = await reader.readImportFile("a.md");
+  it("reads a file that passes the descendant test", async () => {
+    const { reader, calls } = daytonaReader({ content: "hello" });
+
+    const file = await reader.readImportFile("pdf-tools/SKILL.md");
     assert.equal(file.content, "hello");
     assert.equal(file.digest, digestOf("hello"));
+
+    // ONE walk covers the root and every component. A call per level would cost a process per
+    // level of every import.
+    const walks = calls.filter(
+      (argv) => argv[0] === "find" && findKey(argv) === "find:stat",
+    );
+    assert.equal(walks.length, 1);
+    assert.deepEqual(walks[0].slice(1, walks[0].indexOf("-maxdepth")), [
+      abs,
+      `${abs}/pdf-tools`,
+      `${abs}/pdf-tools/SKILL.md`,
+    ]);
   });
 
   it("refuses a target that resolves outside the root", async () => {
-    const reader = new DaytonaWorkspaceReader(cwd, async (argv) => {
-      if (argv[0] === "realpath") {
-        const target = argv[argv.length - 1];
-        const resolved = target === abs ? abs : "/etc/passwd";
-        return { stdout: Buffer.from(`${resolved}\n`), exitCode: 0 };
-      }
-      return { stdout: Buffer.alloc(0), exitCode: 1 };
+    const { reader } = daytonaReader({
+      realpath: (target) =>
+        target === abs || target === cwd ? target : "/etc/passwd",
     });
 
     await assert.rejects(
@@ -435,27 +561,62 @@ describe("DaytonaWorkspaceReader", () => {
     );
   });
 
+  it("refuses an import ROOT that resolves outside the workspace", async () => {
+    // The descendant test below the root proves nothing when the root itself was moved: every
+    // path under a relocated root is a faithful descendant of the attacker's directory.
+    const { reader } = daytonaReader({
+      realpath: (target) => (target === cwd ? cwd : "/home/user/.ssh"),
+    });
+
+    await assert.rejects(
+      () => reader.readImportFile("id_rsa"),
+      (error: ImportError) => {
+        assert.equal(error.code, "source_invalid");
+        assert.match(error.message, /resolves outside the workspace/);
+        return true;
+      },
+    );
+  });
+
+  it("refuses an import ROOT that is a symbolic link", async () => {
+    const { reader } = daytonaReader({ types: { [abs]: "l" } });
+
+    await assert.rejects(
+      () => reader.readImportFile("a.md"),
+      (error: ImportError) => {
+        assert.equal(error.code, "source_invalid");
+        assert.match(error.message, /symbolic link/);
+        return true;
+      },
+    );
+  });
+
   it("refuses a symbolic link reported by %y", async () => {
     // `%y` reports the entry's own type, so a link shows as `l`. `%Y` would follow it and
     // hide the link entirely.
-    const reader = new DaytonaWorkspaceReader(cwd, async (argv) => {
-      if (argv[0] === "realpath") {
-        return {
-          stdout: Buffer.from(`${argv[argv.length - 1]}\n`),
-          exitCode: 0,
-        };
-      }
-      if (argv[0] === "find") {
-        return { stdout: framed([["l", "777", "9", ""]]), exitCode: 0 };
-      }
-      return { stdout: Buffer.alloc(0), exitCode: 1 };
-    });
+    const { reader } = daytonaReader({ types: { [`${abs}/link.md`]: "l" } });
 
     await assert.rejects(
       () => reader.readImportFile("link.md"),
       (error: ImportError) => {
         assert.equal(error.code, "source_unsupported_content");
         assert.match(error.message, /symbolic link/);
+        return true;
+      },
+    );
+  });
+
+  it("refuses an INTERMEDIATE symbolic link whose target stays inside the root", async () => {
+    // `realpath` cannot catch this one: the link resolves under the root, so the descendant test
+    // passes. Only the per-component type check sees it, and the local walk refuses it, so
+    // accepting it here would make the two readers disagree about the same tree.
+    const { reader } = daytonaReader({ types: { [`${abs}/link`]: "l" } });
+
+    await assert.rejects(
+      () => reader.readImportFile("link/SKILL.md"),
+      (error: ImportError) => {
+        assert.equal(error.code, "source_unsupported_content");
+        assert.match(error.message, /link is a symbolic link/);
         return true;
       },
     );

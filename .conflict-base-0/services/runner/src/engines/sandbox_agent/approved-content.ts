@@ -7,11 +7,7 @@
  * two callbacks the turn hands to `attachPermissionResponder` and `startToolRelay`, and picks
  * the workspace reader for the platform the run is on.
  */
-import {
-  decide,
-  effectivePermission,
-  type PermissionPlan,
-} from "../../permission-plan.ts";
+import { decide, type PermissionPlan } from "../../permission-plan.ts";
 import { ConversationDecisions } from "../../responder.ts";
 import {
   CommitAuthorizer,
@@ -77,19 +73,6 @@ export interface ApprovedContentWiring {
   onResolveApprovedContent: NonNullable<
     AttachPermissionResponderInput["onResolveApprovedContent"]
   >;
-  shouldRegateStaleApproval: NonNullable<
-    AttachPermissionResponderInput["shouldRegateStaleApproval"]
-  >;
-  /**
-   * Drop everything a call had approved, because the human denied it.
-   *
-   * Contract 3.5 lists a denied gate among the discard events, and the store is SESSION-scoped:
-   * it outlives the turn whenever a sibling gate is still parked. A record left behind is still
-   * consumable, and on a non-Pi harness the relay guard passes `ask`, so an execute record
-   * carrying this call's id and arguments would commit exactly what the human rejected. Both
-   * denial paths call this BEFORE the harness is answered.
-   */
-  onDenied: (toolCallId: string | undefined) => void;
   authorizer: RelayExecutionAuthorizer;
 }
 
@@ -182,33 +165,6 @@ export function buildApprovedContentWiring(input: {
           return { ok: false, reason: error.message };
         }
         throw error;
-      }
-    },
-    // A replayed approval answers a gate whose frozen bytes are gone. On a live resume the store
-    // still holds them, so this is false and the parked answer stands; on a COLD resume the store
-    // is new and empty, and the human's old `{approved: true}` describes bytes no longer in
-    // memory (execution-authorization.md 7.2).
-    shouldRegateStaleApproval: ({ gate, toolCallId }) => {
-      // An `allow` under an `ask` permission can ONLY be a stored answer replayed out of the
-      // conversation: `decide` consults the decision store on no other path. A policy allow is
-      // section 4's explicit exception and must keep resolving inline at the relay, so it is
-      // filtered out here rather than at the gate.
-      if (effectivePermission(gate, input.permissionPlan) !== "ask") {
-        return false;
-      }
-      if (authorizerCore.markersIn(gate.args).length === 0) return false;
-      // No id to key a record by means no record can exist for this call, which is the same
-      // position a cold turn is in.
-      if (!toolCallId) return true;
-      return input.state.store.recordsFor(toolCallId).length === 0;
-    },
-    onDenied: (toolCallId) => {
-      if (!toolCallId) return;
-      const dropped = input.state.store.discardAll(toolCallId);
-      if (dropped > 0) {
-        input.log?.(
-          `[commit-auth] denied call=${toolCallId}; discarded ${dropped} record(s)`,
-        );
       }
     },
     authorizer: async (spec, req) =>

@@ -129,6 +129,26 @@ export type RelayExecutionGuard = (
   req: ExecuteRelayRequest,
 ) => { allow: true } | { allow: false; reason: string };
 
+/**
+ * Second-stage authorization for a call whose arguments reference approved content.
+ *
+ * Separate from the guard on purpose, and it must stay separate. The guard answers "does the
+ * permission policy let this tool run", and on a non-Pi harness it passes every `ask` verdict
+ * because the harness raises its own dialog and the runner records no grant for it. That pass
+ * is a COMPATIBILITY behavior, not a policy statement — a forged request file can still start
+ * an `ask` tool with no dialog on that path.
+ *
+ * This hook is what makes that harmless for a call carrying approved content: it demands a
+ * single-use record the RUNNER minted at the gate, binding the exact tool, the exact arguments,
+ * and the exact bytes a human saw. It runs for every harness, it never depends on a dialog, and
+ * a missing record fails the call closed. It returns the arguments to execute, so the approved
+ * bytes — not a fresh read of the workspace — are what run.
+ */
+export type RelayExecutionAuthorizer = (
+  spec: ResolvedToolSpec,
+  req: ExecuteRelayRequest,
+) => Promise<{ ok: true; args: unknown } | { ok: false; reason: string }>;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -323,6 +343,7 @@ async function executeRelayedTool(
   runContext: RunContext | undefined,
   clientToolRelay: ClientToolRelay | undefined,
   guard: RelayExecutionGuard | undefined,
+  authorizer: RelayExecutionAuthorizer | undefined,
 ): Promise<string | typeof PAUSED> {
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
@@ -356,6 +377,21 @@ async function executeRelayedTool(
   if (guard) {
     const verdict = guard(spec, req);
     if (!verdict.allow) return verdict.reason;
+  }
+
+  // Passing the guard is NOT enough for a call that carries approved content: on a non-Pi
+  // harness the guard passes `ask` for compatibility, so the authorization record is the only
+  // thing standing between a forged request file and an unapproved execution. The substituted
+  // arguments it returns carry the frozen bytes the human saw.
+  if (authorizer) {
+    const verdict = await authorizer(spec, req);
+    if (!verdict.ok) return verdict.reason;
+    return executeAllowedRelayedTool(
+      spec,
+      { ...req, args: verdict.args },
+      callback,
+      runContext,
+    );
   }
 
   return executeAllowedRelayedTool(spec, req, callback, runContext);
@@ -520,7 +556,12 @@ export function startToolRelay(
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
   guard?: RelayExecutionGuard,
-  opts?: { log?: (msg: string) => void; writePausedAnswer?: boolean },
+  opts?: {
+    log?: (msg: string) => void;
+    writePausedAnswer?: boolean;
+    /** Runs after the guard, for every harness. See `RelayExecutionAuthorizer`. */
+    authorizer?: RelayExecutionAuthorizer;
+  },
 ): { ready: Promise<void>; stop: () => Promise<void> } {
   let active = true;
   const log = opts?.log ?? (() => {});
@@ -570,6 +611,7 @@ export function startToolRelay(
         runContext,
         clientToolRelay,
         guard,
+        opts?.authorizer,
       );
       if (text === PAUSED) {
         // A client tool parked. Pi writes no answer; the non-Pi shim gets a benign paused answer so

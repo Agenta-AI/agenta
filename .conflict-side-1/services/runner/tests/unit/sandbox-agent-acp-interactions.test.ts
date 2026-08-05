@@ -5,6 +5,9 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type {
   AgentEvent,
@@ -23,6 +26,10 @@ import {
   attachPermissionResponder,
   type PiToolSpecMeta,
 } from "../../src/engines/sandbox_agent/acp-interactions.ts";
+import {
+  buildApprovedContentWiring,
+  createCommitAuthorizationState,
+} from "../../src/engines/sandbox_agent/approved-content.ts";
 import {
   buildPiGateEnvelope,
   PI_GATE_DIALOG_TITLE,
@@ -456,6 +463,230 @@ describe("attachPermissionResponder", () => {
 
     assert.deepEqual(replies, [{ id: "client-1", reply: "once" }]);
     assert.deepEqual(events, []);
+  });
+
+  // A replayed approval and a marker-carrying commit (execution-authorization.md 7.2)
+  // -------------------------------------------------------------------------------------
+  // A cold resume destroys the frozen bytes the human approved, but their `{approved: true}`
+  // is still in the conversation. Answering the new gate with it spends the approval on bytes
+  // nobody saw; the call then dies at the relay with `authorization_missing`, which shows the
+  // user a failed commit instead of a second card.
+
+  const COMMIT_ARGS = {
+    workflow_revision: {
+      base_revision_id: "rev-1",
+      delta: {
+        operations: [
+          {
+            operation: "add_item",
+            target: ["parameters", "agent", "skills"],
+            value: {
+              name: "pdf",
+              files: [
+                {
+                  path: "x.py",
+                  content: { "@ag.file": ".agenta-imports/x.py" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  };
+
+  /** The replayed conversation: the model's commit, and the human's answer to it. */
+  function replayedApproval(): Map<string, unknown[]> {
+    return extractApprovalDecisions({
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "tool-original",
+              toolName: "commit_revision",
+              input: COMMIT_ARGS,
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tool-original",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    } as AgentRunRequest);
+  }
+
+  /** A workspace with a real import root, and the approved-content wiring `runTurn` builds. */
+  function coldWorkspace(permission: "ask" | "allow" = "ask") {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-cold-resume-"));
+    mkdirSync(join(cwd, ".agenta-imports"), { recursive: true });
+    writeFileSync(join(cwd, ".agenta-imports", "x.py"), "print('fresh')\n");
+    const state = createCommitAuthorizationState();
+    const wiring = buildApprovedContentWiring({
+      state,
+      isDaytona: false,
+      workspaceCwd: cwd,
+      sandbox: undefined,
+      callback: undefined,
+      runContext: undefined,
+      permissionPlan: permissionPlan(permission === "allow" ? "allow" : "ask"),
+      toolSpecs: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission,
+          readOnly: false,
+        },
+      ],
+      turnId: "turn-1",
+      sessionId: "session-1",
+    });
+    return { cwd, state, wiring };
+  }
+
+  /** The re-gate path reads a real file, so one macrotask is not enough to settle it. */
+  async function waitFor(predicate: () => boolean): Promise<void> {
+    const deadline = Date.now() + 2000;
+    while (!predicate() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+
+  function emitCommitGate(emit: (req: unknown) => void) {
+    emit({
+      id: "permission-cold",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-cold",
+        name: "commit_revision",
+        rawInput: COMMIT_ARGS,
+      },
+    });
+  }
+
+  it("a replayed approval does NOT answer a cold gate; it asks again from a fresh read", async () => {
+    const { cwd, state, wiring } = coldWorkspace();
+    try {
+      const replies: Array<{ id: string; reply: string }> = [];
+      const events: AgentEvent[] = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: (event) => events.push(event) },
+        responder: new ApprovalResponder(
+          permissionPlan("ask"),
+          new ConversationDecisions(replayedApproval()),
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "ask", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await waitFor(() => events.length > 0 || replies.length > 0);
+
+      assert.deepEqual(replies, [], "the harness was never told the call is allowed");
+      assert.equal(events.length, 1);
+      const event = events[0] as {
+        type: string;
+        payload: { manifest?: { files: Array<{ digest: string }> } };
+      };
+      assert.equal(event.type, "interaction_request");
+      assert.equal(
+        event.payload.manifest?.files.length,
+        1,
+        "the new card is built from a fresh read, not from the old approval",
+      );
+      assert.equal(
+        state.store.recordsFor("tool-cold").length,
+        1,
+        "and the record it mints is keyed to the NEW call",
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("a LIVE resume still consumes its parked approval", async () => {
+    // The narrow half. The environment survived, so the frozen bytes the human saw are still
+    // held and the answer they gave still describes them.
+    const { cwd, wiring } = coldWorkspace();
+    try {
+      await wiring.onResolveApprovedContent({
+        toolName: "commit_revision",
+        toolCallId: "tool-cold",
+        args: COMMIT_ARGS,
+      });
+      const replies: Array<{ id: string; reply: string }> = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: () => {} },
+        responder: new ApprovalResponder(
+          permissionPlan("ask"),
+          new ConversationDecisions(replayedApproval()),
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "ask", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await flushPromises();
+
+      assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("a POLICY allow is never re-gated, so the inline exception survives", async () => {
+    // Contract section 4: an explicit `allow` is a positive statement by the policy owner, and
+    // it resolves inline at the relay. Only a REPLAYED answer is in question here.
+    const { cwd, wiring } = coldWorkspace("allow");
+    try {
+      const replies: Array<{ id: string; reply: string }> = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: () => {} },
+        responder: new ApprovalResponder(
+          permissionPlan("allow"),
+          new ConversationDecisions(new Map()),
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "allow", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await flushPromises();
+
+      assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("resolves the original interaction token after a cold stored-decision reply", async () => {

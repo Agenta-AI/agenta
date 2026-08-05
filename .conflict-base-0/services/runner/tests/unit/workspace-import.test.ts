@@ -613,6 +613,30 @@ describe("resolveFileMarkers", () => {
     assert.equal(manifest.entries[0].digest, digestOf("# Skill\n"));
   });
 
+  it("replaces a `set` operation's WHOLE value from one file", async () => {
+    // The founding use case: an oversized instructions document lives in a file, and the
+    // marker is the entire `value` rather than a field inside it. The pointer for that marker
+    // is `/`, which cannot be written THROUGH — there is no parent inside `value` to write to —
+    // so the substitution assigns `operation.value` itself.
+    const reader = new StubReader({ "instructions.md": "# Agent\nBe brief.\n" });
+    const args = commitArgs([
+      {
+        operation: "set",
+        target: ["parameters", "agent", "instructions"],
+        value: { "@ag.file": "instructions.md" },
+      },
+    ]);
+
+    const { args: next, manifest, markers } = await resolveFileMarkers(
+      args,
+      reader as never,
+    );
+
+    assert.equal(valueOf(next), "# Agent\nBe brief.\n");
+    assert.equal(markers[0].valuePointer, "/");
+    assert.equal(manifest.entries[0].relativePath, "instructions.md");
+  });
+
   it("does not mutate the caller's arguments", async () => {
     const reader = new StubReader({ "a.md": "text" });
     const args = commitArgs([
