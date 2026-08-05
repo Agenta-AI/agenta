@@ -43,6 +43,7 @@ import {
 import { type SessionContinuityStore } from "./session-continuity.ts";
 import { type InstalledMountExpiries } from "./session-identity.ts";
 import type { AppliedEnvironmentState } from "./applied-state.ts";
+import type { FacetDigests } from "../../lifecycle/desired-state.ts";
 import { type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
@@ -228,7 +229,10 @@ export interface SessionEnvironment {
    */
   readonly appliedState: AppliedEnvironmentState;
   /** Record a lifecycle action that already succeeded. The only writer of `appliedState`. */
-  commitApplied: (result: { configFingerprint: string }) => void;
+  commitApplied: (result: {
+    configFingerprint: string;
+    facets: FacetDigests;
+  }) => void;
   plan: RunPlan;
   logger: Log;
   deps: SandboxAgentDeps;
