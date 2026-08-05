@@ -74,10 +74,18 @@ export function digestOf(content: string): string {
 }
 
 function assertUtf8Text(buffer: Buffer, relativePath: string): string {
-  // A lone surrogate or an invalid sequence decodes to U+FFFD. The configuration stores
-  // text, so a binary file must fail its own marker rather than land as mojibake.
-  const text = buffer.toString("utf8");
-  if (text.includes("�") && !buffer.includes(0xef)) {
+  // A fatal decoder refuses the malformed sequence itself. Testing the DECODED text for U+FFFD
+  // cannot: a file may legitimately contain that character, and exempting every buffer holding
+  // its first byte (0xEF) lets any invalid sequence carrying an 0xEF through as mojibake.
+  //
+  // `ignoreBOM` keeps a leading BOM as a character. The default strips it, which would make the
+  // committed content differ from the bytes on disk and desynchronize `bytes` from `digest`.
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      buffer,
+    );
+  } catch {
     throw new ImportError(
       "source_unsupported_content",
       `${relativePath} is not valid UTF-8 text.`,
@@ -160,16 +168,18 @@ export class LocalWorkspaceReader implements WorkspaceReader {
     let file: FileHandle | undefined;
     try {
       try {
+        // O_NOFOLLOW on the ROOT, not only on the components below it. Without it a symbolic
+        // link in place of `.agenta-imports` is followed before the walk starts, and every
+        // descriptor-relative open below is then correctly confined to the link's target rather
+        // than to the workspace (contract 3.2 step 1).
         dir = await fs.open(
           this.rootPath(),
-          fsConstants.O_RDONLY | fsConstants.O_DIRECTORY,
+          fsConstants.O_RDONLY |
+            fsConstants.O_DIRECTORY |
+            fsConstants.O_NOFOLLOW,
         );
-      } catch {
-        throw new ImportError(
-          "source_not_found",
-          `${IMPORT_ROOT}/ does not exist in this workspace.`,
-          { available: [] },
-        );
+      } catch (error) {
+        throw await this.describeRootFailure(error);
       }
 
       // Verify the root itself before trusting anything below it.
@@ -275,6 +285,40 @@ export class LocalWorkspaceReader implements WorkspaceReader {
       }
       throw await this.describeOpenFailure(error, relativePath, name);
     }
+  }
+
+  /**
+   * Why the root open failed, as a code the caller can act on.
+   *
+   * With `O_DIRECTORY` and `O_NOFOLLOW` together Linux reports a symbolic link as `ENOTDIR` on
+   * some kernels and `ELOOP` on others, so the errno alone cannot tell a link from a plain file.
+   * `lstat` names the entry itself. It runs only on the error path and only to pick the answer;
+   * nothing is opened through it.
+   */
+  private async describeRootFailure(error: unknown): Promise<ImportError> {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === "ELOOP" || code === "ENOTDIR") {
+      let isLink = code === "ELOOP";
+      if (!isLink) {
+        try {
+          isLink = (await fs.lstat(this.rootPath())).isSymbolicLink();
+        } catch {
+          // The root went away between the open and the classification; the answer stays
+          // "not a directory", which is true either way.
+        }
+      }
+      return new ImportError(
+        "source_invalid",
+        isLink
+          ? `${IMPORT_ROOT} is a symbolic link; links are not imported.`
+          : `${IMPORT_ROOT} is not a directory.`,
+      );
+    }
+    return new ImportError(
+      "source_not_found",
+      `${IMPORT_ROOT}/ does not exist in this workspace.`,
+      { available: [] },
+    );
   }
 
   private async classifyRefusedComponent(
@@ -414,12 +458,16 @@ export class DaytonaWorkspaceReader implements WorkspaceReader {
       throw new ImportError("source_invalid", resolved.message);
     }
 
-    const absTarget = path.join(this.rootPath(), resolved.relativePath);
+    const root = this.rootPath();
+    const absTarget = path.join(root, resolved.relativePath);
 
     // The descendant test runs on RESOLVED paths: comparing unresolved ones is what the
-    // symbolic-link check exists to defeat.
-    const [resolvedRoot, resolvedTarget] = await Promise.all([
-      this.realpath(this.rootPath()),
+    // symbolic-link check exists to defeat. The ROOT is resolved against the workspace for the
+    // same reason: a root that is itself a link anchors every check below it to the link's
+    // target, so "under the root" would stop meaning "inside the workspace".
+    const [resolvedWorkspace, resolvedRoot, resolvedTarget] = await Promise.all([
+      this.realpath(this.workspaceCwd),
+      this.realpath(root),
       this.realpath(absTarget),
     ]);
     if (resolvedTarget === null) {
@@ -429,11 +477,17 @@ export class DaytonaWorkspaceReader implements WorkspaceReader {
         { available: await this.listImportRoot() },
       );
     }
-    if (resolvedRoot === null) {
+    if (resolvedRoot === null || resolvedWorkspace === null) {
       throw new ImportError(
         "source_not_found",
         `${IMPORT_ROOT}/ does not exist in this workspace.`,
         { available: [] },
+      );
+    }
+    if (!isResolvedDescendant(resolvedRoot, resolvedWorkspace)) {
+      throw new ImportError(
+        "source_invalid",
+        `${IMPORT_ROOT}/ resolves outside the workspace.`,
       );
     }
     if (!isResolvedDescendant(resolvedTarget, resolvedRoot)) {
@@ -443,16 +497,53 @@ export class DaytonaWorkspaceReader implements WorkspaceReader {
       );
     }
 
-    const stat = await this.statOne(absTarget);
-    if (stat === null) {
+    // ONE execution covers the whole path: the root, every intermediate directory, and the file.
+    // `%y` reports each entry's OWN type, so a link ANYWHERE on the path reports `l` and is
+    // refused rather than followed (contract 3.5, and 6.2 rule 2). Checking only the final entry
+    // would accept an intermediate link, which the local walk refuses; `realpath` alone catches
+    // only the links that leave the root.
+    const prefixes = resolved.segments.map((_, index) =>
+      path.join(root, ...resolved.segments.slice(0, index + 1)),
+    );
+    const walked = await this.statChain([root, ...prefixes]);
+    if (walked === null || walked.length !== prefixes.length + 1) {
       throw new ImportError(
         "source_not_found",
         `${resolved.relativePath} does not exist under ${IMPORT_ROOT}/.`,
         { available: await this.listImportRoot() },
       );
     }
-    // `%y` reports the entry's OWN type, so a link reports `l` and is refused here rather
-    // than silently followed.
+
+    const [rootEntry, ...entries] = walked;
+    if (rootEntry.type === "l") {
+      throw new ImportError(
+        "source_invalid",
+        `${IMPORT_ROOT} is a symbolic link; links are not imported.`,
+      );
+    }
+    if (rootEntry.type !== "d") {
+      throw new ImportError(
+        "source_invalid",
+        `${IMPORT_ROOT} is not a directory.`,
+      );
+    }
+    for (let index = 0; index < entries.length - 1; index += 1) {
+      const segment = resolved.segments[index];
+      if (entries[index].type === "l") {
+        throw new ImportError(
+          "source_unsupported_content",
+          `${segment} is a symbolic link; links are not imported.`,
+        );
+      }
+      if (entries[index].type !== "d") {
+        throw new ImportError(
+          "source_invalid",
+          `${resolved.relativePath}: '${segment}' is not a directory.`,
+        );
+      }
+    }
+
+    const stat = entries[entries.length - 1];
     if (stat.type === "l") {
       throw new ImportError(
         "source_unsupported_content",
@@ -500,17 +591,23 @@ export class DaytonaWorkspaceReader implements WorkspaceReader {
     return value === "" ? null : value;
   }
 
-  private async statOne(absTarget: string): Promise<ManifestEntry | null> {
+  /**
+   * The own-type of every path in `paths`, in one execution.
+   *
+   * `find` takes many starting points, reports them in argument order, and prints an empty `%P`
+   * for a starting point itself, so the records line up with the paths positionally. One call per
+   * component would cost one process per level of every import.
+   */
+  private async statChain(paths: string[]): Promise<ManifestEntry[] | null> {
     const result = await this.exec([
       "find",
-      absTarget,
+      ...paths,
       "-maxdepth",
       "0",
       "-printf",
       "%y\0%m\0%s\0%P\0",
     ]);
     if (result.exitCode !== 0) return null;
-    const entries = parseManifest(result.stdout);
-    return entries[0] ?? null;
+    return parseManifest(result.stdout);
   }
 }
