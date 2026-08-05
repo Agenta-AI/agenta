@@ -26,6 +26,7 @@ MARKER_V3 = "@ag.file"
 MARKERS = (MARKER, MARKER_V3)
 
 V3_SURFACE = False  # schema advertises {"list": ...} and @ag.file, and message is optional
+V4_SURFACE = False  # V3 plus: no value_from at all; the schema documents the item shape
 
 
 # --------------------------------------------------------------------------------------
@@ -187,6 +188,13 @@ def resolve_value_from(delta: Any) -> Any:
             out.append(operation)
             continue
         verb = operation.get("operation")
+        if V4_SURFACE:
+            raise RunnerRefusal(
+                "source_invalid",
+                "'value_from' no longer exists. Reference a workspace file inline with "
+                '{"@ag.file": "<path>"} in the string position that needs its content.',
+                retryable=True,
+            )
         source = operation["value_from"]
         if not isinstance(source, dict) or not source.get("path"):
             raise RunnerRefusal(
@@ -546,9 +554,7 @@ _FLAT_OPERATION = {
             ],
         },
         "target": _TARGET,
-        "value": {
-            "description": "The new value. Only for set, merge, add_item, replace_item."
-        },
+        "value": {"description": "VALUE_DESCRIPTION"},
         "edits": dict(_EDITS, description="Only for edit_text."),
         "value_from": dict(
             _SOURCE, description="Only for set, add_item, replace_item."
@@ -564,7 +570,7 @@ def _member(operation: str, *, target_tail: str, value: bool, edits: bool) -> di
     }
     required = ["operation", "target"]
     if value:
-        props["value"] = {"description": "The new value."}
+        props["value"] = {"description": "VALUE_DESCRIPTION"}
         props["value_from"] = _SOURCE
         required.append("value")
     if edits:
@@ -629,14 +635,41 @@ _UNION_OPERATION = {
 }
 
 
+def _strip_value_from(node: Any) -> None:
+    """Remove every `value_from` property from a schema tree, in place."""
+    if isinstance(node, dict):
+        props = node.get("properties")
+        if isinstance(props, dict):
+            props.pop("value_from", None)
+        for child in node.values():
+            _strip_value_from(child)
+    elif isinstance(node, list):
+        for child in node:
+            _strip_value_from(child)
+
+
 def tool_schema(*, union: bool = False) -> Dict[str, Any]:
     operation = _UNION_OPERATION if union else _FLAT_OPERATION
-    selector_key = "list" if V3_SURFACE else "field"
-    operation = json.loads(
-        json.dumps(operation).replace("SELECTOR_KEY", selector_key)
-    )
+    selector_key = "list" if (V3_SURFACE or V4_SURFACE) else "field"
+    blob = json.dumps(operation).replace("SELECTOR_KEY", selector_key)
+    if V4_SURFACE:
+        # The folder source is gone; the schema documents the item shape instead.
+        operation = json.loads(blob)
+        _strip_value_from(operation)
+        operation = json.loads(
+            json.dumps(operation).replace(
+                "VALUE_DESCRIPTION", 'The new value. A skills entry is {name, description, body, allow_executable_files (boolean, default false), files: [{path, content, executable (boolean, default false)}]}. A tools entry is {type, name, ...}. An mcps entry is {name, transport, url}.'
+            )
+        )
+    else:
+        operation = json.loads(
+            blob.replace(
+                "VALUE_DESCRIPTION",
+                "The new value. Only for set, merge, add_item, replace_item.",
+            )
+        )
     required = ["base_revision_id", "delta"]
-    if not V3_SURFACE:
+    if not (V3_SURFACE or V4_SURFACE):
         required.append("message")
     return {
         "type": "object",

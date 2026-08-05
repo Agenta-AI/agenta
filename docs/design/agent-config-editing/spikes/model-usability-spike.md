@@ -460,14 +460,16 @@ harness.py        runner + commit wrapper + tool schema + the lenient arm
 run.py            one arm: uv run run.py --model haiku --instructions v2 --n 5 --out ...
 analyze.py        rates and failure modes
 table.py          the markdown tables in section 2
-instructions/     v0.md, v1.md, v2.md, v3.md
-results.tar.gz    550 trials as JSONL, plus the generated tables
+instructions/     v0.md, v1.md, v2.md, v3.md, v4a.md, v4b.md
+results.tar.gz    610 trials as JSONL, plus the generated tables
 ```
 
 `run.py` needs `change_set.py` beside it: copy it from
 `api/oss/src/core/workflows/change_set.py` in worktree `agent-a2a2adaa5d154d454`, or from
 wherever the engine lands after slice 1. Add `--lenient` for the section 5 interface
-arm, and `--lenient --v3-surface` for the follow-up arm.
+arm, `--lenient --v3-surface` for the follow-up arm, and `--lenient --v4-surface`
+for section G. Note the harness now carries the section G interface shape, so the v0-v2
+arms cannot be replayed against it unchanged.
 
 Keys are read from `~/.agenta-qa-secrets.env`. No key value is written to any output file.
 
@@ -659,3 +661,136 @@ attribution in F.4 and F.5 comes from replaying the trials, not from separate ar
 individual contributions of assumptions 2, 3 and 4 are inferred rather than isolated.
 Assumption 1 is the exception: v2+L versus v3+fixes isolates it directly, because the
 document is the only other thing that changed.
+
+---
+
+# G. Executable files, and the renamed import root
+
+Added 5 August 2026, at the team lead's request. The interface moved again after the
+follow-up: the folder source and its three policy fields are gone, every file reference is
+the inline `{"@ag.file": "<path>"}` marker in a string position, the import root is
+`.agenta-imports/`, and whether a file is executable is now an ordinary agent-authored
+field — `files[].executable` plus the skill-level `allow_executable_files`, both defaulting
+to false, nothing derived from mode bits.
+
+**Verdict: the schema suffices. The doc line is not needed.** Both models set both flags on
+the first attempt with no mention of them in the instructions, 9 times out of 10, and the
+tenth was unreadable rather than wrong. Adding the line changed nothing measurable. The
+rename cost nothing.
+
+## G.1 The arm
+
+The harness was updated to that shape: `value_from` removed from the schema entirely (a
+model that still sends one is refused and pointed at `@ag.file`), the import root renamed,
+and the base configuration now carries `allow_executable_files: false` on every skill and
+`executable: false` on every file — so the fields are visible in what the model reads.
+The schema's `value` description documents the item shape, including both flags and their
+defaults.
+
+That is the whole of what l1 gives the model: the field names appear in the schema
+description and in the configuration it just read. Nothing in the instruction document
+mentions them.
+
+New task **l**: *"Add the deploy-helper skill from `.agenta-imports/deploy-helper/`. It has
+SKILL.md and scripts/run.sh. Its scripts/run.sh must be runnable as a program."* It passes
+only when the committed skill carries the file with `executable: true` **and**
+`allow_executable_files: true`, with both file contents pulled through `@ag.file`. The
+self-test confirms the checker rejects each partial answer: neither flag, file flag only,
+and skill flag only all fail; only both pass.
+
+Two documents, identical except for one line:
+
+- **v4a** (1,553 B): v3 with the renamed root in its example. Zero mention of executables.
+- **v4b** (1,671 B): v4a plus `For a program file, set "executable": true on the file and
+  "allow_executable_files": true on the skill.`
+
+Tasks e and h were re-run in both arms to check the rename.
+
+## G.2 Results
+
+5 trials per cell, 60 trials total.
+
+| Task | Haiku v4a | Haiku v4b | DS v4a | DS v4b |
+|---|---|---|---|---|
+| e add a skill from workspace files | 5/5 | 5/5 | 4/5 | 3/5 |
+| h wrong folder, then correct the path | 5/5 | 5/5 | 3/5 | 2/5 |
+| l add a skill with an executable script | 5/5 | 5/5 | 3/5 | 3/5 |
+| **all** | **15/15** | **15/15** | **10/15** | **8/15** |
+
+The DeepSeek column looks alarming and is not about this feature at all. **All 12 DeepSeek
+failures across both arms are the `message` corruption of F.5.1** — 11 of them literally,
+and the twelfth a malformed envelope. Not one is about the executable flags, the marker, or
+the renamed root. Recovering the delta out of the corrupted payloads shows 3 of 5 v4a
+failures and 5 of 7 v4b failures carried a delta that was already correct.
+
+## G.3 Did models find the flags without being told?
+
+This is the question the arm exists to answer. For every task-l trial I read the first
+attempt's value, recovering it from the corrupted JSON where necessary:
+
+| Arm | both flags set | one only | neither | unreadable |
+|---|---|---|---|---|
+| Haiku v4a — **no doc line** | **5/5** | 0 | 0 | 0 |
+| DeepSeek v4a — **no doc line** | **4/5** | 0 | 0 | 1 |
+| Haiku v4b — one doc line | 5/5 | 0 | 0 | 0 |
+| DeepSeek v4b — one doc line | 5/5 | 0 | 0 | 0 |
+
+Nine of ten first attempts with no doc line set both flags correctly. **Not one trial in
+any arm set one flag without the other** — the failure mode the two-field design invites,
+where the file is marked executable but the skill still forbids it, never occurred. The
+tenth case is DeepSeek's corrupted payload, where the delta could not be parsed; its visible
+tail contains `"executable": true`, so it is probably a tenth success, but I did not count
+it as one.
+
+The one added line moved DeepSeek from 4/5 to 5/5 readable-and-correct, which at five trials
+is one sample, and moved Haiku not at all. There is no effect here to measure.
+
+Why it works without the doc: `executable` and `allow_executable_files` are *ordinary,
+well-named boolean fields on the object being authored*. The model reads a config where
+every skill already shows both at `false`, gets a task that says "must be runnable as a
+program", and flips them. This is the opposite of the selector problem in section 3.1, where
+the model knew exactly what it wanted and could not express it. Here the shape is obvious
+and the naming does the work.
+
+## G.4 The rename cost nothing
+
+Tasks e and h scored 5/5 for Haiku in both arms, unchanged from v3's `imports/`. Models
+copied `.agenta-imports/` verbatim from the prompt; the leading dot and the hyphen caused no
+trouble. Task h still recovers: the model is given a `scratch/` path, gets
+`source_outside_import_root` with the list of real folders — now two of them, so it must
+pick — and picks `pdf-tools` correctly.
+
+Removing `value_from` also cost nothing. No model in any v4 trial tried to use it, and no
+model asked for a folder-level import. With the marker taught and the folder source absent
+from the schema, the inline form is simply the only thing there — which is the outcome
+section 3.2 argued for.
+
+## G.5 Verdict
+
+**Do not add the line.** The executable flags need no instruction support:
+
+1. Nine of ten first attempts set both flags correctly with zero documentation, and the
+   tenth was unreadable, not wrong.
+2. The dangerous partial state — file marked executable, skill still forbidding it — did
+   not occur once in 20 trials.
+3. The line costs 118 bytes, about 8% of a 1.5 KB budget that section F.6 argued is already
+   at its floor. Spending 8% for no measured gain is the wrong trade.
+
+What made this easy is worth copying deliberately, because it is the design lesson of the
+whole spike: **name a field for what it is, put it in the data the model reads, and give it
+a safe default.** The model then finds it. Instructions are needed where the interface is
+surprising — the selector that stands in place of a list name, the marker that has no
+analogue elsewhere — not where it is ordinary.
+
+Two caveats. Five trials per cell means a 5/5 and a 4/5 are not distinguishable; the claim
+rests on 19 of 20 trials agreeing, not on any single cell. And task l asks for the
+executable file explicitly ("must be runnable as a program"). It does not test the harder
+case where a user says only "add this skill" and the folder happens to contain a script —
+there, the right behavior is probably to leave both flags false and say so, and nothing here
+measures whether models do that.
+
+**One item does need fixing, and it is not new.** DeepSeek lost 12 of 12 failures to the
+free-text `message` field, in an arm where `message` was already optional. F.5.1 recommended
+removing it from the model-facing schema and deriving it server-side. Three arms have now
+reproduced the same failure. It is the largest remaining source of lost commits for the
+weaker model, and it has nothing to do with any feature we have been testing.

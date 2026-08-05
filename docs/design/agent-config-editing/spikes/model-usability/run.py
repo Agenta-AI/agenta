@@ -360,6 +360,7 @@ def main() -> None:
     parser.add_argument("--rich-errors", action="store_true")
     parser.add_argument("--lenient", action="store_true")
     parser.add_argument("--v3-surface", action="store_true")
+    parser.add_argument("--v4-surface", action="store_true")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
@@ -367,6 +368,7 @@ def main() -> None:
     harness.RICH_ERRORS = args.rich_errors or args.lenient
     harness.LENIENT = args.lenient
     harness.V3_SURFACE = args.v3_surface
+    harness.V4_SURFACE = args.v4_surface
 
     instructions = (HERE / "instructions" / f"{args.instructions}.md").read_text()
     schema = harness.tool_schema(union=args.union_schema)
@@ -393,6 +395,7 @@ def main() -> None:
         record["rich_errors"] = args.rich_errors
         record["lenient"] = args.lenient
         record["v3_surface"] = args.v3_surface
+        record["v4_surface"] = args.v4_surface
         with lock:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
             handle.flush()

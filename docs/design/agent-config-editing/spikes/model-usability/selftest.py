@@ -73,12 +73,12 @@ GOLDEN = {
                 "value": {
                     "name": "pdf-tools",
                     "description": "Make and merge PDF files.",
-                    "body": {"$content_from": "imports/pdf-tools/SKILL.md"},
+                    "body": {"$content_from": ".agenta-imports/pdf-tools/SKILL.md"},
                     "files": [
                         {
                             "path": "reference.md",
                             "content": {
-                                "$content_from": "imports/pdf-tools/reference.md"
+                                "$content_from": ".agenta-imports/pdf-tools/reference.md"
                             },
                         }
                     ],
@@ -119,13 +119,36 @@ GOLDEN = {
                 "value": {
                     "name": "pdf-tools",
                     "description": "Make and merge PDF files.",
-                    "body": {"$content_from": "imports/pdf-tools/SKILL.md"},
+                    "body": {"$content_from": ".agenta-imports/pdf-tools/SKILL.md"},
                     "files": [
                         {
                             "path": "reference.md",
                             "content": {
-                                "$content_from": "imports/pdf-tools/reference.md"
+                                "$content_from": ".agenta-imports/pdf-tools/reference.md"
                             },
+                        }
+                    ],
+                },
+            }
+        ]
+    },
+    "l": {
+        "operations": [
+            {
+                "operation": "add_item",
+                "target": AGENT + ["skills"],
+                "value": {
+                    "name": "deploy-helper",
+                    "description": "Deploy the service.",
+                    "allow_executable_files": True,
+                    "body": {"@ag.file": ".agenta-imports/deploy-helper/SKILL.md"},
+                    "files": [
+                        {
+                            "path": "scripts/run.sh",
+                            "content": {
+                                "@ag.file": ".agenta-imports/deploy-helper/scripts/run.sh"
+                            },
+                            "executable": True,
                         }
                     ],
                 },
@@ -145,6 +168,7 @@ GOLDEN = {
                     "name": "issue-triage",
                     "description": "Triage incoming issues.",
                     "body": "# Triage\n\nLabel the issue. Assign a priority.\n",
+                    "allow_executable_files": False,
                     "files": [],
                 },
             },
