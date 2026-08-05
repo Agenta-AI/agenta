@@ -522,29 +522,30 @@ export function appliedDigestsFrom(
 }
 
 /**
- * The action kinds the runner may perform on a LIVE environment, as of step 8.
+ * The action kinds the runner may perform on a LIVE environment.
  *
- * FOUR, and this constant is the single place that says so. The comment said "exactly two" long
- * after the set had grown to four, which an external security review caught: a stale count in the
- * one place that claims to be authoritative is worse than no count, because it is what a reviewer
+ * THREE, and this constant is the single place that says so. The comment once said "exactly two"
+ * long after the set had grown, which an external security review caught: a stale count in the one
+ * place that claims to be authoritative is worse than no count, because it is what a reviewer
  * checks against. `no-op` is here because an empty plan is trivially satisfiable without touching
  * anything.
  *
- * Adding a third entry is the whole decision to make another route live. It must not happen by
+ * `reopen-session` was a member and is NOT one now. A reopen recreates the ACP session from the
+ * session init the environment was BUILT with (`env.reopenSession` closes over it), so it
+ * reinstalls the old MCP list, the old prompts and the old harness files, while the turn keeps
+ * serving the old tool catalog from `env.plan`. Routing prompts, harness files, the harness
+ * session or the tool catalog through it would commit the incoming configuration as applied after
+ * installing none of it. `adapter-matrix.md` section 8 steps 1 and 2 are the prerequisite: until
+ * the turn builds its catalog and session init from the incoming request, those facets rebuild,
+ * which is always sound.
+ *
+ * Adding an entry is the whole decision to make another route live. It must not happen by
  * accident, so a test counts this set and the capability table is checked against it.
  */
 export const LIVE_ACTION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind>([
   "no-op",
   "apply-live",
   "refresh-workspace",
-  // Step 6 (continued). A reopen keeps the sandbox, the daemon, the mounts and the workspace;
-  // only the ACP session is recreated. It is what makes the uniform tool, MCP, prompt and
-  // harness-file routes cheaper than a rebuild.
-  //
-  // It carries its own refusal: a session may only be reopened when the request carries a
-  // transcript to replay, because native history cannot be positively verified. See
-  // `harness-session-lifecycle.ts` `reopen`.
-  "reopen-session",
 ]);
 
 /**
