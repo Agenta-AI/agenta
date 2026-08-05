@@ -52,6 +52,22 @@ describe("isMobileDevice", () => {
         }
     })
 
+    // axiosConfig's 403 handler sends the user to /auth?auth_error=… so they can complete
+    // required SSO; mapDesktopToMobile returns a bare /m/auth and would drop the reason.
+    it("leaves a policy auth_error link on desktop", () => {
+        for (const err of ["upgrade_required", "sso_denied"]) {
+            expect(
+                decideDesktopGate(
+                    input({
+                        pathname: "/auth",
+                        search: `?auth_error=${err}`,
+                        headers: docHeaders(MOBILE_UA),
+                    }),
+                ),
+            ).toEqual({kind: "pass"})
+        }
+    })
+
     it("still redirects a plain auth link with no token", () => {
         expect(
             decideDesktopGate(input({pathname: "/auth", headers: docHeaders(MOBILE_UA)})),

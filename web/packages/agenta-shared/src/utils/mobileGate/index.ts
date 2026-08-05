@@ -78,6 +78,18 @@ export function isTokenBearingAuthLink(pathname: string, search: string): boolea
     return Boolean(new URLSearchParams(search).get("token"))
 }
 
+/**
+ * An `/auth` link carrying `auth_error` completes on desktop, for the same reason as a token: the
+ * param IS the payload. `web/oss/src/lib/api/assets/axiosConfig.ts` redirects a 403 here so the
+ * user can finish required SSO or social re-authentication, and the desktop auth page reads it.
+ * `mapDesktopToMobile` returns a bare `/m/auth`, so redirecting would drop the reason and leave
+ * the user on a sign-in screen that cannot explain why it appeared.
+ */
+export function isPolicyAuthLink(pathname: string, search: string): boolean {
+    if (!AUTH_RE.test(pathname)) return false
+    return Boolean(new URLSearchParams(search).get("auth_error"))
+}
+
 const DESKTOP_EXCEPTIONS = [
     /^\/auth\/callback(\/|$)/,
     /^\/post-signup(\/|$)/,
@@ -147,6 +159,8 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         if (DESKTOP_EXCEPTIONS.some((re) => re.test(input.pathname))) return {kind: "pass"}
         // A one-time token completes where it landed; see isTokenBearingAuthLink.
         if (isTokenBearingAuthLink(input.pathname, input.search)) return {kind: "pass"}
+        // Same reasoning for a policy error; see isPolicyAuthLink.
+        if (isPolicyAuthLink(input.pathname, input.search)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTOUT_COOKIE)) return {kind: "pass"}
         if (!isMobileDevice(input.header)) return {kind: "pass"}
 
