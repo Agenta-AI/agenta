@@ -1547,6 +1547,8 @@ function pausableHarness(
     logs: [] as string[],
     resolvePrompt: undefined as ((value: unknown) => void) | undefined,
     promptCount: 0,
+    /** Ordered marks for the settle-before-terminal-record invariant (see the test at the end). */
+    journal: [] as string[],
   };
   const captured = {
     onEvent: undefined as ((event: any) => void) | undefined,
@@ -1679,6 +1681,8 @@ function pausableHarness(
       },
       setUsage() {},
       finish() {
+        // The real otel hands the terminal `done` straight to its sink here.
+        calls.journal.push("done");
         return "assistant output";
       },
       recordError() {},
@@ -3549,5 +3553,75 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     );
 
     await env.destroy();
+  });
+});
+
+describe("runTurn: the in-band settle lands before the terminal record", () => {
+  it("resolves the durable row before finish() publishes `done`", async () => {
+    const TOKEN = "tok-inband-order";
+    const TOOL_CALL_ID = "toolu_inband_1";
+    const { calls, deps } = pausableHarness();
+
+    // A cold replay: the transcript already carries the human's yes, so the harness never
+    // re-raises the gate and only the end-of-turn settle can transition the row.
+    const request: AgentRunRequest = {
+      ...engineReq,
+      telemetry: {
+        exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+      },
+      messages: [
+        { role: "user", content: "write out.txt" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: TOOL_CALL_ID,
+              toolName: "Write",
+              input: { path: "out.txt" },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: TOOL_CALL_ID,
+              toolName: "Write",
+              output: { approved: true, interactionToken: TOKEN },
+            },
+          ],
+        },
+      ],
+    } as AgentRunRequest;
+
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: any) => {
+      if (String(input).includes("/sessions/interactions/transition")) {
+        calls.journal.push("resolve");
+      }
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const turn = runTurn(acquired.env, request, undefined, undefined, {});
+      await flush();
+      calls.resolvePrompt?.({});
+      await turn;
+      await acquired.env.destroy();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    assert.deepEqual(
+      calls.journal,
+      ["resolve", "done"],
+      "the API cancels a still-pending gate the moment it consumes `done`; settling after that " +
+        "files a decision the human actually made as an abandonment",
+    );
   });
 });
