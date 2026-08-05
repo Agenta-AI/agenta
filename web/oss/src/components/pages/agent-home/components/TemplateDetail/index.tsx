@@ -4,6 +4,7 @@ import {Button, Empty, Tag, Tooltip} from "antd"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import useURL from "@/oss/hooks/useURL"
 
 import {AGENT_TEMPLATES, PROVIDERS} from "../../assets/templates"
@@ -184,9 +185,16 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                     <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-2">
                         <section className="flex min-w-0 flex-col gap-2">
                             <SectionLabel>Instructions · AGENTS.md</SectionLabel>
-                            <pre className="m-0 box-border max-h-[420px] overflow-auto whitespace-pre-wrap rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4 font-mono text-[13px] leading-relaxed text-colorTextSecondary">
-                                {template.instructions}
-                            </pre>
+                            {/* AGENTS.md is markdown — headings and lists are how it's written,
+                                and a <pre> printed the syntax instead of the structure. The chat's
+                                own renderer, so a template's instructions read the same here as
+                                they do in a conversation. */}
+                            <div className="box-border max-h-[420px] overflow-auto rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4">
+                                <Markdown
+                                    content={template.instructions}
+                                    className="!text-[13px]"
+                                />
+                            </div>
                         </section>
 
                         {tools.length ? (
