@@ -15,6 +15,7 @@ import {
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {isAutomationSession} from "./assets/sessionTrigger"
 import SessionFiltersRail from "./components/SessionFiltersRail"
 import SessionRow from "./components/SessionRow"
 import {
@@ -116,7 +117,12 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
         const row = knownById.get(id)
         return row ? [row] : []
     })
-    const rows = listRows.filter((row) => !pinnedSet.has(row.session_id))
+    const unpinned = listRows.filter((row) => !pinnedSet.has(row.session_id))
+    // Automations are runs you configured but didn't start. Interleaved by recency they read as
+    // your own conversations, and on this page they arrive in bulk — so they get their own group
+    // rather than pushing everything you actually said off the first screen.
+    const rows = showTriggered ? unpinned.filter((row) => !isAutomationSession(row)) : unpinned
+    const automationRows = showTriggered ? unpinned.filter(isAutomationSession) : []
 
     const handleOpen = useCallback(
         (row: SessionStream) => {
@@ -208,6 +214,13 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                             ) : null}
                             <AnimatePresence initial={false}>
                                 {rows.map((row) => renderRow(row, false))}
+                            </AnimatePresence>
+
+                            {automationRows.length > 0 ? (
+                                <GroupHeader label={`Automations ${automationRows.length}`} />
+                            ) : null}
+                            <AnimatePresence initial={false}>
+                                {automationRows.map((row) => renderRow(row, false))}
                             </AnimatePresence>
 
                             {rows.length === 0 && pinnedRows.length === 0 ? (
