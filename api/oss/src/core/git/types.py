@@ -149,6 +149,42 @@ class RevisionConflict(GitError):
         self.current_head_revision_id = current_head_revision_id
 
 
+class CommitLockTimeout(GitError):
+    """Raised when a checked commit waited longer than the variant lock timeout.
+
+    Postgres answers SQLSTATE 55P03 when `lock_timeout` expires. Generic suppression turns
+    any other exception into `None`, which the commit wrapper reports as a successful empty
+    commit, so the DAO translates the timeout into this instead and the router answers 503.
+    """
+
+    def __init__(
+        self,
+        *,
+        variant_id=None,
+    ) -> None:
+        super().__init__(
+            "The variant is busy: another commit holds its lock. No revision was committed."
+        )
+        self.variant_id = variant_id
+
+
+class VariantNotFound(GitError):
+    """Raised when a commit locks a variant row that this project does not have.
+
+    `SELECT ... FOR UPDATE` on a missing or cross-project row locks nothing and reports
+    nothing, so without this the commit would proceed unlocked and insert a revision
+    against a variant it never held.
+    """
+
+    def __init__(
+        self,
+        *,
+        variant_id=None,
+    ) -> None:
+        super().__init__("The variant does not exist in this project.")
+        self.variant_id = variant_id
+
+
 class InlineResolveInvalid(GitError):
     """Raised when an inline resolve payload carries no `data` to resolve.
 
