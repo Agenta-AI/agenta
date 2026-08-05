@@ -130,6 +130,25 @@ class InitialRevisionConflict(GitError):
     """
 
 
+class RevisionConflict(GitError):
+    """Raised when a checked commit's expected head is no longer the head.
+
+    The caller passes the revision it built on; the DAO re-reads the head while holding
+    the variant lock and raises this when they differ. Carries both ids so the router can
+    answer 409 with the current head, letting the caller re-read and retry in one step.
+    """
+
+    def __init__(
+        self,
+        *,
+        expected_head_revision_id,
+        current_head_revision_id,
+    ) -> None:
+        super().__init__("The variant head changed. No revision was committed.")
+        self.expected_head_revision_id = expected_head_revision_id
+        self.current_head_revision_id = current_head_revision_id
+
+
 class InlineResolveInvalid(GitError):
     """Raised when an inline resolve payload carries no `data` to resolve.
 

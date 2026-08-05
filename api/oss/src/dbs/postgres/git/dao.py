@@ -8,7 +8,11 @@ from sqlalchemy.orm import selectinload
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.git.types import is_identifying, InitialRevisionConflict
+from oss.src.core.git.types import (
+    is_identifying,
+    InitialRevisionConflict,
+    RevisionConflict,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import VariantForkError
@@ -1561,7 +1565,9 @@ class GitDAO(GitDAOInterface):
 
     # --------------------------------------------------------------------------
 
-    @suppress_exceptions(exclude=[InitialRevisionConflict])
+    # A conflict is an ANSWER, not a failure: suppression would turn a 409 into `None`,
+    # and the caller would report "nothing committed" with no reason.
+    @suppress_exceptions(exclude=[InitialRevisionConflict, RevisionConflict])
     async def commit_revision(
         self,
         *,
@@ -1571,6 +1577,8 @@ class GitDAO(GitDAOInterface):
         revision_commit: RevisionCommit,
         #
         initial: bool = False,
+        #
+        expected_head_revision_id: Optional[UUID] = None,
     ) -> Optional[Revision]:
         now = datetime.now(timezone.utc)
         revision = Revision(
@@ -1603,11 +1611,18 @@ class GitDAO(GitDAOInterface):
             dto=revision,
         )
 
+        # Both guards need the same serialization, so they share one lock condition. A
+        # caller that passes neither takes no lock and behaves exactly as before.
+        needs_lock = bool(
+            (initial or expected_head_revision_id is not None)
+            and revision_commit.variant_id
+        )
+
         try:
             async with self.engine.session() as session:
-                if initial and revision_commit.variant_id:
-                    # Lock the variant row so concurrent initial commits queue up rather
-                    # than racing through the count check below.
+                if needs_lock:
+                    # Lock the variant row so concurrent commits queue up rather than
+                    # racing through the guards below.
                     await session.execute(
                         select(self.VariantDBE)  # type: ignore
                         .where(
@@ -1616,6 +1631,8 @@ class GitDAO(GitDAOInterface):
                         )
                         .with_for_update()
                     )
+
+                if initial and revision_commit.variant_id:
                     guard_stmt = (
                         select(func.count())  # pylint: disable=not-callable
                         .select_from(self.RevisionDBE)  # type: ignore
@@ -1628,6 +1645,30 @@ class GitDAO(GitDAOInterface):
                     if guard_result.scalar_one() > 0:
                         raise InitialRevisionConflict(
                             "An initial revision already exists for this variant."
+                        )
+
+                if expected_head_revision_id is not None:
+                    # The head must be re-read HERE, under the lock. A comparison the
+                    # caller made before calling is not enough: two writers can both read
+                    # the same head, both pass, and both insert.
+                    head_stmt = (
+                        select(self.RevisionDBE.id)  # type: ignore
+                        .where(
+                            self.RevisionDBE.project_id == project_id,  # type: ignore
+                            self.RevisionDBE.variant_id == revision_commit.variant_id,  # type: ignore
+                            self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                        )
+                        .order_by(self.RevisionDBE.created_at.desc())  # type: ignore
+                        .limit(1)
+                    )
+                    head_result = await session.execute(head_stmt)
+                    current_head = head_result.scalar_one_or_none()
+                    if current_head is not None and str(current_head) != str(
+                        expected_head_revision_id
+                    ):
+                        raise RevisionConflict(
+                            expected_head_revision_id=str(expected_head_revision_id),
+                            current_head_revision_id=str(current_head),
                         )
 
                 session.add(revision_dbe)
