@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Any, Literal, Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -384,6 +384,13 @@ class WorkflowRevisionsLogRequest(BaseModel):
     )
 
 
+class CommitWarning(BaseModel):
+    code: str
+    message: str
+    target: Optional[List[Any]] = None
+    operation_index: Optional[int] = None
+
+
 class WorkflowRevisionResponse(BaseModel):
     count: int = Field(
         default=0,
@@ -392,6 +399,19 @@ class WorkflowRevisionResponse(BaseModel):
     workflow_revision: Optional[WorkflowRevision] = Field(
         default=None,
         description="The workflow revision.",
+    )
+    status: Optional[Literal["committed", "no_change"]] = Field(
+        default=None,
+        description=(
+            "Commit outcome. `no_change` means the change produced the stored "
+            "configuration, so no revision was created and `workflow_revision` is the "
+            "current head. Absent on paths that do not run the checked commit; a reader "
+            "must treat absent as `committed`."
+        ),
+    )
+    warnings: Optional[List[CommitWarning]] = Field(
+        default=None,
+        description="Structured advisories about the commit; never an error.",
     )
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,
