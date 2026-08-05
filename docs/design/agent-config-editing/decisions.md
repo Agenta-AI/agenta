@@ -228,9 +228,11 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
 - Embedded skills stay unaddressable in v1; support can be added later without a
   breaking change. (Was open call 3.)
 
-## Open product calls (waiting on Mahmoud)
+## Open product calls
 
-Six distinct decisions. The first five block their implementation slices.
+ALL SIX ARE NOW DECIDED; see 'Product calls confirmed by Mahmoud' above.
+Decision 3 closed by default (respect today's permission policy) per Mahmoud's
+handoff on 5 August. The original option text stays below for the record.
 
 1. **Storage normalization** (blocks S1a/S1b). Normalize configuration strings once on
    write (Unicode NFC, line endings LF), or preserve exact bytes? The second gate
