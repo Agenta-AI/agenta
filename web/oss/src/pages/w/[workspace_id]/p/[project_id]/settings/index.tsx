@@ -16,7 +16,6 @@ import PageTitle from "@/oss/components/PageTitle"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
@@ -84,7 +83,6 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const {selectedOrg} = useOrgData()
     const settingsAccess = useSettingsAccess()
     const resolvedTab = resolveSettingsTab(tab, settingsAccess)
-    const resolvedTabLabel = getSettingsTabLabel(resolvedTab, settingsAccess)
     const {project} = useProjectData()
     const {redirectUrl} = useURL()
     const [isOrgIdCopied, setIsOrgIdCopied] = useState(false)
@@ -102,20 +100,6 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
         setIsOrgIdCopied(true)
         setTimeout(() => setIsOrgIdCopied(false), 2000)
     }, [selectedOrg?.id])
-
-    const breadcrumbs = useMemo(() => {
-        return {
-            settings: {
-                label: resolvedTabLabel,
-            },
-        }
-    }, [resolvedTabLabel])
-
-    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [
-        tab,
-        resolvedTab,
-        resolvedTabLabel,
-    ])
 
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 

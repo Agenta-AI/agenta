@@ -21,14 +21,6 @@ export const useStyles = createUseStyles(() => ({
         flex: 1,
         gap: 16,
     },
-    breadcrumbContainer: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        padding: "8px 1.5rem",
-        borderBottom: "1px solid var(--ag-shell-line)",
-    },
     banner: {
         position: "sticky",
         zIndex: 10,
