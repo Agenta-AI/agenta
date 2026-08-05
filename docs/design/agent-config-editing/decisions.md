@@ -111,11 +111,26 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
   no-op to manufacture success; the `changed` flag and the no-change response stop
   it. Observed once in the spike.
 - **Free-text fields on ALL builder tools are optional, with a server-derived
-  fallback** (Mahmoud, 5 August: general rule, not commit-only). The commit
-  `message` is the first case; the ephemeral `description` and any future prose
-  field follow the same rule. Reason: free text was the site of every DeepSeek
-  argument-corruption failure, and a required prose field lets a formatting slip
-  destroy a correct payload.
+  fallback** (Mahmoud, 5 August: general rule, not commit-only). Reason: free text
+  was the site of every DeepSeek argument-corruption failure.
+- **Superseded for the commit specifically, by the v3 measurement:** optional is
+  not enough. The model volunteers a message anyway and still corrupts it. The
+  commit `message` LEAVES the model-facing schema entirely; the server derives it
+  from the operations ("edited instructions (2 edits); added skill pdf-tools").
+  This also serves issues #5187/#5200 better than a model-written message: the
+  derived text is always accurate. The ephemeral R12 `description`, when present,
+  is appended as flavor.
+- **The v3 instruction document ships as the tool description: ~1.5 KB, ~400
+  tokens**, same success rate as the 3.2 KB version (Haiku 55/55, DeepSeek 54/55),
+  11-13 percent cheaper per task. Three conditions are part of the decision, not
+  optional: the wrapper normalizes the repeated-list-name mistake (it absorbs 12
+  percent of Haiku's targets once the teaching leaves the document); every error
+  carries a next-step sentence and enriched content; the selector key is `list`
+  (measured: zero models ever misused it, and the key-field mistake vanished).
+- **`invalid_operation` splits into retryable shape errors and non-retryable
+  refusals.** The rename case (key mismatch on replace_item) gets its own
+  retryable code with a next-step ("send remove_item then add_item"). An agent
+  honoring retryable:false would otherwise dead-end on every rename.
 
 ## Settled by the contracts (no longer open)
 

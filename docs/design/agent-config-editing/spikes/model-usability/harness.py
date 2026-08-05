@@ -22,6 +22,10 @@ from tasks import IMPORT_ROOT, WORKSPACE
 TOOL_NAME = "commit_workflow_revision"
 
 MARKER = "$content_from"
+MARKER_V3 = "@ag.file"
+MARKERS = (MARKER, MARKER_V3)
+
+V3_SURFACE = False  # schema advertises {"list": ...} and @ag.file, and message is optional
 
 
 # --------------------------------------------------------------------------------------
@@ -51,19 +55,20 @@ class RunnerRefusal(Exception):
 def resolve_markers(value: Any) -> Any:
     """Replace every ``{"$content_from": path}`` object with the file's text."""
     if isinstance(value, dict):
-        if set(value) == {MARKER}:
-            path = value[MARKER]
+        found = [m for m in MARKERS if m in value]
+        if found and set(value) == {found[0]}:
+            path = value[found[0]]
             if not isinstance(path, str) or not path:
                 raise RunnerRefusal(
                     "source_invalid",
-                    f"'{MARKER}' needs a non-empty workspace path.",
+                    f"'{found[0]}' needs a non-empty workspace path.",
                     retryable=False,
                 )
             return _materialize_file(path)
-        if MARKER in value and len(value) > 1:
+        if found and len(value) > 1:
             raise RunnerRefusal(
                 "source_invalid",
-                f"An object that carries '{MARKER}' must carry nothing else. "
+                f"An object that carries '{found[0]}' must carry nothing else. "
                 f"Found: {sorted(value)}.",
                 retryable=False,
             )
@@ -219,6 +224,14 @@ _KEY_FIELD_OF = {"skills": "name", "mcps": "name", "tools": "name", "files": "pa
 _COLLECTION_OF_KEY_FIELD = {"path": "files"}
 
 
+def _canonical_selector(segment: Any) -> Any:
+    """Accept ``{"list": L, "key": K}`` and hand the engine its ``{"field": ...}`` form."""
+    if isinstance(segment, dict) and "list" in segment and "field" not in segment:
+        out = {"field": segment["list"], "key": segment.get("key")}
+        return out if out["key"] is not None else segment
+    return segment
+
+
 def normalize_target(segments: Any) -> Any:
     """Repair the two mistakes the trials showed, without changing anything else.
 
@@ -230,7 +243,7 @@ def normalize_target(segments: Any) -> Any:
     if not isinstance(segments, list):
         return segments
     out: List[Any] = []
-    for segment in segments:
+    for segment in [_canonical_selector(x) for x in segments]:
         if (
             isinstance(segment, dict)
             and set(segment) == {"field", "key"}
@@ -254,7 +267,9 @@ def normalize_target(segments: Any) -> Any:
 
 
 def normalize_delta(delta: Any) -> Any:
-    if not LENIENT or not isinstance(delta, dict):
+    if not isinstance(delta, dict):
+        return delta
+    if not LENIENT and not V3_SURFACE:
         return delta
     operations = delta.get("operations")
     if not isinstance(operations, list):
@@ -302,6 +317,31 @@ def _closest_fragments(text: str, old_text: str, limit: int = 3) -> List[str]:
     return seen
 
 
+# One instruction sentence per retryable reason code. The v3 document drops all recovery
+# guidance, so the errors themselves must carry it.
+NEXT_STEP = {
+    "target_not_found": "Check the target against the configuration you read. A "
+    "{list, key} selector stands in place of the list's own name, so the list name must "
+    "not appear as a segment before it.",
+    "target_type_mismatch": "Check the target. A {list, key} selector stands in place of "
+    "the list's own name; do not write the list name and then a selector.",
+    "item_not_found": "Read the list and use one of the keys it actually holds.",
+    "item_already_exists": "Use replace_item to change the existing entry, or pick a new "
+    "key.",
+    "duplicate_item_key": "Two entries share this key. Remove one before editing this "
+    "list.",
+    "text_not_unique": "Add surrounding lines to the anchor until it occurs exactly once.",
+    "text_edits_overlap": "Two anchors share characters. Merge them into one edit.",
+    "no_change": "The edits change nothing. Check the anchor and the replacement.",
+    "empty_old_text": "old_text must not be empty.",
+    "unkeyed_collection": "Only skills, mcps, tools, and files can be addressed by key.",
+    "item_key_undefined": "The value needs a 'name' the entry can be addressed by.",
+    "invalid_operation": "Fix the shape of the operation and send it again.",
+    "final_validation_failed": "The finished configuration is not valid. Read the issues "
+    "and correct the change.",
+}
+
+
 def enrich_error(
     detail: Dict[str, Any], delta: Any, config: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -310,6 +350,11 @@ def enrich_error(
         return detail
     reason = detail.get("reason") or {}
     code = reason.get("code")
+    # Guidance is attached even when the engine calls the code non-retryable.
+    # `invalid_operation` covers the rename case, which the agent CAN fix by sending
+    # remove_item + add_item, so withholding the sentence there would be wrong.
+    if code in NEXT_STEP:
+        reason["next_step"] = NEXT_STEP[code]
     if code == "text_not_found":
         index = detail.get("operation_index")
         try:
@@ -441,9 +486,9 @@ _SEGMENT = {
         {
             "type": "object",
             "additionalProperties": False,
-            "required": ["field", "key"],
+            "required": ["SELECTOR_KEY", "key"],
             "properties": {
-                "field": {"type": "string", "minLength": 1},
+                "SELECTOR_KEY": {"type": "string", "minLength": 1},
                 "key": {"type": "string", "minLength": 1},
             },
         },
@@ -586,6 +631,13 @@ _UNION_OPERATION = {
 
 def tool_schema(*, union: bool = False) -> Dict[str, Any]:
     operation = _UNION_OPERATION if union else _FLAT_OPERATION
+    selector_key = "list" if V3_SURFACE else "field"
+    operation = json.loads(
+        json.dumps(operation).replace("SELECTOR_KEY", selector_key)
+    )
+    required = ["base_revision_id", "delta"]
+    if not V3_SURFACE:
+        required.append("message")
     return {
         "type": "object",
         "additionalProperties": False,
@@ -594,7 +646,7 @@ def tool_schema(*, union: bool = False) -> Dict[str, Any]:
             "workflow_revision": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["base_revision_id", "message", "delta"],
+                "required": required,
                 "properties": {
                     "base_revision_id": {
                         "type": "string",
