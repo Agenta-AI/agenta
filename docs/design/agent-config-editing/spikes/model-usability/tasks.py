@@ -419,6 +419,7 @@ class Task:
         config: Optional[Dict[str, Any]] = None,
         base_revision_id: str = HEAD_REVISION_ID,
         recovery: Optional[str] = None,
+        requires_v4_surface: bool = False,
     ) -> None:
         self.tid = tid
         self.title = title
@@ -428,6 +429,10 @@ class Task:
         self.base_revision_id = base_revision_id
         # "conflict" | "ambiguous" | "import_root" | None
         self.recovery = recovery
+        # True for a task whose checker asserts on fields (e.g. `executable`,
+        # `allow_executable_files`) that only the v4 surface's agent-authored skill
+        # structure produces. Selected by default only under --v4-surface; see run.py.
+        self.requires_v4_surface = requires_v4_surface
 
 
 TASKS: List[Task] = [
@@ -505,6 +510,7 @@ TASKS: List[Task] = [
         "runnable as a program. Do not retype the file contents; pull them from those "
         "paths.",
         check_l,
+        requires_v4_surface=True,
     ),
     Task(
         "i",

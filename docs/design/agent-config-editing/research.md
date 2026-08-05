@@ -5,14 +5,19 @@ facts each slice builds on, with file references. All were verified on main, 202
 
 ## Primary documents
 
+These three were the working drafts that the 5 August consolidation decided. The
+`contracts/` directory is now the source of truth; where a contract disagrees with a
+document below, the contract wins. Read these for the reasoning history, not the current
+behavior.
+
 - `research/rfc.html`: requirements, user stories, design questions with decided
-  options, known defects. This is the product source of truth.
+  options, known defects. Historical; superseded by `contracts/`.
 - `research/change-set-interface-codex.md`: the delta interface. Ordered operations,
   structured targets, error model, base check, `value_from`, one engine with two
-  wrappers. Accepted as the working draft.
+  wrappers. Historical; superseded by `contracts/change-set.md`.
 - `research/runner-lifecycle-codex.md`: the runner architecture. Applied-state identity,
   five lifecycles, harness and provider ports, a nine-step migration path, twelve risks.
-  Accepted as the working draft.
+  Historical; superseded by `contracts/adapter-matrix.md`.
 
 ## Code facts the slices build on
 

@@ -277,7 +277,7 @@ def normalize_target(segments: Any) -> Any:
 def normalize_delta(delta: Any) -> Any:
     if not isinstance(delta, dict):
         return delta
-    if not LENIENT and not V3_SURFACE:
+    if not LENIENT and not V3_SURFACE and not V4_SURFACE:
         return delta
     operations = delta.get("operations")
     if not isinstance(operations, list):
@@ -563,28 +563,35 @@ _FLAT_OPERATION = {
 }
 
 
-def _member(operation: str, *, target_tail: str, value: bool, edits: bool) -> dict:
+def _member(
+    operation: str, *, target_tail: str, value: bool, edits: bool, source: bool = False
+) -> dict:
     props: Dict[str, Any] = {
         "operation": {"const": operation},
         "target": _TARGET,
     }
     required = ["operation", "target"]
+    member: Dict[str, Any] = {}
     if value:
         props["value"] = {"description": "VALUE_DESCRIPTION"}
-        props["value_from"] = _SOURCE
         required.append("value")
+    if source:
+        props["value_from"] = _SOURCE
+        required.remove("value")
+        member["oneOf"] = [{"required": ["value"]}, {"required": ["value_from"]}]
     if edits:
         props["edits"] = _EDITS
         required.append("edits")
-    if "value_from" in props:
-        required = [item for item in required if item != "value"]
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": required,
-        "properties": props,
-        "description": target_tail,
-    }
+    member.update(
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": required,
+            "properties": props,
+            "description": target_tail,
+        }
+    )
+    return member
 
 
 _UNION_OPERATION = {
@@ -594,6 +601,7 @@ _UNION_OPERATION = {
             target_tail="Replace one field. The last target segment is a field name.",
             value=True,
             edits=False,
+            source=True,
         ),
         _member(
             "merge",
@@ -618,12 +626,14 @@ _UNION_OPERATION = {
             target_tail="Append one entry. The last target segment is the list name.",
             value=True,
             edits=False,
+            source=True,
         ),
         _member(
             "replace_item",
             target_tail="Replace one named entry. The last segment is {field, key}.",
             value=True,
             edits=False,
+            source=True,
         ),
         _member(
             "remove_item",

@@ -12,12 +12,21 @@ so small configuration changes stop forcing a full sandbox rebuild.
 | `context.md` | Why this work exists. Goals, non-goals, user stories. |
 | `plan.md` | The execution plan: slices, order, QA gates. |
 | `status.md` | Where the work stands right now. Decisions and blockers. |
+| `contracts/change-set.md` | The change-set engine, decided. Where any other document disagrees with it, this one wins. |
+| `contracts/execution-authorization.md` | Execution authorization for workspace file references, decided. |
+| `contracts/workspace-import.md` | The workspace import boundary, decided. |
+| `contracts/adapter-matrix.md` | The harness reconciliation matrix, decided. |
+| `contracts/commit-transaction.md` | The atomic commit transaction and its wire response, decided. |
+| `contracts/read-config.md` | `read_config`, the editable scope, and the call description, decided. |
 | `research.md` | What the codebase research found, with file references. |
-| `research/rfc.html` | The full RFC: requirements, design questions, decided options. |
-| `research/change-set-interface-codex.md` | The change-set interface spec (external design review, accepted as working draft). |
-| `research/runner-lifecycle-codex.md` | The runner lifecycle architecture and its migration path. |
-| `spikes/engine-spike.md` | Findings from the change-set engine prototype. |
-| `spikes/runner-spike.md` | Findings from the runner-side spikes. |
+| `research/rfc.html` | The original RFC: requirements, design questions. Historical context; the `contracts/` files carry the decided answers. |
+| `research/change-set-interface-codex.md` | The pre-consolidation change-set interface spec. Historical; superseded by `contracts/change-set.md`. |
+| `research/runner-lifecycle-codex.md` | The pre-consolidation runner lifecycle architecture. Historical; superseded by `contracts/adapter-matrix.md`. |
+| `spikes/engine-spike.md` | Findings from the change-set engine prototype. Historical. |
+| `spikes/runner-spike.md` | Findings from the runner-side spikes. Historical. |
+
+The `contracts/` files are the implementation source of truth. `research/` and `spikes/`
+record how we got there; read them for context, not for the current behavior.
 
 ## Glossary
 
