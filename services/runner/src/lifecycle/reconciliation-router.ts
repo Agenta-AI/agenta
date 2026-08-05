@@ -11,14 +11,17 @@
  * that can break the thing it shadows is worse than no shadow at all.
  */
 import type { AgentRunRequest } from "../protocol.ts";
+import type { CredentialDeliveryMechanism } from "../providers/credential-delivery-port.ts";
 import {
   changedFacets,
+  FACETS,
   normalizeDesiredState,
   type DesiredEnvironmentState,
   type Facet,
   type FacetDigests,
 } from "./desired-state.ts";
 import {
+  ACTION_KINDS,
   buildPlan,
   formatPlan,
   type ActionKind,
@@ -185,22 +188,106 @@ function actionForFacet(
 }
 
 /**
+ * How a credential rotation reaches the plan.
+ *
+ * LIFECYCLE MIGRATION, STEP 8. This is the input that closes the credential gap, and its SHAPE is
+ * the whole point: a rotation arrives as a MECHANISM, not as a digest.
+ *
+ * WHY NOT A NINTH FACET. Facet digests are logged. A digest over credential values would be a
+ * digest over a small, guessable field space, so credential values are excluded from every facet
+ * by construction — which is exactly why the router could not see a rotation before this. Adding a
+ * credential facet would either log a digest of secret material or log nothing useful. So the
+ * epoch stays where it belongs (an opaque timing-safe comparison, owned by the credential
+ * subsystem) and only its CONCLUSION reaches the router.
+ *
+ * WHY THE CALLER DECIDES THE MECHANISM. Which action a rotation needs is PROVIDER-DEPENDENT: it
+ * depends on whether the sandbox holds values or references, and on whether the provider bounds
+ * its egress propagation. The router is pure and knows nothing about providers, so the coordinator
+ * computes the mechanism with `planCredentialDelivery` and passes the answer in. The router's job
+ * is to place that answer in the plan beside the facet actions, in the same vocabulary.
+ */
+export interface CredentialRotationInput {
+  /** The delivery mechanism the provider's capabilities imply, or undefined when nothing rotated. */
+  readonly mechanism: CredentialDeliveryMechanism | undefined;
+}
+
+/** The action kind a delivery mechanism maps onto. No new kind enters the vocabulary. */
+function actionKindForMechanism(
+  mechanism: CredentialDeliveryMechanism,
+): ActionKind {
+  switch (mechanism) {
+    // A rotation behind a stable, BOUNDED reference changes nothing inside the sandbox: the
+    // placeholder it holds is unchanged, so there is nothing to restart and nothing to rebuild.
+    case "rotate-in-place":
+      return "apply-live";
+    case "restart-runtime":
+      return "restart-runtime";
+    case "rebuild-sandbox":
+      return "rebuild-sandbox";
+  }
+}
+
+/**
  * Build the plan for one dispatch.
  *
  * `applied` is undefined on a cold miss: there is no environment yet, so every facet counts as
  * changed and the plan is a rebuild. That is the honest answer, and it matches what the
  * coordinator does today.
+ *
+ * `credential` carries the rotation conclusion. It is a SEPARATE INPUT rather than a facet, for
+ * the reasons on `CredentialRotationInput`.
  */
 export function planReconcile(
   request: AgentRunRequest,
   desired: DesiredEnvironmentState,
   applied: FacetDigests | undefined,
+  credential: CredentialRotationInput = { mechanism: undefined },
 ): ReconcilePlan {
   const changed = changedFacets(desired.digests, applied);
-  if (changed.length === 0) return buildPlan([], []);
   const capabilities = capabilitiesFor(request);
   const actions = changed.map((facet) => actionForFacet(facet, capabilities));
+
+  if (credential.mechanism) {
+    const kind = actionKindForMechanism(credential.mechanism);
+    // The credential action lands on `runtime`, which already owns "what is baked into the daemon".
+    // If the runtime facet ALSO moved (a changed credential SHAPE, a changed model connection), the
+    // two must not become two actions on one facet: `applyReconcilePlan` iterates actions in facet
+    // order and would run the same facet twice. Keep the MORE EXPENSIVE of the two, because a facet
+    // needing both a rotation and a shape change needs whichever repair is stronger.
+    const existing = actions.find((action) => action.facet === "runtime");
+    const credentialAction: ReconcileAction = {
+      facet: "runtime",
+      kind,
+      // Content-free, like every other reason in this file. It says a rotation happened, never
+      // which credential, never any part of a value.
+      reason: "credential material rotated",
+    };
+    if (!existing) {
+      actions.push(credentialAction);
+      // `changedFacets` returns facets in FACETS order and the plan must stay in that order, so
+      // re-derive rather than appending to `changed`.
+      const withRuntime = FACETS.filter(
+        (facet) => changed.includes(facet) || facet === "runtime",
+      );
+      actions.sort(
+        (left, right) =>
+          FACETS.indexOf(left.facet) - FACETS.indexOf(right.facet),
+      );
+      return buildPlan(actions, withRuntime);
+    }
+    if (rankOf(kind) > rankOf(existing.kind)) {
+      actions[actions.indexOf(existing)] = credentialAction;
+    }
+    return buildPlan(actions, changed);
+  }
+
+  if (changed.length === 0) return buildPlan([], []);
   return buildPlan(actions, changed);
+}
+
+/** Cheapness rank, from the one ordered vocabulary. Used to keep the stronger of two repairs. */
+function rankOf(kind: ActionKind): number {
+  return ACTION_KINDS.indexOf(kind);
 }
 
 /** What the coordinator actually decided, in the plan's own vocabulary. */
@@ -240,6 +327,14 @@ export interface ShadowLogInput {
   decisionReason: string;
   /** Which question the decision answered. Defaults to `environment`. */
   scope?: DecisionScope;
+  /**
+   * The credential rotation conclusion for this dispatch, when there is one.
+   *
+   * STEP 8. Without this the shadow recomputes a plan that cannot see a rotation, and the counter
+   * records a disagreement that no router work could ever fix — which is exactly what the KNOWN
+   * DISAGREEMENTS block used to describe.
+   */
+  credential?: CredentialRotationInput;
   /**
    * The plan the caller ACTED ON, when it already has one.
    *
@@ -325,7 +420,13 @@ export function logReconcileShadow(input: ShadowLogInput): ReconcilePlan | undef
       input.configFingerprint,
     );
     const plan =
-      input.plan ?? planReconcile(input.request, desired, input.appliedDigests);
+      input.plan ??
+      planReconcile(
+        input.request,
+        desired,
+        input.appliedDigests,
+        input.credential ?? { mechanism: undefined },
+      );
     const scope = input.scope ?? "environment";
     const agree = plan.outcome === input.decision;
     // Count only what is comparable. A continuity decision is about the CONVERSATION, so the
@@ -371,16 +472,32 @@ export function logReconcileShadow(input: ShadowLogInput): ReconcilePlan | undef
  *    The environment side of it was already right: step 1 gave a transcript mismatch the
  *    `continuity-invalid` teardown reason, which PARKS the sandbox instead of deleting it.
  *
- * 2. `mismatch:credentials-*`. The coordinator rebuilds; the router plans a no-op.
- *    THE ROUTER IS WRONG, and this one is security-relevant. Credential VALUES are deliberately
- *    excluded from every facet digest, because digests are logged. So a rotated secret moves no
- *    facet, and the router cannot see it. Rotation is tracked by the credential EPOCH, a separate
- *    timing-safe comparison the router does not consult.
+ * 2. `mismatch:credentials-*`. RESOLVED IN STEP 8, and the resolution is not the one this block
+ *    predicted. The gap was real: credential VALUES are excluded from every facet digest because
+ *    digests are logged, so a rotated secret moved no facet and the router could not see it.
  *
- *    Until the router reads the epoch, it must never be made authoritative. A router that decides
- *    would reuse a daemon holding a revoked credential. The epoch belongs in the plan as its own
- *    input, producing a `restart-runtime` action; that is step 5's work, and
- *    `lifecycle-reconcile-plan.test.ts` pins the gap so it cannot be forgotten.
+ *    THE FIX. The epoch stays out of the facets — putting it in would mean logging a digest of
+ *    secret material — and reaches the plan as its own input, `CredentialRotationInput`. The router
+ *    now emits an action on the `runtime` facet for a rotation, so a rotated credential is visible
+ *    to the plan without any secret entering a digest.
+ *
+ *    WHAT CHANGED FROM THE PREDICTION, AND WHY IT MATTERS. This block used to mandate
+ *    `restart-runtime`. That was wrong for the provider we actually have. Which action a rotation
+ *    needs is PROVIDER-DEPENDENT:
+ *
+ *      - Where the sandbox holds VALUES, a restart installs the new one, so `restart-runtime`.
+ *      - Where the sandbox holds a stable REFERENCE and the provider BOUNDS how long its egress
+ *        layer takes to apply a rotated value, nothing inside the sandbox changes at all and the
+ *        action is `apply-live`. An external security review accepted that mapping on three
+ *        conditions, all met here: a dedicated credential-route test, this rewrite rather than a
+ *        deletion, and the `LIVE_ACTION_KINDS` comment fix below.
+ *      - Where the sandbox holds a reference the provider does NOT bound — which is Daytona today —
+ *        a restart would hand the new process the SAME placeholder and deliver nothing. The only
+ *        honest action is `rebuild-sandbox`, and the same review mandated it.
+ *
+ *    So the router is no longer wrong, and it is no longer silent. It says what the provider can
+ *    actually do. `lifecycle-reconcile-plan.test.ts` and `lifecycle-live-routes.test.ts` pin each
+ *    route, including the rebuild, so a capability change cannot quietly widen the live set.
  */
 
 /**
@@ -402,10 +519,13 @@ export function appliedDigestsFrom(
 }
 
 /**
- * The action kinds the runner may perform on a LIVE environment, as of step 6.
+ * The action kinds the runner may perform on a LIVE environment, as of step 8.
  *
- * EXACTLY TWO, and this constant is the single place that says so. `no-op` is here because an
- * empty plan is trivially satisfiable without touching anything.
+ * FOUR, and this constant is the single place that says so. The comment said "exactly two" long
+ * after the set had grown to four, which an external security review caught: a stale count in the
+ * one place that claims to be authoritative is worse than no count, because it is what a reviewer
+ * checks against. `no-op` is here because an empty plan is trivially satisfiable without touching
+ * anything.
  *
  * Adding a third entry is the whole decision to make another route live. It must not happen by
  * accident, so a test counts this set and the capability table is checked against it.
