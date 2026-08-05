@@ -811,6 +811,76 @@ _COMMIT_REVISION_DESCRIPTION = (
     else _COMMIT_REVISION_DESCRIPTION_LEGACY
 )
 
+_READ_CONFIG_DESCRIPTION = """Read your own configuration, or one part of it.
+
+Send `target.path`: an array of segments from the configuration root, the same shape
+`commit_revision` takes. Omit it to read everything you can change.
+
+    ["parameters","agent","llm"]
+    ["parameters","agent",{"list":"skills","key":"release-qa"},"body"]
+
+The response carries `revision_id`. Copy it into your next commit's `base_revision_id`.
+If the head moved in between, the commit answers 409 and you read again.
+
+Text comes back exactly as stored, so an `old_text` you copy from it will match. A value
+larger than the limit is refused, never shortened: the answer then lists `children`, and
+you read one of those instead."""
+
+_READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["target"],
+    "properties": {
+        "target": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                # Bound from $ctx.workflow.variant.id and stripped before the model sees it.
+                "workflow_variant_id": {
+                    "type": "string",
+                    "description": "Server-bound to the running variant; do not set.",
+                },
+                # Bound from $ctx.workflow.is_draft. It always resolves, so the call never
+                # fails on an absent binding.
+                "run_is_draft": {
+                    "type": "boolean",
+                    "description": "Server-bound; do not set.",
+                },
+                "path": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {"$ref": "#/$defs/read_config_segment"},
+                    "description": (
+                        "Segments from the configuration root. Omit to read everything."
+                    ),
+                },
+            },
+        },
+        "max_bytes": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 262144,
+            "description": "Largest answer to return before refusing. Default 65536.",
+        },
+    },
+    "$defs": {
+        "read_config_segment": {
+            "oneOf": [
+                {"type": "string", "minLength": 1},
+                {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["list", "key"],
+                    "properties": {
+                        "list": {"type": "string", "minLength": 1},
+                        "key": {"type": "string", "minLength": 1},
+                    },
+                },
+            ]
+        }
+    },
+}
+
 _TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
     "oneOf": [
         {"type": "string", "minLength": 1},
@@ -1267,9 +1337,34 @@ _TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 
+# `read_config` and ordered operations are one feature: the read-then-edit loop. The flag
+# gates both, so a deployment never advertises the read without the write it feeds.
+_READ_CONFIG_OPS: tuple = (
+    (
+        PlatformOp(
+            op="read_config",
+            description=_READ_CONFIG_DESCRIPTION,
+            method="POST",
+            path="/api/workflows/revisions/read-config",
+            input_schema=_READ_CONFIG_INPUT_SCHEMA,
+            context_bindings={
+                "target.workflow_variant_id": "$ctx.workflow.variant.id",
+                "target.run_is_draft": "$ctx.workflow.is_draft",
+            },
+            read_only=True,
+            timeout_ms=15000,
+            accepts_description=True,
+        ),
+    )
+    if _ordered_operations_enabled()
+    else ()
+)
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
-    for op in (
+    for op in _READ_CONFIG_OPS
+    + (
         PlatformOp(
             op="discover_tools",
             description=_DISCOVER_TOOLS_DESCRIPTION,

@@ -1,4 +1,4 @@
-from typing import Any, Literal, Optional, List
+from typing import Any, Dict, Literal, Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -382,6 +382,37 @@ class WorkflowRevisionsLogRequest(BaseModel):
             "`workflow_revision_id` to scope the log, and an optional `depth`."
         ),
     )
+
+
+class ReadConfigTarget(BaseModel):
+    workflow_variant_id: Optional[str] = None
+    # Server-bound from $ctx.workflow.is_draft; stripped from the model-visible schema.
+    run_is_draft: Optional[bool] = None
+    path: Optional[List[Any]] = None
+
+
+class ReadConfigRequest(BaseModel):
+    target: ReadConfigTarget
+    max_bytes: Optional[int] = None
+
+
+class ReadConfigRevision(BaseModel):
+    id: str
+    version: Optional[str] = None
+    workflow_variant_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ReadConfigResponse(BaseModel):
+    revision: ReadConfigRevision
+    base_revision_id: str = Field(
+        description="Copy this into your next commit's `base_revision_id`.",
+    )
+    is_draft: bool = False
+    path: List[Any] = Field(default_factory=list)
+    value: Any = None
+    bytes: int = 0
+    warnings: Optional[List[Dict[str, Any]]] = None
 
 
 class CommitWarning(BaseModel):

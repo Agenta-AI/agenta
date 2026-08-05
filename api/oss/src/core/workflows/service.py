@@ -88,6 +88,7 @@ from oss.src.core.workflows.dtos import (
 )
 from oss.src.core.git.types import (
     InlineResolveInvalid,
+    RevisionConflict,
     VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
@@ -99,6 +100,12 @@ from oss.src.core.workflows.change_set import (
     Reason,
     apply_change_set,
     deep_merge as _deep_merge,
+)
+from oss.src.core.workflows.read_config import (
+    ReadConfigError,
+    clamp_max_bytes,
+    draft_warning,
+    project_config,
 )
 from oss.src.core.workflows.commit_support import (
     PLATFORM_TOOL_REJECTION,
@@ -194,6 +201,18 @@ class DeltaResolution:
     commit: "WorkflowRevisionCommit"
     warnings: list = field(default_factory=list)
     changed: bool = True
+
+
+@dataclass
+class ConfigReadOutcome:
+    """One `read_config` answer: the value plus which revision produced it."""
+
+    revision: "WorkflowRevision"
+    path: list
+    value: Any
+    bytes: int
+    is_draft: bool = False
+    warnings: list = field(default_factory=list)
 
 
 @dataclass
@@ -1929,6 +1948,51 @@ class WorkflowsService:
 
         return _workflow_revisions
 
+    async def read_workflow_revision_config(
+        self,
+        *,
+        project_id: UUID,
+        workflow_variant_id: UUID,
+        path: Optional[list] = None,
+        max_bytes: Optional[int] = None,
+        run_is_draft: Optional[bool] = None,
+    ) -> "ConfigReadOutcome":
+        """Read one part of the variant's committed configuration.
+
+        The answer always comes from the stored head, on every kind of run. On a draft run
+        that is not what is executing, and the response says so: the read and the commit
+        then still agree, because the commit applies to the head too.
+        """
+        head = await self.fetch_workflow_revision(
+            project_id=project_id,
+            workflow_variant_ref=Reference(id=workflow_variant_id),
+            include_archived=False,
+        )
+        if head is None:
+            raise ReadConfigError(
+                "revision_not_found",
+                "That variant has no revision to read.",
+                status_code=404,
+            )
+
+        data = (
+            head.data.model_dump(mode="json", exclude_none=True) if head.data else None
+        )
+        result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
+
+        warnings = list(result.warnings)
+        if run_is_draft:
+            warnings.append(draft_warning(getattr(head, "version", None)))
+
+        return ConfigReadOutcome(
+            revision=head,
+            path=result.path,
+            value=result.value,
+            bytes=result.bytes,
+            is_draft=bool(run_is_draft),
+            warnings=warnings,
+        )
+
     async def commit_workflow_revision_checked(
         self,
         *,
@@ -1983,11 +2047,21 @@ class WorkflowsService:
                 )
             workflow_revision_commit = resolution.commit
 
-        revision = await self.commit_workflow_revision(
-            project_id=project_id,
-            user_id=user_id,
-            workflow_revision_commit=workflow_revision_commit,
-        )
+        # The pre-check above is an early-out, not the guarantee: it reads the head in its
+        # own transaction, so two writers can both pass it. Passing the expectation down
+        # is what makes the DAO re-read under the variant lock and refuse the loser.
+        try:
+            revision = await self.commit_workflow_revision(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_revision_commit=workflow_revision_commit,
+                expected_head_revision_id=workflow_revision_commit.base_revision_id,
+            )
+        except RevisionConflict as e:
+            raise RevisionConflictError(
+                base_revision_id=e.expected_head_revision_id,
+                current_revision_id=e.current_head_revision_id,
+            ) from e
         return CommitOutcome(revision=revision, status="committed", warnings=warnings)
 
     async def commit_workflow_revision(
@@ -2001,6 +2075,8 @@ class WorkflowsService:
         initial: bool = False,
         #
         emit: bool = True,
+        #
+        expected_head_revision_id: Optional[UUID] = None,
     ) -> Optional[WorkflowRevision]:
         self._reject_static_slug(workflow_revision_commit.slug)
 
@@ -2099,6 +2175,8 @@ class WorkflowsService:
             revision_commit=_revision_commit,
             #
             initial=initial,
+            #
+            expected_head_revision_id=expected_head_revision_id,
         )
 
         if not revision:
