@@ -16,6 +16,7 @@ from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.workflows.change_set import ChangeSetError
+from oss.src.core.workflows.read_config import ReadConfigError
 from oss.src.core.workflows.service import (
     RevisionConflictError,
     WorkflowsService,
@@ -54,6 +55,10 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowRevisionsLogRequest,
     WorkflowRevisionResponse,
     WorkflowRevisionsResponse,
+    #
+    ReadConfigRequest,
+    ReadConfigResponse,
+    ReadConfigRevision,
     #
     WorkflowRevisionResolveRequest,
     WorkflowRevisionResolveResponse,
@@ -427,6 +432,16 @@ class WorkflowsRouter:
             operation_id="commit_workflow_revision",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/revisions/read-config",
+            self.read_workflow_revision_config,
+            methods=["POST"],
+            operation_id="read_workflow_revision_config",
+            status_code=status.HTTP_200_OK,
+            response_model=ReadConfigResponse,
             response_model_exclude_none=True,
         )
 
@@ -1499,6 +1514,57 @@ class WorkflowsRouter:
 
     @intercept_exceptions()
     @handle_workflow_exceptions()
+    @intercept_exceptions()
+    async def read_workflow_revision_config(
+        self,
+        request: Request,
+        *,
+        read_config_request: ReadConfigRequest,
+    ) -> ReadConfigResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_WORKFLOWS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        variant_id = read_config_request.target.workflow_variant_id
+        if not variant_id:
+            raise HTTPException(
+                status_code=400,
+                detail="target.workflow_variant_id is required.",
+            )
+
+        try:
+            outcome = await self.workflows_service.read_workflow_revision_config(
+                project_id=UUID(request.state.project_id),
+                workflow_variant_id=UUID(variant_id),
+                path=read_config_request.target.path,
+                max_bytes=read_config_request.max_bytes,
+                run_is_draft=read_config_request.target.run_is_draft,
+            )
+        except ReadConfigError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.to_detail()) from e
+
+        revision = outcome.revision
+        return ReadConfigResponse(
+            revision=ReadConfigRevision(
+                id=str(revision.id),
+                version=getattr(revision, "version", None),
+                workflow_variant_id=str(getattr(revision, "variant_id", "") or "")
+                or None,
+                created_at=str(getattr(revision, "created_at", "") or "") or None,
+            ),
+            # The value the agent must copy into its next commit; the commit answers 409
+            # when the head moved, which is what makes read-then-edit safe.
+            base_revision_id=str(revision.id),
+            is_draft=outcome.is_draft,
+            path=outcome.path,
+            value=outcome.value,
+            bytes=outcome.bytes,
+            warnings=outcome.warnings or None,
+        )
+
     async def commit_workflow_revision(
         self,
         request: Request,
