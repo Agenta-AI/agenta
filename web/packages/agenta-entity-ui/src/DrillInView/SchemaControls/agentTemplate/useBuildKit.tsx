@@ -20,15 +20,11 @@ import {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitEnabledAtomFamily,
 } from "@agenta/entities/workflow"
-import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
-import {Warning, Wrench} from "@phosphor-icons/react"
-import {Switch, Tag, Tooltip, Typography} from "antd"
+import {Wrench} from "@phosphor-icons/react"
 import {useAtom, useAtomValue} from "jotai"
 
-import {RailField} from "../../../drawers/shared/RailField"
-
+import {BuildKitSection, PermissionOverrideHint} from "./BuildKitSection"
 import {asObj, staticEmbedSlug, type ItemDescriptor} from "./itemDescriptors"
-import {ItemRow} from "./ItemRow"
 
 /** Display name for an `@ag.embed` row: the overlay's sibling `name`, else the referenced
  * workflow's `name`, else undefined (callers fall back to the slug). */
@@ -74,17 +70,6 @@ function describeBuildKitEmbed(
         typeLabel: "@ag.embed",
         typeColor: "blue",
         subtitle: "Agenta-owned reference",
-    }
-}
-
-function formatPermissionValue(value: unknown): string {
-    if (typeof value === "string") return value
-    if (typeof value === "number" || typeof value === "boolean") return String(value)
-    if (value == null) return "null"
-    try {
-        return JSON.stringify(value)
-    } catch {
-        return String(value)
     }
 }
 
@@ -172,95 +157,22 @@ export function useBuildKit({
     )
 
     const buildKitSection = hasBuildKitOverlay ? (
-        <ConfigAccordionSection
-            size="compact"
-            defaultOpen={false}
-            icon={<Wrench size={15} />}
-            title="Playground build kit"
-            summary={
-                <span className="inline-flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--ag-colorWarning)]" />
-                    Removed on commit
-                </span>
-            }
-            extra={
-                <Switch
-                    checked={buildKitEnabled}
-                    onChange={setBuildKitEnabled}
-                    disabled={disabled}
-                />
-            }
-        >
-            <Typography.Text type="secondary" className="text-[11px] leading-snug">
-                These playground-only tools, skills, and permissions help the assistant build and
-                revise this agent. None of this is part of the published agent.
-            </Typography.Text>
-            {!buildKitEnabled ? (
-                <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-[11.5px] leading-snug text-[var(--ant-color-info-text)]">
-                    The assistant can no longer create files, run code, or edit the agent here.
-                </div>
-            ) : null}
-            {platformOverlayTools.length > 0 ? (
-                <RailField label="Platform tools">
-                    {platformOverlayTools.map((tool, index) => (
-                        <ItemRow
-                            key={`build-kit-platform-tool-${index}`}
-                            descriptor={describeBuildKitPlatformTool(tool)}
-                            locked
-                        />
-                    ))}
-                </RailField>
-            ) : null}
-            {embeddedOverlayTools.length > 0 ? (
-                <RailField label="Embedded tools">
-                    {embeddedOverlayTools.map((tool, index) => (
-                        <ItemRow
-                            key={`build-kit-embedded-tool-${index}`}
-                            descriptor={describeBuildKitEmbed(tool, "tool")}
-                            locked
-                        />
-                    ))}
-                </RailField>
-            ) : null}
-            {embeddedOverlaySkills.length > 0 ? (
-                <RailField label="Embedded skills">
-                    {embeddedOverlaySkills.map((skill, index) => (
-                        <ItemRow
-                            key={`build-kit-embedded-skill-${index}`}
-                            descriptor={describeBuildKitEmbed(skill, "skill")}
-                            locked
-                        />
-                    ))}
-                </RailField>
-            ) : null}
-            {overlayPermissions && Object.keys(overlayPermissions).length > 0 ? (
-                <RailField label="Sandbox permissions">
-                    <div className="flex flex-col gap-1.5 opacity-70">
-                        {Object.entries(overlayPermissions).map(([key, value]) => (
-                            <div
-                                key={key}
-                                className="flex items-center justify-between gap-3 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs"
-                            >
-                                <span className="font-mono">{key}</span>
-                                <Tag className="m-0 font-mono text-[11px]">
-                                    {formatPermissionValue(value)}
-                                </Tag>
-                            </div>
-                        ))}
-                    </div>
-                </RailField>
-            ) : null}
-        </ConfigAccordionSection>
+        <BuildKitSection
+            enabled={buildKitEnabled}
+            onEnabledChange={setBuildKitEnabled}
+            disabled={disabled}
+            platformTools={platformOverlayTools.map(describeBuildKitPlatformTool)}
+            embeddedTools={embeddedOverlayTools.map((tool) => describeBuildKitEmbed(tool, "tool"))}
+            embeddedSkills={embeddedOverlaySkills.map((skill) =>
+                describeBuildKitEmbed(skill, "skill"),
+            )}
+            permissions={overlayPermissions}
+        />
     ) : null
 
     const permissionOverrideHint =
         sandboxPermissionOverrideKeys.length > 0 ? (
-            <Tooltip title="This value is overridden by the build kit in playground. Turn the build kit off to match the published agent.">
-                <div className="inline-flex w-fit items-center gap-1.5 rounded bg-[var(--ant-color-warning-bg)] px-2 py-1 text-[11px] text-[var(--ant-color-warning-text)]">
-                    <Warning size={12} />
-                    Build kit overrides {sandboxPermissionOverrideKeys.join(", ")}
-                </div>
-            </Tooltip>
+            <PermissionOverrideHint keys={sandboxPermissionOverrideKeys} />
         ) : null
 
     return {

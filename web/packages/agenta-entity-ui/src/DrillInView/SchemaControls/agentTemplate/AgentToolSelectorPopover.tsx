@@ -12,8 +12,8 @@
 import {memo} from "react"
 
 import {useDrillInUI} from "@agenta/ui/drill-in"
+import {Button} from "@agenta/ui/ui"
 import {BracketsCurly, GraphIcon, Plugs, Plus, Sparkle} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 import {AddItemMenu, type AddItemGroup} from "../../../drawers/shared/AddItemMenu"
 import type {ToolSelectorPopoverProps} from "../ToolSelectorPopover"
@@ -113,13 +113,10 @@ export const AgentToolSelectorPopover = memo(function AgentToolSelectorPopover({
             ariaLabel="Add tool"
             trigger={
                 trigger ?? (
-                    <Button
-                        variant="outlined"
-                        color="default"
-                        size="small"
-                        icon={<Plus size={14} />}
-                        disabled={disabled}
-                    >
+                    // antd `variant="outlined" color="default"` resolves to the plain outlined
+                    // button — same default trigger as the shared ToolSelectorPopover.
+                    <Button variant="outline" size="sm" disabled={disabled}>
+                        <Plus size={14} />
                         Tool
                     </Button>
                 )

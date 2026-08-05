@@ -5,14 +5,11 @@
  * Supports both single-line input and multi-line textarea.
  */
 
-import {memo, useCallback, useEffect, useState} from "react"
+import {memo, useCallback, useEffect, useId, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {cn} from "@agenta/ui/styles"
-import {Field} from "@agenta/ui/ui"
-import {Input, Typography} from "antd"
-
-const {TextArea} = Input
+import {Field, Input, Textarea} from "@agenta/ui/ui"
 
 export interface TextInputControlProps {
     /** The schema property defining constraints */
@@ -105,8 +102,13 @@ export const TextInputControl = memo(function TextInputControl({
         [onChange],
     )
 
+    // Field injects an id only into a SINGLE child; this one also renders the min/max line.
+    const controlId = useId()
+
     const inputContent = isMultiline ? (
-        <TextArea
+        <Textarea
+            id={controlId}
+            aria-label={label ? undefined : placeholder}
             value={localValue}
             onChange={handleChange}
             disabled={disabled}
@@ -117,6 +119,8 @@ export const TextInputControl = memo(function TextInputControl({
         />
     ) : (
         <Input
+            id={controlId}
+            aria-label={label ? undefined : placeholder}
             value={localValue}
             onChange={handleChange}
             disabled={disabled}
@@ -128,6 +132,7 @@ export const TextInputControl = memo(function TextInputControl({
     return (
         <Field
             label={label}
+            htmlFor={controlId}
             tooltip={withTooltip && !!label ? tooltipText : undefined}
             direction="vertical"
             gap={isMultiline ? "sm" : "xs"}
@@ -135,11 +140,11 @@ export const TextInputControl = memo(function TextInputControl({
         >
             {inputContent}
             {(maxLength || minLength) && (
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-colorTextDescription">
                     {minLength && `Min: ${minLength}`}
                     {minLength && maxLength && " / "}
                     {maxLength && `Max: ${maxLength}`}
-                </Typography.Text>
+                </span>
             )}
         </Field>
     )

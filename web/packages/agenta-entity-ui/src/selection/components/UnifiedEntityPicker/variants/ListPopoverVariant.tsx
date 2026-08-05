@@ -243,7 +243,10 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                     <EmptyState description={displayEmptyMessage} image="simple" />
                 </div>
             ) : (
+                // listbox parent for the rows' role=option (axe aria-required-parent).
                 <div
+                    role="listbox"
+                    aria-label={sectionLabel ?? "Options"}
                     className="overflow-auto"
                     style={{maxHeight: typeof maxHeight === "number" ? maxHeight : undefined}}
                 >

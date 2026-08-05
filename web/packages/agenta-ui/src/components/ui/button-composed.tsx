@@ -43,7 +43,8 @@ export function LoadingButton({
             aria-busy={loading || undefined}
             aria-disabled={loading || undefined}
             onClick={handleClick}
-            className={cn(loading && "pointer-events-none", className)}
+            // antd dims a loading button to opacityLoading (0.65) on top of keeping its variant colors.
+            className={cn(loading && "pointer-events-none opacity-[0.65]", className)}
             {...props}
         >
             {loading ? (
