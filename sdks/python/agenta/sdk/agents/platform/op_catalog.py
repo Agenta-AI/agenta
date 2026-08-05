@@ -26,6 +26,7 @@ imported platform package.
 
 from __future__ import annotations
 
+import os
 from copy import deepcopy
 from typing import Any, Dict, List, Literal, Optional
 
@@ -736,7 +737,23 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # variant — "update myself". ``workflow_revision.workflow_variant_id`` is bound from run context
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
 # different variant in the project. Defaults to approval.
-_COMMIT_REVISION_DESCRIPTION = (
+# One switch for the API and the model-facing catalog: the SDK runs inside the API
+# process, so both read the same variable. The rollout order needs API support to exist
+# before the catalog advertises the shape (gate 3, plan ruling).
+_ORDERED_OPERATIONS_ENV = "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED"
+
+
+def _ordered_operations_enabled() -> bool:
+    return (os.getenv(_ORDERED_OPERATIONS_ENV) or "").strip().lower() in {
+        "true",
+        "1",
+        "yes",
+        "on",
+    }
+
+
+# The legacy description. Kept verbatim for the flag-off surface.
+_COMMIT_REVISION_DESCRIPTION_LEGACY = (
     "Commit a new revision to your own workflow variant (update yourself). Send only the "
     "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
     "current config) and any field paths to drop under `delta.remove`. Put agent-template "
@@ -747,6 +764,109 @@ _COMMIT_REVISION_DESCRIPTION = (
     "revision id; existing schedules and subscriptions keep pointing at the old revision "
     "until you re-point them. This changes the agent and requires approval."
 )
+
+# The normative tool description, contracts/change-set.md section 15. About 1.5 KB and 400
+# tokens; the 3.2 KB version measured the same success rate and cost 11-13 percent more.
+# It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
+# every error names a next step, and the selector key is `list`.
+_COMMIT_REVISION_DESCRIPTION_ORDERED = """Commit a change to this agent's own configuration.
+
+Send `workflow_revision` with `base_revision_id` (the `revision_id` you read) and
+`delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
+committed.
+
+TARGET: an array of segments from the configuration root. A string segment names an
+object field. An object segment {"list": L, "key": K} names one entry of list L and
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name), files (by path).
+
+    ["parameters","agent",{"list":"skills","key":"release-qa"},
+     {"list":"files","key":"checklist.md"},"content"]
+
+OPERATIONS:
+- `set` replace one field (needs `value`)
+- `merge` deep-merge an object into one field (needs `value`)
+- `remove` delete one field
+- `edit_text` replace exact substrings in one string field (needs `edits`)
+- `add_item` append to a list; target ends with the list name (needs `value`)
+- `replace_item` replace one entry; target ends with a selector (needs `value`)
+- `remove_item` delete one entry; target ends with a selector
+
+`edits` is a list of {old_text, new_text}. `old_text` must occur exactly once and match
+character for character, line breaks included. Copy it from the configuration you read;
+never retype it from memory.
+
+For a workspace file's content, write {"@ag.file": "<path>"} where the string would go.
+Put the file under `.agenta-imports/` first.
+
+    {"operation":"add_item","target":["parameters","agent","skills"],
+     "value":{"name":"pdf-tools","description":"Make PDFs.",
+              "body":{"@ag.file":".agenta-imports/pdf-tools/SKILL.md"}}}
+
+Your `tools` list must not contain the playground's own tools (commit_revision,
+test_run, read_config). They are not part of your configuration."""
+
+_COMMIT_REVISION_DESCRIPTION = (
+    _COMMIT_REVISION_DESCRIPTION_ORDERED
+    if _ordered_operations_enabled()
+    else _COMMIT_REVISION_DESCRIPTION_LEGACY
+)
+
+_TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
+    "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["list", "key"],
+            "properties": {
+                "list": {"type": "string", "minLength": 1},
+                "key": {"type": "string", "minLength": 1},
+            },
+        },
+    ]
+}
+
+_OPERATION_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["operation", "target"],
+    "properties": {
+        "operation": {
+            "type": "string",
+            "enum": [
+                "set",
+                "merge",
+                "remove",
+                "edit_text",
+                "add_item",
+                "replace_item",
+                "remove_item",
+            ],
+        },
+        "target": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "items": _TARGET_SEGMENT_SCHEMA,
+        },
+        "value": {},
+        "match_mode": {"type": "string", "enum": ["auto", "exact"], "default": "auto"},
+        "edits": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["old_text", "new_text"],
+                "properties": {
+                    "old_text": {"type": "string", "minLength": 1, "maxLength": 20000},
+                    "new_text": {"type": "string", "maxLength": 50000},
+                },
+            },
+        },
+    },
+}
 _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -761,10 +881,31 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                     "type": "string",
                     "description": "Server-bound to the running variant; do not set.",
                 },
-                "message": {
-                    "type": "string",
-                    "description": "Commit message describing the change.",
-                },
+                # Flag-off only. With ordered operations on, the server derives the
+                # message from the operations: free text was the site of every measured
+                # argument-corruption failure, and a derived message is always accurate.
+                **(
+                    {}
+                    if _ordered_operations_enabled()
+                    else {
+                        "message": {
+                            "type": "string",
+                            "description": "Commit message describing the change.",
+                        }
+                    }
+                ),
+                **(
+                    {
+                        "base_revision_id": {
+                            "type": "string",
+                            "description": (
+                                "The revision_id you read. Required for `operations`."
+                            ),
+                        }
+                    }
+                    if _ordered_operations_enabled()
+                    else {}
+                ),
                 "delta": {
                     "type": "object",
                     "additionalProperties": False,
@@ -785,6 +926,22 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                                 "Dotted field paths to delete, e.g. parameters.agent.tools."
                             ),
                         },
+                        **(
+                            {
+                                "operations": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "maxItems": 64,
+                                    "items": _OPERATION_SCHEMA,
+                                    "description": (
+                                        "Ordered operations, applied in array order. Use "
+                                        "these instead of set/remove; never both."
+                                    ),
+                                }
+                            }
+                            if _ordered_operations_enabled()
+                            else {}
+                        ),
                     },
                 },
             },

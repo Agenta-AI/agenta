@@ -1,8 +1,9 @@
-from typing import Optional, Dict, Any, Union, List  # noqa: F401
+from typing import Optional, Dict, Any, Literal, Union, List  # noqa: F401
 from uuid import UUID, uuid4  # noqa: F401
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
 )
 
@@ -298,17 +299,52 @@ class WorkflowRevisionQuery(RevisionQuery):
     flags: Optional[WorkflowRevisionQueryFlags] = None
 
 
+class WorkflowRevisionOperation(BaseModel):
+    """One ordered operation. The new delta arm (agent-config-editing, contract 3.2).
+
+    ``extra="forbid"`` applies to this NEW model only. The legacy ``set``/``remove`` arm
+    stays permissive on purpose: tightening it would reject payloads that shipped
+    playbooks send today and that the server has always ignored.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation: Literal[
+        "set",
+        "merge",
+        "remove",
+        "edit_text",
+        "add_item",
+        "replace_item",
+        "remove_item",
+    ]
+    # A segment is an object field name, or a {list, key} selector standing in place of a
+    # list's name. The engine validates the shape and reports a precise reason code, so the
+    # DTO keeps the loose type rather than duplicating that logic in two places.
+    target: List[Any]
+    value: Optional[Any] = None
+    edits: Optional[List[Dict[str, str]]] = None
+    match_mode: Optional[Literal["auto", "exact"]] = None
+
+
 class WorkflowRevisionDelta(BaseModel):
     """Delta operations on a workflow revision's data tree.
 
-    - ``set``: a partial data tree deep-merged onto the base revision's data
-      (nested dicts merge; scalars and lists replace).
-    - ``remove``: dotted key paths to delete from the data tree (e.g.
-      ``parameters.agent.tools``).
+    Two forms, never mixed (contract 3):
+
+    - **legacy** — ``set``: a partial data tree deep-merged onto the base revision's data
+      (nested dicts merge; scalars and lists replace); ``remove``: dotted key paths to
+      delete (e.g. ``parameters.agent.tools``).
+    - **ordered** — ``operations``: the seven verbs, applied in array order, all or
+      nothing.
+
+    The engine enforces the exclusivity and every operation rule; this model only carries
+    the shapes.
     """
 
     set: Optional[Dict[str, Any]] = None
     remove: Optional[List[str]] = None
+    operations: Optional[List[WorkflowRevisionOperation]] = None
 
 
 class WorkflowRevisionCommit(
@@ -320,6 +356,11 @@ class WorkflowRevisionCommit(
 
     data: Optional[WorkflowRevisionData] = None
     delta: Optional[WorkflowRevisionDelta] = None
+    # The revision this change was built on. A precondition on the commit, not a mutation,
+    # so it sits beside `delta` and never inside it. Optional: a legacy caller that omits
+    # it keeps today's last-write-wins behavior. An ordered delta requires it, and the
+    # service enforces that (contract commit-transaction.md section 8).
+    base_revision_id: Optional[UUID] = None
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
