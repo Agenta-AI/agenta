@@ -25,6 +25,8 @@ vi.mock("@agenta/entities/workflow", () => ({
 
 vi.mock("@agenta/entities/workflow/commitDiff", () => ({
     classifyRevisionDeltaChanges: () => ({sections: state.sections}),
+    // Unused here, but `assets/toolDisplay` (the call-description reader) imports it.
+    parseGatewayToolName: (raw: string) => ({label: raw, raw}),
 }))
 
 vi.mock("@agenta/entity-ui/modals", () => ({
@@ -66,7 +68,18 @@ const MANIFEST = {
 
 const INPUT = {workflow_revision: {base_revision_id: "rev-1", delta: {operations: []}}}
 
-const render = (props: {manifest?: unknown} = {}): string =>
+// Production shape: the per-call `description` sits at the TOP level, beside `workflow_revision`,
+// and says something different from the commit message (read-config.md section 12.2).
+const DESCRIBED_INPUT = {
+    description: "Adding the pdf-tools skill you asked for.",
+    workflow_revision: {
+        base_revision_id: "rev-1",
+        message: "Add the pdf-tools skill.",
+        delta: {operations: []},
+    },
+}
+
+const render = (props: {manifest?: unknown; input?: unknown} = {}): string =>
     renderToStaticMarkup(
         <CommitRevisionApproval
             input={INPUT}
@@ -121,6 +134,47 @@ describe("with no previewable base", () => {
 
         expect(rendered).toContain("RAW_PAYLOAD")
         expect(rendered).not.toContain("From your workspace")
+    })
+})
+
+describe("the agent's stated intent", () => {
+    it("renders beside the commit message, each labelled as what it is", () => {
+        // The two texts are different things: the intent describes the CALL and is never
+        // persisted, the message is saved on the revision. Showing one as the other misreports
+        // what the human is approving.
+        state.serverParams = {agent: {}}
+        const rendered = render({input: DESCRIBED_INPUT})
+
+        expect(rendered).toContain("What the agent says it is doing")
+        expect(rendered).toContain("Adding the pdf-tools skill you asked for.")
+        expect(rendered).toContain("Commit message")
+        expect(rendered).toContain("Add the pdf-tools skill.")
+    })
+
+    it("renders on the fallback branch too, where the preview is hidden", () => {
+        const rendered = render({input: DESCRIBED_INPUT})
+
+        expect(rendered).toContain("RAW_PAYLOAD")
+        expect(rendered).toContain("What the agent says it is doing")
+        expect(rendered).toContain("Adding the pdf-tools skill you asked for.")
+    })
+
+    it("marks a description cut at the catalog's 500-character cap", () => {
+        state.serverParams = {agent: {}}
+        const description = `${"x".repeat(500)}TAIL`
+        const rendered = render({
+            input: {...DESCRIBED_INPUT, description},
+        })
+
+        expect(rendered).toContain("(shortened)")
+        expect(rendered).not.toContain("TAIL")
+    })
+
+    it("is absent when the agent wrote none", () => {
+        state.serverParams = {agent: {}}
+        const rendered = render()
+
+        expect(rendered).not.toContain("What the agent says it is doing")
     })
 })
 

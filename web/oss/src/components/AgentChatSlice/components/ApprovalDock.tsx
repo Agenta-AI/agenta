@@ -12,6 +12,9 @@ import {isAgentChatSteerEnabled} from "../assets/constants"
 import {partToolName, resolveToolDisplay} from "../assets/toolDisplay"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
+import ApprovedContentManifest, {
+    parseApprovedContentManifest,
+} from "./approvals/ApprovedContentManifest"
 import {resolveApprovalRenderer} from "./approvals/registry"
 
 const {Text} = Typography
@@ -231,6 +234,13 @@ const ApprovalDock = ({
     const chatMode = useAtomValue(chatPanelMaximizedAtom)
     const renderer =
         current && entityId && chatMode ? resolveApprovalRenderer(current.toolName) : null
+    // The manifest is a SIBLING of the payload, never inside it, so the generic card has to render
+    // it itself: the frozen content is what the approval binds, in every mode. Skipped when a
+    // specialized body is active, because that body renders the manifest already.
+    const fallbackManifest = useMemo(
+        () => (renderer ? null : parseApprovedContentManifest(current?.manifest)),
+        [renderer, current?.manifest],
+    )
 
     // Chat-mode display name: raw "scary" names stay Build-only; the shared resolver humanizes
     // gateway/MCP/plain names. Raw name stays reachable via the tooltip and the payload expander.
@@ -380,11 +390,16 @@ const ApprovalDock = ({
                                 fallback={<PayloadBlock input={current.input} />}
                             />
                         ) : (
-                            <PayloadBlock
-                                key={current.approvalId}
-                                input={current.input}
-                                label={chatMode ? "Details" : "Payload"}
-                            />
+                            <div className="flex min-w-0 flex-col gap-2.5">
+                                <PayloadBlock
+                                    key={current.approvalId}
+                                    input={current.input}
+                                    label={chatMode ? "Details" : "Payload"}
+                                />
+                                {fallbackManifest ? (
+                                    <ApprovedContentManifest manifest={fallbackManifest} />
+                                ) : null}
+                            </div>
                         )}
 
                         {/* Actions: trace on the left, decision on the right; Approve is the single
