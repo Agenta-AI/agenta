@@ -1,8 +1,8 @@
 # Briefing: agent config editing
 
 This document is for review. It is self-contained: you do not need to open any other
-file. Comment inline on any line you disagree with. The six open decisions are at the
-end, in section 6.
+file. Comment inline on any line you disagree with. The six open decisions are in
+section 9. Everything else is context so those decisions are easy to make.
 
 ## 1. What we want to do
 
@@ -30,101 +30,328 @@ Out of scope, decided earlier: running a temporary change without saving it (US-
 
 Three phases.
 
-1. **Spikes.** Two Opus teammates prototype the risky parts in throwaway worktrees, to
-   find the unknown unknowns before we commit to a design.
-2. **Contracts, then gates.** We write exact behavior documents ("contracts") for each
-   piece. An external reviewer (Codex, GPT, highest reasoning) attacks the design.
-   We fix, it re-reviews. No implementation starts before its gate passes.
-3. **Vertical slices.** Small, separately testable increments land on stacked
-   GitButler lanes. A QA teammate (Sonnet) tests each slice. At the end: PR
-   descriptions, inline code comments, a final code review, and docs sync.
+1. **Spikes.** A spike is a small throwaway prototype. Its purpose is not to ship
+   code. Its purpose is to test a design against reality before we commit to it, and
+   to surface the questions the design forgot to ask. Two Opus teammates each built
+   one, in isolated copies of the repo, so nothing touched the main tree.
+2. **Contracts, then gates.** A contract is a document that says exactly how one
+   piece must behave: its fields, its rules, its errors. We wrote six. Then an
+   external reviewer (Codex, a GPT model at its highest reasoning setting) attacked
+   the whole design. We fixed what it found, and it reviewed again. Three rounds
+   total. No implementation was allowed to start before its part passed.
+3. **Vertical slices.** A slice is a small increment that lands alone, with its own
+   tests, on its own branch. Slices stack on each other in GitButler lanes, so each
+   PR shows only its own change. A separate QA teammate (a Sonnet model) verifies
+   each slice after it lands.
 
-## 3. What we did
+## 3. The spikes, in detail
 
-- Both spikes worked. The editing engine prototype passed 120 tests, including proof
-  that the old delta format behaves identically through the new engine. The runner
-  spike proved the folder-import path end to end.
-- We wrote six contracts: the change-set format, the commit transaction, the read
-  tool, the import boundary, the approval authorization, and the per-harness update
-  matrix.
-- The external reviewer ran three gates. Gate one: rejected the loose design, forced
-  the contracts. Gate two: found two real security holes on paper (next section).
-  Gate three: approved two slices, named the last corrections. All corrections are in.
-- Two slices are shipped, on stacked lanes, all suites green (1589 runner tests, 778
-  SDK tests, 63 web tests, zero failures):
-  - **Runner safety.** A config change now stops the sandbox instead of deleting it.
-    A commit that changes nothing keeps the warm session. The stale-config bug on the
-    approval path is impossible by construction now: the park call no longer has a
-    field anyone could stamp wrongly.
-  - **The description field.** Every builder tool call can carry a short agent-written
-    note, and the tool card shows it.
+### Spike A: the editing engine (owner: engine-spike, in Python)
 
-## 4. What we discovered
+The idea to test: can all edits be expressed as a short list of small operations
+("find this text, replace with that", "add this one skill", "remove this one tool"),
+applied by one pure function? Pure means: the function takes the old configuration
+and the operations, and returns the new configuration. No database, no network. That
+purity matters, because the same function can then serve two masters later: the real
+commit, and a future "run with a temporary change".
 
-Things nobody knew before this project, found by the spikes and the reviews.
+What it built: the function, about 700 lines, plus 120 tests. The most important
+tests are the **legacy parity** tests: they take eleven old-style deltas (the format
+agents use today) and run them through BOTH the old server code and the new engine,
+and require identical results. That proves we can switch engines without changing the
+behavior of anything that exists.
 
-1. **Pi and Claude can take live tool updates. Our own delivery blocks it.** Claude
-   Code already handles the "tool list changed" signal; our shim never announces the
-   capability. Pi has live tool APIs; we ship its tool specs in an environment
-   variable that is read once. Only Codex truly needs a session reopen.
-2. **The approval path had a stale-config bug.** Change the configuration while a run
-   waits for approval, and the resumed session was re-labeled with the new
-   configuration while still holding the old files. Fixed structurally in the shipped
-   runner slice.
-3. **The approval flow for imports was forgeable on paper.** The relay directory is
-   writable from inside the sandbox, and the existing guard passes every "ask"
-   record on non-Pi harnesses. The fix is a single-use authorization that binds the
-   tool call, the argument digest, and the frozen content digest, and fails closed.
-4. **A hashing trick allowed argument substitution.** The existing serializer parses
-   JSON-looking strings, so two different payloads could hash identically. The
-   authorization now uses a strict serializer that never re-interprets strings.
-5. **Pi's edit tool is not exact.** It silently normalizes quotes, dashes, and
-   whitespace on a failed match. Good for code files, dangerous for configuration.
-   We take its contract (unique match, all-or-nothing) without the fuzzy fallback.
-6. **Today's merge code has an aliasing defect.** The server's deep merge shares
-   sub-objects with the base, and the delete path mutates the caller's data through
-   that sharing. Harmless today by accident. The new engine deep-copies, with tests
-   pinning both behaviors.
-7. **The Daytona file API cannot support the import security checks.** It exposes no
-   permission bits and no symlink information. The import reader uses a one-shot
-   manifest command instead, and the remaining read-window race is documented as an
-   accepted risk rather than papered over.
-8. **The commit endpoint would have swallowed the new conflict error.** It wraps
-   errors so a 409 would silently become "nothing committed, success". The contract
-   names the exclusion it needs.
+What it surfaced: 33 small decisions the design had not made (recorded, each with a
+reason), and 12 open questions. Examples of both kinds: "what happens when the text
+to replace appears twice?" (answer: refuse, ask for more context, like Pi does);
+"should an edit create missing parent objects?" (this became part of the contracts);
+"what about skills that are references instead of inline content?" (they have no
+name to address; deferred to future work, see section 8).
 
-## 5. Implicit decisions we made (flag any you want reversed)
+It also found a real bug in today's production code, described in section 5, finding 6.
 
-Made by the team during design, recorded in decisions.md, each reversible by a
-comment on this file.
+### Spike B: the runner side (owner: runner-spike, in TypeScript), three parts
 
-- Every folder import comes from the `imports/` folder in the workspace, not from
-  anywhere in the workspace. A manifest is not a security boundary a human reads.
-- A folder with unsupported files (binary, oversized) rejects the whole import unless
-  the caller explicitly opts into omission. No silently partial skills.
-- Executable permission is four separate things with four owners: the file's own
-  mode bit (data), an ephemeral import grant (caller + approver), the stored skill
-  capability (the configuration), and the runtime exec policy (the platform).
-  Nothing is ever derived from mode bits alone.
-- A cold resume after an approved import asks for approval again. We do not store the
-  approved bytes durably; that would recreate the large-payload problem.
-- Importing one text FILE into one text FIELD (for example a new instruction file) is
-  allowed, approved as a readable diff whose old side comes from the exact base
-  revision, or the call fails closed. Folders into text fields stay disallowed.
-- A removed Pi tool is hidden from the model AND its execution binding is dropped, so
-  it cannot run even if called. Pi has no true deregister API.
-- Embedded (referenced) skills stay unaddressable by name in v1; editing them still
-  needs the old whole-list write. A stable key for them is future work.
-- The acknowledgement that a live tool update reached the harness is treated as
-  untrusted. A forged acknowledgement can only make the model's tool list stale; it
-  can never grant execution of anything.
-- The new strict field validation applies to the NEW operations format only. Old
-  saved calls and playbooks keep today's tolerant behavior.
-- Rollout is dark-first: API support ships disabled, then runner support disabled,
-  then the catalog starts advertising. One kill switch, enforced in both the API and
-  the runner.
+**Part 1: prove the folder import.** The story: the agent downloads a skill from the
+internet into its sandbox, then commits "add the skill at this folder". For that, the
+runner (the service that operates the sandbox) must read the folder, understand it as
+a skill (name and description from the SKILL.md header, the text after it as the
+body, every other file as a bundled file), and put the result into the commit. The
+spike built exactly that and proved it round-trips: a folder written by our own code,
+read back by the new code, produces the identical skill. 34 tests.
 
-## 6. The open decisions (yours)
+The spike's biggest finding was about WHERE this read must happen, and it changed the
+design. See section 5, finding 3.
+
+**Part 2: can a live harness discover new tools?** Today, changing the agent's tool
+list forces a full session rebuild. The question: could a running session pick up a
+changed tool list without rebuilding? The spike went into the actual installed
+packages of all three harnesses and read their code. The answer surprised us and is
+finding 1 in section 5.
+
+**Part 3: pin today's behavior in tests.** Before refactoring anything, you write
+tests that assert what the code does TODAY, including its bugs. These are called
+characterization tests. When the refactor later changes the behavior on purpose, it
+must edit those tests, and that edit is the visible record of the change. The spike
+wrote 15 of them, covering the three defects we then fixed in the shipped runner
+slice.
+
+## 4. The contracts: yes, written, six of them
+
+Each is a file under `docs/design/agent-config-editing/contracts/`. Together they are
+the source of truth for the implementation. What each one says, in one breath:
+
+1. **change-set.md.** The commit format. The two delta forms (old and new, never
+   mixed), the seven operations, how a target is addressed (a list of steps, where a
+   step is either a field name or "the list entry named X"), the exact matching rules
+   for text edits, the error catalog, and the rules for importing files. This is the
+   contract the engine implements.
+2. **commit-transaction.md.** How a commit becomes a revision safely. One database
+   transaction that locks the variant, reads the head, checks the base revision id,
+   applies the operations, validates the result, and inserts, so two simultaneous
+   commits cannot both win. Also: a commit that changes nothing creates no revision
+   and says so, and a stale base always answers with a clear conflict carrying both
+   revision ids.
+3. **read-config.md.** The read tool. How the agent asks for its configuration or a
+   part of it, what the response carries (the revision id, the draft flag), the rule
+   that responses return exact stored text (never cleaned, never truncated: too-large
+   answers refuse and offer the list of children instead), and the allow-list of
+   fields the agent may write at all.
+4. **workspace-import.md.** The folder import boundary. Imports come only from the
+   `imports/` folder; how the reader defends against symlink tricks on both sandbox
+   types; what happens with binary, oversized, or executable files; and what the
+   human approval card must show (name, file list with sizes, diff, executable
+   flags).
+5. **execution-authorization.md.** The security layer for imports. When a human
+   approves an import, the runner freezes the exact bytes and issues itself a
+   single-use authorization bound to that specific tool call and content. At
+   execution it verifies and consumes it. A missing or mismatched authorization fails
+   closed. This exists because the sandbox can write into the channel that delivers
+   tool calls, so without it a malicious process inside the sandbox could swap the
+   content after approval.
+6. **adapter-matrix.md.** The per-harness update table. For each harness (Pi, Claude,
+   Codex) and each kind of change (model, tools, MCP servers, instructions, skills):
+   can a live session take the change, or does it need a session reopen, or a full
+   rebuild? Plus the rule that the runner only believes a change was applied when it
+   observes an acknowledgement, and that a forged acknowledgement must never grant
+   anything (worst case: the model sees a stale tool list).
+
+## 5. What we discovered, with context
+
+**Finding 1: Pi and Claude can take live tool updates. Our own delivery blocks it.**
+Context: we assumed a tool-list change always needs a rebuild. The spike read the
+harness code and found: Claude Code already contains a handler for the standard "tool
+list changed" notification and refreshes its tools in place; it never fires for us
+only because OUR tool server never announces that it supports the capability (one
+missing flag). Pi has live APIs to register and hide tools mid-session; they are
+unreachable only because WE deliver Pi's tool list in a process environment variable,
+which is read once at startup and can never change. Only Codex genuinely bakes its
+tool configuration at session creation and needs a reopen. Consequence: live tool
+updates are mostly our work, not the harnesses' work.
+
+**Finding 2: the approval pause could leave a session running stale instructions.**
+Context: when a run stops and waits for your approval, the session is parked. The
+runner labels a parked session with a checksum of the configuration it was built
+from, and reuses the session later only when the label matches the next request. The
+bug: on the approval path, the runner stamped the label from the INCOMING request
+instead of from what the session actually contained. So: edit the configuration while
+a run waits for approval, approve, and the resumed session got the NEW label on the
+OLD files. The next turn saw a match and happily reused a session running outdated
+instructions. Nothing could detect it. Fixed in the shipped runner slice, and fixed
+structurally: the labeling parameter no longer exists (see section 6).
+
+**Finding 3: the import approval had to move, or the human approves a lie.**
+Context: a tool call travels from the harness to the runner through a shared
+directory (the "relay"). The original design resolved the folder into bytes at
+execution time, AFTER the human approved. But then the approval card can only show
+what the model sent: a path string. The human would approve "imports/pdf-tools"
+without seeing a single byte of what gets committed. Worse, the sandbox can write
+into that relay directory, so a malicious process could put different content behind
+the same path after approval. The fix (now in the contracts): resolve the folder
+BEFORE the approval, show the real manifest and diff, freeze the bytes, and commit
+exactly the frozen bytes under a single-use authorization.
+
+**Finding 4: two different payloads could produce the same digest.** Context: the
+authorization from finding 3 identifies "what was approved" by a digest (a hash) of
+the arguments. The existing hashing helper in the runner tries to be clever: if a
+string looks like JSON, it parses it first. That means the string `"{\"x\":1}"` and
+the actual object `{x:1}` hash the same, so an attacker could substitute one for the
+other without changing the digest. The contracts now require a strict serializer for
+anything security-bearing: it never reinterprets strings.
+
+**Finding 5: Pi's edit tool is not actually exact.** Context: we lifted our
+find-and-replace rules from Pi's edit tool, which is battle-tested. Reading its
+source showed that on a failed match it silently retries with normalized quotes,
+dashes, and whitespace. For source code files that is helpful. For configuration it
+is dangerous: an edit could land on text the caller did not actually write. We took
+Pi's contract (exact match, must be unique, all-or-nothing batches) WITHOUT the
+fuzzy fallback. This is also what makes open decision 1 matter.
+
+**Finding 6: today's merge code mutates data it does not own.** Context: the current
+server code that applies an agent's delta copies objects level by level, shallowly.
+Branches it does not touch stay SHARED with the input object. The delete step then
+deletes through that shared branch, changing the caller's original data. Today
+nothing breaks, purely by luck: the input always happens to be a fresh copy. A shared
+engine cannot rely on luck, so the new engine deep-copies, and two tests now pin both
+the old and the new behavior so any change is visible.
+
+**Finding 7: the Daytona file API cannot support the import security checks.**
+Context: on Daytona (the cloud sandbox), the runner reads sandbox files through
+Daytona's file API. That API reports no file permissions and cannot tell a symlink
+from a real file. Both matter for imports: the executable bit is content we must
+record, and a symlink pointing outside the import folder is the classic escape
+trick. The workaround: one shell command inside the sandbox produces a complete
+manifest (types, permissions, sizes, real paths) in a single round trip. The
+remaining race (content swapped during the read window by a hostile process inside
+the sandbox) cannot be fully closed on Daytona; the contract says so honestly and a
+test asserts the limitation, so nobody later mistakes the check for a defense.
+
+**Finding 8: the commit endpoint would have eaten the new conflict error.** Context:
+the endpoint that saves revisions wraps all errors and returns a generic "nothing
+committed" success shape. Our new base check answers conflicts with HTTP 409. Without
+an explicit exclusion, that 409 would be swallowed and the agent would see "success,
+zero commits", which is exactly the silent behavior this project exists to kill. The
+contract names the exclusion.
+
+## 6. The shipped slices, in detail
+
+Both are landed on stacked branches, pushed, and verified by the QA teammate: 1589
+runner tests, 778 SDK tests, 63 web tests, zero failures.
+
+### Slice S5: runner safety (14 files)
+
+Context you need: after a turn ends, the runner keeps the sandbox and the harness
+session alive ("parked") so the next turn starts in 1.4 seconds instead of 12.5. To
+decide whether a parked session is still valid, it compares a checksum of the
+configuration. Three behaviors around this were wrong, and this slice fixes them:
+
+1. **A configuration change deleted the sandbox.** The teardown code mapped a
+   checksum mismatch to "delete", the most expensive option, and the next request
+   then even tried to reconnect to the sandbox it had just deleted. Now: teardown has
+   four precise reasons, and a mismatch that only concerns the session stops the
+   sandbox instead of deleting it. True incompatibility still deletes, and the
+   reconnect pointer is cleared in the same step.
+2. **Any commit evicted the session, even a commit that changed nothing.** The
+   revision id itself was part of the checksum, so a new revision number alone forced
+   a rebuild. Now: the checksum covers content only. Same content, same session.
+3. **The stale-instructions bug from finding 2.** The fix is structural: the park
+   call simply no longer accepts a label from the caller. The parked session's
+   identity comes from what the environment actually holds ("applied state"), which
+   only the code that successfully applied a change can update. The bug is not
+   fixed; it is unrepresentable.
+
+### Slice S4: the description field (12 files)
+
+Context: you asked for this directly. When the agent calls a builder tool (saving a
+revision, running a test), the human sees a bare tool name in the chat. Now every
+builder tool accepts an optional short description written by the agent ("committing
+the two instruction fixes you approved"). The runner strips the field before the
+call reaches the API, so it can never pollute a real payload (there is a test
+proving a description cannot overwrite a real field of the same name), and the agent
+chat tool card displays it. This is also the pattern the audit trail (decision 6)
+will build on.
+
+## 7. The refactoring: partially done, the rest is planned in steps
+
+You asked earlier for a general, clean architecture of the runner so that
+fingerprints route to different behaviors instead of always rebuilding. Here is
+where that stands.
+
+**The idea, in plain words.** A request describes the configuration it WANTS
+("desired state"). The environment records what it actually HAS ("applied state").
+On each turn the runner compares the two, and for every difference it asks: what is
+the cheapest safe way to get from have to want? Rewrite a file in the workspace?
+Tell the live session? Reopen the session on the same sandbox? Or rebuild? Each
+harness declares, per kind of change, which of these it supports (the adapter
+matrix, contract 6). The old single checksum disappears as a decision-maker; it
+survives only as a fast "nothing changed at all" shortcut.
+
+**What is already done (this was S5):** the foundation. Applied state exists and the
+environment owns it; teardown reasons are precise; revision numbers no longer count
+as changes.
+
+**What comes next, in order (each its own slice):**
+
+1. **Move the decision logic out of the web server file** into one coordinator, with
+   no behavior change. Today the reuse decisions live inside the HTTP server code,
+   which makes every later step risky. (Slice S6.)
+2. **Shadow routing.** The new compare-and-decide logic runs alongside the old one,
+   only logging what it WOULD have decided. We watch for disagreements before
+   trusting it. (Also S6.)
+3. **Split the big environment file into lifecycle units** (sandbox, runtime, mount,
+   workspace, harness session), still with no behavior change. (S7a.)
+4. **Turn on the cheap routes:** rewrite instructions and skills in place, set the
+   model on the live session. (S7b.)
+5. **Turn on live tool updates** where finding 1 showed they are reachable, per
+   harness, with the acknowledgement rules. (S7c, after its foundation step S7c0.)
+6. **Session reopen for MCP-server changes, and credential refresh** so a rotated
+   API key on Daytona no longer rebuilds the sandbox. (S7d, S7e.)
+
+## 8. The implicit decisions we made, with context
+
+Decisions the team made during design without asking you, each recorded and each
+reversible by a comment on this file.
+
+1. **Imports come only from the `imports/` folder.** Context: the first draft allowed
+   any path in the workspace, with the approval card as the control. The reviewer
+   pushed back: the workspace also holds files the agent created for other reasons,
+   possibly secrets, and a human skimming a manifest is not a security boundary. A
+   dedicated folder makes intent explicit: things placed there are meant to be
+   committed.
+2. **A folder with unsupported files rejects whole, by default.** Context: skill
+   content is stored as text, so a PNG or a compiled binary cannot be stored
+   faithfully today. The first draft silently dropped such files and committed the
+   rest. That means the user believes the skill is complete when it is not. Now the
+   import fails with a clear reason, and committing with omissions requires an
+   explicit opt-in that the approval card displays.
+3. **Executable permission is four separate things.** Context: "this file is
+   executable" was one boolean doing four jobs. Now: the file's own mode bit is
+   data (always recorded); whether the import may CONTAIN executables is an
+   ephemeral grant the approver sees; whether the stored skill may USE them is a
+   persisted capability, default off; and whether the sandbox actually allows
+   execution stays platform policy. You can import bits faithfully without granting
+   execution; you cannot grant execution for bits you refused to import.
+4. **After a cold resume, an approved import asks again.** Context: the approved
+   frozen bytes live with the parked session. If the session dies before execution
+   (crash, timeout), the bytes are gone. Reading the folder again would commit
+   content the human never saw. Storing the bytes durably would recreate the
+   large-payload problem. So the agent asks for approval a second time. Rare and
+   slightly annoying, but never wrong.
+5. **One text FILE may be imported into one text FIELD.** Context: the strict
+   folder rules above would have removed the founding use case: an oversized
+   instruction file (#5554). So a single file may be committed into a single
+   string field (instructions, a skill body), approved as a readable diff whose old
+   side comes from the exact base revision. If that old text cannot be fetched, the
+   call fails closed rather than showing a wrong diff. Folders into text fields
+   stay forbidden: there is no honest way to present that as a reviewable change.
+6. **A removed Pi tool is hidden AND disarmed.** Context: Pi has no API to truly
+   deregister a tool. Hiding removes it from what the model sees, but the tool
+   would still execute if called by name. So the runner also drops the execution
+   binding: a hidden tool that is somehow called anyway does not run.
+7. **Referenced skills stay unaddressable in v1.** Context: a skill can be embedded
+   by reference instead of inline. A reference has no stable name of its own, so
+   name-based operations cannot target it, and the agent must fall back to the old
+   whole-list write for that one case. Designing a stable key for references is
+   future work; doing it now would delay everything else.
+8. **The "did the live update arrive" signal is untrusted.** Context: for live tool
+   updates the runner wants to know the harness took the change. Any confirmation
+   channel from inside the sandbox can be forged by a process in the sandbox. Rather
+   than pretending to secure it, the design makes forgery harmless: the signal only
+   advances what the model is SHOWN. What a tool call is actually ALLOWED to do is
+   decided runner-side, outside the sandbox, always.
+9. **Strict validation applies only to the new format.** Context: turning on strict
+   field checking for the old delta format would break shipped playbooks and stored
+   callers that today send harmless extra fields. Old format keeps old tolerance;
+   the new operations format rejects unknown fields from day one.
+10. **Rollout is dark-first with a two-sided kill switch.** Context: naively shipping
+    the API first breaks old runners (they would forward unresolved imports). So:
+    API support ships disabled, then runner support disabled, then the catalog
+    starts advertising the new format. One flag turns it all off, enforced in BOTH
+    the API (rejects the new format) and the runner (refuses to read the workspace),
+    because a stale harness can still emit the new format after the catalog stops
+    advertising it.
+
+## 9. The open decisions (yours)
 
 Answer with one line, for example: `1A 2yes 3B 4no 5no 6yes`, or "go with your
 recommendations".
@@ -133,16 +360,16 @@ recommendations".
 
 The agent edits text by quoting it exactly. But text has invisible variety: curly
 quotes from a Mac keyboard, CRLF line endings from Windows, two Unicode forms that
-look identical. If stored text holds a curly quote and the agent types a straight
-one, the match fails.
+look identical on screen. If the stored text holds a curly quote and the agent types
+a straight one, the match fails.
 
 - **Option A, exact bytes.** Store exactly what was sent. A failed match is loud, and
   the agent recovers by copying the true text from the read tool. Strong argument: a
   skill folder can contain a Windows batch file, and that file NEEDS its CRLF
   endings. Cleaning would corrupt it. The external reviewer recommends A.
-- **Option B, clean once on write.** Normalize on save (one Unicode form, LF).
-  Matching almost never fails. But stored bytes change on the next save of old
-  fields, and file contents would need an exception anyway, which splits the rule.
+- **Option B, clean once on write.** Normalize on save (one Unicode form, LF
+  endings). Matching almost never fails. But stored bytes change on the next save of
+  old fields, and file contents would need an exception anyway, which splits the rule.
 
 **Recommendation: A.** One rule, no corruption risk, and the read-before-write loop
 makes the occasional failed match cheap.
@@ -150,8 +377,9 @@ makes the occasional failed match cheap.
 ### Decision 2: the unique-name rule
 
 Named editing needs unique names. Today a config with two skills named `notes` saves
-fine and the runner silently drops one. But some existing agents already carry
-duplicates, and a global check would make them uncommittable for unrelated changes.
+fine and the runner silently drops one at run time. But some existing agents already
+carry duplicates, and a global check would make them uncommittable for unrelated
+changes.
 
 The proposed rule: a commit may not CREATE a new duplicate; a collection the commit
 touches must end up clean; old duplicates elsewhere only warn.
@@ -161,9 +389,9 @@ ambiguous forever.
 
 ### Decision 3: does a folder import always need human approval?
 
-The approval card (name, file list, diff) is the safety control for content the model
-never typed. But some runs have no human, for example a nightly automation that
-updates its own skills.
+The approval card (name, file list, diff) is the safety control for content the
+model never typed. But some runs have no human, for example a nightly automation
+that updates its own skills.
 
 - **Option A, always gate.** Safest. Every unattended import stalls forever.
 - **Option B, gate by default; an explicit "allow" policy skips it.** A run with an
@@ -176,16 +404,17 @@ updates its own skills.
 
 The harness (Pi, Claude, Codex) is the most identity-defining field: changing it
 swaps the runtime and forces a full rebuild. If a user says "switch yourself to
-Claude", may the agent commit that, or must it point the user to the settings drawer?
+Claude", may the agent commit that itself, or must it point the user to the settings
+drawer?
 
 **Recommendation: no, human commit only in v1.** The write-scope is an allow-list;
-widening later is one line, narrowing later is a breaking change.
+widening it later is one line, narrowing it later is a breaking change.
 
 ### Decision 5: may the agent write outside its own agent section?
 
 The revision also holds workflow-level fields beside `parameters.agent`, including
 the service URL and the schemas. Writing the URL would let an agent redirect its own
-requests, which is privilege escalation.
+requests, which is privilege escalation, not configuration editing.
 
 **Recommendation: no.** Commits stay scoped to `parameters.agent`.
 
@@ -193,20 +422,33 @@ requests, which is privilege escalation.
 
 A revision shows the result, not the intent. Storing the operations list on the
 commit record ("edited two lines of the instructions, added skill pdf-tools from
-imports/") makes every agent commit reviewable afterwards. For imports we store the
-source path and a content digest, not the bytes.
+imports/") makes every agent commit reviewable afterwards, and a bad commit
+diagnosable in seconds. For imports we store the source path and a content digest,
+not the bytes, so the record stays small.
 
 **Recommendation: yes.** Small cost, natural companion of the description field.
 
-## 7. Next items, in order
+## 10. Next steps, with context
 
-1. You answer the six decisions (comments here, or one line in chat).
-2. The external reviewer runs a final gate over the corrected contracts.
-3. The engine slice starts: the seven operations behind the commit tool, with the
-   base check and validation. This unlocks US-1, US-2, US-4, US-7.
-4. The read tool and the import path follow: US-5, then US-3.
-5. The remaining runner work lands in steps: coordinator extraction, lifecycle split,
-   live updates for instructions, skills, model, and (per harness) tools.
-6. One combined live QA session on the dev stack across all user stories.
-7. Final code review, PR descriptions, inline comments, docs sync, and the stack is
-   yours to merge.
+1. **You answer the six decisions.** Comments on this file, or one line in chat.
+   Decision 1 gates the engine; 2 and 6 gate the commit; 3 gates imports; 4 and 5
+   gate the read tool's write-scope section.
+2. **A final external review.** The reviewer verifies the corrected contracts one
+   last time, with your answers folded in. Half a day.
+3. **The engine slice.** The seven operations become the real commit path, behind
+   the transaction from contract 2. This is the heart: it unlocks cheap instruction
+   edits, per-skill edits, per-tool add/remove, and loud conflicts (US-1, 2, 4, 7).
+   The prototype and its 120 tests already exist; this is productization, not
+   invention.
+4. **The read tool.** US-5, and the recovery step for every conflict. Ships together
+   with or right before the engine slice, because agents must read before ordered
+   edits become visible to them.
+5. **The import path.** The folder reader, the freeze-and-authorize flow, and the
+   approval card. US-3. The riskiest remaining code; its contracts are the most
+   reviewed of the six.
+6. **The runner steps from section 7**, in their listed order, each its own slice.
+7. **One combined live QA session** on the dev stack across all user stories, by the
+   QA teammate. We deferred live QA until it can cover the real stories; unit suites
+   have gated every slice so far.
+8. **Finalization:** external code review of the full diff, PR descriptions, inline
+   code comments, documentation sync, and the stack is yours to merge.
