@@ -20,10 +20,26 @@ export interface PendingApproval {
     approvalId: string
     toolName: string
     input: unknown
+    /** Workspace content the runner resolved and froze for this gate, when the call imports any. */
+    manifest?: unknown
 }
 
 interface ApprovalRef {
     id: string
+}
+
+/** Manifests keyed by toolCallId, from the egress's `data-approval-manifest` sibling parts. */
+const manifestsByToolCallId = (parts: UIMessage["parts"] = []): Map<string, unknown> => {
+    const found = new Map<string, unknown>()
+    for (const part of parts) {
+        if ((part as {type?: string}).type !== "data-approval-manifest") continue
+        const data = (part as {data?: Record<string, unknown>}).data
+        const toolCallId = data?.toolCallId
+        if (typeof toolCallId === "string" && data?.manifest !== undefined) {
+            found.set(toolCallId, data.manifest)
+        }
+    }
+    return found
 }
 
 const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
@@ -37,11 +53,17 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     const last = messages[messages.length - 1]
     if (!last || last.role !== "assistant") return []
     const out: PendingApproval[] = []
+    const manifests = manifestsByToolCallId(last.parts)
     for (const part of last.parts ?? []) {
         const p = part as ToolUIPart
         const approval = (p as {approval?: ApprovalRef}).approval
         if (isToolPart(p.type as string) && p.state === "approval-requested" && approval?.id) {
-            out.push({approvalId: approval.id, toolName: partToolName(p), input: p.input})
+            out.push({
+                approvalId: approval.id,
+                toolName: partToolName(p),
+                input: p.input,
+                manifest: manifests.get(p.toolCallId),
+            })
         }
     }
     return out
@@ -354,6 +376,7 @@ const ApprovalDock = ({
                                 key={current.approvalId}
                                 input={current.input}
                                 entityId={entityId}
+                                manifest={current.manifest}
                                 fallback={<PayloadBlock input={current.input} />}
                             />
                         ) : (
