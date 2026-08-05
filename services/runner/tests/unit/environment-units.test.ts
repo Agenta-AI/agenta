@@ -32,10 +32,23 @@ const STAGE_EMITTERS = [
   "engines/sandbox_agent/environment-setup.ts",
   "environment/sandbox-lifecycle.ts",
   "environment/workspace-manager.ts",
+  "environment/mount-lifecycle.ts",
+  "environment/harness-session-lifecycle.ts",
+  "environment/runtime-lifecycle.ts",
   "environment/timing.ts",
 ];
 
 const ALL_STAGE_SOURCE = () => STAGE_EMITTERS.map(SRC).join("\n");
+
+/**
+ * Strip block and line comments, so a source assertion checks CODE and not prose.
+ *
+ * These units are heavily commented on purpose, and the prose legitimately uses the same words
+ * the assertions forbid in code. A check that cannot tell the two apart would either fail on a
+ * comment or be loosened until it proves nothing.
+ */
+const CODE_ONLY = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 
 describe("timing: the stage names are a public interface", () => {
   it("emits the documented line shape", () => {
@@ -227,5 +240,195 @@ describe("the composer delegates instead of inlining", () => {
       !source.includes("`[timing] stage="),
       "the line shape must live in one place",
     );
+  });
+});
+
+describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
+  it("the six helpers left environment.ts", () => {
+    // They were mutually recursive closures over `acquireEnvironment`'s scope. The composer now
+    // holds thin adapters that pass `ctx`; the bodies live in the unit.
+    const source = SRC("engines/sandbox_agent/environment.ts");
+    for (const marker of [
+      "let agentMountGuidanceActive",
+      "let localAgentMountEnotconnRemounts",
+      "let localDurableCwdEnotconnRemounts",
+    ]) {
+      assert.ok(
+        !source.includes(marker),
+        `environment.ts still declares '${marker}'; that state belongs on the context`,
+      );
+    }
+  });
+
+  it("the unit captures nothing: every helper takes ctx as its first parameter", () => {
+    const source = SRC("environment/mount-lifecycle.ts");
+    for (const fn of [
+      "activateAgentMountGuidance",
+      "mountLocalDurableCwd",
+      "mountLocalAgentCwd",
+      "reSignAndRemountLocalAgentMount",
+      "reSignAndRemountLocalCwd",
+      "remountLocalCwdAfterRuntimeEnotconn",
+    ]) {
+      assert.ok(
+        source.includes(`function ${fn}(`),
+        `${fn} must be a top-level function in the unit`,
+      );
+    }
+    assert.equal(
+      source.split("ctx: AcquireContext").length - 1,
+      6,
+      "all six helpers take ctx; a captured variable would defeat the split",
+    );
+  });
+
+  it("the unit never touches the mutable environment or the raw env maps", () => {
+    // The structural half of the external review's first finding. A unit that could reach
+    // `environment.x = ...` would make the ownership table documentation again.
+    const source = CODE_ONLY(SRC("environment/mount-lifecycle.ts"));
+    assert.ok(!source.includes("environment."), "no direct environment access");
+    assert.ok(
+      !source.includes("piExtEnv"),
+      "the daemon env maps stay private to the context",
+    );
+  });
+
+  it("every operational catch rethrows an invariant violation first", () => {
+    // Without this the freeze throw dies in mountLocalAgentCwd's catch and the run continues
+    // with a harness that cannot see its durable storage.
+    const source = SRC("environment/mount-lifecycle.ts");
+    assert.ok(source.includes("catch (err)"), "the unit still has an operational catch");
+    assert.ok(
+      source.includes("rethrowIfInvariant(err)"),
+      "an operational catch must start with rethrowIfInvariant",
+    );
+  });
+
+  it("the composer freezes the daemon env BEFORE building the provider", () => {
+    // INVARIANT 1's enforcement point. `buildSandboxProvider` takes the env maps by reference.
+    const source = SRC("engines/sandbox_agent/environment.ts");
+    const freeze = source.indexOf("ctx.freezeDaemonEnv()");
+    const provider = source.indexOf("buildSandboxProvider)(");
+    assert.ok(freeze > 0, "the composer must freeze the daemon env");
+    assert.ok(provider > 0);
+    assert.ok(
+      freeze < provider,
+      "the freeze must come BEFORE the provider takes the env maps by reference",
+    );
+  });
+
+  it("the composer kept every call site it had before", () => {
+    // `reSignAndRemountLocalAgentMount` is absent on purpose: it was only ever reached from the
+    // ENOTCONN handler, so it is now internal to the unit.
+    const source = SRC("engines/sandbox_agent/environment.ts");
+    for (const call of [
+      'mountLocalDurableCwd("initial")',
+      "mountLocalAgentCwd()",
+      "activateAgentMountGuidance()",
+      "reSignAndRemountLocalCwd()",
+      "remountLocalCwdAfterRuntimeEnotconn",
+    ]) {
+      assert.ok(source.includes(call), `the composer lost its '${call}' call site`);
+    }
+  });
+
+  it("teardown records the cwd unmount through its named transition", () => {
+    const source = SRC("engines/sandbox_agent/environment.ts");
+    assert.ok(source.includes("ctx.recordCwdUnmountResult("));
+    assert.ok(
+      !source.includes("durableCwdSafeToDelete ="),
+      "durableCwdSafeToDelete must no longer be assigned directly",
+    );
+  });
+});
+
+describe("harness-session unit: the seam", () => {
+  it("owns both acquire stages and the session teardown", () => {
+    const source = SRC("environment/harness-session-lifecycle.ts");
+    assert.ok(source.includes('"probe_capabilities"'));
+    assert.ok(source.includes('"create_session"'));
+    assert.ok(source.includes("export async function teardown("));
+  });
+
+  it("keeps create_session as ONE stage with a mode field", () => {
+    const source = CODE_ONLY(SRC("environment/harness-session-lifecycle.ts"));
+    assert.ok(source.includes('" mode=load"'));
+    assert.ok(source.includes('" mode=create"'));
+  });
+
+  it("takes an explicit input rather than AcquireContext", () => {
+    // Deliberate: nothing here shares mutable state or calls a sibling, so threading the context
+    // through would imply a coupling that does not exist.
+    const source = CODE_ONLY(SRC("environment/harness-session-lifecycle.ts"));
+    assert.ok(!source.includes("AcquireContext"));
+  });
+
+  it("reports loadedFromContinuity WITHOUT claiming history replayed", () => {
+    // The comparison proves the adapter accepted the id, not that it replayed the turns. The
+    // caveat is in the type's doc comment so a reader cannot mistake one for the other.
+    const source = SRC("environment/harness-session-lifecycle.ts");
+    assert.ok(source.includes("It does NOT prove the adapter replayed the turns"));
+  });
+
+  it("the composer delegates both stages", () => {
+    const source = SRC("engines/sandbox_agent/environment.ts");
+    assert.ok(source.includes("await probeHarness("));
+    assert.ok(source.includes("await openHarnessSession("));
+    assert.ok(source.includes("await teardownHarnessSession("));
+  });
+});
+
+describe("runtime unit: the seam", () => {
+  it("owns the in-flight quiesce and the runner-owned files", () => {
+    const source = SRC("environment/runtime-lifecycle.ts");
+    assert.ok(source.includes("export async function teardownInFlight("));
+    assert.ok(source.includes("export function removeRuntimeFiles("));
+    assert.ok(source.includes("export function buildRuntimeEnvironment("));
+  });
+
+  it("declares NO restart or reconfigure, because neither exists yet", () => {
+    // The honest answer. Inventing a `restart()` that throws would suggest the seam is there.
+    const source = CODE_ONLY(SRC("environment/runtime-lifecycle.ts"));
+    assert.ok(!source.includes("export function restart"));
+    assert.ok(!source.includes("export async function restart"));
+    assert.ok(!source.includes("export function reconfigure"));
+  });
+
+  it("the composer quiesces BEFORE it removes the sandbox from the registry", () => {
+    // Ordering is load-bearing: an in-flight remount or `tools/call` must be stopped before
+    // anything else in destroy frees state under it.
+    const source = SRC("engines/sandbox_agent/environment.ts");
+    const quiesce = source.indexOf("teardownRuntimeInFlight(");
+    const registry = source.indexOf("inFlightSandboxes.delete(");
+    assert.ok(quiesce > 0 && registry > 0);
+    assert.ok(quiesce < registry, "the quiesce must come first");
+  });
+
+  it("the composer removes runner files through the unit", () => {
+    const source = SRC("engines/sandbox_agent/environment.ts");
+    assert.ok(source.includes("removeRuntimeFiles({"));
+  });
+});
+
+describe("environment-setup is a planner again", () => {
+  it("no longer builds the daemon environment or writes the OTLP bearer", () => {
+    // The purification. These were never planning: they build two env maps and write a file.
+    const source = CODE_ONLY(SRC("engines/sandbox_agent/environment-setup.ts"));
+    for (const marker of [
+      "buildDaemonEnv)(",
+      "writeOtlpAuthFile(",
+      "buildPiExtensionEnv(",
+      "configureDaytonaCodexEnv(",
+    ]) {
+      assert.ok(
+        !source.includes(marker),
+        `environment-setup still performs '${marker}'; it belongs to the runtime unit`,
+      );
+    }
+  });
+
+  it("delegates to the runtime unit instead", () => {
+    const source = SRC("engines/sandbox_agent/environment-setup.ts");
+    assert.ok(source.includes("buildRuntimeEnvironment({"));
   });
 });
