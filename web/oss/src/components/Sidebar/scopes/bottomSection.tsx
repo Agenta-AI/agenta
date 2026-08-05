@@ -4,6 +4,7 @@ import {GithubFilled} from "@ant-design/icons"
 import {
     ChatCircleIcon,
     GearIcon,
+    PaperPlaneIcon,
     PhoneIcon,
     QuestionIcon,
     RocketLaunchIcon,
@@ -15,8 +16,10 @@ import {useSetAtom} from "jotai"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
+import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {openWidgetAtom} from "@/oss/lib/onboarding"
+import {useOrgData} from "@/oss/state/org"
 
 import type {SidebarConfig, SidebarSection} from "../engine/types"
 
@@ -31,6 +34,8 @@ export const useSidebarBottomSection = ({
     includeSettingsLink = true,
 }: SidebarBottomSectionOptions = {}): SidebarSection => {
     const {doesSessionExist} = useSession()
+    const {selectedOrg} = useOrgData()
+    const {canInviteMembers} = useWorkspacePermissions()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
@@ -62,6 +67,19 @@ export const useSidebarBottomSection = ({
             disabled: !hasProjectURL,
         }),
         [hasProjectURL, projectURL],
+    )
+
+    const inviteItem = useMemo<SidebarConfig>(
+        () => ({
+            key: "invite-teammate-link",
+            title: "Invite Teammate",
+            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
+            icon: <PaperPlaneIcon size={14} />,
+            tooltip: "Invite Teammate",
+            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
+            disabled: !hasProjectURL,
+        }),
+        [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrg],
     )
 
     const sharedItems = useMemo<SidebarConfig[]>(
@@ -127,10 +145,12 @@ export const useSidebarBottomSection = ({
     return useMemo(
         () => ({
             key: "bottom",
-            items: includeSettingsLink ? [settingsLink, ...sharedItems] : sharedItems,
+            items: includeSettingsLink
+                ? [settingsLink, inviteItem, ...sharedItems]
+                : [inviteItem, ...sharedItems],
             placement: "bottom",
             mode: "vertical",
         }),
-        [includeSettingsLink, settingsLink, sharedItems],
+        [includeSettingsLink, settingsLink, inviteItem, sharedItems],
     )
 }
