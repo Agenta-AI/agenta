@@ -236,6 +236,20 @@ export interface SessionEnvironment {
    * prevent. See `environment/workspace-manager.ts`.
    */
   workspaceInventory?: import("../../environment/workspace-manager.ts").WorkspaceInventory;
+  /**
+   * Close and reopen this environment's harness session on the SAME sandbox.
+   *
+   * A CLOSURE built at acquire, exactly like `destroy`, because a reopen needs the persist
+   * driver, the session-init payload and the local session key — all of which live in the acquire
+   * scope and none of which belong on this interface individually.
+   *
+   * Undefined when the environment never opened a session. The caller then rebuilds.
+   */
+  reopenSession?: (opts: {
+    transcriptReplayable: boolean;
+  }) => Promise<
+    import("../../environment/harness-session-lifecycle.ts").ReopenResult
+  >;
   /** Record a lifecycle action that already succeeded. The only writer of `appliedState`. */
   commitApplied: (result: {
     configFingerprint: string;

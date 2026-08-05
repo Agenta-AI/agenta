@@ -173,3 +173,87 @@ export async function teardown(input: {
     // best-effort session teardown
   }
 }
+
+/**
+ * ============================================================================================
+ * REOPEN: closing and reopening the session on the SAME sandbox
+ * ============================================================================================
+ *
+ * LIFECYCLE MIGRATION, STEP 6 (continued). A reopen is what makes the uniform tool, MCP, prompt
+ * and harness-file routes cheaper than a rebuild: the sandbox, the daemon, the mounts and the
+ * workspace all survive; only the ACP session is recreated.
+ *
+ * THE HARD PART IS NOT REOPENING. It is knowing whether the CONVERSATION survived.
+ *
+ * `adapter-matrix.md` section 6.2 is explicit that a matching `agentSessionId` proves the adapter
+ * ACCEPTED the id, not that it replayed the turns. A `session/load` that succeeds at the transport
+ * layer and loads nothing would look identical. So a reopen may not claim continuity on that
+ * evidence, and the matrix gives two options: read back a positive signal, or treat the reopen as
+ * a continuity loss and replay.
+ *
+ * WHAT WE CAN ACTUALLY OBSERVE: nothing. The ACP surface exposes no conversation length and no
+ * last-message identifier, so the first option is unavailable today. Inventing a check that does
+ * not check anything would be worse than having none.
+ *
+ * SO THE CONDITION IS REPLAYABILITY, NOT VERIFICATION. The runner does not always NEED native
+ * history. When the request carries the full transcript, the turn replays it and a reopened
+ * session that lost its memory is indistinguishable from one that kept it. When the request
+ * carries only the last message, the harness's native memory IS the conversation, and losing it
+ * silently truncates the user's context.
+ *
+ *   full transcript in the request -> reopen is safe. Replay covers the loss.
+ *   last-message-only request      -> reopen needs proof we cannot obtain. FAIL CLOSED.
+ *
+ * That is the honest reading of the matrix's second option, and it keeps the route useful for the
+ * common case instead of making it permanently inert.
+ */
+export interface ReopenInput extends OpenSessionInput {
+  /** The live session to close before reopening. */
+  current: { id: string } | undefined;
+  /**
+   * True when the incoming request carries the whole prior conversation, so the turn replays it
+   * and native memory is not load-bearing. Computed by the caller from `carriesMinimalHistory`.
+   */
+  transcriptReplayable: boolean;
+}
+
+export type ReopenResult =
+  | {
+      ok: true;
+      session: { id: string; agentSessionId?: string };
+      loadedFromContinuity: boolean;
+    }
+  | { ok: false; reason: "history-unverifiable" | "reopen-failed" };
+
+/**
+ * Close and reopen the harness session on the same sandbox.
+ *
+ * Returns `ok: false` rather than throwing: a refusal is an ordinary outcome the caller answers
+ * with a rebuild. `history-unverifiable` is a REFUSAL BEFORE ANY CHANGE — nothing is closed and
+ * the live session keeps running, so the caller's rebuild starts from a clean state rather than
+ * from a session we already tore down.
+ */
+export async function reopen(input: ReopenInput): Promise<ReopenResult> {
+  if (!input.transcriptReplayable) {
+    input.log(
+      "reopen refused: the request carries no transcript to replay, and native history cannot be verified",
+    );
+    return { ok: false, reason: "history-unverifiable" };
+  }
+  try {
+    await teardown({
+      sandbox: input.sandbox as never,
+      session: input.current,
+      alreadyRequested: false,
+    });
+    const opened = await openSession(input);
+    return {
+      ok: true,
+      session: opened.session,
+      loadedFromContinuity: opened.loadedFromContinuity,
+    };
+  } catch (err) {
+    input.log(`reopen failed: ${conciseError(err, input.harness)}`);
+    return { ok: false, reason: "reopen-failed" };
+  }
+}

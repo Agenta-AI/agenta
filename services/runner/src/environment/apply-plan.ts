@@ -36,6 +36,7 @@ import { normalizeDesiredState } from "../lifecycle/desired-state.ts";
 import { configFingerprint } from "../engines/sandbox_agent/session-identity.ts";
 import type { ReconcilePlan } from "../lifecycle/reconcile-plan.ts";
 import { refresh, type WorkspaceInventory } from "./workspace-manager.ts";
+import { carriesMinimalHistory } from "../engines/sandbox_agent/session-identity.ts";
 import type { Log } from "./timing.ts";
 
 export interface ApplyPlanDeps {
@@ -106,6 +107,26 @@ export async function applyReconcilePlan(
           log(
             `live-route: refreshed workspace, removed ${result.removedSkills.length} skill(s)`,
           );
+        }
+        break;
+      }
+
+      case "reopen-session": {
+        // Close and reopen on the SAME sandbox. `reopen` refuses before touching anything when
+        // the conversation could not survive, so a refusal leaves the live session running and
+        // the caller rebuilds from a clean state.
+        if (!env.reopenSession) {
+          log("live-route: this environment cannot reopen its session; rebuilding");
+          return false;
+        }
+        const result = await env.reopenSession({
+          // Native history cannot be positively verified, so a reopen is only safe when the
+          // request carries a transcript the turn will replay. See `reopen`.
+          transcriptReplayable: !carriesMinimalHistory(request),
+        });
+        if (!result.ok) {
+          log(`live-route: reopen refused (${result.reason}); rebuilding`);
+          return false;
         }
         break;
       }
