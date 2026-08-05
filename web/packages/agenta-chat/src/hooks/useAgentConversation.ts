@@ -495,7 +495,15 @@ export const useAgentConversation = ({
             const trimmed = text.trim()
             const fileObjs = files ?? []
             if (!trimmed && fileObjs.length === 0) return
-            const fileParts = fileObjs.length ? await filesToParts(fileObjs) : undefined
+            // Send what encoded. A file that cannot be read no longer takes the text and the
+            // other attachments down with it (`filesToParts` settles each file separately).
+            const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
+            const fileParts = encoded?.parts.length ? encoded.parts : undefined
+            if (encoded?.rejections.length) {
+                console.warn("[useAgentConversation] attachments could not be read:", {
+                    files: encoded.rejections.map((r) => r.name),
+                })
+            }
             // Clear any prior "stopped" marker — it's resolved by asking again.
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the release gate.

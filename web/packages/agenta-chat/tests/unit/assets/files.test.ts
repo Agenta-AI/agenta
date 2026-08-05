@@ -1,7 +1,7 @@
 import type {FileUIPart, UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {fileKind, fileParts, filePartName} from "../../../src/assets/files"
+import {fileKind, fileParts, filePartName, filesToParts} from "../../../src/assets/files"
 
 // `filesToParts`/`fileToPart` read a `File` via `FileReader.readAsDataURL`, which the node
 // vitest environment (`environment: "node"` in vitest.config.ts) does not provide — no DOM,
@@ -90,5 +90,59 @@ describe("filePartName", () => {
             url: "",
         }
         expect(filePartName(part)).toBe("file")
+    })
+})
+
+// `filesToParts` needs a FileReader, which this environment does not provide. A minimal stub is
+// enough to prove the settle-individually contract: one file reads, the other errors.
+class StubFileReader {
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+    error: unknown = null
+    result: string | null = null
+    readAsDataURL(file: File) {
+        if (file.name === "gone.txt") {
+            this.error = new Error("unreadable")
+            setTimeout(() => this.onerror?.(), 0)
+            return
+        }
+        this.result = `data:${file.type};base64,aGVsbG8=`
+        setTimeout(() => this.onload?.(), 0)
+    }
+}
+
+const withStubReader = async (run: () => Promise<void>) => {
+    const original = (globalThis as {FileReader?: unknown}).FileReader
+    ;(globalThis as {FileReader?: unknown}).FileReader = StubFileReader
+    try {
+        await run()
+    } finally {
+        ;(globalThis as {FileReader?: unknown}).FileReader = original
+    }
+}
+
+describe("filesToParts", () => {
+    // A staged file can become unreadable between picking and submit (moved, permission revoked,
+    // a disconnected drive). That used to reject the whole conversion, losing the message text
+    // and every readable attachment with it.
+    it("keeps the readable files when one cannot be read", async () => {
+        await withStubReader(async () => {
+            const good = new File(["hello"], "good.txt", {type: "text/plain"})
+            const bad = new File(["x"], "gone.txt", {type: "text/plain"})
+            const {parts, rejections} = await filesToParts([good, bad])
+            expect(parts.map((p) => p.filename)).toEqual(["good.txt"])
+            expect(rejections).toEqual([{name: "gone.txt", reason: "could not be read"}])
+        })
+    })
+
+    it("reports no rejections when every file reads", async () => {
+        await withStubReader(async () => {
+            const {parts, rejections} = await filesToParts([
+                new File(["a"], "a.txt", {type: "text/plain"}),
+                new File(["b"], "b.txt", {type: "text/plain"}),
+            ])
+            expect(parts).toHaveLength(2)
+            expect(rejections).toEqual([])
+        })
     })
 })

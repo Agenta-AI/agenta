@@ -111,10 +111,15 @@ export const useComposerAttachments = ({
 
     const dismissRejections = useCallback(() => setRejections([]), [])
 
-    const toParts = useCallback(
-        () => (files.length ? filesToParts(files.map((f) => f.file)) : Promise.resolve([])),
-        [files],
-    )
+    // A file that cannot be read at submit time is surfaced through the same inline notices the
+    // guardrails use, and the readable ones still go out — losing the whole message because one
+    // attachment went missing is worse than sending without it.
+    const toParts = useCallback(async () => {
+        if (!files.length) return []
+        const {parts, rejections: unreadable} = await filesToParts(files.map((f) => f.file))
+        if (unreadable.length) setRejections((prev) => [...prev, ...unreadable])
+        return parts
+    }, [files])
 
     return {files, rejections, limits, atMax, add, remove, clear, dismissRejections, toParts}
 }
