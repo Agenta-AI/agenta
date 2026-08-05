@@ -162,8 +162,16 @@ def _commit_for(variant):
     )
 
 
-async def _attempt(engine, variant, expected_head):
-    """One writer. Each runs in its own task, so it gets its own scoped session."""
+async def _attempt(engine, variant, expected_head, gate=None):
+    """One writer. Each runs in its own task, so it gets its own scoped session.
+
+    ``gate`` makes the overlap deterministic. Both writers wait on it and are released
+    together, so the race is real on a fast machine and on a slow one. Without it the
+    first writer can finish before the second starts, and the test then passes without
+    ever exercising the lock.
+    """
+    if gate is not None:
+        await gate.wait()
     try:
         revision = await _dao(engine).commit_revision(
             project_id=variant["project_id"],
@@ -185,17 +193,27 @@ async def _revision_count(engine, variant) -> int:
     return result.scalar_one()
 
 
+async def _race(engine, variant, head):
+    """Two writers on one head, released together."""
+    gate = asyncio.Event()
+    writers = asyncio.gather(
+        _attempt(engine, variant, head, gate),
+        _attempt(engine, variant, head, gate),
+        return_exceptions=False,
+    )
+    # Both tasks are parked on the gate before either touches the database.
+    await asyncio.sleep(0)
+    gate.set()
+    return await writers
+
+
 class TestTwoWriters:
     async def test_exactly_one_writer_wins(self, engine, variant):
         head = await _seed_head(engine, variant)
 
         # Both writers read the SAME head, then commit concurrently. The session is scoped
         # to the running task, so two tasks means two sessions and two connections.
-        first, second = await asyncio.gather(
-            _attempt(engine, variant, head),
-            _attempt(engine, variant, head),
-            return_exceptions=False,
-        )
+        first, second = await _race(engine, variant, head)
 
         outcomes = sorted([first[0], second[0]])
         assert outcomes == ["committed", "conflict"], (
@@ -205,9 +223,7 @@ class TestTwoWriters:
     async def test_the_loser_is_told_the_new_head(self, engine, variant):
         head = await _seed_head(engine, variant)
 
-        results = await asyncio.gather(
-            _attempt(engine, variant, head), _attempt(engine, variant, head)
-        )
+        results = await _race(engine, variant, head)
         winner = next(r for r in results if r[0] == "committed")[1]
         conflict = next(r for r in results if r[0] == "conflict")[1]
 
@@ -220,9 +236,7 @@ class TestTwoWriters:
         head = await _seed_head(engine, variant)
         before = await _revision_count(engine, variant)
 
-        await asyncio.gather(
-            _attempt(engine, variant, head), _attempt(engine, variant, head)
-        )
+        await _race(engine, variant, head)
 
         # The count is the real proof: a lost update would show two.
         assert await _revision_count(engine, variant) == before + 1
@@ -232,9 +246,7 @@ class TestTwoWriters:
         head = await _seed_head(engine, variant)
         for _ in range(10):
             before = await _revision_count(engine, variant)
-            results = await asyncio.gather(
-                _attempt(engine, variant, head), _attempt(engine, variant, head)
-            )
+            results = await _race(engine, variant, head)
             assert await _revision_count(engine, variant) == before + 1
             head = next(r for r in results if r[0] == "committed")[1].id
 

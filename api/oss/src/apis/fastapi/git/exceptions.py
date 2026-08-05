@@ -24,6 +24,7 @@ from oss.src.core.git.types import (
     InlineResolveInvalid,
     RetrieveRefsInconsistent,
     RetrieveRefsInsufficient,
+    RevisionConflict,
     VariantForkError,
     VariantNotFound,
 )
@@ -56,6 +57,21 @@ class RetrieveRefsInconsistentException(HTTPException):
         message: str = "References disagree with the resolved revision.",
     ):
         super().__init__(status_code=400, detail=message)
+
+
+class RevisionConflictException(HTTPException):
+    """The generic 409 for a moved head.
+
+    The workflow commit routes catch `RevisionConflict` before this decorator sees it and
+    answer with the structured body the agent retries on. This arm is the safety net for
+    every other git route, so a conflict there is a 409 and not a generic 500.
+    """
+
+    def __init__(
+        self,
+        message: str = "The variant head changed. No revision was committed.",
+    ):
+        super().__init__(status_code=409, detail=message)
 
 
 class CommitLockTimeoutException(HTTPException):
@@ -98,6 +114,8 @@ def handle_git_exceptions():
                 raise RetrieveRefsInconsistentException(message=e.message) from e
             except InlineResolveInvalid as e:
                 raise InlineResolveInvalidException(message=e.message) from e
+            except RevisionConflict as e:
+                raise RevisionConflictException(message=e.message) from e
             except CommitLockTimeout as e:
                 raise CommitLockTimeoutException(message=e.message) from e
             except VariantNotFound as e:
