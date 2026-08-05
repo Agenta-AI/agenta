@@ -291,6 +291,80 @@ describe("ExecutionAuthorizationStore", () => {
     };
   }
 
+  // The gate and the execution do not always see one call id, so the set is matched on what
+  // actually binds it. Every one of these asserts that the match is no weaker than the id was.
+  describe("findSetByCall", () => {
+    const find = (overrides: Record<string, unknown> = {}) =>
+      store.findSetByCall({
+        toolName: "commit_revision",
+        argsDigest: strictDigest(ARGS),
+        requiredMarkers: [MARKER_A],
+        ...overrides,
+      });
+
+    it("finds the set the gate minted, under the id the gate used", () => {
+      mint();
+      assert.equal(find(), "call-1");
+    });
+
+    it("refuses a different tool under the same arguments", () => {
+      mint();
+      assert.equal(find({ toolName: "delete_variant" }), undefined);
+    });
+
+    it("refuses arguments that differ by one byte", () => {
+      mint();
+      const tampered = strictDigest({
+        ...ARGS,
+        workflow_revision: {
+          delta: {
+            operations: [
+              { operation: "add_item", value: { body: { "@ag.file": "b.md" } } },
+            ],
+          },
+        },
+      });
+      assert.equal(find({ argsDigest: tampered }), undefined);
+    });
+
+    it("refuses a set that was already consumed, so single use survives", () => {
+      mint();
+      store.consumeAll("call-1", [MARKER_A]);
+      assert.equal(find(), undefined);
+    });
+
+    it("refuses a set that expired", () => {
+      mint();
+      clock += 2_000;
+      assert.equal(find(), undefined);
+    });
+
+    it("refuses a set that does not cover every marker the call carries", () => {
+      // An approval for a one-marker commit must not stand in for a two-marker one.
+      mint(MARKER_A);
+      assert.equal(find({ requiredMarkers: [MARKER_A, MARKER_B] }), undefined);
+    });
+
+    it("refuses a set that covers more markers than the call carries", () => {
+      mint(MARKER_A);
+      mint(MARKER_B);
+      assert.equal(find({ requiredMarkers: [MARKER_A] }), undefined);
+    });
+
+    it("hands out one set at a time when two identical commits are approved", () => {
+      mint();
+      mint(MARKER_A, { toolCallId: "call-2" });
+      const first = find();
+      assert.ok(first);
+      store.consumeAll(first, [MARKER_A]);
+      const second = find();
+      assert.ok(second);
+      assert.notEqual(second, first, "the consumed set is not offered again");
+      store.consumeAll(second, [MARKER_A]);
+      assert.equal(find(), undefined);
+    });
+  });
+
   describe("mint", () => {
     it("binds the call and freezes the content", () => {
       const record = mint();

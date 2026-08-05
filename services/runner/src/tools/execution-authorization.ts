@@ -202,6 +202,62 @@ export class ExecutionAuthorizationStore {
   }
 
   /**
+   * The `toolCallId` of a set minted for THIS tool with THESE exact arguments, when the executing
+   * caller reports a different id.
+   *
+   * WHY THIS EXISTS. The gate and the execution do not always see one id. A non-Pi harness gates
+   * an MCP tool under its OWN call id, and the in-sandbox shim later relays the same call under a
+   * uuid it generates, because a `tools/call` carries no harness id for it to reuse. Both ids name
+   * one call. Keying the lookup on the id alone therefore failed every approved import on that
+   * path, which is the whole point of the record.
+   *
+   * WHY IT IS NOT A WEAKENING. The id was never the authorization. This module says so in its own
+   * header: a tool-call id is CORRELATION. The binding is `argsDigest`, over the model's original
+   * arguments through the strict serializer, plus the tool name. A caller that cannot reproduce
+   * both byte for byte matches nothing here, and one that can is asking to run the call the human
+   * approved, with the frozen bytes, which is what would have run anyway. Every other check in
+   * `verifyAll` still applies to the set this returns.
+   *
+   * The residual is a denial of service, not an escalation. A process that can write the relay
+   * directory can spend an approval before the harness's own call arrives, and that call then
+   * fails closed. Such a process can already stop the same commit by simpler means.
+   *
+   * Only a COMPLETE, unconsumed, unexpired set matches, and the FIRST such set wins so two
+   * identical approved commits are consumed one at a time.
+   */
+  findSetByCall(input: {
+    toolName: string;
+    argsDigest: string;
+    requiredMarkers: MarkerKey[];
+  }): string | undefined {
+    const now = this.now();
+    const byCall = new Map<string, ExecutionAuthorization[]>();
+    for (const record of this.records.values()) {
+      const group = byCall.get(record.toolCallId);
+      if (group) group.push(record);
+      else byCall.set(record.toolCallId, [record]);
+    }
+    for (const [toolCallId, group] of byCall) {
+      if (group.length !== input.requiredMarkers.length) continue;
+      const usable = group.every(
+        (record) =>
+          record.toolName === input.toolName &&
+          record.argsDigest === input.argsDigest &&
+          !record.consumed &&
+          now < record.expiresAtMs,
+      );
+      if (!usable) continue;
+      // The set must cover exactly the markers this call carries, so a partial match cannot
+      // stand in for the commit that was approved.
+      const covered = input.requiredMarkers.every((marker) =>
+        this.records.has(keyOf(toolCallId, marker)),
+      );
+      if (covered) return toolCallId;
+    }
+    return undefined;
+  }
+
+  /**
    * Contract 3.4.2. Verify the COMPLETE set before consuming any of it. No mutation here.
    *
    * A missing record fails closed. Section 4's single exception (an explicitly ungated
