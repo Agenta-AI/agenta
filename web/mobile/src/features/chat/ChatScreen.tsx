@@ -45,7 +45,11 @@ export const ChatScreen = ({
     )
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
     const pendingCount = pendingApprovals.length
-    const approvals = useApprovalActions({sessionId, projectId, pendingCount})
+    const pendingApprovalIds = useMemo(
+        () => pendingApprovals.map((approval) => approval.approvalId),
+        [pendingApprovals],
+    )
+    const approvals = useApprovalActions({sessionId, projectId, pendingApprovalIds})
     // ~4s while a fired decision settles (fire-and-forget — records carry the resume).
     const basePollMs =
         approvals.phase === "resuming" ? 4_000 : pendingCount > 0 || running ? 7_500 : 0
