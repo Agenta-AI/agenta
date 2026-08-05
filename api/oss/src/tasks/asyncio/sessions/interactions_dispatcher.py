@@ -35,6 +35,32 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
+def _user_attachment_blocks(attributes: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Attachment blocks for one user record, in the runner's wire shape.
+
+    Keys the runner omits when absent are omitted here too: a `null` filename is not the same
+    wire value as no filename.
+    """
+    blocks: List[Dict[str, Any]] = []
+    for attachment in attributes.get("attachments") or []:
+        if not isinstance(attachment, dict):
+            continue
+        attachment_id = attachment.get("attachmentId")
+        if not isinstance(attachment_id, str) or not attachment_id:
+            continue
+        block: Dict[str, Any] = {"type": "attachment", "attachmentId": attachment_id}
+        for wire_key, stored_key in (
+            ("filename", "filename"),
+            ("mimeType", "mediaType"),
+            ("size", "size"),
+        ):
+            value = attachment.get(stored_key)
+            if value is not None:
+                block[wire_key] = value
+        blocks.append(block)
+    return blocks
+
+
 def build_wire_messages(records: List[SessionRecord]) -> List[Dict[str, Any]]:
     """Replay durable session records into runner wire messages.
 
@@ -68,10 +94,20 @@ def build_wire_messages(records: List[SessionRecord]) -> List[Dict[str, Any]]:
         record_type = record.record_type or attributes.get("type")
 
         if record.record_source == "user":
-            text = attributes.get("text")
-            if isinstance(text, str) and text:
-                close_assistant()
-                messages.append({"role": "user", "content": text})
+            raw_text = attributes.get("text")
+            text = raw_text if isinstance(raw_text, str) else ""
+            attachments = _user_attachment_blocks(attributes)
+            if not text and not attachments:
+                continue
+            close_assistant()
+            # Attachments ride the user record and rebuild as blocks followed by exactly one
+            # text block, matching `services/runner/src/sessions/reconstruct.ts`. A turn that
+            # was only files still replays: dropping it would hand the model a different
+            # context than the one the human approved against.
+            content: Any = (
+                [*attachments, {"type": "text", "text": text}] if attachments else text
+            )
+            messages.append({"role": "user", "content": content})
             continue
 
         if record_type == "message":
@@ -118,9 +154,15 @@ def resolve_gated_tool_call_id(
 
     Precedence: the client's explicit ``tool_call_id``; else the persisted
     ``interaction_request`` record whose event id is the interaction token (its payload
-    carries the gated ``toolCallId``); else the token itself (the runner's event id falls
-    back to the tool-call id when the permission id is empty, so this stays a valid anchor
-    for the synthesized-history path).
+    carries the gated ``toolCallId``); else the id stored on the gate row itself; else the
+    token (the runner's event id falls back to the tool-call id when the permission id is
+    empty, so this stays a valid anchor for the synthesized-history path).
+
+    The row is consulted before the token because warm-resume matching is strict on
+    ``toolCallId``: whenever record replay lags or comes back empty, the token would miss the
+    parked gate and drop an answerable turn to a cold replay for no reason. The row carries the
+    harness call id from the moment the gate was created (`buildInteractionData`), so it is
+    available even when no record is.
     """
     explicit = answer.get("tool_call_id")
     if isinstance(explicit, str) and explicit:
@@ -137,6 +179,11 @@ def resolve_gated_tool_call_id(
         tool_call_id = payload.get("toolCallId")
         if isinstance(tool_call_id, str) and tool_call_id:
             return tool_call_id
+
+    stored_request = getattr(interaction.data, "request", None)
+    stored = getattr(stored_request, "tool_call_id", None)
+    if isinstance(stored, str) and stored:
+        return stored
 
     return interaction.token
 

@@ -402,3 +402,137 @@ async def test_approval_answer_without_a_boolean_verdict_passes_through():
     )
 
     assert dispatch_fn.await_args.kwargs["request"].data.inputs == {"approved": "yep"}
+
+
+async def test_the_stored_call_id_anchors_the_envelope_when_records_are_missing():
+    """Warm-resume matching is strict on `toolCallId`. With no records to replay, falling
+    straight through to the token misses the parked gate and degrades an answerable turn to a
+    cold replay -- even though the row has carried the harness call id since gate creation."""
+    project_id = uuid4()
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={
+            "tool": "bash",
+            "args": {"command": "rm -rf ./build"},
+            "tool_call_id": "toolu_stored_1",
+        },
+    )
+    dispatch_fn = AsyncMock()
+    dispatcher = _dispatcher_with(interaction, [], dispatch_fn)
+
+    await dispatcher.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    blocks = dispatch_fn.await_args.kwargs["request"].data.inputs["messages"][0][
+        "content"
+    ]
+    assert blocks[0]["toolCallId"] == "toolu_stored_1", (
+        "the token is the last resort, not the second one"
+    )
+    assert blocks[-1]["toolCallId"] == "toolu_stored_1"
+
+
+async def test_an_explicit_client_id_still_outranks_the_stored_one():
+    project_id = uuid4()
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "bash", "args": {}, "tool_call_id": "toolu_stored_1"},
+    )
+    dispatch_fn = AsyncMock()
+    dispatcher = _dispatcher_with(interaction, [], dispatch_fn)
+
+    await dispatcher.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True, "tool_call_id": "toolu_from_client"},
+    )
+
+    blocks = dispatch_fn.await_args.kwargs["request"].data.inputs["messages"][0][
+        "content"
+    ]
+    assert blocks[0]["toolCallId"] == "toolu_from_client"
+
+
+def test_user_records_replay_their_attachments():
+    """A detached approval reconstructs the model's context. Dropping the files off a user turn
+    hands the agent a different conversation than the one the human approved against, and an
+    attachment-only turn vanishes entirely."""
+    project_id = uuid4()
+    records = [
+        _record(
+            project_id,
+            source="user",
+            rtype="message",
+            attributes={
+                "type": "message",
+                "text": "review this",
+                "attachments": [
+                    {
+                        "attachmentId": "att-1",
+                        "filename": "spec.pdf",
+                        "mediaType": "application/pdf",
+                        "size": 12,
+                    }
+                ],
+            },
+        ),
+    ]
+
+    messages = build_wire_messages(records)
+
+    assert messages == [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "attachment",
+                    "attachmentId": "att-1",
+                    "filename": "spec.pdf",
+                    "mimeType": "application/pdf",
+                    "size": 12,
+                },
+                {"type": "text", "text": "review this"},
+            ],
+        }
+    ]
+
+
+def test_an_attachment_only_user_record_still_replays():
+    project_id = uuid4()
+    records = [
+        _record(
+            project_id,
+            source="user",
+            rtype="message",
+            attributes={
+                "type": "message",
+                "attachments": [{"attachmentId": "att-1"}],
+            },
+        ),
+    ]
+
+    assert build_wire_messages(records) == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "attachment", "attachmentId": "att-1"},
+                {"type": "text", "text": ""},
+            ],
+        }
+    ]
+
+
+def test_a_user_record_with_neither_text_nor_attachments_is_skipped():
+    project_id = uuid4()
+    records = [
+        _record(
+            project_id, source="user", rtype="message", attributes={"type": "message"}
+        ),
+    ]
+
+    assert build_wire_messages(records) == []
