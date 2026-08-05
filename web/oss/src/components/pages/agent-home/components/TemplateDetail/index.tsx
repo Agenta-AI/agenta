@@ -1,5 +1,5 @@
 import {PageLayout} from "@agenta/ui"
-import {ArrowLeftIcon, ArrowRightIcon, LightningIcon} from "@phosphor-icons/react"
+import {ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Empty, Tag} from "antd"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -121,34 +121,89 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                 </aside>
 
                 {/* What it will actually do. */}
-                <div className="grid min-w-0 flex-1 grid-cols-1 items-start gap-6 xl:grid-cols-2">
-                    <section className="flex min-w-0 flex-col gap-2">
-                        <SectionLabel>Instructions · AGENTS.md</SectionLabel>
-                        <pre className="m-0 box-border max-h-[420px] overflow-auto whitespace-pre-wrap rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4 font-mono text-[13px] leading-relaxed text-colorTextSecondary">
-                            {template.instructions}
-                        </pre>
-                    </section>
+                <div className="flex min-w-0 flex-1 flex-col gap-6">
+                    {template.example ? (
+                        <section className="flex flex-col gap-2">
+                            <SectionLabel>Example session</SectionLabel>
+                            <div className="box-border flex flex-col gap-3 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4">
+                                <span className="w-fit self-end rounded-lg bg-colorFillTertiary px-3 py-1.5 text-sm text-colorText">
+                                    {template.example.prompt}
+                                </span>
 
-                    {tools.length ? (
-                        <section className="flex min-w-0 flex-col gap-2">
-                            <SectionLabel>Tools it can call</SectionLabel>
-                            <div className="box-border flex flex-col rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-2">
-                                {tools.map((tool) => (
-                                    <div
-                                        key={`${tool.provider}-${tool.name}`}
-                                        className="flex items-center gap-2 rounded-lg px-2 py-2"
-                                    >
-                                        <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-colorText">
-                                            {tool.name}
-                                        </span>
-                                        <span className="shrink-0 text-xs text-colorTextTertiary">
-                                            {PROVIDERS[tool.provider]?.label ?? tool.provider}
-                                        </span>
+                                <span className="text-xs text-colorTextTertiary">
+                                    {template.name} · {template.example.steps.length} steps
+                                </span>
+                                <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
+                                    {template.example.steps.map((step) => (
+                                        <li
+                                            key={step}
+                                            className="flex items-center gap-2 text-sm text-colorTextSecondary"
+                                        >
+                                            <CheckCircleIcon
+                                                size={14}
+                                                className="shrink-0 text-colorSuccess"
+                                            />
+                                            {step}
+                                        </li>
+                                    ))}
+                                </ol>
+
+                                <p className="m-0 text-sm leading-relaxed text-colorText">
+                                    {template.example.reply}
+                                </p>
+
+                                {template.example.artifacts?.length || template.example.status ? (
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {template.example.artifacts?.map((artifact) => (
+                                            <Tag key={artifact} className="!m-0 font-mono !text-xs">
+                                                {artifact}
+                                            </Tag>
+                                        ))}
+                                        {template.example.status ? (
+                                            <Tag color="warning" className="!m-0">
+                                                {template.example.status}
+                                            </Tag>
+                                        ) : null}
                                     </div>
-                                ))}
+                                ) : null}
                             </div>
+                            {/* Say what it is. An illustrative run presented as a real one is a
+                                lie about what the agent has already done for someone. */}
+                            <span className="text-xs text-colorTextTertiary">
+                                An example of how this template runs — not a recorded session.
+                            </span>
                         </section>
                     ) : null}
+
+                    <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-2">
+                        <section className="flex min-w-0 flex-col gap-2">
+                            <SectionLabel>Instructions · AGENTS.md</SectionLabel>
+                            <pre className="m-0 box-border max-h-[420px] overflow-auto whitespace-pre-wrap rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-4 font-mono text-[13px] leading-relaxed text-colorTextSecondary">
+                                {template.instructions}
+                            </pre>
+                        </section>
+
+                        {tools.length ? (
+                            <section className="flex min-w-0 flex-col gap-2">
+                                <SectionLabel>Tools it can call</SectionLabel>
+                                <div className="box-border flex flex-col rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-2">
+                                    {tools.map((tool) => (
+                                        <div
+                                            key={`${tool.provider}-${tool.name}`}
+                                            className="flex items-center gap-2 rounded-lg px-2 py-2"
+                                        >
+                                            <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-colorText">
+                                                {tool.name}
+                                            </span>
+                                            <span className="shrink-0 text-xs text-colorTextTertiary">
+                                                {PROVIDERS[tool.provider]?.label ?? tool.provider}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+                        ) : null}
+                    </div>
                 </div>
             </div>
         </PageLayout>

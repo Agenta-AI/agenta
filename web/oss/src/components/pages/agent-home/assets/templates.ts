@@ -21,6 +21,27 @@ export interface RequiredIntegration {
     tools: TemplateTool[]
 }
 
+/**
+ * An illustrative run, authored alongside the template.
+ *
+ * Shaped so it can later be POPULATED rather than written: every field is something a real
+ * session already produces (the opening message, the step labels, the closing reply, the files it
+ * wrote, the gate it stopped at), so a backend that captures a redacted real run can fill this in
+ * without the detail page changing. Until then it is hand-written and labelled as an example.
+ */
+export interface TemplateExampleSession {
+    /** What started the run — a message, or the trigger firing. */
+    prompt: string
+    /** What the agent did, one line per step. */
+    steps: string[]
+    /** How it reported back. */
+    reply: string
+    /** Files it produced, if any. */
+    artifacts?: string[]
+    /** Where it stopped, if it stopped for you (e.g. "Awaiting approval"). */
+    status?: string
+}
+
 export interface AgentTemplate {
     key: string
     name: string
@@ -42,6 +63,8 @@ export interface AgentTemplate {
     trigger: string
     /** One-line detail of when the trigger fires (drawer Trigger body). */
     triggerDescription: string
+    /** An illustrative run. Absent where none has been authored — the section is skipped. */
+    example?: TemplateExampleSession
     /** Pre-filled playground message, auto-sent on entering a Ready playground. */
     seedMessage: string
     /**
@@ -188,6 +211,17 @@ export const AGENT_TEMPLATES: AgentTemplate[] = [
     },
     {
         key: "changelog-writer",
+        example: {
+            prompt: "Draft this week's changelog",
+            steps: [
+                "Fetched merged PRs since the last run",
+                "Grouped them by area using .github/labels.yml",
+                "Drafted release notes in your changelog format",
+            ],
+            reply: "Draft is ready — written in your usual format. I've posted it to #releases and will publish once you approve.",
+            artifacts: ["changelog-draft.md"],
+            status: "Awaiting approval",
+        },
         name: "Changelog writer",
         category: "Engineering",
         initials: "CL",
