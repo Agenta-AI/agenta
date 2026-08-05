@@ -13,6 +13,9 @@
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
+
 import type {
   AgentEvent,
   AgentRunRequest,
@@ -34,6 +37,7 @@ import {
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
 import {
+  appliedStateForRequest,
   AppliedState,
   type AppliedEnvironmentState,
 } from "../../src/engines/sandbox_agent/applied-state.ts";
@@ -104,7 +108,7 @@ interface DispatchFakeEnv {
   id: number;
   /** The environment owns what it applied (lifecycle migration, step 2). The pool reads it. */
   readonly appliedState: AppliedEnvironmentState;
-  commitApplied: (result: { configFingerprint: string }) => void;
+  commitApplied: (result: AppliedCommit) => void;
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
@@ -145,8 +149,8 @@ function makeApprovalEngine(
   let nextEnvId = 1;
   // Seeded from the acquiring request, exactly as `prepareEnvironmentSetup` does. The approval
   // tests care about this most: a resume must NOT be able to move it.
-  const makeEnv = (configFp: string): DispatchFakeEnv => {
-    const applied = new AppliedState(configFp);
+  const makeEnv = (request: AgentRunRequest): DispatchFakeEnv => {
+    const applied = appliedStateForRequest(request);
     const env: DispatchFakeEnv = {
       id: nextEnvId++,
       get appliedState() {
@@ -265,7 +269,7 @@ function makeApprovalEngine(
     },
     async acquireEnvironment(request, _signal, _presigned) {
       calls.acquire += 1;
-      const env = makeEnv(configFingerprint(request));
+      const env = makeEnv(request);
       const expiry = mountExpiryMs(mountOpts.expiresAt);
       if (expiry !== undefined) env.installedMountExpiries.cwd = expiry;
       calls.acquiredEnvs.push(env);

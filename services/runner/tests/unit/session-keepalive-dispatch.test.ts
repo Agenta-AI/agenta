@@ -10,6 +10,9 @@
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
+
 import type {
   AgentEvent,
   AgentRunRequest,
@@ -32,6 +35,7 @@ import {
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
 import {
+  appliedStateForRequest,
   AppliedState,
   type AppliedEnvironmentState,
 } from "../../src/engines/sandbox_agent/applied-state.ts";
@@ -67,7 +71,7 @@ interface FakeEnv {
   id: number;
   /** The environment owns what it applied (lifecycle migration, step 2). The pool reads it. */
   readonly appliedState: AppliedEnvironmentState;
-  commitApplied: (result: { configFingerprint: string }) => void;
+  commitApplied: (result: AppliedCommit) => void;
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
@@ -99,8 +103,8 @@ function makeEngine(options: EngineOptions = {}) {
   let nextEnvId = 1;
   // The fake acquire seeds applied state from the acquiring request, exactly as the real
   // `prepareEnvironmentSetup` does. Without it the pool would have nothing to read.
-  const makeEnv = (configFp: string): FakeEnv => {
-    const applied = new AppliedState(configFp);
+  const makeEnv = (request: AgentRunRequest): FakeEnv => {
+    const applied = appliedStateForRequest(request);
     const env: FakeEnv = {
       id: nextEnvId++,
       get appliedState() {
@@ -172,7 +176,7 @@ function makeEngine(options: EngineOptions = {}) {
     },
     async acquireEnvironment(request, _signal, presigned) {
       calls.acquire += 1;
-      const env = makeEnv(configFingerprint(request));
+      const env = makeEnv(request);
       // The real mount helpers stamp the expiry of the credentials the daemon received; a
       // mount-less acquire leaves the entry unset (no lease at all).
       const cwd = mountExpiryMs(presigned?.expiresAt);

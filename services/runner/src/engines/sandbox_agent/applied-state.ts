@@ -15,12 +15,21 @@
  * no fingerprint parameter left for a caller to stamp, which makes the bug unrepresentable rather
  * than merely fixed.
  *
- * Scope note. This slice carries one facet, `configFingerprint`, because that is the facet the
- * pool compares today. The richer shape in the lifecycle design (sandbox, runtime, mounts,
- * workspace, and harness-session facets, each with its own generation) arrives with the
- * reconciliation router. `generation` is here from the start so a later facet split has a counter
- * to build on.
+ * Scope note. Step 2 carried one value, `configFingerprint`, because that is what the pool
+ * compares. Step 4 adds `facets` beside it: the same request, split into the semantic facets the
+ * reconciliation router diffs. The router needs to ask an environment what it applied PER FACET,
+ * and a single whole-request hash cannot answer that. Both are stamped from the same successful
+ * acquire, so they can never disagree.
+ *
+ * `generation` is Kubernetes' `observedGeneration`: it counts what this environment has actually
+ * observed and installed. It never re-enters environment identity.
  */
+import {
+  normalizeDesiredState,
+  type FacetDigests,
+} from "../../lifecycle/desired-state.ts";
+import type { AgentRunRequest } from "../../protocol.ts";
+import { configFingerprint } from "./session-identity.ts";
 
 /**
  * The state an environment has successfully installed. Read-only to everyone except
@@ -38,6 +47,11 @@ export interface AppliedEnvironmentState {
    * SUCCESSFUL acquire, never from an incoming request.
    */
   readonly configFingerprint: string;
+  /**
+   * The same configuration, split into the facets the reconciliation router diffs. Stamped from
+   * the same successful acquire, so it can never disagree with `configFingerprint`.
+   */
+  readonly facets: FacetDigests;
 }
 
 /**
@@ -59,10 +73,12 @@ export interface AppliedStateOwner {
 export class AppliedState implements AppliedStateOwner {
   #generation: number;
   #configFingerprint: string;
+  #facets: FacetDigests;
 
-  constructor(configFingerprint: string) {
+  constructor(configFingerprint: string, facets: FacetDigests) {
     this.#generation = 1;
     this.#configFingerprint = configFingerprint;
+    this.#facets = facets;
   }
 
   get appliedState(): AppliedEnvironmentState {
@@ -70,6 +86,7 @@ export class AppliedState implements AppliedStateOwner {
     return {
       generation: this.#generation,
       configFingerprint: this.#configFingerprint,
+      facets: { ...this.#facets },
     };
   }
 
@@ -81,8 +98,28 @@ export class AppliedState implements AppliedStateOwner {
    * leave applied state exactly where it was. That is the partial-reconciliation rule from the
    * lifecycle design, and it is why this method takes a result rather than a desired value.
    */
-  commitApplied(result: { configFingerprint: string }): void {
+  commitApplied(result: {
+    configFingerprint: string;
+    facets: FacetDigests;
+  }): void {
     this.#generation += 1;
     this.#configFingerprint = result.configFingerprint;
+    this.#facets = result.facets;
   }
+}
+
+/**
+ * Build the applied state for the request that is BUILDING an environment.
+ *
+ * One place computes both halves from one request, so `configFingerprint` and `facets` can never
+ * describe different configurations. Every caller that seeds or advances applied state should go
+ * through this, including tests: a test that hand-builds the two halves can construct a state the
+ * real code can never reach.
+ */
+export function appliedStateForRequest(request: AgentRunRequest): AppliedState {
+  const fingerprint = configFingerprint(request);
+  return new AppliedState(
+    fingerprint,
+    normalizeDesiredState(request, fingerprint).digests,
+  );
 }

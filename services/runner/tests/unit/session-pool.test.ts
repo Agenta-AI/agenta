@@ -5,10 +5,21 @@
  */
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
+
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
 import { inspect } from "node:util";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { AppliedState } from "../../src/engines/sandbox_agent/applied-state.ts";
+import { FACETS, type FacetDigests } from "../../src/lifecycle/desired-state.ts";
+
+// The pool never reads facet digests; it only reads `configFingerprint`. So one constant
+// stands in for every facet here, and a pool test that starts depending on facets will be
+// visible as a test that had to stop using this.
+const FAKE_FACETS: FacetDigests = Object.fromEntries(
+  FACETS.map((facet) => [facet, "facet-digest"]),
+) as FacetDigests;
 import {
   approvalDecisionForToolCall,
   computeCredentialEpoch,
@@ -58,14 +69,14 @@ describe("resolvesToLocalProvider (local/remote gate)", () => {
 // hand the pool a fingerprint of its own.
 function fakeEnv(configFp = "cfg") {
   const state = { destroyed: 0, reasons: [] as string[] };
-  const applied = new AppliedState(configFp);
+  const applied = new AppliedState(configFp, FAKE_FACETS);
   let done = false;
   return {
     state,
     get appliedState() {
       return applied.appliedState;
     },
-    commitApplied: (result: { configFingerprint: string }) =>
+    commitApplied: (result: AppliedCommit) =>
       applied.commitApplied(result),
     teardown: async (reason: string) => {
       if (done) return;
@@ -981,13 +992,13 @@ describe("SessionPool", () => {
   it("strict capacity keeps a stopping seat and awaits teardown before inserting", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
-    const stoppingApplied = new AppliedState("cfg");
+    const stoppingApplied = new AppliedState("cfg", FAKE_FACETS);
     const stoppingEnv = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
         return stoppingApplied.appliedState;
       },
-      commitApplied: (r: { configFingerprint: string }) =>
+      commitApplied: (r: AppliedCommit) =>
         stoppingApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
@@ -1056,13 +1067,13 @@ describe("SessionPool", () => {
 
   it("a strict stopping entry cannot be checked out or reparked over", async () => {
     let releaseTeardown: (() => void) | undefined;
-    const envApplied = new AppliedState("cfg");
+    const envApplied = new AppliedState("cfg", FAKE_FACETS);
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
         return envApplied.appliedState;
       },
-      commitApplied: (r: { configFingerprint: string }) =>
+      commitApplied: (r: AppliedCommit) =>
         envApplied.commitApplied(r),
       teardown: async (_reason: string) =>
         new Promise<void>((resolve) => {
@@ -1104,13 +1115,13 @@ describe("SessionPool", () => {
   it("non-strict capacity still frees the seat before teardown completes", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
-    const nonStrictApplied = new AppliedState("cfg");
+    const nonStrictApplied = new AppliedState("cfg", FAKE_FACETS);
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
       get appliedState() {
         return nonStrictApplied.appliedState;
       },
-      commitApplied: (r: { configFingerprint: string }) =>
+      commitApplied: (r: AppliedCommit) =>
         nonStrictApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
@@ -1385,13 +1396,13 @@ describe("SessionPool", () => {
     // A's destroy is gated: it does not resolve until we release it, standing in for a slow unmount.
     let releaseADestroy: (() => void) | undefined;
     const aState = { destroyed: 0, reasons: [] as string[] };
-    const aApplied = new AppliedState("cfg");
+    const aApplied = new AppliedState("cfg", FAKE_FACETS);
     const aEnv = {
       state: aState,
       get appliedState() {
         return aApplied.appliedState;
       },
-      commitApplied: (r: { configFingerprint: string }) =>
+      commitApplied: (r: AppliedCommit) =>
         aApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
