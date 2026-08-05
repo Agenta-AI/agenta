@@ -87,6 +87,36 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
   pretending to secure the channel: worst case is a stale model-visible catalog, never
   a privilege escalation. adapter-matrix.md §4.3.
 
+## Arbitrations after the model-usability spike (team lead + Mahmoud, 5 August)
+
+- **The inline marker replaces the operation-level source, and it is named
+  `@ag.file`.** One marker family with `@ag.embed`: same shape, different lifetime
+  (embed persists and re-resolves; file is consumed at commit and never persists).
+  The folder-to-skill codec is dropped from v1; the agent authors skill structure
+  itself and references file contents per field. Validated by the spike: the
+  operation-level source produced the only silent-corruption failure mode; the
+  marker went 91-for-91 across both models.
+- **Every retryable error carries one sentence naming the next action.** The
+  conflict response instructs: call read_config, re-anchor, resend with the new
+  base id. "File not found" lists what exists under the import root. "Text not
+  found" returns the nearest lines of the target.
+- **Paths may be relative to the workspace root or absolute.** An absolute path
+  inside the workspace is normalized by the runner (it knows its own root on each
+  platform). Only paths outside the workspace are refused. Agents use absolute
+  paths naturally; rejecting them fights the model.
+- **The wrapper forgives the two unambiguous selector mistakes** (repeated list
+  name; key-field in the `field` slot), and `field` is renamed to `list` in the
+  selector. The selector caused 62 percent of all spike failures.
+- **No-change detection is mandatory before ship.** A cornered model commits a
+  no-op to manufacture success; the `changed` flag and the no-change response stop
+  it. Observed once in the spike.
+- **Free-text fields on ALL builder tools are optional, with a server-derived
+  fallback** (Mahmoud, 5 August: general rule, not commit-only). The commit
+  `message` is the first case; the ephemeral `description` and any future prose
+  field follow the same rule. Reason: free text was the site of every DeepSeek
+  argument-corruption failure, and a required prose field lets a formatting slip
+  destroy a correct payload.
+
 ## Settled by the contracts (no longer open)
 
 - Binary and unsupported files reject the whole import by default; `on_unsupported:
