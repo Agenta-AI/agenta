@@ -274,6 +274,7 @@ class ChangeSetError(Exception):
         operation_index: Optional[int] = None,
         operation: Optional[str] = None,
         target: Optional[Target] = None,
+        next_step: Optional[str] = None,
         **context: Any,
     ) -> None:
         super().__init__(message)
@@ -282,6 +283,9 @@ class ChangeSetError(Exception):
         self.operation_index = operation_index
         self.operation = operation
         self.target = list(target) if target is not None else None
+        # A reason whose next action depends on the policy that refused it cannot come
+        # from the table, so a raise site may carry its own sentence.
+        self.explicit_next_step = next_step
         self.context = context
 
     @property
@@ -290,7 +294,7 @@ class ChangeSetError(Exception):
 
     @property
     def next_step(self) -> Optional[str]:
-        return NEXT_STEPS.get(self.reason)
+        return self.explicit_next_step or NEXT_STEPS.get(self.reason)
 
     def to_detail(self) -> Dict[str, Any]:
         """The HTTP 422 ``detail`` body. Contract section 12."""
@@ -452,7 +456,12 @@ def subtree_scope(
                 )
         return None
 
-    policy._prefix_depth = len(wanted)  # type: ignore[attr-defined]
+    policy._prefix = tuple(wanted)  # type: ignore[attr-defined]
+    # The legacy arm walks the `set` tree only this deep before it asks the policy, so a
+    # refused sub-path deeper than the prefix would never be reached and never refused.
+    policy._prefix_depth = max(  # type: ignore[attr-defined]
+        [len(wanted)] + [len(path) for path in blocked]
+    )
     return policy
 
 
@@ -1115,40 +1124,94 @@ def _warn_wholesale(
 # --------------------------------------------------------------------------------------
 
 
+# A path element is a field name, or one selected list entry as (list name, item key).
+# The pair is what keeps two skills' `files` lists apart; without it every nested list in
+# a keyed collection collapses onto one path and the siblings overwrite each other.
+PathElement = Union[str, Tuple[str, str]]
+
+
 class _Touched:
     """Which keyed lists an operation could have changed. Contract section 9."""
 
     def __init__(self) -> None:
-        self.item_paths: List[Tuple[str, ...]] = []
-        self.branch_paths: List[Tuple[str, ...]] = []
+        self.item_paths: List[Tuple[PathElement, ...]] = []
+        self.branch_paths: List[Tuple[PathElement, ...]] = []
 
     @staticmethod
-    def _plain(segments: Sequence[Segment]) -> Tuple[str, ...]:
-        # A selector stands in place of its list's name, so it flattens to that name.
-        return tuple(s["list"] if isinstance(s, dict) else s for s in segments)
+    def _plain(segments: Sequence[Segment]) -> Tuple[PathElement, ...]:
+        # A selector names ONE entry, so it keeps its key. Dropping the key here is what
+        # made an edit to one skill answer for every other skill's nested collections.
+        return tuple(
+            (s["list"], s["key"]) if isinstance(s, dict) else s for s in segments
+        )
 
     def item(self, segments: Sequence[Segment]) -> None:
         self.item_paths.append(self._plain(segments))
 
     def branch(self, segments: Sequence[Segment]) -> None:
-        self.branch_paths.append(self._plain(segments))
+        path = self._plain(segments)
+        self.branch_paths.append(path)
+        # Writing INSIDE a selected entry touches the list that entry belongs to: the
+        # write can change the entry's own key and collide with a sibling.
+        for index, element in enumerate(path):
+            if isinstance(element, tuple):
+                self.branch_paths.append(path[:index] + (element[0],))
+
+
+def _entry_identity(list_name: str, entry: Any, index: int) -> str:
+    """How one entry of a keyed list is named inside a path.
+
+    An entry with no derivable key (an `@ag.embed`) falls back to its position, so two
+    unaddressable siblings still hold separate collections.
+    """
+    return item_key(list_name, entry) or f"#{index}"
 
 
 def _collections(
-    tree: Any, path: Tuple[str, ...] = ()
-) -> Dict[Tuple[str, ...], List[Any]]:
-    """Every keyed list in a tree, by its path."""
-    found: Dict[Tuple[str, ...], List[Any]] = {}
+    tree: Any, path: Tuple[PathElement, ...] = ()
+) -> Dict[Tuple[PathElement, ...], List[Any]]:
+    """Every keyed list in a tree, by its path.
+
+    Entries of a KEYED list carry their key into the path, so a nested list belongs to the
+    entry that holds it. Entries of an unkeyed list share their parent's path: no selector
+    can address them, so nothing can touch a collection beneath one on its own.
+    """
+    found: Dict[Tuple[PathElement, ...], List[Any]] = {}
     if isinstance(tree, dict):
         for key, value in tree.items():
             child = path + (key,)
             if key in KEY_FIELDS and isinstance(value, list):
                 found[child] = value
-            found.update(_collections(value, child))
+                for index, entry in enumerate(value):
+                    found.update(
+                        _collections(
+                            entry,
+                            path + ((key, _entry_identity(key, entry, index)),),
+                        )
+                    )
+            else:
+                found.update(_collections(value, child))
     elif isinstance(tree, list):
         for entry in tree:
             found.update(_collections(entry, path))
     return found
+
+
+def _path_text(path: Sequence[PathElement]) -> str:
+    return ".".join(
+        f"{element[0]}[{element[1]}]" if isinstance(element, tuple) else element
+        for element in path
+    )
+
+
+def _path_target(path: Sequence[PathElement]) -> List[Segment]:
+    """The path as contract-shaped target segments, so a warning stays addressable."""
+    return [
+        {"list": element[0], "key": element[1]}
+        if isinstance(element, tuple)
+        else element
+        for element in path
+    ]
 
 
 def _duplicates(list_name: str, entries: Sequence[Any]) -> Dict[str, int]:
@@ -1182,14 +1245,15 @@ def _check_unique_names(
         if item_touched:
             raise _Fail(
                 Reason.DUPLICATE_ITEM_KEY,
-                f"'{'.'.join(path)}' holds duplicate keys: {', '.join(sorted(after))}.",
+                f"'{_path_text(path)}' holds duplicate keys: "
+                f"{', '.join(sorted(after))}.",
                 duplicates=sorted(after),
             )
         grew = [key for key, count in after.items() if count > was.get(key, 0)]
         if branch_touched and grew:
             raise _Fail(
                 Reason.DUPLICATE_ITEM_KEY,
-                f"the change adds a duplicate key to '{'.'.join(path)}': "
+                f"the change adds a duplicate key to '{_path_text(path)}': "
                 f"{', '.join(sorted(grew))}.",
                 duplicates=sorted(grew),
             )
@@ -1197,11 +1261,11 @@ def _check_unique_names(
             Warning(
                 code=WarningCode.LEGACY_DUPLICATE_KEY,
                 message=(
-                    f"'{'.'.join(path)}' already held duplicate keys before this change: "
-                    f"{', '.join(sorted(after))}. Entries with a duplicate key cannot be "
-                    "addressed by name."
+                    f"'{_path_text(path)}' already held duplicate keys before this "
+                    f"change: {', '.join(sorted(after))}. Entries with a duplicate key "
+                    "cannot be addressed by name."
                 ),
-                target=list(path),
+                target=_path_target(path),
             )
         )
 
@@ -1262,6 +1326,21 @@ def _policy_depth(scope_policy: ScopePolicy) -> int:
     return depth if isinstance(depth, int) else 1
 
 
+def _scope_next_step(scope_policy: ScopePolicy) -> str:
+    """What to do about a scope refusal, naming the subtree the caller may write.
+
+    The refusal message names the path that was refused; this names the boundary, so the
+    two together tell an agent what to send instead.
+    """
+    prefix = ".".join(getattr(scope_policy, "_prefix", ()) or ())
+    if not prefix:
+        return "Remove the operation on that path and send the commit again."
+    return (
+        f"Write only under `{prefix}`. Remove the operation on the path this refusal "
+        "names, then send the commit again."
+    )
+
+
 # --------------------------------------------------------------------------------------
 # The engine
 # --------------------------------------------------------------------------------------
@@ -1289,7 +1368,12 @@ def apply_change_set(
         for target in _legacy_scope_targets(delta, _policy_depth(policy)):
             refusal = policy(target)
             if refusal:
-                raise ChangeSetError(Reason.OUT_OF_SCOPE, refusal, target=list(target))
+                raise ChangeSetError(
+                    Reason.OUT_OF_SCOPE,
+                    refusal,
+                    target=list(target),
+                    next_step=_scope_next_step(policy),
+                )
         warnings.append(
             Warning(
                 code=WarningCode.LEGACY_DELTA_FORM,
@@ -1342,6 +1426,7 @@ def apply_change_set(
                     operation_index=index,
                     operation=operation.get("operation"),
                     target=target,
+                    next_step=_scope_next_step(policy),
                 )
 
     for index, operation in enumerate(operations):
