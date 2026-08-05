@@ -189,16 +189,44 @@ LEGACY_CASES = [
 ]
 
 
-class TestLegacyMatchesService:
+def reference_legacy_apply(base, delta):
+    """The legacy fold, written out independently of the engine.
+
+    It is a transcription of what `service.py` did before the legacy arm moved into the
+    engine: deep-merge `set`, then delete each `remove` path, in that order. Keeping an
+    independent copy HERE is the point — it is what makes the parametrized table below a
+    check on the engine rather than a restatement of it.
+    """
+
+    def merge(into, patch):
+        for key, value in patch.items():
+            if (
+                isinstance(value, dict)
+                and isinstance(into.get(key), dict)
+                and into.get(key) is not None
+            ):
+                merge(into[key], value)
+            else:
+                into[key] = copy.deepcopy(value)
+        return into
+
+    result = merge(copy.deepcopy(base), delta.get("set") or {})
+    for path in delta.get("remove") or []:
+        keys = path.split(".")
+        node = result
+        for key in keys[:-1]:
+            node = node.get(key) if isinstance(node, dict) else None
+            if not isinstance(node, dict):
+                break
+        else:
+            node.pop(keys[-1], None)
+    return result
+
+
+class TestLegacyMatchesTheOriginalFold:
     @pytest.mark.parametrize("delta,_unused", LEGACY_CASES)
-    def test_same_result_as_service_helpers(self, delta, _unused):
-        from oss.src.core.workflows.service import _deep_merge, _remove_path
-
-        reference = _deep_merge(base_config(), delta.get("set") or {})
-        for path in delta.get("remove") or []:
-            _remove_path(reference, path)
-
-        assert apply(delta) == reference
+    def test_same_result_as_the_original_fold(self, delta, _unused):
+        assert apply(delta) == reference_legacy_apply(base_config(), delta)
 
     def test_lists_replace_whole(self):
         result = apply({"set": {"parameters": {"agent": {"skills": []}}}})
@@ -220,28 +248,16 @@ class TestLegacyMatchesService:
         assert result == base_config()
 
     def test_the_base_is_never_modified(self):
-        # service.py's `_remove_path` mutates through the shallow `_deep_merge` copy.
-        # The engine deep-copies first, so a caller's base survives.
+        # The original fold merged shallowly and then removed through the copy, so a
+        # remove reached back into the caller's base. The engine deep-copies first.
         base = base_config()
         snapshot = copy.deepcopy(base)
         apply({"remove": ["parameters.agent.tools"]}, base)
         assert base == snapshot
 
-    def test_service_helpers_do_mutate_the_base(self):
-        # This documents the aliasing defect the engine fixes. If it ever fails,
-        # service.py changed and the note in the spike report is stale.
-        from oss.src.core.workflows.service import _deep_merge, _remove_path
-
-        base = base_config()
-        merged = _deep_merge(base, {"uri": "/other"})
-        _remove_path(merged, "parameters.agent.tools")
-        assert "tools" not in base["parameters"]["agent"]
-
 
 class TestDeepMergeParity:
-    def test_engine_deep_merge_matches_service_deep_merge(self):
-        from oss.src.core.workflows.service import _deep_merge
-
+    def test_engine_deep_merge_matches_the_original_fold(self):
         cases = [
             ({}, {"a": 1}),
             ({"a": {"b": 1}}, {"a": {"c": 2}}),
@@ -251,7 +267,9 @@ class TestDeepMergeParity:
             ({"a": None}, {"a": {"b": 2}}),
         ]
         for base, patch in cases:
-            assert deep_merge(base, patch) == _deep_merge(base, patch)
+            assert deep_merge(base, patch) == reference_legacy_apply(
+                base, {"set": patch}
+            )
 
 
 # --------------------------------------------------------------------------------------
@@ -1914,6 +1932,91 @@ class TestUniqueNames:
             ops({"operation": "set", "target": AGENT + ["llm", "model"], "value": "z"})
         )
         assert WarningCode.LEGACY_DUPLICATE_KEY not in codes
+
+
+class TestNestedCollectionIdentity:
+    """A nested list belongs to the entry that holds it (contract 9).
+
+    Every case here has TWO skills, because that is what it takes to see the bug: the
+    paths carried only the list name, so all the skills' `files` lists collapsed onto one
+    key and the last one silently answered for every other. Which skill held the
+    duplicates then decided the outcome, and both possible outcomes were wrong.
+    """
+
+    def _skills(self, alpha_files, beta_files, alpha_first=True):
+        base = base_config()
+        alpha = {"name": "alpha", "description": "d", "files": alpha_files}
+        beta = {"name": "beta", "description": "d", "files": beta_files}
+        base["parameters"]["agent"]["skills"] = (
+            [alpha, beta] if alpha_first else [beta, alpha]
+        )
+        return base
+
+    def _files(self, *paths):
+        return [{"path": path, "content": "x"} for path in paths]
+
+    def test_a_sibling_duplicate_does_not_block_a_clean_edit(self):
+        # `beta` was never touched. Its duplicates are its own, and rule 2 keeps every
+        # existing configuration editable.
+        result = run(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + [{"list": "skills", "key": "alpha"}, "files"],
+                    "value": {"path": "new.md", "content": "n"},
+                }
+            ),
+            self._skills(self._files("a.md"), self._files("d.md", "d.md")),
+        )
+        assert WarningCode.LEGACY_DUPLICATE_KEY in [w.code for w in result.warnings]
+
+    @pytest.mark.parametrize("alpha_first", [True, False])
+    def test_a_new_duplicate_is_refused_wherever_the_skill_sits(self, alpha_first):
+        # The order of the skills decided this before: writing the duplicate into the
+        # LAST skill was refused and writing it into any other was accepted in silence.
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + [{"list": "skills", "key": "alpha"}, "files"],
+                    "value": self._files("d.md", "d.md"),
+                }
+            ),
+            self._skills(self._files("a.md"), self._files("b.md"), alpha_first),
+        )
+        assert error.reason == Reason.DUPLICATE_ITEM_KEY
+        assert "skills[alpha].files" in error.message
+
+    def test_renaming_a_file_onto_a_sibling_is_refused(self):
+        # The collision is inside the touched skill, and the write that causes it is a
+        # `set` on the key field of one entry.
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT
+                    + [
+                        {"list": "skills", "key": "alpha"},
+                        {"list": "files", "key": "b.md"},
+                        "path",
+                    ],
+                    "value": "a.md",
+                }
+            ),
+            self._skills(self._files("a.md", "b.md"), self._files("c.md")),
+        )
+        assert error.reason == Reason.DUPLICATE_ITEM_KEY
+
+    def test_a_duplicate_warning_names_the_skill_that_holds_it(self):
+        result = run(
+            ops({"operation": "set", "target": AGENT + ["llm", "model"], "value": "z"}),
+            self._skills(self._files("d.md", "d.md"), self._files("c.md")),
+        )
+        warning = next(
+            w for w in result.warnings if w.code == WarningCode.LEGACY_DUPLICATE_KEY
+        )
+        # The target stays addressable, so a caller can act on it without parsing prose.
+        assert {"list": "skills", "key": "alpha"} in warning.target
 
 
 # --------------------------------------------------------------------------------------
