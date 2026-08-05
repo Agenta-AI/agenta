@@ -31,6 +31,7 @@
  */
 import type { AgentRunRequest } from "../protocol.ts";
 import { applyModel } from "../engines/sandbox_agent/model.ts";
+import { resolveSkillDirs } from "../engines/skills.ts";
 import type { SessionEnvironment } from "../engines/sandbox_agent/runtime-contracts.ts";
 import { normalizeDesiredState } from "../lifecycle/desired-state.ts";
 import { configFingerprint } from "../engines/sandbox_agent/session-identity.ts";
@@ -42,6 +43,7 @@ import type { Log } from "./timing.ts";
 export interface ApplyPlanDeps {
   applyModel?: typeof applyModel;
   refresh?: typeof refresh;
+  resolveSkillDirs?: typeof resolveSkillDirs;
 }
 
 /**
@@ -90,18 +92,56 @@ export async function applyReconcilePlan(
           log("live-route: no workspace inventory recorded; cannot refresh safely");
           return false;
         }
-        const result = await (deps.refresh ?? refresh)(
-          {
-            sandbox: env.sandbox,
-            plan: env.plan as never,
-            log,
-          },
-          {
-            instructions: env.plan.prompt.agentsMd,
-            skills: env.plan.workspace.skillDirs,
-          },
-          previous,
+        // The desired content comes from the INCOMING request. Reading it from `env.plan` would
+        // rewrite the configuration this environment was BUILT with and then commit the incoming
+        // one as applied: the stale-config bug this file's header warns about, in that costume.
+        const instructions = request.agentsMd?.trim() || undefined;
+        const desiredSkills = (deps.resolveSkillDirs ?? resolveSkillDirs)(
+          request.skills,
+          log,
         );
+        if (env.plan.isPi && desiredSkills.skills.length > 0) {
+          // Pi loads one content-addressed snapshot instead of project-local skill directories,
+          // so `refresh` writes no skills there at all (see `skillRootFor`). Reporting the new
+          // configuration as applied after writing none of it is the exact failure above.
+          desiredSkills.cleanup();
+          log("live-route: pi skills cannot be refreshed in place; rebuilding");
+          return false;
+        }
+        // The plan the refresh writes from, and records its inventory from. It replaces the
+        // environment's plan only after the write succeeded, so a failure leaves the environment
+        // describing what is really on disk.
+        const priorSkillsCleanup = env.plan.workspace.skillsCleanup;
+        const nextPlan = {
+          ...env.plan,
+          prompt: { ...env.plan.prompt, agentsMd: instructions },
+          workspace: {
+            ...env.plan.workspace,
+            skillDirs: desiredSkills.skills,
+            // Both temp roots go at teardown. The old one is not removed here: files this
+            // session already reads may still be backed by it.
+            skillsCleanup: () => {
+              priorSkillsCleanup();
+              desiredSkills.cleanup();
+            },
+          },
+        };
+        let result;
+        try {
+          result = await (deps.refresh ?? refresh)(
+            {
+              sandbox: env.sandbox,
+              plan: nextPlan as never,
+              log,
+            },
+            { instructions, skills: desiredSkills.skills },
+            previous,
+          );
+        } catch (error) {
+          desiredSkills.cleanup();
+          throw error;
+        }
+        env.plan = nextPlan;
         env.workspaceInventory = result.inventory;
         if (result.removedSkills.length) {
           log(
@@ -112,6 +152,12 @@ export async function applyReconcilePlan(
       }
 
       case "reopen-session": {
+        // NOT REACHED while `LIVE_ACTION_KINDS` excludes this kind, and the exclusion is the
+        // point: `env.reopenSession` closes over the session init this environment was BUILT
+        // with, so reopening reinstalls the OLD MCP list, prompts and harness files while the
+        // commit below would report the incoming ones. The machinery stays because it is what
+        // the desired-plan installer will drive; only the routing is off.
+        //
         // Close and reopen on the SAME sandbox. `reopen` refuses before touching anything when
         // the conversation could not survive, so a refusal leaves the live session running and
         // the caller rebuilds from a clean state.
