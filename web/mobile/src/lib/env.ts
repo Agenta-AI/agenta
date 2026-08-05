@@ -9,11 +9,24 @@ declare global {
     }
 }
 
+/**
+ * Build-time values, read through LITERAL keys.
+ *
+ * `process.env[key]` with a computed key is not inlined by Next, so a flag that is not also in
+ * `__env.js` reads as empty in a built image no matter how the container is configured. Naming
+ * each key here keeps it statically bundled — the same shape as the desktop's `processEnv`.
+ */
+const buildEnv: Record<string, string | undefined> = {
+    NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
+    NEXT_PUBLIC_AGENT_CHAT_STEER: process.env.NEXT_PUBLIC_AGENT_CHAT_STEER,
+}
+
 export function getEnv(key: string): string {
     if (typeof window !== "undefined" && window.__env?.[key]) {
         return window.__env[key] ?? ""
     }
-    return process.env[key] ?? ""
+    // `__env.js` first (runtime config wins), then the build-time value.
+    return buildEnv[key] ?? process.env[key] ?? ""
 }
 
 export function getApiUrl(): string {
