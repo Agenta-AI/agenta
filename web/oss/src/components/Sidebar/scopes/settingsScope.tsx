@@ -3,13 +3,13 @@ import {useEffect, useMemo} from "react"
 import {
     Buildings,
     ClockCounterClockwise,
-    Flag,
     FolderSimple,
     Key,
     Lightning,
     Link,
     Receipt,
     ShieldCheck,
+    SlidersHorizontal,
     Sparkle,
     User,
     UsersThree,
@@ -73,8 +73,8 @@ const getSettingsSidebarIcon = (key: SettingsTabKey) => {
             return <Receipt size={16} className="mt-0.5" />
         case "account":
             return <User size={16} className="mt-0.5" />
-        case "featureFlags":
-            return <Flag size={16} className="mt-0.5" />
+        case "preferences":
+            return <SlidersHorizontal size={16} className="mt-0.5" />
         case "projects":
             return <FolderSimple size={16} className="mt-0.5" />
         default: {

@@ -54,10 +54,10 @@ describe("resolveSettingsTab", () => {
         )
     })
 
-    it("keeps personal feature flags available in OSS", () => {
+    it("keeps personal preferences available in OSS", () => {
         const ossAccess = {...baseAccess, isEE: false, isOwner: false}
 
-        expect(resolveSettingsTab("featureFlags", ossAccess)).toBe("featureFlags")
+        expect(resolveSettingsTab("preferences", ossAccess)).toBe("preferences")
         expect(resolveSettingsTab("account", ossAccess)).toBe("workspace")
     })
 })
@@ -86,6 +86,6 @@ describe("settings sidebar scopes", () => {
             "auditLog",
             "billing",
         ])
-        expect(keysForScope("personal")).toEqual(["account", "featureFlags"])
+        expect(keysForScope("personal")).toEqual(["account", "preferences"])
     })
 })
