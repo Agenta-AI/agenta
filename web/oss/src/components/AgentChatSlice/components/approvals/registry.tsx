@@ -1,11 +1,11 @@
 /**
  * Approval renderer registry.
  *
- * Per-tool friendly bodies for the HITL ApprovalDock, used in Chat mode only (Build always
- * shows the exact-payload card). Same dispatch idea as the client-tool registry, keyed by the
- * approval's tool name. An entry supplies a Body plus optional copy overrides; tools without an
- * entry (or whose Body can't preview its payload) keep the generic raw-payload card, so nothing
- * here is load-bearing for unknown tools.
+ * Per-tool friendly bodies for the HITL ApprovalDock, used in both Chat and Build mode (Build
+ * gets the compact one-column shape). Same dispatch idea as the client-tool registry, keyed by
+ * the approval's tool name. An entry supplies a Body plus optional copy overrides; tools without
+ * an entry (or whose Body can't preview its payload) keep the generic raw-payload card, so
+ * nothing here is load-bearing for unknown tools.
  */
 import type {ComponentType, ReactNode} from "react"
 
@@ -18,6 +18,8 @@ export interface ApprovalBodyProps {
     entityId: string
     /** Workspace content the runner resolved and froze for this gate, when the call imports any. */
     manifest?: unknown
+    /** Build mode: the dock is narrow, so the body stacks in one column instead of two panes. */
+    compact?: boolean
     /** The dock's generic payload block — render it verbatim when the payload can't be previewed. */
     fallback: ReactNode
 }

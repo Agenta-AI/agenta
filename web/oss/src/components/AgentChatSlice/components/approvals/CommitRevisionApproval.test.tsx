@@ -118,12 +118,11 @@ describe("with a committed base to preview against", () => {
 })
 
 describe("with no previewable base", () => {
-    it("still renders the imported content beside the raw payload", () => {
-        // The fallback is the branch most at risk of dropping it, and it is exactly the content
-        // the approval binds.
+    it("still renders the imported content, which is what the approval binds", () => {
+        // With no classified preview the manifest IS the readable change, so it leads the card
+        // instead of sitting under a raw JSON blob.
         const rendered = render({manifest: MANIFEST})
 
-        expect(rendered).toContain("RAW_PAYLOAD")
         expect(rendered).toContain("Replace instructions")
         expect(rendered).toContain("instructions.md")
         expect(rendered).not.toContain("CHANGES_SUMMARY")
