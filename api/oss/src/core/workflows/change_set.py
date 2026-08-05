@@ -457,6 +457,9 @@ def subtree_scope(
         return None
 
     policy._prefix = tuple(wanted)  # type: ignore[attr-defined]
+    # The refused paths travel with the policy, because a target that sits ABOVE one of
+    # them writes it through its value, and only the caller of the policy holds that value.
+    policy._refused = tuple(tuple(path) for path in blocked)  # type: ignore[attr-defined]
     # The legacy arm walks the `set` tree only this deep before it asks the policy, so a
     # refused sub-path deeper than the prefix would never be reached and never refused.
     policy._prefix_depth = max(  # type: ignore[attr-defined]
@@ -1326,6 +1329,81 @@ def _policy_depth(scope_policy: ScopePolicy) -> int:
     return depth if isinstance(depth, int) else 1
 
 
+_MISSING = object()
+
+
+def _value_at(tree: Any, path: Sequence[str]) -> Any:
+    """What ``tree`` holds at ``path``, or ``_MISSING`` when the path is not there."""
+    node = tree
+    for key in path:
+        if not isinstance(node, dict) or key not in node:
+            return _MISSING
+        node = node[key]
+    return node
+
+
+def _refused_paths_under(
+    scope_policy: ScopePolicy, target: Target
+) -> List[Tuple[str, ...]]:
+    """Refused paths that lie strictly BELOW this target.
+
+    A selector segment never matches, because no refused path lives inside a list entry.
+    """
+    segments = list(target)
+    found = []
+    for path in getattr(scope_policy, "_refused", ()) or ():
+        if len(path) <= len(segments):
+            continue
+        if all(segments[i] == path[i] for i in range(len(segments))):
+            found.append(path)
+    return found
+
+
+def _check_scope_value(
+    scope_policy: ScopePolicy,
+    *,
+    target: Target,
+    verb: str,
+    value: Any,
+    base: Dict[str, Any],
+    operation_index: Optional[int] = None,
+) -> None:
+    """Refuse an operation that writes a refused path THROUGH an ancestor target.
+
+    The target check alone asks whether the caller named a refused path. It does not ask
+    what the caller writes, so `set` on `parameters.agent.harness` with
+    `{"kind": "codex"}` passed while `set` on `parameters.agent.harness.kind` was refused.
+    Both change the same stored field.
+
+    The rule is one sentence: whatever the operation would leave at a refused path must
+    equal what is stored there now. That keeps the neighbours of a refused key writable,
+    which matters because `harness.extras` and `runner.kind` are not refused and sit beside
+    keys that are. An outright refusal of the parents would take those away with no gain.
+
+    An omission is a write for `set`, which replaces its target wholesale, and for
+    `remove`, which deletes it. It is not a write for `merge`, which leaves absent keys
+    alone.
+    """
+    for path in _refused_paths_under(scope_policy, target):
+        stored = _value_at(base or {}, path)
+        if verb == "remove":
+            written: Any = _MISSING
+        else:
+            written = _value_at(value, path[len(list(target)) :])
+            if verb == "merge" and written is _MISSING:
+                written = stored
+        if written == stored:
+            continue
+        raise ChangeSetError(
+            Reason.OUT_OF_SCOPE,
+            f"this changes '{'.'.join(path)}', which is owned by the platform and "
+            "cannot be changed by the agent",
+            target=list(target),
+            operation_index=operation_index,
+            next_step=_scope_next_step(scope_policy),
+        )
+
+
 def _scope_next_step(scope_policy: ScopePolicy) -> str:
     """What to do about a scope refusal, naming the subtree the caller may write.
 
@@ -1374,6 +1452,23 @@ def apply_change_set(
                     target=list(target),
                     next_step=_scope_next_step(policy),
                 )
+        # The legacy `set` is one deep merge at the root, so one check over the whole patch
+        # covers every refused path it would write, at any depth.
+        _check_scope_value(
+            policy,
+            target=[],
+            verb="merge",
+            value=delta.get("set") or {},
+            base=base,
+        )
+        for path in delta.get("remove") or []:
+            _check_scope_value(
+                policy,
+                target=path.split("."),
+                verb="remove",
+                value=None,
+                base=base,
+            )
         warnings.append(
             Warning(
                 code=WarningCode.LEGACY_DELTA_FORM,
@@ -1427,6 +1522,19 @@ def apply_change_set(
                     operation=operation.get("operation"),
                     target=target,
                     next_step=_scope_next_step(policy),
+                )
+            # These four verbs carry or delete a whole subtree, so each can reach a refused
+            # path that its target only sits above. `add_item` and `remove_item` change a
+            # list entry and `edit_text` changes a string; no refused path lives in either.
+            verb = operation.get("operation")
+            if verb in ("set", "merge", "remove", "replace_item"):
+                _check_scope_value(
+                    policy,
+                    target=target,
+                    verb=verb,
+                    value=operation.get("value"),
+                    base=base,
+                    operation_index=index,
                 )
 
     for index, operation in enumerate(operations):

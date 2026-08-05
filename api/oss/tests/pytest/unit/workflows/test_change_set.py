@@ -2174,3 +2174,178 @@ class TestAgentCommitScope:
         )
         assert error.reason == Reason.OUT_OF_SCOPE
         assert error.retryable is False
+
+
+class TestAgentCommitScopeThroughAnAncestor:
+    """A write to a parent of a refused path is a write to the refused path.
+
+    This is how the scope was defeated on a live stack: the target check asks which path
+    the caller NAMED, and `set` on `parameters.agent.harness` names none of the refused
+    paths. Its value changed `harness.kind` all the same, the human approved it, and the
+    commit landed.
+
+    The rule now is that whatever an operation would leave at a refused path must equal
+    what is stored there. That keeps the writable neighbours writable: `harness.extras` and
+    `runner.kind` are not refused, and they sit beside keys that are.
+    """
+
+    SELECTORS = {
+        "harness": {"kind": "pi_core"},
+        "sandbox": {"kind": "local"},
+        "runner": {"kind": "sidecar", "permissions": {"default": "allow_reads"}},
+    }
+
+    def base(self):
+        config = base_config()
+        config["parameters"]["agent"].update(copy.deepcopy(self.SELECTORS))
+        return config
+
+    def refuse(self, delta):
+        error = failure(delta, self.base(), scope_policy=AGENT_COMMIT_SCOPE)
+        assert error.reason == Reason.OUT_OF_SCOPE
+        assert error.next_step
+        return error
+
+    def test_the_live_bypass_payload_is_refused(self):
+        # The exact operation the agent sent on the stack, verbatim.
+        error = self.refuse(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["harness"],
+                    "value": {"kind": "codex"},
+                }
+            )
+        )
+        assert "parameters.agent.harness.kind" in error.message
+
+    def test_a_merge_at_the_agent_root_cannot_smuggle_a_refused_key(self):
+        error = self.refuse(
+            ops(
+                {
+                    "operation": "merge",
+                    "target": AGENT,
+                    "value": {"harness": {"kind": "codex"}},
+                }
+            )
+        )
+        assert "parameters.agent.harness.kind" in error.message
+
+    @pytest.mark.parametrize(
+        "target,value,expected",
+        [
+            (["sandbox"], {"kind": "daytona"}, "parameters.agent.sandbox.kind"),
+            (
+                ["sandbox"],
+                {"permissions": {"network": "all"}},
+                "parameters.agent.sandbox.kind",
+            ),
+            (
+                ["runner"],
+                {"permissions": {"default": "allow"}},
+                "parameters.agent.runner.permissions",
+            ),
+            (
+                ["harness"],
+                {"permissions": {"allow": ["*"]}},
+                "parameters.agent.harness.kind",
+            ),
+        ],
+    )
+    def test_every_selector_is_covered(self, target, value, expected):
+        error = self.refuse(
+            ops({"operation": "set", "target": AGENT + target, "value": value})
+        )
+        assert expected in error.message
+
+    def test_removing_a_parent_deletes_a_refused_path(self):
+        # A delete is a write. Nothing in the operation names `kind`, and the stored value
+        # is gone all the same.
+        error = self.refuse(ops({"operation": "remove", "target": AGENT + ["harness"]}))
+        assert "parameters.agent.harness.kind" in error.message
+
+    def test_replacing_the_whole_agent_subtree_is_refused(self):
+        # `set` replaces wholesale, so an omitted refused key is a deletion.
+        self.refuse(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT,
+                    "value": {"llm": {"model": "openai/gpt-5"}},
+                }
+            )
+        )
+
+    def test_the_legacy_arm_is_covered_too(self):
+        error = self.refuse(
+            {"set": {"parameters": {"agent": {"harness": {"kind": "codex"}}}}}
+        )
+        assert "parameters.agent.harness.kind" in error.message
+
+    def test_a_legacy_remove_of_a_parent_is_covered(self):
+        error = self.refuse({"set": {}, "remove": ["parameters.agent.harness"]})
+        assert "parameters.agent.harness.kind" in error.message
+
+    def test_a_set_that_preserves_the_refused_values_is_allowed(self):
+        # `harness.extras` is the agent's to write. Taking it away would cost a real
+        # capability to close this hole, and the preserving rule does not.
+        result = apply(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["harness"],
+                    "value": {"kind": "pi_core", "extras": {"verbose": True}},
+                }
+            ),
+            self.base(),
+            scope_policy=AGENT_COMMIT_SCOPE,
+        )
+        harness = result["parameters"]["agent"]["harness"]
+        assert harness == {"kind": "pi_core", "extras": {"verbose": True}}
+
+    def test_a_merge_that_touches_no_refused_key_is_allowed(self):
+        result = apply(
+            ops(
+                {
+                    "operation": "merge",
+                    "target": AGENT + ["harness"],
+                    "value": {"extras": {"verbose": True}},
+                }
+            ),
+            self.base(),
+            scope_policy=AGENT_COMMIT_SCOPE,
+        )
+        assert result["parameters"]["agent"]["harness"]["kind"] == "pi_core"
+
+    def test_a_writable_sibling_of_a_refused_key_stays_writable(self):
+        # `runner.kind` is not refused. A set at `runner` may change it while it preserves
+        # `runner.permissions`.
+        result = apply(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["runner"],
+                    "value": {
+                        "kind": "local",
+                        "permissions": {"default": "allow_reads"},
+                    },
+                }
+            ),
+            self.base(),
+            scope_policy=AGENT_COMMIT_SCOPE,
+        )
+        assert result["parameters"]["agent"]["runner"]["kind"] == "local"
+
+    def test_an_unscoped_caller_is_unaffected(self):
+        # The human and SDK route owns the whole revision, including the selectors.
+        result = apply(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["harness"],
+                    "value": {"kind": "codex"},
+                }
+            ),
+            self.base(),
+        )
+        assert result["parameters"]["agent"]["harness"]["kind"] == "codex"
