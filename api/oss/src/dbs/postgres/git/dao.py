@@ -1657,9 +1657,11 @@ class GitDAO(GitDAOInterface):
                 if needs_lock:
                     # A waiter must fail loudly rather than hold a connection forever;
                     # the contract requires the wait to be bounded.
+                    # SET LOCAL cannot take a bind parameter (Postgres rejects `$1` here);
+                    # the int() cast keeps the interpolation injection-free.
                     await session.execute(
-                        text("SET LOCAL lock_timeout = :timeout").bindparams(
-                            timeout=f"{env.postgres.commit_lock_timeout_ms}ms"
+                        text(
+                            f"SET LOCAL lock_timeout = '{int(env.postgres.commit_lock_timeout_ms)}ms'"
                         )
                     )
                     # Lock the variant row so concurrent commits queue up rather than

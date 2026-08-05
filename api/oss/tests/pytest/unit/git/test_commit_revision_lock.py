@@ -357,6 +357,11 @@ class TestBoundedWait:
         assert timeout_at is not None
         assert lock_at is not None
         assert timeout_at < lock_at
+        # Postgres rejects bind parameters in SET LOCAL (syntax error at "$1"), so the
+        # timeout must be an inline literal. A ":param" placeholder here means the
+        # statement fails on a real database while every fake-session test stays green.
+        assert ":" not in session.executed[timeout_at]
+        assert "ms'" in session.executed[timeout_at]
 
     async def test_an_unchecked_commit_sets_no_timeout(self, dao_factory):
         session = _FakeSession()
