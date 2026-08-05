@@ -27,10 +27,20 @@ import {transcriptToMessages} from "./transcriptToMessages"
  * authoritative). Because this return is a one-shot copy, `onRefreshed` re-delivers the
  * transcript when that revalidation lands — callers apply it behind their own adoption guards.
  */
+export interface SessionTranscript {
+    messages: UIMessage[]
+    /**
+     * How many durable records this transcript was built from. The log is append-only and ordered,
+     * so this is an EXACT "has the server moved on?" watermark — unlike a message count, which
+     * `transcriptToMessages` deliberately holds flat while a turn grows (issue #5530).
+     */
+    recordCount: number
+}
+
 export const loadSessionMessages = async (
     sessionId: string,
-    onRefreshed?: (messages: UIMessage[]) => void,
-): Promise<UIMessage[] | null> => {
+    onRefreshed?: (transcript: SessionTranscript) => void,
+): Promise<SessionTranscript | null> => {
     // Fetch through the shared records query cache (same key as `sessionRecordsQueryFamily`) so
     // hydration, revalidation, and the Inspector's atom subscribers share ONE network flight per
     // stale window instead of each issuing a raw duplicate request. A failure resolves to `null`
@@ -43,7 +53,9 @@ export const loadSessionMessages = async (
                 .then((fresh) => {
                     if (!fresh || fresh.length === 0) return
                     const freshMsgs = transcriptToMessages(fresh)
-                    if (freshMsgs && freshMsgs.length > 0) onRefreshed(freshMsgs)
+                    if (freshMsgs && freshMsgs.length > 0) {
+                        onRefreshed({messages: freshMsgs, recordCount: fresh.length})
+                    }
                 })
                 // This chain outlives the function, so the try/catch below cannot see it. A
                 // failed revalidation keeps whatever the cache already restored; without this
@@ -53,7 +65,8 @@ export const loadSessionMessages = async (
                 })
         }
         if (!records || records.length === 0) return null
-        return transcriptToMessages(records)
+        const messages = transcriptToMessages(records)
+        return messages ? {messages, recordCount: records.length} : null
     } catch (err) {
         console.warn("[loadSessionMessages] hydration fetch failed:", err)
         return null

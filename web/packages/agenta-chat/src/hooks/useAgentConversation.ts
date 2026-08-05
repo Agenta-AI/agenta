@@ -29,7 +29,7 @@ import type {UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
 import {filesToParts} from "../assets/files"
-import {loadSessionMessages} from "../assets/loadSession"
+import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
 import {getMessageTraceId} from "../assets/trace"
 import {parseAgentRunError, type ParsedRunError} from "../model/error"
@@ -266,27 +266,31 @@ export const useAgentConversation = ({
         // Post-restore revalidation: the first result may be the disk-restored log (paints
         // instantly); when the guaranteed background refetch lands, adopt it under the same
         // guards as the revalidate-on-open effect below — never mid-stream, only when ahead.
-        const adoptRefreshed = (freshMsgs: UIMessage[]) => {
+        const adoptRefreshed = ({messages: freshMsgs, recordCount}: SessionTranscript) => {
             if (cancelled || busyRef.current) return
             if (freshMsgs.length <= messagesRef.current.length) return
             freshMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
             // The restore said "no records" but the server has some — clear the notice.
             setHistoryUnavailable(false)
             setMessages(freshMsgs)
-            persistMessages({id: sessionId, messages: freshMsgs})
+            persistMessages({id: sessionId, messages: freshMsgs, recordCount})
         }
         loadSessionMessages(sessionId, adoptRefreshed)
-            .then((msgs) => {
+            .then((transcript) => {
                 if (cancelled) return
-                if (!msgs || msgs.length === 0) {
+                if (!transcript || transcript.messages.length === 0) {
                     // Known session, but the server has no records for it → history was pruned or
                     // never persisted. Flag it so the skin shows the "unavailable" notice.
                     setHistoryUnavailable(true)
                     return
                 }
-                msgs.forEach((m) => restoredIdsRef.current.add(m.id))
-                setMessages(msgs)
-                persistMessages({id: sessionId, messages: msgs})
+                transcript.messages.forEach((m) => restoredIdsRef.current.add(m.id))
+                setMessages(transcript.messages)
+                persistMessages({
+                    id: sessionId,
+                    messages: transcript.messages,
+                    recordCount: transcript.recordCount,
+                })
             })
             .finally(() => {
                 if (!cancelled) setIsHydrating(false)
@@ -306,13 +310,18 @@ export const useAgentConversation = ({
         if (initialMessages.length === 0 || isSessionFresh(sessionId)) return
         // As above: no persistent ref, so StrictMode's double-mount re-runs the revalidation.
         let cancelled = false
-        const adopt = (serverMsgs: UIMessage[] | null) => {
-            if (cancelled || !serverMsgs || serverMsgs.length === 0) return
+        const adopt = (transcript: SessionTranscript | null) => {
+            if (cancelled || !transcript || transcript.messages.length === 0) return
+            const serverMsgs = transcript.messages
             const prev = messagesRef.current
             if (busyRef.current || serverMsgs.length <= prev.length) return
             serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
             setMessages(serverMsgs)
-            persistMessages({id: sessionId, messages: serverMsgs})
+            persistMessages({
+                id: sessionId,
+                messages: serverMsgs,
+                recordCount: transcript.recordCount,
+            })
         }
         // The first result may itself be the disk-restored records log; the callback re-applies
         // the same guarded adoption when the guaranteed background revalidation lands.

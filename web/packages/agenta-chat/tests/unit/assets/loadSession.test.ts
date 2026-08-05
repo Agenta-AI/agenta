@@ -42,9 +42,24 @@ describe("loadSessionMessages", () => {
         fetchResult = {
             records: [record("r1", {type: "message", text: "hi"}), record("r2", {type: "done"})],
         }
-        const messages = await loadSessionMessages("session-1")
-        expect(messages).toHaveLength(1)
-        expect(messages?.[0]).toMatchObject({parts: [{type: "text", text: "hi"}]})
+        const transcript = await loadSessionMessages("session-1")
+        expect(transcript?.messages).toHaveLength(1)
+        expect(transcript?.messages[0]).toMatchObject({parts: [{type: "text", text: "hi"}]})
+    })
+
+    // The adoption watermark: records, not messages — a turn that grows in place keeps its
+    // message count (issue #5530), so only this number sees the log move.
+    it("reports how many records the transcript was built from", async () => {
+        fetchResult = {
+            records: [
+                record("r1", {type: "message", text: "hi"}),
+                record("r2", {type: "message", text: " there"}),
+                record("r3", {type: "done"}),
+            ],
+        }
+        const transcript = await loadSessionMessages("session-1")
+        expect(transcript?.messages).toHaveLength(1)
+        expect(transcript?.recordCount).toBe(3)
     })
 
     it("delivers a refreshed transcript via onRefreshed once the background revalidation resolves", async () => {
@@ -59,8 +74,13 @@ describe("loadSessionMessages", () => {
         await Promise.resolve()
         await Promise.resolve()
         expect(onRefreshed).toHaveBeenCalledTimes(1)
-        const delivered = onRefreshed.mock.calls[0][0] as {parts: unknown}[]
-        expect(delivered[0]).toMatchObject({parts: [{type: "text", text: "fresh"}]})
+        const delivered = onRefreshed.mock.calls[0][0] as {
+            messages: {parts: unknown}[]
+            recordCount: number
+        }
+        expect(delivered.messages[0]).toMatchObject({parts: [{type: "text", text: "fresh"}]})
+        // The refreshed delivery carries the FRESH log's count, not the stale one's.
+        expect(delivered.recordCount).toBe(2)
     })
 
     // The chain outlives the call, so the function's own try/catch never sees a rejection here.
@@ -77,11 +97,13 @@ describe("loadSessionMessages", () => {
                 refreshed: Promise.reject(new Error("boom")),
             }
             const onRefreshed = vi.fn()
-            const messages = await loadSessionMessages("session-1", onRefreshed)
+            const transcript = await loadSessionMessages("session-1", onRefreshed)
             await Promise.resolve()
             await Promise.resolve()
             // The restored transcript still stands; only the revalidation was lost.
-            expect(messages?.[0]).toMatchObject({parts: [{type: "text", text: "stale"}]})
+            expect(transcript?.messages[0]).toMatchObject({
+                parts: [{type: "text", text: "stale"}],
+            })
             expect(onRefreshed).not.toHaveBeenCalled()
             expect(warn).toHaveBeenCalled()
             await new Promise((resolve) => setTimeout(resolve, 0))
