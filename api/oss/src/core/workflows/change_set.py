@@ -15,26 +15,25 @@ revision. The engine produces the machine-readable half of every error; the wrap
 the parts that need context it does not have.
 """
 
-from collections.abc import Callable, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 __all__ = [
-    "AGENT_COMMIT_SCOPE",
-    "FILE_MARKER",
-    "KEY_FIELDS",
-    "PARAMETERS_ONLY",
     "ChangeSetError",
     "ChangeSetResult",
     "Reason",
     "Warning",
-    "allow_all",
     "apply_change_set",
     "apply_text_edits",
     "deep_merge",
     "item_key",
+    "allow_all",
     "subtree_scope",
+    "PARAMETERS_ONLY",
+    "AGENT_COMMIT_SCOPE",
+    "KEY_FIELDS",
+    "FILE_MARKER",
 ]
 
 
@@ -92,7 +91,7 @@ _NOT_RETRYABLE = frozenset(
 
 # Contract 12.3: every retryable error names the next action in one imperative sentence.
 # An agent that reads only this line must still know what to do.
-NEXT_STEPS: dict[str, str] = {
+NEXT_STEPS: Dict[str, str] = {
     Reason.TARGET_NOT_FOUND: (
         "Call read_config for that part of the configuration and correct the target."
     ),
@@ -175,7 +174,7 @@ OPERATIONS = (
 VALUE_BEARING = frozenset({"set", "merge", "add_item", "replace_item"})
 
 # Contract 4.1. Only these four lists take a selector and item operations.
-KEY_FIELDS: dict[str, str] = {
+KEY_FIELDS: Dict[str, str] = {
     "skills": "name",
     "mcps": "name",
     "files": "path",
@@ -206,9 +205,9 @@ MAX_OPERATIONS = 64
 MAX_TARGET_SEGMENTS = 12
 
 
-Segment = str | dict[str, str]
+Segment = Union[str, Dict[str, str]]
 Target = Sequence[Segment]
-ScopePolicy = Callable[[Target], str | None]
+ScopePolicy = Callable[[Target], Optional[str]]
 
 
 # --------------------------------------------------------------------------------------
@@ -222,11 +221,11 @@ class Warning:
 
     code: str
     message: str
-    target: list[Segment] | None = None
-    operation_index: int | None = None
+    target: Optional[List[Segment]] = None
+    operation_index: Optional[int] = None
 
-    def to_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"code": self.code, "message": self.message}
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"code": self.code, "message": self.message}
         if self.target is not None:
             out["target"] = self.target
         if self.operation_index is not None:
@@ -243,9 +242,9 @@ class ChangeSetResult:
     canonical persisted record); this one only says whether the tree moved.
     """
 
-    data: dict[str, Any]
+    data: Dict[str, Any]
     changed: bool
-    warnings: list[Warning] = field(default_factory=list)
+    warnings: List[Warning] = field(default_factory=list)
 
 
 class WarningCode:
@@ -272,9 +271,9 @@ class ChangeSetError(Exception):
         reason: str,
         message: str,
         *,
-        operation_index: int | None = None,
-        operation: str | None = None,
-        target: Target | None = None,
+        operation_index: Optional[int] = None,
+        operation: Optional[str] = None,
+        target: Optional[Target] = None,
         **context: Any,
     ) -> None:
         super().__init__(message)
@@ -290,16 +289,16 @@ class ChangeSetError(Exception):
         return self.reason not in _NOT_RETRYABLE
 
     @property
-    def next_step(self) -> str | None:
+    def next_step(self) -> Optional[str]:
         return NEXT_STEPS.get(self.reason)
 
-    def to_detail(self) -> dict[str, Any]:
+    def to_detail(self) -> Dict[str, Any]:
         """The HTTP 422 ``detail`` body. Contract section 12."""
-        reason: dict[str, Any] = {"code": self.reason, "message": self.message}
+        reason: Dict[str, Any] = {"code": self.reason, "message": self.message}
         if self.next_step:
             reason["next_step"] = self.next_step
         reason.update(self.context)
-        detail: dict[str, Any] = {
+        detail: Dict[str, Any] = {
             "code": self.code,
             "message": "No revision was committed.",
             "reason": reason,
@@ -366,7 +365,7 @@ def remove_path(tree: dict, path: str) -> None:
 # --------------------------------------------------------------------------------------
 
 
-def _tool_name(entry: dict[str, Any], *, allow_legacy_fallback: bool) -> str | None:
+def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optional[str]:
     """The canonical effective tool name. Contract 4.2."""
     kind = entry.get("type")
     if kind == "gateway":
@@ -392,7 +391,7 @@ def item_key(
     entry: Any,
     *,
     allow_legacy_fallback: bool = True,
-) -> str | None:
+) -> Optional[str]:
     """The addressable key of one list entry, or ``None`` when it has none.
 
     ``None`` means "not addressable by name". An ``@ag.embed`` entry is the main case: its
@@ -416,7 +415,7 @@ def item_key(
 # --------------------------------------------------------------------------------------
 
 
-def allow_all(target: Target) -> str | None:
+def allow_all(target: Target) -> Optional[str]:
     """The human/SDK caller's policy: any target is in scope."""
     return None
 
@@ -434,7 +433,7 @@ def subtree_scope(
     wanted = list(prefix)
     blocked = [list(path) for path in refused]
 
-    def policy(target: Target) -> str | None:
+    def policy(target: Target) -> Optional[str]:
         segments = list(target)
         if len(segments) < len(wanted):
             got = ".".join(str(s) for s in segments) or "<empty>"
@@ -490,13 +489,13 @@ def _format_segment(segment: Segment) -> str:
 # --------------------------------------------------------------------------------------
 
 
-def find_file_markers(value: Any, pointer: str = "") -> list[str]:
+def find_file_markers(value: Any, pointer: str = "") -> List[str]:
     """Every ``@ag.file`` marker inside a value, as JSON Pointers.
 
     The runner keys one execution-authorization record per marker, so the pointer is the
     identity the engine reports when it finds one that survived.
     """
-    found: list[str] = []
+    found: List[str] = []
     if isinstance(value, dict):
         if FILE_MARKER in value:
             found.append(pointer or "/")
@@ -574,7 +573,7 @@ def _type_name(value: Any) -> str:
 
 def _find_item(
     node: Any, list_name: str, key: str, *, where: str
-) -> tuple[list[Any], int]:
+) -> Tuple[List[Any], int]:
     """Find the single entry named ``key`` in the list at ``node[list_name]``."""
     if not isinstance(node, dict):
         raise _Fail(
@@ -607,7 +606,7 @@ def _find_item(
     return collection, matches[0]
 
 
-def _walk(root: dict[str, Any], segments: Sequence[Segment]) -> Any:
+def _walk(root: Dict[str, Any], segments: Sequence[Segment]) -> Any:
     """Resolve every segment and return the node it addresses. No auto-creation."""
     node: Any = root
     for position, segment in enumerate(segments):
@@ -632,7 +631,7 @@ def _walk(root: dict[str, Any], segments: Sequence[Segment]) -> Any:
     return node
 
 
-def _walk_creating(root: dict[str, Any], segments: Sequence[Segment]) -> Any:
+def _walk_creating(root: Dict[str, Any], segments: Sequence[Segment]) -> Any:
     """Like ``_walk``, but a missing plain-string segment is created as ``{}``.
 
     Contract 5.3. Only `set` uses this, and only for its parents. It never creates through
@@ -746,10 +745,10 @@ def _count_overlapping(text: str, needle: str) -> int:
 
 def apply_text_edits(
     text: str,
-    edits: Sequence[dict[str, str]],
+    edits: Sequence[Dict[str, str]],
     *,
     tolerance: str = "code",
-) -> tuple[str, bool]:
+) -> Tuple[str, bool]:
     """Apply anchored edits to one string. All or nothing.
 
     Returns the new text and whether any anchor needed the normalized retry.
@@ -778,7 +777,7 @@ def apply_text_edits(
 
     folded_text = _fold(text) if tolerance == "prose" else None
     used_normalized = False
-    matches: list[tuple[int, int, str, int]] = []
+    matches: List[Tuple[int, int, str, int]] = []
 
     for index, edit in enumerate(edits):
         if not isinstance(edit, dict) or set(edit) - {"old_text", "new_text"}:
@@ -862,7 +861,7 @@ def apply_text_edits(
 # --------------------------------------------------------------------------------------
 
 
-def _operation_value(operation: dict[str, Any]) -> Any:
+def _operation_value(operation: Dict[str, Any]) -> Any:
     if "value" not in operation:
         raise _Fail(Reason.MISSING_OPERATION_VALUE, "the operation needs a 'value'")
     value = operation["value"]
@@ -899,7 +898,7 @@ def _derived_key(list_name: str, value: Any, verb: str) -> str:
 
 
 def _parent_of(
-    root: dict[str, Any], segments: Sequence[Segment], *, create: bool
+    root: Dict[str, Any], segments: Sequence[Segment], *, create: bool
 ) -> Any:
     if len(segments) == 1:
         return root
@@ -907,7 +906,7 @@ def _parent_of(
     return walker(root, segments[:-1])
 
 
-def _require_object_parent(parent: Any, field_name: Any) -> dict[str, Any]:
+def _require_object_parent(parent: Any, field_name: Any) -> Dict[str, Any]:
     if not isinstance(parent, dict):
         raise _Fail(
             Reason.TARGET_TYPE_MISMATCH,
@@ -917,9 +916,9 @@ def _require_object_parent(parent: Any, field_name: Any) -> dict[str, Any]:
 
 
 def _apply_operation(
-    root: dict[str, Any],
-    operation: dict[str, Any],
-    warnings: list[Warning],
+    root: Dict[str, Any],
+    operation: Dict[str, Any],
+    warnings: List[Warning],
     index: int,
     touched: "_Touched",
 ) -> None:
@@ -1093,7 +1092,7 @@ def _apply_operation(
 def _warn_wholesale(
     name: Any,
     value: Any,
-    warnings: list[Warning],
+    warnings: List[Warning],
     index: int,
     segments: Sequence[Segment],
 ) -> None:
@@ -1120,11 +1119,11 @@ class _Touched:
     """Which keyed lists an operation could have changed. Contract section 9."""
 
     def __init__(self) -> None:
-        self.item_paths: list[tuple[str, ...]] = []
-        self.branch_paths: list[tuple[str, ...]] = []
+        self.item_paths: List[Tuple[str, ...]] = []
+        self.branch_paths: List[Tuple[str, ...]] = []
 
     @staticmethod
-    def _plain(segments: Sequence[Segment]) -> tuple[str, ...]:
+    def _plain(segments: Sequence[Segment]) -> Tuple[str, ...]:
         # A selector stands in place of its list's name, so it flattens to that name.
         return tuple(s["list"] if isinstance(s, dict) else s for s in segments)
 
@@ -1136,10 +1135,10 @@ class _Touched:
 
 
 def _collections(
-    tree: Any, path: tuple[str, ...] = ()
-) -> dict[tuple[str, ...], list[Any]]:
+    tree: Any, path: Tuple[str, ...] = ()
+) -> Dict[Tuple[str, ...], List[Any]]:
     """Every keyed list in a tree, by its path."""
-    found: dict[tuple[str, ...], list[Any]] = {}
+    found: Dict[Tuple[str, ...], List[Any]] = {}
     if isinstance(tree, dict):
         for key, value in tree.items():
             child = path + (key,)
@@ -1152,8 +1151,8 @@ def _collections(
     return found
 
 
-def _duplicates(list_name: str, entries: Sequence[Any]) -> dict[str, int]:
-    counts: dict[str, int] = {}
+def _duplicates(list_name: str, entries: Sequence[Any]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
     for entry in entries:
         key = item_key(list_name, entry)
         if key is not None:
@@ -1162,10 +1161,10 @@ def _duplicates(list_name: str, entries: Sequence[Any]) -> dict[str, int]:
 
 
 def _check_unique_names(
-    base: dict[str, Any],
-    result: dict[str, Any],
+    base: Dict[str, Any],
+    result: Dict[str, Any],
     touched: _Touched,
-    warnings: list[Warning],
+    warnings: List[Warning],
 ) -> None:
     before = {
         path: _duplicates(path[-1], entries)
@@ -1215,7 +1214,7 @@ def _check_unique_names(
 _LEGACY_FIELDS = ("set", "remove")
 
 
-def _classify(delta: dict[str, Any]) -> str:
+def _classify(delta: Dict[str, Any]) -> str:
     if not isinstance(delta, dict):
         raise ChangeSetError(Reason.INVALID_DELTA, "the delta must be an object")
     unknown = set(delta) - {"set", "remove", "operations"}
@@ -1241,10 +1240,10 @@ def _classify(delta: dict[str, Any]) -> str:
     )
 
 
-def _legacy_scope_targets(delta: dict[str, Any], depth: int) -> list[Target]:
-    targets: list[Target] = []
+def _legacy_scope_targets(delta: Dict[str, Any], depth: int) -> List[Target]:
+    targets: List[Target] = []
 
-    def walk(node: Any, path: list[str]) -> None:
+    def walk(node: Any, path: List[str]) -> None:
         if len(path) >= depth or not isinstance(node, dict) or not node:
             targets.append(list(path))
             return
@@ -1269,11 +1268,11 @@ def _policy_depth(scope_policy: ScopePolicy) -> int:
 
 
 def apply_change_set(
-    base: dict[str, Any],
-    delta: dict[str, Any],
-    scope_policy: ScopePolicy | None = None,
+    base: Dict[str, Any],
+    delta: Dict[str, Any],
+    scope_policy: Optional[ScopePolicy] = None,
     *,
-    validate: Callable[[dict[str, Any]], Any] | None = None,
+    validate: Optional[Callable[[Dict[str, Any]], Any]] = None,
 ) -> ChangeSetResult:
     """Apply ``delta`` to ``base``. Contract sections 7 and 8.
 
@@ -1283,7 +1282,7 @@ def apply_change_set(
     policy = scope_policy or allow_all
     form = _classify(delta)
     result = deepcopy(base) if base else {}
-    warnings: list[Warning] = []
+    warnings: List[Warning] = []
     touched = _Touched()
 
     if form == "legacy":
@@ -1361,7 +1360,7 @@ def apply_change_set(
     return _finish(base, result, warnings, touched, validate)
 
 
-def _legacy_list_write(patch: Any, name: str) -> list[Any] | None:
+def _legacy_list_write(patch: Any, name: str) -> Optional[List[Any]]:
     """The value a legacy `set` writes at any depth for one keyed list name."""
     if isinstance(patch, dict):
         for key, value in patch.items():
@@ -1385,11 +1384,11 @@ def _reject_delta_markers(patch: Any) -> None:
 
 
 def _finish(
-    base: dict[str, Any],
-    result: dict[str, Any],
-    warnings: list[Warning],
+    base: Dict[str, Any],
+    result: Dict[str, Any],
+    warnings: List[Warning],
     touched: _Touched,
-    validate: Callable[[dict[str, Any]], Any] | None,
+    validate: Optional[Callable[[Dict[str, Any]], Any]],
 ) -> ChangeSetResult:
     try:
         _check_unique_names(base or {}, result, touched, warnings)
@@ -1403,7 +1402,7 @@ def _finish(
             issues = validate(result)
         except ChangeSetError:
             raise
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001 - any failure is one reason code
             raise ChangeSetError(
                 Reason.FINAL_VALIDATION_FAILED,
                 "The finished configuration is not valid.",
