@@ -44,4 +44,34 @@ describe("filterPendingRows", () => {
         )
         expect(result.rows.map((r) => r.session_id)).toEqual(["a"])
     })
+
+    // A search narrows `rows` but the interactions poll stays project-wide, so the waiting
+    // sessions it knows about are mostly just non-matching. Counting them as "further down"
+    // offers a Load more that can never surface them however many pages it fetches.
+    it("reports no unloaded count while a search is narrowing the list", () => {
+        const rows = [{session_id: "s1"}]
+        const pending = new Map([
+            ["s1", 1],
+            ["s2", 1],
+            ["s3", 2],
+        ])
+
+        expect(filterPendingRows(rows, pending, true)).toEqual({
+            rows: [{session_id: "s1"}],
+            unloaded: 0,
+        })
+    })
+
+    it("still counts unloaded waiting sessions without a search", () => {
+        const rows = [{session_id: "s1"}]
+        const pending = new Map([
+            ["s1", 1],
+            ["s2", 1],
+        ])
+
+        expect(filterPendingRows(rows, pending, false)).toEqual({
+            rows: [{session_id: "s1"}],
+            unloaded: 1,
+        })
+    })
 })

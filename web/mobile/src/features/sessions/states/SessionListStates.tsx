@@ -19,18 +19,23 @@ export const SessionListPendingEmpty = ({
     unloaded,
     canLoadMore,
     loading,
+    searching = false,
     onLoadMore,
 }: {
     unloaded: number
     canLoadMore: boolean
     loading: boolean
+    /** A search is narrowing the list, so "nothing waiting" is only true of the matches. */
+    searching?: boolean
     onLoadMore: () => void
 }) => (
     <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
         <p className="text-muted-foreground text-xs">
             {unloaded > 0
                 ? `${unloaded} waiting session${unloaded === 1 ? "" : "s"} further down the list, not loaded yet.`
-                : "Nothing waiting on you."}
+                : searching
+                  ? "No waiting sessions match this search."
+                  : "Nothing waiting on you."}
         </p>
         {unloaded > 0 && canLoadMore ? (
             <button

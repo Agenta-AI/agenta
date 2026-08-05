@@ -72,8 +72,8 @@ export const SessionListScreen = ({
         [head.data, query.data],
     )
     const pending = useMemo(
-        () => filterPendingRows(merged, pendingBySession),
-        [merged, pendingBySession],
+        () => filterPendingRows(merged, pendingBySession, Boolean(search)),
+        [merged, pendingBySession, search],
     )
     const rows = onlyPending ? pending.rows : merged
 
@@ -93,6 +93,7 @@ export const SessionListScreen = ({
         body = onlyPending ? (
             <SessionListPendingEmpty
                 unloaded={pending.unloaded}
+                searching={Boolean(search)}
                 canLoadMore={Boolean(query.hasNextPage)}
                 loading={query.isFetchingNextPage}
                 onLoadMore={() => void query.fetchNextPage()}

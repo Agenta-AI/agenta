@@ -18,6 +18,13 @@ export interface PendingFilter<T> {
 export const filterPendingRows = <T extends RowLike>(
     rows: T[],
     pendingBySession: Map<string, number> | undefined,
+    /**
+     * True while a search narrows the list. The interactions poll is project-wide, so a waiting
+     * session absent from the loaded rows might simply not match the search — and no amount of
+     * paging the searched query will ever produce it. Counting those as "further down" promises
+     * rows that cannot arrive, so under a search there is no unloaded count to report.
+     */
+    searching = false,
 ): PendingFilter<T> => {
     if (!pendingBySession) return {rows, unloaded: 0}
 
@@ -25,8 +32,10 @@ export const filterPendingRows = <T extends RowLike>(
     for (const row of rows) if (row.session_id) loaded.add(row.session_id)
 
     let unloaded = 0
-    for (const sessionId of pendingBySession.keys()) {
-        if (!loaded.has(sessionId)) unloaded += 1
+    if (!searching) {
+        for (const sessionId of pendingBySession.keys()) {
+            if (!loaded.has(sessionId)) unloaded += 1
+        }
     }
 
     return {
