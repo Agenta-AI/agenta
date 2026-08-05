@@ -200,6 +200,99 @@ class TestTheLegacyArmEarnsTheSameRefusals:
         assert caught.value.reason == Reason.FINAL_VALIDATION_FAILED
 
 
+class TestPreviewResolution:
+    """`test_run` resolves a delta to RUN it, and stores nothing.
+
+    An ordered delta must carry `base_revision_id` on the commit path, because that id is
+    the precondition that protects the write. A preview performs no write, and the test_run
+    handler builds its delta without the id, so the requirement blocked previewing an
+    ordered delta at all.
+    """
+
+    async def test_an_ordered_delta_without_a_base_resolves_for_a_preview(
+        self, service, ordered_on
+    ):
+        service.fetch_workflow_revision = AsyncMock(
+            return_value=_head(uuid4(), data={"parameters": {"agent": {}}})
+        )
+        commit = WorkflowRevisionCommit(
+            workflow_variant_id=VARIANT_ID,
+            delta={
+                "operations": [
+                    {
+                        "operation": "set",
+                        "target": AGENT + ["instructions"],
+                        "value": "hi",
+                    }
+                ]
+            },
+        )
+
+        resolution = await service._resolve_revision_delta(
+            project_id=uuid4(),
+            workflow_revision_commit=commit,
+            preview=True,
+        )
+
+        assert resolution.commit.data.parameters["agent"]["instructions"] == "hi"
+
+    async def test_the_commit_path_still_requires_the_base(self, service, ordered_on):
+        service.fetch_workflow_revision = AsyncMock(
+            return_value=_head(uuid4(), data={"parameters": {"agent": {}}})
+        )
+        commit = WorkflowRevisionCommit(
+            workflow_variant_id=VARIANT_ID,
+            delta={
+                "operations": [
+                    {
+                        "operation": "set",
+                        "target": AGENT + ["instructions"],
+                        "value": "hi",
+                    }
+                ]
+            },
+        )
+
+        with pytest.raises(ChangeSetError) as caught:
+            await service._resolve_revision_delta(
+                project_id=uuid4(),
+                workflow_revision_commit=commit,
+            )
+
+        assert caught.value.reason == Reason.INVALID_DELTA
+
+    async def test_a_preview_that_supplies_a_stale_base_is_still_refused(
+        self, service, ordered_on
+    ):
+        # The id is optional for a preview, not ignored. A preview built on a head that
+        # moved is not the preview the caller asked for.
+        from oss.src.core.workflows.service import RevisionConflictError
+
+        service.fetch_workflow_revision = AsyncMock(
+            return_value=_head(uuid4(), data={"parameters": {"agent": {}}})
+        )
+        commit = WorkflowRevisionCommit(
+            workflow_variant_id=VARIANT_ID,
+            base_revision_id=uuid4(),
+            delta={
+                "operations": [
+                    {
+                        "operation": "set",
+                        "target": AGENT + ["instructions"],
+                        "value": "hi",
+                    }
+                ]
+            },
+        )
+
+        with pytest.raises(RevisionConflictError):
+            await service._resolve_revision_delta(
+                project_id=uuid4(),
+                workflow_revision_commit=commit,
+                preview=True,
+            )
+
+
 class TestTheAgentWriteScope:
     """What the scoped route confines, on BOTH arms (read-config.md 11.1).
 
@@ -444,7 +537,7 @@ class TestNoChange:
 
         assert outcome.status == "no_change"
         assert outcome.revision.id == stored.id
-        assert [w["code"] for w in outcome.warnings] == ["no_change"]
+        assert [w.code for w in outcome.warnings] == ["no_change"]
         service.commit_workflow_revision.assert_not_awaited()
 
     async def test_a_real_change_still_commits(self, service):

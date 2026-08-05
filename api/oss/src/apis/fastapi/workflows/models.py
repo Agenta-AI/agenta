@@ -9,6 +9,8 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.workflows.dtos import (
     #
+    CommitWarning,
+    #
     WorkflowCatalogType,
     WorkflowCatalogHarness,
     WorkflowCatalogTemplate,
@@ -413,13 +415,6 @@ class ReadConfigResponse(BaseModel):
     value: Any = None
     bytes: int = 0
     warnings: Optional[List[Dict[str, Any]]] = None
-
-
-class CommitWarning(BaseModel):
-    code: str
-    message: str
-    target: Optional[List[Any]] = None
-    operation_index: Optional[int] = None
 
 
 class WorkflowRevisionResponse(BaseModel):
