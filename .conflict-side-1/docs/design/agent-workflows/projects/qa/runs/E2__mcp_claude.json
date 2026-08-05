@@ -1,0 +1,60 @@
+{
+  "id": "mcp_claude",
+  "group": "claude",
+  "capability": "MCP stdio server on claude",
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "gpt-4o-mini",
+  "ts": "2026-06-20T13:34:36.156216+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Use the get_secret_record tool to fetch the record, then reply with exactly the record text."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "claude",
+          "sandbox": "local",
+          "model": "haiku",
+          "agents_md": "Use the get_secret_record MCP tool to fetch the record; do not guess.",
+          "mcp_servers": [
+            {
+              "name": "qa",
+              "transport": "stdio",
+              "command": "node",
+              "args": [
+                "/tmp/mcp_qa_server.mjs"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "http_status": 200,
+  "response": {
+    "span_id": "a23bbc16564bf31b",
+    "trace_id": "4344b24cc09db68b0be2a30eb70bd1cc",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "MCP-RECORD-X9F2"
+      }
+    }
+  },
+  "reply": "MCP-RECORD-X9F2",
+  "status_message": "Success",
+  "passed": true,
+  "expect": "MCP-RECORD-X9F2 (needs AGENTA_AGENT_ENABLE_MCP=true + the server at /tmp/mcp_qa_server.mjs)"
+}

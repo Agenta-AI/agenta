@@ -1,0 +1,1 @@
+{"parameters":[{"name":"application_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Application Id"}}]}

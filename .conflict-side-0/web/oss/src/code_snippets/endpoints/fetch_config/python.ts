@@ -1,0 +1,17 @@
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
+
+export default function pythonCode(appSlug: string, env_name: string, apiKey: string): string {
+    return `import os
+import agenta as ag
+
+os.environ["AGENTA_API_KEY"] = ${JSON.stringify(apiKey)}
+os.environ["AGENTA_API_URL"] = ${JSON.stringify(getEnv("NEXT_PUBLIC_AGENTA_API_URL") ?? "")}
+
+ag.init()
+config = ag.ConfigManager.get_from_registry(
+    app_slug="${appSlug}",
+    environment_slug="${env_name}",
+)
+print(config)
+`
+}

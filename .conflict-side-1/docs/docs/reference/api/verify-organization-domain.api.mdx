@@ -1,0 +1,70 @@
+---
+id: verify-organization-domain
+title: "Verify Domain"
+description: "Verify domain ownership via DNS TXT record."
+sidebar_label: "Verify Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVlFv2zYQ/ivEPat2FuxJT/PqDg26NUbsFgMcI2DEk8VGIlWScqIZ+u/FkVJM2YnX5W1+ssi7491333fkHhzfWkjXcG22XMl/uJNaWdgkINBmRtb0DSl8RSPzlgldcamYflRobCFrtpOczT8v2ervFTOYaSMmt+pWrQppGSpRa6kcywrMHizLtWGuQFYbtKgyZDr33zuKLTN/dBToVnElWMXNg/Vm/dnc9g4omMxZrhslJpCArtH4EFcCUvAm7Z2OqroLASABg98btO53LVpI95Bp5VA5+svruuwzmX6zVPkebFZgxelfbegQJ9HSVwh3JwV9uLZGSME6I9UWEnDSlbQwD0lfCei6ZLDS998wc30i0qCgBhzCbQ7ucVdCqNAIOO7PTSiJVVpg6ZEOCEi1ZbyHbgIdJXE41JkG/YKttbKhqsuLC1/cKPqyyTK0Nm9KdtMbQ/JW3F4GLNem4g5SaBopIgAJuQRs2WzPwbyk/S4BxSv0+aj2Ood0fezRJc8rqilL6CKsP5NvdwTs20LNoxBdAnnpRbYHLoSkRV4uIkioDafcGGL94Z2JPPoB35zRyjt3CWQGuUNxx93ZLgju8J2TFUaZvA+ubOYoUFOLKNBrOb0Y8lyiX0LY/pCRfv8bcWLp/Iz+vLPnWU+jMROGLg59GCE5QuM067OCjgR1LOmwEWl6pOQugV8vL0/F+pWXUoSyPxijzduVKtBxWXrNOqzsqUGps9HuTzBTKodbNNBtDv3gxvA2at2fOiRIDKjsWeH/hdbyrddtMHnd1IPBVrTbJSBV3QQJDIPGL5BC3FMU5kSP7wnLJ/evfCJsQvq9XcSCQ4tCh16HYh5a8NJhg8nH1WpxEjDwo0JXaLoOa23JpeaugBSmMUHtNHDKTnfD1WLR7NBY38jGlOTBa+m7GD4L52qbTqfYTLJSN2LCt6gcn3AZDDcUI2uMdK0PMltcfcL2I3KBBtL1JjZYEvkCncZmzy3gtfyE7SDLFGaNK7Tp0wdqJaUUvKhqovXN4Yr/8MSrusSjK/tATZAq1zETZr4YNltcnWhytEWq4pkn0ZCZ36ZxMILpgA4kgJXXFDjk1W/PO5QHYR6OuZj8MrmgJepbxVV0RP8Qmw9vmaPb6lnp/4MXW99eUtO0Lqmcrkdu3zN1PRqlNHx7rkLSv/BIVQWRO13Dfn/PLX4xZdfR8vcGDdFvk8COG8nvqblrGjvFQMQ9PGA7aFq5d344kHnZBOIdzUpSQPCYZRnW7qztJtLf4nq5ggTu+xcnTXRIwfBHGhr8EVLwL9hQZboPa3soudo2NN5SCDHp9wOEAgkz
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Verify Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/domains/verify"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Verify domain ownership via DNS TXT record.
+
+This endpoint checks for the presence of the verification TXT record
+and marks the domain as verified if found.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./verify-organization-domain.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./verify-organization-domain.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

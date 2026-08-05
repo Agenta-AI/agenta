@@ -1,0 +1,3007 @@
+from typing import Optional
+from uuid import UUID
+from datetime import datetime, timedelta
+
+from fastapi import APIRouter, Request, Query, HTTPException, status as http_status
+
+from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import (
+    BadRequestException,
+    intercept_exceptions,
+    suppress_exceptions,
+)
+
+from oss.src.apis.fastapi.shared.utils import compute_next_windowing
+
+from oss.src.core.queries.service import (
+    QueriesService,
+)
+from oss.src.core.evaluations.service import (
+    EvaluationStatus,
+    EvaluationsService,
+    SimpleEvaluationsService,
+    SimpleQueuesService,
+)
+
+from oss.src.apis.fastapi.evaluations.models import (
+    # EVALUATION RUNS
+    EvaluationRunsCreateRequest,
+    EvaluationRunEditRequest,
+    EvaluationRunsEditRequest,
+    EvaluationRunQueryRequest,
+    EvaluationRunIdsRequest,
+    EvaluationRunResponse,
+    EvaluationRunsResponse,
+    EvaluationRunIdResponse,
+    EvaluationRunIdsResponse,
+    # EVALUATION SCENARIOS
+    EvaluationScenariosCreateRequest,
+    EvaluationScenarioEditRequest,
+    EvaluationScenariosEditRequest,
+    EvaluationScenarioQueryRequest,
+    EvaluationScenarioIdsRequest,
+    EvaluationScenarioResponse,
+    EvaluationScenariosResponse,
+    EvaluationScenarioIdResponse,
+    EvaluationScenarioIdsResponse,
+    # EVALUATION RESULTS
+    EvaluationResultsSetRequest,
+    EvaluationResultQueryRequest,
+    EvaluationResultIdsRequest,
+    EvaluationResultResponse,
+    EvaluationResultsResponse,
+    EvaluationResultIdResponse,
+    EvaluationResultIdsResponse,
+    # EVALUATION RUN SLICE
+    ProcessSliceRequest,
+    PopulateSliceRequest,
+    ProbeSliceRequest,
+    PruneSliceRequest,
+    RefreshSliceRequest,
+    # EVALUATION SHAPE OPS
+    AddScenariosRequest,
+    RemoveScenariosRequest,
+    AddStepsRequest,
+    RemoveStepsRequest,
+    SetRepeatsRequest,
+    # EVALUATION METRICS
+    EvaluationMetricsSetRequest,
+    EvaluationMetricsQueryRequest,
+    EvaluationMetricsIdsRequest,
+    EvaluationMetricsResponse,
+    EvaluationMetricsIdsResponse,
+    EvaluationMetricsRefreshRequest,
+    # EVALUATION QUEUES
+    EvaluationQueuesCreateRequest,
+    EvaluationQueueEditRequest,
+    EvaluationQueuesEditRequest,
+    EvaluationQueueQueryRequest,
+    EvaluationQueueIdsRequest,
+    EvaluationQueueResponse,
+    EvaluationQueuesResponse,
+    EvaluationQueueIdResponse,
+    EvaluationQueueIdsResponse,
+    #
+    EvaluationQueueScenariosQueryRequest,
+    #
+    SimpleEvaluationCreateRequest,
+    SimpleEvaluationEditRequest,
+    SimpleEvaluationQueryRequest,
+    SimpleEvaluationResponse,
+    SimpleEvaluationsResponse,
+    SimpleEvaluationIdResponse,
+    #
+    SimpleQueueCreateRequest,
+    SimpleQueueQueryRequest,
+    SimpleQueueScenariosQueryRequest,
+    SimpleQueueTracesCreateRequest,
+    SimpleQueueTestcasesCreateRequest,
+    SimpleQueueResponse,
+    SimpleQueuesResponse,
+    SimpleQueueIdResponse,
+    SimpleQueueIdsRequest,
+    SimpleQueueIdsResponse,
+    SimpleQueueScenariosResponse,
+)
+from oss.src.apis.fastapi.evaluations.utils import (
+    handle_evaluation_closed_exception,
+)
+from oss.src.core.evaluations.types import (
+    SimpleQueueScenariosQuery,
+    EvaluationQueueScenariosQuery,
+    EvaluationScenarioQuery,
+    EvaluationScenarioNotFound,
+)
+
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+
+if is_ee():
+    from ee.src.core.access.entitlements.service import check_entitlements, Counter
+
+
+log = get_module_logger(__name__)
+
+
+class EvaluationsRouter:
+    def __init__(
+        self,
+        *,
+        evaluations_service: EvaluationsService,
+        queries_service: QueriesService,
+    ):
+        self.evaluations_service = evaluations_service
+        self.queries_service = queries_service
+
+        self.router = APIRouter()
+
+        self.admin_router = APIRouter()
+
+        # ADMIN EVALUATION REFRESH ---------------------------------------------
+
+        # POST /api/evaluations/runs/refresh
+        self.admin_router.add_api_route(
+            path="/runs/refresh",
+            methods=["POST"],
+            endpoint=self.refresh_runs,
+            response_model_exclude_none=True,
+        )
+
+        # EVALUATION RUNS ------------------------------------------------------
+
+        # POST /api/evaluations/runs/
+        self.router.add_api_route(
+            path="/runs/",
+            methods=["POST"],
+            endpoint=self.create_runs,
+            response_model=EvaluationRunsResponse,
+            response_model_exclude_none=True,
+            operation_id="create_runs",
+        )
+
+        # PATCH /api/evaluations/runs/
+        self.router.add_api_route(
+            path="/runs/",
+            methods=["PATCH"],
+            endpoint=self.edit_runs,
+            response_model=EvaluationRunsResponse,
+            response_model_exclude_none=True,
+            operation_id="edit_runs",
+        )
+
+        # DELETE /api/evaluations/runs/
+        self.router.add_api_route(
+            path="/runs/",
+            methods=["DELETE"],
+            endpoint=self.delete_runs,
+            response_model=EvaluationRunIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_runs",
+        )
+
+        # POST /api/evaluations/runs/query
+        self.router.add_api_route(
+            path="/runs/query",
+            methods=["POST"],
+            endpoint=self.query_runs,
+            response_model=EvaluationRunsResponse,
+            response_model_exclude_none=True,
+            operation_id="query_runs",
+        )
+
+        # POST /api/evaluations/runs/close
+        self.router.add_api_route(
+            path="/runs/close",
+            methods=["POST"],
+            endpoint=self.close_runs,
+            response_model=EvaluationRunsResponse,
+            response_model_exclude_none=True,
+            operation_id="close_runs",
+        )
+
+        # POST /api/evaluations/runs/open
+        self.router.add_api_route(
+            path="/runs/open",
+            methods=["POST"],
+            endpoint=self.open_runs,
+            response_model=EvaluationRunsResponse,
+            response_model_exclude_none=True,
+            operation_id="open_runs",
+        )
+
+        # GET /api/evaluations/runs/{run_id}
+        self.router.add_api_route(
+            path="/runs/{run_id}",
+            methods=["GET"],
+            endpoint=self.fetch_run,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_run",
+        )
+
+        # PATCH /api/evaluations/runs/{run_id}
+        self.router.add_api_route(
+            path="/runs/{run_id}",
+            methods=["PATCH"],
+            endpoint=self.edit_run,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="edit_run",
+        )
+
+        # DELETE /api/evaluations/runs/{run_id}
+        self.router.add_api_route(
+            path="/runs/{run_id}",
+            methods=["DELETE"],
+            endpoint=self.delete_run,
+            response_model=EvaluationRunIdResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_run",
+        )
+
+        # POST /api/evaluations/runs/{run_id}/close
+        self.router.add_api_route(
+            path="/runs/{run_id}/close",
+            methods=["POST"],
+            endpoint=self.close_run,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="close_run",
+        )
+
+        # POST /api/evaluations/runs/{run_id}/open
+        self.router.add_api_route(
+            path="/runs/{run_id}/open",
+            methods=["POST"],
+            endpoint=self.open_run,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="open_run",
+        )
+
+        # GET /api/evaluations/runs/{run_id}/queues/default
+        self.router.add_api_route(
+            path="/runs/{run_id}/queues/default",
+            methods=["GET"],
+            endpoint=self.fetch_default_queue,
+            response_model=EvaluationQueueResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_default_queue",
+        )
+
+        # EVALUATION SCENARIOS -------------------------------------------------
+
+        # POST /api/evaluations/scenarios/
+        self.router.add_api_route(
+            path="/scenarios/",
+            methods=["POST"],
+            endpoint=self.create_scenarios,
+            response_model=EvaluationScenariosResponse,
+            response_model_exclude_none=True,
+            operation_id="create_scenarios",
+        )
+
+        # PATCH /api/evaluations/scenarios/
+        self.router.add_api_route(
+            path="/scenarios/",
+            methods=["PATCH"],
+            endpoint=self.edit_scenarios,
+            response_model=EvaluationScenariosResponse,
+            response_model_exclude_none=True,
+            operation_id="edit_scenarios",
+        )
+
+        # DELETE /api/evaluations/scenarios/
+        self.router.add_api_route(
+            path="/scenarios/",
+            methods=["DELETE"],
+            endpoint=self.delete_scenarios,
+            response_model=EvaluationScenarioIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_scenarios",
+        )
+
+        # POST /api/evaluations/scenarios/query
+        self.router.add_api_route(
+            path="/scenarios/query",
+            methods=["POST"],
+            endpoint=self.query_scenarios,
+            response_model=EvaluationScenariosResponse,
+            response_model_exclude_none=True,
+            operation_id="query_scenarios",
+        )
+
+        # GET /api/evaluations/scenarios/{scenario_id}
+        self.router.add_api_route(
+            path="/scenarios/{scenario_id}",
+            methods=["GET"],
+            endpoint=self.fetch_scenario,
+            response_model=EvaluationScenarioResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_scenario",
+        )
+
+        # PATCH /api/evaluations/scenarios/{scenario_id}
+        self.router.add_api_route(
+            path="/scenarios/{scenario_id}",
+            methods=["PATCH"],
+            endpoint=self.edit_scenario,
+            response_model=EvaluationScenarioResponse,
+            response_model_exclude_none=True,
+            operation_id="edit_scenario",
+        )
+
+        # DELETE /api/evaluations/scenarios/{scenario_id}
+        self.router.add_api_route(
+            path="/scenarios/{scenario_id}",
+            methods=["DELETE"],
+            endpoint=self.delete_scenario,
+            response_model=EvaluationScenarioIdResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_scenario",
+        )
+
+        # EVALUATION RESULTS ---------------------------------------------------
+
+        # POST /api/evaluations/results/
+        self.router.add_api_route(
+            path="/results/",
+            methods=["POST", "PUT", "PATCH"],
+            endpoint=self.set_results,
+            response_model=EvaluationResultsResponse,
+            response_model_exclude_none=True,
+            operation_id="set_results",
+        )
+
+        # DELETE /api/evaluations/results/
+        self.router.add_api_route(
+            path="/results/",
+            methods=["DELETE"],
+            endpoint=self.delete_results,
+            response_model=EvaluationResultIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_results",
+        )
+
+        # POST /api/evaluations/results/query
+        self.router.add_api_route(
+            path="/results/query",
+            methods=["POST"],
+            endpoint=self.query_results,
+            response_model=EvaluationResultsResponse,
+            response_model_exclude_none=True,
+            operation_id="query_results",
+        )
+
+        # GET /api/evaluations/results/{result_id}
+        self.router.add_api_route(
+            path="/results/{result_id}",
+            methods=["GET"],
+            endpoint=self.fetch_result,
+            response_model=EvaluationResultResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_result",
+        )
+
+        # DELETE /api/evaluations/results/{result_id}
+        self.router.add_api_route(
+            path="/results/{result_id}",
+            methods=["DELETE"],
+            endpoint=self.delete_result,
+            response_model=EvaluationResultIdResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_result",
+        )
+
+        # EVALUATION METRICS ---------------------------------------------------
+
+        # POST /api/evaluations/metrics/refresh
+        self.router.add_api_route(
+            path="/metrics/refresh",
+            methods=["POST"],
+            endpoint=self.refresh_metrics,
+            response_model=EvaluationMetricsResponse,
+            response_model_exclude_none=True,
+            operation_id="refresh_metrics",
+        )
+
+        # TODO: deprecate once web uses /mretrics/refresh
+        # POST /api/evaluations/metrics/
+        self.router.add_api_route(
+            path="/metrics/",
+            methods=["POST", "PUT", "PATCH"],
+            endpoint=self.set_metrics,
+            response_model=EvaluationMetricsResponse,
+            response_model_exclude_none=True,
+            operation_id="set_metrics",
+        )
+
+        # DELETE /api/evaluations/metrics/
+        self.router.add_api_route(
+            path="/metrics/",
+            methods=["DELETE"],
+            endpoint=self.delete_metrics,
+            response_model=EvaluationMetricsIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_metrics",
+        )
+
+        # POST /api/evaluations/metrics/query
+        self.router.add_api_route(
+            path="/metrics/query",
+            methods=["POST"],
+            endpoint=self.query_metrics,
+            response_model=EvaluationMetricsResponse,
+            response_model_exclude_none=True,
+            operation_id="query_metrics",
+        )
+
+        # GET /api/evaluations/metrics/{metrics_id}
+        self.router.add_api_route(
+            path="/metrics/{metrics_id}",
+            methods=["GET"],
+            endpoint=self.fetch_metric,
+            response_model=EvaluationMetricsResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_metric",
+        )
+
+        # DELETE /api/evaluations/metrics/{metrics_id}
+        self.router.add_api_route(
+            path="/metrics/{metrics_id}",
+            methods=["DELETE"],
+            endpoint=self.delete_metric,
+            response_model=EvaluationMetricsIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_metric",
+        )
+
+        # EVALUATION QUEUES ----------------------------------------------------
+
+        # POST /api/evaluations/queues/
+        self.router.add_api_route(
+            path="/queues/",
+            methods=["POST"],
+            endpoint=self.create_queues,
+            response_model=EvaluationQueuesResponse,
+            response_model_exclude_none=True,
+            operation_id="create_queues",
+        )
+
+        # PATCH /api/evaluations/queues/
+        self.router.add_api_route(
+            path="/queues/",
+            methods=["PATCH"],
+            endpoint=self.edit_queues,
+            response_model=EvaluationQueuesResponse,
+            response_model_exclude_none=True,
+            operation_id="edit_queues",
+        )
+
+        # DELETE /api/evaluations/queues/
+        self.router.add_api_route(
+            path="/queues/",
+            methods=["DELETE"],
+            endpoint=self.delete_queues,
+            response_model=EvaluationQueueIdsResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_queues",
+        )
+
+        # POST /api/evaluations/queues/query
+        self.router.add_api_route(
+            path="/queues/query",
+            methods=["POST"],
+            endpoint=self.query_queues,
+            response_model=EvaluationQueuesResponse,
+            response_model_exclude_none=True,
+            operation_id="query_queues",
+        )
+
+        # GET /api/evaluations/queues/{queue_id}
+        self.router.add_api_route(
+            path="/queues/{queue_id}",
+            methods=["GET"],
+            endpoint=self.fetch_queue,
+            response_model=EvaluationQueueResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_queue",
+        )
+
+        # PATCH /api/evaluations/queues/{queue_id}
+        self.router.add_api_route(
+            path="/queues/{queue_id}",
+            methods=["PATCH"],
+            endpoint=self.edit_queue,
+            response_model=EvaluationQueueResponse,
+            response_model_exclude_none=True,
+            operation_id="edit_queue",
+        )
+
+        # DELETE /api/evaluations/queues/{queue_id}
+        self.router.add_api_route(
+            path="/queues/{queue_id}",
+            methods=["DELETE"],
+            endpoint=self.delete_queue,
+            response_model=EvaluationQueueIdResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_queue",
+        )
+
+        # POST /api/evaluations/queues/{queue_id}/scenarios/query
+        self.router.add_api_route(
+            path="/queues/{queue_id}/scenarios/query",
+            methods=["POST"],
+            endpoint=self.query_queue_scenarios,
+            response_model=EvaluationScenariosResponse,
+            response_model_exclude_none=True,
+            operation_id="query_evaluation_queue_scenarios",
+        )
+
+    # EVALUATION RUNS ----------------------------------------------------------
+
+    # POST /evaluations/runs/refresh
+    @intercept_exceptions()
+    async def refresh_runs(
+        self,
+        *,
+        trigger_interval: Optional[int] = Query(1, ge=1, le=60),
+        trigger_datetime: Optional[datetime] = Query(None),
+    ):
+        # ----------------------------------------------------------------------
+        # THIS IS AN ADMIN ENDPOINT
+        # NO CHECK FOR PERMISSIONS / ENTITLEMENTS
+        # ----------------------------------------------------------------------
+
+        if not trigger_datetime or not trigger_interval:
+            return {"status": "error"}
+
+        timestamp = trigger_datetime - timedelta(minutes=trigger_interval)
+        interval = trigger_interval
+
+        check = await self.evaluations_service.refresh_runs(
+            timestamp=timestamp,
+            interval=interval,
+        )
+
+        if not check:
+            return {"status": "failure"}
+
+        return {"status": "success"}
+
+    # POST /evaluations/runs/
+    @intercept_exceptions()
+    async def create_runs(
+        self,
+        request: Request,
+        *,
+        runs_create_request: EvaluationRunsCreateRequest,
+    ) -> EvaluationRunsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if is_ee():
+            delta = len(runs_create_request.runs)
+            if delta:
+                allowed, _, _ = await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=delta,
+                )
+                if not allowed:
+                    raise HTTPException(
+                        status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail="You have reached your monthly evaluations quota.",
+                    )
+
+        try:
+            runs = await self.evaluations_service.create_runs(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                runs=runs_create_request.runs,
+            )
+        except Exception:
+            # Internal error after the quota was charged — refund.
+            if is_ee() and runs_create_request.runs:
+                await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=-len(runs_create_request.runs),
+                )
+            raise
+
+        # The DAO suppresses non-conflict exceptions and returns []
+        # silently; refund the shortfall between charge and actual
+        # creations so the meter only counts runs that landed.
+        if is_ee() and runs_create_request.runs:
+            shortfall = len(runs_create_request.runs) - len(runs)
+            if shortfall > 0:
+                await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=-shortfall,
+                )
+
+        runs_response = EvaluationRunsResponse(
+            count=len(runs),
+            runs=runs,
+        )
+
+        return runs_response
+
+    # PATCH /evaluations/runs/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def edit_runs(
+        self,
+        request: Request,
+        *,
+        runs_edit_request: EvaluationRunsEditRequest,
+    ) -> EvaluationRunsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        runs = await self.evaluations_service.edit_runs(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            runs=runs_edit_request.runs,
+        )
+
+        runs_response = EvaluationRunsResponse(
+            count=len(runs),
+            runs=runs,
+        )
+
+        return runs_response
+
+    # DELETE /evaluations/runs/
+    @intercept_exceptions()
+    async def delete_runs(
+        self,
+        request: Request,
+        *,
+        run_ids_request: EvaluationRunIdsRequest,
+    ) -> EvaluationRunIdsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run_ids = await self.evaluations_service.delete_runs(
+            project_id=UUID(request.state.project_id),
+            #
+            run_ids=run_ids_request.run_ids,
+        )
+
+        run_ids_response = EvaluationRunIdsResponse(
+            count=len(run_ids),
+            run_ids=run_ids,
+        )
+
+        return run_ids_response
+
+    # POST /evaluations/runs/query
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationRunsResponse(), exclude=[HTTPException])
+    async def query_runs(
+        self,
+        request: Request,
+        *,
+        run_query_request: EvaluationRunQueryRequest,
+    ) -> EvaluationRunsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        runs = await self.evaluations_service.query_runs(
+            project_id=UUID(request.state.project_id),
+            #
+            run=run_query_request.run,
+            #
+            windowing=run_query_request.windowing,
+        )
+
+        windowing = compute_next_windowing(
+            entities=runs,
+            attribute="id",
+            windowing=run_query_request.windowing,
+        )
+
+        runs_response = EvaluationRunsResponse(
+            count=len(runs),
+            runs=runs,
+            windowing=windowing,
+        )
+
+        return runs_response
+
+    # POST /evaluations/runs/close
+    @intercept_exceptions()
+    async def close_runs(
+        self,
+        request: Request,
+        *,
+        run_ids_request: EvaluationRunIdsRequest,
+    ) -> EvaluationRunsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        runs = await self.evaluations_service.close_runs(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_ids=run_ids_request.run_ids,
+        )
+
+        runs_response = EvaluationRunsResponse(
+            count=len(runs),
+            runs=runs,
+        )
+
+        return runs_response
+
+    # POST /evaluations/runs/open
+    @intercept_exceptions()
+    async def open_runs(
+        self,
+        request: Request,
+        *,
+        run_ids_request: EvaluationRunIdsRequest,
+    ) -> EvaluationRunsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        runs = await self.evaluations_service.open_runs(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_ids=run_ids_request.run_ids,
+        )
+
+        runs_response = EvaluationRunsResponse(
+            count=len(runs),
+            runs=runs,
+        )
+
+        return runs_response
+
+    # GET /evaluations/runs/{run_id}
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationRunResponse(), exclude=[HTTPException])
+    async def fetch_run(
+        self,
+        request: Request,
+        *,
+        run_id: UUID,
+    ) -> EvaluationRunResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.evaluations_service.fetch_run(
+            project_id=UUID(request.state.project_id),
+            #
+            run_id=run_id,
+        )
+
+        run_response = EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+        return run_response
+
+    # GET /evaluations/runs/{run_id}/queues/default
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationQueueResponse(), exclude=[HTTPException])
+    async def fetch_default_queue(
+        self,
+        request: Request,
+        *,
+        run_id: UUID,
+    ) -> EvaluationQueueResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.evaluations_service.fetch_default_queue(
+            project_id=UUID(request.state.project_id),
+            run_id=run_id,
+        )
+        return EvaluationQueueResponse(count=1 if queue else 0, queue=queue)
+
+    # PATCH /evaluations/runs/{run_id}
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def edit_run(
+        self,
+        request: Request,
+        *,
+        run_id: UUID,
+        #
+        run_edit_request: EvaluationRunEditRequest,
+    ) -> EvaluationRunResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if str(run_id) != str(run_edit_request.run.id):
+            return EvaluationRunResponse()
+
+        run = await self.evaluations_service.edit_run(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run=run_edit_request.run,
+        )
+
+        run_response = EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+        return run_response
+
+    # DELETE /evaluations/runs/{run_id}
+    @intercept_exceptions()
+    async def delete_run(
+        self,
+        request: Request,
+        *,
+        run_id: UUID,
+    ) -> EvaluationRunIdResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        _run_id = await self.evaluations_service.delete_run(
+            project_id=UUID(request.state.project_id),
+            #
+            run_id=run_id,
+        )
+
+        run_id_response = EvaluationRunIdResponse(
+            count=1 if _run_id else 0,
+            run_id=_run_id,
+        )
+
+        return run_id_response
+
+    # POST /evaluations/runs/{run_id}/close
+    # POST /evaluations/runs/{run_id}/close?status=
+    @intercept_exceptions()
+    async def close_run(
+        self,
+        request: Request,
+        *,
+        run_id: UUID,
+        #
+        status: Optional[EvaluationStatus] = Query(None),
+    ) -> EvaluationRunResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.evaluations_service.close_run(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=run_id,
+            #
+            status=status,
+        )
+
+        run_response = EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+        return run_response
+
+    # POST /evaluations/runs/{run_id}/open
+    @intercept_exceptions()
+    async def open_run(
+        self,
+        request: Request,
+        *,
+        run_id: UUID,
+    ) -> EvaluationRunResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.evaluations_service.open_run(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=run_id,
+        )
+
+        run_response = EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+        return run_response
+
+    # EVALUATION SCENARIOS -----------------------------------------------------
+
+    # POST /evaluations/scenarios/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def create_scenarios(
+        self,
+        request: Request,
+        *,
+        scenarios_create_request: EvaluationScenariosCreateRequest,
+    ) -> EvaluationScenariosResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        scenarios = await self.evaluations_service.create_scenarios(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            scenarios=scenarios_create_request.scenarios,
+        )
+
+        scenarios_response = EvaluationScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
+        )
+
+        return scenarios_response
+
+    # PATCH /evaluations/scenarios/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def edit_scenarios(
+        self,
+        request: Request,
+        *,
+        scenarios_edit_request: EvaluationScenariosEditRequest,
+    ) -> EvaluationScenariosResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        scenarios = await self.evaluations_service.edit_scenarios(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            scenarios=scenarios_edit_request.scenarios,
+        )
+
+        scenarios_response = EvaluationScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
+        )
+
+        return scenarios_response
+
+    # DELETE /evaluations/scenarios/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_scenarios(
+        self,
+        request: Request,
+        *,
+        scenario_ids_request: EvaluationScenarioIdsRequest,
+    ) -> EvaluationScenarioIdsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        scenario_ids = await self.evaluations_service.delete_scenarios(
+            project_id=UUID(request.state.project_id),
+            #
+            scenario_ids=scenario_ids_request.scenario_ids,
+        )
+
+        scenario_ids_response = EvaluationScenarioIdsResponse(
+            count=len(scenario_ids),
+            scenario_ids=scenario_ids,
+        )
+
+        return scenario_ids_response
+
+    # POST /evaluations/scenarios/query
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationScenariosResponse(), exclude=[HTTPException])
+    async def query_scenarios(
+        self,
+        request: Request,
+        *,
+        scenario_query_request: EvaluationScenarioQueryRequest,
+    ) -> EvaluationScenariosResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        scenarios = await self.evaluations_service.query_scenarios(
+            project_id=UUID(request.state.project_id),
+            #
+            scenario=scenario_query_request.scenario,
+            #
+            windowing=scenario_query_request.windowing,
+        )
+
+        scenarios_response = EvaluationScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
+        )
+
+        return scenarios_response
+
+    # GET /evaluations/scenarios/{scenario_id}
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationScenarioResponse(), exclude=[HTTPException])
+    async def fetch_scenario(
+        self,
+        request: Request,
+        *,
+        scenario_id: UUID,
+    ) -> EvaluationScenarioResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        scenario = await self.evaluations_service.fetch_scenario(
+            project_id=UUID(request.state.project_id),
+            #
+            scenario_id=scenario_id,
+        )
+
+        scenario_response = EvaluationScenarioResponse(
+            count=1 if scenario else 0,
+            scenario=scenario,
+        )
+
+        return scenario_response
+
+    # PATCH /evaluations/scenarios/{scenario_id}
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def edit_scenario(
+        self,
+        request: Request,
+        *,
+        scenario_id: UUID,
+        #
+        scenario_edit_request: EvaluationScenarioEditRequest,
+    ) -> EvaluationScenarioResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if str(scenario_id) != str(scenario_edit_request.scenario.id):
+            return EvaluationScenarioResponse()
+
+        scenario = await self.evaluations_service.edit_scenario(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            scenario=scenario_edit_request.scenario,
+        )
+
+        scenario_response = EvaluationScenarioResponse(
+            count=1 if scenario else 0,
+            scenario=scenario,
+        )
+
+        return scenario_response
+
+    # DELETE /evaluations/scenarios/{scenario_id}
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_scenario(
+        self,
+        request: Request,
+        *,
+        scenario_id: UUID,
+    ) -> EvaluationScenarioIdResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_SCENARIOS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        _scenario_id = await self.evaluations_service.delete_scenario(
+            project_id=UUID(request.state.project_id),
+            #
+            scenario_id=scenario_id,
+        )
+
+        scenario_id_response = EvaluationScenarioIdResponse(
+            count=1 if _scenario_id else 0,
+            scenario_id=_scenario_id,
+        )
+
+        return scenario_id_response
+
+    # EVALUATION RESULTS -------------------------------------------------------
+
+    # POST /evaluations/results/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def set_results(
+        self,
+        request: Request,
+        *,
+        results_set_request: EvaluationResultsSetRequest,
+    ) -> EvaluationResultsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        results = await self.evaluations_service.set_results(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            results=results_set_request.results,
+        )
+
+        results_response = EvaluationResultsResponse(
+            count=len(results),
+            results=results,
+        )
+
+        return results_response
+
+    # DELETE /evaluations/results/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_results(
+        self,
+        request: Request,
+        *,
+        result_ids_request: EvaluationResultIdsRequest,
+    ) -> EvaluationResultIdsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        result_ids = await self.evaluations_service.delete_results(
+            project_id=UUID(request.state.project_id),
+            #
+            result_ids=result_ids_request.result_ids,
+        )
+
+        result_ids_response = EvaluationResultIdsResponse(
+            count=len(result_ids),
+            result_ids=result_ids,
+        )
+
+        return result_ids_response
+
+    # POST /evaluations/results/query
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationResultsResponse(), exclude=[HTTPException])
+    async def query_results(
+        self,
+        request: Request,
+        *,
+        result_query_request: EvaluationResultQueryRequest,
+    ) -> EvaluationResultsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        results = await self.evaluations_service.query_results(
+            project_id=UUID(request.state.project_id),
+            #
+            result=result_query_request.result,
+            #
+            windowing=result_query_request.windowing,
+        )
+
+        results_response = EvaluationResultsResponse(
+            count=len(results),
+            results=results,
+        )
+
+        return results_response
+
+    # GET /evaluations/results/{result_id}
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationResultResponse(), exclude=[HTTPException])
+    async def fetch_result(
+        self,
+        request: Request,
+        *,
+        result_id: UUID,
+    ) -> EvaluationResultResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        result = await self.evaluations_service.fetch_result(
+            project_id=UUID(request.state.project_id),
+            #
+            result_id=result_id,
+        )
+
+        result_response = EvaluationResultResponse(
+            count=1 if result else 0,
+            result=result,
+        )
+
+        return result_response
+
+    # DELETE /evaluations/results/{result_id}
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_result(
+        self,
+        request: Request,
+        *,
+        result_id: UUID,
+    ) -> EvaluationResultIdResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RESULTS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        _result_id = await self.evaluations_service.delete_result(
+            project_id=UUID(request.state.project_id),
+            #
+            result_id=result_id,
+        )
+
+        result_id_response = EvaluationResultIdResponse(
+            count=1 if _result_id else 0,
+            result_id=_result_id,
+        )
+
+        return result_id_response
+
+    # EVALUATION METRICS -------------------------------------------------------
+
+    # POST /evaluations/metrics/refresh
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationMetricsResponse(), exclude=[HTTPException])
+    async def refresh_metrics(
+        self,
+        request: Request,
+        *,
+        metrics_refresh_request: EvaluationMetricsRefreshRequest,
+    ) -> EvaluationMetricsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        metrics = await self.evaluations_service.refresh_metrics(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            metrics=metrics_refresh_request.metrics,
+        )
+
+        metrics_response = EvaluationMetricsResponse(
+            count=len(metrics),
+            metrics=metrics,
+        )
+
+        return metrics_response
+
+    # POST /evaluations/metrics/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def set_metrics(
+        self,
+        request: Request,
+        *,
+        metrics_set_request: EvaluationMetricsSetRequest,
+    ) -> EvaluationMetricsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        metrics = await self.evaluations_service.set_metrics(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            metrics=metrics_set_request.metrics,
+        )
+
+        metrics_response = EvaluationMetricsResponse(
+            count=len(metrics),
+            metrics=metrics,
+        )
+
+        return metrics_response
+
+    # DELETE /evaluations/metrics/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_metrics(
+        self,
+        request: Request,
+        *,
+        metrics_ids_request: EvaluationMetricsIdsRequest,
+    ) -> EvaluationMetricsIdsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        metrics_ids = await self.evaluations_service.delete_metrics(
+            project_id=UUID(request.state.project_id),
+            #
+            metrics_ids=metrics_ids_request.metrics_ids,
+        )
+
+        metrics_ids_response = EvaluationMetricsIdsResponse(
+            count=len(metrics_ids),
+            metrics_ids=metrics_ids,
+        )
+
+        return metrics_ids_response
+
+    # POST /evaluations/metrics/query
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationMetricsResponse(), exclude=[HTTPException])
+    async def query_metrics(
+        self,
+        request: Request,
+        *,
+        metric_query_request: EvaluationMetricsQueryRequest,
+    ) -> EvaluationMetricsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        metrics = await self.evaluations_service.query_metrics(
+            project_id=UUID(request.state.project_id),
+            #
+            metric=metric_query_request.metrics,
+            #
+            windowing=metric_query_request.windowing,
+        )
+
+        metrics_response = EvaluationMetricsResponse(
+            count=len(metrics),
+            metrics=metrics,
+        )
+
+        return metrics_response
+
+    # GET /evaluations/metrics/{metrics_id}
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationMetricsResponse(), exclude=[HTTPException])
+    async def fetch_metric(
+        self,
+        request: Request,
+        *,
+        metrics_id: UUID,
+    ) -> EvaluationMetricsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        metrics = await self.evaluations_service.fetch_metrics(
+            project_id=UUID(request.state.project_id),
+            #
+            metrics_ids=[metrics_id],
+        )
+
+        metrics_response = EvaluationMetricsResponse(
+            count=len(metrics),
+            metrics=metrics,
+        )
+
+        return metrics_response
+
+    # DELETE /evaluations/metrics/{metrics_id}
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_metric(
+        self,
+        request: Request,
+        *,
+        metrics_id: UUID,
+    ) -> EvaluationMetricsIdsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_METRICS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        metrics_ids = await self.evaluations_service.delete_metrics(
+            project_id=UUID(request.state.project_id),
+            #
+            metrics_ids=[metrics_id],
+        )
+
+        metrics_ids_response = EvaluationMetricsIdsResponse(
+            count=len(metrics_ids),
+            metrics_ids=metrics_ids,
+        )
+
+        return metrics_ids_response
+
+    # EVALUATION QUEUES --------------------------------------------------------
+
+    # POST /evaluations/queues/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def create_queues(
+        self,
+        request: Request,
+        *,
+        queues_create_request: EvaluationQueuesCreateRequest,
+    ) -> EvaluationQueuesResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queues = await self.evaluations_service.create_queues(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            queues=queues_create_request.queues,
+        )
+
+        queues_response = EvaluationQueuesResponse(
+            count=len(queues),
+            queues=queues,
+        )
+
+        return queues_response
+
+    # PATCH /evaluations/queues/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def edit_queues(
+        self,
+        request: Request,
+        *,
+        queues_edit_request: EvaluationQueuesEditRequest,
+    ) -> EvaluationQueuesResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queues = await self.evaluations_service.edit_queues(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            queues=queues_edit_request.queues,
+        )
+
+        queues_response = EvaluationQueuesResponse(
+            count=len(queues),
+            queues=queues,
+        )
+
+        return queues_response
+
+    # DELETE /evaluations/queues/
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_queues(
+        self,
+        request: Request,
+        *,
+        queue_ids_request: EvaluationQueueIdsRequest,
+    ) -> EvaluationQueueIdsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue_ids = await self.evaluations_service.delete_queues(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_ids=queue_ids_request.queue_ids,
+        )
+
+        queue_ids_response = EvaluationQueueIdsResponse(
+            count=len(queue_ids),
+            queue_ids=queue_ids,
+        )
+
+        return queue_ids_response
+
+    # POST /evaluations/queues/query
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationQueuesResponse(), exclude=[HTTPException])
+    async def query_queues(
+        self,
+        request: Request,
+        *,
+        queue_query_request: EvaluationQueueQueryRequest,
+    ) -> EvaluationQueuesResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queues = await self.evaluations_service.query_queues(
+            project_id=UUID(request.state.project_id),
+            #
+            queue=queue_query_request.queue,
+            #
+            windowing=queue_query_request.windowing,
+        )
+
+        queues_response = EvaluationQueuesResponse(
+            count=len(queues),
+            queues=queues,
+        )
+
+        return queues_response
+
+    # GET /evaluations/queues/{queue_id}
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationQueueResponse(), exclude=[HTTPException])
+    async def fetch_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+    ) -> EvaluationQueueResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.evaluations_service.fetch_queue(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_id=queue_id,
+        )
+
+        queue_response = EvaluationQueueResponse(
+            count=1 if queue else 0,
+            queue=queue,
+        )
+
+        return queue_response
+
+    # PATCH /evaluations/queues/{queue_id}
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def edit_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+        #
+        queue_edit_request: EvaluationQueueEditRequest,
+    ) -> EvaluationQueueResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if str(queue_id) != str(queue_edit_request.queue.id):
+            return EvaluationQueueResponse()
+
+        queue = await self.evaluations_service.edit_queue(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            queue=queue_edit_request.queue,
+        )
+
+        queue_response = EvaluationQueueResponse(
+            count=1 if queue else 0,
+            queue=queue,
+        )
+
+        return queue_response
+
+    # DELETE /evaluations/queues/{queue_id}
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+    ) -> EvaluationQueueIdResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        _queue_id = await self.evaluations_service.delete_queue(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_id=queue_id,
+        )
+
+        queue_id_response = EvaluationQueueIdResponse(
+            count=1 if _queue_id else 0,
+            queue_id=_queue_id,
+        )
+
+        return queue_id_response
+
+    # POST /evaluations/queues/{queue_id}/scenarios/query
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluationScenariosResponse(), exclude=[HTTPException])
+    async def query_queue_scenarios(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+        #
+        queue_scenarios_query_request: EvaluationQueueScenariosQueryRequest,
+    ) -> EvaluationScenariosResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue_scenarios_query = (
+            queue_scenarios_query_request.queue
+            if queue_scenarios_query_request.queue
+            else EvaluationQueueScenariosQuery(id=queue_id)
+        )
+
+        if queue_scenarios_query.id and queue_scenarios_query.id != queue_id:
+            raise HTTPException(
+                status_code=400,
+                detail="queue_id in path must match queue.id in request body",
+            )
+
+        queue_scenarios_query.id = queue_id
+
+        scenarios, windowing = await self.evaluations_service.query_queue_scenarios(
+            project_id=UUID(request.state.project_id),
+            user_id=queue_scenarios_query.user_id,
+            #
+            queue_id=queue_id,
+            #
+            scenario=queue_scenarios_query_request.scenario,
+            #
+            windowing=queue_scenarios_query_request.windowing,
+        )
+
+        return EvaluationScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
+            windowing=windowing,
+        )
+
+
+class SimpleEvaluationsRouter:
+    def __init__(
+        self,
+        *,
+        simple_evaluations_service: SimpleEvaluationsService,
+    ):
+        self.simple_evaluations_service = simple_evaluations_service
+
+        self.router = APIRouter()
+
+        # SIMPLE EVALUATIONS ---------------------------------------------------
+
+        # POST /api/simple/evaluations/
+        self.router.add_api_route(
+            path="/",
+            methods=["POST"],
+            endpoint=self.create_evaluation,
+            response_model=SimpleEvaluationResponse,
+            response_model_exclude_none=True,
+            operation_id="create_simple_evaluation",
+        )
+
+        # POST /api/simple/evaluations/query
+        self.router.add_api_route(
+            path="/query",
+            methods=["POST"],
+            endpoint=self.query_evaluations,
+            response_model=SimpleEvaluationsResponse,
+            response_model_exclude_none=True,
+            operation_id="query_simple_evaluations",
+        )
+
+        # GET /api/simple/evaluations/{evaluation_id}
+        self.router.add_api_route(
+            path="/{evaluation_id}",
+            methods=["GET"],
+            endpoint=self.fetch_evaluation,
+            response_model=SimpleEvaluationResponse,
+            response_model_exclude_none=True,
+            operation_id="fetch_simple_evaluation",
+        )
+
+        # PATCH /api/simple/evaluations/{evaluation_id}
+        self.router.add_api_route(
+            path="/{evaluation_id}",
+            methods=["PATCH"],
+            endpoint=self.edit_evaluation,
+            response_model=SimpleEvaluationResponse,
+            response_model_exclude_none=True,
+            operation_id="edit_simple_evaluation",
+        )
+
+        # DELETE /api/simple/evaluations/{evaluation_id}
+        self.router.add_api_route(
+            path="/{evaluation_id}",
+            methods=["DELETE"],
+            endpoint=self.delete_evaluation,
+            response_model=SimpleEvaluationIdResponse,
+            response_model_exclude_none=True,
+            operation_id="delete_simple_evaluation",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/start
+        self.router.add_api_route(
+            path="/{evaluation_id}/start",
+            methods=["POST"],
+            endpoint=self.start_evaluation,
+            response_model=SimpleEvaluationResponse,
+            response_model_exclude_none=True,
+            operation_id="start_simple_evaluation",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/stop
+        self.router.add_api_route(
+            path="/{evaluation_id}/stop",
+            methods=["POST"],
+            endpoint=self.stop_evaluation,
+            response_model=SimpleEvaluationResponse,
+            response_model_exclude_none=True,
+            operation_id="stop_simple_evaluation",
+        )
+
+        # POST /api/simpleEvaluations/{evaluation_id}/close
+        self.router.add_api_route(
+            path="/{evaluation_id}/close",
+            methods=["POST"],
+            endpoint=self.close_evaluation,
+            response_model=SimpleEvaluationResponse,
+            response_model_exclude_none=True,
+            operation_id="close_simple_evaluation",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/open
+        self.router.add_api_route(
+            path="/{evaluation_id}/open",
+            methods=["POST"],
+            endpoint=self.open_evaluation,
+            response_model=SimpleEvaluationResponse,
+            response_model_exclude_none=True,
+            operation_id="open_simple_evaluation",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/populate
+        self.router.add_api_route(
+            path="/{evaluation_id}/populate",
+            methods=["POST"],
+            endpoint=self.populate_evaluation_slice,
+            response_model=EvaluationResultsResponse,
+            response_model_exclude_none=True,
+            operation_id="populate_slice",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/process
+        self.router.add_api_route(
+            path="/{evaluation_id}/process",
+            methods=["POST"],
+            endpoint=self.process_evaluation_slice,
+            status_code=http_status.HTTP_202_ACCEPTED,
+            response_model=None,
+            responses={http_status.HTTP_202_ACCEPTED: {"description": "Accepted."}},
+            operation_id="process_slice",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/probe
+        self.router.add_api_route(
+            path="/{evaluation_id}/probe",
+            methods=["POST"],
+            endpoint=self.probe_evaluation_slice,
+            response_model=EvaluationResultsResponse,
+            response_model_exclude_none=True,
+            operation_id="probe_slice",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/prune
+        self.router.add_api_route(
+            path="/{evaluation_id}/prune",
+            methods=["POST"],
+            endpoint=self.prune_evaluation_slice,
+            status_code=http_status.HTTP_204_NO_CONTENT,
+            operation_id="prune_slice",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/refresh
+        self.router.add_api_route(
+            path="/{evaluation_id}/refresh",
+            methods=["POST"],
+            endpoint=self.refresh_evaluation_slice,
+            status_code=http_status.HTTP_204_NO_CONTENT,
+            operation_id="refresh_slice",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
+        self.router.add_api_route(
+            path="/{evaluation_id}/scenarios/add",
+            methods=["POST"],
+            endpoint=self.add_evaluation_scenarios,
+            response_model=EvaluationScenariosResponse,
+            response_model_exclude_none=True,
+            operation_id="add_scenarios",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/scenarios/remove
+        self.router.add_api_route(
+            path="/{evaluation_id}/scenarios/remove",
+            methods=["POST"],
+            endpoint=self.remove_evaluation_scenarios,
+            status_code=204,  # rows removed — no body
+            operation_id="remove_scenarios",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/steps/add
+        self.router.add_api_route(
+            path="/{evaluation_id}/steps/add",
+            methods=["POST"],
+            endpoint=self.add_evaluation_steps,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="add_steps",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/steps/remove
+        self.router.add_api_route(
+            path="/{evaluation_id}/steps/remove",
+            methods=["POST"],
+            endpoint=self.remove_evaluation_steps,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="remove_steps",
+        )
+
+        # POST /api/simple/evaluations/{evaluation_id}/repeats/set
+        self.router.add_api_route(
+            path="/{evaluation_id}/repeats/set",
+            methods=["POST"],
+            endpoint=self.set_evaluation_repeats,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+            operation_id="set_repeats",
+        )
+
+    # SIMPLE EVALUATIONS -------------------------------------------------------
+
+    # POST /api/simple/evaluations/
+    @intercept_exceptions()
+    async def create_evaluation(
+        self,
+        request: Request,
+        *,
+        evaluation_create_request: SimpleEvaluationCreateRequest,
+    ) -> SimpleEvaluationResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if is_ee():
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=1,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly evaluations quota.",
+                )
+
+        evaluation_create = evaluation_create_request.evaluation
+
+        try:
+            evaluation = await self.simple_evaluations_service.create(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                evaluation=evaluation_create,
+            )
+        except Exception:
+            # Internal error after the quota was charged — refund.
+            if is_ee():
+                await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=-1,
+                )
+            raise
+
+        # `create` returns None silently on malformed input (early-guard
+        # `return None` paths). Refund the charge so the meter only counts
+        # evaluations that actually landed.
+        if is_ee() and evaluation is None:
+            await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=-1,
+            )
+
+        response = SimpleEvaluationResponse(
+            count=1 if evaluation else 0,
+            evaluation=evaluation,
+        )
+
+        return response
+
+    # GET /api/simple/evaluations/{evaluation_id}
+    @intercept_exceptions()
+    @suppress_exceptions(default=SimpleEvaluationResponse(), exclude=[HTTPException])
+    async def fetch_evaluation(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+    ) -> SimpleEvaluationResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        evaluation = await self.simple_evaluations_service.fetch(
+            project_id=UUID(request.state.project_id),
+            #
+            evaluation_id=evaluation_id,
+        )
+
+        response = SimpleEvaluationResponse(
+            count=1 if evaluation else 0,
+            evaluation=evaluation,
+        )
+
+        return response
+
+    # PATCH /api/simple/evaluations/{evaluation_id}
+    @intercept_exceptions()
+    async def edit_evaluation(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        #
+        evaluation_edit_request: SimpleEvaluationEditRequest,
+    ) -> SimpleEvaluationResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if str(evaluation_id) != str(evaluation_edit_request.evaluation.id):
+            return SimpleEvaluationResponse()
+
+        evaluation_edit = evaluation_edit_request.evaluation
+
+        evaluation = await self.simple_evaluations_service.edit(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluation=evaluation_edit,
+        )
+
+        response = SimpleEvaluationResponse(
+            count=1 if evaluation else 0,
+            evaluation=evaluation,
+        )
+
+        return response
+
+    # DELETE /api/simple/evaluations/{evaluation_id}
+    @intercept_exceptions()
+    async def delete_evaluation(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+    ) -> SimpleEvaluationIdResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        deleted_evaluation_id = await self.simple_evaluations_service.delete(
+            project_id=UUID(request.state.project_id),
+            #
+            evaluation_id=evaluation_id,
+        )
+
+        response = SimpleEvaluationIdResponse(
+            count=1 if deleted_evaluation_id else 0,
+            evaluation_id=deleted_evaluation_id,
+        )
+
+        return response
+
+    # POST /api/simple/evaluations/query
+    @intercept_exceptions()
+    @suppress_exceptions(default=SimpleEvaluationsResponse(), exclude=[HTTPException])
+    async def query_evaluations(
+        self,
+        request: Request,
+        *,
+        evaluation_query_request: SimpleEvaluationQueryRequest,
+    ) -> SimpleEvaluationsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        evaluations = await self.simple_evaluations_service.query(
+            project_id=UUID(request.state.project_id),
+            #
+            query=evaluation_query_request.evaluation,
+        )
+
+        response = SimpleEvaluationsResponse(
+            count=len(evaluations),
+            evaluations=evaluations,
+        )
+
+        return response
+
+    # POST /api/simple/evaluations/{evaluation_id}/start
+    @intercept_exceptions()
+    async def start_evaluation(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+    ) -> SimpleEvaluationResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        evaluation = await self.simple_evaluations_service.start(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluation_id=evaluation_id,
+        )
+
+        response = SimpleEvaluationResponse(
+            count=1 if evaluation else 0,
+            evaluation=evaluation,
+        )
+
+        return response
+
+    # POST /api/simple/evaluations/{evaluation_id}/stop
+    @intercept_exceptions()
+    async def stop_evaluation(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+    ) -> SimpleEvaluationResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        evaluation = await self.simple_evaluations_service.stop(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluation_id=evaluation_id,
+        )
+
+        response = SimpleEvaluationResponse(
+            count=1 if evaluation else 0,
+            evaluation=evaluation,
+        )
+
+        return response
+
+    # POST /api/simple/evaluations/{evaluation_id}/close
+    @intercept_exceptions()
+    async def close_evaluation(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+    ) -> SimpleEvaluationResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        evaluation = await self.simple_evaluations_service.close(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluation_id=evaluation_id,
+        )
+
+        response = SimpleEvaluationResponse(
+            count=1 if evaluation else 0,
+            evaluation=evaluation,
+        )
+
+        return response
+
+    # POST /api/simple/evaluations/{evaluation_id}/open
+    @intercept_exceptions()
+    async def open_evaluation(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+    ) -> SimpleEvaluationResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        evaluation = await self.simple_evaluations_service.open(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            evaluation_id=evaluation_id,
+        )
+
+        response = SimpleEvaluationResponse(
+            count=1 if evaluation else 0,
+            evaluation=evaluation,
+        )
+
+        return response
+
+    # RUN SLICE OPS ---------------------------------------------------------
+
+    # POST /api/simple/evaluations/{evaluation_id}/populate
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def populate_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        populate_slice_request: PopulateSliceRequest,
+    ) -> EvaluationResultsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # The path addresses ONE run; each result carries its own run_id. Reject
+        # any result whose run_id does not match the path so a caller cannot
+        # write cells into a different run via the body (the service/DAO only
+        # scope by project + per-result run_id, not the path).
+        mismatched = [
+            result
+            for result in populate_slice_request.results
+            if result.run_id != evaluation_id
+        ]
+        if mismatched:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "All results must target the evaluation in the path "
+                    f"({evaluation_id})."
+                ),
+            )
+
+        try:
+            results = await self.simple_evaluations_service.populate_slice(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                results=populate_slice_request.results,
+            )
+        except EvaluationScenarioNotFound as e:
+            # A result referenced a scenario that does not exist; the caller must
+            # mint via `add_scenarios` first. 400 (client error), not a swallowed
+            # empty write or an opaque 500.
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            ) from e
+
+        return EvaluationResultsResponse(
+            count=len(results),
+            results=results,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/process
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def process_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        process_slice_request: ProcessSliceRequest,
+    ) -> None:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # Async dispatch via taskiq — the 202 acknowledges acceptance; the work
+        # finishes on the worker. No body to return. `overwrite=True` re-runs
+        # every addressed cell; `overwrite=False` runs only the missing cells.
+        await self.simple_evaluations_service.dispatch_run_slice(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            scenario_ids=process_slice_request.scenario_ids,
+            step_keys=process_slice_request.step_keys,
+            repeat_idxs=process_slice_request.repeat_idxs,
+            overwrite=process_slice_request.overwrite,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/probe
+    @intercept_exceptions()
+    async def probe_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        probe_slice_request: ProbeSliceRequest,
+    ) -> EvaluationResultsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        results = await self.simple_evaluations_service.probe_slice(
+            project_id=UUID(request.state.project_id),
+            #
+            run_id=evaluation_id,
+            scenario_ids=probe_slice_request.scenario_ids,
+            step_keys=probe_slice_request.step_keys,
+            repeat_idxs=probe_slice_request.repeat_idxs,
+        )
+
+        return EvaluationResultsResponse(
+            count=len(results),
+            results=results,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/prune
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def prune_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        prune_slice_request: PruneSliceRequest,
+    ) -> None:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # Removes the addressed result cells (and refreshes metrics over the
+        # scope). 204 — no body.
+        await self.simple_evaluations_service.prune_slice(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            scenario_ids=prune_slice_request.scenario_ids,
+            step_keys=prune_slice_request.step_keys,
+            repeat_idxs=prune_slice_request.repeat_idxs,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/refresh
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def refresh_evaluation_slice(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        refresh_slice_request: RefreshSliceRequest,
+    ) -> None:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # Recomputes the metric rows (variational + aggregate) over the addressed
+        # scope without writing or executing cells. Used by callers that populated
+        # finished cells themselves (e.g. the SDK). 204 — no body.
+        await self.simple_evaluations_service.refresh_slice(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            scenario_ids=refresh_slice_request.scenario_ids,
+            step_keys=refresh_slice_request.step_keys,
+            repeat_idxs=refresh_slice_request.repeat_idxs,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/scenarios/add
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def add_evaluation_scenarios(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        add_request: AddScenariosRequest,
+    ) -> EvaluationScenariosResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        scenarios = await self.simple_evaluations_service.add_scenarios(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            count=add_request.count,
+            timestamp=add_request.timestamp,
+        )
+
+        return EvaluationScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/scenarios/remove
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def remove_evaluation_scenarios(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        remove_request: RemoveScenariosRequest,
+    ) -> None:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        # Scope to the run in the path: only delete scenarios that actually
+        # belong to `evaluation_id`, so a caller cannot delete another run's
+        # scenarios by id. Resolve the owned subset first; reject if any
+        # requested id is not in this run.
+        owned = set(
+            await self.simple_evaluations_service.evaluations_service.query_scenario_ids(
+                project_id=UUID(request.state.project_id),
+                scenario=EvaluationScenarioQuery(
+                    run_id=evaluation_id,
+                    ids=remove_request.scenario_ids,
+                ),
+            )
+        )
+        not_owned = [s for s in remove_request.scenario_ids if s not in owned]
+        if not_owned:
+            raise HTTPException(
+                status_code=http_status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "All scenario_ids must belong to the evaluation in the path "
+                    f"({evaluation_id})."
+                ),
+            )
+
+        # Drops the scenario rows (and their cells). 204 — no body.
+        await self.simple_evaluations_service.remove_scenarios(
+            project_id=UUID(request.state.project_id),
+            #
+            scenario_ids=remove_request.scenario_ids,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/steps/add
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def add_evaluation_steps(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        add_request: AddStepsRequest,
+    ) -> EvaluationRunResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.simple_evaluations_service.add_steps(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            steps=add_request.steps,
+        )
+
+        return EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/steps/remove
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def remove_evaluation_steps(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        remove_request: RemoveStepsRequest,
+    ) -> EvaluationRunResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.simple_evaluations_service.remove_steps(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            step_keys=remove_request.step_keys,
+        )
+
+        return EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+    # POST /api/simple/evaluations/{evaluation_id}/repeats/set
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def set_evaluation_repeats(
+        self,
+        request: Request,
+        *,
+        evaluation_id: UUID,
+        repeats_request: SetRepeatsRequest,
+    ) -> EvaluationRunResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_RUNS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        run = await self.simple_evaluations_service.set_repeats(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            run_id=evaluation_id,
+            repeats=repeats_request.repeats,
+        )
+
+        return EvaluationRunResponse(
+            count=1 if run else 0,
+            run=run,
+        )
+
+
+class SimpleQueuesRouter:
+    def __init__(
+        self,
+        *,
+        simple_queues_service: SimpleQueuesService,
+    ):
+        self.simple_queues_service = simple_queues_service
+
+        self.router = APIRouter()
+
+        # SIMPLE QUEUES -------------------------------------------------------
+
+        self.router.add_api_route(
+            "/",
+            self.create_simple_queue,
+            methods=["POST"],
+            operation_id="create_simple_queue",
+            response_model=SimpleQueueResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/query",
+            self.query_simple_queues,
+            methods=["POST"],
+            operation_id="query_simple_queues",
+            response_model=SimpleQueuesResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/",
+            self.delete_simple_queues,
+            methods=["DELETE"],
+            operation_id="delete_simple_queues",
+            response_model=SimpleQueueIdsResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}",
+            self.fetch_simple_queue,
+            methods=["GET"],
+            operation_id="fetch_simple_queue",
+            response_model=SimpleQueueResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}",
+            self.delete_simple_queue,
+            methods=["DELETE"],
+            operation_id="delete_simple_queue",
+            response_model=SimpleQueueIdResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}/scenarios/query",
+            self.query_simple_queue_scenarios,
+            methods=["POST"],
+            operation_id="query_simple_queue_scenarios",
+            response_model=SimpleQueueScenariosResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}/traces/",
+            self.add_simple_queue_traces,
+            methods=["POST"],
+            operation_id="add_simple_queue_traces",
+            response_model=SimpleQueueIdResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/{queue_id}/testcases/",
+            self.add_simple_queue_testcases,
+            methods=["POST"],
+            operation_id="add_simple_queue_testcases",
+            response_model=SimpleQueueIdResponse,
+            response_model_exclude_none=True,
+        )
+
+    # SIMPLE QUEUES -----------------------------------------------------------
+
+    @intercept_exceptions()
+    async def create_simple_queue(
+        self,
+        request: Request,
+        *,
+        queue_create_request: SimpleQueueCreateRequest,
+    ) -> SimpleQueueResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if is_ee():
+            allowed, _, _ = await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=1,
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=http_status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="You have reached your monthly evaluations quota.",
+                )
+
+        try:
+            queue = await self.simple_queues_service.create(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                queue=queue_create_request.queue,
+            )
+        except Exception:
+            # Internal error after the quota was charged — refund.
+            if is_ee():
+                await check_entitlements(  # type: ignore
+                    key=Counter.EVALUATIONS_RUN,  # type: ignore
+                    delta=-1,
+                )
+            raise
+
+        # `create` returns None silently on malformed input. Refund the
+        # charge so the meter only counts queues that actually landed.
+        if is_ee() and queue is None:
+            await check_entitlements(  # type: ignore
+                key=Counter.EVALUATIONS_RUN,  # type: ignore
+                delta=-1,
+            )
+
+        return SimpleQueueResponse(
+            count=1 if queue else 0,
+            queue=queue,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SimpleQueuesResponse(), exclude=[HTTPException])
+    async def query_simple_queues(
+        self,
+        request: Request,
+        *,
+        queue_query_request: SimpleQueueQueryRequest,
+    ) -> SimpleQueuesResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queues = await self.simple_queues_service.query(
+            project_id=UUID(request.state.project_id),
+            #
+            query=queue_query_request.queue,
+            #
+            windowing=queue_query_request.windowing,
+        )
+
+        windowing = compute_next_windowing(
+            entities=queues,
+            attribute="id",
+            windowing=queue_query_request.windowing,
+        )
+
+        return SimpleQueuesResponse(
+            count=len(queues),
+            queues=queues,
+            windowing=windowing,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=SimpleQueueResponse(), exclude=[HTTPException])
+    async def fetch_simple_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+    ) -> SimpleQueueResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.fetch(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_id=queue_id,
+        )
+
+        return SimpleQueueResponse(
+            count=1 if queue else 0,
+            queue=queue,
+        )
+
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_simple_queue(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+    ) -> SimpleQueueIdResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        deleted_id = await self.simple_queues_service.delete(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_id=queue_id,
+        )
+
+        return SimpleQueueIdResponse(
+            count=1 if deleted_id else 0,
+            queue_id=deleted_id,
+        )
+
+    @intercept_exceptions()
+    @handle_evaluation_closed_exception()
+    async def delete_simple_queues(
+        self,
+        request: Request,
+        *,
+        queue_ids_request: SimpleQueueIdsRequest,
+    ) -> SimpleQueueIdsResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        deleted_ids = await self.simple_queues_service.delete_many(
+            project_id=UUID(request.state.project_id),
+            #
+            queue_ids=queue_ids_request.queue_ids,
+        )
+
+        return SimpleQueueIdsResponse(
+            count=len(deleted_ids),
+            queue_ids=deleted_ids,
+        )
+
+    @intercept_exceptions()
+    @suppress_exceptions(
+        default=SimpleQueueScenariosResponse(), exclude=[HTTPException]
+    )
+    async def query_simple_queue_scenarios(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+        #
+        queue_scenarios_query_request: SimpleQueueScenariosQueryRequest,
+    ) -> SimpleQueueScenariosResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue_scenarios_query = (
+            queue_scenarios_query_request.queue
+            if queue_scenarios_query_request.queue
+            else SimpleQueueScenariosQuery(id=queue_id)
+        )
+
+        if queue_scenarios_query.id and queue_scenarios_query.id != queue_id:
+            raise HTTPException(
+                status_code=400,
+                detail="queue_id in path must match queue.id in request body",
+            )
+
+        queue_scenarios_query.id = queue_id
+
+        scenarios, windowing = await self.simple_queues_service.query_scenarios(
+            project_id=UUID(request.state.project_id),
+            #
+            queue=queue_scenarios_query,
+            #
+            scenario=queue_scenarios_query_request.scenario,
+            #
+            windowing=queue_scenarios_query_request.windowing,
+        )
+
+        return SimpleQueueScenariosResponse(
+            count=len(scenarios),
+            scenarios=scenarios,
+            windowing=windowing,
+        )
+
+    @intercept_exceptions()
+    async def add_simple_queue_traces(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+        #
+        queue_traces_create_request: SimpleQueueTracesCreateRequest,
+    ) -> SimpleQueueIdResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.fetch(
+            project_id=UUID(request.state.project_id),
+            queue_id=queue_id,
+        )
+        if queue and queue.data and (queue.data.queries or queue.data.testsets):
+            raise BadRequestException(
+                message=(
+                    "Cannot add traces directly to a source-backed queue. "
+                    "Create a direct traces queue instead."
+                )
+            )
+
+        queue_id = await self.simple_queues_service.add_traces(
+            project_id=UUID(request.state.project_id),  # type: ignore
+            user_id=UUID(request.state.user_id),  # type: ignore
+            #
+            queue_id=queue_id,
+            #
+            trace_ids=queue_traces_create_request.trace_ids,
+        )
+
+        return SimpleQueueIdResponse(
+            count=1 if queue_id else 0,
+            queue_id=queue_id,
+        )
+
+    @intercept_exceptions()
+    async def add_simple_queue_testcases(
+        self,
+        request: Request,
+        *,
+        queue_id: UUID,
+        #
+        queue_testcases_create_request: SimpleQueueTestcasesCreateRequest,
+    ) -> SimpleQueueIdResponse:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_EVALUATION_QUEUES,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        queue = await self.simple_queues_service.fetch(
+            project_id=UUID(request.state.project_id),
+            queue_id=queue_id,
+        )
+        if queue and queue.data and (queue.data.queries or queue.data.testsets):
+            raise BadRequestException(
+                message=(
+                    "Cannot add testcases directly to a source-backed queue. "
+                    "Create a direct testcases queue instead."
+                )
+            )
+
+        queue_id = await self.simple_queues_service.add_testcases(
+            project_id=UUID(request.state.project_id),  # type: ignore
+            user_id=UUID(request.state.user_id),  # type: ignore
+            #
+            queue_id=queue_id,
+            #
+            testcase_ids=queue_testcases_create_request.testcase_ids,
+        )
+
+        return SimpleQueueIdResponse(
+            count=1 if queue_id else 0,
+            queue_id=queue_id,
+        )

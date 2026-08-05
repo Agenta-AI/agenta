@@ -1,0 +1,440 @@
+from uuid import uuid4
+from tempfile import TemporaryFile
+from csv import DictWriter, DictReader
+from json import dumps, loads
+from io import TextIOWrapper
+
+
+class TestTestsetsFiles:
+    def test_create_testsets_from_csv_file(self, authed_api):
+        # ACT ------------------------------------------------------------------
+        testcases_data = [
+            {"column1": "data1", "column2": "data2", "column3": "data3"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+        ]
+
+        with TemporaryFile("w+", newline="") as csvfile:
+            writer = DictWriter(csvfile, fieldnames=testcases_data[0].keys())
+            writer.writeheader()
+            writer.writerows(testcases_data)
+            csvfile.seek(0)
+
+            files = {
+                "file": ("testset.csv", csvfile, "text/csv"),
+                "testset_name": (None, "Testset Name"),
+            }
+
+            data = {
+                "file_type": "csv",
+                "testset_description": "This is a testset description.",
+                "testset_tags": dumps({"tag1": "value1", "tag2": "value2"}),
+                "testset_meta": dumps({"meta1": "value1", "meta2": "value2"}),
+            }
+
+            response = authed_api(
+                "POST",
+                "/simple/testsets/upload",
+                files=files,
+                data=data,
+            )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        response = response.json()
+        assert response["count"] == 1
+        response_testcases = response["testset"]["data"]["testcases"]
+        assert len(response_testcases) == len(testcases_data)
+        # ----------------------------------------------------------------------
+
+    def test_create_testsets_from_json_file(self, authed_api):
+        # ACT ------------------------------------------------------------------
+        testcases_data = [
+            {"column1": "data1", "column2": "data2", "column3": "data3"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+        ]
+
+        with TemporaryFile("w+", newline="") as jsonfile:
+            jsonfile.write(dumps(testcases_data))
+            jsonfile.seek(0)
+
+            files = {
+                "file": ("testset.json", jsonfile, "application/json"),
+                "testset_name": (None, "Testset Name"),
+            }
+
+            data = {
+                "file_type": "json",
+                "testset_description": "This is a testset description.",
+                "testset_tags": dumps({"tag1": "value1", "tag2": "value2"}),
+                "testset_meta": dumps({"meta1": "value1", "meta2": "value2"}),
+            }
+
+            response = authed_api(
+                "POST",
+                "/simple/testsets/upload",
+                files=files,
+                data=data,
+            )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        response = response.json()
+        assert response["count"] == 1
+        response_testcases = response["testset"]["data"]["testcases"]
+        assert len(response_testcases) == len(testcases_data)
+        # ----------------------------------------------------------------------
+
+    def test_fetch_testset_to_csv_file(self, authed_api):
+        # ARRANGE --------------------------------------------------------------
+        slug = uuid4().hex
+
+        tags = {"tag1": "value1", "tag2": "value2"}
+        meta = {"meta1": "value1", "meta2": "value2"}
+
+        testcases_data = [
+            {"column1": "data1", "column2": "data2", "column3": "data3"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+        ]
+
+        testcases = [{"data": testcase_data} for testcase_data in testcases_data]
+
+        testset = {
+            "slug": slug,
+            "name": "Testset Name",
+            "description": "This is a testset description.",
+            "tags": tags,
+            "meta": meta,
+            "data": {
+                "testcases": testcases,
+            },
+        }
+
+        response = authed_api(
+            "POST",
+            "/simple/testsets/",
+            json={
+                "testset": testset,
+            },
+        )
+
+        assert response.status_code == 200
+        testset_id = response.json()["testset"]["id"]
+
+        # ACT ------------------------------------------------------------------
+        with TemporaryFile(mode="w+b", suffix=".csv") as tmpfile:
+            response = authed_api(
+                "POST",
+                f"/simple/testsets/{testset_id}/download",
+                params={
+                    "file_type": "csv",
+                    "file_name": "testset_export.csv",
+                },
+                stream=True,
+            )
+            assert response.status_code == 200
+
+            for chunk in response.iter_content(chunk_size=8192):
+                tmpfile.write(chunk)
+
+            tmpfile.seek(0)
+
+            # Read CSV into list of dicts
+            text_stream = TextIOWrapper(tmpfile, encoding="utf-8")
+            reader = DictReader(text_stream)
+            parsed = [row for row in reader]
+
+            assert len(parsed) == len(testcases_data)
+        # ----------------------------------------------------------------------
+
+    def test_fetch_testset_to_json_file(self, authed_api):
+        # ARRANGE --------------------------------------------------------------
+        slug = uuid4().hex
+
+        tags = {"tag1": "value1", "tag2": "value2"}
+        meta = {"meta1": "value1", "meta2": "value2"}
+
+        testcases_data = [
+            {"column1": "data1", "column2": "data2", "column3": "data3"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+        ]
+
+        testcases = [{"data": testcase_data} for testcase_data in testcases_data]
+
+        testset = {
+            "slug": slug,
+            "name": "Testset Name",
+            "description": "This is a testset description.",
+            "tags": tags,
+            "meta": meta,
+            "data": {
+                "testcases": testcases,
+            },
+        }
+
+        response = authed_api(
+            "POST",
+            "/simple/testsets/",
+            json={
+                "testset": testset,
+            },
+        )
+
+        assert response.status_code == 200
+        testset_id = response.json()["testset"]["id"]
+
+        # ACT ------------------------------------------------------------------
+        with TemporaryFile(mode="w+b", suffix=".json") as tmpfile:
+            response = authed_api(
+                "POST",
+                f"/simple/testsets/{testset_id}/download",
+                params={
+                    "file_type": "json",
+                    "file_name": "testset_export.json",
+                },
+                stream=True,
+            )
+            assert response.status_code == 200
+
+            for chunk in response.iter_content(chunk_size=8192):
+                tmpfile.write(chunk)
+
+            tmpfile.seek(0)  # rewind to beginning for reading
+            actual = tmpfile.read()
+
+            parsed = loads(actual)
+
+            assert len(parsed) == len(testcases_data)
+        # ----------------------------------------------------------------------
+
+    def test_create_testset_revision_from_csv_file(self, authed_api):
+        # ARRANGE --------------------------------------------------------------
+        slug = uuid4().hex
+
+        testset = {
+            "slug": slug,
+            "name": "Testset Name",
+            "description": "This is a testset description.",
+            "data": {
+                "testcases": [
+                    {"data": {"column1": "data1", "column2": "data2"}},
+                ],
+            },
+        }
+
+        response = authed_api(
+            "POST",
+            "/simple/testsets/",
+            json={"testset": testset},
+        )
+        assert response.status_code == 200
+        simple_testset = response.json()["testset"]
+        testset_revision_id = simple_testset["revision_id"]
+        # ----------------------------------------------------------------------
+
+        # ACT ------------------------------------------------------------------
+        testcases_data = [
+            {"column1": "new1", "column2": "new2"},
+            {"column1": "new3", "column2": "new4"},
+        ]
+
+        with TemporaryFile("w+", newline="") as csvfile:
+            writer = DictWriter(csvfile, fieldnames=testcases_data[0].keys())
+            writer.writeheader()
+            writer.writerows(testcases_data)
+            csvfile.seek(0)
+
+            files = {"file": ("testset.csv", csvfile, "text/csv")}
+            data = {"file_type": "csv"}
+
+            response = authed_api(
+                "POST",
+                f"/testsets/revisions/{testset_revision_id}/upload",
+                files=files,
+                data=data,
+            )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 1
+        new_revision = body["testset_revision"]
+        assert new_revision is not None
+        assert new_revision["id"] != testset_revision_id
+        assert new_revision["testset_id"] == simple_testset["id"]
+        assert len(new_revision["data"]["testcases"]) == len(testcases_data)
+        # ----------------------------------------------------------------------
+
+    def test_create_testset_revision_from_json_file(self, authed_api):
+        # ARRANGE --------------------------------------------------------------
+        slug = uuid4().hex
+
+        testset = {
+            "slug": slug,
+            "name": "Testset Name",
+            "description": "This is a testset description.",
+            "data": {
+                "testcases": [
+                    {"data": {"column1": "data1"}},
+                ],
+            },
+        }
+
+        response = authed_api(
+            "POST",
+            "/simple/testsets/",
+            json={"testset": testset},
+        )
+        assert response.status_code == 200
+        simple_testset = response.json()["testset"]
+        testset_revision_id = simple_testset["revision_id"]
+        # ----------------------------------------------------------------------
+
+        # ACT ------------------------------------------------------------------
+        testcases_data = [
+            {"column1": "alpha", "column2": "beta"},
+            {"column1": "gamma", "column2": "delta"},
+            {"column1": "epsilon", "column2": "zeta"},
+        ]
+
+        with TemporaryFile("w+", newline="") as jsonfile:
+            jsonfile.write(dumps(testcases_data))
+            jsonfile.seek(0)
+
+            files = {"file": ("testset.json", jsonfile, "application/json")}
+            data = {"file_type": "json"}
+
+            response = authed_api(
+                "POST",
+                f"/testsets/revisions/{testset_revision_id}/upload",
+                files=files,
+                data=data,
+            )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 1
+        new_revision = body["testset_revision"]
+        assert new_revision is not None
+        assert new_revision["id"] != testset_revision_id
+        assert new_revision["testset_id"] == simple_testset["id"]
+        assert len(new_revision["data"]["testcases"]) == len(testcases_data)
+        # ----------------------------------------------------------------------
+
+    def test_create_testset_revision_from_file_unknown_revision_returns_404(
+        self, authed_api
+    ):
+        # ACT ------------------------------------------------------------------
+        unknown_revision_id = uuid4()
+
+        with TemporaryFile("w+", newline="") as csvfile:
+            writer = DictWriter(csvfile, fieldnames=["column1"])
+            writer.writeheader()
+            writer.writerow({"column1": "data1"})
+            csvfile.seek(0)
+
+            files = {"file": ("testset.csv", csvfile, "text/csv")}
+            data = {"file_type": "csv"}
+
+            response = authed_api(
+                "POST",
+                f"/testsets/revisions/{unknown_revision_id}/upload",
+                files=files,
+                data=data,
+            )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+        assert response.status_code == 404
+        # ----------------------------------------------------------------------
+
+    def test_edit_testset_from_file(self, authed_api):
+        # FIRST UPLOAD THEN UPLOAD AGAIN WITH CHANGES
+
+        # ARRANGE --------------------------------------------------------------
+        slug = uuid4().hex
+
+        tags = {"tag1": "value1", "tag2": "value2"}
+        meta = {"meta1": "value1", "meta2": "value2"}
+
+        testcases_data = [
+            {"column1": "data1", "column2": "data2", "column3": "data3"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+        ]
+
+        testcases = [{"data": testcase_data} for testcase_data in testcases_data]
+
+        testset = {
+            "slug": slug,
+            "name": "Testset Name",
+            "description": "This is a testset description.",
+            "tags": tags,
+            "meta": meta,
+            "data": {
+                "testcases": testcases,
+            },
+        }
+
+        response = authed_api(
+            "POST",
+            "/simple/testsets/",
+            json={
+                "testset": testset,
+            },
+        )
+
+        assert response.status_code == 200
+
+        testset_id = response.json()["testset"]["id"]
+        # ----------------------------------------------------------------------
+
+        # ACT ------------------------------------------------------------------
+        testcases_data = [
+            {"column1": "data1", "column2": "data2", "column3": "data3"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+            {"column1": "data6", "column2": "data5", "column3": "data4"},
+            {"column1": "data6", "column2": "data5", "column3": "data4"},
+        ]
+
+        with TemporaryFile("w+", newline="") as csvfile:
+            writer = DictWriter(csvfile, fieldnames=testcases_data[0].keys())
+            writer.writeheader()
+            writer.writerows(testcases_data)
+            csvfile.seek(0)
+
+            files = {
+                "file": ("testset.csv", csvfile, "text/csv"),
+                "testset_name": (None, "Updated Testset Name"),
+            }
+
+            data = {
+                "file_type": "csv",
+                "testset_description": "This is an updated description.",
+                "testset_tags": dumps({"tag1": "value2", "tag2": "value3"}),
+                "testset_meta": dumps({"meta1": "value4", "meta2": "value5"}),
+            }
+
+            response = authed_api(
+                "POST",
+                f"/simple/testsets/{testset_id}/upload",
+                files=files,
+                data=data,
+            )
+        # ----------------------------------------------------------------------
+
+        # ASSERT ---------------------------------------------------------------
+
+        assert response.status_code == 200
+        response = response.json()
+        assert response["count"] == 1
+        response_testcases = response["testset"]["data"]["testcases"]
+        assert len(response_testcases) == len(testcases_data)
+
+        # ----------------------------------------------------------------------

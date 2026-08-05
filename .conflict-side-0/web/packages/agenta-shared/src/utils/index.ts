@@ -1,0 +1,275 @@
+/**
+ * Utility functions for Agenta packages.
+ */
+
+export {createBatchFetcher} from "./createBatchFetcher"
+export type {BatchFetcher, BatchFetcherOptions, BatchFnResponse} from "./createBatchFetcher"
+export {
+    isSlugInputValid,
+    isValidHttpUrl,
+    isValidRegex,
+    isValidUUID,
+    validateUUID,
+} from "./validators"
+
+// Filtering utilities
+export {filterItems} from "./filterItems"
+export type {FilterItemLabel} from "./filterItems"
+
+// Date/time utilities
+export {default as dayjs} from "./dayjs"
+export {normalizeEntityTimestamps, normalizeTimestamps, parseEntityDate} from "./entityTransforms"
+
+// Path utilities for nested data navigation
+export {
+    buildTestcaseColumnPaths,
+    collectPaths,
+    combineTypedPaths,
+    deleteValueAtPath,
+    // Typed path utilities for UI selection components
+    extractTypedPaths,
+    getChildCount,
+    getItemsAtPath,
+    getLastSegment,
+    getParentPath,
+    getValueAtPath,
+    getValueAtStringPath,
+    getValueType,
+    hasValueAtPath,
+    isChildPath,
+    isExpandable,
+    parsePath,
+    pathToString,
+    setValueAtPath,
+} from "./pathUtils"
+export type {
+    DataPath,
+    ExtractTypedPathsOptions,
+    PathItem,
+    PathSegment,
+    TypedPathInfo,
+} from "./pathUtils"
+
+// Template variable validation (envelope-slot aware)
+export {
+    KNOWN_ENVELOPE_SLOTS,
+    extractTemplateExpression,
+    isValidTemplateVariable,
+    validateTemplateVariable,
+} from "./templateVariable"
+export type {TemplateVariableValidation} from "./templateVariable"
+
+// Type narrowing utilities
+export {asRecord, safeStringify} from "./typeNarrowing"
+
+// Chat message utilities
+export {
+    addFileToContent,
+    addImageToContent,
+    deriveToolViewModelFromResult,
+    extractDisplayTextFromMessage,
+    extractTextFromContent,
+    getAttachmentInfo,
+    getAttachments,
+    hasAttachments,
+    isChatMessageObject,
+    isChatMessagesArray,
+    messageHasContent,
+    messageHasToolCalls,
+    normalizeMessagesFromField,
+    removeAttachmentFromContent,
+    tryParseArrayFromString,
+    updateTextInContent,
+} from "./chatMessage"
+export {extractPromptTemplateContext, normalizeEnhancedMessages} from "./chatPrompts"
+
+// Logger utilities
+export {createLogger} from "./createLogger"
+export type {LoggerOptions} from "./createLogger"
+
+// JSON parsing utilities
+export {safeJson5Parse, tryParsePartialJson} from "./jsonParsing"
+
+// Key path utilities
+export {keyToString, stringToKeyPath} from "./keyUtils"
+
+// JSON detection utilities
+export {
+    canExpandAsJson,
+    inferLogicalType,
+    isJsonArray,
+    isJsonObject,
+    isJsonString,
+    isPlainObject,
+    tryParseAsArray,
+    tryParseAsObject,
+    tryParseJson,
+    tryParseJsonValue,
+} from "./jsonDetection"
+export type {JsonParseResult, LogicalType} from "./jsonDetection"
+
+// Editor language detection utilities
+export {
+    detectEditorLanguage,
+    getContentLanguage,
+    looksLikeJson,
+    type EditorLanguage,
+} from "./editorLanguage"
+
+// OpenAPI schema utilities
+export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"
+
+// API error utilities
+export {extractApiErrorMessage, preserveResponseStatus} from "./extractApiErrorMessage"
+export type {ErrorWithResponseStatus} from "./extractApiErrorMessage"
+
+// Formatting utilities
+export {
+    createFormatter,
+    formatCompact,
+    formatCompactNumber, // deprecated alias
+    formatCurrency,
+    formatLatency,
+    formatNumber, // deprecated alias
+    formatPercent,
+    formatPreviewValue,
+    formatSignificant,
+    formatTokenUsage,
+    formatTokens,
+} from "./formatters/index"
+export type {Formatter, FormatterOptions} from "./formatters/index"
+
+// Enum label utilities
+export {formatEnumLabel} from "./formatEnumLabel"
+
+// Schema options utilities
+export {getOptionsFromSchema} from "./schemaOptions"
+export type {OptionGroup} from "./schemaOptions"
+
+// Pluralization utilities
+export {formatCount, pluralize} from "./pluralize"
+
+// ID generation utilities
+export {generateId} from "./generateId"
+
+// Data URI / Base64 / URL detection utilities
+export {dataUriToObjectUrl, isBase64, isUrl} from "./dataUri"
+
+// Value extraction utilities (strip enhanced wrappers / metadata)
+export {
+    stripAgentaMetadataDeep,
+    stripEmptyCollectionsDeep,
+    stripEnhancedWrappers,
+} from "./valueExtraction"
+
+// Slug utilities
+export {
+    generateSlugWithExistingSuffix,
+    generateSlugWithSuffix,
+    getSlugSuffix,
+    isValidSlug,
+    regenerateSlugSuffix,
+    slugifyName,
+    stripSlugSuffix,
+} from "./slug"
+
+// Status inference utilities
+export {
+    getStatusColor,
+    getStatusLabel,
+    getStatusSeverity,
+    inferStatusFromSummary,
+    toFiniteNumber,
+} from "./statusInference"
+export type {ExecutionStatus, ExecutionSummary, StatusSeverity} from "./statusInference"
+
+// Mapping utilities for input/output mappings
+export {
+    determineMappingStatus,
+    getMappingStatusConfig,
+    isMappingComplete,
+    isMappingError,
+    isMappingWarning,
+    validateMappings,
+} from "./mappingUtils"
+export type {
+    MappingLike,
+    MappingStatus,
+    MappingStatusConfig,
+    MappingValidationResult,
+} from "./mappingUtils"
+
+// Gateway Tool Slug utilities
+export {
+    slugify as connectionSlugify,
+    generateDefaultSlug,
+    randomAlphanumeric,
+} from "./connectionSlug"
+export {buildGatewayToolSlug, isGatewayToolSlug, parseGatewayToolSlug} from "./toolSlug"
+
+// Gateway Tool JSON-Schema → form-field descriptor utilities
+export {
+    buildFormFieldsFromData,
+    buildFormFieldsFromSchema,
+    type BuildFormFieldsOptions,
+    type FormFieldDescriptor,
+} from "./gatewayToolSchema"
+
+// Elicitation contract (chat interaction kinds, M1)
+export {
+    ELICITATION_RENDER_KIND,
+    KNOWN_STRING_FORMATS,
+    SECRET_FIELD_PATTERN,
+    buildAcceptResult,
+    buildCancelResult,
+    buildDeclineResult,
+    buildDegradationErrorText,
+    deriveElicitationPartState,
+    hasPriorElicitationDegradation,
+    parseElicitationPayload,
+    partitionElicitationDraft,
+    serializeElicitationContent,
+    type ElicitationAction,
+    type ElicitationFieldSchema,
+    type ElicitationParseResult,
+    type ElicitationPartState,
+    type ElicitationRequestPayload,
+    type ElicitationResult,
+} from "./elicitation"
+
+// Polling utilities
+export {shortPoll} from "./shortPoll"
+
+// URI utilities
+export {removeTrailingSlash} from "./uriUtils"
+
+// Trace ID conversion utilities (UUID ↔ OpenTelemetry)
+export {uuidToSpanId, uuidToTraceId} from "./traceIds"
+
+// LLM provider catalog (cross-cutting between secret entity and provider UI)
+export {
+    llmAvailableProviders,
+    llmAvailableProvidersToken,
+    normalizeProviderFamily,
+} from "./llmProviders"
+
+// Object cleanup utilities
+export {removeEmptyFromObjects} from "./objectUtils"
+
+// Mustache template parser (AST + structural validation)
+export {parseMustache, walkMustache} from "./mustache"
+export type {
+    MustacheNode,
+    TextNode,
+    VariableNode,
+    SectionNode,
+    CommentNode,
+    PartialNode,
+    BlockNode,
+    ParentNode,
+    DelimiterNode,
+    ParseError,
+    ParseErrorKind,
+    ParseResult,
+    SourceSpan,
+} from "./mustache"

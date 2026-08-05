@@ -1,0 +1,63 @@
+---
+id: otlp-status
+title: "Status check for OTLP"
+description: "Return the OTLP endpoint liveness status."
+sidebar_label: "Status check for OTLP"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdVMtu2zAQ/BViz4Ts9KhTjaJojQRIkLgny6hpai0xkUiGXDlVBf17saIdx26/oBc9uEvOcGbIAUhVEfI13Hu0K2ywRQo9bCSUGHUwnoyzkMMjUhesoBrF/eruQaAtvTOWRGMOaDFGEUlRF7PCFvbOVDW9IT9FQFWaqcEHt8NMpJWi2A4FpDkF5KIAbuwLGLfirUZbWIYKriMMwkTRus4SlplYWkJbYin2LogaVUO10DXqlyj2wbXifoVNYbVrGtTkQhQ73LuAzLxnjoEE/vIukLGVoKA0xgwkOI9B8V6XJeTgqPE/EzmQEDB6ZyNGyAf4NJ/z61Kdp05rjHHfNeLx2AwStGOuxO3K+8boCWD2HHnOAFHX2Cr+8oHhySSEI24+APUeIYdIwdgKJJChhgeeTsyuPTpJnWZkYjuJuhUtKhvFPxUVypZCaY2eYrLW2AojZTCO8sTA7Z5R0yTFa2cClpyYI8/NmdeXpHqi90GIS5qX+Tnn4yQzI48M3iLVju2okLG9ohpymLE5s8PNLJkHEiKGAwZO8QBdaLhHeQOjPP3WRD7msxl2mW5cV2aqQksqUyY1bngN3QVD/bTI4mF5i/13VCUGyNebjw1P7Foy6rLt3S7lzS32IMGqlv8XHdUumN+T+yDBsAh1msXbNHbvpulHFRcTObF4WP4l3UWJ46X0FK8T0lQGebXt825BArbKcJFQtZ/fKzBKYA0TzDy7yeY85F2kVtkPEMnbdOKmI8huXvMcztH/7y+Oo+mEv2jmG2Us6zbpPxwTu56uE5BwuOH+lNqNhNpF4uow7FTEH6EZRx5+7TBwDDcSDioYteNQrDejPGWGE/qCPfs9HVteWTVdit7VNcPJfT9G376uYBz/AMxxFVE=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Status check for OTLP"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/otlp/v1/traces"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return the OTLP endpoint liveness status.
+
+Lightweight readiness probe. Returns `{"status": "ready"}` when
+the router is mounted. Intended for health checks from OTel
+collectors before they start exporting traces.
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./otlp-status.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./otlp-status.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

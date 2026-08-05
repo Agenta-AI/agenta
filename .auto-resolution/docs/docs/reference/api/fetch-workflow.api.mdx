@@ -1,0 +1,75 @@
+---
+id: fetch-workflow
+title: "Fetch Workflow"
+description: "Fetch a workflow artifact by ID."
+sidebar_label: "Fetch Workflow"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlV9tuGzcQ/RVinmxgLTlGn/apqi+Nm7YxYrl5sAWbWs5qmVDkhhc7irBAP6Jf2C8phnvRSvIthvPUJ1vLwzMzZ4bD4RI8nzlIL+GjsZ9zZe4cTBIQ6DIrSy+NhhRO0GcF4+yugTBuvcx55tl0wU6PBlf6Sn9AH6x2zBe4WjZaLdi/f//DbrmVXHvHuBbM4q100mjHuEWmjWdSZyoIFIMrfeGQ3QxbS27Y7hx+CWgXN5Ggv96RtYDc2CtNXmSFVIKh9tJLdNHJc8SUXXaRTnaGFnO0qDMc8lLuzYIUuCLfHUACpkTLSYhTASnkJMV1i4AESm75HD1aEnEJms8RUmgB11JAApJELLkvIAGLX4K0KCD1NmACLitwziFdgl+UtNV5K/UMEsiNnXMPKYQQWbz0igCt++xUQFVNiNKVRjt0xHKwv09/1hN4HrIMncuDYh8aMCSQGe1Re4LzslQyi2EOPznas+x5VloSgVSkX5kJ9abGYak9ztD2PDyMiM0qunlzw+4K1P1Cko7ZWDgoEnaz3wC00cjm3GcFikHkyXlQHtL9KumkjW7rxfs86r7uYm6UQEvir4EeV7hKOoQOSgFJ20Z0Egmj4gnkKh6Zh81Ld90TtCfV1BiFXPekOnVs1IP2Ys25clglRIa3XAXujX2K6rgD3k/ktCxL9E/RnDewLZIqafeZ6SfM/D1VOWrO/kkUaVtTotiSjwshKX6uztaE3Epd626Pt8kmfbmfBjJps6C43fmdT1H95ozeex98GfwubMbTz/kmGraif6xixnX4MEfPXxhsL7KNo7ZmeD5d/9LX6ClFToJ6QpBkCdLj/Jm7uLV88fhJWt/7faL+QWJWSdNlnyXZFseftLfaaE4vozrqUVQJZBa5R3HN/TPbjuAe97yM/jxs5bCmZaMoVijFjzByUdM2RgQq/AFGjmraxkgr13Txio26FeuXRdOsW71e1UqrVmelFexVrbRydVacCrOX1uo57aVb4NXci+PH0xfCvRzrk8G4wO3ZcvAs9m6cqSqC/3RwsD39/MWVFPF+ZcfWxsvxhaOPQM+lild83RM3Acpka6vf09Mn1UYb7V1FppkP6EJxs/umxVWLdI7PcNVXH4ZGMdiYVqkwNLVjgrf51U1/zvzXHs1WKg5Jy6/+3nStpt3LqE3tfoPr1dIqRXWGHpbiqE7BY7Xxdjw+2yKs62OOvjA0x8/ieBNn8hR6z4llb3KvIAGH9rad7YNVBOaljPmrfxbely4dDjEMMmWCGPAZas8HXNbACXFkwUq/iCSjs9N3uHiLXKCF9HLSB5xT2dWFtA7rxOelfIckR/POGAVfGCu/tdNjfGkU9a4qJjU3/ZyOonNsdHa6NZ6vLdH54Fksh9ZSXIZkI+xVtJAAzuPpAI98/nO3QskkDWsz+4M3g336VBrn51z3TNTPzI+rt9XGFd0d2v/3g7QpBTpzw1JxGbtCzMqyKejL7pHkIIG0/xidJFAY5wmzXE65wwurqoo+R2+pIhOIIU6pYC6XIKSj/0XzBngkKzsfmtO+yx5ysy1jTTVMjxX6BQl8xsXGqzm2w6I9JssGMcoyLH1v71b3pvPUnfJfj8dQVf8Bj4fV3w==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Workflow"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/{workflow_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch a workflow artifact by ID.
+
+Returns the artifact only — variants and revisions are not included.
+Use `/workflows/variants/query` and `/workflows/revisions/query` for
+the child entities.
+
+See: [Workflows](/reference/api-guide/workflows).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-workflow.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-workflow.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-workflow.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

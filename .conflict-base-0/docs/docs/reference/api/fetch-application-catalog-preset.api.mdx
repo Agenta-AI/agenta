@@ -1,0 +1,72 @@
+---
+id: fetch-application-catalog-preset
+title: "Fetch Application Catalog Preset"
+description: "Fetch one preset by key within a template."
+sidebar_label: "Fetch Application Catalog Preset"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWN9v2zYQ/leIe1kLcHFa7MlPC5J2zbqthpN2D6mRMNLJYkuRKkk59Qz978NRlE3/iLKm3YABfUos3n13/O545N0KvJg7GF/BSV0rmQkvjXYw45Cjy6ys6TeM4SX6rGRGI6stOvTsdsk+4pLdSV9KzQTzWNVKeDx6r9/rKfrGasd82cv/4NhNLry4Yc6wTEnU3rFMaNY4ZNIzEYXFUhmRs8JYJt7rQlrnmcWFdNJodleiZplF4aWeM6GZ2PjMCmuq1A/gYGq0YfE8hzEUtIXrROU6E14oM7/uXAQOtbCiQo+WGFmBFhXCGHrI64+4BA6S+KiFL4GDxU+NtJjD2NsGObisxErAeAV+WZOu81bqOXDw0iv6cBnB2GtcQtvytZXOiW9iY9KFqLMwIwRXG+3QkdLz42P6sx3eiybL0LmiUWwahYFDZrRH7Uk8oW30wZHOKnGktkS1l52FzDSdUvRPao9ztImDp0FiN8dunt10IS5Mo3PObo5vmPEl2jvpQjxzLESjPIyPWx75Cr7p5ZsiBGzbj47YdH2bMCI/ftGNUkBU9R7+QbrtjoePgzpLIFoOFOCB2IWgcciEx7mxcScbs9Jj5fb1W95/ENaK5aA/pxvolkOhwvm/n0Xp0jOTmL41RqHQie/njiVVJA1YIZTDlhMYLoRqhDf2IagXa8HDQE7Lukb/EMxFFDsMImxWygUdrgf21csdhrGYmapCnT+MNE1E98A2cTS3HzDzieqfxn4slLk77YrWyxC3/ThTzgovhiLaWPnYXH5rJSVNY9XjERQhlCjyUGZTFJHnkjJHqMmWw0N2tre2QOu+4qi+i+otB6ea+WNhLkiXEiMfQuBQGFsJD2NoGpkPIp7nMJQbUyzQos6wS4BtsSHcVzEMLQfbaC+HCyYH1E1Fj4V66ctwwkmgK2/A4YNYiPhjNmR1Gk0RzZ34Y4nutNv+UhwsZOnl/rVZt3OzbflY3W5/6asAfTpsCzJps0YJ++Rlo9Svzugf3zS+bvxTOBTMeAf8E62Hb4MdXfii9JlsKKV013Xjv5P7rcg97+hsOZig/Z3Zb8Xsm8jnUEkl8ItYVA7est/Lyb9aTlp+z+7CQ+nhZ9I0No1n9Bg6EMADod80WlfhlZ54ljxr4/ur67EObme7q4nyfd+cYyF12NbRYP7dZzFpz3ZaOKnnat2e9y0fQ71AZWoka2Tvp+fP99u/d0LJvGujX1gbXtyP7P1y9EKGx+G6U9kWUCbbWv2SYzHbbXM2dP1mYtPRcqjcfKjD+h2dE3PcpOb9ooEMdkmr/f0WxNMKHbo1/zmB2YvlKXH52R+Md5p0xE3nfpRLn6brEHURup+Ksy4EQ8n16vJysgfY5UeFvjQ0LpnHiYgvYQyjJAfcKM5NRv1gxI1W6YykHXVJ6EarzVCjBQ4O7aKfrYQWgnBlCHX3s/S+duPRCJujTJkmPxJz1F4cCdkJzggja6z0ywByMjl/jcvuEQvjq1kqEIp3l3PbYus4iVq+DtOWOIE5aXxprPyr717DEKZrVAKbUhcmDf9JcI6dTM73DuPWEh0lkfnNSCIuA9/Z9ma39NSuwkECj6L6eb1CcV83OXB89OzomD7VxvlK6MREN7BLqgjrC9Gkn3btzDbWJ/7/OeyLQaWDNqqVkDppVLssvkormYMwZCFGSLnPZOAw3pn3xWSmlWRGN+NQGucJdbW6FQ7fWtW29PlTg5bSc8ZhIawUt5QsVyvIpaP/8/UVdi//T6axKDxl922sT2FNHtKghH5BnC5tTyzpeP2HthOOQsEu+9O5igInWYahXexV9+4XOsbrOvTLi0to278B1mTYzA==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Application Catalog Preset"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/applications/catalog/templates/{template_key}/presets/{preset_key}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch one preset by key within a template.
+
+Returns the preset's `data` so clients can use it as the payload for a
+first revision when creating an application from a template.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-application-catalog-preset.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-application-catalog-preset.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-application-catalog-preset.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

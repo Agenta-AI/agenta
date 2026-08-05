@@ -1,0 +1,77 @@
+---
+id: accept-invitation
+title: "Accept Organization Invitation"
+description: "Accept an invitation to an organization."
+sidebar_label: "Accept Organization Invitation"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1v4zYQ/SvEnFpAtd1ge1EvdbcB1t22CZK0RZEYwViaWNxIJJekkriC/nsxpGTJcpJ+YNtTdRM5fG84M3wzDXjcOkiv4cxuUcnf0UutHKwTyMllVhr+hxSWWUbGC1RCqgfpg5nwmhf06OTsRt2oC5SOXHqjhBDi3dXV+ekTH5ZapeJ2BHv7tXAefe1uM51TKr5aLJ49sxoYlfbiTtcqF9qKAp2gJyMt5ROkNy8g/aZrgaUlzHdiQ6VWW76DL6Q7uMVzaDfqgnxtVX+v7y/PfrogZ7RylIoYHson0XnU9t4ZzGiCeLJYQALakA2mqxxSwABxOwBAAgYtVuTJcooaUFgRpDB29VbmkIDkFBn0BSRg6WPNIYHU25oScFlBFULagN8ZPu68lWoLCXjpS14Yp16scmjbZM+1v8GnIPq1B5uyGKs/UOZHHB9rsrt/RHIesSLFOiKQ89/qfMfHpoCZVp6U5y00ppRZCMP8g+Oyb0Z8xnK+vCQX2PU9qdfcuAoGbQJUoSxfszwNBm2b9BZ6wxc4uPx1R9jDrYfj4XVQR9cyjO3KMjjKpZY2k9d8WWcZOXdXl6KvYfjroYgsb05OjoF/wVLmsZBOrdX2b6BOApyT7+ImPVXu2KDU2cEuqt3ZXXgmh4HmMutWpPK0JQvtegg2Wou7UTZ+0NFBTl3ltq8l7kdyDrcEe7BXcszBEFe823KFmzoEZMghL7QJZP5pBLMvhN7uLcfyyf9psXBsovud3ahehhTFDL0ciu9iCp4j601YX48AY31U5AvNwma080HLfAEpzMfq5ebNRMza+V5x3LwZq087D9JI8yiUkIAj+9BLY21LBkcjQ8Ljb+G9cel8TvUsK3Wdz3BLyuMMZTRcM0ZWW+l3AWR5vnpPu3eEOVlIr9djg0uu01h5h2b7bKGR74nj14nasvaFtt3Vel0r4ikOEL+Ai0GcTp+wMiWNxGUoo05DhpIGqe70uIKW4WZieb6Co9Y93uLXiFkovt7NsA3JJGZDqEb8nrD6Zr/DfnACIs1i9uVswUuc7wrVmCIOD4d9ZtznDhxuBsn4f+z4F8aOrlxZSOamRBmkLiS/6R7p9cGI4SCB9HjmGN4p7x/NCfxUIemmGtafgmUgvYam2aCjn23ZtrwcGz2/vlw63JQsYHdYOnqlKj676LTuc/HSfe5pN50rHrCs2TC8+we0ktk+PXOvBmo35uw9msaRxeo/pD9IU2iDRa92TWfyNrJ9EZrVAHHUu9nzeGLZC/LLtutRPzg/u7yCBDbdQFbpnM9YfOQmho/RXW1i6fHExmsNlKi2NbfbFCImf38A9KNlug==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Accept Organization Invitation"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/{organization_id}/workspaces/{workspace_id}/invite/accept"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Accept an invitation to an organization.
+
+Raises:
+    HTTPException: _description_; status_code: 500
+    HTTPException: Invitation not found or has expired; status_code: 400
+    HTTPException: You already belong to this organization; status_code: 400
+
+Returns:
+    JSONResponse: Accepted invitation to workspace; status_code: 200
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./accept-invitation.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./accept-invitation.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./accept-invitation.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,52 @@
+/**
+ * Entity Commit Modal
+ *
+ * Modal for committing entity changes (creating new revisions).
+ */
+
+// Components
+export {
+    EntityCommitModal,
+    EntityCommitTitle,
+    EntityCommitContent,
+    EntityCommitFooter,
+    AgentChangesSummary,
+} from "./components"
+export type {
+    EntityCommitModalProps,
+    CommitSubmitParams,
+    CommitSubmitResult,
+    CommitModeOption,
+    CommitCreateFieldsConfig,
+    EntityCommitContentProps,
+    AgentChangesSummaryProps,
+} from "./components"
+
+// Hooks
+export {useEntityCommit, useRevisionCommit, useVariantCommit, useBoundCommit} from "./hooks"
+export type {UseEntityCommitReturn, UseBoundCommitOptions, UseBoundCommitReturn} from "./hooks"
+
+// State atoms
+export {
+    // Core state
+    commitModalOpenAtom,
+    commitModalEntityAtom,
+    commitModalMessageAtom,
+    commitModalLoadingAtom,
+    commitModalErrorAtom,
+    // Derived state
+    commitModalEntityNameAtom,
+    commitModalOriginalEntityNameAtom,
+    commitModalCanCommitAtom,
+    commitModalCanProceedAtom,
+    commitModalContextAtom,
+    commitModalStateAtom,
+    // Actions
+    resetCommitModalAtom,
+    openCommitModalAtom,
+    closeCommitModalAtom,
+    setCommitMessageAtom,
+    setCommitLoadingAtom,
+    setCommitErrorAtom,
+    executeCommitAtom,
+} from "./state"

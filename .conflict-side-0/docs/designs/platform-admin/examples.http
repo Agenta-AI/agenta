@@ -1,0 +1,178 @@
+# Platform Admin Accounts — Example Calls
+#
+# Uses the REST Client (.http) format (VS Code extension: humao.rest-client).
+# Variables at the top — fill in ADMIN_URL and ADMIN_KEY before running.
+#
+# Flow:
+#   1.  Create both users in a single batch call
+#   2.  Reset user 1's password  (re-send the identity with the new password)
+#   3.  Transfer ownership of user 1's organization to user 2
+#   4.  Delete user 1  (no owned orgs left — cascade deletes any remaining scope)
+
+@ADMIN_URL = http://localhost/api
+@ADMIN_KEY = change-me-auth
+
+###############################################################################
+# 1. Create alice and bob in a single batch call.
+#
+#    POST /admin/simple/accounts/
+#    Body: { "accounts": { "<ref>": <entry>, ... }, "options": <global defaults> }
+#
+#    Each entry scaffolds its own org → workspace → project graph.
+#    Defaults: create_api_keys=true, return_api_keys=true, seed_defaults=true.
+#    create_identities is inferred from whether user_identities is present.
+#    Override any of these per-entry via "options" if needed.
+#    The response dict is keyed by the same account refs as the request.
+###############################################################################
+
+# @name create_accounts
+POST {{ADMIN_URL}}/admin/simple/accounts/
+Authorization: Access {{ADMIN_KEY}}
+Content-Type: application/json
+
+{
+  "accounts": {
+    "alice": {
+      "user": {
+        "email": "alice@example.com",
+        "username": "alice"
+      },
+      "user_identities": [
+        {
+          "method": "email:password",
+          "subject": "alice@example.com",
+          "email": "alice@example.com",
+          "password": "S3cr3tPass!",
+          "verified": true
+        }
+      ]
+    },
+    "bob": {
+      "user": {
+        "email": "bob@example.com",
+        "username": "bob"
+      }
+    }
+  }
+}
+
+# Response shape (AdminSimpleAccountsResponseDTO):
+#
+# {
+#   "accounts": {
+#     "alice": {
+#       "user":          { "id": "<USR_1_ID>", "email": "alice@example.com", ... },
+#       "organizations": { "org": { "id": "<ORG_1_ID>", ... } },
+#       "workspaces":    { "wrk": { "id": "<WRK_1_ID>", ... } },
+#       "projects":      { "prj": { "id": "<PRJ_1_ID>", ... } },
+#       "api_keys":      { "key": "<API_KEY_1>" }
+#     },
+#     "bob": {
+#       "user":          { "id": "<USR_2_ID>", "email": "bob@example.com", ... },
+#       "organizations": { "org": { ... } },
+#       "workspaces":    { "wrk": { ... } },
+#       "projects":      { "prj": { ... } },
+#       "api_keys":      { "key": "<API_KEY_2>" }
+#     }
+#   },
+#   "errors": [
+#     { "code": "not_implemented",
+#       "message": "Identity provisioning is not yet implemented (ref: identity_0)." }
+#   ]
+# }
+#
+# Response is keyed by the same refs as the request.
+# Per-entry "options" override the global defaults.
+# Identity provisioning is currently stubbed; all other entities are created
+# regardless and the identity error is non-fatal.
+
+@USER_1_ID = <USER_1_ID>  # copy from response: accounts["alice"].user.id
+@ORG_1_ID  = <ORG_1_ID>   # copy from response: accounts["alice"].organizations["org"].id
+@USER_2_ID = <USER_2_ID>  # copy from response: accounts["bob"].user.id
+@API_KEY_1 = <API_KEY_1>  # copy from response: accounts["alice"].api_keys["key"]
+@API_KEY_2 = <API_KEY_2>  # copy from response: accounts["bob"].api_keys["key"]
+
+###############################################################################
+# 2. Reset user 1's (alice's) password.
+#
+#    Syntactic sugar over patching the existing email:password identity —
+#    POST /identities/ is create-only and cannot update an existing credential.
+#    The full identity is supplied; the service matches on method + subject
+#    (or email) and updates only the password field.
+#    No user ID in the path — the subject is the lookup key.
+#
+#    POST /admin/simple/accounts/reset-password
+###############################################################################
+
+# @name reset_password_alice
+POST {{ADMIN_URL}}/admin/simple/accounts/reset-password
+Authorization: Access {{ADMIN_KEY}}
+Content-Type: application/json
+
+{
+  "user_identities": [
+    {
+      "method": "email:password",
+      "subject": "alice@example.com",
+      "email": "alice@example.com",
+      "password": "N3wPassw0rd!",
+      "verified": true
+    }
+  ]
+}
+
+# Response: 204 No Content
+
+###############################################################################
+# 3. Transfer all of alice's organizations to bob.
+#
+#    organizations — named dict of org refs to transfer; omit to transfer all
+#                    orgs owned by the source user (shown here)
+#    users         — "source" (current owner) and "target" (new owner)
+#    include_workspaces / include_projects default to "all"
+#
+#    POST /admin/simple/accounts/transfer-ownership
+###############################################################################
+
+# @name transfer_ownership
+POST {{ADMIN_URL}}/admin/simple/accounts/transfer-ownership
+Authorization: Access {{ADMIN_KEY}}
+Content-Type: application/json
+
+{
+  "users": {
+    "source": { "id": "{{USER_1_ID}}" },
+    "target": { "id": "{{USER_2_ID}}" }
+  }
+}
+
+# Response: 204 No Content
+#
+# To transfer a specific org only, add:
+#   "organizations": { "my_org": { "id": "<ORG_ID>" } }
+
+###############################################################################
+# 4. Delete alice.
+#
+#    Alice no longer owns ORG_1 after the transfer.
+#    The service finds any remaining orgs where she is owner_id or
+#    created_by_id, deletes those first (DB cascades the rest), then
+#    deletes the user record.
+#
+#    Multiple accounts can be deleted in one call by adding more keys.
+#
+#    DELETE /admin/simple/accounts/
+###############################################################################
+
+# @name delete_alice
+DELETE {{ADMIN_URL}}/admin/simple/accounts/
+Authorization: Access {{ADMIN_KEY}}
+Content-Type: application/json
+
+{
+  "accounts": {
+    "alice": { "user": { "id": "{{USER_1_ID}}" } }
+  }
+}
+
+# Response: 204 No Content

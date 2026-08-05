@@ -1,0 +1,73 @@
+---
+id: list-evaluator-catalog-presets
+title: "List Evaluator Catalog Presets"
+description: "List presets defined against one evaluator template."
+sidebar_label: "List Evaluator Catalog Presets"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWN1z1DYQ/1c0+1RmzF3K9MlPvQkBUihkkkAfkkyi2Os7gSwZSb5yvfH/3llZtnVfDgT6VJ5ykXd/+73S7hocn1tIr+BkyWXNnTYWbhLI0WZGVE5oBSm8EdaxyqBFZ1mOhVCYMz7nQlnHtEKGHTNzWFaSO5xcq2s1C0xMWMaZ4iXmjP7VBau44SU6NIxY0RLl00JIOSBfK7fAAZC9t8joxKCrDWlw9wlXd8xpVqDLFowzW2EmCpEFsddqKTi7e3lyyaYZd1zq+bSDs9N19/P2E66aaTBvum5/+MO7CSSgKzScHHGaQwpSWHfbm3sbYG8DNyTQG0ZeXQMZDSnEsiABQV6tuFtAAgY/18JgDqkzNSZgswWWHNI1uFVFvNYZoeaQgBNO0sFlAGOvcQVNk/RShMpkneMtN9lCLDHvJH2u0aw2RBVc2g1ZXK3eFV7jIPVea4lcAcGHI1VLCc3NoMhpK4/NOnkNfTVoK60sWsJ9dnREfzbz6aLOMrS2qCU7D8SQQKaVQ+W8NlUlRea9Pv1oiWcd6VoZiokTrYRM1y1T0FIoh3M0kb+OPcV2Ur+ty3s0PhdDZgvF7sJvH/kcC15LB+lRk0AX4XQNwmFpdxVpg7DHlSGAY558S7zNloqPg3oeQTQJUMKN5JJPoQQy7nCuTbBkENubui2/O+DG8NWoPscDdJNAIX2/iWVselHY2yj6keguIaP0s2wWkUYB8+ndJATW1+pDUH0DPABklagqdA/BXASy/SB9ZT5k11DB+2AMZrosUeUPI51HpDtgQxz1/UfMXMT6lzafCqn/Pm473Asft904U85yx8ciWhvx2Fx+bwQlTW3k4xEkISyQ574lxyg8zwVlDpdnGwqPydk0bYnGfkepfgjsTQJW1vPHwlwQLyVGPoaQQKFNyR2kUNciH2/s1MoP58Y5FmhQZdgmwCbZGO6rEIYmAVMrJ8YbZgKo6pIeJ9XKLXyFE0Hb3iCBj3zJwz83Y1LPgyhyc0v+WEe33E13cY42svgh8L1Zt3W1behIt1h8El/c+2VBJkxWS25+eVFL+YfV6um72lW1ewL7ghnugK/hevg22OKFb0qfs8GllO6qqt1P5/4o55627mwS0J77p2d/lGffBX+OtVQCvwhNZe8t+7Od/KftpEkOWBcmpYeeSee4FHSXP6fH0J4A7gn9MI1d+Vd6pFn/Fg2vrzM/fOw8uyNT+vlza8jxM/cwbB8a4vkwZ4+m6X7FbDTFbco/UUuUukJWaMM4o+mZJq4wNnfqkEyS+tuzZ7vD4gcuRe5f+OzEGP88f+SkmKPjQo5McFJnG1+/pYZuDgfnjQ4TSpNAaedj49ifaC2f4xDpw6TeGeySvnaXoSeP27kf7dyXCGYnosfkyy9ub9TjDCXftOoHuvgd24eojdBhVzxvQzCWYq8uL892ANv8KNEtNG1h5n7A8guUFKb9iGe/fs0DCVg0y25N4ycMmPJK+OC2/y6cq2w6nWI9yaSu8wmfo3J8wkVLeEMYWW2EW3mQ2dnpa1y1b1xIr25iAt/b2yzbJOsjwyvx2i+HwjJnVruFNuKfbrj1m5x2jvH+E6rQccBnXjk2OzvdqcKNT1Q8PHPDxiJ8hmTL7MFaeomXvnTAIS9/779QpPsZCI4mv06O6KjS1pVcRSL8BrFvHix0D3agba2HCv9/7x5DalCBTivJhYqm4Tb7r2DIfvB7HBJFrJ0wSCDdWj8O20qq4oW2joDW63tu8b2RTUPH7dKQ8joXlt/LaG3od0r7to3en5CCr40lN4L49mMcDPgv56HrPGGHPNBVjFrFMju9Noz1fXnRleQ6kMyyDP0I2THvXCNkQN9uXp5cQtP8C50YDZ8=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Evaluator Catalog Presets"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluators/catalog/templates/{template_key}/presets/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List presets defined against one evaluator template.
+
+A preset is a named set of parameter values pre-filled against
+the template. Use the returned `key` to fetch a specific preset
+via `GET /catalog/templates/{template_key}/presets/{preset_key}`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./list-evaluator-catalog-presets.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./list-evaluator-catalog-presets.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./list-evaluator-catalog-presets.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

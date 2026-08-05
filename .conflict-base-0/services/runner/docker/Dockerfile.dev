@@ -1,0 +1,93 @@
+# Agent runner, dev image.
+#
+# Runs the TypeScript runner as an HTTP server. The Python agent service calls
+# it in-network. Source is bind-mounted in dev so `tsx watch` hot-reloads; node_modules
+# stays baked into the image. Build context is services/runner.
+
+FROM node:24-slim
+
+WORKDIR /app
+
+# CA certificates: the sandbox-agent daemon downloads harness CLIs (e.g. Claude Code) over
+# HTTPS using the system trust store, which node:*-slim omits — without this the daemon's
+# `install-agent claude` fails TLS verification. git lets npm/installers fetch git deps.
+# python3 runs `code` tools whose runtime is "python": the runner relays the call and
+# spawns `python3` (src/tools/code.ts), so without it those tools fail `spawn python3 ENOENT`.
+# fuse + geesefs: the durable session cwd (mount.ts) is a geesefs FUSE mount of the store
+# prefix; `fuse` provides fusermount + /etc/fuse.conf (user_allow_other for -o allow_other).
+# unzip/zip + python-is-python3 (which symlinks /usr/bin/python -> python3): the local sandbox
+# IS this container, and an agent handed an archive reaches for `unzip` and plain `python`.
+# Without them every such task burns failed bash calls and extra approval round-trips.
+# ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are the first
+# commands every harness reaches for when searching a tree, and Debian ships fd as `fdfind`,
+# so the symlink below is what makes the command agents actually type resolve.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates git python3 python-is-python3 unzip zip fuse curl \
+        ripgrep fd-find jq procps file tree \
+    && ln -s "$(which fdfind)" /usr/local/bin/fd \
+    && rm -rf /var/lib/apt/lists/* \
+    && echo "user_allow_other" >> /etc/fuse.conf
+
+# geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
+ARG GEESEFS_VERSION=v0.43.0
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) gee="geesefs-linux-amd64" ;; \
+      arm64) gee="geesefs-linux-arm64" ;; \
+      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/yandex-cloud/geesefs/releases/download/${GEESEFS_VERSION}/${gee}" \
+      -o /usr/local/bin/geesefs; \
+    chmod +x /usr/local/bin/geesefs
+
+RUN corepack enable
+
+# Install deps as a cached layer (manifest + lockfile + the patches they reference).
+COPY package.json pnpm-lock.yaml ./
+COPY patches ./patches
+RUN pnpm install --frozen-lockfile
+
+# Fallback copy for non-mounted runs; in dev these are bind-mounted over.
+COPY tsconfig.json ./
+COPY scripts ./scripts
+COPY src ./src
+# The Agenta harness's forced skills (resolved from /app/skills per run). Baked like the
+# prod image; the dev compose also bind-mounts skills/ over this for live edits.
+COPY skills ./skills
+
+# Bundle the Agenta Pi extension (tracing + tools) into dist/ as a baked fallback. dist/ is
+# NOT bind-mounted in dev, but the CMD below rebuilds the bundle from the mounted src on
+# container start, so a container restart picks up edits to src/extensions/agenta.ts or the
+# tracer without a full image rebuild. (tsx watch hot-reloads the runner but not this bundle.)
+RUN pnpm run build:extension
+
+ENV NODE_ENV=development \
+    AGENTA_RUNNER_PORT=8765
+
+EXPOSE 8765
+
+# Pin the Codex ACP adapter (decision D-005), same rationale as Dockerfile.gh: pre-install
+# @agentclientprotocol/codex-acp at a fixed version so the daemon never fetches a floating `^1.1.7`
+# from the registry at first Codex use. The generated lockfile pins codex-acp 1.1.7 exactly (with
+# bundled @openai/codex 0.145.0); the daemon finds it present at runtime and skips the fetch. Runs
+# as root here (dev runtime is root, HOME=/root), so build- and run-time install dirs match.
+# PIN: @agentclientprotocol/codex-acp 1.1.7 (bundles @openai/codex 0.145.0).
+# The sandbox-agent package ships no bin entry (its CLI is a transitive optional dep), so the
+# pin script resolves the daemon binary via the runner's own daemon.ts resolution.
+RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.1.7 -n
+
+# Decouple approvals from the full-access sandbox in the adapter we just pinned, same rationale as
+# Dockerfile.gh: codex-acp's `agent-full-access` preset hardcodes `approvalPolicy: "never"`, which
+# kills codex's native permission gates and forces COLD approvals. The patch flips that one preset
+# to `on-request` so Agenta-tool gates park WARM. Fails the build if the preset drifts.
+RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
+
+# No USER node here (unlike Dockerfile.gh): dev rebuilds dist/ under /app and mkdir's /pi-agent
+# at container start, both root-owned paths — not a FUSE constraint (fusermount works non-root).
+
+# Rebuild the Pi extension from the mounted src on start (cheap, ~120ms) so a restart picks
+# up extension edits, then run the watcher. Call node + the local tsx binary directly to
+# avoid pnpm/corepack HOME writes when the container runs as a non-root host uid.
+CMD ["sh", "-c", "node scripts/build-extension.mjs && exec node_modules/.bin/tsx watch src/server.ts"]

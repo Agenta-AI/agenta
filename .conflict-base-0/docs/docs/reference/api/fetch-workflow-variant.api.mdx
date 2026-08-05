@@ -1,0 +1,75 @@
+---
+id: fetch-workflow-variant
+title: "Fetch Workflow Variant"
+description: "Fetch a workflow variant by ID."
+sidebar_label: "Fetch Workflow Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdWM1y2zYQfhXMXurMMJKS6Ymnqv5p3LSNJ3bSg62xIXIlIoEABlg4UTWc6UP0CfskHYAgRYmS7TjOpSdLwuLb3W8/LLBeAfG5hfQS/tTm40zqzxYmCeRoMyNKElpBCidIWcE4+xxN2C03giti0yU7PRpcqSv1FskZZRkV2K4ukHjOiTOt5JL9+/c/zFm8UjfDBscODd4KK7Tyn8gIvMUbpg3bbSL1/IbNtPFOrlT08oNlrUWI5BwxZZdtNpODocEZGlQZDnkpns+dyHGN/2wACegSDffJnuaQwsyne91YXEdHkEDJDV8gofGErUDxBUIK24bXIocEhCeu5FRAAgY/OWEwh5SMwwRsVuCCQ7oCWpYewpIRag4JzLRZcIIUnAsoJEh6gyYd9j5ye5pDVU08tC21smg92svRyP/ZLN65yzK0duYkexuNIYFMK0JF3pyXpRRZSH/4wfo9q06EpfHkkKg9ZNrVm2LgQhHO0XQiPQwW2wq6eXHDPheoGG/VIXzhvGgwT9jNKK4rrZAtOGUF5oMAM+NOEqSjKukxHaJXyzezUI7NSFtbK91803CT9Cppf1FOSvCs9mg/9yBVAtyQmPGMvgl1HEFa1DZWkd+FuS2PB0XuhdKJ++k8tFnUHmYy9JH9BRH2uqO0joamWkvkqqOhU8vGHdOOCmZcWqwSD4a3XDpO2twHddwa7gaySpQl0n0w59GsB1IlzT49/YAZ7Ti28dSeBI76pHqEHns8z4VPn8uzDR57tWui7eB2RLgbBjJhMie5OfiNT1H+arV6/sZR6egZbKfTLfq2NfSSv0syF3X64C+GRybbP15NC9pwvJhu/tLl6D5GTpy8h5BkBYJw8cBd3Bi+vJOXrb1fR+rvnswqibfR4zrSH35vtdW0Hwd11IGoEsgMcsL8mtMD+07OCZ+TCPHs93JYw7JxIMuV+fdw8q6GjU5ylPgdnBzVsNFJQ9d0+YSduiHr52Xs1Q1fT+qlYav10hD2pF4aulov33IRN/fv04UXnmUPvg92Qm0+nC4K7D27B1/jo33zVZXf9ePLl/0n4nsuRR7uWnZsTLgoH/k+zJG4kOG6rxvktoHU2cbq1zT4SbXVUzv3ko5vBX+72Pmup/W6X1rL57husvtNAxnswq96lSjfm715U2wVm3VGXzowvYocei6/0M6qrUeDy8BNHX606whrXaK6QvupOKpLcJdEXl1cnPUAa30skArth6A51hMPFZBCZxyLGrTD1Y65p4IELJrbZkJyRvrdvBShoPXXgqi06XCIbpBJ7fIBn6MiPuCiNpx4jMwZQcsAMj47fY3LV8hzNJBeTroG516HtbI2zdpq8FK8Rs9PnNbGjgptxF/N0zLMaUW9qwpVnulukcchODY+O+0NNRtL/sDwLOij8RSWIdlKe50tJICLcFyAkC9+ald8dT2HtZvR4MVg5H8qtaUFVx0X9WC+PRxuB7pan+b//ygfy+4P3LCUXISWECqwimq+bOctCwk0eoYE0l2T/CSBQlvy21arKbf4zsiq8j9/cmi8QicRZOr1crmCXFj/OY/zwR3FOHgbT/8zti/yRsVqGWKVzn+DBD7ics+/HkKbLJrTsoqW4yzDkjoYva7uj1V7+n85voCq+g/UT0Zd
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Workflow Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/variants/{workflow_variant_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch a workflow variant by ID.
+
+Returns the variant metadata only — use
+`/workflows/revisions/retrieve` or `/workflows/revisions/log` for the
+variant's revisions.
+
+See: [Workflows](/reference/api-guide/workflows).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-workflow-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-workflow-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-workflow-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,84 @@
+@composio_url = https://backend.composio.dev/api/v3
+@composio_api_key = {{$dotenv COMPOSIO_API_KEY}}
+@composio_user_id = {{$dotenv COMPOSIO_USER_ID}}
+
+# Replace with a valid connected_account_id from connections.http flow
+@connected_account_id = replace-me-with-ca_id
+
+###
+# --- Direct tool execution ---
+
+# @name execute_gmail_send
+# Execute GMAIL_SEND_EMAIL with a connected account
+POST {{composio_url}}/tools/execute/GMAIL_SEND_EMAIL
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{
+  "arguments": {
+    "recipient_email": "test@example.com",
+    "subject": "Test from Agenta Gateway Tools",
+    "message_body": "This is a manual test of the Composio integration."
+  },
+  "connected_account_id": "{{connected_account_id}}"
+}
+
+###
+# @name execute_gmail_list
+# Execute GMAIL_LIST_EMAILS (read-only, safer for testing)
+POST {{composio_url}}/tools/execute/GMAIL_LIST_EMAILS
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{
+  "arguments": {
+    "max_results": 5
+  },
+  "connected_account_id": "{{connected_account_id}}"
+}
+
+###
+# --- Tool Router session (alternative execution path) ---
+
+# @name create_session
+# Create a tool router session scoped to gmail
+POST {{composio_url}}/tool_router/session
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{
+  "user_id": "{{composio_user_id}}",
+  "toolkits": {
+    "enable": ["gmail"]
+  }
+}
+
+###
+@session_id = {{create_session.response.body.session_id}}
+
+###
+# @name session_execute
+# Execute a tool via the session
+POST {{composio_url}}/tool_router/session/{{session_id}}/execute
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{
+  "tool_slug": "GMAIL_LIST_EMAILS",
+  "arguments": {
+    "max_results": 3
+  }
+}
+
+###
+# --- NL-to-arguments (bonus) ---
+
+# @name nl_to_arguments
+# Convert natural language to tool arguments
+POST {{composio_url}}/tools/execute/GMAIL_SEND_EMAIL/input
+x-api-key: {{composio_api_key}}
+Content-Type: application/json
+
+{
+  "text": "Send an email to test@example.com with subject 'Hello' and body 'Hi there'"
+}

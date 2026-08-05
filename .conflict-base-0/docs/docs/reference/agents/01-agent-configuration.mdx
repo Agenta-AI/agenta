@@ -1,0 +1,308 @@
+---
+title: "Agent configuration"
+sidebar_label: "Agent configuration"
+description: "Every field of the Agenta agent template: type, default, and allowed values."
+---
+
+An agent's configuration is one JSON object, the **agent template**. It is stored on a workflow revision and travels on the wire at `data.parameters.agent`.
+
+The schema is published as the catalog type `agent-template`. Fetch the live JSON Schema with:
+
+```
+GET /api/workflows/catalog/types/agent-template
+```
+
+The template rejects unknown keys. The `harness`, `runner`, and `sandbox` sub-objects also reject unknown keys at parse time and return HTTP `400`.
+
+For what these parts mean, see [Agents](/concepts/agents), [Instructions](/concepts/instructions), [Harnesses and models](/concepts/harnesses-and-models), and [Permissions](/concepts/permissions).
+
+## Top-level fields
+
+Every field is optional. An omitted field falls back to the default in the table.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `instructions` | object | No | `{"agents_md": "<built-in text>"}` | The agent's instruction documents. |
+| `llm` | object | No | see [llm](#llm) | The model the agent runs on, its provider, and its credential connection. |
+| `tools` | array | No | `[]` | Tools the agent can call. Each entry is one of the tool objects below. |
+| `mcps` | array | No | `[]` | MCP servers exposed to the agent. |
+| `skills` | array | No | `[]` | Skills the agent ships with. |
+| `harness` | object | No | see [harness](#harness) | The coding agent to drive, plus its gating posture. |
+| `runner` | object | No | see [runner](#runner) | The engine that drives the harness loop, plus the tool execution policy. |
+| `sandbox` | object | No | see [sandbox](#sandbox) | Where the agent runs, plus its security boundary. |
+
+## instructions
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `agents_md` | string | No | A built-in hello-world text | The agent's system prompt. The harness receives it as `AGENTS.md`. |
+
+## llm
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `model` | string | No | `"gpt-5.6-luna"` | Model id in the provider's namespace. A `provider/model` string also parses, split on the first `/`. |
+| `provider` | string or `null` | No | `null` | Model provider. When unset, resolution infers it from a matching stored connection, and fails with an error when it cannot. |
+| `connection` | object or `null` | No | `null` | Where the model credential comes from. Omit for the project default. |
+| `extras` | object | No | `{}` | Model knobs passed through unchanged, for example `reasoning_effort`. |
+
+### llm.connection
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `mode` | `"agenta"` \| `"self_managed"` | No | `"agenta"` | `agenta` uses a connection stored in the project. `self_managed` injects no credential; the harness signs itself in. |
+| `slug` | string or `null` | No | `null` | The named stored connection. Valid only with `mode: "agenta"`. Omit for the project default. Setting it with `self_managed` is rejected. |
+
+Which providers, deployments, and connection modes each harness can reach is served per harness:
+
+```
+GET /api/workflows/catalog/harnesses/{harness}
+```
+
+In the shipped table, `pi_core` and `pi_agenta` reach `openai`, `anthropic`, `gemini`, `mistral`, `groq`, `minimax`, `together_ai`, and `openrouter`, with deployments `direct` and `custom`. `claude` reaches `anthropic` only, with deployments `direct`, `custom`, `bedrock`, and `vertex_ai`, and selects its model by alias rather than by a `provider/model` string.
+
+## tools
+
+Each entry in `tools` is an object discriminated by `type`. Every entry also accepts the two shared fields below.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `permission` | `"allow"` \| `"ask"` \| `"deny"` \| `null` | No | `null` | Per-tool override of the runner policy. Absent means inherit `runner.permissions.default`. On a `builtin` entry it is not enforceable, so it is dropped and logged. |
+| `render` | object or `null` | No | `null` | Display hint carried through to the client. |
+
+### type: builtin
+
+A tool the harness itself provides. Present means the agent has it. Absent means it does not exist for that agent.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `"builtin"` | Yes | | |
+| `name` | string | Yes | | Built-in tool name. |
+
+Pi built-in names are `read`, `bash`, `edit`, `write`, `grep`, `find`, and `ls`. `read`, `grep`, `find`, and `ls` are read-only for permission purposes. Claude Code has no Pi built-ins; its Agenta tools are delivered over MCP.
+
+### type: gateway
+
+One action from a built-in integration.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `"gateway"` | Yes | | |
+| `provider` | string | No | The built-in integrations gateway | Which gateway serves the action. |
+| `integration` | string | Yes | | The connected app. |
+| `action` | string | Yes | | The single action to expose. |
+| `connection` | string | Yes | | The account connection the action runs as. |
+| `name` | string or `null` | No | `null` | Model-visible tool name. |
+
+### type: code
+
+A script the runner executes.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `"code"` | Yes | | |
+| `name` | string | Yes | | Model-visible tool name. |
+| `description` | string or `null` | No | `null` | What the tool does. |
+| `runtime` | `"python"` \| `"node"` | No | `"python"` | Script runtime. |
+| `script` | string | Yes | | The script source. |
+| `input_schema` | object | No | `{"type": "object", "properties": {}}` | JSON Schema for the tool's arguments. |
+| `secrets` | array of string | No | `[]` | Names of secrets injected into the script's environment. |
+
+### type: client
+
+A tool the calling client fulfils instead of the server.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `"client"` | Yes | | |
+| `name` | string | Yes | | Model-visible tool name. |
+| `description` | string or `null` | No | `null` | What the tool does. |
+| `input_schema` | object | No | `{"type": "object", "properties": {}}` | JSON Schema for the tool's arguments. |
+
+### type: reference
+
+Another workflow exposed to the agent as a tool. Agenta runs it server-side.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `"reference"` | Yes | | |
+| `ref_by` | `"variant"` \| `"environment"` | No | `"variant"` | Which axis selects the workflow revision. |
+| `slug` | string | Yes | | The workflow slug to reference. |
+| `environment` | string or `null` | No | `null` | Environment slug. Required when `ref_by` is `"environment"`, rejected otherwise. |
+| `version` | string or `null` | No | `null` | Pin a revision. Valid only with `ref_by: "variant"`. Absent means the latest revision. |
+| `name` | string or `null` | No | `null` | Model-visible tool name. Defaults to `slug`. |
+| `description` | string or `null` | No | `null` | What the tool does. |
+| `input_schema` | object | No | `{"type": "object", "properties": {}}` | JSON Schema for the tool's arguments. |
+
+### type: platform
+
+An existing Agenta endpoint exposed as a tool. The catalog owns its description, endpoint, and request schema.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `"platform"` | Yes | | |
+| `op` | string | Yes | | Which catalog operation to expose, for example `discover_tools`. |
+
+## mcps
+
+Each entry declares one MCP server. See [Tools and integrations](/concepts/tools-and-integrations).
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `name` | string | Yes | | 1 to 128 characters matching `^[A-Za-z0-9._-]+$`. The name `agenta-tools` is reserved and rejected. |
+| `connection` | object | Yes | | How Agenta reaches the server. |
+| `policy` | object | No | `{"tools": {"mode": "all", "names": []}}` | Which of the server's tools are exposed, and at what permission. |
+
+### mcps[].connection
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | `"http"` | No | `"http"` | Transport. `http` is the only value. |
+| `url` | string | Yes | | The server URL. |
+| `headers` | object of string | No | `{}` | Static request headers. |
+| `credentials` | object | No | `{"type": "none"}` | Either `{"type": "none"}` or `{"type": "header_secret_refs", "headers": {"<header>": "<secret-name>"}}`. Secret values resolve at run time and are never stored in the configuration. |
+
+### mcps[].policy
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `tools.mode` | `"all"` \| `"include"` | No | `"all"` | `all` exposes every tool the server advertises. `include` exposes only `tools.names`. |
+| `tools.names` | array of string | No | `[]` | Tool names to expose. Required with `include`, rejected with `all`. |
+| `permission` | `"allow"` \| `"ask"` \| `"deny"` \| `null` | No | `null` | Permission applied to this server's tools. Absent means inherit `runner.permissions.default`. |
+
+## skills
+
+Each entry is an inline skill package. See [Skills](/concepts/skills).
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `name` | string | Yes | | 1 to 64 characters matching `^[a-z0-9]+(-[a-z0-9]+)*$`. |
+| `description` | string | Yes | | 1 to 1024 characters. This is what the agent sees at the start of a session, and what decides when the skill loads. |
+| `body` | string | Yes | | 1 to 50,000 characters. The skill's `SKILL.md` content after the frontmatter. |
+| `files` | array | No | `[]` | Files laid beside `SKILL.md`. |
+| `disable_model_invocation` | boolean | No | `false` | Hide the skill from the prompt so it loads only when invoked by name. |
+| `allow_executable_files` | boolean | No | `false` | Allow bundled files to be marked executable. Sandbox policy must also allow it. |
+
+### skills[].files[]
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `path` | string | Yes | | 1 to 255 characters. Relative POSIX path. A leading `/`, a backslash, a `..` segment, or a root-level `SKILL.md` is rejected. |
+| `content` | string | Yes | | UTF-8 text, up to 200,000 characters. |
+| `executable` | boolean | No | `false` | Mark the file executable when it is written out. |
+
+## harness
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `kind` | `"pi_core"` \| `"pi_agenta"` \| `"claude"` \| `"codex"` | No | `"pi_core"` | Which coding agent to drive. |
+| `permissions` | object | No | see [harness.permissions](#harnesspermissions) | Tool-use gating posture, applied by harnesses that gate. |
+| `extras` | object | No | `{}` | Per-harness knobs passed through unchanged. For Pi, `system` replaces the base system prompt and `append_system` adds to it. Both are independent of `instructions.agents_md`. |
+
+| `kind` | Display name | Versioned slug |
+|---|---|---|
+| `pi_core` | Pi | `agenta:harness:pi_core:v0` |
+| `pi_agenta` | Pi (Agenta) | `agenta:harness:pi_agenta:v0` |
+| `claude` | Claude Code | `agenta:harness:claude:v0` |
+| `codex` | Codex | `agenta:harness:codex:v0` |
+
+`pi_agenta` runs the same engine as `pi_core` with Agenta's own skills, tools, and base instructions forced on.
+
+### harness.permissions
+
+Applied by harnesses that gate tool use. Claude Code renders it into `.claude/settings.json` in the session working directory. Pi does not gate and leaves it empty. Codex renders no per-tool rules of its own; its tool gating comes from [runner.permissions](#runnerpermissions) and the `permission` on each tool entry.
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `default_mode` | `"default"` \| `"acceptEdits"` \| `"plan"` \| `"bypassPermissions"` \| `null` | No | `null` | The harness's own default permission mode. |
+| `allow` | array of string | No | `[]` | Per-tool rules approved without prompting. |
+| `ask` | array of string | No | `[]` | Per-tool rules that raise a prompt. |
+| `deny` | array of string | No | `[]` | Per-tool rules always rejected. |
+
+## runner
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `kind` | `"sidecar"` | No | `"sidecar"` | The engine that drives the harness loop. `sidecar` is the only value. |
+| `permissions` | object | No | `{"default": "allow_reads"}` | The runner-enforced tool execution policy. |
+| `extras` | object | No | `{}` | Per-runner knobs passed through unchanged. |
+
+### runner.permissions
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `default` | `"allow"` \| `"ask"` \| `"deny"` \| `"allow_reads"` | No | `"allow_reads"` | `allow` runs every tool without asking. `ask` requires approval for every tool. `deny` refuses every tool. `allow_reads` runs read-hinted tools and asks for everything else. |
+
+A value outside that set is rejected. A `permission` set on a single tool entry overrides this default for that tool.
+
+## sandbox
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `kind` | `"local"` \| `"daytona"` | No | `"local"` | Where the agent runs. |
+| `permissions` | object or `null` | No | `null` | The declared security boundary. Unset means no declared boundary, and the field never reaches the wire. |
+| `extras` | object | No | `{}` | Per-sandbox knobs passed through unchanged, for example a Daytona snapshot. |
+
+A deployment restricts which sandbox providers it accepts. A request naming a provider the deployment has not enabled is refused before the run starts.
+
+### sandbox.permissions
+
+| Field | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `network.mode` | `"on"` \| `"off"` \| `"allowlist"` | No | `"on"` | Outbound network policy. |
+| `network.allowlist` | array of string | No | `[]` | CIDR ranges allowed when `network.mode` is `"allowlist"`. |
+| `filesystem` | `"on"` \| `"readonly"` \| `"off"` \| `null` | No | `null` | Declared only. Not enforced. |
+| `enforcement` | `"strict"` \| `"best_effort"` | No | `"strict"` | `strict` fails the run when the boundary cannot be applied. |
+
+## The default template
+
+This is the value a new agent starts with. It is also the `default` on the agent workflow's `/inspect` parameters schema.
+
+```json
+{
+  "instructions": {
+    "agents_md": "You are a friendly hello-world agent running on the Agenta agent service.\n\n- Greet the user warmly.\n- Answer the user's message in one or two short sentences."
+  },
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-5.6-luna"
+  },
+  "tools": [
+    {"type": "builtin", "name": "read"},
+    {"type": "builtin", "name": "bash"},
+    {"type": "builtin", "name": "edit"},
+    {"type": "builtin", "name": "write"}
+  ],
+  "mcps": [],
+  "harness": {"kind": "pi_core"},
+  "runner": {"kind": "sidecar", "permissions": {"default": "allow_reads"}},
+  "sandbox": {"kind": "local"}
+}
+```
+
+An empty `tools` array grants no built-ins at all. The four entries above are what a new agent ships with.
+
+## Rejected shapes
+
+The parser returns HTTP `400` instead of falling back to a default when:
+
+| Sent | Error | Use instead |
+|---|---|---|
+| A flat `model` key on the template | Pre-migration flat key | `llm.model` |
+| A flat `agents_md` key on the template | Pre-migration flat key | `instructions.agents_md` |
+| `harness` or `sandbox` as a bare string | Pre-migration flat selector | `{"kind": "..."}` |
+| A key other than `kind`, `permissions`, or `extras` inside `harness`, `runner`, or `sandbox` | Unknown selector key | One of the three allowed keys |
+| A `runner.permissions.default` outside the four modes | Invalid permission default | `allow`, `ask`, `deny`, or `allow_reads` |
+
+## Embed references
+
+A `tools` or `skills` entry can be an `@ag.embed` reference instead of an inline object. Agenta resolves it into the inline shape server-side, before the runner sees it.
+
+```json
+{
+  "@ag.embed": {
+    "@ag.references": {"workflow": {"slug": "pdf-report"}},
+    "@ag.selector": {"path": "parameters.skill"}
+  }
+}
+```

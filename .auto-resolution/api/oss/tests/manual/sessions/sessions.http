@@ -1,0 +1,60 @@
+@host = http://localhost
+@api_key = ApiKey your_api_key_here
+
+###
+
+# @name list_all_sessions
+POST {{host}}/api/tracing/sessions/query
+Content-Type: application/json
+Authorization: {{api_key}}
+
+{}
+
+###
+
+# @name query_traces_for_first_session
+# Use the first session_id from the list_all_sessions response
+POST {{host}}/api/tracing/spans/query
+Content-Type: application/json
+Authorization: {{api_key}}
+
+{
+    "filter": {
+        "conditions": [
+            {
+                "field": "attributes",
+                "key": "ag.session.id",
+                "value": "{{list_all_sessions.response.body.session_ids[0]}}"
+            }
+        ]
+    }
+}
+
+###
+
+# @name list_all_users
+POST {{host}}/api/tracing/users/query
+Content-Type: application/json
+Authorization: {{api_key}}
+
+{}
+
+###
+
+# @name query_traces_for_specific_session
+# Manually specify a session_id
+POST {{host}}/api/tracing/spans/query
+Content-Type: application/json
+Authorization: {{api_key}}
+
+{
+    "filter": {
+        "conditions": [
+            {
+                "field": "attributes",
+                "key": "ag.user.id",
+                "value": "{{list_all_users.response.body.user_ids[0]}}"
+            }
+        ]
+    }
+}

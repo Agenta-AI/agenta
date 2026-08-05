@@ -1,0 +1,25 @@
+{
+    "name": "agenta-web-tests",
+    "version": "0.1.0",
+    "type": "module",
+    "engines": {
+        "node": "24.x"
+    },
+    "packageManager": "pnpm@11.1.2+sha512.415a1cc25974731e75455c1468371be74c5aa5fb7621b50d4056d222451609f11412f23fd602e6169f1e060466641f798597e1be961a10688836a67b16569499",
+    "scripts": {
+        "test:acceptance": "tsx playwright/scripts/run-tests.ts",
+        "test:acceptance:ui": "tsx playwright/scripts/run-tests.ts --ui",
+        "test:acceptance:debug": "tsx playwright/scripts/run-tests.ts --debug",
+        "test:smoke": "tsx playwright/scripts/run-tests.ts --coverage smoke"
+    },
+    "devDependencies": {
+        "@playwright/test": "1.60.0",
+        "@types/node": "^20.19.20",
+        "dotenv": "^16.5.0",
+        "tsx": "^4.22.4",
+        "typescript": "^5.9.3"
+    },
+    "dependencies": {
+        "axios": "1.18.0"
+    }
+}

@@ -1,0 +1,71 @@
+---
+id: check-organization-access
+title: "Check Organization Access"
+description: "Check if the current session satisfies the organization's auth policy."
+sidebar_label: "Check Organization Access"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVU1vGzkM/SsCL90FBNvN9jSnGo3RGN1FU9fZS2oEzAztUTsjTSVOUtfQf19Q8se4aQrsrSfbIvn09MhH74BxE6C4hWlZUgiw0lBRKL3p2DgLBbypqfyizFpxTarsvSfLKlAIxlkVkE1YGwop6vwGrfmOUvkiKOy5Vp1rTLkdfbKf7IK49zaoi8lEPdZkFaYrlQkKm8Y9UqXVq8lf6tFwraY3y6u7m+u3i+nl7G4x+3AzX8wuc5l1PAINriOfrppXUEApNO+GDO4yPGjo0GNLTF4eugOLLUEBZ7mmAg1G3vu1J78FDZ6+9sZTBQX7njSEsqYWodgBbzupD+yN3YAGNtzIwfsBoJpXEONKYELnbKAglReTiXycC/yxTzzXfaMW+2TQUDrLZFnSsesaUybY8ecgNbsTmxhj1PDq4uIp8L/YmCqzmXnv/P9Ahc6LvGwy74oYTSPfDFMbniY0rjyLot2+Xyexz8WK+nhiLNOGPMRV1Icz9B63A0X/dpkgRA1t2PxK/H8oBNwQHMGeT01iqKVEozS965Mgh/A8HUQNJX8bwLj7z1TyAOaNaPmNIZ74H3NOw3ObtMn093mrE8apRblDz0txmVvws8sOKVfL5fUTwDwfLXHtxCYb4mQIrqGAsTh0fLRJIP9w8Ejvm5TQmdSz/LNm7kIxHlM/KhvXVyPckGUcocmJK8Eoe294m0Cm1/N3tL0irMhDcbsaJnyUUcvDc552FBw7845Egr1fpz3Xzu/9dXBrnatiauTaDfs4TeTU9HoOP+60s5B4Ass0AoebUhj0D88+vRY0UJscAUzYvj5GpIGiYb5mMno5mshR5wK3aAdX5K16tjGmhz6ccd2dPPv7ruJ9x8QO465BkwybxNvtZ+0WhAJowOPfTO0CS2C3u8dAN76JUY7z/pXxqUzA+0ZMtMYm0C+E+WOx99uf6jk2X2j7053/gE0v2Wl6H9AbuTINqz4Ml3DJ5dKijgdVT5aooBzN9na2hBj/A0SThZM=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Check Organization Access"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/auth/access"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Check if the current session satisfies the organization's auth policy.
+
+Returns 200 when access is allowed, 403 with AUTH_UPGRADE_REQUIRED when not.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./check-organization-access.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./check-organization-access.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./check-organization-access.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

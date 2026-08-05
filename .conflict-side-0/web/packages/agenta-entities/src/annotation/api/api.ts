@@ -1,0 +1,302 @@
+/**
+ * Annotation API Functions
+ *
+ * HTTP API functions for Annotation entities backed by `simple/traces`.
+ * These are pure functions with no Jotai dependencies.
+ *
+ * Base endpoint: `/simple/traces/`
+ *
+ * @packageDocumentation
+ */
+
+import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {z} from "zod"
+
+// See testcase/api/api.ts for rationale — the shared barrel pulls in CSS deps.
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
+import {annotationSchema, type Annotation, type AnnotationsResponse} from "../core"
+import type {
+    AnnotationDetailParams,
+    AnnotationQueryParams,
+    CreateAnnotationPayload,
+    UpdateAnnotationPayload,
+} from "../core"
+
+const simpleTraceResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    trace: annotationSchema.nullable().optional(),
+})
+
+// `traces` is parsed as raw items and filtered to valid annotations by
+// `parseAnnotationTraces` — see that function for why we can't use
+// `z.array(annotationSchema)` directly.
+const simpleTracesResponseSchema = z.object({
+    count: z.number().optional().default(0),
+    traces: z.array(z.unknown()).optional().default([]),
+})
+
+/**
+ * Filter a raw `/simple/traces/query` `traces` array down to valid annotations.
+ *
+ * The endpoint returns every simple-trace that references the queried entity —
+ * for a testcase filter that includes the application *invocation* trace
+ * alongside the annotations. Invocation traces are not annotation-shaped
+ * (`data.outputs` is a plain string, `references.evaluator` is absent), so a
+ * strict `z.array(annotationSchema)` failed the whole array on the first
+ * non-annotation element and `queryAnnotations` then silently returned zero
+ * annotations. Parsing element-by-element keeps the valid annotations and drops
+ * the rest, instead of dropping everything.
+ */
+export function parseAnnotationTraces(items: unknown): Annotation[] {
+    if (!Array.isArray(items)) return []
+
+    const annotations: Annotation[] = []
+    for (const item of items) {
+        const parsed = annotationSchema.safeParse(item)
+        if (parsed.success) {
+            annotations.push(parsed.data)
+        }
+    }
+    return annotations
+}
+
+// ============================================================================
+// CREATE
+// ============================================================================
+
+/**
+ * Create a new annotation.
+ *
+ * Endpoint: `POST /simple/traces/`
+ */
+export async function createAnnotation(
+    projectId: string,
+    payload: CreateAnnotationPayload,
+): Promise<Annotation | null> {
+    if (!projectId) return null
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/traces/`,
+        {trace: payload},
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        simpleTraceResponseSchema,
+        response.data,
+        "[createAnnotation]",
+    )
+    return validated?.trace ?? null
+}
+
+// ============================================================================
+// FETCH (Single)
+// ============================================================================
+
+/**
+ * Fetch all annotations for a specific trace/span pair.
+ *
+ * Uses `POST /simple/traces/query` because multiple annotation traces
+ * can exist per invocation trace/span pair.
+ */
+export async function fetchAnnotation({
+    projectId,
+    traceId,
+    spanId,
+}: AnnotationDetailParams): Promise<AnnotationsResponse> {
+    if (!projectId || !traceId) {
+        return {count: 0, annotations: []}
+    }
+
+    const link: {trace_id: string; span_id?: string} = {trace_id: traceId}
+    if (spanId) {
+        link.span_id = spanId
+    }
+
+    return queryAnnotations({
+        projectId,
+        annotationLinks: [link],
+    })
+}
+
+// ============================================================================
+// UPDATE
+// ============================================================================
+
+/**
+ * Update an existing annotation.
+ *
+ * Endpoint: `PATCH /simple/traces/{traceId}/{spanId}`
+ */
+export async function updateAnnotation(
+    projectId: string,
+    traceId: string,
+    spanId: string | undefined,
+    payload: UpdateAnnotationPayload,
+): Promise<Annotation | null> {
+    if (!projectId || !traceId) return null
+
+    const path = `${getAgentaApiUrl()}/simple/traces/${traceId}`
+
+    const response = await axios.patch(
+        path,
+        {trace: payload.annotation},
+        {params: {project_id: projectId}},
+    )
+
+    const validated = safeParseWithLogging(
+        simpleTraceResponseSchema,
+        response.data,
+        "[updateAnnotation]",
+    )
+    return validated?.trace ?? null
+}
+
+// ============================================================================
+// DELETE
+// ============================================================================
+
+/**
+ * Delete an annotation.
+ *
+ * Endpoint: `DELETE /simple/traces/{traceId}/{spanId}`
+ */
+export async function deleteAnnotation(
+    projectId: string,
+    traceId: string,
+    spanId?: string,
+): Promise<void> {
+    if (!projectId || !traceId) return
+
+    const path = `${getAgentaApiUrl()}/simple/traces/${traceId}`
+
+    await axios.delete(path, {
+        params: {project_id: projectId},
+    })
+}
+
+// ============================================================================
+// QUERY (Batch)
+// ============================================================================
+
+/**
+ * Query annotations by trace/span links or annotation filters.
+ *
+ * Endpoint: `POST /simple/traces/query`
+ *
+ * This wrapper keeps annotation-oriented naming for callers while translating
+ * request/response envelopes to the backend `simple/traces` contract. Callers can:
+ * - pass `annotationLinks` with `{trace_id, span_id}` pairs, or
+ * - pass an `annotation` filter object, such as `references.testcase.id`
+ */
+export async function queryAnnotations({
+    projectId,
+    annotationLinks,
+    annotation,
+    windowing,
+}: AnnotationQueryParams): Promise<AnnotationsResponse> {
+    const hasLinks = (annotationLinks?.length ?? 0) > 0
+    const hasAnnotationFilter = !!annotation
+
+    if (!projectId || (!hasLinks && !hasAnnotationFilter)) {
+        return {count: 0, annotations: []}
+    }
+
+    const body: Record<string, unknown> = {}
+    if (hasLinks) {
+        body.links = annotationLinks
+    }
+    if (annotation) {
+        body.trace = annotation
+    }
+    if (windowing) {
+        body.windowing = windowing
+    }
+
+    const response = await axios.post(`${getAgentaApiUrl()}/simple/traces/query`, body, {
+        params: {project_id: projectId},
+    })
+
+    const validated = safeParseWithLogging(
+        simpleTracesResponseSchema,
+        response.data,
+        "[queryAnnotations]",
+    )
+    // `parseAnnotationTraces` drops non-annotation rows (e.g. the invocation
+    // trace the testcase query returns alongside annotations), so derive `count`
+    // from the filtered list rather than the unfiltered backend payload — else
+    // `count > annotations.length` and annotation-oriented callers break.
+    const annotations = parseAnnotationTraces(validated?.traces)
+    return {
+        count: annotations.length,
+        annotations,
+    }
+}
+
+export async function queryAnnotationsByInvocationLink({
+    projectId,
+    traceId,
+    spanId,
+}: {
+    projectId: string
+    traceId: string
+    spanId?: string
+}): Promise<AnnotationsResponse> {
+    if (!projectId || !traceId) {
+        return {count: 0, annotations: []}
+    }
+
+    // Step 1: Find annotation spans that link to the invocation trace_id.
+    // The links column stores marshalled OTelLink objects like:
+    //   {"trace_id": "uuid", "span_id": "hex16", "attributes.key": "invocation"}
+    // PostgreSQL @> containment matches partial objects, so matching on trace_id alone works.
+    const spansBody = {
+        filtering: {
+            operator: "and",
+            conditions: [
+                // Only annotation traces
+                {
+                    field: "attributes",
+                    key: "ag.type.trace",
+                    value: "annotation",
+                    operator: "is",
+                },
+                // Links contain the invocation trace_id
+                {
+                    field: "links",
+                    operator: "in",
+                    value: [{trace_id: traceId}],
+                },
+            ],
+        },
+    }
+
+    const spansResponse = await axios.post(`${getAgentaApiUrl()}/spans/query`, spansBody, {
+        params: {project_id: projectId},
+    })
+
+    const spans = spansResponse.data?.spans ?? []
+    if (spans.length === 0) {
+        return {count: 0, annotations: []}
+    }
+
+    // Step 2: Extract annotation trace_ids and fetch full annotation data
+    const annotationTraceIds: {trace_id: string}[] = []
+    const seen = new Set<string>()
+    for (const span of spans) {
+        const tid = span.trace_id
+        if (tid && !seen.has(tid)) {
+            seen.add(tid)
+            annotationTraceIds.push({trace_id: tid})
+        }
+    }
+
+    if (annotationTraceIds.length === 0) {
+        return {count: 0, annotations: []}
+    }
+
+    return queryAnnotations({
+        projectId,
+        annotationLinks: annotationTraceIds,
+    })
+}

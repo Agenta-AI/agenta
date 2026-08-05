@@ -1,0 +1,9 @@
+.header {
+  text-align: center;
+  margin: 1rem 0 1.5rem;
+}
+
+.header p {
+  color: var(--ifm-color-emphasis-700);
+  margin-bottom: 0;
+}

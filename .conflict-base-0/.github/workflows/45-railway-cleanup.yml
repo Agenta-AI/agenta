@@ -1,0 +1,155 @@
+name: "45 - railway cleanup"
+
+on:
+  pull_request:
+    types: [closed, converted_to_draft]
+  schedule:
+    # Hourly. The sweep, not the age limit, sets the real ceiling on how long a
+    # preview can live: a daily sweep left a 6h-old preview running for up to 24h.
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to destroy (leave empty for stale cleanup only)"
+        required: false
+        type: string
+      max_age_hours:
+        description: "Max age in hours for stale cleanup (default: 6)"
+        required: false
+        type: string
+        default: "6"
+      dry_run:
+        description: "Dry run mode (true/false)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  # Template location (issue #5650). The repo variables let a future template
+  # project move happen without a code change; the scripts carry the same
+  # defaults, so local runs and CI agree.
+  RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
+  RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
+
+jobs:
+  destroy-pr-preview:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install jq
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+      # The preview is an environment in the template project (issue #5650) —
+      # delete just that environment (idempotent: absent = success).
+      - name: Destroy preview environment
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
+          hosting/railway/oss/scripts/preview-clone-destroy.sh
+
+      - name: Update preview comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const marker = '<!-- railway-preview-bot -->';
+            const action = context.payload.action;
+            const reason = action === 'converted_to_draft'
+              ? 'Destroyed (PR converted to draft)'
+              : 'Destroyed (PR closed)';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              const body = [
+                marker,
+                '### Railway Preview Environment',
+                '',
+                '| | |',
+                '|---|---|',
+                `| **Status** | ${reason} |`,
+                '',
+                `_Updated at ${new Date().toISOString()}_`,
+              ].join('\n');
+
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            }
+
+      - name: Summary
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: |
+          {
+            echo "### Railway Preview Cleanup"
+            echo ""
+            echo "- **PR:** #${PR_NUMBER}"
+            echo "- **Action:** Destroyed preview environment"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup-stale:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.pr_number == '')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install jq
+        run: |
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y jq
+          fi
+
+      # Safety net for previews that outlived their PR (a cancelled run that
+      # died mid-cycle, a workflow bug): delete pr-* preview environments in
+      # the template project older than the max age. A sweep with nothing to
+      # delete costs ~3 API calls.
+      - name: Clean up stale preview environments
+        env:
+          RAILWAY_PREVIEW_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # Dispatch inputs reach the shell as env values, never as ${{ }} inside
+          # `run:`: template expansion happens before the shell parses the script,
+          # so an interpolated input can inject commands onto the runner.
+          MAX_AGE_HOURS: ${{ inputs.max_age_hours || '6' }}
+        run: |
+          case "$MAX_AGE_HOURS" in
+            '' | *[!0-9]*) echo "max_age_hours must be a whole number of hours" >&2; exit 1 ;;
+          esac
+          chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
+          hosting/railway/oss/scripts/preview-clone-destroy.sh \
+            --stale-hours "$MAX_AGE_HOURS"
+
+      - name: Summary
+        if: always()
+        env:
+          MAX_AGE_HOURS: ${{ inputs.max_age_hours || '6' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: |
+          {
+            echo "### Railway Stale Preview Cleanup"
+            echo ""
+            echo "- **Max age:** ${MAX_AGE_HOURS}h"
+            echo "- **Dry run:** ${DRY_RUN}"
+          } >> "$GITHUB_STEP_SUMMARY"

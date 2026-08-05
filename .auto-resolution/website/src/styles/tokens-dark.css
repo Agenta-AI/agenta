@@ -1,0 +1,67 @@
+/* Agenta dark-theme tokens — ported VERBATIM from the design source:
+   Agenta landing page pivot/tokens/agenta-dark.css
+   The canonical warm dark palette (elevation ladder + warm-white alphas). Shared
+   by the marketing site's dark treatment and the product app's dark mode. Replaces
+   the old cold near-black stack (#0A0A0B / #0E0D0F / #100F11 / #161518). The
+   old→new mapping is documented at the bottom of the source file.
+   Do not hand-edit values here; edit the source and re-port. */
+
+:root,
+.theme-dark,
+[data-theme="dark"] {
+  /* ── Surfaces — elevation ladder (deepest → highest) ───────────────────── */
+  --ag-d-bg-0: #0e0d0b; /* page canvas / deepest */
+  --ag-d-bg-1: #151310; /* raised section, hero band */
+  --ag-d-bg-2: #1c1a16; /* card, panel */
+  --ag-d-bg-3: #24211c; /* elevated card, hovered surface, popover */
+  --ag-d-bg-4: #2c2823; /* highest — tooltip, active row, menu */
+  --ag-d-chrome: #131110; /* nav / footer chrome */
+
+  /* Frosted fill for floating / sticky surfaces (use with backdrop-filter) */
+  --ag-d-glass: rgba(18, 16, 15, 0.72);
+
+  /* ── Borders — warm-white alphas ───────────────────────────────────────── */
+  --ag-d-border-subtle: rgba(252, 248, 240, 0.06); /* hairline / section rule */
+  --ag-d-border: rgba(252, 248, 240, 0.1); /* default control border  */
+  --ag-d-border-strong: rgba(252, 248, 240, 0.16); /* emphasized / focus ring */
+
+  /* ── Text — warm-white emphasis scale ─────────────────────────────────── */
+  --ag-d-text-hi: #f7f4ee; /* headings / high emphasis  */
+  --ag-d-text: rgba(248, 245, 239, 0.72); /* body                       */
+  --ag-d-text-mut: rgba(248, 245, 239, 0.5); /* secondary / captions       */
+  --ag-d-text-dim: rgba(248, 245, 239, 0.34); /* disabled / faint labels    */
+
+  /* ── Accent — Agenta yellow (use ONE moment per viewport) ─────────────── */
+  --ag-d-accent: #f2f25c;
+  --ag-d-accent-hover: #f6f67e;
+  --ag-d-accent-press: #e2e224;
+  --ag-d-on-accent: #242424; /* text/icon on yellow        */
+  --ag-d-accent-faint: rgba(
+    242,
+    242,
+    92,
+    0.12
+  ); /* tinted highlight surface   */
+  --ag-d-accent-ring: rgba(242, 242, 92, 0.32); /* highlighted border/glow    */
+  --ag-d-grad-accent: linear-gradient(180deg, #f2f25c 0%, #e7e712 100%);
+
+  /* ── Interaction overlays ─────────────────────────────────────────────── */
+  --ag-d-hover: rgba(252, 248, 240, 0.04); /* row / item hover tint      */
+  --ag-d-active: rgba(252, 248, 240, 0.08); /* pressed / selected tint    */
+  --ag-d-scrim: rgba(0, 0, 0, 0.6); /* modal backdrop             */
+
+  /* ── Data & semantic (suggested for the platform — muted, warm-leaning) ── */
+  --ag-d-data-terracotta: #d97757; /* charts / data accent       */
+  --ag-d-success: #6fbf8e;
+  --ag-d-warning: #e7b45c;
+  --ag-d-error: #e0735c;
+  --ag-d-info: #6fa8e0;
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  --ag-ease-row: cubic-bezier(
+    0.44,
+    0,
+    0.56,
+    1
+  ); /* row/hover tints, ~0.15s    */
+}

@@ -1,0 +1,73 @@
+---
+id: fetch-workflow-catalog-preset
+title: "Fetch Workflow Catalog Preset"
+description: "Return a single preset for a template by key."
+sidebar_label: "Fetch Workflow Catalog Preset"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtv3DYQ/ivEnBKA2XWCnhYoUMNJGjdts1g76cFZ2LQ0kphIpMLHOpuF/nsx1GOlfciNkxY95GSvOPNxHh+HnNmAE6mF2RX8pc3HJNd3FpYcYrSRkaWTWsEMFui8UUwwK1WaIysNWnQs0YYJ5rAoc+GQ3a7ZR1xP3qv3qlaw7CbSXrmfT27YXYaKuazTlZYp7ViMiVQYB6ULxBm76sxYPpoaTNCginAqSvkk9TLG6V27/ngCHHSJRpCV5zHMIEEXZdetxHUknMh1el1vCRxKYUSBDg05vAElCoQZtA5cf8Q1cJDkcSlcBhwMfvLSYAwzZzxysFGGhYDZBty6JF3rjFQpcHDS5fThso3Ga1xDVfFul9qI77LHvA5hvcOSEGyplUVLSs9OTujPMIEXPorQ2sTnbNEIA4dIK4fKkbgoy1xGIZLTD5Z0Nj1DSkNxdrLeIeS0Z59UDlM0PQPPgsQui26eHqSBCVzBmLOblifEjER7FU8CSCJ87mB2UvEmisFitX6ThDQOravD3V8fhpFS0nxRPs+BAtja/SfpVjt2PwzqeQ+i4kBpH8loSCWHSDhMtWk82W4rHRZ2X7/i7QdhjFiP2nO2ha44JHk49MejKO11jxK9rW+1zlGonu3nlp32RHsJS0RuseIEhiuRe+G0uQ/qRSd4GMgqWZbo7oO5aMQOgwgTZXJFR+4ev1q5wzAGI10UqOL7kRY90T2wbR717QeMXE+1rYZndSl7GfK2n2firHBiLKPeyIdy+a2RRBpv8ocj5ISQoYhD8e2jiDiWxByRzwcGj+0zdG2Fxn7DUX3XqFccbO7Th8JckC4RIx5D4JBoUwgHM/BexqOI5zGMcWPR3o41AYZiY7ivmjRUHIxXTo4XTA6ofEEvhHLtsnDCSaAub8Dhg1iJ5sdybNdFsxWFuRZ/aKBr7aq9KkcLWf/K/1bW7dx3AxuL2+GXtgrQp8N7QSRN5HNhHr30ef6b1erJG+9K7x7DoWQ2d8A/0br/NtjRha+iz3wbUqK7Kr37EdzvFdzzOpwVBx20f0T2e0X2TRPPsZJK4BdNUTl4y/4oJ/9qOan4Ee/CQ+n+Z9ICV5Lu8uf0GDqQwAOp37ZfV+GVvjz6+KrbroO+DBsdaiNi1lGFUaPTNLpMpEIq63p982SUkQdt6Hq4qiLdn54922/53olcxuFJzl4YE97TD+z3YnRChqdf14cMBXIdDVa/hvTL3SZm6/rvumkpKg6FTcf6pz/QWpHilnjHRUMw2CWttrdXEO/X39CLuc89mL28nFEsP7uDuetTimJTm9/I9R+eXYrqDB0PxfM6BWNEeXV5Od8DrPlRoMs0zUfSZgriMpjBdpIybQYl05aSdrrpD0Wqad122+lmO8WogINFs2qHKaE7ABrUhDzXPzPnSjubTtFPolz7eCJSVE5MhKwFl4QReSPdOoCczs9f47p+n8LsatkXCHW5JtxQrEuSKOXrMF5pRi6n3mXayC9tYxqmLnUPEkIpVaL7uT8NxrHT+fne7GKwROdIRG47bWiWge+4vfWWXtFFOEXgUBS/dCuU9K5/gZPJ08kJfSq1dYVQvS1e0myLteWANfWAzdvZ1s7Mojvr/+PhXZM2OkfTMhdS9brMmqRX0GlAGI+Qz6TZEhU4zHbmdw1XaaU3c1tyyLR1BLnZ3AqLb01eVfT5k0dD7FtyWAkjxS1x4WoDsbT0f9xdPkcj/GjRHPjH7JhXLUMVWUgjDvoFzVxoOIGk0/Mf7t2LUSjGWXv4No3AaRRhaPRa1b27g05pV2N+fXEJVfU3Z7C6iQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Workflow Catalog Preset"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/catalog/templates/{template_key}/presets/{preset_key}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return a single preset for a template by key.
+
+Returns `count=0` when the preset is not defined.
+
+See: [Workflows](/reference/api-guide/workflows).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-workflow-catalog-preset.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-workflow-catalog-preset.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-workflow-catalog-preset.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

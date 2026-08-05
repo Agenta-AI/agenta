@@ -1,0 +1,73 @@
+---
+id: fetch-application
+title: "Fetch Application"
+description: "Fetch one application artifact by ID."
+sidebar_label: "Fetch Application"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdV9ty2zYQ/RXMPiUzsORk+qROZ6r6krhpG4+t9MXWWBC5lJBCAIOLE1XDf+8sSMogJV/icV76JJFcnF2cPQvsbsCLhYPRFYzLUslMeGm0gymHHF1mZUnPMIJT9NmSGY1M3NkxYb0sRObZfM3OjgfX+lpfoA9Wu+2nA4W3qFghUeWOGa3WAzYxbIGe+SWyLFiL2rNbYaXQnl9ri7fSSaM5Ezpns1x4MWNSM8Gc1AuFLBNKcRYcXuvZu5MJGzq5KhUOk8DccJM83ci8mg2AgynRxjdnOYygoC3dJHbAoRRWrNCjJUo2oMUKYQRdLOAgiZJS+CVwsPglSIs5jLwNyMFlS1wJGG3Ar0ta7byVegEcCmNXwsMIQogoXnpFBgnz7CyHqpoSqiuNdugI6O3hIf10M3IZsgydK4JiF40xcMiM9qg9mSdRDz87WrNJgistseFl7SEzoV7UxCy1xwXaJMijaNGXxezNjH1doo65TJXxVThWmKBzzmaHM2b8Eu1X6XAQIQoRlIfRYcXTKGPQev2xiNx3AyyMytES+x2jhymu+NZCB6WAiG33cxoBI98cChWL4H730t30Am1w58YoFDoh6syxcUdT2+0WQjmsOIHhrVBBeGMfgzrZGu4HclqWJfrHYC4bsx2QirfrzPwzZn6/LMdNMZ9GnvoiSPUbmWQHrEvYLxMb8OdaBawJ0FEJk26kZZrSplgTm2NBK3SO4TdCkF6tmUM/2JNPCn8ndSLPJXkV6ryTxB3ZtFQluI2S6M1+GMikzYIS9tUfYo7qd2f0wcfgy+BfQ5/LVG99a9hh/iG1TmiTFYcVevHMzSY76xV5x/Fq3n2TcvQYI6dBPUII34D0uHriKmGtWD9cxd2130fqn0RmxZtT/kmU7WD8RWurXkU8D+o4gag4ZBaFx/xG+CceebnweOBljOd+L0c1LBtHskKZ/wgnn2rYxkmOCn+Ak+MatnHS0jVfv+Al0ZL127q5KFq+XtRLy9bWS0vYi3pp6dp6cSosnqvVS1pLN9CLhRcbnyddRnthujfSZLm/T+XMWDajRTMmC6aNr5uUwVN9J51WrxuLvelB6rRt4RjqW1SmRPJCfn56+3a3nftbKJnXC0+sjff9M3u5HL2QKnYt9VHbN1Am63z9nqtiWvVO5+SGM9v8wMot9nXAdyevc2KBd8f1/aaRDDahr6Q3Tac8mbey0c2xn/lvCcxODo+Iy29+b57vOviryE0dfmOXSPQuRXWG7qfiuE7BQ6J6P5mc7wDW+lihXxqaUBaxY4tzxggenm+Ag0N72w4uwap6iYxZrB+X3pduNBxiGGTKhHwgFqi9GAhZG04JIwtW+nUEGZ+ffcD1exQ5WhhdTVODSxJfLaeu2TYFopQfkEhphqhx8Etj5b9tWxxnqGW9qoqpLUya2XEMjo3Pz3YbzvQTVYnIoihaT/Ez8N6273YLHHAVawQ8itWv2y+UUuKwdnM4eDM4pFelcX4ldOKiHof7fX6nBdhW7/9jdm6ySkU0LJWQscwjwZtGoVfpKUVTwqg3N085LI3zZLnZzIXDT1ZVFb3+EtCS5qYc4mbmpICrDeTS0f+8mVYe4PjVRVPEr9l9wba61CRKGqvoCTj8g+vdGT8edMtW+pvGaJxlWPpk+c65TDWyrd93JxOoqv8Az/T/nA==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Application"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/applications/{application_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch one application artifact by ID.
+
+Returns artifact-level fields only. To get the current variant,
+revision, and `data` in a single call, use
+`GET /simple/applications/{application_id}`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-application.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-application.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-application.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

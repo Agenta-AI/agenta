@@ -1,0 +1,91 @@
+---
+title: Open Source vs. Commercial
+sidebar_label: "OSS vs. Commercial"
+description: Agenta, the open-source workspace for your agents, offers both MIT-licensed open source features and commercial features. Compare self-hosting options, feature availability, and licensing details.
+---
+
+Agenta follows an open-core model. The core product is open source under the MIT license: prompt management, the playground, observability, evaluation, agents, custom workflows, team workspaces, and role-based access control. Commercial features cover enterprise governance (single sign-on managed per organization, audit logs, custom roles) and professional support.
+
+This page tells you exactly what is in each edition, so you can decide whether the self-hosted open-source version gives you what you need.
+
+## Licensing
+
+The repository at [github.com/Agenta-AI/agenta](https://github.com/Agenta-AI/agenta) contains two kinds of code:
+
+- Everything outside the `ee/` directories is licensed under the **MIT license**. You can self-host it, modify it, and use it in commercial products without restrictions. This includes all SDKs and client libraries.
+- Code inside the `ee/` directories is source-available under the **Agenta Enterprise License**. You can read it and modify it for development and testing, but production use requires a commercial agreement.
+
+The open-source build does not include any Enterprise-licensed code. The open-source Docker images are built only from the MIT-licensed directories, and the application never loads `ee/` code when it runs with the open-source license. Running the open-source version cannot execute enterprise-restricted code.
+
+## Feature availability
+
+| Feature | Open Source | Commercial |
+|---------|------------|------------|
+| Prompt management and playground | ✅ | ✅ |
+| Observability and tracing | ✅ | ✅ |
+| Automatic and human evaluation | ✅ | ✅ |
+| Agents, agent runner, and sandboxed execution | ✅ | ✅ |
+| Custom workflows | ✅ | ✅ |
+| API access, API keys, and SDKs | ✅ | ✅ |
+| Provider keys and secrets management | ✅ | ✅ |
+| Multiple organizations and workspaces | ✅ | ✅ |
+| Team invitations and user management | ✅ | ✅ |
+| Role-based access control (built-in roles) | ✅ | ✅ |
+| Authentication, including OAuth/OIDC providers configured at deployment | ✅ | ✅ |
+| Organization-managed SSO with domain verification | ❌ | ✅ |
+| Custom roles | ❌ | ✅ |
+| Audit logs | ❌ | ✅ |
+| Professional support with SLAs | ❌ | ✅ |
+
+Some commercial features are tied to specific plans. See the [pricing page](https://agenta.ai/pricing) for which plan includes what.
+
+### Role-based access control
+
+The open-source version includes full role-based access control. It ships six built-in roles (owner, admin, developer, editor, annotator, and viewer), and you can assign and change member roles from the workspace settings or through the API. Permission checks are always enforced.
+
+The commercial version adds **custom roles**: defining your own roles or changing what the built-in roles can do.
+
+### Authentication and single sign-on
+
+The open-source version supports email/password login, email one-time codes, and third-party login providers that you configure at deployment time through environment variables. The built-in providers include Google, GitHub, Okta, Azure AD, GitLab, and others, plus SAML through BoxyHQ. If your team signs in through one identity provider that you as the operator configure once, the open-source version covers that.
+
+The commercial version adds **organization-managed SSO**: each organization configures its own OIDC provider from the app (SAML support is planned), verifies ownership of its email domain through DNS, and can enforce which sign-in methods its members may use. This is what teams usually mean by "enterprise SSO".
+
+### Audit logs
+
+Audit logs are commercial only. The commercial version records who did what across the workspace and provides a screen and an API to search those events. The open-source version has neither the screen nor the API.
+
+## Self-hosting
+
+- Open source: follow the [self-hosting guide](/self-host/quick-start). The self-hosted stack includes the full platform, including the agent runner and sandboxed code execution. There are no user limits or usage limits.
+
+- Enterprise: the commercial features are also available self-hosted, including Bring Your Own Cloud deployments. [Contact our team](mailto:team@agenta.ai) or [book a call](https://cal.com/mahmoud-mabrouk-ogzgey/demo).
+
+## Frequently asked questions
+
+### Can I use the open-source version in a commercial product?
+
+Yes. The MIT license allows commercial use without restrictions.
+
+### Is there a limit to how many users or applications I can create with the open-source version?
+
+No. Seat limits and usage quotas exist only on the cloud plans. The open-source version has no limits on users, applications, traces, or evaluations.
+
+### Is it safe to use the open-source version in an enterprise environment?
+
+Yes. The open-source build contains only MIT-licensed code. The Enterprise-licensed code lives in separate `ee/` directories that are excluded from the open-source images and never loaded by the open-source build.
+
+### If I contribute code to Agenta, what license will it be under?
+
+Contributions outside the `ee/` directories are licensed under MIT.
+
+### Can I get professional support for the open-source version?
+
+Community support is available through [GitHub](https://github.com/Agenta-AI/agenta) and [Slack](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw). Professional support with SLAs requires a commercial plan.
+
+### How do I upgrade from self-hosted open source to the commercial features?
+
+You have two options:
+
+1. Switch to the cloud offering by [creating an account](https://app.agenta.ai).
+2. [Contact our team](mailto:team@agenta.ai) or [book a call](https://cal.com/mahmoud-mabrouk-ogzgey/demo) for enterprise self-hosting.

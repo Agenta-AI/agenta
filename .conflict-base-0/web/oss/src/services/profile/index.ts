@@ -1,0 +1,69 @@
+// web/oss/src/services/profile/index.ts
+/**
+ * Profile Service - Modern fetchJson Implementation
+ *
+ * Aligned with working patterns from projects, variants, and revisions.
+ * Uses standard fetchJson for consistency and reliability.
+ */
+
+import type {User} from "@agenta/shared/types"
+
+import {fetchJson, getBaseUrl} from "../../lib/api/assets/fetchClient"
+
+/**
+ * Update user profile via REST
+ * Returns an axios-like object with `data` for compatibility
+ */
+export const updateProfile = async (
+    payload: Partial<Pick<User, "username" | "email">> & {
+        avatar?: string
+        preferences?: Record<string, any>
+    },
+): Promise<{data: User}> => {
+    const base = getBaseUrl()
+    const url = new URL("api/profile", base)
+    const data = await fetchJson(url, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+    })
+    return {data}
+}
+
+export const updateUsername = async (username: string): Promise<{data: User}> => {
+    const base = getBaseUrl()
+    const url = new URL("api/profile/username", base)
+    const data = await fetchJson(url, {
+        method: "PUT",
+        body: JSON.stringify({username}),
+    })
+    return {data}
+}
+
+/**
+ * Change user password via REST
+ * OSS note: backend may restrict direct password change; this endpoint is
+ * structured for compatibility and can be wired to the appropriate route.
+ */
+export const changePassword = async (payload: {
+    currentPassword: string
+    newPassword: string
+}): Promise<void> => {
+    const base = getBaseUrl()
+    // Prefer an auth-scoped route; adjust if backend differs
+    const url = new URL("api/auth/change-password", base)
+    await fetchJson(url, {
+        method: "POST",
+        body: JSON.stringify(payload),
+    })
+}
+
+/**
+ * Permanently delete the current user's account (EE only). Removes the user
+ * from the database (with the organizations they own), the auth provider,
+ * Stripe, and the marketing email list. Irreversible.
+ */
+export const deleteAccount = async (): Promise<void> => {
+    const base = getBaseUrl()
+    const url = new URL("api/profile", base)
+    await fetchJson(url, {method: "DELETE"})
+}

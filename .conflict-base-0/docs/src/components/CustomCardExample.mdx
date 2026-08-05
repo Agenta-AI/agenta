@@ -1,0 +1,109 @@
+---
+title: Custom Card Icons Example
+description: Example page showing different card icon options
+---
+
+import CustomDocCard from '@site/src/components/CustomDocCard';
+import DocCard from '@theme/DocCard';
+
+# Custom Card Icons Example
+
+This page demonstrates the different ways to use custom icons with DocCard components.
+
+## Default Card (Standard Arrow)
+
+<DocCard item={{
+  type: 'link',
+  href: '/docs/',
+  label: 'Documentation Home',
+  description: 'Standard card with default arrow icon'
+}} />
+
+## Card with Emoji Icon
+
+<CustomDocCard
+  item={{
+    type: 'link',
+    href: '/docs/',
+    label: 'Getting Started',
+    description: 'Card with a rocket emoji icon'
+  }}
+  icon="🚀"
+/>
+
+## Card with Different Emoji
+
+<div className="row">
+  <div className="col col--6 margin-bottom--lg">
+    <CustomDocCard
+      item={{
+        type: 'link',
+        href: '/docs/',
+        label: 'API Reference',
+        description: 'Explore our API endpoints'
+      }}
+      icon="📚"
+    />
+  </div>
+  <div className="col col--6 margin-bottom--lg">
+    <CustomDocCard
+      item={{
+        type: 'link',
+        href: '/docs/',
+        label: 'Tutorials',
+        description: 'Step-by-step guides'
+      }}
+      icon="🎓"
+    />
+  </div>
+</div>
+
+## Card Without Icon
+
+<CustomDocCard
+  item={{
+    type: 'link',
+    href: '/docs/',
+    label: 'FAQ',
+    description: 'Frequently asked questions - no icon needed'
+  }}
+  noIcon={true}
+/>
+
+## More Examples
+
+<div className="row">
+  <div className="col col--4 margin-bottom--lg">
+    <CustomDocCard
+      item={{
+        type: 'link',
+        href: '/docs/',
+        label: 'Quick Start',
+        description: 'Get up and running fast'
+      }}
+      icon="⚡"
+    />
+  </div>
+  <div className="col col--4 margin-bottom--lg">
+    <CustomDocCard
+      item={{
+        type: 'link',
+        href: '/docs/',
+        label: 'Configuration',
+        description: 'Configure your setup'
+      }}
+      icon="⚙️"
+    />
+  </div>
+  <div className="col col--4 margin-bottom--lg">
+    <CustomDocCard
+      item={{
+        type: 'link',
+        href: '/docs/',
+        label: 'Best Practices',
+        description: 'Learn the best approaches'
+      }}
+      icon="✨"
+    />
+  </div>
+</div>

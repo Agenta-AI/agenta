@@ -1,0 +1,109 @@
+---
+title: "Quick start"
+sidebar_label: "Quick start"
+description: "Build a working agent in Agenta in about five minutes. Describe the job, connect a model key, and give the agent its first piece of real work."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+This page takes you from an empty Agenta project to one agent doing a real piece of work. It takes about five minutes and needs no connected apps.
+
+An agent in Agenta starts empty, and you tell it what job it is for by chatting with it, not by filling in forms. ChatGPT, by comparison, gives you one prebuilt agent that already works for everything. The agent you build on this page is set up for one job.
+
+## Before you start
+
+- An Agenta account. [Agenta Cloud](https://cloud.agenta.ai) is the hosted version. To run Agenta yourself, see the [self-host quick start](/self-host/quick-start).
+- An API key from a model provider. This page uses OpenAI. For any other provider, see [Choose a harness and model](/guides/choose-a-harness-and-model).
+
+## Step 1: Describe the agent
+
+Open your project. The home screen asks **What do you want to build?**
+
+Type what you want the agent to do. For this run, use:
+
+```text
+Turn my rough notes from a week of work into a short weekly update
+I can send to my team. Plain sentences, no bullet lists.
+```
+
+Click `Create agent`. Agenta creates the agent, names it, and opens its playground.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/home-what-do-you-want-to-build.png")}
+  alt="The Agenta home screen, headed What do you want to build, with the description box and the Create agent button"
+  loading="lazy"
+/>
+
+That one sentence is the whole agent so far. The rest of this page fills it in.
+
+## Step 2: Connect a model
+
+The playground opens in `Build` mode. The `Configuration` column is on the left, the conversation on the right. Above the message box a banner reads `Add your model provider key to run this agent.`
+
+1. In the `Configuration` column, click `Model & harness`.
+2. Leave the segmented control on `API key`.
+3. Click the `OpenAI` tile.
+4. Paste your key into `API key *` and click `Save`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/model-and-harness-panel.png")}
+  alt="The Model and harness section expanded, showing the API key and Subscription control, the provider tiles, and the API key field"
+  loading="lazy"
+/>
+
+The section header names the two things the agent runs on: a harness and a model. The model answers messages. The harness drives it, runs the tools it asks for, and feeds the results back. See [Harnesses and models](/concepts/harnesses-and-models).
+
+## Step 3: Answer the agent's questions
+
+The conversation opens with a card holding your description and a `Start` button. Click it.
+
+The agent picks up your description and asks you about the job: who the update is for, what usually goes in it, how you want it to sound. Answer in plain sentences, the way you would brief a new colleague.
+
+As you answer, the agent writes what it learns into its own configuration. Watch the `Instructions` section in the `Configuration` column while you talk.
+
+## Step 4: Give it real work
+
+Now give the agent something to do. Paste a handful of rough notes from your week and ask for the update:
+
+```text
+Here are my notes from this week. Draft the update and save it as
+update.md.
+```
+
+A new agent reads on its own and asks before it writes. If a card headed `Approval needed to continue` appears, click `Approve`. See [Permissions](/concepts/permissions).
+
+The agent drafts the update and writes the file. Files it creates appear in the conversation as a card with a `Download` button.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/chat-run-with-file-artifact.png")}
+  alt="A finished run in the playground, with a file card showing the file name, a Created badge, and a download button"
+  loading="lazy"
+/>
+
+## Step 5: Correct it, then keep the version
+
+Tell the agent what to fix, and tell it to keep the correction:
+
+```text
+Too long, and don't open with a greeting. Keep every update under
+120 words. Remember that from now on.
+```
+
+The agent updates its instructions. The `Instructions` section shows the new text, and the state dot next to the version pill in the header turns to `Draft`.
+
+Click `Commit`, keep `New version` selected, and click `Commit`. The agent is now at version 2, and the change is recorded.
+
+## What you have
+
+You now have an agent that knows one job, holds the corrections you gave it, and has a version history. You built it by describing the work and correcting the result.
+
+## Next
+
+- [Build your first agent](/learn/build-your-first-agent) is the full path: instructions, tools, a skill, permissions, and a committed version.
+- [Agents](/concepts/agents) explains what an agent is made of.
+- [Automations](/concepts/automations) covers running an agent on a schedule or on an event in a connected app.

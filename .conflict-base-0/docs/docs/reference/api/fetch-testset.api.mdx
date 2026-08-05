@@ -1,0 +1,73 @@
+---
+id: fetch-testset
+title: "Fetch Testset"
+description: "Fetch a testset artifact by ID."
+sidebar_label: "Fetch Testset"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVV01z2zYQ/Ss7OCUztORkemIvdeO4cdPWnkTpxfbEELEUkUAAAyzkKBr+986CpERJtuN4nENPlondt4u3H9hdCZKzIPILMcFAASmIq0woDIXXNWlnRS5OkIoKJFArAdKTLmVBMF3C6fHo0l7ad0jR2wBU4ebYuxtw1ix/TZqFDBhAeoRAzqMCZ8HjQgftbABp1aWdx0AwRSjZICpYaAnX485sGK+lxx7Ja1zgNTh/aVuRhD/+EtEvr0ciE65GL/kGp0rkIkF+7KBEJmrp5RwJPd99Jayco8hFd/5RK5EJzXevJVUiEx6/RO1RiZx8xEyEosK5FPlK0LJmzUBe25nIROn8XJLIRYwJhTQZFujohVMlmuaKEUPtbMDAIC8PD/nPNu3vY1FgCGU08K4TFpkonCW0xOKyro0u0h3HnwLrrAaO1Z4ZIN1aKFxslTp/tSWcoR84+CpJ7Mb+BehyEPobGcCnWKPK4BAcVehvdMBR0ixlNCTywybrqUx+2uVZmWje9ql0RqFnsreE7me0ydYSNhojmMv+CicJMFGcidKkxL7TPPvY4rjpJyxoP1YnCWGXkXMjC6xaS6XzPTUHBhdoIFlNJTGpdIC5U2hAB9ApatpZacwScF7TEqaR4DPWBDKABIWKg4kK2C0IDqiSlF/aA8CvOpC2M/BYokdbYABycJ2M5XBWt8AXQ7+vrsHjXGoLC2m0ytoKO4BAPhYUuQCTOhTScs1JpVBBhR5B21THZWQxuNFUuUgw9Sg/sxNU4aUFCNF7F63iT8eTszC6JTTM8V4UpFK6dfh8Kx32MmDqnEFph7hdUvCX22FEoX0RjfTP/pJTNH8GZw/OItWRnovdgA9TZ1da7KXHfYk34Us2mZgjyUdednCznRLdMjyfbn8ZcvQ9Rk6i+Q4h2UpowvkDtaT3cnl/QW7r/hipfzOZTdb15gdRtofxD+s2OyX8OKjjAUSTicIjF+tHSQ/sXkoSHpBO/txt5VULC0eJrFirn2HkQwvbGVFo8CcYOW5hOyM9XdPlE/b7nqzfl13P7/l6Uis9W2srPWFPaqWna20lmDh7bK6+Z90mE0/nXhpbvvti3gqx/XxOKtwbJEdw7DCAdQTaFiYq3EyMo4fYXc9HTcPSv7x8uT9O/cvPYBqW4LX3zj9+llJIUhv+1TXLXQHjiq3TH2n2V81Ofx28Ua51ML00YXbb9LnpnSHIGW4a7t2iiQyY8ClnjOU+zeJ94G3XuAv6OoDZi8Qr5vIr3RqtzfR8kbhp3e/kBkm2CVEbobupOG5DcF9qvJlMzvcA2/yYI1WOt4JZtwtQJXKxWTRWmz2gEZkI6Bf9ohC9YVFZ6xS99t+KqA75eIxxVBgX1UjO0JIcSd0KXjFGEb2mZQI5Oj99i8s3KBV6kV9cDQXec9K1abQttqZe1votMhnd0nIUqXJef2tzo9tbqlarSSEt3TCiR8k5ODo/3Zttt464OmSRkqG3lI5FtnPtzW1FJnjmNGmVkvPf1iccSuawNXM4ejE65E+1CzSXdmCi3TUn6z1t5+FeV+z/dCntQsiVMq6N1KmWE5urLg0v+s2JN498sJBeZaJygVhitZrKgB+8aRr+nOA5jzKxkF7LKYf5YiWUDvxbibyUJuA9ZD5711Xoc7jLyT75LGfeQprI/4lMfMbl9uKcOljV5/aqEzgqCqxpoLrXcLkI1oX5x+uJaJr/APTovE4=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Testset"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/testsets/{testset_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch a testset artifact by ID.
+
+Returns the artifact row only; testcases are stored on revisions and
+must be fetched via `/testsets/revisions/retrieve` or
+`/testcases/query`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-testset.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-testset.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-testset.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

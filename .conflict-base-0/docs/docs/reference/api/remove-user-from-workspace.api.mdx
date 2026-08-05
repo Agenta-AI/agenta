@@ -1,0 +1,73 @@
+---
+id: remove-user-from-workspace
+title: "Remove User From Workspace"
+description: "Remove a user from a workspace."
+sidebar_label: "Remove User From Workspace"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVUGP0zwQ/SvWnECy2mXFKSeqb4uoALFaysdht1p5k2ljSGJjTxZK5P+Oxk7SdAsrgThwqmq/eTN+M2/SAamdh+waPhr32VuVo4eNhAJ97rQlbRrI4Aprc49CidajE1tnaqHE1yFgdtPcNAu389lNI4QQWCtdiSee3NNMrEvsD1RROPRemK2gEhMVGXGHwkX6IkWPtLe6mJKsLobIQ2KQYCw6xWWuCsggMd0y9y2XeTtiQYJVTtVI6Pi9HTSqRshgmg8kaH6vVVSCBIdfWu2wgIxcixJ8XmKtIOuA9pZjPTnd7EACaar4YBRRrAoIQY5ZogQD/ZcW3f6P+JeRJoQNB3trGo+e8ednZ/xz3LX3bZ6j99u2Elc9GCTkpiFsiOHK2krnUb35J88x3aGGEEKQ8Pz8/JT4f1XpIoaJpXPG/QYrWMcdI53qLpD4QVkHmrD2p4DK5Ee3qtm/28b2HUvEUvcnuiHcoYOwCXI4U86p/UTHNyYVCEFC7XePSf4WvVc7hJHske6wGGLNt4FbbdsoyHC9igdBQk7fJjTm7hPmNKH5j7X8Rjw/J5jDyFxHbVL5PW5z4Di0KHXo11JcpBb8LNkAebVeX54QpvmokUrDziuwQkouoxIymI++8vNu6rEwZ3d6kODR3Q9mbF3FQcrq2Mr0tySyPpvPsZ3llWmLmdphQ2qmdAJumCNvnaZ9JFlcrl7j/hWqAh1k15sp4D1PYJqpY9jYB2X1a2RlessuWiqN09/ToPTWLVNUiP3dmml7F7E4sbhcwcP9eXTFVlF5nIwhU7wG+eDZh9eC7BdIBoSqfjHecF9Zw5TmbPZsdsZH1niqVTNJ0W/wD7x0X/L+/jhZjEfFdgcv/8t7v28aG2VuK6WjlaN+XT+C14fVztOWPVj0aQo3EkrjidFdd6c8fnBVCHycljSPVaG9uqvYc1tVeXxErydXvT2fil+V+Bn3k8/BvapaxsRZvldOc6K/n3SY8GY/zTkUcyRM3JrlYKGuhyzyHC1Ngk+WPD9gXAYXyzfL9RJC+AE5Admv
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Remove User From Workspace"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/workspaces/{workspace_id}/users"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Remove a user from a workspace.
+
+Args:
+    email (str): The email address of the user to be removed
+    workspace_id (str): The ID of the workspace.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./remove-user-from-workspace.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./remove-user-from-workspace.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./remove-user-from-workspace.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

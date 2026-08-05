@@ -1,0 +1,59 @@
+---
+title: "Agents"
+sidebar_label: "Agents"
+description: "An agent is a configurable AI worker. Its instructions, skills, tools, files, permissions, harness, and model shape how it works."
+---
+
+An agent in Agenta is an assistant you build for a specific job. This page covers when to use an agent, what an agent is made of, how you create one, and how you can improve it over time.
+
+## When to create an agent
+
+Create an agent when you want an AI system to handle a recurring kind of work with the context and behavior you define. The job can be broad, narrow, or automated:
+
+- A marketing agent helps plan campaigns, review copy, and answer questions about your market.
+- An SEO agent researches keywords, updates briefs, and checks whether content follows your search strategy.
+- A competition monitor checks selected sources every week and sends a report when something changes.
+
+A general assistant starts with broad instructions and adapts to each request. A custom agent starts with your purpose, context, and working rules. You can then refine its configuration as you learn what produces the results you want.
+
+The useful boundary is a stable job, not a single task. If the same context, capabilities, and rules apply across many requests, they belong to one agent.
+
+## What an agent contains
+
+An agent combines the context that defines its job with the runtime that performs it.
+
+| Part | What it contributes | Marketing example |
+|---|---|---|
+| **Instructions** | The agent's role, goals, standing context, and rules. | Define the company, audience, tone, and work the agent should handle. |
+| **Skills** | Guidance for tasks that need a specific process. | Load the team's campaign-brief process when the agent creates a brief. |
+| **Tools and integrations** | Actions the agent can take in Agenta or connected systems. | Read campaign data, create a task, or send an approved message. |
+| **Files** | Reference material and working documents. | Store product notes, brand guidelines, and examples of approved copy. |
+| **Permissions** | Rules for which actions run, require approval, or are refused. | Let the agent read analytics, but require approval before it publishes. |
+| **Harness and model** | The software that runs the agent and the language model it uses. | Run the same marketing configuration with the harness and model you select. |
+
+These parts work together. The SEO agent might use its instructions to follow your search strategy, load a content-audit skill for the procedure, read a keyword file for evidence, and call an analytics tool for current traffic. Its permissions decide whether it can update a content brief or must ask first.
+
+## How to create an agent
+
+You can create an agent in two ways:
+
+- **Build it through conversation.** Describe the job in the playground. The playground build kit lets the agent update its own configuration as you clarify what you need.
+- **Configure it directly.** Edit the instructions and select the skills, tools, files, permissions, harness, and model yourself.
+
+Both paths create the same configuration. You can also move between them: ask the agent to make a change, then inspect or edit the result before you commit it.
+
+
+## How agents improve over time
+
+Improve an agent by turning feedback from real work into configuration changes. Suppose the SEO agent recommends topics that your company has already covered. You can tell it where the content inventory lives and require it to check that inventory before proposing a topic. The agent can update its configuration in the playground, or you can make the change directly.
+
+Agenta saves committed configuration changes as versions. Each version records the agent's instructions, skills, tools, permissions, harness, and model at that point.
+
+## Learn about each part
+
+- [Write your agent's instructions](/guides/write-your-agents-instructions)
+- [Skills](/concepts/skills)
+- [Tools and integrations](/concepts/tools-and-integrations)
+- [Files and knowledge](/concepts/files-and-knowledge)
+- [Permissions](/concepts/permissions)
+- [Harnesses and models](/concepts/harnesses-and-models)

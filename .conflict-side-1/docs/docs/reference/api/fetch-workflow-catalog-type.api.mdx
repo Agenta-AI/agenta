@@ -1,0 +1,73 @@
+---
+id: fetch-workflow-catalog-type
+title: "Fetch Workflow Catalog Type"
+description: "Return the JSON Schema for a single shared type key."
+sidebar_label: "Fetch Workflow Catalog Type"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVktz2zYQ/iuYPdkztKR4fOKpHidpHLexx3bbg6KxIHJJIoYABgBtqxr+984CoERKtprm1pMo7BPftw+swfHSQjqFv7R5LKR+tjBLIEebGVE7oRWkcIuuMYq5Ctnnu+sv7C6rcMlZoQ3jzApVSmS24gZz5lY1skdcjb6qryrYWXY2OWPPFQYPc14+kNacCcuUdqzmxjFdeKGtRF1jzjLuuNSl93KHmLLpJr3Z0dhggQZVhmNei5OyETmOnzv58QgS0DUaTtlf5pBCgS6rHjqNh+jcZwEJ1NzwJTo0BMMaFF8ipMA3ckEQ1NxVkIDB740wmEPqTIMJWI8EpGvwyilYZ4QqIQEnnKSD85Ldk6htZ2Rua60sWrI4nUzoZwj1XZNlaG3RSHYblSGBTCuHypE6r2spMn+38TdLNuteFrWhmzsRImS6CUYxOaEclmh62V14jV2+5+/mgS8e+MyxEEqQkDgznlXMEzafRD2isdCNykfeV8Eb6SCdtEmMvAauVteFx3eYYkC7Lx8C2SabE9VICYRil/wXsm13kv85V+97LtoEHnF1iNMrXJEWwf+wxZ7nuceIy5vBFX8gn46YQYrLxfBkobVErvzR67EgEyZrJDdHHxspP1utTq4bVzfuGDomQC++Yea8E+Fw+YNW3Bi+Oojgji20uxG3qqQWZwi0r+htm2zqmRgi3YvZzYSL0NChz17JcVjdgxFmeLlE5dhmpORssWLdqGBC1Y0ba38lFhKw7ElwNn854eUJBToxWMxHr17kQJ6b5m5bsjw7Pd2fBX9yKXLf6eyDMdr8/CDI0XEh6StyvqsgdTaQ/peanbU7ZbK9+G86JEjVsLTloZ76Ha3lJUJvZryl6sGIU5XGM5UbqUfxpYr1l7mXnps9Vi4Iyxf3ryVI2IT0o16vArcUBYbehuJ9oOBQmXy6v7/ZcxjqY4mu0rTKSnR+ZbkKUtguvXHcaWPybcfruL1aSMCieep2W2MkmfFaeCbD38q52qbjMTajTOomH/ESleMjLoLijHxkjRFu5Z2c31xe4eoT8hwNpNNZX8G3VSipodqGBl6LK9/Tcc+eN67SRvwd6iRu2ypYtZ7eQvfZPffJsfOby721NRBRp/DMbXdMFEOyc+3tbSEBXPo+AYd8+ctGQrQShiHMZPRuNKGjWlu35KoX4iM9NFjX7iz2eyjVvT216eX/4fsqkkn9M64lF77DPa7rWJxT2FgQGyFetKSTtHtgzRKotHVksV4vuMU/jGxbOv7eoKGSmyXwxI3gCyqA6RpyYek7h7Tg0uIBYI9uYx8fs7eS7spSUU0+cdnQP4hPgM0r0A+5qiv5dZSeZxnWrme3N5OpNza9++uHe2jbfwAX6fKl
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Workflow Catalog Type"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/catalog/types/{ag_type}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return the JSON Schema for a single shared type key.
+
+Returns 404 when the `ag_type` is not part of the shipped catalog.
+
+See: [Workflows](/reference/api-guide/workflows).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-workflow-catalog-type.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-workflow-catalog-type.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-workflow-catalog-type.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

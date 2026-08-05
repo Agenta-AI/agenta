@@ -1,0 +1,15 @@
+#!/usr/bin/env sh
+
+# Delegate to pre-commit which runs configured hooks (e.g. gitleaks) from .pre-commit-config.yaml
+if command -v pre-commit >/dev/null 2>&1; then
+  pre-commit run --hook-stage pre-commit
+else
+  echo "pre-commit not found. Install with one of the following:"
+  echo "  pip install pre-commit   # cross-platform"
+  echo "  brew install pre-commit  # macOS/Linux with Homebrew"
+  echo ""
+  echo "gitleaks is also required. Install with:"
+  echo "  brew install gitleaks    # macOS/Linux with Homebrew"
+  echo "  or see https://github.com/gitleaks/gitleaks#installation for other options"
+  exit 1
+fi

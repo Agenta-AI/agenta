@@ -1,0 +1,74 @@
+---
+title: "Use Tools and Function Calling"
+sidebar_position: 3
+sidebar_label: "Tools and Function Calling"
+description: "Learn how to use tools and function calling in the Agenta playground, including provider built-in tools and custom function calling."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+The Playground supports both custom tools (function calling) and provider built-in tools. Custom tools let you define functions that the model can call. Provider built-in tools give models access to capabilities like web search and code execution.
+
+<div style={{textAlign: 'center', margin: '20px auto', maxWidth: '50%', width: '50%'}}>
+  <Image img={require('/static/images/prompt_management/tools-dropdown-playground.png')} alt="Tools dropdown" />
+</div>
+
+## Provider Built-in Tools
+
+Provider built-in tools are native capabilities that LLM providers offer. When you enable these tools, the provider manages execution and returns results automatically. You don't need to handle tool calls yourself.
+
+### Supported Providers and Tools
+
+Different providers offer different built-in tools:
+
+**OpenAI**
+- Web Search: Access current information from the internet
+- File Search: Search through files uploaded to OpenAI
+
+**Anthropic**
+- Web Search: Retrieve information from the web
+- Bash Scripting: Execute bash commands in a sandboxed environment
+
+**Gemini**
+- Web Search: Search for current information
+- Code Execution: Run Python code for calculations and analysis
+
+### Adding Provider Tools
+
+To add provider built-in tools to your prompt:
+
+1. Open your prompt in the Playground
+2. Click the "Add Tool" button in the configuration panel
+3. Choose the tools you want to enable
+4. Test your prompt
+
+The model automatically uses these tools when needed. Tool configurations are saved with your prompt variant.
+
+### Using Tools via LLM Gateway
+
+When you invoke prompts through Agenta as an LLM gateway, the tools are included automatically. The provider handles tool execution during the request. Your application receives the final response after all tool calls complete.
+
+## Custom Tools (Function Calling)
+
+Custom tools let you define functions that the model can invoke. You provide the function schema; the model decides when to call each function based on the conversation.
+
+### Defining Custom Tools
+
+Define tools using JSON schema in the Playground:
+
+1. Click "Add Tool" in the configuration panel
+2. Select "Inline Tool"
+3. Provide the function schema
+4. Save your configuration
+
+### Testing Function Calls
+
+Test your function calling setup directly in the Playground:
+
+1. Enter a prompt that requires tool use
+2. Run the prompt
+3. Review the tool calls in the output
+4. Verify the function arguments match your expectations
+

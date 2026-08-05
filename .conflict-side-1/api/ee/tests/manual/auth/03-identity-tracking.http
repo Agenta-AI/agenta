@@ -1,0 +1,225 @@
+###
+# Identity Tracking & Session Payload Tests
+# Tests that user_identities are created and sessions contain identities array
+#
+# These tests verify the SuperTokens override functions are working correctly
+#
+# Prerequisites:
+# 1. SuperTokens Core running
+# 2. Migrations applied
+# 3. Backend started with SuperTokens configured
+###
+
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
+@contentType = application/json
+
+###
+# Test Flow 1: Email OTP Login → Check Identity Created
+###
+
+### Step 1: Request OTP Code
+# This triggers SuperTokens passwordless flow
+# You'll need to complete this via SuperTokens UI or SDK
+# After successful login, check database:
+
+# SQL to verify email:otp identity created:
+# SELECT * FROM user_identities
+# WHERE method = 'email:otp'
+# ORDER BY created_at DESC
+# LIMIT 5;
+
+# Expected:
+# - id: uuid
+# - user_id: matches SuperTokens user
+# - method: 'email:otp'
+# - subject: user's email address
+# - domain: extracted from email (e.g., 'example.com')
+
+
+### Step 2: Check Session Payload Contains Identities
+# After successful OTP login, use SuperTokens session verification
+# to check the access token payload
+
+# The session should contain:
+# {
+#   "userId": "...",
+#   "identities": ["email:otp"],
+#   ...other claims
+# }
+
+
+###
+# Test Flow 2: Social Login (Google) → Check Identity Created
+###
+
+### Step 1: Complete Google OAuth Flow
+# Navigate to: http://localhost/api/auth
+# Click "Continue with Google"
+# Complete Google auth
+# Check database:
+
+# SQL to verify social:google identity:
+# SELECT * FROM user_identities
+# WHERE method = 'social:google'
+# ORDER BY created_at DESC
+# LIMIT 5;
+
+# Expected:
+# - method: 'social:google'
+# - subject: Google user ID (stable identifier)
+# - domain: extracted from Google email
+
+
+### Step 2: Check Session After Social Login
+# Session should now contain:
+# {
+#   "identities": ["email:otp", "social:google"]
+# }
+# (assuming user previously logged in with OTP)
+
+
+###
+# Test Flow 3: SSO Login (OIDC) → Check Identity Created
+###
+
+### Step 1: Complete OIDC Flow (EE Only)
+# Prerequisites:
+# - Organization provider configured
+# - User initiates SSO via provider_id
+
+# After successful SSO login, check:
+
+# SQL to verify sso identity:
+# SELECT * FROM user_identities
+# WHERE method LIKE 'sso:%'
+# ORDER BY created_at DESC
+# LIMIT 5;
+
+# Expected:
+# - method: 'sso:acme:okta' (or sso:{org_id}:okta if slug not set)
+# - subject: OIDC subject claim from IdP
+# - domain: extracted from OIDC email
+
+
+### Step 3: Check Multi-Method Session
+# After logging in via all three methods, session should contain:
+# {
+#   "identities": [
+#     "email:otp",
+#     "social:google",
+#     "sso:acme:okta"
+#   ]
+# }
+
+
+###
+# Verification Queries
+###
+
+# Query 1: Check all identities for a specific user
+# SELECT
+#   ui.method,
+#   ui.subject,
+#   ui.domain,
+#   ui.created_at
+# FROM user_identities ui
+# WHERE ui.user_id = '<test-user-id>'
+# ORDER BY ui.created_at;
+
+
+# Query 2: Count identities by method
+# SELECT
+#   method,
+#   COUNT(*) as count
+# FROM user_identities
+# GROUP BY method
+# ORDER BY count DESC;
+
+
+# Query 3: Find users with multiple identities
+# SELECT
+#   ui.user_id,
+#   u.email,
+#   COUNT(*) as identity_count,
+#   array_agg(ui.method) as methods
+# FROM user_identities ui
+# JOIN users u ON u.id = ui.user_id
+# GROUP BY ui.user_id, u.email
+# HAVING COUNT(*) > 1
+# ORDER BY identity_count DESC;
+
+
+# Query 4: Check identity created after OTP login
+# SELECT
+#   ui.*,
+#   u.email as user_email
+# FROM user_identities ui
+# JOIN users u ON u.id = ui.user_id
+# WHERE ui.method = 'email:otp'
+#   AND ui.created_at > now() - interval '5 minutes'
+# ORDER BY ui.created_at DESC;
+
+
+###
+# Testing Session Payload (via SuperTokens API)
+###
+
+# You can verify session payload using SuperTokens' session verification:
+# 1. Log in to get session cookie
+# 2. Make authenticated request to any protected endpoint
+# 3. Backend should verify session and have access to identities array
+
+# Example protected endpoint (if you have one):
+# GET {{apiUrl}}/me
+# Cookie: sAccessToken=...; sRefreshToken=...
+
+# The endpoint handler can access session like:
+# session = await verify_session(request)
+# payload = session.get_access_token_payload()
+# existing_identities = payload.get("existing_identities", [])
+
+
+###
+# Edge Cases to Test
+###
+
+# 1. User logs in with email:otp twice
+#    → Should NOT create duplicate identity
+#    → Check UNIQUE constraint works
+
+# 2. User logs in with social:google, then email:otp
+#    → Should have 2 identities
+#    → Both should appear in session
+
+# 3. User with SSO identity logs in with email:otp
+#    → Should accumulate both
+#    → Session should reflect all methods
+
+# 4. Database query errors (simulate by removing permissions)
+#    → Should log error but not block authentication
+#    → Session should still be created with fallback
+
+
+###
+# Common Issues & Debugging
+###
+
+# Issue: Identity not created after login
+# Check:
+# - SuperTokens override functions are registered
+# - Database has user_identities table
+# - User exists in users table
+# - No errors in backend logs
+
+# Issue: Session doesn't contain existing_identities array
+# Check:
+# - Session override function is registered
+# - user_context["existing_identities"] is set in sign_in_up/consume_code
+# - SuperTokens session.init includes override config
+
+# Issue: Wrong method format (e.g., 'sso:undefined:okta')
+# Check:
+# - Organization has slug set
+# - db_manager.get_organization_by_id returns org
+# - Fallback to org_id works if slug is null

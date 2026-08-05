@@ -1,0 +1,1 @@
+{"parameters":[{"name":"domain_id","in":"path","required":true,"schema":{"type":"string","title":"Domain Id"}}]}

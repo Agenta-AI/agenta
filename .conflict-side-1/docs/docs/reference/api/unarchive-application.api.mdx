@@ -1,0 +1,73 @@
+---
+id: unarchive-application
+title: "Unarchive Application"
+description: "Restore a previously archived application."
+sidebar_label: "Unarchive Application"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdWE1v20YQ/SuLOSUALTlBTwoKVHUSxE3bGLHSiy1YI3IkbrLaZfZDiSLwvxezJCVSlD9iuJeebJIzb2bfvNmd1RY8Lh2MrmBcFEqm6KXRDqYJZORSKwt+hhF8JOeNJYGisLSWJji1EWjTXK4pE7j3HVzra32mCK0Ts4wUecpu0M8E6kys8As54XNqe4i1dHKuSHgjnEedoc2u9ddAVpITuESpB+ISF9EgRaWE0QK1QGUJs80Jpl6uO4ivhPRCOoHXWpsTUwiphc/RixQdDSABU5CNlucZjCDoeiE3LQxIoECLK/JkmZ8taFwRjKBlcyMzSEAyPwX6HBKw9DVISxmMvA2UgEtzWiGMtuA3BXs7b6VeQgILY1foOXqIKF56xQatMojzDMpyyqiuMNqRY6CXp6f8p1uey5Cm5NwiKPGxNoYEUqM9ac/mrayHnx37bFvJFZYZ8bKKkJpQOdU5S+1pSbaV5Fm0ONTI7MVMfMtJ9wr8DZ1YmKCzRMxOZ8L4nOw3WZUiowUG5WF0WibtLGPSevNhEbnvJrgwKiPL7HeM7qa4THYWOigFTGyznrcRMPKdwELFjrg9vHQ3B4nWuHNjFKFuEXXuxLijqd1yF6gclQmD0RpVQG/sfVBvdobHgZyWRUH+PpjL2qwHUiaNn5l/ptQfl+XYernA1L+NPB2KoK3fyKQ4EV3Cfp3YQK8qFYg6QSeCI9aNtEJz2ZSoc3MiaEXOCfrOCNKrjXDkB0fqyen3SodZJjkqqotOEXuyaahq4dZK4jfHYSCVNg0K7bM/cU7qD2f0yYfgi+CfwyGXbb0dWkOP+bvUOuFFlgmsyOMjF9ta2UGTdwKv5t03bY7uY+RtUPcQkmxBelo90Autxc3dXdz1/TlS/2Iyy6Te5R9EWQ/jb/YtDzricVCvWxBlAqklrA7SB255GXo68TLmc3uUswpWjCNZocj+iyCfKtg6yH4keNIgryvYOkhD13zzhIdEQ9bvm/qgaPh60igNW7soDWFPGqWhaxfFqbB8rFYv2ZdPoCdLLw4+DzqMjsJ0T6TJwTSC9fmVCGPFjJ1mQi6ENr4aUgYPjd2atA6mMamXik7aQZsRTpBekzIFcRSO88vLl/1x7h9UMqsc31gbz/tHznIZeZQqTi3VVntooEza+fozR8W0PNidWyec2dUHVm55bALe77zO4ZL22/XtppEMMeGvrDfNuzybN7LR9baf+u8tmF4Nz5jL7/5onfcT/FXkpkq/tmtJdF+iqkK3U/G6KsFdono3mVz0ACt9rMjnhm8phXE+Xkp8DiMYtkTghtvupaQc7q40kIAju27uMMGqylnGglaPufeFGw2HFAapMiEb4JK0xwHKynDKGGmw0m8iyPji/D1t3hFmZGF0NW0bXLIOK2V1zXbVwEK+J+anvk+Ng8+NlT+aCTlep/LKq4xVXph2kccxOTG+OO/Pnu1P3DCYRn00keJnSA6WvV8tJECr2C7gCVe/7b5wdZnDKszp4MXglF9xSVaoWyE+Nbz3xv7ORLBr5v/ZvbouMTfXsFAoY/tHtre1cK/auxffHka9+/Reu9MEclb96Aq22zk6+mRVWfJrXgWLcZrAGq3EOUvjaguZdPx/Vt9o7iD+2ce60Z+L2xJvBKtZrXz14idI4Att+r8DxM0wb3piWxuN05QK33Lv7d3cPLsev/hwOYGy/BcVrRN2
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Unarchive Application"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/applications/{application_id}/unarchive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Restore a previously archived application.
+
+Clears `deleted_at` and makes the application visible to standard
+queries again. Safe to call on an already-active application; it is a
+no-op in that case.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./unarchive-application.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./unarchive-application.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./unarchive-application.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

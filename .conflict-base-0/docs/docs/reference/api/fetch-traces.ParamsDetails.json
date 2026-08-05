@@ -1,0 +1,1 @@
+{"parameters":[{"name":"trace_id","in":"query","required":false,"schema":{"anyOf":[{"type":"array","items":{"type":"string"}},{"type":"null"}],"title":"Trace Id"}},{"name":"trace_ids","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Ids"}}]}

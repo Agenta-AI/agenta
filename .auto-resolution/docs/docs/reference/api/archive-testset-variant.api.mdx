@@ -1,0 +1,73 @@
+---
+id: archive-testset-variant
+title: "Archive Testset Variant"
+description: "Soft-delete a testset variant."
+sidebar_label: "Archive Testset Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdWMFy2zYQ/ZUdnJIZWnIyPfFU1W4mbtraEyu52B4bIlYiEghggIVjVcN/7yxIyhQlO4njXnqSRC7eLt6+XWC1FiQXQeQXYoqBAlIQV5lQGAqvK9LOilycuzkdKDRICBKosYNb6bW0NLq0l3bii1LfarsA2T0HvCtMVBhAE8y9W8LNuF0axq1NGH+J6Fc3lzZagyHAjbZp0bVMgKhuQAcgH3EEJxTA460O2tkAgeQKtIXKyAJBWnVpC2khkDYGZggeyWu8RQWzFZwcj0QmXIVe8pZOlMhF6+G6jem6DUlkopJeLpHQMy1rYeUSRS4GdtdaiUxopqeSVIpMePwStUclco43E6EocSlFvha0qhghkNd2ITIxd34pSeQixoRCmgwbtBmAjy2DJ0rU9RUjh8rZgIHBXh8e8scgQ7EoMIR5NPC+NRaZKJwltMTmsqqMLtLux58Cr1n3Aqw8c0O68VC42Cxq49aWcIG+F+hRshjK5BXoeS//XyXni6K3qDI4BEcl+q864CitnMtoSOSHdTakNsVrV6fzRP92bJ1pMHGxbbdNcp1tnthojGAahzSfM0adCelJz2Xxc6CTFmSD2kWq1WOQQzF8T9wsi17Uz+dgs4fGw9ykzvBgMniTDZKbfcKCdpX8JiEMdXLGJVs6o9DD3PmuoRwYvEUDyWtqKtNSB1g6hYabgE5a1s5KY1aAy4pWMIsEn7EikAEkKFQscVTAYUFwQKWk/NIeAN7pQNyePM7Roy0wADm4Sc5yOK0a4It+3Fc34HEptYVbabTKmiZzAIF8LCh6VE2swH1nhiCVQgUleuS+RCXCPLIZfNVUukgw8yg/cxBU4qUFCNF7F63iR8fT0zDakxzmeCcLUindBHy2VRw7Gpg5Z1DaPm5PyvthRKF9EY30L/6UMzR/BGcPTiNVkV6KYcL74hlaix15PKpt3mSdiSWSfOJmd4u0a1xbjpez7Sd9jr7FyJtovkFIthaacPmdq6T3cvUoL4O1P0bqX0xmnbUn2NP62t+8th6U8NOgjnsQdSYKj1ys15K+s38pSXhAOsXzsJejBhYmiaxYqf/CyYcGtnXSXI2e3clxA9s66eiarZ6x43dk/bZqe37H17N66djaeOkIe1YvHV0bLz9znHen+POFly5z3zwx26vfXqTtU3Ra4vAqDi9mXtqifDn6AVeb+2Jd86JfXr/evV5+5AMwXR7hd++df/rdUiFJbfhb2yaHBsYVW29/pM1f1YPO2judXBNgOmPCYt+t/L5rhiAXeN9qHzZNZMCU37JWLHdoNu9SbtuWXdBdD2YnIUfM5R3tTdr9VHGRuGnCb+168rpPUZOhh6k4blLwmELeTqdnO4CNPpZIpeP5qXKhGZaoFLnYM9qtdyemetxOXSITAf1tN2JFbxhDVjrltflZElUhH48xjgrjohrJBVqSI6kbwyvGKKLXtEogk7OTd7h6i1KhF/nFVd/gnOXYCGzbbJMUWel3yDS1494kUum8/qdRTTvplc2qOiV77vq5nqTgYHJ2snPf3XrFdSOLJJPOU3otssG273crMsH3UJOGULn8dfOGk8wcNm4OR69Gh/yIM7OUtu+iYR0GA+Yw0vV9Vf9fZv42u1xe48pInRpAInrdSveim9R4UOliFJnI9w78nX6vMlFyAeQXYr2eyYAfvKlrfpx2x/pr0WYsj4u1UDrwdyXyuTQBH6H+xfu25l/CQzvoRGtXKWgT+ZfIxGdc7f+rIvXGsquNdWs4KQqsqAex08q5iDYlf3Z6PhV1/S+w9k17
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Testset Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/testsets/variants/{testset_variant_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-delete a testset variant.
+
+Archiving a variant excludes it from `/testsets/variants/query`
+unless `include_archived` is true. Its revisions stay in place and
+can still be retrieved by ID.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./archive-testset-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./archive-testset-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./archive-testset-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

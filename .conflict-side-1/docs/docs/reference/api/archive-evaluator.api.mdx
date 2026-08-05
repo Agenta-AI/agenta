@@ -1,0 +1,73 @@
+---
+id: archive-evaluator
+title: "Archive Evaluator"
+description: "Soft-delete an evaluator artifact."
+sidebar_label: "Archive Evaluator"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdV91v4zYM/1cEPt0BbtIr9mRgwLJ+4Lrb1uLa20tbtIrNxLrJkitRucsC/+8DZTuxk35d0b3sqY1F/kj+SFHkCkjOPaRXcLyQOkiyzsNNAjn6zKmKlDWQwoWd0V6OGgmFNAI7USEdqZnMaHRtrs0Fkhd3jVh+K+lOWCOowL68yUWhcvRCkZg5Wwofph7vAxq6Nnfj+4BueScc+soaj14Eo9F7cadMpkOOt9JlhVpg/jO5gHcj8RkXyitrxOmRvzYOS6kMq1u9kFONwltRKE/WqUxqQU5m6IUnuRTKEDsOCdgKneRIT3NIobVwu3YaEqikkyUSOmZqBUaWCCmsJW5VDgkoZqqSVEACDu+DcphDyn4m4LMCSwnpCmhZsa4np8wcEphZV0qCFEKIKKRIs8A6HeI0h7q+YcyWFIY52N/nP1tpClmG3s+CFp9bYUggs4bQEIvLqtIqi7GOv3rWWfVcqxwzQaqxkNnQKLUeK0M4R9dz8TBKbNfKB/GtQDMsE+WFQwrOYJ6IfWGpQPdNeRxF7ZkMmiDdr5MNpdFbszybRcKHns2szjGSPhB6mtk6WUuYoDUwo10gJxEwEp3ATMcL8bh55W97PPYYmlqrUZoeQ6deTHqivWBnUnusEwYbxPwU1HGvIh8C8kZVFdJzMBet2A5InXR6dvoVM3qoGifthT+JLO2Syhg7/Mk8V0yA1OcDJndy1/nbw23TyV8ehoFMuSxo6d79Lqeof/PW7J0FqgK9h+2A+knfload8J8qmcsmfCiR5CuD7UW2dcUGhsvp8Eufo+cYOQn6GUKSFSjC8oVa0jm5fPoqDXV/jNQ/mMw6afvriyjbwfiTdeutpvQ6qKMeRJ1A5lA2D9sL+04uCfdIRX8et3LYwIpJJCtU+X9h5EsD2xrZPNFvauSogW2NdHRNl2/YqTuyfl223brj602tdGytrXSEvamVjq61Fa/D/LW1esG6/Ay8mXtx7HjBi/AgyHAkuBzOgO0TkgjrBGs0A4OxBkUpKSswH73MdG/IGRo8NgvUtkIxY3vCKzPXfRe6UYrtsKWfDg52p6m/pFZ5fLjFsXPx1X3lKJUjSaXj7ND02m0BbbPB6Y+8FTf1VnvuPXG2HTz4ofLzh8bPTev1Xs5x068fF41kiEs+5YIz3OZZvKsb0/b9jL73YHayeMhcfqcHM70Zn68iN437rVyvRjcpajL0OBVHTQqeKquPl5fnO4BNfZRIheXloLKe4j5ABaQwXleUH6/620A9brcISMCjW3SLQ3Ca1WSlYiqbnwVR5dPxGMMo0zbkIzlHQ3IkVSN4wxhZcIqWEWRyfvoJlx9R5uggvbrpC1xwBTY1NRRb50FW6hMyM+0SMwlUWKf+6SbUuMUUjVYd8zuz/fROonNicn66c+sGR3xVZBYro7MUjyHZCnsTLSTA+xsfEsryl/UJ55U5bMzsjz6M9vkTJ6OUpm+iYX1rUh4MAusr/D9fatt08xUbV1qq2AQi86u2fK8225aHBNKtdbar4JsECq769ApWq6n0+MXpuubPMS6uwAQW0il2LRZorjz/n7d7xRMpePe5vejvxWMud2VruGbZQ/4FCfyNy+0VPLbCorsXq1ZkkmVYUU95p3PzBVrf8POzi0uo638Ba4roPA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Evaluator"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/evaluators/{evaluator_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-delete an evaluator artifact.
+
+Sets `deleted_at` on the evaluator and hides it from subsequent
+`/query` responses unless `include_archived=true`. Revision IDs
+remain resolvable so historical traces stay intact.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./archive-evaluator.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./archive-evaluator.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./archive-evaluator.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

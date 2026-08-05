@@ -1,0 +1,6 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "deploy": {
+    "startCommand": "/app/entrypoint.sh node /app/oss/server.js"
+  }
+}

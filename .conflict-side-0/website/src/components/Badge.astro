@@ -1,0 +1,21 @@
+---
+// Ported 1:1 from the design system: components/buttons/Badge.jsx
+interface Props {
+  variant?: "default" | "dark" | "yellow";
+}
+const { variant = "default" } = Astro.props;
+
+const variants: Record<string, string> = {
+  default:
+    "background:#FFFFFF;color:var(--ink-600);box-shadow:var(--shadow-badge);",
+  dark: "background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.8);box-shadow:0 0 0 1px rgba(229,229,227,0.18);",
+  yellow:
+    "background:var(--yellow-400);color:var(--ink-900);box-shadow:0 0 0 1px rgba(36,36,36,0.12), inset 0 2px 0.4px rgba(255,255,255,0.6);",
+};
+---
+
+<span
+  style={`display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 12px;border-radius:var(--radius-pill);font:var(--text-caption);letter-spacing:var(--tracking-caption);white-space:nowrap;box-sizing:border-box;${variants[variant]}`}
+>
+  <slot />
+</span>

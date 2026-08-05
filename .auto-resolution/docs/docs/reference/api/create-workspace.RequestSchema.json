@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"name":{"type":"string","title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"type":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Type"}},"type":"object","required":["name"],"title":"CreateWorkspace"}}}}}

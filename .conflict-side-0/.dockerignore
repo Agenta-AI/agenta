@@ -1,0 +1,78 @@
+# This .dockerignore only applies when the Docker build context is `application/`.
+# Today that is used by the four python `Dockerfile.dev` (api/services, oss/ee),
+# which need both their own source and the local SDK + client (../sdks/python,
+# ../clients/python) inside the build context so `uv sync` can resolve the
+# `[tool.uv.sources] agenta = { path = "../sdks/python", editable = true }` source.
+#
+# We whitelist only the paths those images actually COPY. Everything else
+# (web/, agents/, hosting/, docs/, tests/, ee/, .git, etc.) stays excluded.
+
+# Ignore everything by default
+**
+
+# --- API ----------------------------------------------------------------------
+!api/pyproject.toml
+!api/uv.lock
+!api/oss/
+!api/ee/
+!api/entrypoints/
+
+# --- Services -----------------------------------------------------------------
+!services/pyproject.toml
+!services/uv.lock
+!services/oss/
+!services/ee/
+!services/entrypoints/
+
+# --- Python SDK (consumed editably by api/services via [tool.uv.sources]) -----
+!sdks/python/pyproject.toml
+!sdks/python/uv.lock
+!sdks/python/README.md
+!sdks/python/agenta/
+
+# --- Generated python client (transitive editable dep of the SDK) -------------
+!clients/python/pyproject.toml
+!clients/python/uv.lock
+!clients/python/agenta_client/
+
+# --- Noise inside the un-ignored trees ----------------------------------------
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/dist
+**/build
+**/.eggs
+**/*.egg-info
+**/.venv
+
+# Tests aren't needed for runtime images
+# (paths outside the whitelisted directories are already excluded by `**` —
+#  only sub-paths inside an un-ignored tree need to be listed here.)
+api/oss/tests
+api/ee/tests
+services/oss/tests
+services/ee/tests
+
+# Dockerfiles themselves aren't COPY'd into the image
+api/oss/docker
+api/ee/docker
+services/oss/docker
+services/ee/docker
+
+# Docs aren't needed at runtime
+api/ee/docs
+
+# Secrets and local env files
+**/.env
+**/.env.*
+
+# Editor / OS noise
+**/.DS_Store
+**/.vscode
+**/.idea
+**/*.swp
+**/*.swo

@@ -1,0 +1,97 @@
+---
+title: Data Regions
+description: Choose where your data is stored - EU, US, or dedicated enterprise instances
+slug: /administration/security/data-regions
+---
+
+# Data Regions
+
+Agenta offers multiple data regions to help you meet data residency requirements and optimize performance for your team's location.
+
+## Available Regions
+
+### European Union (EU)
+
+| Setting | Value |
+|---------|-------|
+| **URL** | `eu.cloud.agenta.ai` |
+| **AWS Region** | `eu-central-1` |
+| **Location** | Frankfurt, Germany |
+| **Data residency** | All data stored within EU |
+
+### United States (US)
+
+| Setting | Value |
+|---------|-------|
+| **URL** | `us.cloud.agenta.ai` |
+| **AWS Region** | `us-east-2` |
+| **Location** | Ohio, United States |
+| **Data residency** | All data stored within US |
+
+## Selecting Your Region
+
+You select your data region during signup. This choice determines:
+
+1. **Where your data is stored** - All prompts, evaluations, traces, and metadata
+2. **API endpoint** - Which URL you'll use for API calls
+3. **Performance** - Lower latency when closer to your team
+
+:::warning[Region Selection is Permanent]
+Your region cannot be changed after account creation. Choose carefully based on your compliance and performance needs.
+:::
+
+## Availability
+
+Agenta Cloud is designed for reliability with high availability and disaster recovery mechanisms.
+
+## What's Stored in Your Region
+
+All of your Agenta data stays within your selected region:
+
+- **Prompts and configurations** - All versions and revisions
+- **Evaluation data** - Test sets, results, and metrics
+- **Observability data** - Traces, spans, and logs
+- **User data** - Account information and settings
+- **Secrets** - Encrypted API keys and credentials
+
+## Enterprise: Dedicated Instances
+
+For enterprise customers with specific requirements, we offer **dedicated instances**:
+
+### Benefits
+
+- **Custom region** - Deploy in any supported cloud region
+- **Dedicated infrastructure** - No shared resources
+- **Custom domain** - Use your own domain (e.g., `agenta.yourcompany.com`)
+- **Enhanced isolation** - Additional security boundaries
+- **Custom retention** - Configure data retention policies
+
+### Available Options
+
+- Single-tenant cloud deployment
+- Virtual private cloud (VPC) deployment
+- Custom compliance configurations
+
+**Contact sales** to discuss dedicated instance options for your organization.
+
+<!--
+## Data Residency Compliance
+
+We will add GDPR-specific guidance once a DPA is available.
+-->
+
+## FAQ
+
+### How do I know which region I'm in?
+
+Check your Agenta URL:
+- `eu.cloud.agenta.ai` = EU region
+- `us.cloud.agenta.ai` = US region
+
+### Does region affect pricing?
+
+No, pricing is the same across all regions.
+
+### What about backups?
+
+Per-region backups are encrypted and used for disaster recovery. If you have strict requirements about where backups must be stored, contact us.

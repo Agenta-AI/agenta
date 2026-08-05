@@ -1,0 +1,22 @@
+import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+
+import DeleteVariantContent from "./Content"
+import {DeleteVariantModalProps} from "./types"
+
+type EnhancedProps = Omit<React.ComponentProps<typeof EnhancedModal>, "children">
+type Props = EnhancedProps & DeleteVariantModalProps
+
+const DeleteVariantModal = ({revisionIds, forceVariantIds, workflowId, ...props}: Props) => {
+    return (
+        <EnhancedModal centered title="Confirm deletion" footer={null} {...props}>
+            <DeleteVariantContent
+                revisionIds={revisionIds}
+                forceVariantIds={forceVariantIds}
+                workflowId={workflowId}
+                onClose={() => props.onCancel?.({} as any)}
+            />
+        </EnhancedModal>
+    )
+}
+
+export default DeleteVariantModal

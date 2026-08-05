@@ -1,0 +1,74 @@
+---
+id: fetch-workflow-catalog-template
+title: "Fetch Workflow Catalog Template"
+description: "Return a single workflow template by its key."
+sidebar_label: "Fetch Workflow Catalog Template"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtvGzcQ/ivEnGyAkZygJwEFajhJ46ZtDNtJD45gU7sjiTGX3PAhRxX2vxfDfeuxbpz0UuRkizszHH7fcDgzG/Bi4WByA38Zez9X5sHBlEOKLrEy99JomMAl+mA1E8xJvVDIHipR5jHLlfDIZmsmvWP3uB591B91qeDYXWKC9j+f3LGHJWrml9iqSMe08Wxugk5H7LpadkxYZAtlZkJ91Bl6kQovmNBp/EAaLjE5pswbJlhuzSdMfNz0CnHCbppjTI/GFudoUSc4Frl8tggyxXHtuzseAQeToxV0yvMUJjBHnyxva4nbRHihzOK2dhk45MKKDD1agmwDWmQIE6gFbu9xDRwkYZYLvwQOFj8HaTGFibcBObhkiZmAyQb8Oidd563UC+DgpVe0UCPB3uIaimJKNlxutENHai9OTuhPn6CrkCTo3DwodlkJA4fEaI/ak7jIcyWTeNLxJ0c6m44ruSUcvCx3iJx1PJTa4wJtx8WzKLEdJXfPD9BsYzRgytldHQkt89HMXATlYXJS8AbL6LVev5tHoPselrB3v/fBLHizooNSQCDWvv9JusWW708z9bJjouBA5A/wGunk4FRYPHXDK9ItOCTC48LYCo3WkvSYuV0fCNVyQVgr1oNbnLWmCw5zFZPDYSaku+2EVmfrmTEKhe6c/9yx045oh/a5UA4LTsZwJVQQ3tjHTL1qBPcbclrmOfrHzFxVYvuNCJss5You7yPnquX2m7GYmCxDnT5u6bIjumOs5dHMKOt1VOusd1amrNeRt12eKe6FF0OMBiufGp7vraSgCVY93YIiC0sUaUyxXSsiTSVFjlAXPYeH9ukfbYXWfcN1/1Cpf6dLLNMhCxzmxmbCwwRCkOmgxfMUhmLjsn4FywDoiw3ZfVPRUHCwQXs5nHQ5oA4ZVRL52i/jDSeBMkUCh09iJaof06FdL6utCOZS/KlAl9pF/egOJrLuw/6tUbf1bvZ8zGb9lToL0NL+vSCRNglK2KPXQanfnNHP3gWfB38M+8is3oB/o/X4a7ClC18VPhctpBTuOg/+B7jfC9zzEs6Cg4naP5D9Xsi+q/AcSqlk/KpKKntf2R/p5D9NJwU/cLpYKD1eJl3iStJb/pKKoT0E7qG+beRuYqU/PVh81Q3c3tP0W6Zak81UwNxK7dnRPa45ow6Hs44wZ7EWp7VYEzKq445Hg1F6wK+mQywK0v7pxYvdhvKDUDKNhTp7ZW2ssp/YTabohYwFYdOd9AWUSXpfv+YqTLdbm/bwv5uq0Sg4ZG4x1Jn9gc6JBbbheFg0gsGu6Wv9pkXxblaOHZr/0jGzw8wZYfnF72WvG2iETel+JdctRxuKSoYOQ/GypGAoVN5cX1/sGCzjI0O/NDQdWcQ+Kc41JtDOUcbVmGRcd+5uvOkORArg4NCu6plJbA+AJjKR0vLn0vvcTcZjDKNEmZCOxAK1FyMhS8Ep2UiClX4djZxenL/FdVmgwuRm2hWIibmMrb5Yw4fI5ds4qanmN6fBL42Vf9edaRzglE1IRE3quenSfBqdY6cX5ztDkN4nujIi8e3IovoMfOvY7WmpjM7ihQGPIvul+UL8Ng0MnIyej05oKTfOZ0J3tnhNQyzWZJbq8jcDtm2PN+3F/h/P+Sri6dKNcyWk7jSqZUTfQKMBccJCqEE7j6LVSW/QN+WwNM6T6mYzEw7fW1UUtPw5oKU4nXJYCSvFjKLmZgOpdPR/2rxTB5k4uqyywDE75H0dy5oCmaYh9AuqMVR/JBnz5LK+LJtK5DRJMHZmtfJOWqdb1Vz/X19dQ1H8A8mpsNw=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Workflow Catalog Template"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/catalog/templates/{template_key}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return a single workflow template by its key.
+
+Returns `count=0` when the template is not found. Templates are global
+metadata and are not scoped to a project.
+
+See: [Workflows](/reference/api-guide/workflows).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-workflow-catalog-template.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-workflow-catalog-template.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-workflow-catalog-template.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,1758 @@
+import html as html_lib
+from inspect import isawaitable
+import json
+import re
+from datetime import datetime, timezone
+from functools import wraps
+from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
+from uuid import UUID, uuid4
+
+import httpx
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.responses import HTMLResponse, JSONResponse
+
+from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.caching import get_cache, set_cache
+
+from oss.src.apis.fastapi.tools.models import (
+    ToolCatalogActionResponse,
+    ToolCatalogActionsResponse,
+    ToolCatalogCategoriesResponse,
+    ToolCatalogIntegrationResponse,
+    ToolCatalogIntegrationsResponse,
+    ToolCatalogProviderResponse,
+    ToolCatalogProvidersResponse,
+    #
+    ToolConnectionCreateRequest,
+    ToolConnectionResponse,
+    ToolConnectionsResponse,
+    #
+    ToolCallResponse,
+    #
+    ToolResolveRequest,
+    ToolResolveResponse,
+    #
+    CapabilitiesQuery,
+)
+
+from oss.src.core.shared.dtos import Status
+from oss.src.core.tools.dtos import (
+    ToolCatalogActionDetails,  # noqa: F401
+    ToolCatalogProviderDetails,  # noqa: F401
+    ToolCatalogIntegrationDetails,  # noqa: F401
+    #
+    ToolCall,
+    ToolResult,
+    ToolResultData,
+    #
+    CapabilitiesResult,
+)
+from oss.src.core.tools.exceptions import (
+    ActionNotFoundError,
+    AdapterError,
+    ConnectionInactiveError,
+    ConnectionInvalidError,
+    ConnectionNotFoundError,
+    DiscoveryUnsupportedError,
+    ProviderNotFoundError,
+    ToolSlugInvalidError,
+)
+from oss.src.core.tools.service import (
+    ToolsService,
+)
+from oss.src.core.gateway.connections.utils import decode_oauth_state
+from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.tracing.service import TracingService
+from oss.src.core.tools.exceptions import PlatformToolHandlerError
+from oss.src.core.tools.platform_handlers import (
+    dispatch_platform_tool_handler,
+    is_reserved_agenta_call_ref,
+    required_elevated_permission,
+)
+from oss.src.core.workflows.dtos import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
+from oss.src.core.shared.dtos import Reference
+from oss.src.utils.env import env
+
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+
+# A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
+# prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
+# {action}.{connection}``): the callback encodes the targeting axis + identity —
+# ``workflow.variant.{slug}[.{version}]`` or ``workflow.environment.{environment}.{slug}``.
+_WORKFLOW_CALL_REF_PREFIX = "workflow."
+
+_SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
+
+log = get_module_logger(__name__)
+
+
+def handle_adapter_exceptions():
+    """Map provider/adapter failures to HTTP, surfacing the upstream detail.
+
+    Unknown providers → 404. Any upstream failure (Composio 4xx such as a
+    rejected argument set, or a malformed response) → 424 carrying the
+    provider's own message so the client can show it instead of a generic 500.
+    A true upstream 5xx → 502.
+    """
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except ProviderNotFoundError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e),
+                ) from e
+            except AdapterError as e:
+                detail = e.detail or e.message
+                cause = e.__cause__
+                upstream_status = (
+                    cause.response.status_code
+                    if isinstance(cause, httpx.HTTPStatusError)
+                    and cause.response is not None
+                    else None
+                )
+                if upstream_status is not None and upstream_status >= 500:
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=detail,
+                    ) from e
+                raise HTTPException(
+                    status_code=status.HTTP_424_FAILED_DEPENDENCY,
+                    detail=detail,
+                ) from e
+
+        return wrapper
+
+    return decorator
+
+
+class ToolsRouter:
+    def __init__(
+        self,
+        *,
+        tools_service: ToolsService,
+        workflows_service: Optional[WorkflowsService] = None,
+        tracing_service: Optional[TracingService] = None,
+    ):
+        self.tools_service = tools_service
+        # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
+        # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
+        # Optional so a deployment that wires only the tools service still serves gateway tools.
+        self.workflows_service = workflows_service
+        self.tracing_service = tracing_service
+
+        self.router = APIRouter()
+
+        # --- Tool Catalog ---
+        self.router.add_api_route(
+            "/catalog/providers/",
+            self.list_providers,
+            methods=["GET"],
+            operation_id="list_tool_providers",
+            response_model=ToolCatalogProvidersResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}",
+            self.get_provider,
+            methods=["GET"],
+            operation_id="fetch_tool_provider",
+            response_model=ToolCatalogProviderResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}/integrations/",
+            self.list_integrations,
+            methods=["GET"],
+            operation_id="list_tool_integrations",
+            response_model=ToolCatalogIntegrationsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}/categories/",
+            self.list_categories,
+            methods=["GET"],
+            operation_id="list_tool_categories",
+            response_model=ToolCatalogCategoriesResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}/integrations/{integration_key}",
+            self.get_integration,
+            methods=["GET"],
+            operation_id="fetch_tool_integration",
+            response_model=ToolCatalogIntegrationResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}/integrations/{integration_key}/actions/",
+            self.list_actions,
+            methods=["GET"],
+            operation_id="list_tool_actions",
+            response_model=ToolCatalogActionsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/catalog/providers/{provider_key}/integrations/{integration_key}/actions/{action_key}",
+            self.get_action,
+            methods=["GET"],
+            operation_id="fetch_tool_action",
+            response_model=ToolCatalogActionResponse,
+            response_model_exclude_none=True,
+        )
+
+        # --- Tool Connections ---
+        self.router.add_api_route(
+            "/connections/query",
+            self.query_connections,
+            methods=["POST"],
+            operation_id="query_tool_connections",
+            response_model=ToolConnectionsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/",
+            self.create_connection,
+            methods=["POST"],
+            operation_id="create_tool_connection",
+            response_model=ToolConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/callback",
+            self.callback_connection,
+            methods=["GET"],
+            operation_id="callback_tool_connection",
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}",
+            self.get_connection,
+            methods=["GET"],
+            operation_id="fetch_tool_connection",
+            response_model=ToolConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}",
+            self.delete_connection,
+            methods=["DELETE"],
+            operation_id="delete_tool_connection",
+            status_code=status.HTTP_204_NO_CONTENT,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/refresh",
+            self.refresh_connection,
+            methods=["POST"],
+            operation_id="refresh_tool_connection",
+            response_model=ToolConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/revoke",
+            self.revoke_connection,
+            methods=["POST"],
+            operation_id="revoke_tool_connection",
+            response_model=ToolConnectionResponse,
+            response_model_exclude_none=True,
+        )
+
+        # --- Tool operations ---
+        self.router.add_api_route(
+            "/resolve",
+            self.resolve_tools,
+            methods=["POST"],
+            operation_id="resolve_tools",
+            response_model=ToolResolveResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/discover",
+            self.discover_capabilities,
+            methods=["POST"],
+            operation_id="discover_tool_capabilities",
+            response_model=CapabilitiesResult,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/call",
+            self.call_tool,
+            methods=["POST"],
+            operation_id="call_tool",
+            response_model=ToolCallResponse,
+            response_model_exclude_none=True,
+        )
+
+    # -----------------------------------------------------------------------
+    # Tool Catalog
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def list_providers(
+        self,
+        request: Request,
+        *,
+        full_details: bool = Query(default=False),
+    ) -> ToolCatalogProvidersResponse:
+        has_permission = await check_action_access(
+            project_id=request.state.project_id,
+            user_uid=request.state.user_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "full_details": full_details,
+        }
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:providers",
+            key=cache_key,
+            model=ToolCatalogProvidersResponse,
+        )
+        if cached:
+            return cached
+
+        providers = await self.tools_service.list_providers()
+        items = list(providers)
+
+        response = ToolCatalogProvidersResponse(
+            count=len(items),
+            providers=items,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:providers",
+            key=cache_key,
+            value=response,
+            ttl=5 * 60,  # 5 minutes
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def get_provider(
+        self,
+        request: Request,
+        provider_key: str,
+        *,
+        full_details: bool = Query(default=True),
+    ) -> ToolCatalogProviderResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "provider_key": provider_key,
+            "full_details": full_details,
+        }
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:provider",
+            key=cache_key,
+            model=ToolCatalogProviderResponse,
+        )
+        if cached:
+            return cached
+
+        provider = await self.tools_service.get_provider(
+            provider_key=provider_key,
+        )
+        if not provider:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Provider not found"},
+            )
+
+        response = ToolCatalogProviderResponse(
+            count=1,
+            provider=provider,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:provider",
+            key=cache_key,
+            value=response,
+            ttl=5 * 60,  # 5 minutes
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def list_integrations(
+        self,
+        request: Request,
+        provider_key: str,
+        *,
+        search: Optional[str] = Query(default=None),
+        sort_by: Optional[str] = Query(default=None),
+        category: Optional[str] = Query(default=None),
+        limit: Optional[int] = Query(default=None),
+        cursor: Optional[str] = Query(default=None),
+        full_details: bool = Query(default=False),
+    ) -> ToolCatalogIntegrationsResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "provider_key": provider_key,
+            "search": search,
+            "sort_by": sort_by,
+            "category": category,
+            "limit": limit,
+            "cursor": cursor,
+            "full_details": full_details,
+        }
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:integrations",
+            key=cache_key,
+            model=ToolCatalogIntegrationsResponse,
+        )
+        if cached:
+            return cached
+
+        page = await self.tools_service.list_integrations(
+            provider_key=provider_key,
+            search=search,
+            sort_by=sort_by,
+            category=category,
+            limit=limit,
+            cursor=cursor,
+        )
+        items = list(page.integrations)
+
+        response = ToolCatalogIntegrationsResponse(
+            count=len(items),
+            total=page.total,
+            cursor=page.next_cursor,
+            integrations=items,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:integrations",
+            key=cache_key,
+            value=response,
+            ttl=5 * 60,  # 5 minutes
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def list_categories(
+        self,
+        request: Request,
+        provider_key: str,
+    ) -> ToolCatalogCategoriesResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {"provider_key": provider_key}
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:categories",
+            key=cache_key,
+            model=ToolCatalogCategoriesResponse,
+        )
+        if cached:
+            return cached
+
+        categories = await self.tools_service.list_categories(
+            provider_key=provider_key,
+        )
+        response = ToolCatalogCategoriesResponse(
+            count=len(categories),
+            categories=categories,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:categories",
+            key=cache_key,
+            value=response,
+            ttl=30 * 60,  # 30 minutes — categories change rarely
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def get_integration(
+        self,
+        request: Request,
+        provider_key: str,
+        integration_key: str,
+        *,
+        full_details: bool = Query(default=True),
+    ) -> ToolCatalogIntegrationResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "provider_key": provider_key,
+            "integration_key": integration_key,
+            "full_details": full_details,
+        }
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:integration",
+            key=cache_key,
+            model=ToolCatalogIntegrationResponse,
+        )
+        if cached:
+            return cached
+
+        integration = await self.tools_service.get_integration(
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        if not integration:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Integration not found"},
+            )
+
+        response = ToolCatalogIntegrationResponse(
+            count=1,
+            integration=integration,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:integration",
+            key=cache_key,
+            value=response,
+            ttl=5 * 60,  # 5 minutes
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def list_actions(
+        self,
+        request: Request,
+        provider_key: str,
+        integration_key: str,
+        *,
+        query: Optional[str] = Query(default=None),
+        categories: Optional[List[str]] = Query(default=None),
+        limit: Optional[int] = Query(default=None),
+        cursor: Optional[str] = Query(default=None),
+        full_details: bool = Query(default=False),
+    ) -> ToolCatalogActionsResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "provider_key": provider_key,
+            "integration_key": integration_key,
+            "query": query,
+            "categories": categories,
+            "limit": limit,
+            "cursor": cursor,
+            "full_details": full_details,
+        }
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:actions",
+            key=cache_key,
+            model=ToolCatalogActionsResponse,
+        )
+        if cached:
+            return cached
+
+        page = await self.tools_service.list_actions(
+            provider_key=provider_key,
+            integration_key=integration_key,
+            query=query,
+            categories=categories,
+            limit=limit,
+            cursor=cursor,
+        )
+        items = []
+
+        for action in page.actions:
+            if full_details:
+                # Call route handler to benefit from cache reuse
+                action_response = await self.get_action(
+                    request=request,
+                    provider_key=provider_key,
+                    integration_key=integration_key,
+                    action_key=action.key,
+                    full_details=full_details,
+                )
+                if (
+                    isinstance(action_response, ToolCatalogActionResponse)
+                    and action_response.action
+                ):
+                    items.append(action_response.action)
+                    continue
+
+            items.append(action)
+
+        response = ToolCatalogActionsResponse(
+            count=len(items),
+            total=page.total,
+            cursor=page.next_cursor,
+            actions=items,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:actions",
+            key=cache_key,
+            value=response,
+            ttl=5 * 60,  # 5 minutes
+        )
+
+        return response
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def get_action(
+        self,
+        request: Request,
+        provider_key: str,
+        integration_key: str,
+        action_key: str,
+        *,
+        full_details: bool = Query(default=True),
+    ) -> ToolCatalogActionResponse:
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "provider_key": provider_key,
+            "integration_key": integration_key,
+            "action_key": action_key,
+            "full_details": full_details,
+        }
+        cached = await get_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:action",
+            key=cache_key,
+            model=ToolCatalogActionResponse,
+        )
+        if cached:
+            return cached
+
+        action = await self.tools_service.get_action(
+            provider_key=provider_key,
+            integration_key=integration_key,
+            action_key=action_key,
+        )
+        if not action:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Action not found"},
+            )
+
+        response = ToolCatalogActionResponse(
+            count=1,
+            action=action,
+        )
+
+        await set_cache(
+            project_id=None,  # catalog is global; not per-project
+            namespace="tools:catalog:action",
+            key=cache_key,
+            value=response,
+            ttl=5 * 60,  # 5 minutes
+        )
+
+        return response
+
+    # -----------------------------------------------------------------------
+    # Tool Connections
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    async def query_connections(
+        self,
+        request: Request,
+        *,
+        provider_key: Optional[str] = Query(default=None),
+        integration_key: Optional[str] = Query(default=None),
+    ) -> ToolConnectionsResponse:
+        """Query connections with optional filtering."""
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        connections = await self.tools_service.query_connections(
+            project_id=UUID(request.state.project_id),
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        return ToolConnectionsResponse(
+            count=len(connections),
+            connections=connections,
+        )
+
+    @intercept_exceptions()
+    async def create_connection(
+        self,
+        request: Request,
+        *,
+        body: ToolConnectionCreateRequest,
+    ) -> ToolConnectionResponse:
+        """Create a new tool connection."""
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        slug = body.connection.slug
+        if "." in slug or "__" in slug:
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "detail": (
+                        "Connection slug must not contain dots or "
+                        "consecutive underscores. "
+                        "Use single hyphens or underscores as separators."
+                    )
+                },
+            )
+
+        connection = await self.tools_service.create_connection(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            connection_create=body.connection,
+        )
+
+        return ToolConnectionResponse(
+            count=1,
+            connection=connection,
+        )
+
+    @intercept_exceptions()
+    async def get_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+    ) -> ToolConnectionResponse:
+        """Get a connection by ID."""
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        connection = await self.tools_service.get_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+        )
+        if not connection:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "Connection not found"},
+            )
+
+        return ToolConnectionResponse(
+            count=1,
+            connection=connection,
+        )
+
+    @intercept_exceptions()
+    async def delete_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+    ) -> None:
+        """Delete a connection by ID."""
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        await self.tools_service.delete_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+        )
+
+    @intercept_exceptions()
+    async def refresh_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+        *,
+        force: bool = Query(default=False),
+    ) -> ToolConnectionResponse:
+        """Refresh a connection's credentials."""
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        connection = await self.tools_service.refresh_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+            force=force,
+        )
+
+        return ToolConnectionResponse(
+            count=1,
+            connection=connection,
+        )
+
+    @intercept_exceptions()
+    async def revoke_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+    ) -> ToolConnectionResponse:
+        """Mark a connection invalid locally (does not revoke at the provider)."""
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        connection = await self.tools_service.revoke_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+        )
+
+        return ToolConnectionResponse(
+            count=1,
+            connection=connection,
+        )
+
+    async def callback_connection(
+        self,
+        request: Request,
+        *,
+        connected_account_id: Optional[str] = Query(default=None),
+        status: Optional[str] = Query(default=None),
+        error_message: Optional[str] = Query(default=None),
+        state: Optional[str] = Query(default=None),
+    ) -> HTMLResponse:
+        """Handle OAuth callback from Composio."""
+        # Decode the HMAC-signed state up front to recover BOTH the project scope and the
+        # connection identity. The identity tags every card (success or failure) so the
+        # opener can tell WHICH connect flow finished — the playground can have several
+        # live at once (see ConnectToolWidget), and an untagged completion would settle
+        # all of them.
+        state_payload = (
+            decode_oauth_state(state, secret_key=env.agenta.crypt_key)
+            if state
+            else None
+        )
+        if not state:
+            log.warning("OAuth callback received without state token")
+        elif state_payload is None:
+            log.warning("OAuth callback: invalid or expired state token")
+        state_slug = state_payload.get("slug") if state_payload else None
+        state_integration = state_payload.get("integration") if state_payload else None
+
+        if error_message or status == "failed":
+            log.error("OAuth callback failed: status=%s", status)
+            return HTMLResponse(
+                status_code=400,
+                content=_oauth_card(
+                    success=False,
+                    error=error_message or "Authorization failed. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
+                ),
+            )
+
+        if not connected_account_id:
+            return HTMLResponse(
+                status_code=400,
+                content=_oauth_card(
+                    success=False,
+                    error="Missing connection identifier. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
+                ),
+            )
+
+        # Activation is project-scoped, so a missing/invalid state is fatal — we never
+        # activate without a resolved project_id.
+        project_id: Optional[UUID] = None
+        if state_payload is not None:
+            try:
+                project_id = UUID(state_payload["project_id"])
+            except (KeyError, ValueError):
+                log.warning("OAuth callback state missing or invalid project_id")
+
+        if project_id is None:
+            return HTMLResponse(
+                status_code=400,
+                content=_oauth_card(
+                    success=False,
+                    error="Connection could not be activated. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
+                ),
+            )
+
+        # Activate the connection — this is the critical path.
+        conn = None
+        try:
+            conn = (
+                await self.tools_service.activate_connection_by_provider_connection_id(
+                    provider_connection_id=connected_account_id,
+                    project_id=project_id,
+                )
+            )
+            if not conn:
+                log.error("OAuth callback: connection not found for provider ID")
+                return HTMLResponse(
+                    status_code=400,
+                    content=_oauth_card(
+                        success=False,
+                        error="Connection could not be activated. Please try again.",
+                        slug=state_slug,
+                        integration_key=state_integration,
+                    ),
+                )
+        except Exception:
+            log.error("OAuth callback: failed to activate connection", exc_info=True)
+            return HTMLResponse(
+                status_code=500,
+                content=_oauth_card(
+                    success=False,
+                    error="An internal error occurred. Please try again.",
+                    slug=state_slug,
+                    integration_key=state_integration,
+                ),
+            )
+
+        # Fetch integration metadata for the success card (best-effort decoration).
+        # Shares the catalog cache keyed identically to get_integration() below so a
+        # burst of OAuth callbacks doesn't re-fetch Composio live on every redirect.
+        integration_label = conn.integration_key.replace("_", " ").title()
+        integration_logo = None
+        integration_url = None
+        try:
+            integration_cache_key = {
+                "provider_key": conn.provider_key.value,
+                "integration_key": conn.integration_key,
+                "full_details": True,
+            }
+            cached_integration = await get_cache(
+                project_id=None,  # catalog is global; not per-project
+                namespace="tools:catalog:integration",
+                key=integration_cache_key,
+                model=ToolCatalogIntegrationResponse,
+            )
+            if cached_integration:
+                integration = cached_integration.integration
+            else:
+                integration = await self.tools_service.get_integration(
+                    provider_key=conn.provider_key.value,
+                    integration_key=conn.integration_key,
+                )
+                if integration:
+                    await set_cache(
+                        project_id=None,  # catalog is global; not per-project
+                        namespace="tools:catalog:integration",
+                        key=integration_cache_key,
+                        value=ToolCatalogIntegrationResponse(
+                            count=1,
+                            integration=integration,
+                        ),
+                        ttl=5 * 60,  # 5 minutes
+                    )
+            if integration:
+                integration_logo = integration.logo
+                integration_url = integration.url
+        except Exception:
+            log.warning(
+                "OAuth callback: could not fetch integration metadata",
+                exc_info=True,
+            )
+
+        return HTMLResponse(
+            status_code=200,
+            content=_oauth_card(
+                success=True,
+                integration_label=integration_label,
+                integration_logo=integration_logo,
+                integration_url=integration_url,
+                agenta_url=env.agenta.web_url,
+                slug=conn.slug,
+                integration_key=conn.integration_key,
+            ),
+        )
+
+    # -----------------------------------------------------------------------
+    # Tool Calls
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def resolve_tools(
+        self,
+        request: Request,
+        *,
+        body: ToolResolveRequest,
+    ) -> ToolResolveResponse:
+        """Resolve an agent's tool references into model-ready specs.
+
+        Validates Composio connections up front and enriches each action from the
+        catalog, so a running agent (e.g. Pi) gets ``customTools`` whose ``execute``
+        routes back through ``POST /tools/call`` — provider keys stay server-side.
+        """
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        try:
+            resolution = await self.tools_service.resolve_tools(
+                project_id=UUID(request.state.project_id),
+                tools=body.tools,
+            )
+        except ConnectionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+        except ConnectionInactiveError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ConnectionInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ToolSlugInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ActionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return ToolResolveResponse(
+            count=len(resolution.builtins) + len(resolution.custom),
+            builtins=resolution.builtins,
+            custom=resolution.custom,
+        )
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def discover_capabilities(
+        self,
+        request: Request,
+        *,
+        body: CapabilitiesQuery,
+    ) -> CapabilitiesResult:
+        """Discover the tools that fit a set of use cases, translated to Agenta terms.
+
+        Wraps the provider's semantic search and reports each integration's connection
+        state for the calling project. Read-only; project scope comes from caller auth.
+        See ``docs/design/agent-workflows/projects/tool-discovery/design.md``.
+        """
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        try:
+            return await self.tools_service.discover_capabilities(
+                project_id=UUID(request.state.project_id),
+                use_cases=body.use_cases,
+                provider_key=body.provider,
+                limit_alternatives=body.limit_alternatives,
+            )
+        except DiscoveryUnsupportedError as e:
+            raise HTTPException(status_code=422, detail=e.message) from e
+
+    @intercept_exceptions()
+    @handle_adapter_exceptions()
+    async def call_tool(
+        self,
+        request: Request,
+        *,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """Call a tool action with a connection."""
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.RUN_TOOLS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        # Route by the call_ref prefix: a referenced-workflow (@ag.reference) tool carries a
+        # ``workflow.{slug}[.{version}]`` call_ref and runs a workflow revision server-side; a
+        # Composio gateway tool carries the 5-segment ``tools.*`` slug and runs via the adapter.
+        call_ref = body.data.function.name.replace("__", ".")
+        if is_reserved_agenta_call_ref(call_ref):
+            return await self._call_reserved_agenta_tool(
+                request=request,
+                body=body,
+                call_ref=call_ref,
+            )
+        if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
+            return await self._call_workflow_tool(request=request, body=body)
+        # Parse tool slug — accept both dot and double-underscore formats.
+        # Double-underscore is used for LLM function names where dots are forbidden.
+        slug_parts = body.data.function.name.replace("__", ".").split(".")
+
+        if len(slug_parts) != 5 or slug_parts[0] != "tools":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Invalid tool slug format: {body.data.function.name}. "
+                    "Expected: tools.{provider}.{integration}.{action}.{connection}"
+                ),
+            )
+
+        # Validate each segment against safe allowlist to prevent injection.
+        for segment in slug_parts[1:]:
+            if not _SLUG_SEGMENT_RE.fullmatch(segment):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid characters in tool slug segment: {segment!r}",
+                )
+
+        provider_key = slug_parts[1]
+        integration_key = slug_parts[2]
+        action_key = slug_parts[3]
+        connection_slug = slug_parts[4]
+
+        try:
+            connection = await self.tools_service.resolve_connection_by_slug(
+                project_id=UUID(request.state.project_id),
+                provider_key=provider_key,
+                integration_key=integration_key,
+                connection_slug=connection_slug,
+            )
+        except ConnectionNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+        except ConnectionInactiveError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+        except ConnectionInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+
+        # Use stored project_id as Composio user_id (matches entity used at initiation)
+        user_id = (
+            connection.data.get("project_id")
+            if isinstance(connection.data, dict)
+            else None
+        )
+
+        # Parse arguments — OpenAI returns them as a JSON string; normalise to dict.
+        arguments = body.data.function.arguments
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError as e:
+                log.warning("Failed to parse tool arguments as JSON: %s", e)
+                arguments = {}
+        elif not isinstance(arguments, dict):
+            arguments = {}
+
+        # Execute the tool via the adapter.
+        # Upstream 401 AdapterError (e.g. bad API key) → @handle_adapter_exceptions → 424.
+        # Other adapter errors are treated as internal failures; unsuccessful tool
+        # execution responses remain business-level errors → 200.
+        execution_result = await self.tools_service.execute_tool(
+            provider_key=provider_key,
+            integration_key=integration_key,
+            action_key=action_key,
+            provider_connection_id=connection.provider_connection_id,
+            user_id=user_id,
+            arguments=arguments,
+        )
+
+        result = ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=json.dumps(execution_result.model_dump()),
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK"
+                if execution_result.successful
+                else "STATUS_CODE_ERROR",
+                message=execution_result.error,
+            ),
+        )
+
+        return ToolCallResponse(call=result)
+
+    async def _call_reserved_agenta_tool(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+        call_ref: str,
+    ) -> ToolCallResponse:
+        # Some handlers demand an extra permission for specific argument shapes (e.g. a
+        # test_run delta needs EDIT_WORKFLOWS); the policy lives on the handler registration.
+        elevated_permission = required_elevated_permission(
+            call_ref=call_ref,
+            arguments=body.data.function.arguments,
+        )
+        if elevated_permission is not None:
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=elevated_permission,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
+
+        try:
+            response = await dispatch_platform_tool_handler(
+                call_ref=call_ref,
+                arguments=body.data.function.arguments,
+                headers=request.headers,
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                workflows_service=self.workflows_service,
+                tracing_service=self.tracing_service,
+            )
+        except PlatformToolHandlerError as e:
+            raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+        # A business-level failed verdict is still a successful tool call (OK); only an
+        # infrastructure failure (child invoke never completed) surfaces as an error status,
+        # mirroring the adapter path's successful/unsuccessful split.
+        result = ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=response.model_dump_json(exclude_none=True),
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_ERROR"
+                if response.infra_failure
+                else "STATUS_CODE_OK",
+                message=response.verdict_reason if response.infra_failure else None,
+            ),
+        )
+
+        return ToolCallResponse(call=result)
+
+    @staticmethod
+    def _validate_slug_segments(*, segments: List[str]) -> None:
+        """Reject any call_ref segment with characters outside the safe slug allowlist."""
+        for segment in segments:
+            if not _SLUG_SEGMENT_RE.fullmatch(segment):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid characters in workflow tool segment: {segment!r}",
+                )
+
+    async def _call_workflow_tool(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """Execute a workflow referenced as an agent tool (``type:"reference"``) server-side.
+
+        The model's call routes here via a ``workflow.{axis}.*`` call_ref. We parse the targeting
+        axis, invoke the selected workflow revision with the model's arguments as ``inputs``, and
+        return its outputs as the tool result. Connections/secrets the workflow needs stay
+        server-side (auth is minted from the caller's project + user), the same safety shape a
+        gateway tool has.
+
+        Grammar (after the ``workflow.`` prefix):
+
+        - ``variant.{slug}`` / ``variant.{slug}.{version}`` — the workflow's latest revision by
+          slug, or a pinned revision. Mapped to the ``workflow`` reference family.
+        - ``environment.{environment}.{slug}`` — whatever revision is deployed in ``environment``
+          for the workflow ``slug``. Mapped to the ``environment`` + ``workflow`` families (the
+          environment selects the revision via the derived ``{slug}.revision`` key)."""
+        if self.workflows_service is None:
+            raise HTTPException(
+                status_code=501,
+                detail="Workflow tools are not enabled on this deployment.",
+            )
+
+        invalid_call_ref = HTTPException(
+            status_code=400,
+            detail=(
+                f"Invalid workflow tool call_ref: {body.data.function.name}. "
+                "Expected: workflow.variant.{slug}[.{version}] or "
+                "workflow.environment.{environment}.{slug}"
+            ),
+        )
+
+        remainder = body.data.function.name.replace("__", ".")[
+            len(_WORKFLOW_CALL_REF_PREFIX) :
+        ]
+        parts = remainder.split(".")
+        axis = parts[0] if parts else ""
+        operands = parts[1:]
+
+        if axis == "variant":
+            # ``variant.{slug}`` (latest) or ``variant.{slug}.{version}`` (pinned).
+            if len(operands) not in (1, 2):
+                raise invalid_call_ref
+            slug = operands[0]
+            version = operands[1] if len(operands) == 2 else None
+            segments = [slug] + ([version] if version else [])
+            self._validate_slug_segments(segments=segments)
+            references = {"workflow": Reference(slug=slug, version=version)}
+        elif axis == "environment":
+            # ``environment.{environment}.{slug}`` — the environment pins the revision; the
+            # workflow ref supplies the ``{slug}.revision`` selector key the env lookup needs.
+            if len(operands) != 2:
+                raise invalid_call_ref
+            environment, slug = operands
+            self._validate_slug_segments(segments=[environment, slug])
+            references = {
+                "environment": Reference(slug=environment),
+                "workflow": Reference(slug=slug),
+            }
+        else:
+            raise invalid_call_ref
+
+        # Normalise arguments — the LLM may send them as a JSON string.
+        arguments = body.data.function.arguments
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError as e:
+                log.warning("Failed to parse workflow tool arguments as JSON: %s", e)
+                arguments = {}
+        elif not isinstance(arguments, dict):
+            arguments = {}
+
+        invoke_request = WorkflowServiceRequest(
+            references=references,
+            data=WorkflowServiceRequestData(inputs=arguments),
+        )
+
+        try:
+            response = await self.workflows_service.invoke_workflow(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                request=invoke_request,
+            )
+        except Exception as e:
+            log.error("Workflow tool invocation failed", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Workflow tool '{slug}' invocation failed.",
+            ) from e
+
+        status_code = response.status.code if response.status else 200
+        successful = status_code is not None and 200 <= status_code < 300
+        outputs = response.data.outputs if response.data else None
+        message = (
+            None
+            if successful
+            else (response.status.message if response.status else None)
+        )
+
+        if successful:
+            await _emit_committed_revision_data_event_from_outputs(
+                request=request,
+                outputs=outputs,
+            )
+
+        result = ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=json.dumps(outputs),
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK" if successful else "STATUS_CODE_ERROR",
+                message=message,
+            ),
+        )
+
+        return ToolCallResponse(call=result)
+
+
+async def _emit_committed_revision_data_event_from_outputs(
+    *,
+    request: Request,
+    outputs: object,
+) -> None:
+    if not isinstance(outputs, dict):
+        return
+
+    data = {
+        "variantId": outputs.get("variantId") or outputs.get("variant_id"),
+        "revisionId": outputs.get("revisionId") or outputs.get("revision_id"),
+        "version": outputs.get("version"),
+    }
+    if not all(data.values()):
+        return
+
+    await _emit_data_event(
+        request=request,
+        name="committed-revision",
+        data=data,
+    )
+
+
+async def _emit_data_event(
+    *,
+    request: Request,
+    name: str,
+    data: dict,
+) -> None:
+    emit = getattr(request.state, "emit", None) or getattr(
+        request.state, "emit_event", None
+    )
+    if not callable(emit):
+        return
+
+    result = emit({"type": "data", "name": name, "data": data})
+    if isawaitable(result):
+        await result
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _json_for_inline_script(value: Any) -> str:
+    # `json.dumps` leaves `<` intact, so a value containing `</script>` would terminate
+    # the inline <script> block (the HTML parser ignores JS string boundaries). Escape it
+    # for every JSON payload embedded in a script tag.
+    return json.dumps(value).replace("<", "\\u003c")
+
+
+def _oauth_card(
+    *,
+    success: bool,
+    integration_label: Optional[str] = None,
+    integration_logo: Optional[str] = None,
+    integration_url: Optional[str] = None,
+    agenta_url: Optional[str] = None,
+    error: Optional[str] = None,
+    slug: Optional[str] = None,
+    integration_key: Optional[str] = None,
+) -> str:
+    # HTML-escape all provider-supplied strings before interpolation.
+    safe_label = html_lib.escape(integration_label) if integration_label else None
+    safe_logo = html_lib.escape(integration_logo) if integration_logo else None
+    safe_url = html_lib.escape(integration_url) if integration_url else None
+    safe_agenta_url = html_lib.escape(agenta_url) if agenta_url else None
+    safe_error = html_lib.escape(error) if error else None
+    agenta_origin = None
+    if agenta_url:
+        parsed_agenta_url = urlsplit(agenta_url)
+        if parsed_agenta_url.scheme and parsed_agenta_url.netloc:
+            agenta_origin = f"{parsed_agenta_url.scheme}://{parsed_agenta_url.netloc}"
+    agenta_post_message_origin_js = _json_for_inline_script(agenta_origin)
+
+    # Tag the completion message with the connection's identity so the opener can tell
+    # WHICH connection finished. The playground can have several connect flows live at
+    # once (an agent may request multiple connections in one turn); without this, every
+    # open connect widget would settle on the first completion. Absent keys keep older
+    # openers working (they ignore the extra fields).
+    oauth_complete_payload: Dict[str, str] = {"type": "tools:oauth:complete"}
+    if slug:
+        oauth_complete_payload["slug"] = slug
+    if integration_key:
+        oauth_complete_payload["integration"] = integration_key
+    oauth_complete_message_js = _json_for_inline_script(oauth_complete_payload)
+
+    accent = "#16a34a" if success else "#dc2626"
+    agenta_favicon = (
+        f"{safe_agenta_url}/assets/favicon.ico" if safe_agenta_url else None
+    )
+
+    # Logo row: Agenta <> Integration (or single checkmark/cross on error)
+    if success and (agenta_favicon or safe_logo):
+        onerror_js = "this.style.display='none'"
+        agenta_img = (
+            f'<img src="{agenta_favicon}" alt="Agenta" class="logo logo-sm" onerror="{onerror_js}" />'  # noqa: E501
+            if agenta_favicon
+            else '<div class="logo-placeholder">A</div>'
+        )
+        int_alt = safe_label or ""
+        int_initial = (safe_label or "?")[0]
+        integration_img = (
+            f'<img src="{safe_logo}" alt="{int_alt}" class="logo" />'
+            if safe_logo
+            else f'<div class="logo-placeholder">{int_initial}</div>'
+        )
+        logos_html = f"""
+    <div class="logos">
+      {agenta_img}
+      <span class="connector">&#8596;</span>
+      {integration_img}
+    </div>"""
+    else:
+        icon = "✓" if success else "✕"
+        logos_html = f'<div class="status-icon">{icon}</div>'
+
+    # Single-line heading or error message
+    if success:
+        name = safe_label or "the integration"
+        heading_html = f'<p class="h-line"><strong>Agenta</strong> successfully connected to <strong>{name}</strong></p>'  # noqa: E501
+    else:
+        heading_html = f'<p class="h-error">{safe_error or "Something went wrong"}</p>'
+
+    agenta_btn = (
+        '<button id="agenta-return-btn" type="button" class="btn btn-primary" onclick="returnToAgenta(event);">Return to Agenta</button>'  # noqa: E501
+        if safe_agenta_url
+        else ""
+    )
+    go_to_label = f"Go to {safe_label}" if safe_label else "Go to Integration"
+    integration_btn = (
+        f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">{go_to_label}</a>'  # noqa: E501
+        if safe_url
+        else ""
+    )
+    auto_return_html = (
+        '<p id="auto-return-text" class="auto-return">This tab will close automatically in 5 seconds...</p>'  # noqa: E501
+        if success and safe_agenta_url
+        else ""
+    )
+    button_html = (
+        f'<div class="buttons">{agenta_btn}{integration_btn}</div>{auto_return_html}'
+        if agenta_btn or integration_btn
+        else auto_return_html
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agenta ↔ {safe_label or "Integration"}</title>
+  <style>
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f4f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }}
+    .card {{
+      background: #fff;
+      border-radius: 16px;
+      padding: 48px 40px 40px;
+      max-width: 480px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }}
+    .logos {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }}
+    .logo {{
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      border-radius: 10px;
+    }}
+    .logo-sm {{
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+    }}
+    .logo-placeholder {{
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      border: 1px solid #e4e4e7;
+      background: #f4f4f5;
+      color: #71717a;
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 48px;
+    }}
+    .connector {{
+      font-size: 18px;
+      color: #a1a1aa;
+    }}
+    .status-icon {{
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: {accent}18;
+      color: {accent};
+      font-size: 26px;
+      line-height: 56px;
+      margin: 0 auto 32px;
+    }}
+    .h-line {{
+      font-size: 15px;
+      font-weight: 400;
+      color: #71717a;
+      line-height: 1.7;
+    }}
+    .h-error {{
+      font-size: 15px;
+      color: {accent};
+      line-height: 1.6;
+    }}
+    .buttons {{
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 28px;
+    }}
+    .btn {{
+      display: block;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px;
+      text-decoration: none;
+      text-align: center;
+      border: none;
+      cursor: pointer;
+    }}
+    .btn-primary {{
+      background: #18181b;
+      color: #fff;
+    }}
+    .btn-primary:hover {{ background: #3f3f46; }}
+    .btn-secondary {{
+      background: #f4f4f5;
+      color: #3f3f46;
+    }}
+    .btn-secondary:hover {{ background: #e4e4e7; }}
+    .auto-return {{
+      margin-top: 10px;
+      font-size: 12px;
+      color: #a1a1aa;
+    }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    {logos_html}
+    {heading_html}
+    {button_html}
+  </div>
+  <script>
+    const AGENTA_POST_MESSAGE_ORIGIN = {agenta_post_message_origin_js};
+    const AGENTA_OAUTH_COMPLETE = {oauth_complete_message_js};
+
+    function returnToAgenta(event) {{
+      if (event) {{
+        event.preventDefault();
+      }}
+
+      try {{
+        if (window.opener && !window.opener.closed && AGENTA_POST_MESSAGE_ORIGIN) {{
+          window.opener.postMessage(AGENTA_OAUTH_COMPLETE, AGENTA_POST_MESSAGE_ORIGIN);
+          window.opener.focus();
+        }}
+      }} catch (_e) {{
+        // Best effort focus only.
+      }}
+
+      try {{
+        window.close();
+      }} catch (_e) {{
+        // Ignore close errors.
+      }}
+      return false;
+    }}
+
+    if (window.opener && AGENTA_POST_MESSAGE_ORIGIN) {{
+      window.opener.postMessage(AGENTA_OAUTH_COMPLETE, AGENTA_POST_MESSAGE_ORIGIN);
+    }}
+
+    const countdownEl = document.getElementById("auto-return-text");
+    if (countdownEl) {{
+      let remaining = 5;
+
+      const render = () => {{
+        const suffix = remaining === 1 ? "" : "s";
+        countdownEl.textContent =
+          "This tab will close automatically in " +
+          remaining +
+          " second" +
+          suffix +
+          "...";
+      }};
+
+      render();
+      const intervalId = setInterval(() => {{
+        remaining -= 1;
+        if (remaining <= 0) {{
+          clearInterval(intervalId);
+          returnToAgenta();
+          return;
+        }}
+        render();
+      }}, 1000);
+    }}
+  </script>
+</body>
+</html>"""

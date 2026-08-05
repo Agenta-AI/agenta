@@ -1,0 +1,33 @@
+diff --git a/lib/parseDocuments.js b/lib/parseDocuments.js
+index c703296fad630f0a9ec18ae5ef944a652e3af0f1..1ec3e6ccc470adf1e24f21cc08d788c08b22ffe0 100644
+--- a/lib/parseDocuments.js
++++ b/lib/parseDocuments.js
+@@ -24,15 +24,23 @@ function extractTitle(content, frontMatter) {
+     return title || "";
+ }
+ function extractSectionName(route, siteConfig) {
++    // Name the section after the first URL segment. Used whenever the route
++    // cannot be matched to exactly one navbar entry: blog and other non-docs
++    // routes have no sidebar, a docs sidebar may deliberately have no navbar
++    // entry, and older docs versions have their own sidebars.
++    const fallbackSectionName = () => {
++        const firstSegment = route.path.split('/').filter(Boolean)[0] || 'Documentation';
++        return firstSegment.charAt(0).toUpperCase() + firstSegment.slice(1);
++    };
++    if (!route.sidebar) {
++        return fallbackSectionName();
++    }
+     const navbars = siteConfig.themeConfig.navbar || {};
+-    const matching_sidebars = navbars.items.filter((item) => item.sidebarId === route.sidebar);
++    const matching_sidebars = (navbars.items || []).filter((item) => item.sidebarId === route.sidebar);
+     if (matching_sidebars.length == 1) {
+         return matching_sidebars[0].label;
+     }
+-    else {
+-        logger_1.default.error('Multiple sidebars found for route ' + route.path);
+-        throw new Error('Multiple sidebars found for route ' + route.path);
+-    }
++    return fallbackSectionName();
+ }
+ function extractSingleRouteMetadata(route, siteConfig) {
+     let description = null;

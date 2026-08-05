@@ -1,0 +1,302 @@
+{
+  "provenance": {
+    "cell": "codex-agenta-tools-call (local worktree deployment, M2 live QA)",
+    "captured": "2026-07-24, worktree branch worktree-codex-harness",
+    "what": "A real Codex (gpt-5.6-luna) run that called the platform 'discover_tools' tool over the internal agenta-tools loopback MCP channel. Proves Agenta tools reach and are invoked on Codex over MCP, with the codex mcp.<server>.<tool> dot naming. The tool_result carries isError=true only because THIS deployment had no Composio provider ('Provider not found: composio'); the replay pins the STRUCTURE (which tool was invoked, over which channel, the capability flags, the stop reason), never the tool backend's success or any prose.",
+    "redactions": "sessionId -> sess-codex-tools; traceId -> trace-codex-tools; tool-call id -> toolcall-1. No secrets in a result payload."
+  },
+  "result": {
+    "ok": true,
+    "output": "I\u2019ll search the available tool catalog for email-sending capabilities and report the count.The `discover_tools` search failed with an HTTP 404, so I couldn\u2019t determine the count.",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "I\u2019ll search the available tool catalog for email-sending capabilities and report the count.The `discover_tools` search failed with an HTTP 404, so I couldn\u2019t determine the count."
+      }
+    ],
+    "events": [
+      {
+        "type": "message_start",
+        "id": "msg-0"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": "I"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": "\u2019ll"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " search"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " the"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " available"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " tool"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " catalog"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " for"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " email"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": "-s"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": "ending"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " capabilities"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " and"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " report"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " the"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": " count"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-0",
+        "delta": "."
+      },
+      {
+        "type": "usage",
+        "input": 0,
+        "output": 0,
+        "total": 12355,
+        "cost": 0
+      },
+      {
+        "type": "message_end",
+        "id": "msg-0"
+      },
+      {
+        "type": "tool_call",
+        "id": "toolcall-1",
+        "name": "mcp.agenta-tools.discover_tools",
+        "input": {
+          "arguments": {
+            "limit_alternatives": 10,
+            "use_cases": [
+              "send email"
+            ]
+          },
+          "server": "agenta-tools",
+          "tool": "discover_tools"
+        }
+      },
+      {
+        "type": "tool_result",
+        "id": "toolcall-1",
+        "output": "",
+        "isError": true
+      },
+      {
+        "type": "usage",
+        "input": 0,
+        "output": 0,
+        "total": 12626,
+        "cost": 0
+      },
+      {
+        "type": "message_start",
+        "id": "msg-1"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": "The"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " `"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": "discover"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": "_tools"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": "`"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " search"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " failed"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " with"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " an"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " HTTP"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " "
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": "404"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": ","
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " so"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " I"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " couldn"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": "\u2019t"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " determine"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " the"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": " count"
+      },
+      {
+        "type": "message_delta",
+        "id": "msg-1",
+        "delta": "."
+      },
+      {
+        "type": "usage",
+        "input": 0,
+        "output": 0,
+        "total": 12737,
+        "cost": 0
+      },
+      {
+        "type": "usage",
+        "input": 96,
+        "output": 80,
+        "total": 176,
+        "cost": 0
+      },
+      {
+        "type": "message_end",
+        "id": "msg-1"
+      },
+      {
+        "type": "done",
+        "traceId": "trace-codex-tools"
+      }
+    ],
+    "usage": {
+      "input": 96,
+      "output": 80,
+      "total": 176,
+      "cost": 0
+    },
+    "stopReason": "end_turn",
+    "capabilities": {
+      "textMessages": true,
+      "images": true,
+      "fileAttachments": true,
+      "mcpTools": true,
+      "toolCalls": true,
+      "reasoning": true,
+      "planMode": true,
+      "permissions": true,
+      "streamingDeltas": true,
+      "sessionLifecycle": true,
+      "usage": true
+    },
+    "sessionId": "sess-codex-tools",
+    "model": "gpt-5.6-luna",
+    "traceId": "trace-codex-tools"
+  }
+}

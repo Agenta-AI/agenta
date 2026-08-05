@@ -1,0 +1,17 @@
+# Licensed marketing-site fonts — NEVER commit (we may USE, not redistribute the
+# binaries on a public repo). Injected at build time from Cloudflare R2 by
+# scripts/fetch-fonts.mjs; see AGENTS.md. Kept local for dev via AGENTA_FONTS_DIR.
+# Unscoped so a stray copy anywhere under website/ is caught, not just public/fonts/.
+GT-Alpina*
+PPMondwest*
+
+# Build output and local env
+dist/
+.astro/
+.env
+
+# Local scratch dir (import-framer introspect dump)
+.scratch/
+
+# Dependencies
+node_modules/
