@@ -460,12 +460,202 @@ harness.py        runner + commit wrapper + tool schema + the lenient arm
 run.py            one arm: uv run run.py --model haiku --instructions v2 --n 5 --out ...
 analyze.py        rates and failure modes
 table.py          the markdown tables in section 2
-instructions/     v0.md, v1.md, v2.md
-results.tar.gz    440 trials as JSONL, plus the generated tables
+instructions/     v0.md, v1.md, v2.md, v3.md
+results.tar.gz    550 trials as JSONL, plus the generated tables
 ```
 
 `run.py` needs `change_set.py` beside it: copy it from
 `api/oss/src/core/workflows/change_set.py` in worktree `agent-a2a2adaa5d154d454`, or from
-wherever the engine lands after slice 1. Add `--lenient` for the interface arm.
+wherever the engine lands after slice 1. Add `--lenient` for the section 5 interface
+arm, and `--lenient --v3-surface` for the follow-up arm.
 
 Keys are read from `~/.agenta-qa-secrets.env`. No key value is written to any output file.
+
+---
+
+# Follow-up: how small can the instructions get?
+
+Added 5 August 2026, at the team lead's request. Mahmoud finds 3.2 KB heavy and asked for
+the floor.
+
+**Answer: 1,545 bytes / 392 tokens, at no measured loss.** v3 is 48% of v2's size and
+scores the same: Haiku 55/55, DeepSeek 54/55. The saving is real but it is not free — it
+is paid for by the interface, and section F.4 says exactly how much.
+
+## F.1 What v3 assumes
+
+The follow-up treats five interface behaviors as decided and simulates them in the
+harness, the way section 5 simulated leniency:
+
+1. the wrapper forgives both selector mistakes, so the WRONG/WRONG/RIGHT block is dropped;
+2. the selector key is named `list`, not `field`;
+3. every retryable error carries a `next_step` sentence, plus the enriched content from
+   section 5 (folders that exist, nearest lines on `text_not_found`), so **all** recovery
+   guidance is dropped from the document;
+4. the content marker is named `@ag.file`;
+5. `message` is optional.
+
+One deviation, deliberate. Assumption 3 says "retryable errors", but the engine classes
+`invalid_operation` as **non**-retryable, and `invalid_operation` is what a rename hits
+("`replace_item` must keep the key"). An agent can absolutely fix that by sending
+`remove_item` plus `add_item`, so the harness attaches the guidance regardless of the flag.
+See finding F.5.3.
+
+## F.2 The v3 document
+
+1,545 bytes, 392 tokens (cl100k). Source: `model-usability/instructions/v3.md`.
+
+```markdown
+Commit a change to this agent's own configuration.
+
+Send `workflow_revision` with `base_revision_id` (the `revision_id` you read) and
+`delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
+committed.
+
+TARGET: an array of segments from the configuration root. A string segment names an
+object field. An object segment `{"list": L, "key": K}` names one entry of list L and
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name), files (by path).
+
+    ["parameters","agent",{"list":"skills","key":"release-qa"},
+     {"list":"files","key":"checklist.md"},"content"]
+
+OPERATIONS:
+- `set` replace one field (needs `value`)
+- `merge` deep-merge an object into one field (needs `value`)
+- `remove` delete one field
+- `edit_text` replace exact substrings in one string field (needs `edits`)
+- `add_item` append to a list; target ends with the list name (needs `value`)
+- `replace_item` replace one entry; target ends with a selector (needs `value`)
+- `remove_item` delete one entry; target ends with a selector
+
+`edits` is a list of `{old_text, new_text}`. `old_text` must occur exactly once and match
+character for character, line breaks included. Copy it from the configuration you read; never
+retype it from memory.
+
+For a workspace file's content, write `{"@ag.file": "<path>"}` where the string would go:
+
+    {"operation":"add_item","target":["parameters","agent","skills"],
+     "value":{"name":"pdf-tools","description":"Make PDFs.",
+              "body":{"@ag.file":"imports/pdf-tools/SKILL.md"}}}
+```
+
+Sizes for comparison: v0 2,860 B / 709 tok, v1 2,593 B / 644 tok, v2 3,224 B / 798 tok,
+**v3 1,545 B / 392 tok**.
+
+## F.3 Results: v2+L versus v3+fixes
+
+| Task | Haiku v2+L | Haiku v3+fixes | DS v2+L | DS v3+fixes |
+|---|---|---|---|---|
+| a edit one instruction sentence | 5/5 | 5/5 | 5/5 | 4/5 |
+| b change one line in a skill body | 5/5 | 5/5 | 5/5 | 5/5 |
+| c add one tool by name | 5/5 | 5/5 | 5/5 | 5/5 |
+| d remove one MCP server | 5/5 | 5/5 | 5/5 | 5/5 |
+| e add a skill from workspace files | 5/5 | 5/5 | 5/5 | 5/5 |
+| f conflict, then retry on the new head | 5/5 | 5/5 | 5/5 | 5/5 |
+| g ambiguous anchor, then retry | 5/5 | 5/5 | 5/5 | 5/5 |
+| h wrong folder, then correct the path | 5/5 | 5/5 | 4/5 | 5/5 |
+| i rename a skill, keeping its content | 5/5 | 5/5 | 5/5 | 5/5 |
+| j edit a line inside a bundled file | 5/5 | 5/5 | 5/5 | 5/5 |
+| k three changes in one commit | 5/5 | 5/5 | 5/5 | 5/5 |
+| **all** | **55/55** | **55/55** | **54/55** | **54/55** |
+
+Identical totals. DeepSeek traded one task for another (it lost an `a`, it gained an `h`),
+which at five trials per cell is noise. Both v3 arms recovered on every f, g and h trial.
+
+Input tokens fell with the document: Haiku 200,593 on v2+L to **179,952** on v3; DeepSeek
+173,647 to **150,387**. Roughly 11% and 13% per task, which is the instruction saving
+showing up once per turn.
+
+**The two tasks the v2 document taught explicitly, and v3 does not, both stayed at 5/5.**
+Task i (rename) relies entirely on the engine's `invalid_operation` message plus its
+`next_step`; task j (nested selectors) relies on the one positive example. Neither needed
+its own sentence.
+
+## F.4 What the saving actually cost: the wrapper now does the teaching
+
+This is the finding that matters. I replayed every target the models sent and counted how
+many the wrapper had to repair.
+
+| Arm | targets repaired | which mistake |
+|---|---|---|
+| Haiku v2+L | 0 / 80 | — |
+| DeepSeek v2+L | 4 / 84 | 3 repeated list name, 1 named the key field |
+| Haiku v3+fixes | **10 / 85** | 10 repeated list name, 0 named the key field |
+| DeepSeek v3+fixes | **7 / 84** | 7 repeated list name, 0 named the key field |
+
+Under v2, the WRONG/WRONG/RIGHT block meant Haiku never made the mistake — zero repairs.
+Under v3 it makes it on 12% of targets, and the wrapper silently fixes them. The block and
+the normalizer are **substitutes, not complements**: the work moved from the document to
+the code. v3's 100% depends on assumption 1 being real. Ship v3's wording without the
+wrapper fix and roughly one operation in eight breaks.
+
+The rename did better than that. Both models used `{"list": ...}` on 100% of selectors —
+40/40 for Haiku, 39/39 for DeepSeek, zero uses of `field` — and **the "named the key
+field" mistake disappeared completely**. That mistake was `{"field": "name", ...}`, caused
+by `field` reading as "which field identifies the entry". Calling it `list` removes the
+ambiguity outright, with no wrapper support and no document sentence. It is the cheapest
+fix in the whole spike.
+
+So of the two selector mistakes: renaming to `list` kills one for free; the other needs
+either three lines of document or the normalizer, and the normalizer is cheaper per caller.
+
+## F.5 Three smaller results
+
+### F.5.1 Optional `message` is not enough — it has to go
+
+DeepSeek's single v3 failure is the same mode as before, on task a:
+
+```
+..."new_text": "Run the release-qa skill when the suite is\nunavailable."}]}]},
+"message": "Replace manual fallback with release-qa skill manual fallback with
+release-qa skill instruction\"}}"}
+```
+
+`message` was **optional** in this arm and the model volunteered one anyway, then
+degenerated inside it and lost a delta that was otherwise complete. Assumption 5 as stated
+does not fix the failure it was meant to fix. If we want it fixed, `message` has to leave
+the model-facing schema entirely and be derived server-side from the operations.
+
+### F.5.2 Errors teach as well as the document did, when they carry a next step
+
+Every recovery task hit 5/5 for both models with zero recovery guidance in the document.
+Task g reached 5/5 **first-call** — the model picks a unique anchor without ever being told
+to, because the target example shows it what a real anchor looks like. Assumption 3 holds:
+guidance belongs in the error, where it is read at the moment it applies, not in a document
+read once per turn.
+
+### F.5.3 `invalid_operation` is misclassified as non-retryable
+
+Contract section 10 marks `invalid_operation` not retryable. But it is the code a rename
+gets, and a rename is fixable — send `remove_item` then `add_item`. The harness had to
+attach guidance in spite of the flag for task i to work. A real agent that honors
+`retryable: false` and stops would fail every rename. **Recommendation: split the code, or
+reclassify it retryable.** A shape error the agent can restructure is not the same as a
+policy refusal it cannot.
+
+## F.6 Verdict on minimum viable instruction size
+
+**Ship v3: about 1.5 KB / 400 tokens is the floor, and it is a real floor, not a squeeze.**
+Every remaining sentence earns its place — cutting further would mean cutting an operation
+line or the exact-copy rule, both of which section 4's ablation showed are load-bearing.
+
+Three conditions attach to that number, in order of how much they cost if skipped:
+
+1. **The wrapper must normalize the repeated list name.** Not optional. It absorbs 12% of
+   Haiku's targets under v3.
+2. **Errors must carry a next-step sentence and the enriched content.** This is what buys
+   the removal of all recovery guidance, roughly a third of v2's bytes.
+3. **Rename the selector key to `list`.** Free, and it removes an entire failure mode.
+
+What this does *not* say: it does not say instructions do not matter. The v0-to-v2 range in
+section 2 is 34% to 96% on identical code. It says that once the interface stops surprising
+the model — one unambiguous selector name, a wrapper that forgives the predictable slip,
+and errors that say what to do next — the document has much less left to explain. The
+budget moved; it did not vanish. Spend it on the target grammar and the exact-copy rule,
+and let the errors do the rest.
+
+Method note: v3 was run in one arm, with all five assumptions on together. The per-assumption
+attribution in F.4 and F.5 comes from replaying the trials, not from separate arms, so the
+individual contributions of assumptions 2, 3 and 4 are inferred rather than isolated.
+Assumption 1 is the exception: v2+L versus v3+fixes isolates it directly, because the
+document is the only other thing that changed.
