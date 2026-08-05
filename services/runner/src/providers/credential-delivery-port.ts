@@ -147,32 +147,33 @@
  * and no provider error text.
  *
  * ============================================================================================
- * RULING B: WHY ROTATE-IN-PLACE IS INELIGIBLE ON DAYTONA TODAY
+ * THE Q5 RULING: ROTATE IN PLACE, WITH THE WINDOW STATED HONESTLY
  * ============================================================================================
  *
- * The security review mandated REBUILD for Daytona, and this file implements that ruling as DATA
- * rather than as a missing mechanism, so re-enabling it later is a capability flip and not a
- * redesign. Two reasons, both of which must be answered before the flip:
+ * The external security review recommended REBUILD for Daytona, because the provider documents
+ * propagation as "within seconds" without a hard bound. MAHMOUD RULED FOR ROTATE-IN-PLACE, and
+ * the reasoning is recorded in `decisions.md` and binding here:
  *
- *   1. "WITHIN SECONDS" IS NOT A BOUND. There is no honest value for `withinMs`. A number chosen
- *      by us would be a guess presented as a guarantee, which is the failure mode this project has
- *      already refused once (the reopen verification that would have verified nothing).
+ *   1. ROTATING IN AGENTA REVOKES NOTHING. Replacing the value in the vault does not invalidate
+ *      the old key at the model provider — it stays valid until its owner kills it there. So the
+ *      propagation window does not extend anyone's real exposure: during those seconds the old key
+ *      works, and after them it still works, at the provider, until revoked at the provider.
+ *   2. THE SANDBOX NEVER POSSESSES THE RAW KEY. It holds an opaque placeholder; substitution
+ *      happens at the egress layer. There is no secret inside the sandbox for the window to leak.
+ *   3. KILLING A DISTRUSTED SANDBOX IS A DIFFERENT ACTION, and it already exists. Conflating
+ *      "rotate a credential" with "destroy a possibly-hostile sandbox" makes rotation expensive
+ *      without making anyone safer.
  *
- *   2. HOLDING THE TURN IS NOT ENOUGH ANYWAY, and this is the deeper objection. Holding the turn
- *      quiesces only the turn. Under the untrusted-sandbox premise the sandbox may be running
- *      resident code of its own, and that code can keep making outbound requests throughout the
- *      wait — with the previous value still being substituted. A quiescence that does not quiesce
- *      the actual threat is theatre.
+ * WHAT SURVIVES FROM THE REVIEW, and it is load-bearing:
  *
- * WHAT WOULD MAKE IT ELIGIBLE, stated so the ask to the provider is concrete: atomic EFFECTIVE
- * replacement (the update returns only once no further egress can use the old value), or a hard
- * propagation bound COMBINED with sandbox-wide egress quiescence for its duration, or an
- * equivalent proof. Any one of those turns `daytonaCredentialCapabilities` below from `unbounded`
- * into a bounded declaration, and nothing else in the design moves.
+ *   - NEVER CLAIM INVALIDATION BEFORE PROPAGATION COMPLETES. The vault holds the new value the
+ *     moment `update` returns; sandbox traffic follows within the declared bound. Those are two
+ *     different facts and no comment, log line, or document may collapse them.
+ *   - A PROVIDER WITH NO PROPAGATION SIGNAL STAYS ON REBUILD. `unbounded` still means ineligible.
+ *     The ruling is that Daytona HAS a signal, not that the signal is optional.
  *
- * CONSEQUENCE FOR Q5: with Daytona ineligible, a credential rotation rebuilds the sandbox today,
- * which is what Q5 asked us to stop doing. That conflict is Mahmoud's to resolve; it is recorded
- * here rather than resolved by weakening the mechanism.
+ * THE WORDING TO USE, so it is consistent everywhere: a rotated value applies to sandbox traffic
+ * WITHIN SECONDS; a full kill means REVOKING AT THE PROVIDER, which Agenta cannot do for you.
  */
 import { inspect } from "node:util";
 
@@ -393,18 +394,34 @@ export interface CredentialDeliveryCapabilities {
 }
 
 /**
- * Daytona, as ruled by the security review. THIS IS THE DATA THE RULING LIVES IN.
+ * Daytona. THIS IS THE DATA THE Q5 RULING LIVES IN.
  *
- * Everything needed for `rotate-in-place` is present EXCEPT a propagation bound, and that one
- * absence is what makes the cheap route ineligible. When the provider offers atomic effective
- * replacement, or a hard bound with egress quiescence, this becomes
- * `{ kind: "bounded", withinMs: <their number> }` and nothing else in the design moves.
+ * THE SOURCE OF THE NUMBER, because a bound with no provenance is a guess wearing a suit. The
+ * vendored SDK states it in one sentence, on `Sandbox.updateSecrets`
+ * (`@daytonaio/sdk/esm/Sandbox.d.ts:484`):
+ *
+ *   "Attached, detached, or rotated secrets take effect for outbound requests within seconds."
+ *
+ * That is the only propagation statement the provider makes. It says SECONDS, plural, with no
+ * upper bound, so `withinMs` is a READING of that sentence rather than a number the provider
+ * committed to. Ten seconds is chosen as comfortably above any plausible reading of "seconds"
+ * while staying far below `MAX_PROPAGATION_HOLD_MS` — long enough that the hold means something,
+ * short enough that a rotation stays cheaper than the rebuild it replaces.
+ *
+ * WHAT THE HOLD DOES AND DOES NOT BUY, per the ruling above: it makes the runner wait until the
+ * new value is expected to be in force before it reports success, so applied state never advances
+ * over a credential the egress layer has probably not picked up yet. It does NOT make the old key
+ * unusable — only revoking it at the model provider does that.
+ *
+ * IF DAYTONA EVER PUBLISHES A HARD BOUND, replace the number and update the quotation above. If
+ * the statement is ever withdrawn, this returns to `{ kind: "unbounded" }` and the route goes back
+ * to rebuild by itself, with no other change anywhere.
  */
 export const daytonaCredentialCapabilities: CredentialDeliveryCapabilities = {
   referenceIndirection: true,
   canReplaceSlotSet: true,
   canRestartConsumer: true,
-  egressPropagation: { kind: "unbounded" },
+  egressPropagation: { kind: "bounded", withinMs: 10_000 },
 };
 
 /** The local provider: the daemon environment is frozen before it starts, so nothing is live. */
@@ -885,8 +902,11 @@ function defaultWait(ms: number): Promise<void> {
  * RULING A adopted: `apply-live` accepted, with the credential-route test, the KNOWN GAP rewrite,
  * and the stale "EXACTLY TWO" comment fix as lane obligations.
  *
- * RULING B adopted: Daytona declares `unbounded`, so `rotate-in-place` is ineligible and a rotation
- * rebuilds today. The conflict with Q5 is Mahmoud's to resolve, and re-enabling the route is a
- * change to `daytonaCredentialCapabilities` alone.
+ * RULING B was OVERRIDDEN BY MAHMOUD (Q5, option 2: rotate in place), on the reasoning in "THE Q5
+ * RULING" above — rotation revokes nothing, the sandbox never holds the raw key, and killing a
+ * distrusted sandbox is a separate existing action. The two constraints the review won stay in
+ * force: never claim invalidation before propagation completes, and a provider with no propagation
+ * signal stays on rebuild. The override is recorded here, beside the finding it overrules, so a
+ * later reader sees both.
  */
 export type CredentialDeliveryPortReviewRecord = never;
