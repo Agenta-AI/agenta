@@ -49,9 +49,11 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                 All templates
             </Link>
 
-            <div className="flex min-h-0 w-full flex-1 flex-col gap-10 lg:flex-row">
-                {/* Identity and what it needs — the decision column. */}
-                <aside className="flex w-full shrink-0 flex-col gap-6 lg:w-[320px]">
+            <div className="flex min-h-0 w-full flex-1 flex-col gap-10 lg:flex-row lg:gap-0">
+                {/* Identity and what it needs — a rail, not a column: it bleeds to the page's own
+                    edges and carries the divider, so the decision half is a distinct surface from
+                    the reading half rather than the same page with a gap down the middle. */}
+                <aside className="box-border flex w-full shrink-0 flex-col gap-6 lg:-my-4 lg:-ml-14 lg:w-[376px] lg:border-0 lg:border-r lg:border-solid lg:border-colorBorderSecondary lg:bg-colorFillQuaternary lg:py-8 lg:pl-14 lg:pr-8">
                     <div className="flex flex-col gap-3">
                         <span
                             aria-hidden
@@ -121,7 +123,7 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                 </aside>
 
                 {/* What it will actually do. */}
-                <div className="flex min-w-0 flex-1 flex-col gap-6">
+                <div className="flex min-w-0 flex-1 flex-col gap-6 lg:py-4 lg:pl-10">
                     {template.example ? (
                         <section className="flex flex-col gap-2">
                             <SectionLabel>Example session</SectionLabel>
