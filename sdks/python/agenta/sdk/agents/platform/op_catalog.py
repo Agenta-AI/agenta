@@ -752,14 +752,18 @@ def _ordered_operations_enabled() -> bool:
     }
 
 
-# The legacy description. Kept verbatim for the flag-off surface.
+# The legacy description, for the flag-off surface. The wholesale-list sentence names the
+# build-kit exception because the server REFUSES a commit that carries a platform-kind tool
+# entry: telling the model to send its own build-kit tools back would earn that refusal.
 _COMMIT_REVISION_DESCRIPTION_LEGACY = (
     "Commit a new revision to your own workflow variant (update yourself). Send only the "
     "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
     "current config) and any field paths to drop under `delta.remove`. Put agent-template "
     "edits under `delta.set.parameters.agent`. Lists such as `tools`, `skills`, and `mcps` "
-    "are replaced wholesale, not merged entry-by-entry: send the complete list (current "
-    "entries plus your change), or you wipe the rest, including your own build-kit tools. "
+    "are replaced wholesale, not merged entry-by-entry: send the complete list, meaning "
+    "your current entries plus your change, or you wipe the rest. Leave the playground's "
+    "own tools (commit_revision, test_run, read_config) OUT of that list: they are not "
+    "part of your configuration, and a commit that carries one is refused. "
     "The variant you are running is targeted automatically. The response returns the new "
     "revision id; existing schedules and subscriptions keep pointing at the old revision "
     "until you re-point them. This changes the agent and requires approval."
@@ -1405,7 +1409,11 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             op="commit_revision",
             description=_COMMIT_REVISION_DESCRIPTION,
             method="POST",
-            path="/api/workflows/revisions/commit",
+            # The scoped sibling of `/revisions/commit`, in both flag states. It confines
+            # every write to `parameters.agent`, and it is the ONLY commit surface the
+            # agent is given: the path comes from this catalog, and the sandbox holds no
+            # credential, so an unscoped agent commit cannot be expressed.
+            path="/api/workflows/revisions/commit/agent",
             input_schema=_COMMIT_REVISION_INPUT_SCHEMA,
             context_bindings={
                 "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
