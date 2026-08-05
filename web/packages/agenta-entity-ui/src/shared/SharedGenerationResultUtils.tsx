@@ -8,8 +8,16 @@ import {
     type ExecutionStatus,
 } from "@agenta/shared/utils"
 import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
+import {
+    Badge,
+    LoadingButton,
+    SkeletonBlock,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {TreeView} from "@phosphor-icons/react"
-import {Button, Skeleton, Tag, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -62,22 +70,29 @@ const SharedGenerationResultUtils = ({
     if (summary.isPending) {
         return (
             <div className={clsx("flex items-center gap-2 flex-nowrap", className)}>
-                <Tooltip title="Open trace">
-                    <Button
-                        type="default"
-                        size="small"
-                        icon={<TreeView size={14} />}
-                        loading
-                        disabled
-                        data-ivt-stop-row-click
-                    />
-                </Tooltip>
-                {showStatus ? <Skeleton.Button active size="small" style={{width: 96}} /> : null}
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <LoadingButton
+                                variant="outline"
+                                size="icon-sm"
+                                loading
+                                disabled
+                                aria-label="Open trace"
+                                data-ivt-stop-row-click
+                            />
+                        </TooltipTrigger>
+                        <TooltipContent>Open trace</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+                {showStatus ? (
+                    <SkeletonBlock active className="h-6 w-auto" style={{width: 96}} />
+                ) : null}
                 {!actionsOnly ? (
                     <>
-                        <Skeleton.Button active size="small" style={{width: 82}} />
-                        <Skeleton.Button active size="small" style={{width: 64}} />
-                        <Skeleton.Button active size="small" style={{width: 104}} />
+                        <SkeletonBlock active className="h-6 w-auto" style={{width: 82}} />
+                        <SkeletonBlock active className="h-6 w-auto" style={{width: 64}} />
+                        <SkeletonBlock active className="h-6 w-auto" style={{width: 104}} />
                     </>
                 ) : null}
             </div>
@@ -86,21 +101,26 @@ const SharedGenerationResultUtils = ({
 
     return (
         <div className={clsx("flex items-center gap-2 flex-nowrap", className)}>
-            <Tooltip title="Open trace">
-                <Button
-                    type="default"
-                    size="small"
-                    icon={<TreeView size={14} />}
-                    loading={summary.isPending}
-                    disabled={!onViewTrace}
-                    onClick={onOpenTrace}
-                    data-ivt-stop-row-click
-                />
-            </Tooltip>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <LoadingButton
+                            variant="outline"
+                            size="icon-sm"
+                            loading={summary.isPending}
+                            disabled={!onViewTrace}
+                            onClick={onOpenTrace}
+                            aria-label="Open trace"
+                            data-ivt-stop-row-click
+                        >
+                            {summary.isPending ? null : <TreeView size={14} />}
+                        </LoadingButton>
+                    </TooltipTrigger>
+                    <TooltipContent>Open trace</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
             {showStatus && status ? (
-                <Tag color={getStatusSeverity(status)} className="m-0">
-                    {status}
-                </Tag>
+                <Badge variant={getStatusSeverity(status)}>{status}</Badge>
             ) : null}
             {!actionsOnly ? (
                 <ExecutionMetricsDisplay metrics={summary.metrics} isLoading={summary.isPending} />

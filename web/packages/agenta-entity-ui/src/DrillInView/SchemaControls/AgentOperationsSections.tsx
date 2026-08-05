@@ -14,7 +14,7 @@
  */
 import {type ReactNode} from "react"
 
-import {Skeleton, Typography} from "antd"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
@@ -39,7 +39,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
             <section className="flex w-full flex-col" aria-busy>
                 <div className={barClass(sticky)}>
                     <span className={titleClass}>Triggers</span>
-                    <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
+                    <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                 </div>
                 <div className="flex flex-col px-4 pb-3 pt-1">
                     <SkeletonSectionRow title={112} value={44} withAdd divider />
@@ -49,7 +49,7 @@ export function AgentOperationsSkeleton({sticky = true}: {sticky?: boolean}) {
             <section className="flex w-full flex-col" aria-busy>
                 <div className={barClass(sticky)}>
                     <span className={titleClass}>Files</span>
-                    <Skeleton.Button active size="small" style={{width: 44, height: 14}} />
+                    <SkeletonBlock active className="h-3.5 w-11 shrink-0" />
                 </div>
                 <div className="flex flex-col px-4 pb-3 pt-1">
                     <SkeletonSectionRow title={86} value={90} divider />
@@ -103,11 +103,11 @@ export function AgentOperationsSections({
                 <div className="flex flex-col px-4 pb-3 pt-1">
                     {storage ?? (
                         // Static fallback for surfaces that don't slot the live Files body.
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-colorTextDescription">
                             The agent&rsquo;s working files — everything it reads and writes during
                             a run. Open a conversation to browse them here; the agent&rsquo;s
                             durable folder appears as a subfolder once agent-level storage lands.
-                        </Typography.Text>
+                        </span>
                     )}
                 </div>
             </section>

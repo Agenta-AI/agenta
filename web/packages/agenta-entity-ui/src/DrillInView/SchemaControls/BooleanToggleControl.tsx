@@ -5,14 +5,12 @@
  * Uses a horizontal layout: label left, switch right.
  */
 
-import {memo} from "react"
+import {memo, useId} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {cn, textColors} from "@agenta/ui/styles"
+import {Switch, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {Info} from "@phosphor-icons/react"
-import {Switch, Tooltip, Typography} from "antd"
-
-const {Text} = Typography
 
 export interface BooleanToggleControlProps {
     /** The schema property (used for description) */
@@ -56,24 +54,35 @@ export const BooleanToggleControl = memo(function BooleanToggleControl({
     // Normalize value (treat null/undefined as false)
     const checked = value ?? false
     const showTooltipIcon = withTooltip && !!tooltipText && !!label
+    // Names the Switch from the adjacent visible label (axe button-name).
+    const labelId = useId()
 
     return (
         <div className={cn("flex items-center justify-between gap-3", className)}>
             <div className="flex items-center gap-1">
                 {label && (
-                    <Text className={cn("font-medium text-xs", textColors.primary)}>{label}</Text>
+                    <span id={labelId} className={cn("font-medium text-xs", textColors.primary)}>
+                        {label}
+                    </span>
                 )}
                 {showTooltipIcon && (
-                    <Tooltip title={tooltipText} placement="right">
-                        <Info size={12} className="text-gray-400 cursor-help" aria-hidden="true" />
-                    </Tooltip>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Info size={12} className="text-gray-400 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="right">{tooltipText}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 )}
             </div>
             <Switch
                 disabled={disabled}
                 checked={checked}
-                onChange={onChange}
-                size="small"
+                onCheckedChange={onChange}
+                size="sm"
+                aria-labelledby={label ? labelId : undefined}
+                aria-label={label ? undefined : "Toggle"}
                 className="flex-shrink-0"
             />
         </div>

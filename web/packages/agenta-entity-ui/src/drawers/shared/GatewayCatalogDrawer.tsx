@@ -7,11 +7,13 @@
  * inline connect. Surfaces differ only in data + leaf, supplied via `adapter` + `config`.
  *
  * Tools and triggers share the same `gateway_connections` rows, so this drawer is genuinely the
- * same component pointed at different catalog hooks. Dark-safe (`--ag-color*` tokens + antd).
+ * same component pointed at different catalog hooks. Dark-safe (`--ag-color*` tokens).
  */
 import React, {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
+import {DropdownButton, ScrollSentinel, ScrollToTopButton, Tag} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Button, Divider, EmptyState, InputAffix, Spinner} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     CaretDown,
@@ -21,8 +23,6 @@ import {
     MagnifyingGlass,
     Plus,
 } from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
-import {Button, Card, Divider, Drawer, Dropdown, Empty, Input, Spin, Tag, Typography} from "antd"
 import Image from "next/image"
 
 import {AppCard} from "./CatalogAppCard"
@@ -96,24 +96,37 @@ export interface CatalogConfig<I, T, C> {
     ) => ReactNode
 }
 
+// Composed replacement for antd `Typography.Paragraph ellipsis={{expandable: "collapsible"}}`:
+// a 3-line clamp with a "see more"/"see less" toggle shown only when the text overflows.
 function ExpandableText({text}: {text: string}) {
+    const [expanded, setExpanded] = useState(false)
+    const [overflows, setOverflows] = useState(false)
+    const clampRef = useRef<HTMLSpanElement | null>(null)
+    useEffect(() => {
+        const el = clampRef.current
+        if (!el) return
+        setOverflows(el.scrollHeight > el.clientHeight + 1)
+    }, [text])
     return (
-        <Typography.Paragraph
-            type="secondary"
-            className="!mb-0 !text-xs"
-            ellipsis={{
-                rows: 3,
-                expandable: "collapsible",
-                symbol: (expanded) => (expanded ? "see less" : "see more"),
-            }}
-        >
-            {text}
-        </Typography.Paragraph>
+        <p className="m-0 text-xs text-[var(--ag-colorTextDescription)]">
+            <span ref={clampRef} className={expanded ? "block" : "line-clamp-3 block"}>
+                {text}
+            </span>
+            {(overflows || expanded) && (
+                <button
+                    type="button"
+                    onClick={() => setExpanded((v) => !v)}
+                    className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
+                >
+                    {expanded ? "see less" : "see more"}
+                </button>
+            )}
+        </p>
     )
 }
 
 function ItemTrailingIcon({state}: {state: ItemTrailing}) {
-    if (state === "pending") return <Spin size="small" />
+    if (state === "pending") return <Spinner size="small" />
     if (state === "selected")
         return <Check size={13} className="shrink-0 text-[var(--ag-colorPrimary)]" />
     return <Plus size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
@@ -138,7 +151,7 @@ function ConnectionItemsList<I, T, C>({
     if (isLoading && items.length === 0) {
         return (
             <div className="flex justify-center py-3">
-                <Spin size="small" />
+                <Spinner size="small" />
             </div>
         )
     }
@@ -234,9 +247,9 @@ function IntegrationsView<I, T, C>({
             {hasConnections && (
                 <div className="flex w-[280px] shrink-0 flex-col overflow-hidden border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
                     <div className="shrink-0 px-4 pb-2 pt-4">
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-[var(--ag-colorTextDescription)]">
                             Your connections
-                        </Typography.Text>
+                        </span>
                     </div>
                     <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-3 pb-2">
                         {connections.map((conn) => {
@@ -307,23 +320,23 @@ function IntegrationsView<I, T, C>({
 
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <div className="flex shrink-0 flex-col gap-2 px-6 pb-3 pt-4">
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
                         {hasConnections ? "Or connect a new app" : "Connect an app"}
-                    </Typography.Text>
-                    <Input
+                    </span>
+                    <InputAffix
                         placeholder={config.appsSearchPlaceholder}
                         prefix={<MagnifyingGlass size={16} />}
                         value={searchValue}
-                        onChange={(e) => onSearch(e.target.value)}
+                        onValueChange={onSearch}
                         allowClear
                         onClear={() => onSearch("")}
                     />
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
                         {total} integration{total !== 1 ? "s" : ""}
-                    </Typography.Text>
+                    </span>
                 </div>
 
-                <Divider className="!m-0" />
+                <Divider className="m-0" />
 
                 <div
                     ref={scrollRef}
@@ -331,10 +344,10 @@ function IntegrationsView<I, T, C>({
                 >
                     {isLoading && integrations.length === 0 ? (
                         <div className="flex items-center justify-center py-12">
-                            <Spin />
+                            <Spinner />
                         </div>
                     ) : integrations.length === 0 ? (
-                        <Empty description="No integrations found" />
+                        <EmptyState description="No integrations found" />
                     ) : (
                         <div className="grid auto-rows-min gap-2 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
                             {integrations.map((integration, i) => (
@@ -370,7 +383,7 @@ function IntegrationsView<I, T, C>({
                                 />
                                 {isFetchingNextPage && (
                                     <div className="flex items-center justify-center py-4">
-                                        <Spin size="small" />
+                                        <Spinner size="small" />
                                     </div>
                                 )}
                             </div>
@@ -423,7 +436,8 @@ function ItemsView<I, T, C>({
         [activeConn, config, integration],
     )
 
-    const connectionMenu = useMemo<MenuProps["items"]>(
+    // Split-button menu: one option per existing connection; picking one opens its detail.
+    const connectionMenu = useMemo(
         () =>
             config.onConnectionMenu
                 ? connections.map((conn) => ({
@@ -438,10 +452,18 @@ function ItemsView<I, T, C>({
                               )}
                           </div>
                       ),
-                      onClick: () => config.onConnectionMenu?.(conn),
+                      connection: conn,
                   }))
                 : undefined,
         [connections, adapter, config],
+    )
+
+    const handleConnectionMenuPick = useCallback(
+        (key: string) => {
+            const entry = connectionMenu?.find((option) => option.key === key)
+            if (entry) config.onConnectionMenu?.(entry.connection)
+        },
+        [connectionMenu, config],
     )
 
     const {
@@ -467,12 +489,14 @@ function ItemsView<I, T, C>({
             <div className="flex shrink-0 flex-col gap-3 px-6 pb-3 pt-4">
                 <div className="flex items-center gap-3">
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon"
                         aria-label="Go back"
-                        icon={<ArrowLeft size={16} />}
                         onClick={onBack}
                         className="shrink-0"
-                    />
+                    >
+                        <ArrowLeft size={16} />
+                    </Button>
                     {logo && (
                         <Image
                             src={logo}
@@ -483,23 +507,23 @@ function ItemsView<I, T, C>({
                             unoptimized
                         />
                     )}
-                    <Typography.Text strong className="flex-1 truncate">
+                    <span className="flex-1 truncate font-semibold text-[var(--ag-colorText)]">
                         {adapter.integration.name(integration)}
-                    </Typography.Text>
+                    </span>
                     <div className="shrink-0">
                         {connectionMenu && connections.length > 0 ? (
-                            <Dropdown.Button
-                                type="primary"
-                                trigger={["click"]}
-                                menu={{items: connectionMenu}}
-                                icon={<CaretDown size={12} />}
+                            <DropdownButton
+                                variant="default"
+                                label="Connect"
+                                icon={<Plus size={14} />}
+                                dropdownIcon={<CaretDown size={12} />}
+                                options={connectionMenu.map(({key, label}) => ({key, label}))}
                                 onClick={onConnect}
-                            >
-                                <Plus size={14} />
-                                Connect
-                            </Dropdown.Button>
+                                onOptionSelect={handleConnectionMenuPick}
+                            />
                         ) : (
-                            <Button type="primary" icon={<Plus size={14} />} onClick={onConnect}>
+                            <Button variant="default" onClick={onConnect}>
+                                <Plus size={14} />
                                 Connect
                             </Button>
                         )}
@@ -507,21 +531,21 @@ function ItemsView<I, T, C>({
                 </div>
                 {description && <ExpandableText text={description} />}
 
-                <Input
+                <InputAffix
                     placeholder={config.itemsSearchPlaceholder}
                     prefix={<MagnifyingGlass size={16} />}
                     value={searchValue}
-                    onChange={(e) => onSearch(e.target.value)}
+                    onValueChange={onSearch}
                     allowClear
                     onClear={() => onSearch("")}
                 />
 
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-[var(--ag-colorTextDescription)]">
                     {total} item{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
-            <Divider className="!m-0" />
+            <Divider className="m-0" />
 
             <div
                 ref={scrollRef}
@@ -529,13 +553,10 @@ function ItemsView<I, T, C>({
             >
                 {isLoading && items.length === 0 ? (
                     <div className="flex items-center justify-center py-8">
-                        <Spin />
+                        <Spinner />
                     </div>
                 ) : items.length === 0 ? (
-                    <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={config.emptyItemsText}
-                    />
+                    <EmptyState image="simple" description={config.emptyItemsText} />
                 ) : (
                     <div className="flex flex-col gap-2">
                         {items.map((item, i) => {
@@ -553,21 +574,25 @@ function ItemsView<I, T, C>({
                                             isFetching={isFetchingNextPage}
                                         />
                                     )}
-                                    <Card
-                                        hoverable={!pickDisabled}
-                                        className={
-                                            pickDisabled ? "cursor-not-allowed" : "cursor-pointer"
-                                        }
-                                        size="small"
+                                    {/* antd Card (size="small", hoverable) → div + tokens: 1px
+                                        colorBorderSecondary border, 8px radius, 12px body padding,
+                                        hover shadow when clickable. */}
+                                    <div
+                                        role={pickDisabled ? undefined : "button"}
+                                        className={`box-border rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)] p-3 ${
+                                            pickDisabled
+                                                ? "cursor-not-allowed"
+                                                : "cursor-pointer transition-shadow hover:shadow-md"
+                                        }`}
                                         onClick={pickDisabled ? undefined : () => handlePick(item)}
                                     >
                                         <div className="flex items-start gap-2">
                                             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                                                 <div className="flex items-center gap-2">
-                                                    <Typography.Text strong className="truncate">
+                                                    <span className="truncate font-semibold text-[var(--ag-colorText)]">
                                                         {adapter.item.name(item) ||
                                                             adapter.item.key(item)}
-                                                    </Typography.Text>
+                                                    </span>
                                                     {categories?.slice(0, 2).map((c) => (
                                                         <Tag key={c} className="text-xs">
                                                             {c}
@@ -575,19 +600,16 @@ function ItemsView<I, T, C>({
                                                     ))}
                                                 </div>
                                                 {itemDescription && (
-                                                    <Typography.Text
-                                                        type="secondary"
-                                                        className="text-xs"
-                                                    >
+                                                    <span className="text-xs text-[var(--ag-colorTextDescription)]">
                                                         {itemDescription}
-                                                    </Typography.Text>
+                                                    </span>
                                                 )}
                                             </div>
                                             <span className="mt-0.5">
                                                 <ItemTrailingIcon state={state} />
                                             </span>
                                         </div>
-                                    </Card>
+                                    </div>
                                 </React.Fragment>
                             )
                         })}
@@ -599,7 +621,7 @@ function ItemsView<I, T, C>({
                         />
                         {isFetchingNextPage && (
                             <div className="flex items-center justify-center py-4">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                     </div>
@@ -651,12 +673,12 @@ export function GatewayCatalogDrawer<I, T, C>({
 
     return (
         <>
-            <Drawer
+            {/* antd Drawer size="large" = 736px; EnhancedDrawer lazy-mounts, covering destroyOnClose. */}
+            <EnhancedDrawer
                 open={open}
                 onClose={handleClose}
                 title={config.title(selected)}
-                size="large"
-                destroyOnClose
+                width={736}
                 styles={{
                     body: {
                         padding: 0,
@@ -677,7 +699,7 @@ export function GatewayCatalogDrawer<I, T, C>({
                 ) : (
                     <IntegrationsView adapter={adapter} config={config} onSelect={setSelected} />
                 )}
-            </Drawer>
+            </EnhancedDrawer>
 
             {connectFor &&
                 config.renderConnect(connectFor, {

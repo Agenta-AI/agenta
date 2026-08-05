@@ -46,6 +46,8 @@ function Slider({
     value,
     min = 0,
     max = 100,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledby,
     ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root>) {
     // One Thumb per value entry (shadcn pattern); fall back to a single thumb at `min`.
@@ -100,6 +102,9 @@ function Slider({
                     <SliderPrimitive.Thumb
                         key={i}
                         data-slot="slider-thumb"
+                        // The THUMB carries role="slider", so the name must land here, not on Root.
+                        aria-label={ariaLabel}
+                        aria-labelledby={ariaLabelledby}
                         className={cn(
                             // antd handle: 10px white circle. The 2px ring is a box-shadow OUTSIDE
                             // the fill (antd `box-shadow: 0 0 0 handleLineWidth handleColor`), so the

@@ -11,8 +11,8 @@ import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 export interface McpServerItemControlProps {
@@ -90,19 +90,24 @@ export const McpServerItemControl = memo(function McpServerItemControl({
 
     const header = (
         <div className="w-full flex items-center justify-between py-1">
-            <Typography.Text strong className="text-sm truncate">
-                {name}
-            </Typography.Text>
+            <span className="text-sm font-semibold truncate">{name}</span>
             {!disabled && onDelete && (
-                <Tooltip title="Remove">
-                    <Button
-                        icon={<MinusCircle size={14} />}
-                        type="text"
-                        size="small"
-                        onClick={onDelete}
-                        className="invisible group-hover/mcp:visible shrink-0"
-                    />
-                </Tooltip>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Remove"
+                                onClick={onDelete}
+                                className="invisible group-hover/mcp:visible shrink-0"
+                            >
+                                <MinusCircle size={14} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
         </div>
     )
@@ -112,6 +117,7 @@ export const McpServerItemControl = memo(function McpServerItemControl({
             <div className={clsx("group/mcp flex flex-col gap-2 border rounded-lg p-3", className)}>
                 {header}
                 <textarea
+                    aria-label="MCP server configuration"
                     className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}
