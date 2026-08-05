@@ -439,10 +439,24 @@ export function useModelHarness({
     // `harness.kind` (NOT all of `harness`) so a permissions edit doesn't light up the Harness header.
     const harnessKindChanged = useHasChangedUnder("harness.kind")
     const modelChanged = useHasChangedUnder("llm.model")
-    const credentialsChanged = useHasChangedUnder("llm.connection")
+    // Provider credentials cover both the connection (mode/slug) and the bare `llm.provider` field a
+    // catalog model switch can move on its own — track both, or a provider-only change gets a "Connect
+    // key" badge with no changed indicator or Restore to go with it.
+    const connectionChanged = useHasChangedUnder("llm.connection")
+    const providerFieldChanged = useHasChangedUnder("llm.provider")
+    const credentialsChanged = connectionChanged || providerFieldChanged
     const revertHarnessKind = useRevertUnder("harness.kind")
     const revertModel = useRevertUnder("llm.model")
-    const revertCredentials = useRevertUnder("llm.connection")
+    const revertConnection = useRevertUnder("llm.connection")
+    const revertProviderField = useRevertUnder("llm.provider")
+    // `writeModel` can move `llm.model` atomically with `llm.provider`/`llm.connection.slug` (a
+    // catalog pick clears the old custom slug) — revert all three together or the group's Restore
+    // reattaches a stale slug to the new model, a combination the backend rejects.
+    const revertCredentials = useCallback(() => {
+        revertConnection?.()
+        revertProviderField?.()
+        revertModel?.()
+    }, [revertConnection, revertProviderField, revertModel])
     // Confirmed, because unlike the per-row undo (which is reached THROUGH the popover showing the
     // exact value it restores — see `RailField`) this one discards every change in the group at once
     // and names none of them.
@@ -707,7 +721,7 @@ export function useModelHarness({
               disabled,
               revisionId: revisionId ?? null,
               indicator: changedIndicator(credentialsChanged),
-              revertControl: revertAction(revertCredentials),
+              revertControl: credentialsChanged ? revertAction(revertCredentials) : undefined,
           }
         : null
     // The full pane (own header + rail) for the drawer body; the `bare` variant (toggle + key form /
@@ -1072,6 +1086,10 @@ export function useModelHarness({
         // self-managed card; no nested header/badge, no rail) for the inline "Connect key"
         // quick-action under the section header — aligned with the drawer without duplicating it.
         providerCredentialsInline,
+        // The full accordion variant (header, "Connect key" badge, changed-path indicator, group
+        // revert) — used instead of the bare pane when the connect-key state coincides with an
+        // uncommitted change, so the change stays visible rather than being silently dropped.
+        providerCredentialsSection,
         // A model is selected but the chosen harness can't run it — a *model* problem (the harness
         // itself stays valid), so the config panel flags the Model & harness section as invalid.
         modelUnsupported: !!modelId && !selectedKeepsModel,
