@@ -99,14 +99,23 @@ const SessionFiltersRail = ({title, waitingCount, hideAgentFilter}: Props) => {
                 </section>
             )}
 
+            {/* Two different kinds of switch, so two headings: one picks WHICH sessions, the
+                other widens the set. Under one "Include" label they read as the same thing. */}
             <section className="flex flex-col gap-3">
-                <RailLabel>Include</RailLabel>
-                <Tooltip title="Sessions started by an automation, not by you" placement="right">
+                <RailLabel>Show</RailLabel>
+                <Tooltip
+                    title="Runs started by an automation, instead of the sessions you started"
+                    placement="right"
+                >
                     <label className="flex cursor-pointer items-center gap-2 text-sm text-colorTextSecondary">
                         <Switch checked={showTriggered} onChange={setShowTriggered} />
-                        Automations
+                        Automation runs
                     </label>
                 </Tooltip>
+            </section>
+
+            <section className="flex flex-col gap-3">
+                <RailLabel>Include</RailLabel>
                 <Tooltip title="Archived sessions are hidden but recoverable" placement="right">
                     <label className="flex cursor-pointer items-center gap-2 text-sm text-colorTextSecondary">
                         <Switch checked={showArchived} onChange={setShowArchived} />

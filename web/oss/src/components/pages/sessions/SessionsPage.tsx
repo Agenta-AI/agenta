@@ -109,20 +109,13 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
         sessionIds: pinnedIds,
         enabled: pinnedIds.length > 0,
     })
-    // Two queries, not one page split in half. A page boundary is not a group boundary: with one
-    // recency-ordered feed, a first page that happens to be all automations left "Recent" empty,
-    // and paging then back-filled it ABOVE the automations. Each group pages on its own.
+    // The automations switch picks WHICH sessions, it doesn't add a second set: one list, one
+    // pager. Mixing both in one recency-ordered feed meant a busy schedule buried your own
+    // sessions, and grouping them client-side made paging back-fill a group above another.
     const listQuery = useSessionList({
         ...shared,
-        showTriggered: false,
+        origin: showTriggered ? "trigger" : undefined,
         excludeSessionIds: pinnedIds,
-    })
-    const automationsQuery = useSessionList({
-        ...shared,
-        origin: "trigger",
-        showTriggered: true,
-        excludeSessionIds: pinnedIds,
-        enabled: showTriggered,
     })
 
     // Which group a loaded row shows in is decided here, so pinning moves it on the same frame
@@ -140,13 +133,6 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
         return row ? [row] : []
     })
     const rows = listRows.filter((row) => !pinnedSet.has(row.session_id))
-    // Runs you configured but didn't start. Their own group, so a busy schedule can't push what
-    // you actually said off the first screen.
-    const automationRows = showTriggered
-        ? rowsFromPages(automationsQuery.data?.pages).filter(
-              (row) => !pinnedSet.has(row.session_id),
-          )
-        : []
 
     const handleOpen = useCallback(
         (row: SessionStream) => {
@@ -234,7 +220,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                             {/* The pinned group needs a counterpart, or the rows below it read as
                                 more pinned ones that lost their heading. */}
                             {pinnedRows.length > 0 && rows.length > 0 ? (
-                                <GroupHeader label="Recent" />
+                                <GroupHeader label={showTriggered ? "Automation runs" : "Recent"} />
                             ) : null}
                             <AnimatePresence initial={false}>
                                 {rows.map((row) => renderRow(row, false))}
@@ -247,23 +233,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                                 />
                             ) : null}
 
-                            {automationRows.length > 0 ? (
-                                <GroupHeader label={`Automations ${automationRows.length}`} />
-                            ) : null}
-                            <AnimatePresence initial={false}>
-                                {automationRows.map((row) => renderRow(row, false))}
-                            </AnimatePresence>
-
-                            {showTriggered && automationsQuery.hasNextPage ? (
-                                <LoadMore
-                                    loading={automationsQuery.isFetchingNextPage}
-                                    onClick={() => void automationsQuery.fetchNextPage()}
-                                />
-                            ) : null}
-
-                            {rows.length === 0 &&
-                            pinnedRows.length === 0 &&
-                            automationRows.length === 0 ? (
+                            {rows.length === 0 && pinnedRows.length === 0 ? (
                                 <SessionListEmpty
                                     filtered={filtersActive}
                                     onClearFilters={resetFilters}
