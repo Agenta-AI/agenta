@@ -153,3 +153,39 @@ async def test_a_turn_still_clears_its_own_running_lock(lock_engine):
     )
     assert owner is None
     assert watch.lifecycle_states == ["ended"]
+
+
+@pytest.mark.asyncio
+async def test_an_end_beat_without_a_turn_id_releases_nothing(lock_engine):
+    """`turn_id` is optional on the wire, so this request is schema-valid.
+
+    An owner-scoped release has nothing to compare without an id. It used to reach
+    `turn_id.encode()` and 500; it must decline instead, and must not release on behalf of
+    whoever happens to hold the lock — refusing an unprovable claim is the point of the
+    owner check.
+    """
+    live_turn = str(uuid4())
+    await acquire_running(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id=live_turn
+    )
+
+    watch = _RecordingWatch()
+    service = _service(lock_engine, watch)
+
+    await service.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=_SESSION,
+            turn_id=None,
+            is_running=False,
+            replica_id="replica-1",
+        ),
+    )
+
+    owner = await get_running_owner(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION
+    )
+    assert owner == live_turn, "an end beat with no turn id released the live turn's lock"
+    assert "ended" not in watch.lifecycle_states, (
+        "an end beat with no turn id published `ended` for a session that is still running"
+    )

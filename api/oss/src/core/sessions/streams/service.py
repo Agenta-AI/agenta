@@ -413,7 +413,11 @@ class SessionStreamsService:
             # superseded turn; clearing unconditionally left the mirror hole open, where a
             # stale turn's final beat deleted the LIVE turn's lock and published `ended`
             # underneath it.
-            released = await release_running(
+            # `turn_id` is optional on the wire, and an owner-scoped release has nothing to
+            # compare without one. Treat it as a no-op rather than releasing on behalf of
+            # whoever happens to hold the lock: an end beat that cannot prove ownership is
+            # exactly the case this release exists to refuse.
+            released = bool(request.turn_id) and await release_running(
                 self._lock,
                 project_id=str(project_id),
                 session_id=request.session_id,
