@@ -66,7 +66,7 @@ function DeployForm({
                     <label
                         key={o.key}
                         className={cn(
-                            "flex items-center gap-2",
+                            "flex items-center gap-2 text-sm",
                             o.disabled ? "cursor-not-allowed text-disabled" : "cursor-pointer",
                         )}
                     >
