@@ -1,86 +1,74 @@
 # Status
 
-Updated: 2026-08-04 night, by team-lead.
+Updated: 2026-08-05 evening, by team-lead.
 
-## Implementation state
+## Implementation state: complete, fix round landed, PRs opening
 
-Two slices are landed on stacked lanes and pushed, with the gate-3 contract fixes:
+All in-scope user stories (US-1, US-2, US-3, US-4, US-5, US-7, US-8) are implemented
+behind the single feature flag `AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED`. US-6 is
+out of scope by decision.
 
-- Lane `agent-config-editing-plan`: all design docs and contracts.
-- Lane `agent-config-editing-s5` (stacked on plan): runner applied-state identity and
-  safe teardown. The approval-stale-config bug is now unrepresentable; a config change
-  stops the sandbox instead of deleting it; a content-identical commit keeps the warm
-  session. 14 files.
-- Lane `agent-config-editing-s4` (stacked on s5): the agent-written description on
-  builder tool calls, stripped before dispatch, shown on the agent chat tool card. 12
-  files.
+The work sits on eighteen stacked GitButler lanes, bottom to top: plan (design docs)
+→ s5 → s4 → s1a → s6 → s1b-lock → s1b → s7a → s2 → s7b → s3a → s7c → s3b-core →
+s7d → s7e → s3b-wire-runner → s3b-wire-py → s3b-wire-web. Every lane is pushed and
+verified against the remote. The stack base is the release/v0.109.0 merge base
+(4165aa81df); PR bases follow the stack, bottom lane targets release/v0.109.0, never
+main.
 
-The qa teammate is verifying all suites in the main tree. Everything else waits on the
-six product calls in `decisions.md` (call 1 gates the engine slice) and a fourth gate
-pass over the corrected contracts.
+## Final review round (5 August, evening)
 
-## Where we are
+The external reviewer (Codex, highest reasoning) returned BLOCK on the full stack
+diff: four blocker-class findings, eight majors, four structural notes on the dao
+lane. Full text: `notes/final-review-findings.md`. Every finding was independently
+verified against the code before any fix; two sub-claims were refuted with proof,
+two findings matched recorded scope decisions, and the rest were confirmed and
+fixed. The verification also surfaced three defects the reviewer missed (lost
+exception decorators on the commit route, the never-applied agent scope policy, the
+unwired final-validation gate) plus a legacy scope-walk depth bug found during the
+E2 fix itself. All fixes are landed on their owning lanes.
 
-Phase 1 exit review. Both spikes are complete and green:
+Headline outcomes:
 
-- engine-spike: the pure engine works, 120 tests, legacy parity proven against the real
-  service code. Report: `spikes/engine-spike.md`.
-- runner-spike: value_from proven end to end (34 tests), the tools-discovery verdict is
-  in (Pi and Claude are blocked by our own delivery, not by the harness; Codex needs a
-  session reopen), and 15 characterization tests pin today's lifecycle behavior.
-  Report: `spikes/runner-spike.md`.
+- The agent commit tool now posts to a scoped sibling route
+  (`/api/workflows/revisions/commit/agent`) that hard-applies `AGENT_COMMIT_SCOPE`
+  on both delta arms and refuses full-data commits. Enforcement is a property of
+  the code path; the model holds no credential and cannot reach the unscoped
+  route. read-config.md §11.2 records the design.
+- A denied approval now discards its execution authorization before the harness is
+  answered; a forged relay execution for a denied call fails closed.
+- Live reconciliation routes are narrowed to what is actually installable
+  (workspace refresh from the incoming request, model apply-live, credential
+  rotation); everything reopen-session claimed to cover escalates to rebuild until
+  the S7c0 execution-plan split lands. adapter-matrix.md §8 records the boundary.
+- The import root opens no-follow on both readers; malformed UTF-8 is refused by a
+  fatal decoder; Build mode always renders the frozen approval manifest.
+- The commit transaction surfaces lock timeouts as 503, never claims "committed"
+  without a revision, compares no-change after enrichment, and routes both delta
+  arms through the engine's classification (a legacy set can no longer commit
+  build-kit tools or bypass marker rejection).
 
-The consolidated decisions are in `decisions.md`. Seven product calls wait on Mahmoud
-(listed there). Draft PR: https://github.com/Agenta-AI/agenta/pull/5733.
+Accepted scope boundaries, recorded not fixed: the full atomic build-callback
+transaction (commit-transaction.md §3.1, dao lock note §4), dao structural bullets
+1 and 4 (opt-in lock boundary, version bookkeeping outside the lock), and the
+follow-ups listed in `open-issues.md`.
 
-## Design gate: NO-GO (first pass)
+## Verification state
 
-The Codex design gate review (`research/design-gate-review-codex.md`) returned NO-GO
-with eight must-fix items before implementation. The largest: the value_from approval
-flow needs a single-use execution authorization (the toolCallId cache is forgeable via
-the relay directory); the commit transaction and the no-change response are
-unspecified; read_config, the editable-scope policy, and the description field need
-real contracts; live tool routes need an applied-generation acknowledgement; the slice
-plan understates dependencies and slices 1, 3, 7 are too big.
+After the fix round, on the landed tree: runner 114 files / 1913 tests, typecheck
+clean; API full unit suite 1911 both flag states (single failure is an unrelated
+untracked repro in the tree, not part of this stack); SDK 797 agent tests plus the
+catalog suites both flag states; web AgentChatSlice 95 tests, project typecheck
+clean; repo-pinned ruff clean in api/ and sdks/python/.
 
-Update: all six contracts are written in `contracts/` (change-set, commit-transaction,
-read-config from engine-spike; execution-authorization, workspace-import,
-adapter-matrix from runner-spike). The one cross-contract conflict (the value_from
-schema) is arbitrated and recorded in `decisions.md`. The second gate review runs now.
-Twelve product calls are open for Mahmoud in `decisions.md`.
+Live QA on a deployed stack is deliberately deferred: Mahmoud will exercise the
+deployed stack himself when the PRs are ready (his call, 5 August). The dev box had
+no capacity for a fifth stack and no running stack may be torn down without his
+naming it.
 
-Original response for the record: the team writes the missing contracts before any
-slice starts. engine-spike
-owns the change-set contract, the commit transaction and response, and the read_config
-contract. runner-spike owns the execution authorization, the workspace import
-boundary, and the corrected adapter matrix. Second gate review after that. Fail-closed
-defaults adopted meanwhile: value_from always gates, imports come from a designated
-root, unsupported files reject the source unless the caller opts into omission,
-executable policy is explicit and default-deny, no blanket text normalization.
+## Remaining
 
-## Decisions taken (4 August review with Mahmoud)
-
-- Edits: ordered operations with anchored text edits and named list entries (RFC Q1
-  Option B; interface per `research/change-set-interface-codex.md`).
-- Large content: the runner reads workspace files and inlines them before the API sees
-  the call (RFC Q2 Option B).
-- Config reads: a `read_config` tool with partial reads; no config file in the
-  workspace (RFC Q3 Option B).
-- Concurrency: base check on commit, no locks (RFC Q4 Option A).
-- Sessions: update in place, rebuild only for harness and sandbox changes (RFC Q5
-  Option B). Harnesses not re-reading files on their own is accepted behavior. Open
-  question is tools only (Spike S2). The approval-path stale-config bug is fixed inside
-  this work, not separately.
-- US-6 (run without saving) is out of scope.
-- New requirement R12: optional agent-written description on builder tool calls.
-- Scope of the PR set: full runner lifecycle refactor included. Frontend minimal.
-
-## Blockers
-
-None.
-
-## Waiting on
-
-- Spike reports (tasks #2, #3), expected in `spikes/`.
-- Mahmoud: none right now. Product calls surfaced by the spikes will be brought to him
-  at the phase 1 exit gate (task #4).
+- Open the stacked PRs with per-lane descriptions and inline comments (in
+  progress).
+- Docs sync for the changed public surfaces.
+- Codex upstream issue (live MCP tool updates) stays drafted in
+  `spikes/runner-spike.md`; filing needs Mahmoud's explicit approval.
