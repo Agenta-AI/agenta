@@ -18,6 +18,7 @@ from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
 from oss.src.apis.fastapi.sessions.watch import (
     HEARTBEAT_FRAME,
     format_watch_frame,
+    ready_frame,
     retry_frame,
     watch_event_stream,
 )
@@ -73,22 +74,24 @@ async def test_stream_yields_event_frames_then_heartbeats():
     frames = []
     async for frame in stream:
         frames.append(frame)
-        if len(frames) == 5:
+        if len(frames) == 6:
             await stream.aclose()
             break
 
-    # The preamble pins the client's built-in auto-reconnect delay.
+    # The preamble pins the client's built-in auto-reconnect delay, then `ready` marks the
+    # point where the subscription is live and a client may safely revalidate.
     assert frames[0] == retry_frame(5000)
-    assert frames[1].startswith("event: records-changed\n")
-    assert json.loads(frames[1].split("data: ")[1]) == {
+    assert frames[1] == ready_frame()
+    assert frames[2].startswith("event: records-changed\n")
+    assert json.loads(frames[2].split("data: ")[1]) == {
         "type": "records-changed",
         "session_id": "s1",
     }
-    assert frames[2].startswith("event: lifecycle\n")
-    assert '"state": "running"' in frames[2]
-    assert frames[3].startswith("event: interaction\n")
+    assert frames[3].startswith("event: lifecycle\n")
+    assert '"state": "running"' in frames[3]
+    assert frames[4].startswith("event: interaction\n")
     # Queue drained -> the idle path emits keep-alive comments.
-    assert frames[4] == HEARTBEAT_FRAME
+    assert frames[5] == HEARTBEAT_FRAME
     assert pubsub.subscribed == ["watch:p:session:s1"]
 
 
@@ -103,6 +106,7 @@ async def test_stream_cleans_up_subscription_on_close():
     )
     # Take the preamble + one heartbeat, then simulate the client disconnecting.
     assert await stream.__anext__() == retry_frame(5000)
+    assert await stream.__anext__() == ready_frame()
     assert await stream.__anext__() == HEARTBEAT_FRAME
     await stream.aclose()
 
@@ -127,6 +131,7 @@ async def test_stream_skips_malformed_and_unknown_payloads():
         retry_milliseconds=5000,
     )
     assert await stream.__anext__() == retry_frame(5000)
+    assert await stream.__anext__() == ready_frame()
     frame = await stream.__anext__()
     await stream.aclose()
     # The three junk messages are dropped; the first frame is the real event.
@@ -189,6 +194,7 @@ async def test_stream_delivers_publisher_events_end_to_end():
     )
     # Preamble, then a heartbeat — proves the subscription is live before publishing.
     assert await stream.__anext__() == retry_frame(5000)
+    assert await stream.__anext__() == ready_frame()
     assert await stream.__anext__() == HEARTBEAT_FRAME
 
     publisher = SessionsWatchPublisher(redis_client=redis)
@@ -295,3 +301,26 @@ async def test_watch_endpoint_streams_the_configured_retry_preamble():
         await response.body_iterator.aclose()
 
     assert first == "retry: 9000\n\n"
+
+
+@pytest.mark.asyncio
+async def test_ready_is_not_emitted_before_the_subscription_is_live():
+    """The whole point of the `ready` event. A client revalidating on `onopen` races the
+    subscription: Starlette flushes the response headers before it iterates this generator, so a
+    change can land and publish in between and reach neither the refetch nor the stream. `ready`
+    is only reachable after `subscribe` has returned."""
+    pubsub = _FakePubSub([])
+    stream = watch_event_stream(
+        channel="watch:p:session:s1",
+        pubsub_factory=lambda: pubsub,
+        heartbeat_seconds=0.01,
+        retry_milliseconds=5000,
+    )
+
+    assert await stream.__anext__() == retry_frame(5000)
+    assert await stream.__anext__() == ready_frame()
+    assert pubsub.subscribed == ["watch:p:session:s1"], (
+        "ready reached the client before the channel was subscribed"
+    )
+
+    await stream.aclose()

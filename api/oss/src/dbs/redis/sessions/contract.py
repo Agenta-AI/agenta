@@ -100,6 +100,10 @@ def make_displacement_payload(*, by: str) -> dict:
 WATCH_EVENT_RECORDS_CHANGED = "records-changed"
 WATCH_EVENT_LIFECYCLE = "lifecycle"
 WATCH_EVENT_INTERACTION = "interaction"
+# Emitted by the SSE endpoint itself, never published: it marks the point where the Redis
+# subscription is live, so a client can revalidate without racing the events it is about to
+# start receiving.
+WATCH_EVENT_READY = "ready"
 
 WATCH_LIFECYCLE_RUNNING = "running"
 WATCH_LIFECYCLE_ENDED = "ended"

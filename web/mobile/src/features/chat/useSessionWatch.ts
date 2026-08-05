@@ -96,11 +96,15 @@ export const useSessionWatch = ({
             es.onopen = () => {
                 setConnected(true)
                 attempt = 0
-                // Missed-event coverage: one revalidation per (re)connect replaces
-                // any replay/cursor semantics on the server.
+            }
+            // Missed-event coverage: one revalidation per (re)connect replaces any
+            // replay/cursor semantics on the server. Keyed on `ready`, not `onopen`:
+            // headers reach us before the server's Redis subscription is live, so a
+            // change landing in that window would miss both this refetch and the stream.
+            es.addEventListener("ready", () => {
                 notifyOnConnect()
                 invalidateBadges()
-            }
+            })
             es.addEventListener("records-changed", () => onRecordsChangedRef.current())
             es.addEventListener("lifecycle", invalidateBadges)
             es.addEventListener("interaction", invalidateBadges)

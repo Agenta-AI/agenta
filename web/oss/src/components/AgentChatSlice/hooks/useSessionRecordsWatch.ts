@@ -109,12 +109,14 @@ export const useSessionRecordsWatch = ({
                 withCredentials: true,
             })
             source = es
-            // One revalidation per (re)connect covers events missed while disconnected — the
-            // server has no replay/cursor semantics.
             es.onopen = () => {
                 attempt = 0
-                notify()
             }
+            // One revalidation per (re)connect covers events missed while disconnected — the
+            // server has no replay/cursor semantics. Keyed on `ready` rather than `onopen`:
+            // headers arrive before the server's Redis subscription is live, so a change
+            // landing in that window would miss both this refetch and the stream.
+            es.addEventListener("ready", notify)
             es.addEventListener("records-changed", notify)
             es.onerror = () => {
                 // CONNECTING = built-in auto-reconnect; only a fatal CLOSED needs us.
