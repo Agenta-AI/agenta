@@ -228,6 +228,14 @@ export interface SessionEnvironment {
    * `applied-state.ts`.
    */
   readonly appliedState: AppliedEnvironmentState;
+  /**
+   * What the workspace write left behind, so a later in-place refresh knows what to DELETE.
+   *
+   * Undefined until a workspace is materialized. A refresh with no inventory refuses rather than
+   * writing without deleting: a stale skill left readable is the failure that route exists to
+   * prevent. See `environment/workspace-manager.ts`.
+   */
+  workspaceInventory?: import("../../environment/workspace-manager.ts").WorkspaceInventory;
   /** Record a lifecycle action that already succeeded. The only writer of `appliedState`. */
   commitApplied: (result: {
     configFingerprint: string;

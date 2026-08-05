@@ -64,21 +64,25 @@ describe("facet ownership: one field moves exactly one facet", () => {
       },
       facet: "runtime",
     },
-    { what: "the instructions", overrides: { agentsMd: "new instructions" }, facet: "workspace" },
-    { what: "the system prompt", overrides: { systemPrompt: "sp" }, facet: "workspace" },
+    {
+      what: "the instructions",
+      overrides: { agentsMd: "new instructions" },
+      facet: "workspaceFiles",
+    },
+    { what: "the system prompt", overrides: { systemPrompt: "sp" }, facet: "prompts" },
     {
       what: "the skills",
       overrides: {
         skills: [{ name: "s", description: "d", body: "b" }] as never,
       },
-      facet: "workspace",
+      facet: "workspaceFiles",
     },
     {
       what: "the harness files",
       overrides: { harnessFiles: [{ path: "a", content: "b" }] as never },
-      facet: "workspace",
+      facet: "harnessFiles",
     },
-    { what: "the model", overrides: { model: "m2" }, facet: "harnessSession" },
+    { what: "the model", overrides: { model: "m2" }, facet: "model" },
     {
       what: "the permissions",
       overrides: { permissions: { default: "deny" } as never },
@@ -212,6 +216,28 @@ describe("facet normalization: stability and coverage", () => {
       digestsOf({ ...BASE, sandbox: "daytona", agentsMd: "x", model: "m2" }),
       digestsOf(BASE),
     );
-    assert.deepEqual(moved, ["sandbox", "workspace", "harnessSession"]);
+    assert.deepEqual(moved, ["sandbox", "workspaceFiles", "model"]);
+  });
+
+  it("SECURITY: harness files never share a facet with instructions or skills", () => {
+    // The blocker that forced the facet split. `adapter-matrix.md` section 4.3.2 rule 3 puts
+    // harness PERMISSION files on the never-apply-live list, and the runner cannot tell one
+    // harness file from another. If they shared `workspaceFiles`, making that facet live would
+    // silently route a permission change through an in-place refresh.
+    assert.deepEqual(movedBy({ agentsMd: "x" }), ["workspaceFiles"]);
+    assert.deepEqual(
+      movedBy({ harnessFiles: [{ path: "a", content: "b" }] as never }),
+      ["harnessFiles"],
+    );
+  });
+
+  it("SECURITY: permissions never share a facet with the model", () => {
+    // Same reasoning on the session side. Section 1.4 exempts permission TIGHTENING from
+    // apply-live entirely, so a permissions change must not ride the `setModel` route.
+    assert.deepEqual(movedBy({ model: "m2" }), ["model"]);
+    assert.deepEqual(
+      movedBy({ permissions: { default: "deny" } as never }),
+      ["harnessSession"],
+    );
   });
 });
