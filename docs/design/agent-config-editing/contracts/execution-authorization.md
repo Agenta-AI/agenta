@@ -377,12 +377,14 @@ Three further rules apply to the inline path.
    step. This keeps one execution path and one set of digests.
 3. The inline path must apply the same limits as the gated path. See section 6.
 
-Open product call. Item 4 in `decisions.md` recommends that the runner follows the run's policy
-and forces no gate. The gate review recommends the opposite for v1: force a gate, because tool
-permission and workspace-read permission are different policies. This contract implements the
-narrower behavior the coordinator specified, which allows an ungated path behind an explicit
-`allow`. If Mahmoud accepts the reviewer's call, delete section 4's exception and make every
-`value_from` operation force a gate. Nothing else in this contract changes.
+**Decided, 5 August.** `decisions.md` open call 3 is closed: gate by default, with inline
+resolution only on an explicit `allow` verdict from the permission plan. That is exactly the
+behavior this section already specifies, so nothing here changes and the exception stays.
+
+The alternative the gate review preferred — force a gate on every import, because tool
+permission and workspace-read permission are different policies — was not taken. If it is
+ever revisited, the change is to delete this section's exception and make every marker force
+a gate; nothing else in this contract moves.
 
 ## 5. Where the frozen bytes live
 
