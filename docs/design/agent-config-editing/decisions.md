@@ -87,6 +87,25 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
   pretending to secure the channel: worst case is a stale model-visible catalog, never
   a privilege escalation. adapter-matrix.md §4.3.
 
+## Design directives for the runner refactor (Mahmoud, 5 August)
+
+- **Study the Kubernetes and Terraform reconciliation patterns before slice S6
+  starts, and borrow their naming and construction where they fit.** Not their
+  complexity. Specifically map: spec/status to our desired/applied state;
+  Kubernetes' generation and observedGeneration to our catalog generation and
+  acknowledgement; Terraform's plan-then-apply to our router producing an explicit
+  Plan object that can be logged and tested without executing (shadow routing then
+  falls out as "plan without apply"); level-triggered reconciliation (decide from
+  current state, never from missed events) as a stated invariant, which our
+  fingerprint-travels-with-the-request property already satisfies.
+- **The refactor must make per-harness live routes cheaply EXPRESSIBLE without
+  implementing them in v1.** Apply-live stays a first-class action kind in the
+  action vocabulary and a declared capability in the adapter port; v1 sets every
+  harness's tool-catalog capability to reopen-session. The shelved machinery (the
+  untrusted acknowledgement, the Pi specs-file channel, the shim listChanged flag)
+  is recorded in the backlog with its insertion points named, so enabling one
+  harness later is a capability flip plus the shelved component, not a redesign.
+
 ## Decisions from Mahmoud's PR review (5 August)
 
 - **Tool-list changes route to session reopen on EVERY harness in v1.** Uniform
@@ -160,10 +179,22 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
 
 ## Settled by the contracts (no longer open)
 
-- Binary and unsupported files reject the whole import by default; `on_unsupported:
-  "omit"` is the explicit opt-in. (Was open call 5.)
-- Imports come from the designated `imports/` root, not the whole workspace. (Was open
-  call 6.)
+- Binary and unsupported files: superseded by the `@ag.file` redesign (Mahmoud,
+  5 August). There is no folder source, so there is no folder policy. Each
+  `@ag.file` reference is one file; an unsupported file fails its own marker with
+  a clear reason, and the all-or-nothing commit guarantees nothing partial ever
+  lands. `on_unsupported`, `on_executable`, and `persist_executable_capability`
+  are all removed; the executable flag and the skill's executable capability are
+  ordinary agent-authored fields that the approval card must display. (Was open
+  call 5 and the four-layer split.)
+- Imports come from a designated root folder, not the whole workspace. (Was open
+  call 6.) **Amended by Mahmoud, 5 August: the folder is `.agenta-imports/`, not
+  `imports/`.** Two reasons: a dot-folder stays out of sight in shells by default,
+  and the Files drawer's existing internal-path filter already hides the
+  `.agenta-*` prefix from listings, so non-technical users never see a confusing
+  system folder, with zero new UI work. The instructions and every path error name
+  the folder explicitly, which the usability spike showed is what the model
+  actually reads.
 - Cold resume refuses the old approval and asks again; frozen bytes are not persisted
   durably. (Was open call 9.)
 - Pi tool removal hides the tool AND drops the runner execution binding; hidden-only

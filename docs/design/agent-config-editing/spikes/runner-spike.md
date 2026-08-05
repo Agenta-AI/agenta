@@ -460,3 +460,136 @@ messages.
 9. **Should `remove_item` for a skill also clean the workspace?** Out of scope here, but the
    lifecycle doc's warning about `prepareWorkspace` not removing vanished skill directories
    (`workspace.ts:56`) is the same problem seen from the other end.
+
+---
+
+## Codex upstream check
+
+Follow-up on open question 8. Read from **source**, not from the shipped binaries.
+
+Sources read:
+
+- `github.com/agentclientprotocol/codex-acp` at `efa3789` (HEAD, 2026-08-02; npm `1.1.9`, we pin
+  `1.1.7` — the relevant code is unchanged between them).
+- `github.com/openai/codex` at `fcc4ca5` (main, 2026-08-05). We run `@openai/codex ^0.145.0`, whose
+  tags are `rust-v0.145.0-alpha.*` off this same line.
+
+### Verdict: **feasible with a small upstream change, in `openai/codex` — not in `codex-acp`**
+
+The pieces are almost all there and the last hop is missing. Precisely:
+
+1. **The core does receive the notification.** `codex-rs/rmcp-client/src/logging_client_handler.rs:86`
+   implements rmcp's `ClientHandler::on_tool_list_changed`. That is the source of the
+   `notifications/tools/list_changed` and `ToolListChangedNotification` strings we found in the
+   binary. The whole body is `info!("MCP server tool list changed")`. It logs and returns. Its
+   siblings `on_resource_list_changed` (line 82) and `on_prompt_list_changed` (line 88) are the same
+   one-line stubs. **There is no live handler; there is a live log statement.**
+
+2. **The core already has full mid-session MCP refresh machinery.** `codex-rs/core/src/session/mcp.rs`
+   has `mark_mcp_runtime_dirty()` (line 274), `refresh_mcp_if_dirty()` (line 151) and
+   `refresh_mcp_servers_now()` (line 579). `refresh_mcp_if_dirty` is called at turn boundaries
+   (`core/src/codex_thread.rs:692,710`, `core/src/session/turn.rs:630`), so a session can and does
+   rebuild its MCP runtime and tool list **between turns without a session rebuild**. Auth changes,
+   plugin installs and skill MCP dependencies already drive it.
+
+3. **The app-server exposes a client-triggered reload.** `config/mcpServer/reload`
+   (`codex-rs/app-server-protocol/src/protocol/common.rs:1023`, handler
+   `app-server/src/request_processors/mcp_processor.rs:80`, implementation
+   `app-server/src/mcp_refresh.rs:9`). It takes **no params** (`Option<()>`, ts `undefined`) and
+   re-reads config from disk, then calls `thread.refresh_mcp_config(config)` for every live thread.
+   `load_latest_config_for_thread` uses `rebuild_preserving_session_layers`
+   (`app-server/src/config_manager.rs:158-171`), so an ACP-injected server is **not** wiped by a
+   reload.
+
+4. **But a reload would not help us**, and this is the part that decides the verdict. The refresh is
+   config-diff driven. In `codex-mcp/src/connection_manager.rs:337-362`, a server whose
+   `McpServerConnectionIdentity` (name + config + environment + runtime context) is unchanged has its
+   existing connection — and therefore its already-fetched tool view — **reused wholesale**, and the
+   loop `continue`s without re-listing. On top of that, `codex-mcp/src/tool_catalog_cache.rs` is a
+   process-scoped LRU keyed on the same identity with a **30-minute TTL** (lines 28-29, 74-95). Our
+   case is exactly the one this defeats: the server config never changes, only the tool list behind
+   it does.
+
+So wiring `on_tool_list_changed` straight to `mark_mcp_runtime_dirty()` is necessary but **not
+sufficient** — the refresh would reuse the cached catalog and observe nothing. The upstream change
+is two small parts in one repo: plumb the notification to an invalidation callback (the existing
+`SendElicitation` callback in `rmcp-client/src/rmcp_client.rs` is the precedent for how to reach
+out of the handler), and have that invalidation force a re-list for the one affected server,
+bypassing the connection-reuse fast path and the catalog cache entry.
+
+**`codex-acp` needs no change for this.** The MCP client lives in the Rust core, so our notification
+travels shim → core and never passes through the adapter. The adapter's own gaps are real but
+secondary: it bakes `mcp_servers` into the per-thread config at `thread/start`
+(`src/CodexAcpClient.ts:492-523`), it advertises `mcpCapabilities: { acp: false, http: true, sse:
+false }` (`src/CodexAcpServer.ts:246-250`), and it has `config/mcpServer/reload` in its generated
+app-server types (`src/app-server/ClientRequest.ts`) but never calls it. None of that matters until
+the core acts on the notification.
+
+**Consequence for us: the Codex row of the Part 2 verdict table stands — "needs session reopen"
+today** — but the reason is narrower and more fixable than we thought. It is one unwired callback
+plus a cache bypass in `openai/codex`, not an architectural gap.
+
+**Workaround worth noting** (not tested): the connection-identity check keys on the server *config*.
+Changing any part of it — a nonce env var on the stdio server, a query param on the HTTP URL — would
+defeat the reuse check and force a reconnect plus a fresh `tools/list`. But there is no ACP method to
+change a live session's `mcpServers`, and `config/mcpServer/reload` reads only from disk, so today
+this is reachable only by writing `config.toml` and having a client call the reload — which the
+adapter does not expose.
+
+### Draft upstream issue — DRAFT, NOT FILED, needs Mahmoud's approval
+
+Target repo: **`openai/codex`** (not `codex-acp`).
+
+````markdown
+Title: MCP `notifications/tools/list_changed` is received but never refreshes the session's tool list
+
+### What we observed
+
+`ClientHandler::on_tool_list_changed` in `codex-rs/rmcp-client/src/logging_client_handler.rs`
+logs the notification and returns:
+
+```rust
+async fn on_tool_list_changed(&self, _context: NotificationContext<RoleClient>) {
+    info!("MCP server tool list changed");
+}
+```
+
+Nothing downstream is invalidated, so a server that adds or removes tools mid-session is never
+re-listed and the model keeps the tool set captured at session start.
+
+The refresh machinery this would need already exists: `Session::mark_mcp_runtime_dirty` /
+`refresh_mcp_if_dirty` (`codex-rs/core/src/session/mcp.rs`) rebuild the MCP runtime at turn
+boundaries, and the app-server exposes `config/mcpServer/reload`. The notification is simply not
+wired to them.
+
+A plain wiring would not be enough on its own. In
+`codex-rs/codex-mcp/src/connection_manager.rs`, a server whose `McpServerConnectionIdentity`
+(name + config + environment + runtime context) is unchanged has its existing connection reused and
+its tools are not re-listed, and `codex-rs/codex-mcp/src/tool_catalog_cache.rs` caches the catalog
+under the same identity with a 30-minute TTL. Since a `tools/list_changed` notification arrives
+with the server config unchanged by definition, both fast paths would suppress the refresh.
+
+Verified against `main` (`fcc4ca5`); we run `@openai/codex` 0.145.0 via an ACP adapter.
+
+### Use case
+
+We connect Codex to an MCP server whose tool list is generated and changes while a session is live:
+tools appear and disappear in response to user action, without the server's configuration changing.
+The server advertises `tools.listChanged` and emits `notifications/tools/list_changed`. Today the
+only way for the model to see the new list is to end the session and start a new one, which loses
+the conversation.
+
+### Ask
+
+Make `on_tool_list_changed` invalidate the notifying server's cached tool catalog and cause a
+re-list on the next turn, bypassing the connection-reuse fast path and the catalog-cache entry for
+that server only. Refreshing at the next turn boundary (rather than mid-turn) would fully solve our
+case.
+
+If a push-driven refresh is not wanted, a client-triggered equivalent would also work: a way to
+force a re-list for a named server on a live thread — for example params on
+`config/mcpServer/reload`, or a new `mcpServer/tools/refresh` method — so an adapter can trigger it
+on the client's behalf.
+
+Happy to prepare a PR if you can point at the shape you'd prefer.
+````
