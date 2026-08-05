@@ -145,7 +145,7 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
             <PanelSection
                 sticky
                 title="Your agents"
-                bodyClassName="flex flex-col gap-2 px-3 pb-3"
+                bodyClassName="flex flex-col gap-1 px-2 pb-3"
                 extra={
                     <div className="flex shrink-0 items-center gap-3">
                         <button

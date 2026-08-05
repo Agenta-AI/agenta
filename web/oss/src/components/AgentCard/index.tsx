@@ -170,7 +170,7 @@ const AgentCard = ({
                     {description}
                     {/* Footer: who made it and when it last ran. The design's integration badges
                         belong on this line — an agent's tools aren't on the row yet. */}
-                    <div className="mt-auto flex items-center gap-2 pt-2 text-xs text-colorTextTertiary">
+                    <div className="mt-auto flex items-center gap-2 pt-3 text-xs text-colorTextTertiary">
                         {record.createdById ? (
                             <UserReference userId={record.createdById} className="truncate" />
                         ) : null}

@@ -49,7 +49,7 @@ const AgentsGrid = ({
             <button
                 type="button"
                 onClick={onCreate}
-                className="box-border flex h-full min-h-[132px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-transparent p-4 text-center transition-colors hover:border-colorPrimary"
+                className="box-border flex h-full min-h-[148px] cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-colorBorder bg-transparent p-5 text-center transition-colors hover:border-colorPrimary"
             >
                 <PlusIcon size={18} className="text-colorTextTertiary" />
                 <span className="text-sm text-colorText">New agent</span>
