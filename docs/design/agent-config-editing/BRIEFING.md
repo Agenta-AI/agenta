@@ -448,13 +448,14 @@ reversible by a comment on this file.
    field checking for the old delta format would break shipped playbooks and stored
    callers that today send harmless extra fields. Old format keeps old tolerance;
    the new operations format rejects unknown fields from day one.
-10. **Rollout is dark-first with a two-sided kill switch.** Context: naively shipping
-    the API first breaks old runners (they would forward unresolved imports). So:
-    API support ships disabled, then runner support disabled, then the catalog
-    starts advertising the new format. One flag turns it all off, enforced in BOTH
-    the API (rejects the new format) and the runner (refuses to read the workspace),
-    because a stale harness can still emit the new format after the catalog stops
-    advertising it.
+10. **One feature flag as a kill switch; no staged rollout.** (Corrected after
+    Mahmoud's review: the earlier "dark-first deployment order" assumed components
+    deploy independently. In our stacks the API, the catalog, and the runner ship
+    together, in compose and in the cloud, so there is no mixed-version period to
+    sequence around.) What stays: one flag, read at request time by both the API
+    and the runner, turns the whole feature off per deployment. The legacy delta
+    form works on every version regardless, which also covers the minutes of a
+    cloud rolling deploy.
 
 ## 9. The open decisions (yours)
 
@@ -478,6 +479,9 @@ a straight one, the match fails.
 
 **Recommendation: A.** One rule, no corruption risk, and the read-before-write loop
 makes the occasional failed match cheap.
+
+**ANSWERED by Mahmoud, 5 August: Option A.** Recorded in decisions.md; slices S1a
+and S1b are unblocked.
 
 ### Decision 2: the unique-name rule
 

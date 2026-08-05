@@ -71,17 +71,25 @@ on the dev stack). A regression blocks the slice until fixed.
 
 ### Rollout and compatibility
 
-- **Deployment order, dark-first:** the API ships support for the new forms disabled
-  ("dark"). The runner ships its `value_from` resolution and stripping, also dark.
-  Only then does the catalog start advertising the new schema. This order exists
-  because plain API-first is NOT backward-compatible for `value_from`: an old runner
-  would forward the unresolved source and the API must reject it.
-- **Kill switch, two enforcement points:** one flag, read by the API and the runner.
-  Off means: the catalog advertises the legacy schema only; the API rejects ordered
-  deltas and any surviving `value_from` with a clear error; the runner refuses to
-  resolve `value_from` before any workspace read. Both enforcement points exist
-  because a stale harness or a replayed call can still emit the new form after the
-  catalog stops advertising it.
+Corrected 5 August after Mahmoud's review: the earlier "dark-first deployment order"
+assumed independently deployable components. In Agenta's real topology the API, the
+agent service (which carries the catalog), and the runner ship together in one stack,
+both in docker compose and in the cloud deploys. There is no sustained mixed-version
+period to sequence around.
+
+What remains, because it is nearly free and covers the real cases:
+
+- **One feature flag** in the API environment (`api/oss/src/utils/env.py` pattern),
+  read at request time by both the API and the runner, which always deploy at the
+  same version. On: the catalog advertises the new schema. Off: the catalog
+  advertises the legacy schema, the API rejects ordered deltas and any surviving
+  file marker with a clear error, and the runner refuses to resolve file markers
+  before any workspace read. This is a kill switch for the whole feature per
+  deployment, not a staged rollout.
+- **Transient skew** (a cloud rolling deploy replacing containers over a few
+  minutes, or a relay file written before the deploy and executed after) is safe
+  without ordering: the legacy delta form keeps working on every version, and both
+  flag read points ship in the same images.
 - **Legacy DTO compatibility:** `extra="forbid"` applies to the new operations form
   only. The legacy `set`/`remove` form keeps its current tolerance, so old playbooks
   and stored callers do not start failing.

@@ -66,7 +66,10 @@ reasoning is in `spikes/engine-spike.md` (D1-D33, O1-O12) and `spikes/runner-spi
 
 ## Product calls confirmed by Mahmoud
 
-(Empty. The open calls below move here once answered.)
+- **Decision 1 (5 August): Option A, exact bytes.** Stored configuration text is
+  never normalized. The prose-side friendliness lives in matching (exact first,
+  then a normalized retry for prose fields only, per the match-tolerance decision
+  above), never in storage. This unblocks slices S1a and S1b.
 
 ## Arbitrations after gate 2 (team lead, 4 August)
 
