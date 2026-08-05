@@ -526,6 +526,66 @@ class TestNoChange:
                 workflow_revision_commit=commit,
             )
 
+    async def test_a_stale_base_beats_no_change_on_a_full_data_commit(self, service):
+        # The same precedence as the delta arm, on the arm that carries no delta. A stale
+        # caller can send a whole configuration that equals the NEW head. An answer of
+        # `no_change` would confirm a base that had already moved.
+        from oss.src.core.workflows.service import RevisionConflictError
+
+        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        commit = WorkflowRevisionCommit(
+            workflow_variant_id=VARIANT_ID,
+            data=data,
+            base_revision_id=uuid4(),
+        )
+        service.fetch_workflow_revision = AsyncMock(
+            return_value=_head(uuid4(), data=data)
+        )
+        service.commit_workflow_revision = AsyncMock()
+
+        with pytest.raises(RevisionConflictError):
+            await service.commit_workflow_revision_checked(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                workflow_revision_commit=commit,
+            )
+
+        service.commit_workflow_revision.assert_not_awaited()
+
+    async def test_a_current_base_on_a_full_data_commit_still_answers_no_change(
+        self, service
+    ):
+        # The check must not refuse a caller whose base IS the head. That caller is
+        # correct, and its commit changes nothing.
+        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        stored = _stored(
+            data=data,
+            flags=service._build_revision_commit(
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    workflow_variant_id=VARIANT_ID,
+                    data=data,
+                )
+            ).flags,
+        )
+        commit = WorkflowRevisionCommit(
+            workflow_variant_id=VARIANT_ID,
+            data=data,
+            base_revision_id=stored.id,
+        )
+        service.fetch_workflow_revision = AsyncMock(
+            return_value=_head(stored.id, data=data)
+        )
+        service.workflows_dao.fetch_revision.return_value = stored
+        service.commit_workflow_revision = AsyncMock()
+
+        outcome = await service.commit_workflow_revision_checked(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=commit,
+        )
+
+        assert outcome.status == "no_change"
+
     async def test_a_metadata_only_commit_writes_nothing(self, service):
         # `message` is commit metadata, not configuration: it stays out of the record, so
         # a new message over an identical tree creates no revision.
