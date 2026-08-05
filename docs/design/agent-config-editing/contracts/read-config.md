@@ -413,6 +413,16 @@ An agent that could widen its own permission lists could grant itself any tool. 
 that could switch its sandbox could leave the boundary a human chose. Both are privilege
 escalation, and both are silent.
 
+**A write to an ancestor of a refused path is a write to that path.** Naming
+`parameters.agent.harness` and sending `{"kind": "codex"}` changes the same stored field as
+naming `parameters.agent.harness.kind`, so the rule is stated on the result and not on the
+target: whatever an operation would leave at a refused path must equal what is stored there
+now. An omission counts as a write for `set`, which replaces its target wholesale, and for
+`remove`, which deletes it; it does not count for `merge`, which leaves absent keys alone.
+The alternative, refusing every write to the three selector objects, was rejected because
+`harness.extras` and `runner.kind` are not refused and sit beside keys that are: it would
+have cost real capability to close the hole, and this rule costs none.
+
 #### 11.1.1 Two v1 defaults, both fail-closed
 
 Gate 2 says product calls 10 and 11 leave the security scope unfinished, and that the

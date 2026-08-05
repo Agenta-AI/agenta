@@ -588,7 +588,10 @@ Each step ships alone. No step changes reuse behavior until step 5.
 
 **Status, and it decides what is routable today. Steps 1 and 2 have NOT shipped.** Neither
 `ToolCatalogManifest` nor `ToolExecutionPlan` exists, and `runTurn` still reads its catalog from
-`env.plan`, which is the plan the environment was BUILT with and is never replaced.
+`env.plan`. Workspace refresh now replaces the prompt and workspace portions of `env.plan`, and it
+does so only after the install succeeds. The tool catalog and the captured session initialization
+still come from the generation the environment was BUILT with, so a stale catalog is still
+possible until steps 1 and 2 ship.
 `env.reopenSession` closes over the same generation's session init, so a reopen reinstalls the old
 MCP list, the old prompts and the old harness files. `reopen-session` therefore delivers nothing
 new, and the sentence in section 4.4 that "`reopen-session` implies that reopening would deliver

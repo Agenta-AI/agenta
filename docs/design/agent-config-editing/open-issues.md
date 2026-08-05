@@ -101,3 +101,46 @@ reader can act on it cold.
   eleven exact-shape assertions in unrelated tests). The inference is sound
   today because exactly one path consults the stored-decision store. If a second
   stored-decision path ever appears, add the explicit field.
+
+## Editing the workspace instructions file does not persist
+
+- Found by: the UI E2E campaign (cell U7), 5 August 2026.
+- A model asked to change its instructions edited the materialized workspace copy
+  (AGENTS.md) with file tools. That copy is rebuilt from the stored configuration,
+  so the approved edit silently disappeared. Guidance shipped in v1: both commit
+  tool descriptions and the build-an-agent skill now state that workspace edits
+  do not change the stored configuration.
+- The ask, if it recurs: enforce rather than advise. Either mount the
+  materialized instruction file read-only, or warn when a turn ends with
+  uncommitted edits to it.
+
+## Deny narration on ACP harnesses is harness-authored
+
+- Found by: the UI E2E campaign (cell U5) and the runner fix round, 5 August 2026.
+- Every runner-authored refusal string now states plainly that the user declined
+  the specific change and that reshaped retries are pointless
+  (src/tools/denial-text.ts). On the Claude and Codex ACP path, the text the
+  model reads comes from the harness closing the call, not from the runner, so a
+  misleading "blocked by policy" narration can still occur there.
+- The ask: give the deny path a runner-owned message on ACP harnesses, or have
+  the SDK render tool-output-denied with user-decline framing.
+- Related: environment-setup.ts's "denied by policy" fires on a no-turn-wired
+  race, not a denial; it needs its own message.
+
+## The legacy delta classifier needs a decision: teach or retire
+
+- Found by: the card fix round, 5 August 2026.
+- classifyRevisionDeltaChanges in @agenta/entities reads only the legacy
+  {set, remove} delta. The approval card now describes ordered operations
+  through its own reader, so the classifier is effectively dead for agent
+  commits (its one production caller). Either teach the package the ordered
+  form deliberately, or retire the function when the legacy arm goes.
+
+## The card cannot show which stored fields a wholesale write replaces
+
+- Found by: the U10 post-mortem, 5 August 2026.
+- The engine now refuses wholesale writes that touch platform-owned paths, and
+  the card's Now/After blocks show the full old and new objects, so an omitted
+  key is visible to a careful reader. The residual: for large objects a subtle
+  omission is easy to miss. A card that lists the affected stored paths for a
+  wholesale set would close the class.
