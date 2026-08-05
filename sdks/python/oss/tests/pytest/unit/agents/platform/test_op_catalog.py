@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 
 import pytest
 from pydantic import ValidationError
@@ -30,6 +31,18 @@ from agenta.sdk.agents.platform import (
 from agenta.sdk.agents.tools import GatewayToolResolutionError, UnknownPlatformOpError
 
 
+def _ordered_operations_enabled() -> bool:
+    """Read the flag independently of the code under test.
+
+    Calling the catalog's own helper would derive the expectation from the thing being
+    asserted: a helper that always returned True would move both sides together and the
+    test would still pass.
+    """
+    return (
+        os.getenv("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED") or ""
+    ).strip().lower() in {"true", "1", "yes", "on"}
+
+
 def _resolver(connection):
     return AgentaPlatformToolResolver(connection=connection)
 
@@ -38,7 +51,9 @@ def _resolver(connection):
 
 
 def test_catalog_ships_platform_builder_ops():
-    assert set(PLATFORM_OPS) == {
+    # `read_config` ships only with ordered operations, so it is not in the always-on set.
+    # Its own gating is pinned in test_read_config_op.py.
+    assert set(PLATFORM_OPS) - {"read_config"} == {
         "discover_tools",
         "query_workflows",
         "query_spans",
@@ -387,15 +402,30 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     # the model SHOULD supply remain.
     workflow_revision = spec.input_schema["properties"]["workflow_revision"]
     assert "workflow_variant_id" not in workflow_revision["properties"]
-    assert set(workflow_revision["properties"]) == {"message", "delta"}
     assert workflow_revision["required"] == ["delta"]
     delta = workflow_revision["properties"]["delta"]
-    assert set(delta["properties"]) == {"set", "remove"}
+
+    # The rest of the surface depends on the ordered-operations flag: with it on, the
+    # server derives the message and the ordered arm appears. Both states are pinned, so
+    # this test is honest whichever way the suite runs.
+    if _ordered_operations_enabled():
+        assert set(workflow_revision["properties"]) == {"base_revision_id", "delta"}
+        assert set(delta["properties"]) == {"set", "remove", "operations"}
+    else:
+        assert set(workflow_revision["properties"]) == {"message", "delta"}
+        assert set(delta["properties"]) == {"set", "remove"}
     assert "parameters.agent" in delta["properties"]["set"]["description"]
-    # Lists (tools, skills, mcps) replace wholesale on deep-merge; the description must warn
-    # the model to resend the complete list or it wipes its own build-kit tools (B2).
-    assert "wholesale" in spec.description
-    assert "revision id" in spec.description
+
+    if _ordered_operations_enabled():
+        # Ordered operations change one entry at a time, so the wholesale-list warning is
+        # obsolete; the description teaches the read-then-commit loop instead.
+        assert "base_revision_id" in spec.description
+        assert "playground's own tools" in spec.description
+    else:
+        # Lists (tools, skills, mcps) replace wholesale on deep-merge; the description must
+        # warn the model to resend the complete list or it wipes its own build-kit tools (B2).
+        assert "wholesale" in spec.description
+        assert "revision id" in spec.description
 
 
 async def test_commit_revision_is_not_read_only(connection):
