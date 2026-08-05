@@ -51,6 +51,15 @@ interface Props {
  * rather than writing to it, so the project page's filter is never left holding a value the user
  * did not choose.
  */
+/** A list group's heading. Plain (non-motion) so `sticky` is never fighting a transform. */
+const GroupHeader = ({label}: {label: string}) => (
+    <div className="sticky top-0 z-20 -mx-6 bg-colorBgContainer px-6 py-1">
+        <p className="m-0 rounded bg-colorBgElevated px-3 py-1 text-xs text-colorTextTertiary">
+            {label}
+        </p>
+    </div>
+)
+
 const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const search = useAtomValue(sessionSearchAtom)
@@ -181,28 +190,23 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                         <SessionListSkeleton />
                     ) : (
                         <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
+                            {/* Group headers sit OUTSIDE AnimatePresence. Framer bumps z-index on
+                                layout-animating elements, so an animated row paints over a sticky
+                                sibling no matter which element carries the `sticky`. Keeping the
+                                headers out of the animated subtree removes the fight entirely. */}
+                            {pinnedRows.length > 0 ? (
+                                <GroupHeader label={`Pinned ${pinnedRows.length}`} />
+                            ) : null}
                             <AnimatePresence initial={false}>
-                                {pinnedRows.length > 0 ? (
-                                    // The wrapper pins; the motion element animates inside it.
-                                    // Both on one element fight: the browser resolves `sticky`
-                                    // first, then Framer's layout transform displaces it from the
-                                    // position it was just pinned to, and rows scroll above it.
-                                    <div key="pinned-heading" className="sticky top-0 z-10">
-                                        <motion.p
-                                            layout
-                                            variants={ROW_VARIANTS}
-                                            initial="initial"
-                                            animate="animate"
-                                            exit="exit"
-                                            // Opaque, not a fill: an rgba band lets the rows
-                                            // scroll through it.
-                                            className="m-0 overflow-hidden rounded bg-colorBgElevated px-3 py-1 text-xs text-colorTextTertiary"
-                                        >
-                                            Pinned {pinnedRows.length}
-                                        </motion.p>
-                                    </div>
-                                ) : null}
                                 {pinnedRows.map((row) => renderRow(row, true))}
+                            </AnimatePresence>
+
+                            {/* The pinned group needs a counterpart, or the rows below it read as
+                                more pinned ones that lost their heading. */}
+                            {pinnedRows.length > 0 && rows.length > 0 ? (
+                                <GroupHeader label="Recent" />
+                            ) : null}
+                            <AnimatePresence initial={false}>
                                 {rows.map((row) => renderRow(row, false))}
                             </AnimatePresence>
 
