@@ -11,6 +11,8 @@ import {classifyRevisionDeltaChanges} from "@agenta/entities/workflow/commitDiff
 import {AgentChangesSummary} from "@agenta/entity-ui/modals"
 import {useAtomValue} from "jotai"
 
+import ApprovedContentManifest, {parseApprovedContentManifest} from "./ApprovedContentManifest"
+
 import type {ApprovalBodyProps} from "./registry"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -19,8 +21,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 // Clamp threshold: beyond this (or any explicit paragraph break) the quote collapses to 4 lines.
 const MESSAGE_CLAMP_CHARS = 220
 
-const CommitRevisionApproval = ({input, entityId, fallback}: ApprovalBodyProps) => {
+const CommitRevisionApproval = ({input, entityId, manifest, fallback}: ApprovalBodyProps) => {
     const [messageExpanded, setMessageExpanded] = useState(false)
+    const imported = useMemo(() => parseApprovedContentManifest(manifest), [manifest])
     const serverParams = useAtomValue(
         useMemo(() => workflowMolecule.selectors.serverConfiguration(entityId), [entityId]),
     )
@@ -36,8 +39,20 @@ const CommitRevisionApproval = ({input, entityId, fallback}: ApprovalBodyProps) 
         return classifyRevisionDeltaChanges(serverParams, commit.delta)
     }, [commit, serverParams])
 
-    // No committed base yet or an unpreviewable delta — the exact payload is still the truth.
-    if (!preview) return <>{fallback}</>
+    // No committed base yet or an unpreviewable delta — the exact payload is still the truth. The
+    // imported content still renders: it is what the approval binds.
+    if (!preview) {
+        return (
+            <>
+                {fallback}
+                {imported ? (
+                    <div className="mt-3">
+                        <ApprovedContentManifest manifest={imported} />
+                    </div>
+                ) : null}
+            </>
+        )
+    }
 
     // Two-pane echo of the commit modal: context (what + message) left, changes right.
     return (
@@ -69,8 +84,9 @@ const CommitRevisionApproval = ({input, entityId, fallback}: ApprovalBodyProps) 
                     </div>
                 ) : null}
             </div>
-            <div className="min-w-0 md:border-0 md:border-l md:border-solid md:border-colorBorderSecondary md:pl-6">
+            <div className="flex min-w-0 flex-col gap-3 md:border-0 md:border-l md:border-solid md:border-colorBorderSecondary md:pl-6">
                 <AgentChangesSummary compact size="small" sections={preview.sections} />
+                {imported ? <ApprovedContentManifest manifest={imported} /> : null}
             </div>
         </div>
     )

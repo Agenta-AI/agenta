@@ -36,6 +36,48 @@ const firstPart = (records: SessionRecord[]): Record<string, unknown> => {
 }
 
 describe("transcriptToMessages approval hydration", () => {
+    it("replays the approved-content manifest as the egress's sibling data part", () => {
+        // `tool-approval-request` is a strict object, so the manifest cannot ride the approval
+        // itself; replay must mirror the live data part or a reload loses the card.
+        const manifest = {
+            version: 1,
+            files: [{relativePath: "notes.md", bytes: 12, digest: "abc", executableBit: false}],
+            diffs: [],
+            totalBytes: 12,
+            contentDigest: "def",
+        }
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "commit_revision",
+                input: {},
+            }),
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", manifest},
+            }),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0].state).toBe("approval-requested")
+        const data = parts.find((p) => p.type === "data-approval-manifest")?.data as Record<
+            string,
+            unknown
+        >
+        expect(data).toBeDefined()
+        expect(data.toolCallId).toBe("tool-1")
+        expect(data.manifest).toEqual(manifest)
+    })
+
+    it("emits no manifest part when the gate carries none", () => {
+        const messages = transcriptToMessages(approvalRecords())
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+        expect(parts.some((p) => p.type === "data-approval-manifest")).toBe(false)
+    })
+
     it("overlays a persisted approval response with the live response shape", () => {
         const part = firstPart([
             ...approvalRecords(),
