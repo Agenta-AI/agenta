@@ -22,10 +22,12 @@ ARMS = [
     ("haiku", "v1", False, "Haiku v1"),
     ("haiku", "v2", False, "Haiku v2"),
     ("haiku", "v2", True, "Haiku v2+L"),
+    ("haiku", "v3", True, "Haiku v3+fixes"),
     ("deepseek", "v0", False, "DS v0"),
     ("deepseek", "v1", False, "DS v1"),
     ("deepseek", "v2", False, "DS v2"),
     ("deepseek", "v2", True, "DS v2+L"),
+    ("deepseek", "v3", True, "DS v3+fixes"),
 ]
 
 rows = []

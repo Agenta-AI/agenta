@@ -273,47 +273,149 @@ survives only as a fast "nothing changed at all" shortcut.
 environment owns it; teardown reasons are precise; revision numbers no longer count
 as changes.
 
-**What comes next, in order (each its own slice):**
+**What comes next, in order. Each step is one slice, and each is explained here in
+full.**
 
-1. **Move the decision logic out of the web server file** into one coordinator, with
-   no behavior change. Today the reuse decisions live inside the HTTP server code,
-   which makes every later step risky. (Slice S6.)
-2. **Shadow routing.** The new compare-and-decide logic runs alongside the old one,
-   only logging what it WOULD have decided. We watch for disagreements before
-   trusting it. (Also S6.)
-3. **Split the big environment file into lifecycle units** (sandbox, runtime, mount,
-   workspace, harness session), still with no behavior change. (S7a.)
-4. **Turn on the cheap routes:** rewrite instructions and skills in place, set the
-   model on the live session. (S7b.)
-5. **Turn on live tool updates** where finding 1 showed they are reachable, per
-   harness, with the acknowledgement rules. (S7c, after its foundation step S7c0.)
-6. **Session reopen for MCP-server changes, and credential refresh** so a rotated
-   API key on Daytona no longer rebuilds the sandbox. (S7d, S7e.)
+### Step 1 (slice S6): move the decision logic out of the web server file
+
+The file is `services/runner/src/server.ts`. It is the HTTP server: it accepts the
+run request, checks the caller, and streams the answer back. But today it ALSO
+contains the session reuse policy, about 600 lines of it. When a request arrives,
+this code looks up the parked session, compares the configuration checksum, the
+conversation history, the credentials, and the mount expiry, and then decides: reuse
+warm, resume an approval, or rebuild cold. It also re-parks the session after the
+turn and picks the eviction reason.
+
+That placement is the problem. Transport code and policy code live in one file, so
+the policy cannot be tested without faking the HTTP layer, and every policy change
+risks the server. The stale-instructions bug lived exactly in this mixed zone.
+
+The step: create `lifecycle/session-coordinator.ts` and MOVE the decision code into
+it, unchanged. The server keeps HTTP, authentication, and request decoding, and
+makes one call: run this request through the coordinator. No behavior changes. Every
+existing test must still pass. This step is pure preparation: it makes the next
+steps safe.
+
+### Step 2 (also S6): shadow routing
+
+The new decision logic works differently from the old one. It splits the request
+into facets (model, instructions, skills, tools, MCP servers, credentials), compares
+each facet of the DESIRED state against the APPLIED state the environment records,
+and produces a plan: a small, readable list of actions, for example "refresh two
+workspace files, keep everything else." This is the Terraform idea: plan first,
+apply second.
+
+In this step the new logic runs in SHADOW: on every request it computes its plan and
+writes it to the log, and then the OLD logic makes the real decision, exactly as
+today. We then compare: when the old logic rebuilt and the plan says "one file
+refresh would have been enough", that is a logged disagreement. We flip to the new
+logic only after production traffic shows the plans are right. Zero risk while we
+learn.
+
+### Step 3 (slice S7a): split the environment file into lifecycle units
+
+The file is `services/runner/src/engines/sandbox_agent/environment.ts`, more than a
+thousand lines. Today one function does the whole cold start in a fixed order:
+create or reconnect the sandbox, push the harness assets, attach the durable mounts,
+write the workspace files, probe capabilities, open the harness session. One
+function also destroys all of it.
+
+The step: split it into five units, one per lifecycle, still with no behavior
+change: sandbox (create, reconnect, stop, destroy), runtime (the agent daemon, its
+process environment, its credentials), mount (attach, renew leases), workspace
+(write and refresh the instruction and skill files, including deletions), and
+harness session (open, load, reopen, close). The environment file becomes a thin
+composer that calls the units in order.
+
+Why this must come before step 4: an in-place update means calling ONE unit alone
+("refresh the workspace files, touch nothing else"). While the cold start is one
+function, that is impossible; you can only run all of it.
+
+### Step 4 (slice S7b): turn on the cheap routes
+
+With the plan from step 2 and the units from step 3, the first in-place routes
+switch on:
+
+- Instructions changed: the workspace unit rewrites `AGENTS.md` (or `CLAUDE.md`) in
+  the live sandbox. The session survives.
+- Skills changed: the workspace unit refreshes the skill folders, including
+  deleting folders for removed skills (today's code never deletes).
+- Model changed: the session unit calls the existing set-model API
+  (`services/runner/src/engines/sandbox_agent/model.ts`) before the next turn.
+
+This is the step where the 12.5-second penalty for a one-word edit dies. Reminder of
+an accepted behavior: a live harness does not re-read the instruction file on its
+own; we update the file, and the harness reads it when it reads it. That was your
+call, and it stands.
+
+### Step 5 (slices S7c0, then S7c): tool changes
+
+Your decision applies: in v1, a tool-list change gets a SESSION REOPEN on every
+harness, uniformly. A reopen closes and reopens the harness session on the SAME
+sandbox and reloads the native conversation where the harness supports it. It costs
+seconds, not the 12.5-second rebuild, and it behaves the same on Pi, Claude, and
+Codex.
+
+S7c0 is the foundation fix that must come first: today the turn code
+(`services/runner/src/engines/sandbox_agent/run-turn.ts`) mixes the tool
+specifications captured at session start with the callback settings of the current
+turn. Those two must carry ONE shared generation number, so the tools the model sees
+and the tools that execute can never drift apart.
+
+The live-update machinery for Pi and Claude (the notification flag in our tool
+server, the file-based delivery for Pi, the acknowledgement rules) is shelved: not
+in v1, kept in the backlog with named insertion points, cheap to enable per harness
+later because apply-live stays a declared capability in the adapter table.
+
+### Step 6 (slices S7d, S7e): MCP reopen, and credential refresh
+
+S7d: a change to the MCP SERVER LIST has no live path on any harness (we verified:
+the session API has no call for it, and the Claude adapter tears the session down
+itself when the list changes). So it routes to session reopen, with one fix: the
+reopen must positively verify that the native conversation history actually loaded.
+Today's check compares only a session id, which can claim continuity that did not
+happen.
+
+S7e: today Daytona bakes credentials and environment values into the sandbox at
+creation, and the creation checksum treats ANY difference as "different sandbox",
+so a rotated API key destroys and recreates the whole thing. The step splits
+identity from state: the image, snapshot, and provider define the sandbox and still
+rebuild; credentials and timers become refreshable state, delivered to the running
+sandbox, at most restarting the agent daemon inside it. A rotated key then costs
+seconds and the sandbox survives.
 
 ## 8. The implicit decisions we made, with context
 
 Decisions the team made during design without asking you, each recorded and each
 reversible by a comment on this file.
 
-1. **Imports come only from the `imports/` folder.** Context: the first draft allowed
+1. **Imports come only from a designated folder, named `.agenta-imports/`.**
+   (Renamed by Mahmoud during review: a dot-folder, so the Files drawer's existing
+   internal-path filter hides it and non-technical users never see a system folder;
+   the model finds it through the instructions and the path errors, which is what
+   it actually reads.) Context: the first draft allowed
    any path in the workspace, with the approval card as the control. The reviewer
    pushed back: the workspace also holds files the agent created for other reasons,
    possibly secrets, and a human skimming a manifest is not a security boundary. A
    dedicated folder makes intent explicit: things placed there are meant to be
    committed.
-2. **A folder with unsupported files rejects whole, by default.** Context: skill
+2. **Every file reference stands alone, and a bad file fails the whole commit.**
+   (Simplified by the `@ag.file` redesign: there is no folder source anymore, so
+   the old "folder with unsupported files" policy dissolved.) Context: skill
    content is stored as text, so a PNG or a compiled binary cannot be stored
-   faithfully today. The first draft silently dropped such files and committed the
-   rest. That means the user believes the skill is complete when it is not. Now the
-   import fails with a clear reason, and committing with omissions requires an
-   explicit opt-in that the approval card displays.
-3. **Executable permission is four separate things.** Context: "this file is
-   executable" was one boolean doing four jobs. Now: the file's own mode bit is
-   data (always recorded); whether the import may CONTAIN executables is an
-   ephemeral grant the approver sees; whether the stored skill may USE them is a
-   persisted capability, default off; and whether the sandbox actually allows
-   execution stays platform policy. You can import bits faithfully without granting
-   execution; you cannot grant execution for bits you refused to import.
+   faithfully today. Under `@ag.file`, each reference is one file. A file that is
+   binary, oversized, or missing fails its own marker with a clear reason, and
+   because a commit applies all operations or none, nothing partial ever commits.
+   The old opt-in for committing with omissions is gone; if the agent wants to skip
+   a file, it simply does not reference it, which is visible in the approval card.
+3. **Executable permission is authored explicitly, never derived.** (Also
+   simplified by the `@ag.file` redesign: the import-grant layer belonged to the
+   folder source and dissolved with it.) Context: `@ag.file` resolves CONTENT
+   only. Whether a skill file is executable is a normal field the agent writes
+   (`executable: true`) and the approval card must show; whether the stored skill
+   may use executables is the existing configuration field, default off, also
+   agent-written and card-visible; whether the sandbox actually executes anything
+   stays platform policy. Nothing is ever inferred from a file's mode bits.
 4. **After a cold resume, an approved import asks again.** Context: the approved
    frozen bytes live with the parked session. If the session dies before execution
    (crash, timeout), the bytes are gone. Reading the folder again would commit
