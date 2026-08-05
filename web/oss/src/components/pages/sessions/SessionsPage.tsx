@@ -169,7 +169,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                     hideAgentFilter={Boolean(scopedAgentId)}
                 />
 
-                <div className="min-h-0 flex-1 overflow-y-auto py-4">
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
                     {isError ? (
                         <SessionListError
                             onRetry={() => {
