@@ -60,13 +60,28 @@ export const useSessionRecordsWatch = ({
         let retryHandle: number | undefined
         let disposed = false
         let lastNotifiedAt = 0
+        let trailingHandle: number | undefined
         let attempt = 0
 
+        // Leading edge plus a TRAILING one. Dropping everything inside the window loses the
+        // batch that arrives last, and on a resumed turn that is the `done` batch which settles
+        // the approval — a parked session has no `runningElsewhere` poll to correct it, so the
+        // transcript would stay stale until the user reloads. One trailing call is enough
+        // however many notifications land in the window: the refresh refetches everything.
         const notify = () => {
             const now = Date.now()
-            if (now - lastNotifiedAt < MIN_INTERVAL_MS) return
-            lastNotifiedAt = now
-            onRecordsChangedRef.current()
+            const elapsed = now - lastNotifiedAt
+            if (elapsed >= MIN_INTERVAL_MS) {
+                lastNotifiedAt = now
+                onRecordsChangedRef.current()
+                return
+            }
+            if (trailingHandle !== undefined) return
+            trailingHandle = window.setTimeout(() => {
+                trailingHandle = undefined
+                lastNotifiedAt = Date.now()
+                onRecordsChangedRef.current()
+            }, MIN_INTERVAL_MS - elapsed)
         }
 
         const close = () => {
@@ -121,6 +136,7 @@ export const useSessionRecordsWatch = ({
             disposed = true
             document.removeEventListener("visibilitychange", onVisibility)
             if (retryHandle !== undefined) window.clearTimeout(retryHandle)
+            if (trailingHandle !== undefined) window.clearTimeout(trailingHandle)
             close()
         }
     }, [sessionId, projectId, enabled])
