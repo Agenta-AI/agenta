@@ -15,7 +15,6 @@ import {
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {projectIdAtom} from "@/oss/state/project"
 
-import {isAutomationSession} from "./assets/sessionTrigger"
 import SessionFiltersRail from "./components/SessionFiltersRail"
 import SessionRow from "./components/SessionRow"
 import {
@@ -52,6 +51,15 @@ interface Props {
  * rather than writing to it, so the project page's filter is never left holding a value the user
  * did not choose.
  */
+/** One group's pager. Each group loads its own next page, in place. */
+const LoadMore = ({loading, onClick}: {loading: boolean; onClick: () => void}) => (
+    <div className="flex justify-center py-3">
+        <Button loading={loading} onClick={onClick}>
+            Load more
+        </Button>
+    </div>
+)
+
 /** A list group's heading. Plain (non-motion) so `sticky` is never fighting a transform. */
 const GroupHeader = ({label}: {label: string}) => (
     <div className="sticky top-0 z-20 -mx-6 bg-colorBgContainer px-6 pb-1 pt-4">
@@ -101,7 +109,21 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
         sessionIds: pinnedIds,
         enabled: pinnedIds.length > 0,
     })
-    const listQuery = useSessionList({...shared, excludeSessionIds: pinnedIds})
+    // Two queries, not one page split in half. A page boundary is not a group boundary: with one
+    // recency-ordered feed, a first page that happens to be all automations left "Recent" empty,
+    // and paging then back-filled it ABOVE the automations. Each group pages on its own.
+    const listQuery = useSessionList({
+        ...shared,
+        showTriggered: false,
+        excludeSessionIds: pinnedIds,
+    })
+    const automationsQuery = useSessionList({
+        ...shared,
+        origin: "trigger",
+        showTriggered: true,
+        excludeSessionIds: pinnedIds,
+        enabled: showTriggered,
+    })
 
     // Which group a loaded row shows in is decided here, so pinning moves it on the same frame
     // rather than after both queries refetch under their new keys.
@@ -117,12 +139,14 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
         const row = knownById.get(id)
         return row ? [row] : []
     })
-    const unpinned = listRows.filter((row) => !pinnedSet.has(row.session_id))
-    // Automations are runs you configured but didn't start. Interleaved by recency they read as
-    // your own conversations, and on this page they arrive in bulk — so they get their own group
-    // rather than pushing everything you actually said off the first screen.
-    const rows = showTriggered ? unpinned.filter((row) => !isAutomationSession(row)) : unpinned
-    const automationRows = showTriggered ? unpinned.filter(isAutomationSession) : []
+    const rows = listRows.filter((row) => !pinnedSet.has(row.session_id))
+    // Runs you configured but didn't start. Their own group, so a busy schedule can't push what
+    // you actually said off the first screen.
+    const automationRows = showTriggered
+        ? rowsFromPages(automationsQuery.data?.pages).filter(
+              (row) => !pinnedSet.has(row.session_id),
+          )
+        : []
 
     const handleOpen = useCallback(
         (row: SessionStream) => {
@@ -216,6 +240,13 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                                 {rows.map((row) => renderRow(row, false))}
                             </AnimatePresence>
 
+                            {listQuery.hasNextPage ? (
+                                <LoadMore
+                                    loading={listQuery.isFetchingNextPage}
+                                    onClick={() => void listQuery.fetchNextPage()}
+                                />
+                            ) : null}
+
                             {automationRows.length > 0 ? (
                                 <GroupHeader label={`Automations ${automationRows.length}`} />
                             ) : null}
@@ -223,22 +254,20 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                                 {automationRows.map((row) => renderRow(row, false))}
                             </AnimatePresence>
 
-                            {rows.length === 0 && pinnedRows.length === 0 ? (
+                            {showTriggered && automationsQuery.hasNextPage ? (
+                                <LoadMore
+                                    loading={automationsQuery.isFetchingNextPage}
+                                    onClick={() => void automationsQuery.fetchNextPage()}
+                                />
+                            ) : null}
+
+                            {rows.length === 0 &&
+                            pinnedRows.length === 0 &&
+                            automationRows.length === 0 ? (
                                 <SessionListEmpty
                                     filtered={filtersActive}
                                     onClearFilters={resetFilters}
                                 />
-                            ) : null}
-
-                            {listQuery.hasNextPage ? (
-                                <div className="flex justify-center py-3">
-                                    <Button
-                                        loading={listQuery.isFetchingNextPage}
-                                        onClick={() => void listQuery.fetchNextPage()}
-                                    >
-                                        Load more
-                                    </Button>
-                                </div>
                             ) : null}
                         </MotionConfig>
                     )}
