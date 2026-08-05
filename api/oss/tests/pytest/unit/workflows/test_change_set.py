@@ -1739,6 +1739,45 @@ class TestMatchTolerance:
         )
         assert error.reason == Reason.TEXT_NOT_FOUND
 
+    def test_a_soft_wrap_newline_is_still_significant(self):
+        # Spike failure F.3.6: the stored text is soft-wrapped and the model sends the
+        # sentence on one line. A bare LF to space fold WOULD fix this, and it is
+        # length-preserving, so it passes the test that excludes CRLF.
+        #
+        # It stays excluded anyway, for a stronger reason. Every other fold is a glyph
+        # variant, so the anchor and the stored span hold the same characters. LF against
+        # space is STRUCTURAL: the model believes the span is one line, writes new_text for
+        # that belief, and the write then deletes a line break it never saw. Prose-class
+        # fields are Markdown, and they embed lists, headings, and fenced code where a line
+        # break is meaning. Measured: a two-item list silently becomes one item, and
+        # `x = 1\ny = 2` inside a fence silently becomes `x = 3 y = 2`, a syntax error.
+        #
+        # The enriched text_not_found (contract 12.4) returns the nearest lines, so the
+        # model sees the real break and re-anchors. One extra turn, no corruption.
+        # Contract 18.2.
+        base = base_config()
+        base["parameters"]["agent"]["instructions"]["agents_md"] = (
+            "Use the gate when the suite is\nunavailable.\n"
+        )
+        error = failure(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "edits": [
+                        {
+                            "old_text": "when the suite is unavailable.",
+                            "new_text": "when the suite is down.",
+                        }
+                    ],
+                }
+            ),
+            base,
+        )
+        assert error.reason == Reason.TEXT_NOT_FOUND
+        # The next step is what recovers it: copy the text as it is actually stored.
+        assert "character for character" in error.next_step
+
 
 # --------------------------------------------------------------------------------------
 # The @ag.file marker (contract 6)
