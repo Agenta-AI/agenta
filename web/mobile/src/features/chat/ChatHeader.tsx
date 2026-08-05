@@ -2,6 +2,8 @@ import {querySessionStreams} from "@agenta/entities/session"
 import {useQuery} from "@tanstack/react-query"
 import Link from "next/link"
 
+import {PageTitle} from "@/components/PageTitle"
+
 export const ChatHeader = ({
     sessionId,
     projectId,
@@ -20,19 +22,24 @@ export const ChatHeader = ({
         staleTime: 30_000,
     })
     return (
-        <header className="border-border flex shrink-0 flex-col gap-1 border-b p-4">
-            <div className="flex items-center gap-2">
-                <Link
-                    href={`/w/${workspaceId}/p/${projectId}/sessions`}
-                    className="text-muted-foreground -m-3 shrink-0 p-3 text-xs underline underline-offset-4"
-                >
-                    Back
-                </Link>
-                <h1 className="truncate text-sm font-semibold">{query.data?.name ?? "Session"}</h1>
-            </div>
-            <p className="text-muted-foreground text-xs">
-                Read-only on mobile for now — continue this session on desktop.
-            </p>
-        </header>
+        <>
+            <PageTitle parts={[query.data?.name]} />
+            <header className="border-border flex shrink-0 flex-col gap-1 border-b p-4">
+                <div className="flex items-center gap-2">
+                    <Link
+                        href={`/w/${workspaceId}/p/${projectId}/sessions`}
+                        className="text-muted-foreground -m-3 shrink-0 p-3 text-xs underline underline-offset-4"
+                    >
+                        Back
+                    </Link>
+                    <h1 className="truncate text-sm font-semibold">
+                        {query.data?.name ?? "Session"}
+                    </h1>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                    Read-only on mobile for now — continue this session on desktop.
+                </p>
+            </header>
+        </>
     )
 }

@@ -8,7 +8,7 @@ export default function AuthCallback() {
     return (
         <>
             <Head>
-                <title>Signing in — Agenta</title>
+                <title>Signing in · Agenta</title>
             </Head>
             <OidcCallbackScreen />
         </>

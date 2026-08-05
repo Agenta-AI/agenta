@@ -3,6 +3,7 @@ import {useEffect, useMemo, useState} from "react"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {fetchProjects, readDesktopLastUsed, readLastContext, type LastContext} from "@/lib/context"
 
@@ -101,5 +102,10 @@ export const ContextResolver = () => {
         )
     }
 
-    return <ScreenScaffold header={header}>{body}</ScreenScaffold>
+    return (
+        <>
+            <PageTitle parts={["Choose a project"]} />
+            <ScreenScaffold header={header}>{body}</ScreenScaffold>
+        </>
+    )
 }

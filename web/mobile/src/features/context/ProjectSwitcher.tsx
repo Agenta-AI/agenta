@@ -1,8 +1,7 @@
-import {useQuery} from "@tanstack/react-query"
 import {ChevronsUpDown} from "lucide-react"
 import Link from "next/link"
 
-import {fetchProjects} from "@/lib/context"
+import {useCurrentProject} from "./useCurrentProject"
 
 /**
  * Where you are, and the way out: workspace / project for the current route, tapping through to
@@ -18,18 +17,7 @@ export const ProjectSwitcher = ({
     workspaceId: string
     projectId: string
 }) => {
-    const query = useQuery({
-        queryKey: ["mobile", "projects"],
-        queryFn: () => fetchProjects(),
-        staleTime: 30_000,
-    })
-
-    const current =
-        query.data?.kind === "ok"
-            ? query.data.projects.find(
-                  (p) => p.project_id === projectId && p.workspace_id === workspaceId,
-              )
-            : undefined
+    const current = useCurrentProject(workspaceId, projectId)
 
     return (
         <Link

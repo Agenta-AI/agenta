@@ -8,7 +8,7 @@ export default function Auth() {
     return (
         <>
             <Head>
-                <title>Sign in — Agenta</title>
+                <title>Sign in · Agenta</title>
             </Head>
             <SignInScreen />
         </>

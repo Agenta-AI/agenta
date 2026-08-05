@@ -1,10 +1,12 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {FilterChip} from "@/components/FilterChip"
+import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {clearLastContext} from "@/lib/context"
 
 import {ProjectSwitcher} from "../context/ProjectSwitcher"
+import {useCurrentProject} from "../context/useCurrentProject"
 
 import {mergeSessionRows} from "./mergeSessionRows"
 import {classifyPageFailure} from "./pageFailure"
@@ -39,6 +41,7 @@ export const SessionListScreen = ({
         return () => clearTimeout(handle)
     }, [input])
 
+    const project = useCurrentProject(workspaceId, projectId)
     const query = useSessionsInfinite(projectId, search)
     // Bounded liveness for the list itself: newest page only, so a session created elsewhere
     // shows up without a manual refresh (see useSessionListHead).
@@ -139,34 +142,37 @@ export const SessionListScreen = ({
     }
 
     return (
-        <ScreenScaffold
-            scrollRef={scroll.ref}
-            onScroll={scroll.onScroll}
-            header={
-                <div className="border-border flex shrink-0 flex-col gap-2 border-b px-4 pt-2 pb-3">
-                    <ProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
-                    {/* Search and filter share a row: both narrow the same list, and three
+        <>
+            <PageTitle parts={["Sessions", project?.project_name]} />
+            <ScreenScaffold
+                scrollRef={scroll.ref}
+                onScroll={scroll.onScroll}
+                header={
+                    <div className="border-border flex shrink-0 flex-col gap-2 border-b px-4 pt-2 pb-3">
+                        <ProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
+                        {/* Search and filter share a row: both narrow the same list, and three
                         stacked full-width rows cost most of a phone's first screen. */}
-                    <div className="flex items-center gap-2">
-                        <SessionSearchBar value={input} onChange={setInput} />
-                        {waitingSessions > 0 ? (
-                            <FilterChip
-                                active={onlyPending}
-                                onToggle={() => setOnlyPending((on) => !on)}
-                                label={
-                                    onlyPending
-                                        ? "Show all sessions"
-                                        : `Show only the ${waitingSessions} session${waitingSessions === 1 ? "" : "s"} waiting on you`
-                                }
-                            >
-                                {waitingSessions} waiting
-                            </FilterChip>
-                        ) : null}
+                        <div className="flex items-center gap-2">
+                            <SessionSearchBar value={input} onChange={setInput} />
+                            {waitingSessions > 0 ? (
+                                <FilterChip
+                                    active={onlyPending}
+                                    onToggle={() => setOnlyPending((on) => !on)}
+                                    label={
+                                        onlyPending
+                                            ? "Show all sessions"
+                                            : `Show only the ${waitingSessions} session${waitingSessions === 1 ? "" : "s"} waiting on you`
+                                    }
+                                >
+                                    {waitingSessions} waiting
+                                </FilterChip>
+                            ) : null}
+                        </div>
                     </div>
-                </div>
-            }
-        >
-            {body}
-        </ScreenScaffold>
+                }
+            >
+                {body}
+            </ScreenScaffold>
+        </>
     )
 }
