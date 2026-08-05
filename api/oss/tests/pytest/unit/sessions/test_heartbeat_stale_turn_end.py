@@ -185,7 +185,9 @@ async def test_an_end_beat_without_a_turn_id_releases_nothing(lock_engine):
     owner = await get_running_owner(
         lock_engine, project_id=str(_PROJECT), session_id=_SESSION
     )
-    assert owner == live_turn, "an end beat with no turn id released the live turn's lock"
+    assert owner == live_turn, (
+        "an end beat with no turn id released the live turn's lock"
+    )
     assert "ended" not in watch.lifecycle_states, (
         "an end beat with no turn id published `ended` for a session that is still running"
     )

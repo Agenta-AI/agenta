@@ -21,12 +21,16 @@ from uuid import UUID, uuid4
 import pytest
 import pytest_asyncio
 
+from agenta.sdk.models.workflows import WorkflowServiceRequestData
+
 from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatRequest,
     SessionStream,
+    SessionStreamCommandRequest,
     SessionStreamFlags,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.dbs.redis.sessions.locks import release_alive
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -151,3 +155,41 @@ async def test_first_beat_creates_then_later_beats_update(lock_engine):
         "the turn-end beat must reach the row it created"
     )
     assert result.stream.flags.is_running is False
+
+
+@pytest.mark.asyncio
+async def test_a_stale_beat_does_not_restamp_the_row_with_its_dead_turn(lock_engine):
+    """The row's `turn_id` is not decoration: the next beat reads it to decide whether its own
+    locks were ever established. A turn whose `alive` lapsed is displaced by nothing, so its
+    late beat still runs the whole reconcile and only learns it is not current at the end. If
+    it stamps its dead id on the way out, the LIVE turn's next beat reads a foreign prior turn,
+    concludes its locks were never established, and re-arms them."""
+    dao = _FakeStreamsDAO()
+    svc = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
+
+    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
+    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a", is_running=False))
+    assert dao.row.turn_id == "turn-a"
+
+    # turn-a's `alive` lapses on TTL, then a fresh send takes the session.
+    await release_alive(
+        lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-a"
+    )
+    live = (
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=uuid4(),
+            request=SessionStreamCommandRequest(
+                session_id=_SESSION,
+                data=WorkflowServiceRequestData(inputs={"message": "hi"}),
+            ),
+        )
+    ).turn_id
+    assert dao.row.turn_id == live
+
+    late = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
+
+    assert late.is_current_turn is False
+    assert dao.row.turn_id == live, (
+        "the stale beat wrote its dead turn id over the live turn's"
+    )

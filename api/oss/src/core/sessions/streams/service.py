@@ -447,6 +447,12 @@ class SessionStreamsService:
         # and `updated_at` NULL, which is the column the orphan sweep filters on.
         stream: Optional[SessionStream] = None
 
+        # Only a current turn may stamp `turn_id`. A turn whose locks lapsed keeps beating
+        # until it notices, and writing its id over the live turn's would make the live turn's
+        # next beat read a foreign `prior_stream.turn_id` - concluding its own locks were
+        # never established, and re-arming them. `None` leaves the column as it is.
+        durable_turn_id = request.turn_id if is_current_turn else None
+
         if prior_stream is None:
             try:
                 stream = await self._dao.create(
@@ -455,7 +461,7 @@ class SessionStreamsService:
                     stream=SessionStreamCreate(
                         session_id=request.session_id,
                         flags=flags,
-                        turn_id=request.turn_id,
+                        turn_id=durable_turn_id,
                     ),
                 )
             except SessionStreamAlreadyExists:
@@ -467,7 +473,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 user_id=None,
                 session_id=request.session_id,
-                stream=SessionStreamEdit(flags=flags, turn_id=request.turn_id),
+                stream=SessionStreamEdit(flags=flags, turn_id=durable_turn_id),
             )
 
         # `running` lifecycle for the path that actually runs turns. `_start_turn` publishes it
