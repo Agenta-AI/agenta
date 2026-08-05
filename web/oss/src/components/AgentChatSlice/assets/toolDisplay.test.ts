@@ -54,6 +54,31 @@ describe("extractCallDescription", () => {
             truncated: false,
         })
     })
+
+    it("cuts on a code-point boundary when an emoji straddles the limit", () => {
+        // The emoji is one code point but two UTF-16 units, so a `slice` at the cap would keep a
+        // lone surrogate half and the card would render a replacement character.
+        const description = `${"a".repeat(CALL_DESCRIPTION_MAX_LENGTH - 1)}\u{1F600}tail`
+        const result = extractCallDescription({description})
+
+        expect(result?.truncated).toBe(true)
+        expect(result?.text.endsWith("\u{1F600}")).toBe(true)
+        expect(result?.text).not.toContain("\uFFFD")
+        // No unpaired surrogate survived the cut.
+        expect(/[\uD800-\uDFFF]/.test(result!.text.replace(/\p{Emoji_Presentation}/gu, ""))).toBe(
+            false,
+        )
+        expect(Array.from(result!.text)).toHaveLength(CALL_DESCRIPTION_MAX_LENGTH)
+    })
+
+    it("counts an all-emoji note in code points, matching the catalog cap", () => {
+        // 400 emoji are 800 UTF-16 units: measured in units this would look over the limit and be
+        // cut, when the model was well within what the catalog allowed it to send.
+        const description = "\u{1F600}".repeat(400)
+        const result = extractCallDescription({description})
+
+        expect(result).toEqual({text: description, truncated: false})
+    })
 })
 
 describe("partToolName", () => {

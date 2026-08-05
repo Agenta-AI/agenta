@@ -74,7 +74,12 @@ export const resolveToolDisplay = (raw: string): ToolDisplay => {
     }
 }
 
-/** Longest call description we render; the catalog caps the model at the same number. */
+/**
+ * Longest call description we render, counted in CODE POINTS.
+ *
+ * The catalog caps the model at the same number, and JSON Schema `maxLength` counts code points
+ * too, so both ends measure the same string the same way.
+ */
 export const CALL_DESCRIPTION_MAX_LENGTH = 500
 
 export interface CallDescription {
@@ -95,8 +100,11 @@ export const extractCallDescription = (input: unknown): CallDescription | null =
     if (typeof raw !== "string") return null
     const text = raw.trim()
     if (!text) return null
-    if (text.length <= CALL_DESCRIPTION_MAX_LENGTH) return {text, truncated: false}
-    return {text: text.slice(0, CALL_DESCRIPTION_MAX_LENGTH), truncated: true}
+    // Cut on code points, not UTF-16 units: `slice` at the cap can land inside a surrogate pair and
+    // emit a lone half, which renders as a replacement character.
+    const points = Array.from(text)
+    if (points.length <= CALL_DESCRIPTION_MAX_LENGTH) return {text, truncated: false}
+    return {text: points.slice(0, CALL_DESCRIPTION_MAX_LENGTH).join(""), truncated: true}
 }
 
 /** Wire name of a tool part. `dynamic-tool` carries it on `toolName`; typed parts encode it as
