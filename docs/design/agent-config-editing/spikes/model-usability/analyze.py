@@ -26,7 +26,6 @@ def classify(record):
     if error.startswith("api:") or "failed after" in error:
         return "harness/api error"
     if error == "no tool call":
-        last = [a for a in record["attempts"] if a.get("no_tool_call")]
         if record["attempts_used"] > 1:
             return "gave up and asked the user"
         return "answered in prose, never called the tool"
@@ -64,12 +63,23 @@ def main():
 
     groups = collections.defaultdict(list)
     for row in rows:
-        groups[(row["model"], row["instructions"], row.get("lenient", False))].append(row)
+        # (lenient, v3_surface, v4_surface) together identify one interface cohort. Two
+        # arms sharing `instructions` but differing in surface must not pool their rates.
+        key = (
+            row["model"],
+            row["instructions"],
+            row.get("lenient", False),
+            row.get("v3_surface", False),
+            row.get("v4_surface", False),
+        )
+        groups[key].append(row)
 
     for key in sorted(groups):
-        model, version, rich = key
+        model, version, rich, v3_surface, v4_surface = key
         arm = groups[key]
+        surface = "v4" if v4_surface else "v3" if v3_surface else "flat"
         label = f"{model} / {version}" + (" + lenient interface" if rich else "")
+        label += f" [{surface}]"
         print(f"\n=== {label}  (n={len(arm)}) ===")
         header = "  task  tool_call  json_ok  engine_ok  correct"
         print(header)

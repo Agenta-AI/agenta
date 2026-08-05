@@ -449,9 +449,10 @@ with a wrong example beside the right one.
 ## 8. Reproducing
 
 The harness and the instruction documents live beside this file, in
-`spikes/model-usability/`. The 440 raw trials are `results.tar.gz` in that directory; each
-line of each JSONL file is one trial, with every attempt the model made, what it sent, and
-what it got back.
+`spikes/model-usability/`. `results.tar.gz` in that directory holds 610 raw trials: the
+original 440 (sections 2 to 4 above) plus 170 follow-up trials from the `v2L` leniency arm
+and the new `v4a`/`v4b` surface arms. Each line of each JSONL file is one trial, with every
+attempt the model made, what it sent, and what it got back.
 
 ```
 selftest.py       proves all 11 tasks solvable and every negative case fires

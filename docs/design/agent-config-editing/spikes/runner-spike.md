@@ -69,6 +69,11 @@ card needs a stable digest.
 
 ### Codec gaps, and how each was handled
 
+> **Superseded by `contracts/execution-authorization.md` (accepted).** The gate decisions
+> below separate observed mode bits, import grants, stored capability, and platform policy,
+> and reject binary content by default. Read this table as the spike's punt, not as current
+> policy.
+
 | Gap | Handling |
 |---|---|
 | **Executable flags** | The mode bit is read and carried through to `files[].executable`. But a folder cannot express `allow_executable_files`, which is a *policy* claim, not a fact about the bytes. The codec derives it: true when at least one file is executable, false otherwise. This is a **punt**. It means a folder containing an executable file silently opts the skill into the executable-file policy. The materializer still needs the sandbox exec policy to agree (`engines/skills.ts` defaults to `deny`), so nothing becomes executable without a second decision. The approval card must show the executable flag explicitly. `resolveValueFrom()` returns `hasExecutableFiles` for that. |
@@ -338,6 +343,11 @@ adapter fingerprint. But a user adding their own MCP server is a reopen, always.
 
 ### Summary for the adapter capability table
 
+> **Superseded by `contracts/adapter-matrix.md` (decided).** The uniform-reopen decision
+> routes every harness's MCP catalog through `reopen-session`, and Pi MCP is `unsupported`
+> in the decided contract. Read the table below as the spike evidence that led there, not
+> as the current capability values.
+
 ```
 Pi:     toolCatalog = "restart-runtime"   TODAY (env var read once; no channel)
                     -> "apply-live" reachable: registerTool + setActiveTools are live APIs
@@ -425,8 +435,10 @@ messages.
 1. **The codec emits snake case.** The value crosses into pydantic, not onto the `/run` wire. If
    the commit tool ends up normalizing case server-side, this should change.
 2. **`allow_executable_files` is derived from the bits present.** A folder cannot state a policy. See
-   the gap table. This needs a product decision.
-3. **A binary file is dropped, not encoded.** No base64 into a text field.
+   the gap table. This needs a product decision. Superseded by `contracts/execution-authorization.md`
+   (accepted), which separates observed bits, import grants, stored capability, and platform policy.
+3. **A binary file is dropped, not encoded.** No base64 into a text field. Superseded by
+   `contracts/execution-authorization.md` (accepted), which rejects binary content by default.
 4. **One oversized file warns; an oversized folder fails.** Asymmetric on purpose.
 5. **The `value_from` walk is narrow.** Only `delta.operations[i]`. A broad search is a capability,
    not a convenience.

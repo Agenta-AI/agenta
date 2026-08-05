@@ -359,6 +359,10 @@ Every mutation returns what was actually applied. The reconciler updates `Applie
 
 ### Current adapter matrix
 
+> **Superseded by `contracts/adapter-matrix.md` (decided).** This table predates the
+> uniform-reopen decision and the Pi MCP `unsupported` finding. Read it for the reasoning
+> that led there, not for current per-harness capability values.
+
 | Harness | Model | Tool/MCP catalog | Instructions and skills | Harness files |
 |---|---|---|---|---|
 | Pi | Likely `apply-live` through generic `setModel`, but must be tested | `restart-runtime` today because public tool specs and extension setup are startup assets in [pi-assets.ts:341](/home/mahmoud/code/agenta-2/services/runner/src/engines/sandbox_agent/pi-assets.ts:341) | Refresh files; active observation not guaranteed | Adapter-specific, default runtime restart |

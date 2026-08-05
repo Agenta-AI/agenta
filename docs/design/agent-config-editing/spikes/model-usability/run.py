@@ -337,6 +337,10 @@ def run_trial(client: Any, task: "T.Task", trial: int) -> Dict[str, Any]:
         if payload["error"].get("code") == "change_set_rejected":
             retryable = payload["error"].get("retryable", True)
 
+        if not retryable:
+            record["error"] = "non-retryable: {}".format(payload["error"].get("code"))
+            return record
+
         messages.append(client.assistant_message(turn))
         messages.append(client.tool_result_message(turn, payload))
 
@@ -375,6 +379,10 @@ def main() -> None:
     spec = MODELS[args.model]
 
     selected = [t for t in T.TASKS if not args.tasks or t.tid in args.tasks.split(",")]
+    if not args.v4_surface:
+        # A v4-only task's checker asserts on fields only the v4 surface produces; running
+        # it under another surface is not a harness failure but a task that cannot pass.
+        selected = [t for t in selected if not t.requires_v4_surface]
 
     lock = threading.Lock()
     out = pathlib.Path(args.out)

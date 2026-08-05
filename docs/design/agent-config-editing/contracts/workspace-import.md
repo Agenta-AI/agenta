@@ -20,8 +20,13 @@ answers must-fix item 5 of `research/design-gate-review-codex.md`.
 > its truncation rules (section 8). Read every "folder" in those sections as "the file a
 > marker names", and read every "the import" as "one marker's resolution".
 >
-> Sections 4.2, 4.3, 5.2, and 8.1's `allowExecutableFiles` field are the superseded parts.
-> Rewriting them is runner-spike's, who owns this file.
+> **Sections 4.1 through 4.3, all of section 5, and 8.0 through 8.3 describe the removed
+> folder ("item mode") codec and its removed policy fields** (`on_unsupported`,
+> `on_executable`, `persist_executable_capability`, and the four-layer executable split).
+> A marker now resolves one file, so item mode has no caller. Section 8.4 (single-text
+> mode) is the current model: read it, not 8.1 to 8.3. Rewriting 4.1 to 4.3, 5, and 8.0 to
+> 8.3 into the single-marker shape is runner-spike's, who owns this file; until then, treat
+> them as historical record of the folder design, not as current behavior.
 
 This contract defines how the runner reads content from its workspace and hands it to a
 commit. It replaces the behavior in the `skill-codec.ts` prototype. The prototype was
@@ -248,6 +253,10 @@ A refused link is an unsupported entry. Section 4.2 defines what happens to it.
 
 ## 4. What the import accepts
 
+> **Historical: describes the removed folder codec.** See the banner at the top of this
+> document. A marker resolves one file; there is no folder shape, no `SKILL.md` discovery,
+> and no `files[]` generation in the current model.
+
 ### 4.1 Required shape
 
 An import folder must hold a `SKILL.md` at its top level. The file must parse as UTF-8. Its YAML
@@ -324,6 +333,11 @@ The per-file cap matches `SkillFile.content` in
 success from becoming a server-side validation failure.
 
 ## 5. Executable policy
+
+> **Historical: describes the removed folder codec's policy fields.** See the banner at
+> the top of this document. `on_executable` and `persist_executable_capability` were
+> removed; `executable` and `allow_executable_files` are now ordinary agent-authored
+> fields the approval card shows, per `change-set.md` 6.2.
 
 ### 5.1 Two rules
 
@@ -724,6 +738,9 @@ approval user interface can prove which manifest the human saw. It is separate f
 ## 8. The approval manifest and the card
 
 ### 8.0 Two presentation modes
+
+> **Item mode (8.1 to 8.3) is historical: it describes the removed folder codec.** See the
+> banner at the top of this document. Single-text mode (8.4) is the current model.
 
 The import has two source shapes, so the card has two modes. Section 5.5 defines the split.
 
