@@ -1,1 +1,0 @@
-{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"session_id":{"type":"string","title":"Session Id"},"attachment_ids":{"items":{"type":"string","format":"uuid"},"type":"array","maxItems":100,"title":"Attachment Ids"}},"type":"object","required":["session_id","attachment_ids"],"title":"SessionAttachmentReferenceRequest"}}},"required":true}}

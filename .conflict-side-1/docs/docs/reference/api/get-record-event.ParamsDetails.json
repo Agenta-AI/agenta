@@ -1,1 +1,0 @@
-{"parameters":[{"name":"record_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Record Id"}}]}

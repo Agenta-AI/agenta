@@ -1,3 +1,0 @@
-agenta
-litellm
-uvicorn

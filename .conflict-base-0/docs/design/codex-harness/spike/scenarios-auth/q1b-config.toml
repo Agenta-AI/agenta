@@ -1,3 +1,0 @@
-model = "gpt-5.6-luna"
-approval_policy = "never"
-cli_auth_credentials_store = "ephemeral"

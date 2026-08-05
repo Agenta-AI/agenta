@@ -28,11 +28,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  agentaErrorDetail,
   assembleBody,
   deepDelete,
   deepMerge,
   deepSet,
   directCallUrl,
+  MAX_ERROR_DETAIL_CHARS,
   pathParamNames,
   resolveCtxToken,
   stripEphemeralArgs,
@@ -719,6 +721,123 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
 // call, and it must never reach the API. The runner therefore strips it at dispatch, on both
 // branches, before either one builds a request.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Error detail: our envelope reaches the model, anything else stays redacted
+// ---------------------------------------------------------------------------
+
+describe("agentaErrorDetail", () => {
+  it("returns a structured change-set refusal, so the agent can recover by itself", () => {
+    // The whole point. `out_of_scope` names what the agent did wrong and `next_step` says what to
+    // do instead. Reduced to `HTTP 422`, neither reaches the model and recovery is guesswork.
+    const detail = agentaErrorDetail(
+      JSON.stringify({
+        detail: {
+          code: "out_of_scope",
+          message: "The target 'parameters.secret' is outside this scope.",
+          next_step: "Target a field under 'parameters.agent'.",
+          retryable: false,
+        },
+      }),
+    );
+    assert.ok(detail);
+    assert.match(detail, /out_of_scope/);
+    assert.match(detail, /next_step/);
+    assert.match(detail, /parameters\.agent/);
+  });
+
+  it("returns a string detail unquoted", () => {
+    assert.equal(
+      agentaErrorDetail(JSON.stringify({ detail: "The variant is busy." })),
+      "The variant is busy.",
+    );
+  });
+
+  it("returns a FastAPI validation list, which is also our envelope", () => {
+    const detail = agentaErrorDetail(
+      JSON.stringify({ detail: [{ loc: ["body", "target"], msg: "field required" }] }),
+    );
+    assert.ok(detail);
+    assert.match(detail, /field required/);
+  });
+
+  for (const [name, body] of [
+    ["an HTML error page from a proxy", "<html><body>502 Bad Gateway</body></html>"],
+    ["a plain-text body", "upstream connect error"],
+    ["an empty body", ""],
+    ["JSON that is not an object", "[1, 2, 3]"],
+    ["an object with no detail", JSON.stringify({ error: "boom", host: "10.0.0.4" })],
+    ["a null detail", JSON.stringify({ detail: null })],
+    ["an empty-string detail", JSON.stringify({ detail: "" })],
+  ] as const) {
+    it(`stays redacted for ${name}`, () => {
+      assert.equal(agentaErrorDetail(body), undefined);
+    });
+  }
+
+  it("caps a long detail and says it did", () => {
+    const detail = agentaErrorDetail(
+      JSON.stringify({ detail: "x".repeat(MAX_ERROR_DETAIL_CHARS * 2) }),
+    );
+    assert.ok(detail);
+    assert.ok(
+      detail.length < MAX_ERROR_DETAIL_CHARS + 40,
+      "a huge upstream body cannot flood the tool result",
+    );
+    assert.match(detail, /\(truncated\)$/);
+  });
+});
+
+describe("a failed direct call, through the relay the model reads", () => {
+  it("carries the change-set code and next step into the tool result", async () => {
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          detail: {
+            code: "duplicate_item_key",
+            message: "Two skills share the name 'pdf'.",
+            next_step: "Rename one of them, then send the commit again.",
+            retryable: false,
+          },
+        }),
+        { status: 422 },
+      )) as typeof fetch;
+
+    const res = await relayOnce(
+      refSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { city: "Berlin" },
+    );
+
+    // The relay turns the throw into a tool ERROR result, so the model loop continues and reads
+    // this text. QA saw exactly this field carry `direct tool call failed: HTTP 422` and nothing
+    // else, which is why recovery by discovery was impossible.
+    assert.equal(res.ok, false);
+    const text = String((res as { error: string }).error);
+    assert.match(text, /HTTP 422/);
+    assert.match(text, /duplicate_item_key/);
+    assert.match(text, /Rename one of them/);
+  });
+
+  it("keeps a proxy error page redacted, so no internal detail reaches the model", async () => {
+    globalThis.fetch = (async () =>
+      new Response("<html><head><title>504</title></head><body>upstream 10.0.0.4</body></html>", {
+        status: 504,
+      })) as typeof fetch;
+
+    const res = await relayOnce(
+      refSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { city: "Berlin" },
+    );
+
+    assert.equal(res.ok, false);
+    const text = String((res as { error: string }).error);
+    assert.match(text, /HTTP 504/);
+    assert.doesNotMatch(text, /10\.0\.0\.4/);
+    assert.doesNotMatch(text, /html/);
+  });
+});
 
 describe("stripEphemeralArgs", () => {
   it("removes only the declared top-level names", () => {

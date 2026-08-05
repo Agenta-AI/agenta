@@ -1,1 +1,0 @@
-{"parameters":[{"name":"interaction_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Interaction Id"}}]}
