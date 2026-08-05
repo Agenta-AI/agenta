@@ -24,9 +24,14 @@
 #   --env-name     Target environment (default: templateEnvironment from the
 #                  definition, i.e. pr-template). Point it at a scratch clone to
 #                  test a definition change before touching the template.
-#   --app-tag /    Override the image tag parameters (defaults from the
-#   --wrapper-tag  definition). Guarded: never 'latest', never pr-* (the
+#   --app-tag      Override the app-image tag parameter (default from the
+#                  definition). Guarded: never 'latest', never pr-* (the
 #                  environmentPatchCommit no-op trap; see template.json notes).
+#   --wrapper-tag  Override ALL THREE wrapper-image tags at once. The
+#                  definition is the source of truth: each wrapper service
+#                  (gateway/redis/seaweedfs) carries its own content-addressed
+#                  tag parameter (gateway_tag/redis_tag/seaweedfs_tag). Same
+#                  'latest'/pr-* guard.
 #
 # Env vars: RAILWAY_API_TOKEN (account token; auto-sourced from
 # ~/.agenta-railway.env), RAILWAY_PROJECT_NAME / RAILWAY_ENVIRONMENT_NAME /
@@ -77,7 +82,7 @@ while [ $# -gt 0 ]; do
         --wrapper-tag=*) WRAPPER_TAG_ARG="${1#*=}" ;;
         --definition) [ $# -ge 2 ] || die "--definition needs a value"; DEFINITION="$2"; shift ;;
         --definition=*) DEFINITION="${1#*=}" ;;
-        -h|--help) sed -n '3,40p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        -h|--help) sed -n '3,46p' "${BASH_SOURCE[0]}"; exit 0 ;;
         *) die "unknown argument: $1 (see --help)" ;;
     esac
     shift
@@ -92,7 +97,14 @@ jq -e . <"$DEFINITION" >/dev/null || die "definition is not valid JSON: $DEFINIT
 PROJECT_NAME="${PROJECT_ARG:-${RAILWAY_PROJECT_NAME:-$(jq -r '.project' "$DEFINITION")}}"
 ENV_NAME="${ENV_NAME_ARG:-${RAILWAY_ENVIRONMENT_NAME:-$(jq -r '.templateEnvironment' "$DEFINITION")}}"
 APP_TAG="${APP_TAG_ARG:-${AGENTA_TEMPLATE_APP_TAG:-$(jq -r '.parameters.app_tag.default' "$DEFINITION")}}"
-WRAPPER_TAG="${WRAPPER_TAG_ARG:-${AGENTA_PREVIEW_WRAPPER_TAG:-$(jq -r '.parameters.wrapper_tag.default' "$DEFINITION")}}"
+
+# Wrapper tags are PER SERVICE in the definition (content-addressed, so the
+# three wrappers move independently). --wrapper-tag / AGENTA_PREVIEW_WRAPPER_TAG
+# remains as an override that forces all three to one tag.
+WRAPPER_TAG_OVERRIDE="${WRAPPER_TAG_ARG:-${AGENTA_PREVIEW_WRAPPER_TAG:-}}"
+GATEWAY_TAG="${WRAPPER_TAG_OVERRIDE:-$(jq -r '.parameters.gateway_tag.default' "$DEFINITION")}"
+REDIS_TAG="${WRAPPER_TAG_OVERRIDE:-$(jq -r '.parameters.redis_tag.default' "$DEFINITION")}"
+SEAWEEDFS_TAG="${WRAPPER_TAG_OVERRIDE:-$(jq -r '.parameters.seaweedfs_tag.default' "$DEFINITION")}"
 
 # Per-PR preview projects (legacy path) are owned by workflows 41/43/45 and
 # must never be converged by this tool.
@@ -112,11 +124,16 @@ validate_tag() {
     esac
 }
 validate_tag "app_tag" "$APP_TAG"
-validate_tag "wrapper_tag" "$WRAPPER_TAG"
+validate_tag "gateway_tag" "$GATEWAY_TAG"
+validate_tag "redis_tag" "$REDIS_TAG"
+validate_tag "seaweedfs_tag" "$SEAWEEDFS_TAG"
 
 # Desired state with image tag parameters substituted.
-DESIRED="$(jq -c --arg app "$APP_TAG" --arg wrap "$WRAPPER_TAG" \
-    '.services | with_entries(.value.image |= (gsub("\\{app_tag\\}"; $app) | gsub("\\{wrapper_tag\\}"; $wrap)))' \
+DESIRED="$(jq -c --arg app "$APP_TAG" --arg gw "$GATEWAY_TAG" --arg rd "$REDIS_TAG" --arg sw "$SEAWEEDFS_TAG" \
+    '.services | with_entries(.value.image |= (gsub("\\{app_tag\\}"; $app)
+        | gsub("\\{gateway_tag\\}"; $gw)
+        | gsub("\\{redis_tag\\}"; $rd)
+        | gsub("\\{seaweedfs_tag\\}"; $sw)))' \
     "$DEFINITION")"
 
 rw_require_token
@@ -129,8 +146,8 @@ ENV_ID="$(rw_graphql "$ENV_QUERY" "$(jq -nc --arg p "$PROJECT_ID" '{p: $p}')" \
     | jq -r --arg n "$ENV_NAME" '.data.environments.edges[].node | select(.name == $n) | .id' | head -n1)"
 [ -n "$ENV_ID" ] || die "environment '$ENV_NAME' not found in project '$PROJECT_NAME'"
 
-printf 'Target: project=%s environment=%s app_tag=%s wrapper_tag=%s mode=%s\n' \
-    "$PROJECT_NAME" "$ENV_NAME" "$APP_TAG" "$WRAPPER_TAG" \
+printf 'Target: project=%s environment=%s app_tag=%s gateway_tag=%s redis_tag=%s seaweedfs_tag=%s mode=%s\n' \
+    "$PROJECT_NAME" "$ENV_NAME" "$APP_TAG" "$GATEWAY_TAG" "$REDIS_TAG" "$SEAWEEDFS_TAG" \
     "$([ "$DRY_RUN" = true ] && printf 'dry-run' || printf 'apply')"
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@ import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "re
 import {Copy} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
-import {Popover, PopoverAnchor, PopoverContent} from "../components/ui/popover"
+import {Popover, PopoverAnchor, PopoverArrow, PopoverContent} from "../components/ui/popover"
 import {message} from "../utils/appMessageContext"
 
 /** Radix Popover has no hover trigger; reproduce antd's enter/leave delays. */
@@ -107,11 +107,21 @@ const CellContentPopover = memo(
             <Popover open={hover.open} onOpenChange={hover.setOpen}>
                 {/* Anchor (not Trigger): the cell keeps its own click semantics. */}
                 <PopoverAnchor asChild>
-                    <div onMouseEnter={hover.onMouseEnter} onMouseLeave={hover.onMouseLeave}>
+                    {/* self-start/h-fit: the row is a flex container, so this div would otherwise
+                        stretch to the full (often oversized) row height, throwing off both the
+                        anchor's bounds and the "close to the item" top-centered positioning. */}
+                    <div
+                        className="self-start h-fit"
+                        onMouseEnter={hover.onMouseEnter}
+                        onMouseLeave={hover.onMouseLeave}
+                    >
                         {children}
                     </div>
                 </PopoverAnchor>
                 <PopoverContent
+                    side="top"
+                    align="center"
+                    className="p-3"
                     onMouseEnter={hover.onMouseEnter}
                     onMouseLeave={hover.onMouseLeave}
                     onOpenAutoFocus={(e) => e.preventDefault()}
@@ -120,6 +130,7 @@ const CellContentPopover = memo(
                     <PopoverContentWrapper onCopy={showCopy && copyText ? handleCopy : undefined}>
                         {fullContent}
                     </PopoverContentWrapper>
+                    <PopoverArrow />
                 </PopoverContent>
             </Popover>
         )

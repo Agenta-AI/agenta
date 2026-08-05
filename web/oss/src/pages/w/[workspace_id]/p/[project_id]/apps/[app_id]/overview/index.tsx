@@ -12,6 +12,7 @@ import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/moda
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
+import WorkflowPageTitle from "@/oss/components/PageTitle/WorkflowPageTitle"
 import RequireWorkflowKind from "@/oss/components/RequireWorkflowKind"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -147,6 +148,7 @@ const OverviewContent = () => {
 
     return (
         <>
+            <WorkflowPageTitle title="Overview" />
             <PageLayout className="gap-8">
                 <AppDetailsSection />
                 <ObservabilityOverview />

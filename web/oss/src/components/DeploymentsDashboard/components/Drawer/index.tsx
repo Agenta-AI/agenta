@@ -190,10 +190,10 @@ const DeploymentsDrawer = ({
 
     return (
         <EnhancedDrawer
-            closeIcon={null}
+            closable={false}
             destroyOnHidden
             width={drawerWidth}
-            className="[&_.ant-drawer-body]:p-0"
+            styles={{body: {padding: 0}}}
             title={
                 <DeploymentsDrawerTitle
                     drawerWidth={drawerWidth}

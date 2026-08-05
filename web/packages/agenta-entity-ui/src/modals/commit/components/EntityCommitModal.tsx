@@ -115,7 +115,6 @@ export interface EntityCommitModalProps {
 }
 
 const SLUG_CONFLICT_MESSAGE = "A resource with this slug already exists in this project."
-const AGENT_TWO_PANE_ROOT_CLASS = "agenta-agent-commit-two-pane"
 
 function getErrorStatus(error: unknown): number | undefined {
     return (error as {response?: {status?: number}})?.response?.status
@@ -490,46 +489,41 @@ export function EntityCommitModal({
     )
 
     return (
-        <>
-            {/* The old `.ant-modal-container` padding override is gone: EnhancedModal renders the
-                Radix Dialog (no antd DOM), and the two-pane layout zeroes padding via styles.body. */}
-            <EnhancedModal
-                open={isOpen}
-                onCancel={handleClose}
-                afterClose={handleAfterClose}
-                rootClassName={isAgentTwoPane ? AGENT_TWO_PANE_ROOT_CLASS : undefined}
-                // Agent commits render title + footer inside the body (two full-bleed panels).
-                title={isAgentTwoPane ? null : <EntityCommitTitle />}
-                aria-label={`${actionLabel} changes`}
-                footer={isAgentTwoPane ? null : footerNode}
-                width={hasDiffData ? 900 : 520}
-                styles={
-                    isAgentTwoPane
-                        ? {
-                              container: {padding: 0, overflow: "hidden"},
-                              body: {padding: 0, overflow: "hidden"},
-                          }
-                        : {
-                              body: {
-                                  maxHeight: "calc(80vh - 110px)",
-                                  overflow: "hidden",
-                                  display: "flex",
-                                  flexDirection: "column",
-                              },
-                          }
-                }
-            >
-                <EntityCommitContent
-                    commitModes={commitModes}
-                    selectedMode={selectedMode}
-                    onModeChange={setSelectedMode}
-                    extraContent={renderModeContent?.({mode: selectedMode})}
-                    modeLabel={modeLabel}
-                    entityNameEditable={isEntityNameEditable}
-                    entityNameLabel={resolvedEntityNameLabel}
-                    footerSlot={isAgentTwoPane ? footerNode : undefined}
-                />
-            </EnhancedModal>
-        </>
+        <EnhancedModal
+            open={isOpen}
+            onCancel={handleClose}
+            afterClose={handleAfterClose}
+            // Agent commits render title + footer inside the body (two full-bleed panels).
+            title={isAgentTwoPane ? null : <EntityCommitTitle />}
+            aria-label={`${actionLabel} changes`}
+            footer={isAgentTwoPane ? null : footerNode}
+            width={hasDiffData ? 900 : 520}
+            styles={
+                isAgentTwoPane
+                    ? {
+                          container: {padding: 0, overflow: "hidden"},
+                          body: {padding: 0, overflow: "hidden"},
+                      }
+                    : {
+                          body: {
+                              maxHeight: "calc(80vh - 110px)",
+                              overflow: "hidden",
+                              display: "flex",
+                              flexDirection: "column",
+                          },
+                      }
+            }
+        >
+            <EntityCommitContent
+                commitModes={commitModes}
+                selectedMode={selectedMode}
+                onModeChange={setSelectedMode}
+                extraContent={renderModeContent?.({mode: selectedMode})}
+                modeLabel={modeLabel}
+                entityNameEditable={isEntityNameEditable}
+                entityNameLabel={resolvedEntityNameLabel}
+                footerSlot={isAgentTwoPane ? footerNode : undefined}
+            />
+        </EnhancedModal>
     )
 }

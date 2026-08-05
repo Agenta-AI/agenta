@@ -18,6 +18,7 @@ import {
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { conciseError } from "./errors.ts";
 import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
   buildPiExtensionEnv,
   configurePiSessionWorkspace,
@@ -160,19 +161,27 @@ export async function prepareEnvironmentSetup(
   if (!planResult.ok) return { ok: false as const, error: planResult.error };
   const plan = planResult.plan;
   const piSkillSnapshot = resolvePiSkillSnapshot(plan);
-  const agentMountDir = agentMountCreds ? agentMountPath(plan.cwd) : undefined;
+  const agentMountDir = agentMountCreds
+    ? agentMountPath(plan.workspace.cwd)
+    : undefined;
 
   // Clear-then-apply (Security rule 5): on a managed run (credentialMode "env") the daemon
-  // inherits NONE of the sidecar's own provider keys, so only the resolved `plan.secrets` are
-  // present and an inherited key for another provider cannot leak. For runtime_provided/none/
-  // un-migrated runs the harness uses its own login, so the inherited keys stay.
-  const clearProviderEnv = plan.credentialMode === "env";
+  // inherits NONE of the sidecar's own provider keys, so only the resolved
+  // `plan.credentials.modelEnvironment` is present and an inherited key for another
+  // provider cannot leak.
+  // "none" asserts NO credential (connections/models.py), so it clears too — otherwise the
+  // daemon would inherit the declared provider's keys (e.g. OPENAI_API_KEY) from the sidecar.
+  // Only runtime_provided keeps the inherited keys: the harness uses its own login there.
+  const clearProviderEnv =
+    plan.credentials.credentialMode === "env" ||
+    plan.credentials.credentialMode === "none";
   const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
     clearProviderEnv,
-    provider: request.provider,
-    deployment: request.deployment,
+    provider: request.modelConnection?.provider,
+    deployment: request.modelConnection?.deployment,
   });
-  Object.assign(env, plan.secrets); // apply only the resolved provider keys
+  // apply only the resolved provider keys
+  Object.assign(env, plan.credentials.modelEnvironment);
   applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
   const piSessionDir = configurePiSessionWorkspace(plan, env);
   configurePiSkillSnapshot(piSkillSnapshot, env);
@@ -183,7 +192,9 @@ export async function prepareEnvironmentSetup(
   // local Pi's OTLP bearer rides a runner-written 0600 file, never a plain env var —
   // Daytona never receives telemetry env here at all (`!plan.isDaytona` gates it off above).
   const otlpAuthFilePath =
-    plan.isPi && !plan.isDaytona ? `${plan.relayDir}.otlp-auth` : undefined;
+    plan.isPi && !plan.isDaytona
+      ? `${plan.workspace.relayDir}.otlp-auth`
+      : undefined;
   const otlpAuthorization =
     request.telemetry?.exporters?.otlp?.headers?.authorization;
   if (otlpAuthFilePath && otlpAuthorization) {
@@ -191,14 +202,14 @@ export async function prepareEnvironmentSetup(
   }
   const piExtEnv = plan.isPi
     ? buildPiExtensionEnv(request, !plan.isDaytona, {
-        relayDir: plan.relayDir,
-        usageOutPath: plan.usageOutPath,
+        relayDir: plan.workspace.relayDir,
+        usageOutPath: plan.workspace.usageOutPath,
         otlpAuthFilePath,
-        builtinGatingActive: plan.builtinGatingActive,
+        builtinGatingActive: plan.tools.builtinGatingActive,
         // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
         // records which skills loaded; local Pi self-instruments, so the runner's sandbox-agent
         // otel has no span to stamp here.
-        skills: plan.skillDirs.map((s) => s.name),
+        skills: plan.workspace.skillDirs.map((s) => s.name),
       })
     : {};
   // Daytona's provider is built from `piExtEnv` rather than the local daemon env. Keep the
@@ -214,11 +225,11 @@ export async function prepareEnvironmentSetup(
   configureDaytonaCodexEnv(plan, piExtEnv);
   Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
-    `tools=${plan.toolSpecs.length} executableTools=${plan.executableToolSpecs.length} ` +
+    `tools=${plan.tools.toolSpecs.length} executableTools=${plan.tools.executableToolSpecs.length} ` +
       `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
   );
   if (!plan.isPi && plan.isDaytona) {
-    const clientTools = plan.toolSpecs
+    const clientTools = plan.tools.toolSpecs
       .filter((spec) => spec.kind === "client")
       .map((spec) => spec.name);
     if (clientTools.length > 0) {
@@ -238,7 +249,20 @@ export async function prepareEnvironmentSetup(
   let piModelConfigError: Error | undefined;
   if (plan.isPi) {
     try {
-      piModelConfig = buildPiModelConfigPlan(request, plan.secrets);
+      // The presence check consults the FULL materialized model environment: on a Daytona
+      // Secrets run the opaque key left `plan.credentials.modelEnvironment` for the
+      // secret plan, but the sandbox still receives its binding (as a Daytona Secret
+      // attachment).
+      const fullModelEnvironment: Record<string, string> = {
+        ...plan.credentials.modelEnvironment,
+      };
+      const secretCandidates = plan.credentials.daytonaSecretPlan?.candidates;
+      for (const candidate of secretCandidates ?? []) {
+        if (candidate.consumer.kind === "model") {
+          fullModelEnvironment[candidate.binding.name] = candidate.value;
+        }
+      }
+      piModelConfig = buildPiModelConfigPlan(request, fullModelEnvironment);
     } catch (err) {
       piModelConfigError = err as Error;
     }
@@ -280,7 +304,16 @@ export async function prepareEnvironmentSetup(
   const localBuiltinGatingUnenforceable =
     plan.isPi &&
     !plan.isDaytona &&
-    plan.builtinGatingActive &&
+    plan.tools.builtinGatingActive &&
+    !localPiAssets.extensionInstalled;
+  // Fail closed: a Pi run whose provider routing rides the extension's model endpoint override
+  // (`model-provider-override.ts`, set in `buildPiExtensionEnv`) cannot run without the
+  // extension — the harness would silently call the provider's default endpoint. Recorded here
+  // and thrown inside the engine try, like the two gates above.
+  const localModelOverrideUnenforceable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    piExtEnv[PI_MODEL_PROVIDER_OVERRIDE_ENV] !== undefined &&
     !localPiAssets.extensionInstalled;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
@@ -291,15 +324,20 @@ export async function prepareEnvironmentSetup(
   // lifecycle, exactly like a normal local install (interface.md section 6). buildRunPlan already
   // rejected a runtime_provided Claude run with no configured CLAUDE_CONFIG_DIR.
 
-  logger(`harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.cwd}`);
+  logger(
+    `harness=${plan.harness} sandbox=${plan.sandboxId} cwd=${plan.workspace.cwd}`,
+  );
 
   // The resolved model ref as it reaches the runner (key NAMES only, never values) — the one
   // line that answers "what model/provider/deployment/credential did this run actually use".
   logger(
-    `resolved model=${request.model ?? "<none>"} provider=${request.provider ?? "<none>"} ` +
-      `deployment=${request.deployment ?? "<none>"} ` +
+    `resolved model=${request.model ?? "<none>"} provider=${request.modelConnection?.provider ?? "<none>"} ` +
+      `deployment=${request.modelConnection?.deployment ?? "<none>"} ` +
       `connection=${request.connection ? `${request.connection.mode}:${request.connection.slug ?? "-"}` : "<none>"} ` +
-      `secretKeys=[${Object.keys(request.secrets ?? {}).join(",")}]`,
+      `credentialMode=${request.modelConnection?.credentialMode ?? "<none>"} ` +
+      `credentialBindings=[${(request.modelConnection?.credentials ?? [])
+        .map((credential) => credential.binding.name)
+        .join(",")}]`,
   );
 
   // The shared client-tool relay reference (the deferred ref baked into the MCP server reads it;
@@ -364,7 +402,7 @@ export async function prepareEnvironmentSetup(
       ? undefined
       : {
           cleanup: async () =>
-            rmSync(plan.cwd, { recursive: true, force: true }),
+            rmSync(plan.workspace.cwd, { recursive: true, force: true }),
         },
     runtimeRemount: undefined,
     closeToolMcp: undefined,
@@ -396,6 +434,7 @@ export async function prepareEnvironmentSetup(
     localBuiltinGatingUnenforceable,
     logger,
     localModelConfigUnwritable,
+    localModelOverrideUnenforceable,
     mcpAbort,
     piExtEnv,
     piModelConfig,

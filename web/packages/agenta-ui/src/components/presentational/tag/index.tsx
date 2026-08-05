@@ -176,6 +176,7 @@ function TagImpl({
                 size === "small" && SMALL,
                 (onClick || showDismiss) && "cursor-pointer",
                 showDismiss && "group select-none",
+                "w-fit",
                 className,
             )}
             {...rest}

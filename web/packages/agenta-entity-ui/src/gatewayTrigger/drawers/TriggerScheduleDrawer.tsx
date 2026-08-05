@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useState} from "react"
 
 import {triggerScheduleDrawerAtom} from "@agenta/entities/gatewayTrigger"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -24,11 +24,21 @@ export default function TriggerScheduleDrawer() {
     const open = !!state
     const handleClose = useCallback(() => setState(null), [setState])
 
-    const playgroundEntityId = state?.playgroundEntityId
+    // EnhancedDrawer keeps the Sheet shell mounted ~320ms after `open` goes false to play
+    // the slide-out, then calls `afterOpenChange(false)`. Gating content on `state` directly
+    // would unmount it in the same render as the close click — an empty shell sliding out
+    // for that window. Keep rendering the last known state until the shell actually unmounts.
+    const [renderedState, setRenderedState] = useState(state)
+    if (state && state !== renderedState) setRenderedState(state)
+    const handleAfterOpenChange = useCallback((isOpen: boolean) => {
+        if (!isOpen) setRenderedState(null)
+    }, [])
+
+    const playgroundEntityId = renderedState?.playgroundEntityId
     const title =
         SHOW_LIST_RAIL && playgroundEntityId
             ? "Schedules"
-            : state?.scheduleId
+            : renderedState?.scheduleId
               ? "Edit schedule"
               : "New schedule"
 
@@ -42,6 +52,7 @@ export default function TriggerScheduleDrawer() {
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={handleClose}
+            afterOpenChange={handleAfterOpenChange}
             title={title}
             width={playgroundEntityId ? 960 : 640}
             closeOnLayoutClick={false}
@@ -49,17 +60,17 @@ export default function TriggerScheduleDrawer() {
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
         >
-            {state &&
+            {renderedState &&
                 (playgroundEntityId ? (
                     <ScheduleDrawerContent
-                        state={state}
+                        state={renderedState}
                         playgroundEntityId={playgroundEntityId}
                         onClose={handleClose}
                     />
                 ) : (
                     <ScheduleForm
-                        key={state.scheduleId ?? "new"}
-                        scheduleId={state.scheduleId}
+                        key={renderedState.scheduleId ?? "new"}
+                        scheduleId={renderedState.scheduleId}
                         onClose={handleClose}
                     />
                 ))}

@@ -7,6 +7,7 @@ import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {openHumanEvaluatorDrawerAtom} from "@/oss/components/Evaluators/Drawers/HumanEvaluatorDrawer/store"
+import PageTitle from "@/oss/components/PageTitle"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
 
@@ -30,18 +31,21 @@ const AnnotationQueuesPage = () => {
     )
 
     return (
-        <AnnotationUIProvider navigation={navigation}>
-            <PageLayout
-                title={<span className="inline-flex items-center gap-2">Queues</span>}
-                className="h-full min-h-0"
-            >
-                <AnnotationQueuesView
-                    canExportData={canExportData}
-                    feedbackOnCreate={() => openHumanEvaluatorDrawer({mode: "create"})}
-                    feedbackCreateLabel="Create evaluator"
-                />
-            </PageLayout>
-        </AnnotationUIProvider>
+        <>
+            <PageTitle title="Annotation Queues" />
+            <AnnotationUIProvider navigation={navigation}>
+                <PageLayout
+                    title={<span className="inline-flex items-center gap-2">Queues</span>}
+                    className="h-full min-h-0"
+                >
+                    <AnnotationQueuesView
+                        canExportData={canExportData}
+                        feedbackOnCreate={() => openHumanEvaluatorDrawer({mode: "create"})}
+                        feedbackCreateLabel="Create evaluator"
+                    />
+                </PageLayout>
+            </AnnotationUIProvider>
+        </>
     )
 }
 

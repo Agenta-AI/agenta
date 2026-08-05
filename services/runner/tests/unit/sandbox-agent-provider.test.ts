@@ -14,8 +14,14 @@ import assert from "node:assert/strict";
 import {
   buildDaytonaCreate,
   buildSandboxProvider,
+  daytonaCreateFingerprint,
   daytonaNetworkFields,
 } from "../../src/engines/sandbox_agent/provider.ts";
+import { buildDaytonaSecretPlan } from "../../src/engines/sandbox_agent/daytona-secret-plan.ts";
+import {
+  DAYTONA_PI_COMMAND,
+  DAYTONA_PI_DIR,
+} from "../../src/engines/sandbox_agent/daytona.ts";
 import {
   DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
   DEFAULT_DAYTONA_AUTODELETE_MINUTES,
@@ -85,7 +91,95 @@ describe("daytonaNetworkFields", () => {
   });
 });
 
+describe("daytonaCreateFingerprint", () => {
+  const secretPlan = {
+    environment: {},
+    candidates: [],
+  };
+
+  it("changes for local_use values and Pi custom endpoint routing", () => {
+    const fingerprint = (
+      piExtEnv: Record<string, string>,
+      environment: Record<string, string>,
+    ) =>
+      daytonaCreateFingerprint({
+        image: "runner-image",
+        create: buildDaytonaCreate(
+          daytonaConfig(),
+          piExtEnv,
+          environment,
+          undefined,
+        ),
+        secretPlan,
+      });
+
+    const base = fingerprint(
+      { AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE: '{"baseUrl":"https://a.test"}' },
+      { AWS_PROFILE: "profile-a" },
+    );
+    assert.notEqual(
+      base,
+      fingerprint(
+        {
+          AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE: '{"baseUrl":"https://a.test"}',
+        },
+        { AWS_PROFILE: "profile-b" },
+      ),
+    );
+    assert.notEqual(
+      base,
+      fingerprint(
+        {
+          AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE: '{"baseUrl":"https://b.test"}',
+        },
+        { AWS_PROFILE: "profile-a" },
+      ),
+    );
+  });
+});
+
 describe("buildDaytonaCreate (lifecycle + artifact on the create object)", () => {
+  it("carries Secret names separately and never puts opaque plaintext in env/config", () => {
+    const opaque = "marker-opaque-plaintext";
+    const plan = buildDaytonaSecretPlan({
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: opaque,
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
+    const create = buildDaytonaCreate(
+      daytonaConfig(),
+      { PUBLIC_EXTENSION_CONFIG: "enabled" },
+      { ...plan.environment, AWS_REGION: "us-east-1" },
+      undefined,
+      { ANTHROPIC_API_KEY: "agenta_random_secret_name" },
+    );
+    assert.deepEqual(create.secrets, {
+      ANTHROPIC_API_KEY: "agenta_random_secret_name",
+    });
+    assert.deepEqual(create.envVars, {
+      PI_CODING_AGENT_DIR: DAYTONA_PI_DIR,
+      PUBLIC_EXTENSION_CONFIG: "enabled",
+      AWS_REGION: "us-east-1",
+      PI_ACP_PI_COMMAND: DAYTONA_PI_COMMAND,
+    });
+    assert.equal(JSON.stringify(create).includes(opaque), false);
+  });
+
+  it("omits the secrets field when no Secret attachments exist", () => {
+    const create = buildDaytonaCreate(daytonaConfig(), {}, {}, undefined, {});
+    assert.equal("secrets" in create, false);
+  });
+
   it("carries stop and delete intervals without auto-archive by default", () => {
     const create = buildDaytonaCreate(daytonaConfig(), {}, {}, undefined);
     // ephemeral:false so a stop PARKS (warm) instead of deleting; the intervals are the reapers.
@@ -147,6 +241,7 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
           {},
           {},
           undefined,
+          undefined,
           localOnly,
         ),
       /Unknown sandbox id 'typo-sandbox'/,
@@ -155,7 +250,16 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
 
   it("resolves 'local' without refusing", () => {
     assert.doesNotThrow(() =>
-      buildSandboxProvider("local", {}, undefined, {}, {}, undefined, localOnly),
+      buildSandboxProvider(
+        "local",
+        {},
+        undefined,
+        {},
+        {},
+        undefined,
+        undefined,
+        localOnly,
+      ),
     );
   });
 
@@ -168,6 +272,7 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
           undefined,
           {},
           {},
+          undefined,
           undefined,
           localOnly,
         ),
@@ -184,8 +289,72 @@ describe("buildSandboxProvider (enabled-provider gate + unknown-id refusal)", ()
         {},
         {},
         undefined,
+        undefined,
         runnerConfig("local,daytona"),
       ),
     );
+  });
+
+  it("wraps Daytona with process-local Secrets for EVERY plan-bearing run, zero candidates included", () => {
+    const plan = buildDaytonaSecretPlan({
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: "opaque",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
+    const build = (secretPlan?: typeof plan) =>
+      buildSandboxProvider(
+        "daytona",
+        {},
+        undefined,
+        {},
+        {},
+        undefined,
+        secretPlan,
+        runnerConfig("local,daytona"),
+      ) as { materializeMcpServers?: unknown };
+
+    // A run with hiding switched off never carries a plan (buildRunPlan builds one only while
+    // hiding is on), and the plain provider is unchanged from the pre-feature runner.
+    assert.equal(
+      typeof build(undefined).materializeMcpServers,
+      "undefined",
+      "no plan stays on the plain provider",
+    );
+
+    // Hiding is ON by default, so a plan-bearing run wraps without any variable being set.
+    assert.equal(
+      typeof build(plan).materializeMcpServers,
+      "function",
+      "the default attaches the Secret wrapper",
+    );
+    // Zero candidates must ALSO wrap: buildRunPlan keeps the empty plan on every Daytona run
+    // that hides credentials, precisely so the wrapper's create-fingerprint check governs
+    // reconnects (a rotated local_use credential forces a rebuild, never a stale plaintext
+    // reconnect).
+    assert.equal(
+      typeof build(buildDaytonaSecretPlan({})).materializeMcpServers,
+      "function",
+      "zero candidates still attaches the Secret wrapper",
+    );
+
+    try {
+      // Defense-in-depth: a direct caller handing a candidate-bearing plan while hiding is
+      // switched off is refused. That plan's environment already dropped the opaque values, so
+      // proceeding unwrapped would silently run without credentials.
+      process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "off";
+      assert.throws(() => build(plan), /no plaintext fallback/);
+    } finally {
+      delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
+    }
   });
 });

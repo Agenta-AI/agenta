@@ -17,9 +17,9 @@ const GenericDrawer = ({
 
     return (
         <EnhancedDrawer
-            closeIcon={null}
+            closable={false}
             destroyOnHidden
-            size={drawerWidth}
+            width={drawerWidth}
             title={
                 <Flex gap={12} justify="space-between" align="center">
                     <Button
