@@ -11,13 +11,21 @@ constraint, and what the lane actually contains.
 `GitDAO.commit_revision` (`api/oss/src/dbs/postgres/git/dao.py:1565`) gains one optional
 parameter, `expected_head_revision_id`. When a caller passes it, the DAO:
 
-1. locks the variant row with `SELECT ... FOR UPDATE`,
-2. **re-reads the head revision id under that lock**,
-3. raises `RevisionConflict` when it differs from the caller's expectation,
-4. otherwise inserts as before.
+1. bounds the wait with `SET LOCAL lock_timeout` (section 4.1),
+2. locks the variant row with `SELECT ... FOR UPDATE`,
+3. **re-reads the head revision id under that lock**, with the same
+   `created_at DESC, id DESC` ordering every other head read uses,
+4. raises `RevisionConflict` when it differs from the caller's expectation — including when
+   there is no head at all,
+5. otherwise inserts as before.
 
 The lock condition becomes `initial or expected_head_revision_id is not None`. A caller
 that passes neither takes no lock and behaves exactly as it does today.
+
+The workflows checked-commit path is what passes it:
+`commit_workflow_revision_checked` hands the commit's `base_revision_id` to
+`commit_workflow_revision`, which forwards it to the DAO, and the resulting
+`RevisionConflict` becomes the structured 409 of `contracts/commit-transaction.md` 6.1.
 
 ### 1.1 Why the re-read is part of this lane, and not optional
 
@@ -62,9 +70,18 @@ The two remaining callers are the DAO's own `fork_variant`
 ### 2.1 Why each is unaffected
 
 Every one of them is unaffected for the same structural reason: **the new behavior is
-opt-in at the call site, and nothing but the workflows checked-commit path opts in.** The
+opt-in at the call site, and only the workflows checked-commit path opts in.** The
 parameter defaults to `None`, the lock condition is unchanged when it is `None`, and no
 existing caller was edited.
+
+> **Corrected after the external security pass, 5 August.** The first version of this note
+> claimed the checked workflow path already opted in. It did not: `S1b` called the DAO
+> without `expected_head_revision_id`, so the lock was never taken on a real commit and the
+> 409 could never fire. The mechanism was built and left disconnected. It is now wired in
+> `commit_workflow_revision_checked`, which passes the commit's `base_revision_id` down,
+> and `commit_workflow_revision` forwards it to the DAO. The claim in this section is true
+> only because of that fix; without it, every statement below about "unaffected" was
+> trivially true for the wrong reason — nothing used the feature at all.
 
 Flow by flow:
 
@@ -148,6 +165,21 @@ Consequences for this lane:
   `contracts/commit-transaction.md` section 3.1 describes, remains the way to close the
   remaining window.
 
+**State it plainly: this is not the full atomic transaction the contract describes.** The
+lock is released by the explicit commit inside `commit_revision`, before the version
+bookkeeping runs, and the service's apply still happens in an earlier transaction. What
+this lane buys is exactly one thing: **two concurrent writers cannot both insert.** The
+guard and the insert are atomic with respect to each other, so a lost update is impossible.
+Everything wider — read, apply, validate, and insert as one transaction — needs the `build`
+callback of `contracts/commit-transaction.md` section 3.1 and is not in this lane.
+
+### 4.1 The wait is bounded
+
+`SET LOCAL lock_timeout` runs before the `FOR UPDATE`, from
+`POSTGRES_COMMIT_LOCK_TIMEOUT_MS` (default 5000). Without it one stuck holder pins a
+connection until the client gives up, and under load that drains the pool. `SET LOCAL`
+scopes the timeout to this transaction, so no other query inherits it.
+
 ## 5. What this lane does NOT give
 
 Stated plainly, so the review does not over-read it:
@@ -167,19 +199,32 @@ Stated plainly, so the review does not over-read it:
 
 ## 6. Tests
 
-`api/oss/tests/pytest/unit/git/test_commit_revision_lock.py` (10 tests) pins:
+Two files, because the two things that need proving are different.
 
-- an unchecked commit takes no lock (every existing caller's behavior),
+**`test_commit_revision_lock.py` (20 tests) pins the DECISION**, with fake sessions and no
+database:
+
+- an unchecked commit takes no lock and sets no timeout (every existing caller's behavior),
 - an initial commit still takes the lock, and the lock precedes its count guard,
 - a checked commit takes the lock, and the head read happens under it, not before,
 - a moved head refuses, inserts nothing, and reports both ids,
 - a matching head commits,
-- an empty variant accepts any expectation (the first checked commit must be possible),
+- an absent head conflicts with any expectation, and inserts nothing,
+- a fresh variant still commits when it passes no expectation,
 - neither conflict is swallowed by `suppress_exceptions`,
-- the two-writer sequence: the winner inserts, the loser's re-read sees the new head and
-  refuses.
+- the lock timeout is set BEFORE the lock is taken, or it would not apply.
 
-They drive the DAO's ordering with a fake session, so they run in the unit suite with no
-database. **A two-writer test against real Postgres, with two genuine connections, belongs
-in the integration suite** and is not in this lane: the unit tests prove the ordering and
-the refusal, but only a real database proves the lock actually blocks.
+**`test_commit_revision_race.py` (7 tests) pins the MECHANISM**, against a real Postgres
+with two live connections, marked `integration` and skipped when Postgres is unreachable:
+
+- two writers on the same head: exactly one commits, one gets `RevisionConflict`,
+- the loser is told the winner's revision id, so it can retry in one step,
+- the revision count rises by exactly one, which is what a lost update would break,
+- ten consecutive races never double-commit, so a pass is not luck of scheduling,
+- the sequential stale-base cases, and an expectation against an empty variant.
+
+**The earlier version of this section was wrong**, and the external security pass was right
+to call it out: the old "two-writer" test ran sequentially, with separate fake sessions and
+separate variants, and injected the new head by hand. It could not have caught a regression
+that removed the lock. The new race test can: delete `with_for_update()` and
+`test_exactly_one_writer_wins` starts failing.
