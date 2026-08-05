@@ -572,3 +572,53 @@ class WorkflowServiceDetachedResponse(BaseModel):
     accepted: bool = True
     trace_id: Optional[str] = None
     span_id: Optional[str] = None
+
+
+class CommitWarning(BaseModel):
+    """One thing the caller should know about a commit that still succeeded.
+
+    The codes are the engine's (change-set.md 7.1) plus `no_change`, which the commit
+    wrapper owns. `target` carries contract-shaped segments, so a caller can act on the
+    warning without parsing its prose.
+    """
+
+    code: str
+    message: str
+    target: Optional[List[Any]] = None
+    operation_index: Optional[int] = None
+
+
+class DeltaResolution(BaseModel):
+    """The resolved commit, the head it was built on, and the response's warnings.
+
+    The head travels with the resolution because the no-change comparison runs on the
+    ENRICHED result (contract commit-transaction.md 5.1), which the caller only holds
+    after this returns.
+    """
+
+    commit: WorkflowRevisionCommit
+    head: Optional[WorkflowRevision] = None
+    warnings: List[CommitWarning] = Field(default_factory=list)
+
+
+class ConfigReadOutcome(BaseModel):
+    """One `read_config` answer: the value plus which revision produced it."""
+
+    revision: WorkflowRevision
+    path: List[Any] = Field(default_factory=list)
+    value: Any = None
+    bytes: int = 0
+    is_draft: bool = False
+    warnings: List[CommitWarning] = Field(default_factory=list)
+
+
+class CommitOutcome(BaseModel):
+    """What the commit endpoint answers with.
+
+    ``revision`` is complete on BOTH statuses. On `no_change` it is the current head, so
+    every existing consumer keeps working and a refresh with it is still correct.
+    """
+
+    revision: Optional[WorkflowRevision] = None
+    status: Literal["committed", "no_change"] = "committed"
+    warnings: List[CommitWarning] = Field(default_factory=list)

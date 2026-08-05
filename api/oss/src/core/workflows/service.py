@@ -1,5 +1,4 @@
 import json
-from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -73,6 +72,11 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
     WorkflowRevisionData,
+    #
+    CommitWarning,
+    CommitOutcome,
+    ConfigReadOutcome,
+    DeltaResolution,
     #
     SimpleWorkflow,
     SimpleWorkflowFlags,
@@ -191,45 +195,6 @@ class RevisionConflictError(Exception):
         if self.current_revision_version is not None:
             detail["current_revision_version"] = self.current_revision_version
         return detail
-
-
-@dataclass
-class DeltaResolution:
-    """The resolved commit, the head it was built on, and the response's warnings.
-
-    The head travels with the resolution because the no-change comparison runs on the
-    ENRICHED result (contract commit-transaction.md 5.1), which the caller only holds
-    after this returns.
-    """
-
-    commit: "WorkflowRevisionCommit"
-    head: Optional["WorkflowRevision"] = None
-    warnings: list = field(default_factory=list)
-
-
-@dataclass
-class ConfigReadOutcome:
-    """One `read_config` answer: the value plus which revision produced it."""
-
-    revision: "WorkflowRevision"
-    path: list
-    value: Any
-    bytes: int
-    is_draft: bool = False
-    warnings: list = field(default_factory=list)
-
-
-@dataclass
-class CommitOutcome:
-    """What the commit endpoint answers with.
-
-    ``revision`` is complete on BOTH statuses — on `no_change` it is the current head — so
-    every existing consumer keeps working and a refresh with it is still correct.
-    """
-
-    revision: "Optional[WorkflowRevision]"
-    status: str = "committed"
-    warnings: list = field(default_factory=list)
 
 
 def _validate_persisted_shape(data: dict) -> None:
@@ -2025,7 +1990,7 @@ class WorkflowsService:
         """
         self._reject_static_slug(workflow_revision_commit.slug)
 
-        warnings: List[Any] = []
+        warnings: List[CommitWarning] = []
         head: Optional[WorkflowRevision] = None
         if workflow_revision_commit.delta is not None:
             resolution = await self._resolve_revision_delta(
@@ -2033,10 +1998,7 @@ class WorkflowsService:
                 workflow_revision_commit=workflow_revision_commit,
                 scope_policy=scope_policy,
             )
-            warnings = [
-                warning.to_dict() if hasattr(warning, "to_dict") else warning
-                for warning in resolution.warnings
-            ]
+            warnings = list(resolution.warnings)
             head = resolution.head
             workflow_revision_commit = resolution.commit
         else:
@@ -2074,13 +2036,13 @@ class WorkflowsService:
             # A commit event evicts the warm session, so a change that changes nothing
             # must not create a revision, publish an event, or invalidate a cache.
             warnings.append(
-                {
-                    "code": "no_change",
-                    "message": (
+                CommitWarning(
+                    code="no_change",
+                    message=(
                         "The change produced the configuration that is already "
                         "stored, so no revision was created."
                     ),
-                }
+                )
             )
             return CommitOutcome(revision=head, status="no_change", warnings=warnings)
 
@@ -2308,11 +2270,18 @@ class WorkflowsService:
         project_id: UUID,
         workflow_revision_commit: WorkflowRevisionCommit,
         scope_policy=None,
+        preview: bool = False,
     ) -> "DeltaResolution":
         """Resolve a delta commit into a full-data commit against the variant's head.
 
         Both delta forms go through the change-set engine, which owns the exclusivity rule
         (contract change-set.md 3.3) and every refusal either form can earn.
+
+        ``preview`` is for a caller that resolves a delta to RUN it and never to store it,
+        which today is `test_run`. It drops the requirement that an ordered delta carry a
+        base revision id. That id is a precondition on a write, and a preview performs
+        none. A base id the caller does supply is still checked, because a preview built on
+        a head that moved is not the preview the caller asked for.
         """
         variant_id = (
             workflow_revision_commit.workflow_variant_id
@@ -2335,6 +2304,7 @@ class WorkflowsService:
         self._check_base_revision(
             workflow_revision_commit=workflow_revision_commit,
             current=current,
+            require_base=not preview,
         )
 
         resolved, message, warnings = self._apply_delta(
@@ -2360,19 +2330,21 @@ class WorkflowsService:
         *,
         workflow_revision_commit: WorkflowRevisionCommit,
         current: Optional[WorkflowRevision],
+        require_base: bool = True,
     ) -> None:
         """Refuse a commit built on a base that is no longer the head.
 
         An ordered delta requires the base id, because its anchors are only meaningful
         against the revision the caller read. A legacy delta keeps it optional so shipped
-        playbooks are unaffected.
+        playbooks are unaffected. ``require_base`` is false only for a preview, which
+        stores nothing and so has no write for the id to protect.
         """
         delta = workflow_revision_commit.delta
         is_ordered = delta is not None and delta.operations is not None
         base_revision_id = workflow_revision_commit.base_revision_id
 
         if base_revision_id is None:
-            if is_ordered:
+            if is_ordered and require_base:
                 raise ChangeSetError(
                     Reason.INVALID_DELTA,
                     "an ordered delta needs `base_revision_id`: the revision you read.",
@@ -2393,7 +2365,7 @@ class WorkflowsService:
         base: dict,
         workflow_revision_commit: WorkflowRevisionCommit,
         scope_policy=None,
-    ) -> tuple[dict, Optional[str], list]:
+    ) -> tuple[dict, Optional[str], List[CommitWarning]]:
         """Run either delta form through the engine, plus the wrapper-owned jobs the engine
         cannot do: selector normalization, the platform-tool rejection, the derived
         message, and the warning list (contract change-set.md 17).
@@ -2419,7 +2391,7 @@ class WorkflowsService:
             )
 
         operations: list = []
-        warnings: list = []
+        warnings: list = []  # engine warnings; typed at the return
         if is_ordered:
             operations, warnings = normalize_operations(delta["operations"])
             delta = {**delta, "operations": operations}
@@ -2451,7 +2423,8 @@ class WorkflowsService:
             if is_ordered
             else workflow_revision_commit.message
         )
-        return result.data, message, warnings
+        # The engine speaks its own dataclass. The typed model is what leaves the service.
+        return result.data, message, [CommitWarning(**w.to_dict()) for w in warnings]
 
     async def log_workflow_revisions(
         self,
