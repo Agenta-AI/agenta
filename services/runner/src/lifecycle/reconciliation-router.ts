@@ -403,7 +403,9 @@ function defaultLog(message: string): void {
  *
  * The function must never throw. A shadow component that can fail a turn is worse than none.
  */
-export function logReconcileShadow(input: ShadowLogInput): ReconcilePlan | undefined {
+export function logReconcileShadow(
+  input: ShadowLogInput,
+): ReconcilePlan | undefined {
   const rawLog = input.log ?? defaultLog;
   // A caller-supplied logger that throws must not fail the turn either: the catch below would
   // re-enter the same logger and the second throw would escape the shadow.
@@ -491,9 +493,10 @@ export function logReconcileShadow(input: ShadowLogInput): ReconcilePlan | undef
  *        action is `apply-live`. An external security review accepted that mapping on three
  *        conditions, all met here: a dedicated credential-route test, this rewrite rather than a
  *        deletion, and the `LIVE_ACTION_KINDS` comment fix below.
- *      - Where the sandbox holds a reference the provider does NOT bound — which is Daytona today —
- *        a restart would hand the new process the SAME placeholder and deliver nothing. The only
- *        honest action is `rebuild-sandbox`, and the same review mandated it.
+ *      - Where the sandbox holds a reference the provider does NOT bound, a restart would hand the
+ *        new process the SAME placeholder and deliver nothing. The only honest action is
+ *        `rebuild-sandbox`. Daytona bounds its propagation, so it takes the live route; a provider
+ *        that withdrew its bound would fall back here by that capability value alone.
  *
  *    So the router is no longer wrong, and it is no longer silent. It says what the provider can
  *    actually do. `lifecycle-reconcile-plan.test.ts` and `lifecycle-live-routes.test.ts` pin each

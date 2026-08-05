@@ -250,6 +250,17 @@ export interface SessionEnvironment {
   }) => Promise<
     import("../../environment/harness-session-lifecycle.ts").ReopenResult
   >;
+  /**
+   * How a rotated credential reaches this environment WITHOUT rebuilding it, or undefined.
+   *
+   * LIFECYCLE MIGRATION, STEP 8. This is the single source of truth for what a rotation costs on
+   * this environment, and it is a property of the ENVIRONMENT rather than of the provider name on
+   * the request. The difference is load-bearing: a Daytona run with credential hiding switched off
+   * puts the values in the daemon environment as plain variables, so it holds no reference to
+   * rotate and must rebuild — a table keyed by "daytona" would claim a live rotation it cannot
+   * perform. Undefined means "no live credential route here", which is always a sound answer.
+   */
+  credentialDelivery?: import("../../providers/credential-delivery-port.ts").CredentialDeliveryPort;
   /** Record a lifecycle action that already succeeded. The only writer of `appliedState`. */
   commitApplied: (result: {
     configFingerprint: string;
@@ -358,4 +369,5 @@ export interface SessionEnvironment {
 }
 
 export type AcquireEnvironmentResult =
-  { ok: true; env: SessionEnvironment } | { ok: false; error: string };
+  | { ok: true; env: SessionEnvironment }
+  | { ok: false; error: string };

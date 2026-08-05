@@ -58,11 +58,11 @@ import {
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
-import { materializeDaytonaMcpServers } from "./daytona-secret-provider.ts";
 import {
-  buildSessionMcpServers,
-  validateUserMcpServers,
-} from "./mcp.ts";
+  daytonaCredentialDeliveryPort,
+  materializeDaytonaMcpServers,
+} from "./daytona-secret-provider.ts";
+import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
   discoverTunnelEndpoint,
@@ -522,6 +522,12 @@ export async function acquireEnvironment(
     );
     environment.sandbox = acquiredSandbox.sandbox;
     environment.resumable = acquiredSandbox.resumable;
+    // Read AFTER the sandbox is acquired, because the port is bound to a sandbox: the provider has
+    // no allocation to deliver against until create (or reconnect) has settled. Undefined for
+    // every provider that cannot deliver a credential to a live sandbox, which is what routes a
+    // rotation there back to a rebuild. See `daytonaCredentialDeliveryPort`.
+    environment.credentialDelivery =
+      daytonaCredentialDeliveryPort(sandboxProvider);
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
     if (environment.sandbox) inFlightSandboxes.add(environment);
@@ -758,7 +764,11 @@ export async function acquireEnvironment(
         acpAgent: plan.acpAgent,
         timingLog,
       },
-      { ...(deps.probeCapabilities ? { probeCapabilities: deps.probeCapabilities } : {}) },
+      {
+        ...(deps.probeCapabilities
+          ? { probeCapabilities: deps.probeCapabilities }
+          : {}),
+      },
     );
     const capabilities = probed.capabilities;
     environment.capabilities = capabilities;

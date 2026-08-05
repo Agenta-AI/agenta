@@ -17,10 +17,7 @@
 import { beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
-import type {
-  AgentRunRequest,
-  AgentRunResult,
-} from "../../src/protocol.ts";
+import type { AgentRunRequest, AgentRunResult } from "../../src/protocol.ts";
 import {
   runWithKeepalive,
   type KeepaliveContext,
@@ -39,7 +36,10 @@ import {
   daytonaCredentialCapabilities,
   localCredentialCapabilities,
   mechanismForRotation,
+  slotKey,
   type CredentialDeliveryCapabilities,
+  type CredentialDeliveryPort,
+  type CredentialSlotKey,
 } from "../../src/providers/credential-delivery-port.ts";
 import {
   isLivelyApplicable,
@@ -82,6 +82,14 @@ interface EngineOptions {
   apply?: "ok" | "refuse" | "throw";
   /** Omit `applyReconcilePlan` entirely, modelling an engine with no live support. */
   noApplier?: boolean;
+  /**
+   * The credential-delivery port every acquired environment offers, or none.
+   *
+   * NONE IS THE DEFAULT, and it is what makes every other test in this file describe the local
+   * provider: no port means no live credential route, which is the honest answer for an
+   * environment whose values are baked into a frozen daemon environment.
+   */
+  credentialPort?: CredentialDeliveryPort;
 }
 
 function makeEngine(options: EngineOptions = {}) {
@@ -121,6 +129,9 @@ function makeEngine(options: EngineOptions = {}) {
         approvalGateCount: 0,
         nonParkablePauseCount: 0,
         installedMountExpiries: {},
+        ...(options.credentialPort
+          ? { credentialDelivery: options.credentialPort }
+          : {}),
         clearTurn: () => {
           env.turnsCleared += 1;
         },
@@ -170,8 +181,56 @@ function makeCtx(engine: KeepaliveEngine): KeepaliveContext {
     engine,
     pool: new SessionPool<SessionEnvironment>({ poolMax: 8 }, () => {}),
     config,
+    // The propagation hold is real in production — it is what keeps applied state from advancing
+    // over a value the egress layer has probably not picked up yet. Ten seconds per rotation test
+    // would buy the assertions nothing, so the seam exists and the tests use it.
+    credentialWait: async () => {},
   };
 }
+
+/**
+ * A provider that CAN deliver a rotation to a live sandbox, standing in for Daytona.
+ *
+ * It consumes each holder exactly as the real port does, because `DisclosableSecret` is use-once
+ * and a fake that skips the read would hide a double-delivery bug rather than catch it.
+ */
+function makeCredentialPort(
+  capabilities: CredentialDeliveryCapabilities = daytonaCredentialCapabilities,
+) {
+  const deliveries: string[][] = [];
+  const port: CredentialDeliveryPort = {
+    capabilities,
+    environmentId: "fake-sandbox",
+    async deliver(_plan, desired) {
+      const keys: CredentialSlotKey[] = [];
+      for (const entry of desired.entries) {
+        await entry.secret.useOnce(async () => undefined);
+        keys.push(slotKey(entry.slot));
+      }
+      deliveries.push(keys);
+      return { ok: true, slotKeys: keys };
+    },
+  };
+  return { port, deliveries };
+}
+
+/** A model connection whose one opaque credential carries `value`. Rotating it moves the epoch. */
+const withSecret = (value: string, req: AgentRunRequest): AgentRunRequest => ({
+  ...req,
+  modelConnection: {
+    provider: "openai",
+    deployment: "direct",
+    endpoint: { baseUrl: "https://api.openai.com/v1" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value,
+        usage: "opaque_http",
+      },
+    ],
+  } as never,
+});
 
 const POOL_KEY = "proj-1:s1";
 
@@ -206,10 +265,12 @@ describe("the live-route gate", () => {
     //
     // The guard still matters: this list is the single place that says how many routes are live,
     // and a fifth entry must be a decision, never an accident.
-    assert.deepEqual(
-      [...LIVE_ACTION_KINDS].sort(),
-      ["apply-live", "no-op", "refresh-workspace", "reopen-session"],
-    );
+    assert.deepEqual([...LIVE_ACTION_KINDS].sort(), [
+      "apply-live",
+      "no-op",
+      "refresh-workspace",
+      "reopen-session",
+    ]);
     assert.ok(
       !LIVE_ACTION_KINDS.has("restart-runtime"),
       "a runtime restart is not live: it loses everything installed in the daemon",
@@ -268,7 +329,11 @@ describe("LIVE ROUTE: an instructions change reuses the warm environment", () =>
       ctx,
     );
 
-    assert.equal(calls.acquire, 1, "the warm sandbox survives an instructions change");
+    assert.equal(
+      calls.acquire,
+      1,
+      "the warm sandbox survives an instructions change",
+    );
     assert.equal(env1.destroyed, 0);
     assert.equal(calls.turns.length, 2);
     assert.equal(calls.turns[1].id, env1.id);
@@ -315,7 +380,10 @@ describe("LIVE ROUTE: a model change applies to the running session", () => {
       ctx,
     );
     assert.equal(calls.acquire, 1);
-    assert.deepEqual(calls.applied[0].actions, ["refresh-workspace", "apply-live"]);
+    assert.deepEqual(calls.applied[0].actions, [
+      "refresh-workspace",
+      "apply-live",
+    ]);
   });
 });
 
@@ -354,7 +422,12 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     const env1 = calls.acquiredEnvs[0];
     const before = env1.appliedState.configFingerprint;
 
-    await runWithKeepalive(turn2({ agentsMd: "REWRITTEN" }), undefined, undefined, ctx);
+    await runWithKeepalive(
+      turn2({ agentsMd: "REWRITTEN" }),
+      undefined,
+      undefined,
+      ctx,
+    );
 
     assert.equal(calls.acquire, 2);
     assert.equal(
@@ -374,7 +447,11 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
       undefined,
       ctx,
     );
-    assert.equal(result.ok, true, "a live-route failure must never fail the turn");
+    assert.equal(
+      result.ok,
+      true,
+      "a live-route failure must never fail the turn",
+    );
     assert.equal(calls.acquire, 2);
   });
 
@@ -382,14 +459,88 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     const { engine, calls } = makeEngine({ noApplier: true });
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
-    await runWithKeepalive(turn2({ agentsMd: "REWRITTEN" }), undefined, undefined, ctx);
-    assert.equal(calls.acquire, 2, "the optional seam degrades to today's behavior");
+    await runWithKeepalive(
+      turn2({ agentsMd: "REWRITTEN" }),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "the optional seam degrades to today's behavior",
+    );
   });
 
-  it("a CREDENTIAL change never reaches the live route", async () => {
-    // Credential facets keep delegating to the epoch comparison until step 8. The route must not
-    // see them at all, because the router still cannot read the epoch.
-    const withSecret = (value: string, req: AgentRunRequest): AgentRunRequest => ({
+  it("a CREDENTIAL change never reaches the CONFIG applier", async () => {
+    // Two routes, kept apart on purpose. A rotation is delivered by `runCredentialDelivery`
+    // against the provider's port, never by `applyReconcilePlan`: the config applier reconfigures
+    // an environment from facet digests, and credential values are in no digest. On a provider
+    // with no delivery port there is no live route at all and the rotation rebuilds.
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2()),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "with no delivery port, a rotation rebuilds",
+    );
+    assert.equal(
+      calls.applied.length,
+      0,
+      "and never reaches the config applier",
+    );
+
+    const delivering = makeEngine({
+      credentialPort: makeCredentialPort().port,
+    });
+    const ctx2 = makeCtx(delivering.engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx2,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2()),
+      undefined,
+      undefined,
+      ctx2,
+    );
+    assert.equal(
+      delivering.calls.acquire,
+      1,
+      "with a port, it is delivered live",
+    );
+    assert.equal(
+      delivering.calls.applied.length,
+      0,
+      "and STILL never reaches the config applier",
+    );
+  });
+
+  it("a rotation that ALSO moves non-deliverable material rebuilds", async () => {
+    // The refusal that keeps the route honest. A `local_use` credential is read by the provider
+    // SDK inside the sandbox, so it is baked into the daemon environment and no vault update
+    // reaches it — while `configFingerprint` strips credential VALUES, so its rotation is
+    // invisible to the config route and surfaces only as a moved epoch. Delivering the opaque half
+    // and reusing would leave the run authenticating with a stale key while reporting success.
+    const withBoth = (
+      opaque: string,
+      localUse: string,
+      req: AgentRunRequest,
+    ): AgentRunRequest => ({
       ...req,
       modelConnection: {
         provider: "openai",
@@ -399,18 +550,34 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
         credentials: [
           {
             binding: { kind: "environment", name: "OPENAI_API_KEY" },
-            value,
+            value: opaque,
             usage: "opaque_http",
+          },
+          {
+            binding: { kind: "environment", name: "AWS_SECRET_ACCESS_KEY" },
+            value: localUse,
+            usage: "local_use",
           },
         ],
       } as never,
     });
-    const { engine, calls } = makeEngine();
+    const { port, deliveries } = makeCredentialPort();
+    const { engine, calls } = makeEngine({ credentialPort: port });
     const ctx = makeCtx(engine);
-    await runWithKeepalive(withSecret("sk-a", turn1), undefined, undefined, ctx);
-    await runWithKeepalive(withSecret("sk-b", turn2()), undefined, undefined, ctx);
-    assert.equal(calls.acquire, 2, "a rotated credential still rebuilds");
-    assert.equal(calls.applied.length, 0, "and never reaches the applier");
+    await runWithKeepalive(
+      withBoth("sk-a", "aws-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withBoth("sk-b", "aws-b", turn2()),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(calls.acquire, 2, "it must rebuild, not deliver");
+    assert.equal(deliveries.length, 0, "and must not touch a single record");
   });
 
   it("a TRANSCRIPT mismatch never reaches the live route", async () => {
@@ -439,7 +606,12 @@ describe("the disagreement counters go quiet for the two live routes", () => {
     const { engine } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
-    await runWithKeepalive(turn2({ agentsMd: "REWRITTEN" }), undefined, undefined, ctx);
+    await runWithKeepalive(
+      turn2({ agentsMd: "REWRITTEN" }),
+      undefined,
+      undefined,
+      ctx,
+    );
 
     const counters = reconcileCounters();
     assert.equal(
@@ -482,7 +654,10 @@ describe("the disagreement counters go quiet for the two live routes", () => {
     );
 
     const counters = reconcileCounters();
-    assert.ok(counters.skippedByScope > 0, "the continuity decision was excluded");
+    assert.ok(
+      counters.skippedByScope > 0,
+      "the continuity decision was excluded",
+    );
     assert.equal(
       Object.values(counters.disagree).reduce((a, b) => a + b, 0),
       0,
@@ -490,47 +665,75 @@ describe("the disagreement counters go quiet for the two live routes", () => {
     );
   });
 
-  it("CLOSED IN STEP 8: a rotated credential is an AGREEMENT, and nothing disagrees", async () => {
-    // THIS TEST IS THE RECORD OF THE GAP, REWRITTEN RATHER THAN DELETED. It used to assert that a
-    // rotated credential MUST still show up as a disagreement, because credential values are kept
-    // out of every facet digest (digests are logged) and the router therefore could not see a
-    // rotation at all.
+  it("CLOSED: a rotated credential is delivered LIVE, and nothing disagrees", async () => {
+    // THIS TEST IS THE RECORD OF THE GAP, REWRITTEN TWICE RATHER THAN DELETED, AND THIS IS ITS
+    // FINAL FORM. It began by asserting that a rotated credential MUST show up as a disagreement,
+    // because credential values are kept out of every facet digest (digests are logged) and the
+    // router therefore could not see a rotation at all. Step 8 taught the router to see one, and
+    // the test became an agreement on `rebuild-sandbox` — the honest answer for a provider that
+    // bakes values into a frozen daemon environment, and the only arm that was wired at the time.
     //
-    // Step 8 closes it without putting a secret in a digest: the epoch's CONCLUSION reaches the
-    // plan as its own input, and the router turns it into an action on the `runtime` facet. On this
-    // provider the action is a rebuild — see the routing test below for why that is the honest
-    // answer and not a conservative one — which is what the coordinator already does, so the two
-    // now agree.
+    // IT NOW PINS THE ARM THE LANE EXISTS FOR. The sandbox holds a placeholder, the provider states
+    // a propagation bound, so the rotation is `rotate-in-place` -> `apply-live`, and the
+    // coordinator DELIVERS it instead of evicting: the same environment serves the next turn.
+    // That is Q5, asserted end to end through the dispatch.
     //
-    // The total-disagreement assertion is the completion signal for the shadow-routing arc: every
-    // route the router can plan matches the decision the coordinator makes.
-    //
-    // NOTE ON WHICH PROVIDER THIS EXERCISES. This dispatch runs on the LOCAL provider, whose values
-    // are baked into a frozen daemon environment, so its honest route is a rebuild and the
-    // agreement below is on `rebuild-sandbox`. The Daytona rotation now routes to `apply-live`
-    // under the Q5 ruling, and its agreement arrives with the live credential route — the
-    // coordinator must run the delivery instead of evicting before that agreement can be asserted
-    // here. Until then this test pins the local arm, which is the one that is fully wired.
-    const withSecret = (value: string, req: AgentRunRequest): AgentRunRequest => ({
-      ...req,
-      modelConnection: {
-        provider: "openai",
-        deployment: "direct",
-        endpoint: { baseUrl: "https://api.openai.com/v1" },
-        credentialMode: "env",
-        credentials: [
-          {
-            binding: { kind: "environment", name: "OPENAI_API_KEY" },
-            value,
-            usage: "opaque_http",
-          },
-        ],
-      } as never,
-    });
-    const { engine } = makeEngine();
+    // The total-disagreement assertion is the completion signal for the whole shadow-routing arc:
+    // every route the router can plan matches the decision the coordinator makes.
+    const { port, deliveries } = makeCredentialPort();
+    const { engine, calls } = makeEngine({ credentialPort: port });
     const ctx = makeCtx(engine);
-    await runWithKeepalive(withSecret("sk-a", turn1), undefined, undefined, ctx);
-    await runWithKeepalive(withSecret("sk-b", turn2()), undefined, undefined, ctx);
+    // EVERY LINE THE DISPATCH WRITES, captured. The rule the whole credential design is built
+    // around is that no value, no digest of a value, and no length may appear in a log line, and
+    // the only way to assert a rule about logs is to read the logs.
+    const written: string[] = [];
+    const realWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: unknown, ...rest: unknown[]) => {
+      written.push(String(chunk));
+      return (realWrite as (...args: never[]) => boolean)(
+        chunk as never,
+        ...(rest as never[]),
+      );
+    }) as typeof process.stderr.write;
+    try {
+      await runWithKeepalive(
+        withSecret("sk-a", turn1),
+        undefined,
+        undefined,
+        ctx,
+      );
+      await runWithKeepalive(
+        withSecret("sk-b", turn2()),
+        undefined,
+        undefined,
+        ctx,
+      );
+    } finally {
+      process.stderr.write = realWrite;
+    }
+
+    const logged = written.join("");
+    assert.ok(
+      logged.includes("credential-route"),
+      "the route must be greppable",
+    );
+    for (const forbidden of ["sk-a", "sk-b", "OPENAI_API_KEY"]) {
+      assert.equal(
+        logged.includes(forbidden),
+        false,
+        `no log line may carry ${forbidden}`,
+      );
+    }
+
+    assert.equal(calls.acquire, 1, "the rotation must not rebuild the sandbox");
+    assert.equal(deliveries.length, 1, "it was delivered, exactly once");
+    assert.equal(calls.turns.length, 2);
+    assert.equal(
+      calls.turns[0],
+      calls.turns[1],
+      "and the second turn ran on the SAME environment",
+    );
+    assert.equal(calls.acquiredEnvs[0]?.destroyed, 0, "nothing was torn down");
 
     const counters = reconcileCounters();
     assert.equal(
@@ -539,9 +742,120 @@ describe("the disagreement counters go quiet for the two live routes", () => {
       "a rotated credential must no longer disagree",
     );
     assert.ok(
-      (counters.agree["rebuild-sandbox"] ?? 0) > 0,
-      "the rotation must be COUNTED, as an agreement on the rebuild route",
+      (counters.agree["apply-live"] ?? 0) > 0,
+      "the rotation must be COUNTED, as an agreement on the live route",
     );
+  });
+
+  it("the delivered material becomes the parked epoch, so the next turn is a plain hit", async () => {
+    // The credential half of "applied state advances only on success". If the parked epoch kept
+    // the OLD material after a successful delivery, every later turn would re-detect the same
+    // rotation and deliver it again forever — a warm session that pays a propagation hold on every
+    // turn, which is worse than the rebuild this route replaced.
+    const { port, deliveries } = makeCredentialPort();
+    const { engine, calls } = makeEngine({ credentialPort: port });
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2()),
+      undefined,
+      undefined,
+      ctx,
+    );
+    // A third turn continuing the same conversation, carrying the SAME rotated material.
+    const turn3 = turn2({
+      messages: [
+        { role: "user", content: "hello" },
+        { role: "assistant", content: "hi" },
+        { role: "user", content: "more" },
+        { role: "assistant", content: "ok" },
+        { role: "user", content: "again" },
+      ],
+    });
+    await runWithKeepalive(
+      withSecret("sk-b", turn3),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(
+      deliveries.length,
+      1,
+      "the unchanged material delivers nothing",
+    );
+    assert.equal(calls.acquire, 1);
+    assert.equal(calls.turns.length, 3);
+  });
+
+  it("a FAILED delivery destroys the sandbox with the reason the failure carried", async () => {
+    // FAIL CLOSED. A half-delivered credential is worse than no delivery, so the failure carries
+    // its own disposition — `runtime-incompatible`, which DELETES rather than parks — and the
+    // coordinator uses that rather than re-deriving one from a label.
+    const failing: CredentialDeliveryPort = {
+      capabilities: daytonaCredentialCapabilities,
+      environmentId: "fake-sandbox-failing",
+      async deliver() {
+        return { ok: false, reason: "vault-update-failed" };
+      },
+    };
+    const { engine, calls } = makeEngine({ credentialPort: failing });
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2()),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(calls.acquire, 2, "a failed delivery rebuilds");
+    assert.deepEqual(calls.acquiredEnvs[0]?.destroyReasons, [
+      "runtime-incompatible",
+    ]);
+  });
+
+  it("an UNBOUNDED provider still rebuilds, and agrees with the router about it", async () => {
+    // The constraint that survived Mahmoud's override: the ruling was that Daytona HAS a
+    // propagation signal, not that the signal is optional. With the bound gone the coordinator
+    // refuses the delivery and the router plans a rebuild, so the two still agree.
+    const { port, deliveries } = makeCredentialPort({
+      ...daytonaCredentialCapabilities,
+      egressPropagation: { kind: "unbounded" },
+    });
+    const { engine, calls } = makeEngine({ credentialPort: port });
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2()),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(calls.acquire, 2);
+    assert.equal(deliveries.length, 0, "nothing was delivered");
+    const counters = reconcileCounters();
+    assert.equal(
+      Object.values(counters.disagree).reduce((a, b) => a + b, 0),
+      0,
+    );
+    assert.ok((counters.agree["rebuild-sandbox"] ?? 0) > 0);
   });
 
   it("routes a rotation by what the PROVIDER can actually deliver", () => {
@@ -611,7 +925,10 @@ describe("route selection matches the facet diff", () => {
       normalizeDesiredState(next, configFingerprint(next)),
       digestsOf(turn1),
     );
-    return { kinds: plan.actions.map((a) => a.kind), live: isLivelyApplicable(plan) };
+    return {
+      kinds: plan.actions.map((a) => a.kind),
+      live: isLivelyApplicable(plan),
+    };
   };
 
   it("routes each facet to its authorized action", () => {
@@ -619,7 +936,10 @@ describe("route selection matches the facet diff", () => {
       kinds: ["refresh-workspace"],
       live: true,
     });
-    assert.deepEqual(routeFor({ model: "m2" }), { kinds: ["apply-live"], live: true });
+    assert.deepEqual(routeFor({ model: "m2" }), {
+      kinds: ["apply-live"],
+      live: true,
+    });
     // These three route to a session REOPEN, which is now live-applicable — the sandbox survives
     // and only the ACP session is recreated. The reopen still refuses at execution time when the
     // conversation could not be replayed, which is a different question from routing.
@@ -627,10 +947,13 @@ describe("route selection matches the facet diff", () => {
       kinds: ["reopen-session"],
       live: true,
     });
-    assert.deepEqual(routeFor({ harnessFiles: [{ path: "a", content: "b" }] as never }), {
-      kinds: ["reopen-session"],
-      live: true,
-    });
+    assert.deepEqual(
+      routeFor({ harnessFiles: [{ path: "a", content: "b" }] as never }),
+      {
+        kinds: ["reopen-session"],
+        live: true,
+      },
+    );
     assert.deepEqual(routeFor({ permissions: { default: "deny" } as never }), {
       kinds: ["reopen-session"],
       live: true,
@@ -655,7 +978,11 @@ describe("reopen: the history condition (adapter-matrix 6.2)", () => {
       undefined,
       ctx,
     );
-    assert.equal(calls.acquire, 1, "the sandbox survives a harness-file change");
+    assert.equal(
+      calls.acquire,
+      1,
+      "the sandbox survives a harness-file change",
+    );
     assert.deepEqual(calls.applied[0].actions, ["reopen-session"]);
   });
 
@@ -676,6 +1003,10 @@ describe("reopen: the history condition (adapter-matrix 6.2)", () => {
       undefined,
       ctx,
     );
-    assert.equal(calls.acquire, 2, "no transcript to replay means no safe reopen");
+    assert.equal(
+      calls.acquire,
+      2,
+      "no transcript to replay means no safe reopen",
+    );
   });
 });

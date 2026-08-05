@@ -11,6 +11,7 @@ import {
   isDaytonaPermissionDenied,
   type DaytonaSecretApi,
 } from "../../src/engines/sandbox_agent/daytona-secrets.ts";
+import { slotKey } from "../../src/providers/credential-delivery-port.ts";
 
 const plan: DaytonaSecretPlan = {
   environment: {},
@@ -45,6 +46,9 @@ describe("Daytona Secret allocation", () => {
           hosts: input.hosts,
         };
       },
+      async update(id: string): Promise<{ id: string; placeholder: string }> {
+        throw new Error(`unexpected update of ${id}`);
+      },
       async delete() {},
     };
     const allocation = await allocateDaytonaSecrets(
@@ -75,6 +79,31 @@ describe("Daytona Secret allocation", () => {
     assert.deepEqual(allocation.mcpHeaderPlaceholders, {
       linear: { Authorization: "dtn_secret_2" },
     });
+    // The record handle per SLOT, which is what a later rotation updates. `created` cannot answer
+    // this: it is an ordered list for reverse-order compensation and says nothing about which
+    // candidate produced which record. The keys are the delivery vocabulary's, so a create-time
+    // allocation and a delivery-time desired set name the same slot the same way.
+    assert.deepEqual(
+      [...allocation.bySlot].map(([key, record]) => [key, record.id]),
+      [
+        [
+          slotKey({
+            consumer: { kind: "model" },
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            allowedHost: "api.anthropic.com",
+          }),
+          "id-1",
+        ],
+        [
+          slotKey({
+            consumer: { kind: "mcp", server: "linear" },
+            binding: { kind: "header", name: "Authorization" },
+            allowedHost: "mcp.linear.app",
+          }),
+          "id-2",
+        ],
+      ],
+    );
   });
 
   it("compensates created records in reverse order when metadata validation fails", async () => {
@@ -90,6 +119,9 @@ describe("Daytona Secret allocation", () => {
             count === 2 ? "plaintext-not-placeholder" : `dtn_secret_${count}`,
           hosts: input.hosts,
         };
+      },
+      async update(id: string): Promise<{ id: string; placeholder: string }> {
+        throw new Error(`unexpected update of ${id}`);
       },
       async delete(id) {
         deletes.push(id);
@@ -114,6 +146,9 @@ describe("Daytona Secret allocation", () => {
       async create() {
         throw new Error("unused");
       },
+      async update(id: string): Promise<{ id: string; placeholder: string }> {
+        throw new Error(`unexpected update of ${id}`);
+      },
       async delete(id) {
         deletes.push(id);
         // Both absence shapes the shared predicate recognizes: the SDK's typed error
@@ -130,6 +165,7 @@ describe("Daytona Secret allocation", () => {
           { id: "id-1", name: "one", placeholder: "dtn_secret_1" },
           { id: "id-2", name: "two", placeholder: "dtn_secret_2" },
         ],
+        bySlot: new Map(),
       },
       api,
     );
@@ -165,26 +201,29 @@ describe("Daytona Secret allocation", () => {
       async create() {
         throw { statusCode: 403, message: "Forbidden" };
       },
+      async update(id: string): Promise<{ id: string; placeholder: string }> {
+        throw new Error(`unexpected update of ${id}`);
+      },
       async delete() {},
     };
 
-    await assert.rejects(
-      allocateDaytonaSecrets(plan, api),
-      (error: Error) => {
-        assert.equal(error.message, DAYTONA_SECRETS_PERMISSION_MESSAGE);
-        assert.match(error.message, /AGENTA_RUNNER_DAYTONA_API_KEY/);
-        assert.match(error.message, /AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS/);
-        // The provider's own error is kept as the cause so the logs still have the detail.
-        assert.equal((error.cause as { statusCode: number }).statusCode, 403);
-        return true;
-      },
-    );
+    await assert.rejects(allocateDaytonaSecrets(plan, api), (error: Error) => {
+      assert.equal(error.message, DAYTONA_SECRETS_PERMISSION_MESSAGE);
+      assert.match(error.message, /AGENTA_RUNNER_DAYTONA_API_KEY/);
+      assert.match(error.message, /AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS/);
+      // The provider's own error is kept as the cause so the logs still have the detail.
+      assert.equal((error.cause as { statusCode: number }).statusCode, 403);
+      return true;
+    });
   });
 
   it("leaves a non-permission create failure with its original error", async () => {
     const api: DaytonaSecretApi = {
       async create() {
         throw new Error("daytona is having a bad day");
+      },
+      async update(id: string): Promise<{ id: string; placeholder: string }> {
+        throw new Error(`unexpected update of ${id}`);
       },
       async delete() {},
     };

@@ -12,7 +12,10 @@ import { inspect } from "node:util";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { AppliedState } from "../../src/engines/sandbox_agent/applied-state.ts";
-import { FACETS, type FacetDigests } from "../../src/lifecycle/desired-state.ts";
+import {
+  FACETS,
+  type FacetDigests,
+} from "../../src/lifecycle/desired-state.ts";
 
 // The pool never reads facet digests; it only reads `configFingerprint`. So one constant
 // stands in for every facet here, and a pool test that starts depending on facets will be
@@ -76,8 +79,7 @@ function fakeEnv(configFp = "cfg") {
     get appliedState() {
       return applied.appliedState;
     },
-    commitApplied: (result: AppliedCommit) =>
-      applied.commitApplied(result),
+    commitApplied: (result: AppliedCommit) => applied.commitApplied(result),
     teardown: async (reason: string) => {
       if (done) return;
       done = true;
@@ -87,7 +89,10 @@ function fakeEnv(configFp = "cfg") {
   };
 }
 
-const epoch: CredentialEpoch = { secrets: new CredentialMaterial("h") };
+const epoch: CredentialEpoch = {
+  secrets: new CredentialMaterial("h"),
+  direct: new CredentialMaterial("d"),
+};
 
 function parkInput(key: string, env = fakeEnv()) {
   return {
@@ -449,8 +454,12 @@ describe("historyFingerprint (pruned-array contract)", () => {
       content: [{ type: "attachment", attachmentId }],
     });
     assert.notEqual(
-      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd21")]),
-      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd22")]),
+      historyFingerprint([
+        withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd21"),
+      ]),
+      historyFingerprint([
+        withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd22"),
+      ]),
     );
   });
 
@@ -998,8 +1007,7 @@ describe("SessionPool", () => {
       get appliedState() {
         return stoppingApplied.appliedState;
       },
-      commitApplied: (r: AppliedCommit) =>
-        stoppingApplied.commitApplied(r),
+      commitApplied: (r: AppliedCommit) => stoppingApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1073,8 +1081,7 @@ describe("SessionPool", () => {
       get appliedState() {
         return envApplied.appliedState;
       },
-      commitApplied: (r: AppliedCommit) =>
-        envApplied.commitApplied(r),
+      commitApplied: (r: AppliedCommit) => envApplied.commitApplied(r),
       teardown: async (_reason: string) =>
         new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1121,8 +1128,7 @@ describe("SessionPool", () => {
       get appliedState() {
         return nonStrictApplied.appliedState;
       },
-      commitApplied: (r: AppliedCommit) =>
-        nonStrictApplied.commitApplied(r),
+      commitApplied: (r: AppliedCommit) => nonStrictApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1402,8 +1408,7 @@ describe("SessionPool", () => {
       get appliedState() {
         return aApplied.appliedState;
       },
-      commitApplied: (r: AppliedCommit) =>
-        aApplied.commitApplied(r),
+      commitApplied: (r: AppliedCommit) => aApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseADestroy = resolve;
