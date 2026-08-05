@@ -365,8 +365,9 @@ export type CredentialDeliveryMechanism =
  * How long a provider may take to apply a rotated value at its EGRESS layer.
  *
  * `unbounded` is not a missing measurement, it is a refusal: a provider that cannot state a bound
- * is ineligible for `rotate-in-place`, full stop. Daytona declares `unbounded` today (RULING B),
- * and eligibility returns by changing this value alone.
+ * is ineligible for `rotate-in-place`, full stop. Daytona declares a bound (see
+ * `daytonaCredentialCapabilities` for the sentence it comes from), and eligibility would leave
+ * again by changing this value alone — which is what the unbounded arm of the rotation tests pins.
  */
 export type EgressPropagation =
   | { readonly kind: "bounded"; readonly withinMs: number }
@@ -548,7 +549,9 @@ export function mechanismForRotation(
     return "rebuild-sandbox";
   }
   if (boundedReferences) return "rotate-in-place";
-  return capabilities.canRestartConsumer ? "restart-runtime" : "rebuild-sandbox";
+  return capabilities.canRestartConsumer
+    ? "restart-runtime"
+    : "rebuild-sandbox";
 }
 
 // ============================================================================================
@@ -561,8 +564,15 @@ export function mechanismForRotation(
  * `unique symbol`, declared here and NOT exported. Code outside this module cannot name the
  * property key, so it cannot write an object literal of this type and cannot cast its way into one
  * either. This is the structural half the review failed revision 1 for missing.
+ *
+ * IT IS A REAL `Symbol()`, NOT A `declare const`. It was written as `declare const` when the type
+ * was published for review, which typechecks and emits NOTHING — so the one line that mints applied
+ * state threw `ReferenceError` the first time it ran, which was the first time anything called
+ * `runCredentialDelivery` for real. A brand that only exists in the type system cannot be a
+ * property key at runtime. The unforgeability is unchanged: the binding is module-private either
+ * way, and no export names it.
  */
-declare const CREDENTIAL_COMMIT_BRAND: unique symbol;
+const CREDENTIAL_COMMIT_BRAND: unique symbol = Symbol("credential-commit");
 
 /**
  * What an environment has actually INSTALLED. The `status` to `DesiredCredentialSet`'s `spec`.
@@ -760,10 +770,11 @@ function mechanismIsSupported(
  *     hand a `rotate-in-place` plan to a provider that declared `unbounded`.
  *  2. BOUND VALIDATION. The hold is derived here, checked finite, non-negative and capped, and an
  *     unusable bound fails the delivery instead of defaulting to zero.
- *  3. PROPAGATION WAITING. The coordinator waits before returning success, so a caller cannot skip
- *     the quarantine by ignoring a field. (RULING B: this wait is NOT sufficient on its own under
- *     the untrusted-sandbox premise, which is exactly why Daytona is ineligible today. It exists
- *     for a provider that also quiesces egress.)
+ *  3. PROPAGATION WAITING. The wait happens HERE, before success is returned, so a caller cannot
+ *     skip the quarantine by ignoring a field. What it buys is stated exactly in the Q5 ruling: it
+ *     keeps applied state from advancing over a value the egress layer has probably not applied
+ *     yet. It does NOT make the old value unusable — only revoking it at the model provider does
+ *     that, and no comment or log line here may suggest otherwise.
  *  4. COMMIT-TOKEN MINTING. The brand is private to this module, so this function is the only place
  *     applied state can come into existence.
  *
@@ -864,22 +875,27 @@ function defaultWait(ms: number): Promise<void> {
  * ============================================================================================
  *
  * 1. IT DOES NOT TOUCH MOUNT CREDENTIALS. Those expire rather than rotate; risk 9 by name.
- * 2. IT DOES NOT DECIDE WHETHER TO DELIVER. The router does, from the epoch comparison.
+ * 2. IT DOES NOT DECIDE WHETHER TO DELIVER. The coordinator does, from the epoch comparison, and
+ *    the router places the conclusion in the plan (`CredentialRotationInput`).
  * 3. IT DOES NOT EXPOSE A RAW-SECRET ACCESSOR, and no revision may add one.
  * 4. IT DOES NOT VERIFY THAT THE HARNESS TOOK THE CREDENTIAL, because nothing observable does.
  *    The ordering in question 3 is what makes a silent failure loud; a fabricated check would only
  *    make it invisible.
  *
  * ============================================================================================
- * DEPENDENCY ON THE DAYTONA CREATION-IDENTITY SPLIT (lifecycle step 9)
+ * THE DAYTONA CREATION-IDENTITY SPLIT (lifecycle step 9), WHICH HAS LANDED
  * ============================================================================================
  *
- * This port is inert until that split lands, and the reason is concrete: `provider.ts` builds the
- * create fingerprint over `{image, create, secretPlan}`, `DaytonaSecretCandidate.value` is inside
- * that plan, and `daytona-secret-provider.ts` DESTROYS the sandbox on reconnect when the
- * fingerprint differs. So today a rotated value fails the create-fingerprint comparison and the
- * sandbox is gone before any delivery could run. The split moves credential material OUT of
- * `SandboxGenerationId` and into mutable applied state reconciled on reconnect, failing closed.
+ * This port was inert until that split, for a concrete reason: `provider.ts` built the create
+ * fingerprint over `{image, create, secretPlan}` with `DaytonaSecretCandidate.value` inside that
+ * plan, and `daytona-secret-provider.ts` DESTROYS a sandbox on reconnect when the fingerprint
+ * differs. So a rotated value failed the comparison and the sandbox was gone before any delivery
+ * could run — the port would have been rotating a record nothing mounted any more.
+ *
+ * The split moved credential material OUT of the generation id (`daytonaCreateFingerprint` now
+ * covers image and create request only) and left the two questions with the layers that can answer
+ * them: VALUES to the epoch, which this port rotates in place, and the SLOT SET to a reconnect-time
+ * identity check that fails closed. The implementation is `daytona-credential-delivery.ts`.
  *
  * ============================================================================================
  * REVIEW RECORD
