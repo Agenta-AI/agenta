@@ -83,11 +83,18 @@ The runner performs a lexical check and a real-path check. Neither is sufficient
 
 The lexical check rejects, before any filesystem access:
 
-- an absolute path;
-- any `..` segment;
+- any `..` segment, tested on the RAW segments (normalizing first would collapse
+  `a/../../b` into an escape that no longer looks like one);
 - a backslash separator;
 - a NUL byte;
-- a path longer than 1024 bytes.
+- a path longer than 1024 bytes;
+- an absolute path that resolves OUTSIDE the workspace.
+
+An absolute path inside the workspace is normalized, not refused. `change-set.md` section
+6.3 is authoritative for the accepted path forms: relative to the import root, relative to
+the workspace root, or absolute inside the workspace. An earlier version of this list
+refused every absolute path; that predates the ruling, which is that agents write absolute
+paths naturally and refusing them fights the model for nothing.
 
 The real-path check resolves every symbolic link and compares the result to the resolved root.
 The resolved target must be the root or must live under it.
@@ -124,9 +131,9 @@ and never re-resolves from the root.
 
 1. Open the import root once. Verify it with `fstat` on the handle.
 2. For each directory level, open the child **relative to the parent's descriptor**, with the
-   no-follow and directory flags set. In Node this is `fs.opendir` on a handle plus `openat`
-   semantics through `fs.promises.open` with a `dir` handle where the runtime exposes it, or a
-   small native helper where it does not.
+   no-follow and directory flags set. In Node this is
+   `fs.open("/proc/self/fd/<parentFd>/<name>", ...)`, one component at a time. See the note
+   below.
 3. Open each file relative to its parent directory's descriptor, with `O_NOFOLLOW`.
 4. `fstat` every handle. Read the type, the size, and the mode from the handle, never from a
    path.
@@ -137,13 +144,37 @@ This removes the class. A descriptor names an inode, not a path. Replacing a dir
 tree after the runner holds its descriptor does not move the descriptor. The attacker can only
 change what a **new** path lookup would find, and the runner performs none.
 
-Two implementation notes for the plan.
+**How it is built, and it needs no native helper.** Node's public API exposes no `openat`,
+and `fs.promises.opendir` returns a `Dir` with no usable descriptor for relative opens. An
+earlier version of this section concluded that the walk therefore needed a narrow native
+helper or a documented fallback, and asked the plan to budget it. That was wrong, and the
+budget line is withdrawn.
 
-- Node's public API does not expose `openat` directly. `fs.promises.opendir` returns a `Dir` with
-  no usable descriptor for relative opens on every platform. So this needs either a narrow native
-  helper, or a documented fallback. It is real work, not a flag change. The plan must budget it.
-- If the fallback is used, the contract's threat model changes. State it, do not hide it. See
-  section 3.4.
+`/proc/self/fd/<fd>` names the directory the descriptor points at. So opening
+`/proc/self/fd/<parentFd>/<name>` resolves `<name>` against the INODE the runner already
+holds, not against a path that may have been replaced since. Walking one component at a
+time through that, with `O_NOFOLLOW` on each open, gives exactly the property this section
+requires, in plain Node:
+
+```ts
+fs.open(`/proc/self/fd/${parent.fd}/${name}`, O_RDONLY | O_NOFOLLOW)
+```
+
+Two conditions come with it, and both hold here. The component must be a single name, never
+a multi-component path, or the lookup an attacker can redirect comes back. And `/proc` must
+be mounted, which makes this Linux-only — fine, because the runner runs in Docker and in
+Daytona, both Linux.
+
+Implemented in `services/runner/src/tools/workspace-reader.ts` and verified the honest way:
+a probe ran the rejected path-based alternative against the same fixture and read a file
+from OUTSIDE the import root through a swapped intermediate directory, exactly as this
+section predicts, while the descriptor walk refuses it.
+
+One error-reporting note. With `O_DIRECTORY` and `O_NOFOLLOW` together, Linux reports a
+symbolic link as `ENOTDIR` on some kernels and `ELOOP` on others. Both refuse the component,
+so the security property is identical; the reader re-opens once without `O_DIRECTORY`,
+still relative to the same descriptor, purely to tell "symbolic link" from "not a
+directory" in the message.
 
 **Daytona runs.** Section 6 defines the manifest. The window there is wider, and section 6.5
 states plainly that it is not closed.
@@ -169,7 +200,12 @@ Section 6.5 says so.
 ### 3.4 The descriptor walk is required for v1
 
 **Decided in answer to gate 3, finding 3.** The descriptor-relative walk in section 3.2 is
-REQUIRED. The path-based fallback is a rejected alternative. The plan must budget the work.
+REQUIRED. The path-based fallback is a rejected alternative.
+
+**Built and landed, at no extra cost.** The `/proc/self/fd` technique in section 3.2 gives
+the required property in plain Node, so the walk needed no native helper and the plan needs
+no budget line for one. The rest of this section stands: the fallback is still rejected, and
+the conditions below still apply if anyone reverses that.
 
 The gate 1 and gate 2 versions of this section left the choice open, "if the plan decides the
 native helper is not worth its cost". Gate 3 is right that this is not a choice a plan can defer:
@@ -1050,8 +1086,9 @@ model-visible catalog schema and repeats that the runner strips the object.
 
 Not resolved here, by design:
 
-- Gate 2 item 7, the slice plan, belongs to `plan.md`. §2.3, §3.2, and §6 each name work the
-  plan must budget.
+- Gate 2 item 7, the slice plan, belongs to `plan.md`. §2.3 and §6 each name work the plan
+  must budget. §3.2's native-helper budget is withdrawn: the `/proc/self/fd` walk needs no
+  helper and is already built.
 
 ## 14. Gate 3 resolution
 
