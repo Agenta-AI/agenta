@@ -61,8 +61,43 @@ reader can act on it cold.
 ## Build mode shows no readable approval card
 
 - Found by: engine-2 during S3b, 5 August 2026. Pre-existing dock behavior.
-- The approval dock's per-tool bodies render only in Chat mode with an entity id;
-  Build mode always falls back to the raw payload block. So a folder-import
-  approval in Build mode shows JSON, not the manifest and diff.
-- Fix direction: relax the renderer gating for manifest-carrying approvals, or
-  give Build mode a compact manifest body. Needs a small UX decision.
+- CLOSED at the final review, 5 August 2026 (finding 4): the dock now renders the
+  frozen-content manifest in its fallback branch, so Build mode and the
+  entity-less host always show the files, digests, and diff next to the payload.
+  The larger question (running the full specialized card body in Build mode)
+  stays open as a UX decision; the contract's "a human approves a readable
+  change" rule no longer depends on it.
+
+## Shadow router logs a permanent DISAGREE for rebuilt reopen facets
+
+- Found by: the final review fix round, 5 August 2026 (while narrowing live
+  routes, finding 3).
+- The four facets that reopen-session would cover now escalate to rebuild, but
+  `PlanOutcome` derives from `maxAction` and only `rebuild-sandbox` counts as
+  "rebuild", so the shadow router logs `plan=reuse(reopen-session) DISAGREE` for
+  them. `restart-runtime` produced the same permanent disagreement before this
+  change; the semantics were left alone to avoid reshaping `buildPlan` and its
+  shadow tests during the fix round.
+- The ask: if the shadow counters are meant to be actionable signals, make
+  `PlanOutcome` reflect the routed action, not `maxAction`.
+
+## Pi refresh refuses any request that carries skills
+
+- Decided at the final review fix round, 5 August 2026, taking the sound side.
+- On Pi, `skillRootFor` returns undefined, so a workspace refresh cannot install
+  skill directories. The refresh arm now refuses whenever the request carries
+  skills on a Pi run, and the caller rebuilds. This over-refuses: a Pi run that
+  has skills but changes only its instructions rebuilds where a refresh would
+  have been enough.
+- The ask: narrow the refusal to a real skills diff (request skills differ from
+  applied skills) once a test asserts the installed skill tree on Pi.
+
+## Cold-resume re-gate shipped without a Verdict source marker
+
+- Decided at the final review fix round, 5 August 2026 (finding 8).
+- The re-gate predicate infers "this allow came from a stored decision" from
+  `effectivePermission(gate, plan) !== "ask"` being false, instead of a
+  `source: "policy" | "stored"` field on `Verdict` (adding the field broke
+  eleven exact-shape assertions in unrelated tests). The inference is sound
+  today because exactly one path consults the stored-decision store. If a second
+  stored-decision path ever appears, add the explicit field.

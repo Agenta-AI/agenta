@@ -56,10 +56,19 @@ model-visible in the catalog until `read_config` exists. An agent that can be to
 | S6 | Coordinator extraction + shadow routing (steps 3-4). | S5 |
 | S7a | Lifecycle extraction into units (step 5), behavior unchanged. | S6 |
 | S7b | In-place routes for workspace files and model (step 6, first half). | S7a |
-| S7c0 | Foundation: the ToolCatalogManifest / ToolExecutionPlan split with one shared generation, and per-turn execution-plan wiring (kills the stale run-turn.ts mix). | S7a |
-| S7c | Tool-catalog routes with the untrusted best-effort acknowledgement per `contracts/adapter-matrix.md`. | S7c0, spike S2 verdicts |
-| S7d | MCP reopen with positive native-history verification. | S7a |
+| S7c0 | NOT SHIPPED. Foundation: the ToolCatalogManifest / ToolExecutionPlan split with one shared generation, and per-turn execution-plan wiring (kills the stale run-turn.ts mix). | S7a |
+| S7c | NOT SHIPPED. Tool-catalog routes with the untrusted best-effort acknowledgement per `contracts/adapter-matrix.md`. | S7c0, spike S2 verdicts |
+| S7d | Session reopen on the same sandbox, gated on replayability. Landed, but NOT routable: see the note below. | S7a |
 | S7e | Credential and provider reconciliation, including the Daytona creation-identity split (steps 8-9). | S7a |
+
+S7c0 and S7c did not ship, and the external review caught what that costs. `runTurn` still reads
+its tool catalog from `env.plan`, and `env.reopenSession` closes over the session init the
+environment was built with, so a reopen reinstalls the OLD MCP list, prompts and harness files
+while `commitApplied` records the incoming ones. Rather than leave a route that reports a
+configuration it did not install, `reopen-session` is excluded from `LIVE_ACTION_KINDS`: the
+`prompts`, `harnessFiles`, `harnessSession` and `toolCatalog` facets rebuild until S7c0 lands.
+S7d's machinery stays in place for that day. `contracts/adapter-matrix.md` section 8 carries the
+same note beside the rollout steps.
 
 Accepted risk, recorded: the Daytona import manifest cannot fully prevent a
 content-swap during the read window under an adversarial sandbox. The two-pass check

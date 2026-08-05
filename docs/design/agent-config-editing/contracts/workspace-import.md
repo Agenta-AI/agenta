@@ -129,7 +129,14 @@ the flag stays silent.
 The fix is a real file-descriptor-relative walk. The runner never rebuilds a full path string
 and never re-resolves from the root.
 
-1. Open the import root once. Verify it with `fstat` on the handle.
+1. Open the import root once, **with the no-follow flag set on that open too**, and verify it with
+   `fstat` on the handle. The root is a path component like any other: if `.agenta-imports` is
+   itself a symbolic link, an open without the flag follows it, and every descriptor-relative open
+   below is then faithfully confined to the LINK'S TARGET rather than to the workspace. The walk
+   below the root cannot recover from a root that was already redirected. A link here is refused
+   for its own sake, whatever it points at, so the reader never has to reason about where it
+   points; with `O_DIRECTORY` and `O_NOFOLLOW` together the errno alone cannot tell a link from a
+   plain file, so `lstat` names the entry when the message has to say which it was.
 2. For each directory level, open the child **relative to the parent's descriptor**, with the
    no-follow and directory flags set. In Node this is
    `fs.open("/proc/self/fd/<parentFd>/<name>", ...)`, one component at a time. See the note
@@ -559,6 +566,34 @@ relative to the folder it walked, so an entry cannot escape through its printed 
 directory in the tree may still be a link, and rule 2 above makes `find` report it as `l`. The
 runner refuses it.
 
+**The root is resolved against the WORKSPACE, and this is not optional.** `F` under `R` says
+nothing when `R` itself was moved: every path under a relocated root is a faithful descendant of
+the attacker's directory, and the descendant test passes exactly as designed. So the runner
+resolves the workspace cwd as well, and requires `R` to be the workspace or to live under it,
+before it trusts any comparison below the root:
+
+```
+realpath -- <workspaceCwd>             # -> W
+realpath -- <workspaceImportRoot>      # -> R      R must equal W or sit under it
+realpath -- <absImportFile>            # -> F      F must equal R or sit under it
+```
+
+**Every component's own type is checked, not only the final entry's.** `realpath` catches an
+intermediate link that leaves the root, because the resolved target then fails the descendant
+test. It does NOT catch one that stays inside: the resolved path is a legitimate descendant, so
+the link is followed silently, and the local descriptor walk refuses the same tree. Two readers
+that disagree about one tree is a contract defect on its own. So the Daytona reader walks the
+whole path in ONE execution:
+
+```
+find <root> <root>/<seg1> <root>/<seg1>/<seg2> ... <absImportFile> -maxdepth 0 -printf '%y\0%m\0%s\0%P\0'
+```
+
+`find` takes many starting points, reports them in argument order, and prints an empty `%P` for a
+starting point, so the records line up with the paths positionally. Any `l` on the chain refuses
+the import, including the root's own entry. One call per component would cost one process per
+level of every import, which is what section 6.1 rejected.
+
 ### 6.3 What the manifest does NOT establish
 
 `find` resolves paths through the sandbox's own view of the filesystem, at the moment it runs.
@@ -932,7 +967,14 @@ Every code carries the offending paths, up to 20, and a count of the rest.
 **Confinement.**
 - Traversal, absolute path, backslash, and NUL are refused before any read.
 - A symbolic link at the folder root is refused.
+- A symbolic link IN PLACE OF the import root is refused, on both readers, whether its target
+  leaves the workspace or stays inside it. Assert on the content: a passing implementation must
+  not return the bytes the link points at.
+- An import root that RESOLVES outside the workspace is refused, on both readers.
 - A symbolic link inside the folder is refused, even when its target stays inside the workspace.
+- An INTERMEDIATE component that is a symbolic link is refused on both readers, including the case
+  where it resolves under the root. `realpath` alone passes that one, so a Daytona test that only
+  moves the link outside the root would not catch it.
 - A path outside `.agenta-imports/` but inside the workspace is refused.
 - A valid folder BELOW `.agenta-imports/` is accepted. This is the descendant test in section 6.2, and
   the gate 1 equality test would have failed it. Add it as a regression guard.

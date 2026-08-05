@@ -586,10 +586,25 @@ unchanged. This contract changes individual routes inside it.
 
 Each step ships alone. No step changes reuse behavior until step 5.
 
+**Status, and it decides what is routable today. Steps 1 and 2 have NOT shipped.** Neither
+`ToolCatalogManifest` nor `ToolExecutionPlan` exists, and `runTurn` still reads its catalog from
+`env.plan`, which is the plan the environment was BUILT with and is never replaced.
+`env.reopenSession` closes over the same generation's session init, so a reopen reinstalls the old
+MCP list, the old prompts and the old harness files. `reopen-session` therefore delivers nothing
+new, and the sentence in section 4.4 that "`reopen-session` implies that reopening would deliver
+it" is a statement about the target design, not about the runner as it stands.
+
+The consequence is enforced in code rather than left to a reader: `LIVE_ACTION_KINDS` excludes
+`reopen-session`, so the `prompts`, `harnessFiles`, `harnessSession` and `toolCatalog` facets
+rebuild. A rebuild is wasteful and always sound; a reopen that reports the incoming configuration
+as applied after installing none of it is neither, and `harnessFiles` may BE a permission file.
+Steps 1 and 2 are what let that route come back.
+
 1. Split tools into `ToolCatalogManifest` and `ToolExecutionPlan`. One generation. No behavior
    change.
 2. Make `runTurn` build both from the incoming request. Remove the `env.plan` read at
-   `run-turn.ts:822`. No behavior change.
+   `run-turn.ts:822`. No behavior change. Re-admit `reopen-session` to `LIVE_ACTION_KINDS` in the
+   same change, with tests that assert the INSTALLED session init rather than the action name.
 3. Add the untrusted best-effort acknowledgement path, dedicated and outside the relay
    directory. No behavior change.
 4. Ship the Pi specs file and the extension hook, plus the Claude stdio shim capability and
