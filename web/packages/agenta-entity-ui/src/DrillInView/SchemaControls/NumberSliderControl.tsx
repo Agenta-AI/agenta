@@ -136,7 +136,7 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     const content = (
         <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
             <div className={cn(flexLayouts.rowCenter, "justify-between")}>
-                <span id={labelId} className={cn("font-medium", textColors.primary)}>
+                <span id={labelId} className={cn("font-medium text-xs", textColors.primary)}>
                     {label}
                 </span>
                 <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>

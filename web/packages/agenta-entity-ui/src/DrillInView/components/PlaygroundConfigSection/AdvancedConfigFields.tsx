@@ -63,7 +63,7 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
                 ) : (
                     <CaretRight size={14} weight="bold" />
                 )}
-                <span className="font-medium">Advanced</span>
+                <span className="font-medium text-xs">Advanced</span>
             </button>
             <HeightCollapse open={isAdvancedOpen}>
                 <div className="flex flex-col gap-4 pl-5">
@@ -154,7 +154,7 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0.5">
-                <span className="font-medium">{label}</span>
+                <span className="font-medium text-xs">{label}</span>
                 <span className="text-xs leading-snug text-colorTextDescription">
                     Provider-specific chat template options sent with the model request in JSON
                     format.{" "}
