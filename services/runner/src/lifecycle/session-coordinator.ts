@@ -42,6 +42,11 @@ import {
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
 import type { TeardownReason } from "../engines/sandbox_agent/teardown.ts";
 import {
+  daytonaCredentialCapabilities,
+  localCredentialCapabilities,
+  mechanismForRotation,
+} from "../providers/credential-delivery-port.ts";
+import {
   approvalDecisionForToolCall,
   assertsPriorConversation,
   computeCredentialEpoch,
@@ -341,12 +346,27 @@ export async function runWithKeepalive(
     }
   };
 
+  /**
+   * The credential-delivery capabilities of the provider this dispatch will use.
+   *
+   * STEP 8. Which action a rotation needs is PROVIDER-DEPENDENT, so the router cannot decide it:
+   * `local` bakes values into a daemon environment that is frozen before the daemon starts, while
+   * Daytona holds an opaque reference whose value the provider substitutes at egress. These values
+   * carry the security review's RULING B — Daytona declares its egress propagation unbounded,
+   * which makes the live rotation route ineligible and a rotation a rebuild.
+   */
+  const credentialCapabilities =
+    resolveKeepaliveProvider(request) === "daytona"
+      ? daytonaCredentialCapabilities
+      : localCredentialCapabilities;
+
   const shadowRoute = (
     existing: LiveSession<SessionEnvironment> | undefined,
     decision: "reuse" | "rebuild",
     decisionReason: string,
     scope: DecisionScope = "environment",
     plan?: ReconcilePlan,
+    rotated = false,
   ): void => {
     logReconcileShadow({
       key,
@@ -358,6 +378,11 @@ export async function runWithKeepalive(
       decisionReason,
       scope,
       ...(plan ? { plan } : {}),
+      credential: {
+        mechanism: rotated
+          ? mechanismForRotation(credentialCapabilities)
+          : undefined,
+      },
     });
   };
 
@@ -662,6 +687,11 @@ export async function runWithKeepalive(
         mismatch === "history" || mismatch === "tail"
           ? "continuity"
           : "environment",
+        undefined,
+        // STEP 8. Tell the router what the epoch comparison already knows. `credentials-expiring`
+        // and `credentials-expired` are MOUNT LEASE facts, not rotations — the mount subsystem
+        // repairs those by re-signing — so only a true rotation feeds the credential input.
+        mismatch === "credentials-rotated",
       );
       // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
       // mount — they must never overlap.
@@ -823,7 +853,14 @@ export async function runWithKeepalive(
       klog(
         `approval-mismatch (${mismatch ?? "unknown"}) key=${key}; evict + cold`,
       );
-      shadowRoute(existing, "rebuild", `approval-mismatch:${mismatch ?? "unknown"}`);
+      shadowRoute(
+        existing,
+        "rebuild",
+        `approval-mismatch:${mismatch ?? "unknown"}`,
+        "environment",
+        undefined,
+        mismatch === "credentials-rotated",
+      );
       await pool.evict(
         key,
         `approval-mismatch:${mismatch ?? "unknown"}`,

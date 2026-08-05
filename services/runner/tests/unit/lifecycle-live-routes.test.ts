@@ -36,6 +36,12 @@ import {
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
 import {
+  daytonaCredentialCapabilities,
+  localCredentialCapabilities,
+  mechanismForRotation,
+  type CredentialDeliveryCapabilities,
+} from "../../src/providers/credential-delivery-port.ts";
+import {
   isLivelyApplicable,
   LIVE_ACTION_KINDS,
   planReconcile,
@@ -484,10 +490,20 @@ describe("the disagreement counters go quiet for the two live routes", () => {
     );
   });
 
-  it("KNOWN GAP, still counted: a rotated credential remains a disagreement", async () => {
-    // Deliberately NOT excluded by scope. The router genuinely cannot see a credential rotation
-    // (values are kept out of every facet digest because digests are logged), so this is a real
-    // gap and the counter must keep saying so until step 8 feeds the epoch into the plan.
+  it("CLOSED IN STEP 8: a rotated credential is an AGREEMENT, and nothing disagrees", async () => {
+    // THIS TEST IS THE RECORD OF THE GAP, REWRITTEN RATHER THAN DELETED. It used to assert that a
+    // rotated credential MUST still show up as a disagreement, because credential values are kept
+    // out of every facet digest (digests are logged) and the router therefore could not see a
+    // rotation at all.
+    //
+    // Step 8 closes it without putting a secret in a digest: the epoch's CONCLUSION reaches the
+    // plan as its own input, and the router turns it into an action on the `runtime` facet. On this
+    // provider the action is a rebuild — see the routing test below for why that is the honest
+    // answer and not a conservative one — which is what the coordinator already does, so the two
+    // now agree.
+    //
+    // The total-disagreement assertion is the completion signal for the whole shadow-routing arc:
+    // every route the router can plan now matches the decision the coordinator makes.
     const withSecret = (value: string, req: AgentRunRequest): AgentRunRequest => ({
       ...req,
       modelConnection: {
@@ -510,10 +526,60 @@ describe("the disagreement counters go quiet for the two live routes", () => {
     await runWithKeepalive(withSecret("sk-b", turn2()), undefined, undefined, ctx);
 
     const counters = reconcileCounters();
-    assert.ok(
-      Object.values(counters.disagree).reduce((a, b) => a + b, 0) > 0,
-      "the credential gap must stay visible in the counters",
+    assert.equal(
+      Object.values(counters.disagree).reduce((a, b) => a + b, 0),
+      0,
+      "a rotated credential must no longer disagree",
     );
+    assert.ok(
+      (counters.agree["rebuild-sandbox"] ?? 0) > 0,
+      "the rotation must be COUNTED, as an agreement on the rebuild route",
+    );
+  });
+
+  it("routes a rotation by what the PROVIDER can actually deliver", () => {
+    // RULING A and RULING B of the external security review, pinned as data.
+    //
+    // The dedicated credential-route test the review required. It exists because the exact-set
+    // guard over `LIVE_ACTION_KINDS` cannot catch this: `apply-live` was already a member, so
+    // putting a CREDENTIAL on that route widens what may happen live while the guard stays silent.
+    // This test is what makes the widening visible.
+    const bounded: CredentialDeliveryCapabilities = {
+      ...daytonaCredentialCapabilities,
+      egressPropagation: { kind: "bounded", withinMs: 2_000 },
+    };
+
+    // LOCAL: the value is baked into a daemon environment frozen before the daemon starts, and
+    // this provider cannot restart a consumer, so nothing short of a rebuild delivers.
+    assert.equal(mechanismForRotation(localCredentialCapabilities), "rebuild-sandbox");
+
+    // DAYTONA TODAY: the sandbox holds a stable placeholder and the provider does NOT bound how
+    // long its egress layer takes to apply a rotated value. A restart would hand the new process
+    // the SAME placeholder and deliver nothing, so a restart must NOT be offered here just because
+    // it is more expensive. RULING B: rebuild.
+    assert.equal(mechanismForRotation(daytonaCredentialCapabilities), "rebuild-sandbox");
+
+    // THE SAME PROVIDER WITH A BOUND: now the rotation is genuinely live. Nothing inside the
+    // sandbox changes, because the reference it holds is unchanged. RULING A: apply-live.
+    assert.equal(mechanismForRotation(bounded), "rotate-in-place");
+  });
+
+  it("keeps the STRONGER repair when a rotation and a runtime change collide", () => {
+    // Both land on the `runtime` facet, and `applyReconcilePlan` iterates actions in facet order:
+    // two actions on one facet would run it twice. The plan keeps the more expensive one, because
+    // a facet that needs both repairs needs whichever is stronger.
+    const before = turn1;
+    const after = { ...turn2(), model: "m2" } as AgentRunRequest;
+    const plan = planReconcile(
+      after,
+      normalizeDesiredState(after, configFingerprint(after)),
+      normalizeDesiredState(before, configFingerprint(before)).digests,
+      { mechanism: "rebuild-sandbox" },
+    );
+    const runtimeActions = plan.actions.filter((a) => a.facet === "runtime");
+    assert.equal(runtimeActions.length, 1, "one action per facet, always");
+    assert.equal(runtimeActions[0]?.kind, "rebuild-sandbox");
+    assert.equal(plan.outcome, "rebuild");
   });
 });
 
