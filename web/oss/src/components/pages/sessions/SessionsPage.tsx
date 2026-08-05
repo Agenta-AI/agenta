@@ -190,7 +190,9 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                                         initial="initial"
                                         animate="animate"
                                         exit="exit"
-                                        className="m-0 overflow-hidden bg-colorFillQuaternary px-3 py-1 text-xs text-colorTextTertiary"
+                                        // Opaque, not a fill: a sticky header with an rgba band
+                                        // lets the rows scroll through it.
+                                        className="sticky top-0 z-10 m-0 overflow-hidden rounded bg-colorBgElevated px-3 py-1 text-xs text-colorTextTertiary"
                                     >
                                         Pinned {pinnedRows.length}
                                     </motion.p>
