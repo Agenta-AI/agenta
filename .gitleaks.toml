@@ -33,6 +33,9 @@ regexes = [
   '''is_valid=true''',
   '''YOUR_API_KEY''',
   '''_SECRET_KEY''',
+  # Fake token in the runner's redaction test — the test asserts this marker never
+  # reaches the transcript. Named to be obviously synthetic; not a credential.
+  '''marker-live-secret-42bd''',
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG

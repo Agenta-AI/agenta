@@ -129,6 +129,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         placement = "right",
         width,
         height,
+        size,
         closable = true,
         maskClosable = true,
         keyboard = true,
@@ -188,12 +189,18 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     const side = placement as "top" | "right" | "bottom" | "left"
     const isHorizontal = side === "left" || side === "right"
     // antd `width` sizes left/right drawers, `height` sizes top/bottom; otherwise Sheet's 378 default.
+    // antd `size`: "default"=378, "large"=736; a number is treated as px (antd v6 behaviour).
+    // Explicit width/height always wins; without this mapping `size` was silently ignored.
+    const sizeToPx =
+        typeof size === "number" ? size : size === "large" ? 736 : size === "default" ? 378 : null
+    const effWidth = width ?? (isHorizontal ? sizeToPx : null)
+    const effHeight = height ?? (!isHorizontal ? sizeToPx : null)
     const sizeStyle: React.CSSProperties = isHorizontal
-        ? width != null
-            ? {width, maxWidth: "100%"}
+        ? effWidth != null
+            ? {width: effWidth, maxWidth: "100%"}
             : {}
-        : height != null
-          ? {height, maxHeight: "100%"}
+        : effHeight != null
+          ? {height: effHeight, maxHeight: "100%"}
           : {}
 
     return (

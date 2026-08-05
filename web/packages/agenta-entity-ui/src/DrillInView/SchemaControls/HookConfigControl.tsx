@@ -2,9 +2,8 @@
 
 import {memo, useCallback, useMemo} from "react"
 
-import {Field} from "@agenta/ui/ui"
+import {Button, Field, Input} from "@agenta/ui/ui"
 import {Plus, Trash} from "@phosphor-icons/react"
-import {Button, Input} from "antd"
 import clsx from "clsx"
 
 type HeadersValue = Record<string, unknown>
@@ -59,6 +58,7 @@ const HeadersControl = memo(function HeadersControl({
                     <div key={index} className="flex items-center gap-2">
                         <Input
                             placeholder="Key"
+                            aria-label="Header key"
                             className="basis-1/3 font-mono"
                             value={key}
                             disabled={disabled}
@@ -66,29 +66,31 @@ const HeadersControl = memo(function HeadersControl({
                         />
                         <Input
                             placeholder="Value"
+                            aria-label="Header value"
                             className="basis-2/3 font-mono"
                             value={String(val ?? "")}
                             disabled={disabled}
                             onChange={(e) => setRow(index, key, e.target.value)}
                         />
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<Trash size={14} />}
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Remove header"
                             disabled={disabled}
                             onClick={() => removeRow(index)}
-                        />
+                        >
+                            <Trash size={14} />
+                        </Button>
                     </div>
                 ))}
                 <Button
-                    variant="outlined"
-                    color="default"
-                    size="small"
-                    icon={<Plus size={14} />}
+                    variant="outline"
+                    size="sm"
                     disabled={disabled}
                     onClick={addRow}
                     className="self-start"
                 >
+                    <Plus size={14} />
                     Header
                 </Button>
             </div>

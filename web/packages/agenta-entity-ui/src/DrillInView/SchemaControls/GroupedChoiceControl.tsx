@@ -16,8 +16,7 @@ import type {SchemaProperty} from "@agenta/entities/shared"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {Field} from "@agenta/ui/ui"
-import {Select} from "antd"
+import {Combobox, Field} from "@agenta/ui/ui"
 
 import {getOptionsFromSchema} from "./schemaUtils"
 
@@ -125,23 +124,29 @@ export const GroupedChoiceControl = memo(function GroupedChoiceControl({
         return null
     }
 
-    // Other grouped choices - use standard grouped Select
+    // Other grouped choices — antd `showSearch` has no Radix Select equivalent, so: Combobox.
     return (
         <Field
             label={label}
             tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={cn(className)}
         >
-            <Select
+            <Combobox
                 value={value ?? undefined}
                 onChange={(val) => onChange(val ?? null)}
-                options={selectOptions}
+                options={selectOptions.map((group) => ({
+                    label: group.label,
+                    options: group.options.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                        searchValue: option.label,
+                    })),
+                }))}
                 disabled={disabled}
                 placeholder={placeholder}
+                aria-label={label ? undefined : placeholder}
                 className="w-full"
-                size="small"
-                showSearch
-                optionFilterProp="label"
+                size="sm"
             />
         </Field>
     )

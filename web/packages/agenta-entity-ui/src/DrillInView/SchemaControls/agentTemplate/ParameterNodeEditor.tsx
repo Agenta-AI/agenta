@@ -13,10 +13,22 @@
  */
 import {useEffect, useState} from "react"
 
+import {
+    AutosizeTextarea,
+    Button,
+    Combobox,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Switch,
+} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
-import {Button, Input, Select, Switch} from "antd"
 
 import {RailField} from "../../../drawers/shared/RailField"
+import {ChipsInput} from "../../../gatewayTool/components/schemaFormControls"
 
 import {
     defType,
@@ -130,11 +142,13 @@ export function ParameterNodeEditor({
     // drops the constraint; a `default` no longer in the set is dropped too.
     const changeEnum = (values: string[]) => {
         const nextDef = {...def}
-        // antd tag tokens keep the separator's whitespace ("a, b" → ["a", " b"]), so trim, drop
+        // `ChipsInput` has no `tokenSeparators`, so antd's `[",", "\n"]` split happens here;
+        // the tokens keep the separator's whitespace ("a, b" → ["a", " b"]), so trim, drop
         // blanks, coerce, and dedupe before storing.
         const coerced = Array.from(
             new Set(
                 values
+                    .flatMap((v) => v.split(/[,\n]/))
                     .map((v) => v.trim())
                     .filter((v) => v.length > 0)
                     .map((v) => coerceTo(v, type))
@@ -207,10 +221,14 @@ export function ParameterNodeEditor({
                 <RailField label="Name" align="center">
                     <Input
                         className="font-mono"
+                        aria-label="Parameter name"
                         value={nameLocal}
                         onChange={(e) => setNameLocal(e.target.value)}
                         onBlur={commitName}
-                        onPressEnter={commitName}
+                        onKeyDown={(e) => {
+                            // antd `onPressEnter`.
+                            if (e.key === "Enter") commitName()
+                        }}
                         placeholder="parameter_name"
                         disabled={disabled}
                     />
@@ -218,21 +236,37 @@ export function ParameterNodeEditor({
 
                 <RailField label="Type" align="center">
                     <div className={type === "array" ? "grid grid-cols-2 gap-2" : ""}>
-                        <Select
-                            className="w-full"
-                            value={type}
-                            options={TYPE_OPTIONS}
-                            onChange={changeType}
-                            disabled={disabled}
-                        />
+                        {/* A Radix Select trigger is `role="combobox"`, which is NOT named from
+                            its contents — every trigger needs an explicit `aria-label`. */}
+                        <Select value={type} onValueChange={changeType} disabled={disabled}>
+                            <SelectTrigger className="w-full" aria-label="Type">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {TYPE_OPTIONS.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         {type === "array" ? (
                             <Select
-                                className="w-full"
                                 value={itemType}
-                                options={ITEM_TYPE_OPTIONS}
-                                onChange={changeItemType}
+                                onValueChange={changeItemType}
                                 disabled={disabled}
-                            />
+                            >
+                                <SelectTrigger className="w-full" aria-label="Item type">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ITEM_TYPE_OPTIONS.map((o) => (
+                                        <SelectItem key={o.value} value={o.value}>
+                                            {o.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         ) : null}
                     </div>
                 </RailField>
@@ -240,32 +274,31 @@ export function ParameterNodeEditor({
                 {isScalar ? (
                     <>
                         <RailField label="Allowed values">
-                            <Select
-                                mode="tags"
-                                className="w-full"
+                            <ChipsInput
                                 value={enumValues}
-                                onChange={changeEnum}
-                                tokenSeparators={[",", "\n"]}
+                                onChange={(v) => changeEnum(v ?? [])}
                                 placeholder="Any value — add to restrict"
-                                open={false}
-                                suffixIcon={null}
                                 disabled={disabled}
                             />
                         </RailField>
 
                         <RailField label="Default" align="center">
                             {enumValues.length ? (
-                                <Select
-                                    className="w-full"
+                                // Combobox, not Select: this knob is clearable (antd `allowClear`)
+                                // and Radix Select has no clear — same call as the sandbox form.
+                                <Combobox
                                     value={defaultValue != null ? String(defaultValue) : undefined}
                                     onChange={(v) => changeDefault(v)}
                                     options={enumValues.map((v) => ({value: v, label: v}))}
                                     placeholder="No default"
                                     allowClear
                                     disabled={disabled}
+                                    aria-label="Default value"
+                                    className="w-full"
                                 />
                             ) : (
                                 <Input
+                                    aria-label="Default value"
                                     value={defaultValue != null ? String(defaultValue) : ""}
                                     onChange={(e) => changeDefault(e.target.value)}
                                     inputMode={type === "string" ? undefined : "decimal"}
@@ -278,7 +311,8 @@ export function ParameterNodeEditor({
                 ) : null}
 
                 <RailField label="Description">
-                    <Input.TextArea
+                    <AutosizeTextarea
+                        aria-label="Parameter description"
                         value={description}
                         onChange={(e) => changeDescription(e.target.value)}
                         autoSize={{minRows: 2, maxRows: 5}}
@@ -290,8 +324,11 @@ export function ParameterNodeEditor({
                 <RailField label="Required" align="center">
                     <div className="flex items-center gap-2">
                         <Switch
+                            aria-label="Required"
                             checked={required}
-                            onChange={(on) => onChange(toggleRequiredAt(schema, parent, key, on))}
+                            onCheckedChange={(on) =>
+                                onChange(toggleRequiredAt(schema, parent, key, on))
+                            }
                             disabled={disabled}
                         />
                         <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
@@ -304,10 +341,11 @@ export function ParameterNodeEditor({
                     <RailField label="Properties" align="center">
                         <div className="flex items-center gap-2">
                             <Button
-                                icon={<Plus size={13} />}
+                                variant="outline"
                                 onClick={() => onAddChild(childContainerPath)}
                                 disabled={disabled}
                             >
+                                <Plus size={13} />
                                 Add property
                             </Button>
                             <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">

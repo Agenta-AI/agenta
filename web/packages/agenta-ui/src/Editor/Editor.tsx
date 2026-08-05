@@ -172,6 +172,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             disableCodeFoldingPlugin = false,
             disableIndentationPlugin = false,
             useNativeCodeNodes = false,
+            ariaLabel,
             diffExtensionConfig,
             ...rest
         }: EditorProps,
@@ -786,6 +787,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             disableLongText={disableLongText}
                             loadingFallback={loadingFallback}
                             useNativeCodeNodes={useNativeCodeNodes}
+                            ariaLabel={ariaLabel}
                             isDiffView={Boolean(diffExtensionConfig)}
                         />
                     ) : (
@@ -1083,6 +1085,7 @@ const Editor = ({
     enableTokens = false,
     autoFocus = false,
     debug = false,
+    ariaLabel,
     enableResize = true, // New prop
     boundWidth = true, // New prop
     boundHeight, // New prop
@@ -1146,6 +1149,7 @@ const Editor = ({
                     disableIndentationPlugin={disableIndentationPlugin}
                     skipScroll={skipScroll}
                     useNativeCodeNodes={useNativeCodeNodes}
+                    ariaLabel={ariaLabel}
                 />
             ) : (
                 <EditorProvider
@@ -1224,6 +1228,7 @@ const Editor = ({
                         disableIndentationPlugin={disableIndentationPlugin}
                         skipScroll={skipScroll}
                         useNativeCodeNodes={useNativeCodeNodes}
+                        ariaLabel={ariaLabel}
                     />
                 </EditorProvider>
             )}

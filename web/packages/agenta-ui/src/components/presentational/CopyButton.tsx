@@ -106,7 +106,13 @@ export const CopyButton = memo(function CopyButton({
     const iconNode = copied ? <Check size={14} /> : <Copy size={14} />
 
     return (
-        <Button variant="outline" onClick={handleClick} {...props}>
+        // Icon-only (buttonText={null}) has no text to name it — supply one.
+        <Button
+            variant="outline"
+            onClick={handleClick}
+            aria-label={buttonText ? undefined : "Copy"}
+            {...props}
+        >
             {icon ? iconNode : undefined}
             {buttonText}
         </Button>

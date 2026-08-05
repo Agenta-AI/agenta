@@ -1,7 +1,7 @@
 import {useRef, useState, type ReactNode} from "react"
 
+import {EmptyState, Popover, PopoverContent, PopoverTrigger, Spinner} from "@agenta/ui/ui"
 import {ClockCountdown, Lightning} from "@phosphor-icons/react"
-import {Empty, Popover, Spin} from "antd"
 
 /**
  * A real event sampled from the provider — used to build the inputs mapping against
@@ -18,6 +18,14 @@ export interface SampledEvent {
     /** The raw event payload (what selectors resolve against). */
     payload: unknown
 }
+
+// antd Popover `placement` → Radix side/align.
+const PLACEMENTS = {
+    bottomRight: {side: "bottom", align: "end"},
+    topRight: {side: "top", align: "end"},
+    bottomLeft: {side: "bottom", align: "start"},
+    topLeft: {side: "top", align: "start"},
+} as const
 
 /**
  * Shared popover for sourcing a real event: "wait for a new event" (live capture) or one
@@ -39,6 +47,8 @@ export function EventSourcePicker({
     waitHint,
     autoWaitOnOpen,
     captureMode,
+    defaultOpen,
+    container,
 }: {
     /** The element that opens the popover (a button). */
     trigger: ReactNode
@@ -55,8 +65,12 @@ export function EventSourcePicker({
     autoWaitOnOpen?: boolean
     /** Data-capture wait (picks apply data, not actions): survives popover close, and a resolved event keeps the popover open. */
     captureMode?: boolean
+    /** Start open (forced-open parity stories / initial-open UX). */
+    defaultOpen?: boolean
+    /** Portal target for the popover; defaults to document.body. */
+    container?: HTMLElement | null
 }) {
-    const [open, setOpen] = useState(false)
+    const [open, setOpen] = useState(defaultOpen ?? false)
     const [waiting, setWaiting] = useState(false)
     const settledRef = useRef(false)
 
@@ -108,7 +122,7 @@ export function EventSourcePicker({
                     className="flex w-full cursor-pointer items-center gap-2.5 rounded border-0 bg-transparent px-2.5 py-2 text-left hover:bg-[var(--ag-colorFillTertiary)] disabled:cursor-default"
                 >
                     {waiting ? (
-                        <Spin size="small" />
+                        <Spinner size="small" />
                     ) : (
                         <ClockCountdown size={16} className="text-[var(--ag-colorTextSecondary)]" />
                     )}
@@ -129,14 +143,14 @@ export function EventSourcePicker({
                 Recent events
             </div>
             {recentEvents.length === 0 ? (
-                <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                <EmptyState
+                    image="simple"
                     description={
                         <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
                             None captured yet
                         </span>
                     }
-                    className="!my-2"
+                    className="my-2"
                 />
             ) : (
                 <div className="flex flex-col">
@@ -166,15 +180,22 @@ export function EventSourcePicker({
         </div>
     )
 
+    const {side, align} = PLACEMENTS[placement]
     return (
-        <Popover
-            open={open}
-            onOpenChange={handleOpenChange}
-            trigger="click"
-            placement={placement}
-            content={content}
-        >
-            {trigger}
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+            {/* p-3 = antd `.ant-popover-inner` padding (12px). antd never moves focus into a
+                popover, so block Radix's auto-focus (else the wait button paints a focus ring). */}
+            <PopoverContent
+                side={side}
+                align={align}
+                aria-label="Select event source"
+                className="p-3"
+                container={container}
+                onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+                {content}
+            </PopoverContent>
         </Popover>
     )
 }
