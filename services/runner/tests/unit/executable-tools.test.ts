@@ -15,6 +15,11 @@ import {
   extractApprovalDecisions,
 } from "../../src/responder.ts";
 import type { ExecutableToolGateRequest } from "../../src/tools/executable-tool-gate.ts";
+import type { PermissionPlan } from "../../src/permission-plan.ts";
+import {
+  declinedByUserText,
+  deniedByPolicyText,
+} from "../../src/tools/denial-text.ts";
 
 const input = { document: "release-notes" };
 const request: ExecutableToolGateRequest = {
@@ -78,8 +83,9 @@ function seam(
   const toolCallIndex = withIndex
     ? createToolCallCorrelationIndex()
     : undefined;
+  const permissionPlan: PermissionPlan = { default: "allow_reads", rules: [] };
   const responder = new ApprovalResponder(
-    { default: "allow_reads", rules: [] },
+    permissionPlan,
     new ConversationDecisions(
       history ? extractApprovalDecisions(history) : new Map(),
     ),
@@ -97,6 +103,7 @@ function seam(
       recorded.push({ token, toolName, args, kind, toolCallId });
     },
     toolCallIndex,
+    permissionPlan,
     executionGrants,
   });
   return {
@@ -127,7 +134,7 @@ describe("buildExecutableToolGate", () => {
 
     assert.deepEqual(await s.gate.onExecutableTool(s.request), {
       kind: "deny",
-      reason: "Tool 'publish' was denied by policy.",
+      reason: deniedByPolicyText("publish"),
     });
     assert.deepEqual(s.events, []);
     assert.deepEqual(s.pausedToolCalls, []);
@@ -195,7 +202,10 @@ describe("buildExecutableToolGate", () => {
       approved: false,
       expected: {
         kind: "deny",
-        reason: "Tool 'publish' was denied by policy.",
+        // A REPLAYED HUMAN DECLINE, not a policy refusal. The tool's permission is `ask`, and
+        // `decide` reads the stored answer, so telling the model this was policy would send it
+        // back to retry a decision the user already made.
+        reason: declinedByUserText("publish"),
       },
     },
   ])(
@@ -269,7 +279,7 @@ describe("buildExecutableToolGate with a harness-gate execution grant", () => {
     );
     assert.deepEqual(await denied.gate.onExecutableTool(denied.request), {
       kind: "deny",
-      reason: "Tool 'publish' was denied by policy.",
+      reason: deniedByPolicyText("publish"),
     });
 
     const ungranted = seam(

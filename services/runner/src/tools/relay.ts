@@ -34,6 +34,7 @@ import {
 
 import { callAgentaTool } from "./callback.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "./code.ts";
+import { declinedByUserText } from "./denial-text.ts";
 import {
   applyContextBindings,
   assembleBody,
@@ -366,7 +367,7 @@ async function executeRelayedTool(
       return PAUSED;
     }
     if (decision === "deny") {
-      return `Client tool '${spec.name}' was denied.`;
+      return declinedByUserText(spec.name);
     }
     return JSON.stringify(decision.output ?? {});
   }

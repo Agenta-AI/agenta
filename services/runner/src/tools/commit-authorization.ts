@@ -364,8 +364,35 @@ export class CommitAuthorizer {
     const required = this.markersIn(input.args);
     if (required.length === 0) return { ok: true, args: input.args };
 
+    const markers: MarkerKey[] = required.map((marker) => ({
+      operationIndex: marker.operationIndex,
+      valuePointer: marker.valuePointer,
+    }));
+
+    // The id the gate minted under, which is not always the id the caller reports. A non-Pi
+    // harness gates under its own call id and the in-sandbox shim relays under a uuid of its own,
+    // so the set is found by what actually binds it: this tool, these exact arguments. See
+    // `findSetByCall`. An exact id match always wins, and nothing below changes. Declared out here
+    // so the failure path discards the set it actually claimed.
+    let recordKey = input.toolCallId;
+
     try {
-      if (this.options.store.recordsFor(input.toolCallId).length === 0) {
+      if (this.options.store.recordsFor(recordKey).length === 0) {
+        const matched = this.options.store.findSetByCall({
+          toolName: input.toolName,
+          argsDigest: strictDigest(input.args),
+          requiredMarkers: markers,
+        });
+        if (matched) {
+          this.options.log?.(
+            `[commit-auth] matched the approval minted at the gate tool=${input.toolName} ` +
+              `gate=${matched} execute=${input.toolCallId}`,
+          );
+          recordKey = matched;
+        }
+      }
+
+      if (this.options.store.recordsFor(recordKey).length === 0) {
         // Contract 4, the one exception. An `allow` verdict is a positive statement by the
         // policy owner; a missing record is the absence of information. Only the first permits
         // an inline resolution, and it still mints, verifies, and consumes, so there is exactly
@@ -386,24 +413,20 @@ export class CommitAuthorizer {
       // Everything below is SYNCHRONOUS on purpose, with no `await` between the verify and the
       // execute. JavaScript runs it to completion without interleaving, so a concurrent forged
       // record cannot consume part of the set in the middle and execute a different commit.
-      const markers: MarkerKey[] = required.map((marker) => ({
-        operationIndex: marker.operationIndex,
-        valuePointer: marker.valuePointer,
-      }));
       this.options.store.verifyAll({
         toolName: input.toolName,
-        toolCallId: input.toolCallId,
+        toolCallId: recordKey,
         executedArgs: input.args,
         requiredMarkers: markers,
         catalogGeneration: this.options.catalogGeneration(),
       });
-      const claimed = this.options.store.consumeAll(input.toolCallId, markers);
+      const claimed = this.options.store.consumeAll(recordKey, markers);
       return { ok: true, args: substitute(input.args, claimed) };
     } catch (error) {
       // Any failure discards every record for the call and releases every frozen value. No
       // surviving member is left for a retry: a retry re-mints the whole set, so the human
       // re-approves the whole commit.
-      this.options.store.discardAll(input.toolCallId);
+      this.options.store.discardAll(recordKey);
       const failure = toCommitError(error);
       this.options.log?.(
         `[commit-auth] refused tool=${input.toolName} call=${input.toolCallId} code=${failure.code}`,
