@@ -236,6 +236,28 @@ describe("decideDesktopGate", () => {
             ),
         ).toEqual({kind: "pass"})
     })
+    // The gate ships DEFAULT OFF, so a mobile SSO sign-in only ever completes if the handback
+    // runs regardless of the flag. It used to sit below the gate-disabled return.
+    it("hands a mobile-started callback to /m even when the gate is disabled", () => {
+        const i = input({
+            pathname: "/auth/callback/google",
+            search: "?code=abc&state=xyz",
+            headers: docHeaders(MOBILE_UA),
+        })
+        i.gateEnabled = false
+        i.cookie = (name) => (name === MOBILE_AUTH_CALLBACK_COOKIE ? "1" : undefined)
+        expect(decideDesktopGate(i)).toEqual({
+            kind: "redirect",
+            location: "/m/auth/callback/google?code=abc&state=xyz",
+        })
+    })
+
+    it("leaves an ordinary callback alone when the gate is disabled", () => {
+        const i = input({pathname: "/auth/callback/google", headers: docHeaders(MOBILE_UA)})
+        i.gateEnabled = false
+        expect(decideDesktopGate(i)).toEqual({kind: "pass"})
+    })
+
     it("lets ?view=desktop win over the callback marker", () => {
         const i = input({
             pathname: "/auth/callback/google",

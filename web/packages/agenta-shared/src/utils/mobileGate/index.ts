@@ -154,11 +154,30 @@ function stripViewParam(pathname: string, search: string): string {
 /** Forward gate: runs in the DESKTOP apps. Sees no /m traffic behind Traefik. */
 export function decideDesktopGate(input: GateInput): GateDecision {
     try {
+        // `?view=desktop` outranks everything below, including the callback handback: it is the
+        // user saying "keep me here", and it must still win now that the callback check runs
+        // before the flag.
+        const wantsDesktop = new URLSearchParams(input.search).get(VIEW_PARAM) === "desktop"
+
+        // BEFORE the flag: a provider redirect the MOBILE app started has to reach /m whether or
+        // not the device gate is on. The cookie is an explicit intent set by /m moments earlier,
+        // not a device heuristic, and the OAuth state lives in /m's same-origin sessionStorage.
+        // The gate defaults OFF, so gating this stranded every mobile SSO sign-in on the desktop
+        // route, where the state it needs does not exist.
+        if (
+            !wantsDesktop &&
+            isDocumentNavigation(input) &&
+            AUTH_CALLBACK_RE.test(input.pathname) &&
+            input.cookie(MOBILE_AUTH_CALLBACK_COOKIE)
+        ) {
+            return {kind: "redirect", location: `/m${input.pathname}${input.search}`}
+        }
+
         if (!input.gateEnabled) return {kind: "pass"}
         if (!isDocumentNavigation(input)) return {kind: "pass"}
 
         // Escape hatch: "View desktop site" links carry ?view=desktop.
-        if (new URLSearchParams(input.search).get(VIEW_PARAM) === "desktop") {
+        if (wantsDesktop) {
             return {
                 kind: "set-cookie-redirect",
                 cookie: MOBILE_OPTOUT_COOKIE,
@@ -167,19 +186,8 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             }
         }
 
-        if (DESKTOP_EXCEPTIONS.some((re) => re.test(input.pathname))) {
-            // A provider redirect the MOBILE app started: hand it to /m verbatim
-            // (path + query) so /m/auth/callback can run signInAndUp against the
-            // same-origin sessionStorage state. Device-independent on purpose —
-            // the cookie is the intent, a desktop UA can be opted into /m.
-            if (
-                AUTH_CALLBACK_RE.test(input.pathname) &&
-                input.cookie(MOBILE_AUTH_CALLBACK_COOKIE)
-            ) {
-                return {kind: "redirect", location: `/m${input.pathname}${input.search}`}
-            }
-            return {kind: "pass"}
-        }
+        // The mobile-started callback is handled above, before the flag.
+        if (DESKTOP_EXCEPTIONS.some((re) => re.test(input.pathname))) return {kind: "pass"}
         // A one-time token completes where it landed; see isTokenBearingAuthLink.
         if (isTokenBearingAuthLink(input.pathname, input.search)) return {kind: "pass"}
         // Same reasoning for a policy error; see isPolicyAuthLink.
