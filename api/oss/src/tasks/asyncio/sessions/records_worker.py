@@ -5,7 +5,7 @@ from redis.asyncio import Redis
 
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.streaming import deserialize_record
-from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
+from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
@@ -46,7 +46,7 @@ class RecordsWorker(StreamConsumer):
         max_block_ms: int = 5000,
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
-        watch_publisher: Optional[SessionsWatchPublisher] = None,
+        watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
     ):
         super().__init__(
             redis_client=redis_client,

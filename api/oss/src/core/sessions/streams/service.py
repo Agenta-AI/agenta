@@ -25,7 +25,7 @@ from oss.src.dbs.redis.sessions.contract import (
     WATCH_LIFECYCLE_RUNNING,
     validate_session_id as _validate_session_id_fn,
 )
-from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
+from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.dbs.redis.sessions.locks import (
     acquire_alive,
     acquire_running,
@@ -80,7 +80,7 @@ class SessionStreamsService:
         *,
         streams_dao: SessionStreamsDAOInterface,
         lock_engine: LockEngine,
-        watch_publisher: Optional[SessionsWatchPublisher] = None,
+        watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
     ) -> None:
         self._dao = streams_dao
         self._lock = lock_engine

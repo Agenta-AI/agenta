@@ -16,7 +16,7 @@ from oss.src.dbs.redis.sessions.contract import (
     WATCH_INTERACTION_PENDING,
     WATCH_INTERACTION_RESOLVED,
 )
-from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
+from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 
 
 class SessionInteractionsService:
@@ -24,7 +24,7 @@ class SessionInteractionsService:
         self,
         *,
         interactions_dao: SessionInteractionsDAOInterface,
-        watch_publisher: Optional[SessionsWatchPublisher] = None,
+        watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
     ) -> None:
         self.interactions_dao = interactions_dao
         self._watch = watch_publisher
