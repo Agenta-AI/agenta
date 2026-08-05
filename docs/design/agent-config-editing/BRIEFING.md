@@ -146,8 +146,11 @@ only because OUR tool server never announces that it supports the capability (on
 missing flag). Pi has live APIs to register and hide tools mid-session; they are
 unreachable only because WE deliver Pi's tool list in a process environment variable,
 which is read once at startup and can never change. Only Codex genuinely bakes its
-tool configuration at session creation and needs a reopen. Consequence: live tool
-updates are mostly our work, not the harnesses' work.
+tool configuration at session creation and needs a reopen. Consequence: we feared
+live tool updates would need changes in the harnesses, which are other people's
+software we cannot patch. They do not. Every missing piece is in our own
+repository, and we can ship it whenever we choose. Only Codex stays on a session
+reopen.
 
 **Finding 2: the approval pause could leave a session running stale instructions.**
 Context: when a run stops and waits for your approval, the session is parked. The
