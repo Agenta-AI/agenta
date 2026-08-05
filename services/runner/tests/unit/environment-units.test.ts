@@ -149,7 +149,13 @@ describe("workspace manager: the public surface", () => {
     const result = await workspaceManager.materialize(
       {
         sandbox: { id: "sbx" },
-        plan: { marker: "the-plan" } as never,
+        plan: {
+          marker: "the-plan",
+          isPi: false,
+          acpAgent: "claude",
+          prompt: { agentsMd: "body" },
+          workspace: { cwd: "/run/cwd", skillDirs: [] },
+        } as never,
         piSkillSnapshot: { marker: "snapshot" } as never,
         log: () => {},
       },
@@ -160,35 +166,29 @@ describe("workspace manager: the public surface", () => {
         }) as never,
       },
     );
-    assert.equal(result, fake);
+    // Step 6: materialize now returns a ManagedWorkspace — the writer's handle PLUS the
+    // inventory of what it wrote — so it is no longer reference-equal to the raw result.
+    assert.equal(result.cleanup, fake.cleanup, "the writer's handle is carried through");
+    assert.equal(result.inventory.instructionsFile, "CLAUDE.md");
     assert.equal(seen.length, 1);
     const input = seen[0] as Record<string, unknown>;
-    assert.deepEqual(input.plan, { marker: "the-plan" });
+    assert.equal((input.plan as { marker: string }).marker, "the-plan");
     assert.deepEqual(input.sandbox, { id: "sbx" });
   });
 
-  it("refresh is DECLARED but not implemented, and says so", async () => {
-    // Step 5 is a structural split with zero behavior change. The entry exists so step 6 is a
-    // routing change; throwing is what keeps it from being wired by accident.
-    await assert.rejects(
-      () =>
-        workspaceManager.refresh(
-          { sandbox: {}, plan: {} as never, log: () => {} },
-          { files: new Map(), skillDirs: [] },
-        ),
-      (err: Error) => /not implemented/.test(err.message),
-    );
-  });
-
   it("refresh takes a complete manifest, because deletion needs one", () => {
-    // A delta cannot express a removal: it cannot tell "unchanged" from "gone". The manifest
-    // shape is what lets step 6 delete a skill directory that left the request.
+    // DELIBERATE EDIT. Step 5 asserted `refresh` threw "not implemented"; step 6 implements it.
+    // A delta cannot express a removal — it cannot tell "unchanged" from "gone" — so the manifest
+    // is a complete statement and the previous inventory is what makes deletion decidable.
     const manifest: workspaceManager.WorkspaceManifest = {
-      files: new Map([["AGENTS.md", "body"]]),
-      skillDirs: ["pdf-tools"],
+      instructions: "body",
+      skills: [{ name: "pdf-tools", dir: "/tmp/pdf-tools" }],
     };
-    assert.equal(manifest.files.get("AGENTS.md"), "body");
-    assert.deepEqual([...manifest.skillDirs], ["pdf-tools"]);
+    assert.equal(manifest.instructions, "body");
+    assert.deepEqual(
+      manifest.skills.map((s) => s.name),
+      ["pdf-tools"],
+    );
   });
 
   it("cleanup swallows a failing cleanup and tolerates no workspace", async () => {
