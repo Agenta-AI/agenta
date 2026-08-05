@@ -833,6 +833,38 @@ The base check in `commit-transaction.md` section 6 still runs. It catches a hea
 between the approval and the commit. It does not substitute for fetching the correct old side,
 because it compares revision identifiers and never compares the text the human read.
 
+##### 8.4.2.1 How the runner obtains it, and why it is not a second projection
+
+`read_config` owns the projection of a target path out of a configuration — the same grammar the
+operation's target uses, selectors included. It answers for the variant's CURRENT head, and it
+carries no revision selector (`read-config.md` section 3).
+
+The runner therefore calls `read_config` for the operation's target and **requires the response's
+`base_revision_id` to equal the one the operation carries**. Equal means the head IS the base, so
+the projected text is the old side this operation replaces. Unequal fails the operation closed
+with `source_base_unavailable`.
+
+Two properties make this the implemented rule rather than a workaround.
+
+1. **One projection, so the card cannot address the wrong field.** The alternative considered was
+   fetching the whole revision by id and re-implementing the segment walk on the runner. That
+   duplicates `read_config`'s resolution logic in a second language, and a drift between the two
+   would show the old text of a DIFFERENT field while the card still looked correct — the same
+   silent-wrongness class this section exists to prevent, merely relocated. Section 2 of this
+   contract already records why the whole-revision retrieve endpoint is not the instrument for a
+   partial read.
+2. **The refusal blocks nothing that could have succeeded.** `base_revision_id` is a precondition
+   on the commit: when it is not the head, the commit itself answers 409 (`commit-transaction.md`
+   section 6). Requiring base to equal head at card time surfaces that same conflict one step
+   earlier, with the next step the model already knows — call `read_config`, re-anchor, resend.
+
+**Recorded fallback.** If that refusal is ever observed to bite in practice, the fix is additive
+and small: accept an optional `revision_id` on the `read_config` request and resolve by revision
+ref instead of variant head. The scope check, the projection, the refuse-don't-truncate rule, and
+the `children` behavior all apply unchanged, and nothing in the runner moves except deleting the
+equality check. It is deliberately NOT done pre-emptively, because it widens a model-facing
+read surface for a case no run has yet hit.
+
 #### 8.4.3 When the old text cannot be fetched: fail closed
 
 **Decided in answer to gate 3, arbitration ruling 1.** If the runner cannot obtain the old text

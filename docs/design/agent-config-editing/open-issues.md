@@ -57,3 +57,12 @@ reader can act on it cold.
   harness reads, not as text inside the stored instruction document.
 - Recorded together with the WHEN-to-commit skill guidance in the RFC artifact,
   section 9.
+
+## Build mode shows no readable approval card
+
+- Found by: engine-2 during S3b, 5 August 2026. Pre-existing dock behavior.
+- The approval dock's per-tool bodies render only in Chat mode with an entity id;
+  Build mode always falls back to the raw payload block. So a folder-import
+  approval in Build mode shows JSON, not the manifest and diff.
+- Fix direction: relax the renderer gating for manifest-carrying approvals, or
+  give Build mode a compact manifest body. Needs a small UX decision.
