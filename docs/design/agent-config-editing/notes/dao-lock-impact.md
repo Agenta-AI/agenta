@@ -197,6 +197,33 @@ Stated plainly, so the review does not over-read it:
   wins last-write. That is deliberate: shipped playbooks omit the base id, and refusing
   them would break them.
 
+### 5.1 Archive and unarchive sit outside the invariant, deliberately
+
+`archive_revision` and `unarchive_revision` (`dao.py:1223`, `dao.py:1265`) flip
+`deleted_at`, and `deleted_at` is what decides which revision is the head. Neither takes
+the variant lock, so head membership can change while a checked commit holds it.
+
+They stay outside for one reason: **no ordering of them can lose an update.** The lock and
+the re-read make the guard and the INSERT atomic with respect to each other, and archiving
+never inserts. The two orderings give:
+
+- archive commits first: the checked commit's re-read sees the older revision, so a caller
+  whose base was the archived head gets a 409 naming that older revision. The commit is
+  refused, not silently accepted on a base that moved.
+- archive commits second: the commit already landed on the head it expected, and the
+  archive applies to a revision that is no longer the head. Nothing is lost.
+
+An unarchive can likewise make an older revision the head again under a commit that already
+passed its check; the result is the same 409-or-nothing pair. So the failure mode is a
+spurious refusal, never a lost write, and a spurious refusal is what the retry loop in
+`contracts/commit-transaction.md` 6.1 already handles.
+
+Taking the lock in both would be defensible, and it is the right move if archiving ever
+grows an insert. It is not in this lane, because it would put a lock on two paths that no
+concurrency argument currently needs it on. `contracts/commit-transaction.md` section 12,
+open item 2, tracks the remaining question: whether archiving the head can make an older
+revision the base for a commit a caller built on the archived one.
+
 ## 6. Tests
 
 Two files, because the two things that need proving are different.
@@ -212,7 +239,12 @@ database:
 - an absent head conflicts with any expectation, and inserts nothing,
 - a fresh variant still commits when it passes no expectation,
 - neither conflict is swallowed by `suppress_exceptions`,
-- the lock timeout is set BEFORE the lock is taken, or it would not apply.
+- the lock timeout is set BEFORE the lock is taken, or it would not apply,
+- an EXPIRED wait raises `CommitLockTimeout` instead of returning `None`, in both the
+  wrapped and the bare driver-error shape, while every other database error keeps today's
+  suppressed behavior,
+- a locked select that matched no row refuses with `VariantNotFound` and inserts nothing,
+  so a missing or cross-project variant can never commit unlocked.
 
 **`test_commit_revision_race.py` (7 tests) pins the MECHANISM**, against a real Postgres
 with two live connections, marked `integration` and skipped when Postgres is unreachable:

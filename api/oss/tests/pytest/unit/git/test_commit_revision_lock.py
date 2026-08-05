@@ -18,7 +18,12 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.core.git.types import InitialRevisionConflict, RevisionConflict
+from oss.src.core.git.types import (
+    CommitLockTimeout,
+    InitialRevisionConflict,
+    RevisionConflict,
+    VariantNotFound,
+)
 
 
 class _Result:
@@ -32,12 +37,37 @@ class _Result:
         return self._value
 
 
+class _DriverError(Exception):
+    """A driver error carrying a SQLSTATE, the way asyncpg reports one."""
+
+    def __init__(self, sqlstate):
+        super().__init__(f"driver error {sqlstate}")
+        self.sqlstate = sqlstate
+
+
+class _WrappedDriverError(Exception):
+    """What SQLAlchemy raises: its own error with the driver's on `.orig`."""
+
+    def __init__(self, sqlstate):
+        super().__init__("statement failed")
+        self.orig = _DriverError(sqlstate)
+
+
 class _FakeSession:
     """Records the statements a commit issues, in order, and answers the guards."""
 
-    def __init__(self, *, revision_count=0, head_id=None):
+    def __init__(
+        self,
+        *,
+        revision_count=0,
+        head_id=None,
+        variant_exists=True,
+        lock_error=None,
+    ):
         self.revision_count = revision_count
         self.head_id = head_id
+        self.variant_exists = variant_exists
+        self.lock_error = lock_error
         self.executed = []
         self.added = []
         self.committed = False
@@ -46,7 +76,9 @@ class _FakeSession:
         text = str(statement)
         self.executed.append(text)
         if "FOR UPDATE" in text:
-            return _Result(None)
+            if self.lock_error is not None:
+                raise self.lock_error
+            return _Result(object() if self.variant_exists else None)
         if "count(" in text.lower():
             return _Result(self.revision_count)
         return _Result(self.head_id)
@@ -332,3 +364,72 @@ class TestBoundedWait:
             project_id=uuid4(), user_id=uuid4(), revision_commit=_commit()
         )
         assert not any("lock_timeout" in s for s in session.executed)
+
+    async def test_an_expired_wait_fails_loudly(self, dao_factory):
+        # The whole point of the bounded wait. Suppression would turn the timeout into
+        # `None`, which the commit wrapper reports as `status="committed", count: 0` — a
+        # successful empty commit for a commit that never happened.
+        head = uuid4()
+        session = _FakeSession(head_id=head, lock_error=_WrappedDriverError("55P03"))
+        dao = dao_factory(session)
+        with pytest.raises(CommitLockTimeout):
+            await dao.commit_revision(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                revision_commit=_commit(),
+                expected_head_revision_id=head,
+            )
+        assert session.added == []
+
+    async def test_a_bare_driver_timeout_is_translated_too(self, dao_factory):
+        # The SQLSTATE can arrive on the driver error itself rather than on a wrapper, so
+        # the translation walks the chain instead of trusting one shape.
+        session = _FakeSession(head_id=None, lock_error=_DriverError("55P03"))
+        with pytest.raises(CommitLockTimeout):
+            await dao_factory(session).commit_revision(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                revision_commit=_commit(),
+                initial=True,
+            )
+
+    async def test_another_database_error_is_still_suppressed(self, dao_factory):
+        # Only the timeout changes. Every other failure keeps today's behavior, so this
+        # lane cannot turn an unrelated error into a new exception for existing callers.
+        session = _FakeSession(head_id=None, lock_error=_WrappedDriverError("40001"))
+        revision = await dao_factory(session).commit_revision(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            revision_commit=_commit(),
+            initial=True,
+        )
+        assert revision is None
+
+
+class TestLockedRow:
+    async def test_a_missing_variant_refuses_instead_of_committing_unlocked(
+        self, dao_factory
+    ):
+        # `SELECT ... FOR UPDATE` on a row that is missing, or owned by another project,
+        # locks nothing and reports nothing. Ignoring that result would run every guard
+        # below unprotected and insert a revision against a variant this project has not.
+        session = _FakeSession(revision_count=0, variant_exists=False)
+        dao = dao_factory(session)
+        with pytest.raises(VariantNotFound):
+            await dao.commit_revision(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                revision_commit=_commit(),
+                initial=True,
+            )
+        assert session.added == []
+        assert session.committed is False
+
+    async def test_an_unchecked_commit_does_not_assert_the_row(self, dao_factory):
+        # It takes no lock, so it has no locked row to assert. Existing callers keep
+        # today's behavior exactly.
+        session = _FakeSession(variant_exists=False)
+        revision = await dao_factory(session).commit_revision(
+            project_id=uuid4(), user_id=uuid4(), revision_commit=_commit()
+        )
+        assert revision is not None

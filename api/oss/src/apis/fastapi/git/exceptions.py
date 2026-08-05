@@ -19,11 +19,13 @@ from functools import wraps
 from fastapi import HTTPException
 
 from oss.src.core.git.types import (
+    CommitLockTimeout,
     InitialRevisionConflict,
     InlineResolveInvalid,
     RetrieveRefsInconsistent,
     RetrieveRefsInsufficient,
     VariantForkError,
+    VariantNotFound,
 )
 
 
@@ -56,6 +58,22 @@ class RetrieveRefsInconsistentException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
+class CommitLockTimeoutException(HTTPException):
+    def __init__(
+        self,
+        message: str = "The variant is busy. No revision was committed.",
+    ):
+        super().__init__(status_code=503, detail=message)
+
+
+class VariantNotFoundException(HTTPException):
+    def __init__(
+        self,
+        message: str = "The variant does not exist in this project.",
+    ):
+        super().__init__(status_code=404, detail=message)
+
+
 class InlineResolveInvalidException(HTTPException):
     def __init__(
         self,
@@ -80,6 +98,10 @@ def handle_git_exceptions():
                 raise RetrieveRefsInconsistentException(message=e.message) from e
             except InlineResolveInvalid as e:
                 raise InlineResolveInvalidException(message=e.message) from e
+            except CommitLockTimeout as e:
+                raise CommitLockTimeoutException(message=e.message) from e
+            except VariantNotFound as e:
+                raise VariantNotFoundException(message=e.message) from e
 
         return wrapper
 

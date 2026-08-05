@@ -11,8 +11,10 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.git.types import (
     is_identifying,
+    CommitLockTimeout,
     InitialRevisionConflict,
     RevisionConflict,
+    VariantNotFound,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
@@ -54,6 +56,30 @@ log = get_module_logger(__name__)
 
 
 T = TypeVar("T")
+
+
+# Postgres reports `lock_timeout` expiry as `lock_not_available`.
+LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
+
+
+def _raise_on_lock_timeout(
+    exception: Exception,
+    *,
+    variant_id=None,
+) -> None:
+    """Translate an expired `lock_timeout` into `CommitLockTimeout`.
+
+    The SQLSTATE travels on the driver error that SQLAlchemy wraps, so walk the chain
+    rather than trusting one wrapper's shape. Left untranslated, generic suppression turns
+    the timeout into `None` and the caller reports a commit that never happened.
+    """
+    seen = exception
+    for _ in range(4):
+        if seen is None:
+            return
+        if getattr(seen, "sqlstate", None) == LOCK_NOT_AVAILABLE_SQLSTATE:
+            raise CommitLockTimeout(variant_id=variant_id) from exception
+        seen = getattr(seen, "orig", None) or getattr(seen, "__cause__", None)
 
 
 class GitDAO(GitDAOInterface):
@@ -1566,9 +1592,16 @@ class GitDAO(GitDAOInterface):
 
     # --------------------------------------------------------------------------
 
-    # A conflict is an ANSWER, not a failure: suppression would turn a 409 into `None`,
-    # and the caller would report "nothing committed" with no reason.
-    @suppress_exceptions(exclude=[InitialRevisionConflict, RevisionConflict])
+    # A refusal is an ANSWER, not a failure: suppression would turn a 409, a 503, or a 404
+    # into `None`, and the caller would report "nothing committed" with no reason.
+    @suppress_exceptions(
+        exclude=[
+            InitialRevisionConflict,
+            RevisionConflict,
+            CommitLockTimeout,
+            VariantNotFound,
+        ]
+    )
     async def commit_revision(
         self,
         *,
@@ -1631,7 +1664,7 @@ class GitDAO(GitDAOInterface):
                     )
                     # Lock the variant row so concurrent commits queue up rather than
                     # racing through the guards below.
-                    await session.execute(
+                    lock_result = await session.execute(
                         select(self.VariantDBE)  # type: ignore
                         .where(
                             self.VariantDBE.project_id == project_id,  # type: ignore
@@ -1639,6 +1672,10 @@ class GitDAO(GitDAOInterface):
                         )
                         .with_for_update()
                     )
+                    # A row that is missing, or owned by another project, locks nothing and
+                    # reports nothing. Continuing would run every guard below unprotected.
+                    if lock_result.scalar_one_or_none() is None:
+                        raise VariantNotFound(variant_id=revision_commit.variant_id)
 
                 if initial and revision_commit.variant_id:
                     guard_stmt = (
@@ -1737,6 +1774,8 @@ class GitDAO(GitDAOInterface):
                 return revision
 
         except Exception as e:
+            _raise_on_lock_timeout(e, variant_id=revision_commit.variant_id)
+
             check_entity_creation_conflict(e)
 
             raise
