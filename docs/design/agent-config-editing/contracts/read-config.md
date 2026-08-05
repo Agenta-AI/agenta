@@ -434,17 +434,37 @@ contract.
 
 ### 11.2 Where it runs
 
-The policy is a parameter of `apply_change_set`. The commit wrapper picks it from the
-caller:
+The policy is a parameter of `apply_change_set`, and the ROUTE decides which policy is
+passed. There are two commit routes over the same handler flow:
 
-| Caller | Policy |
-|---|---|
-| the `commit_revision` platform tool | `AGENT_COMMIT_SCOPE` |
-| a run override (RFC Q6, out of scope for v1) | `PARAMETERS_ONLY` |
-| a human or SDK caller on the API | none |
+| Route | Caller | Policy |
+|---|---|---|
+| `POST /api/workflows/revisions/commit/agent` | the `commit_revision` platform tool | `AGENT_COMMIT_SCOPE` |
+| `POST /api/workflows/revisions/commit` | a human or SDK caller | none |
+| (not built) a run override, RFC Q6 | out of scope for v1 | `PARAMETERS_ONLY` |
+
+The scoped route is the enforcement point, and the separation is what makes the
+confinement unforgeable. The agent never chooses the URL: the path comes from the
+server-side op catalog (`op_catalog.py`), the runner makes the call from OUTSIDE the
+sandbox, and the sandbox holds no credential. So an agent cannot reach the unscoped route,
+and there is no request field it could set or omit to widen its own scope. A signal carried
+in the request instead, such as a header the runner adds, would fail OPEN whenever it went
+missing; a route cannot go missing.
+
+**The unscoped route stays unscoped, by design.** A human editing in the playground and an
+SDK caller own the whole revision, including `harness` and `sandbox`. Narrowing that route
+would break every non-agent writer, and it protects nothing: those callers hold real
+credentials and are already authorized for `EDIT_WORKFLOWS`.
+
+The scoped route also refuses a full-data commit (422, `full_data_not_committable`): a whole
+configuration carries every field the scope exists to protect, so the shape is refused
+rather than filtered. The agent's tool only ever sends a delta.
 
 The refusal is 422 with `out_of_scope`, and it is not retryable
-(`change-set.md` section 10).
+(`change-set.md` section 10). Both delta arms are scoped: the ordered arm checks every
+operation's target, and the legacy arm walks the `set` tree deep enough to reach the
+refused sub-paths, which are deeper than the allowed prefix. The refusal names the path it
+refused, and its `next_step` names the subtree the agent may write.
 
 ### 11.3 A note on defence in depth
 

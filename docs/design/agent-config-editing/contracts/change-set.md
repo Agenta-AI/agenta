@@ -592,7 +592,13 @@ A warning is structured:
 
 - A collection is **item-touched** when an item operation names it.
 - A collection is **branch-touched** when a `set`, `merge`, `remove`, or a legacy `set`
-  writes it or an ancestor. A full-data commit branch-touches everything.
+  writes it or an ancestor. A full-data commit branch-touches everything. A write INSIDE a
+  selected entry also branch-touches the list that entry belongs to, because it can change
+  the entry's own key and collide with a sibling.
+- A collection nested in a keyed list is identified by its parent's key as well as its own
+  name: `skills[alpha].files` and `skills[beta].files` are two collections, and neither
+  answers for the other. Without the parent key they collapse into one and the last entry
+  in the list decides the outcome for every entry.
 
 1. An item-touched collection must end with no duplicate key: `duplicate_item_key`.
 2. A branch-touched collection must not GAIN a duplicate. A key whose duplicate count rises
