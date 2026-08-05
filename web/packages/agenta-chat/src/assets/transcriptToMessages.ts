@@ -1,7 +1,16 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/transcriptToMessages.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+// Copied from web/oss/src/components/AgentChatSlice/assets/transcriptToMessages.ts (2026-07-25);
+// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
+//
+// Re-synced 2026-08-03 to full parity with the original: the approval-resume handling (pause
+// folding, the resumed settle pass, tool-call dedup, re-raise under a new toolCallId) — without
+// which a resumed turn replays as still parked and the reload keeps the approval dock up — and
+// user-attachment parts + `filename` on file parts, without which a message that carried files
+// replays as bare text.
+//
+// `attachmentContentUrl` is the package's own copy of the original's `attachmentMedia.ts`
+// builder, on `@agenta/shared/api` rather than the OSS app layer.
 import type {SessionRecord} from "@agenta/entities/session"
+import {getAgentaApiUrl} from "@agenta/shared/api"
 import type {UIMessage} from "ai"
 
 /**
@@ -20,6 +29,12 @@ import type {UIMessage} from "ai"
  */
 
 type Part = Record<string, unknown>
+
+/** Content URL for one durable attachment. Mirrors the OSS original's `attachmentMedia.ts`. */
+export function attachmentContentUrl(sessionId: string, attachmentId: string): string {
+    const params = new URLSearchParams({session_id: sessionId})
+    return `${getAgentaApiUrl()}/sessions/attachments/${encodeURIComponent(attachmentId)}/content?${params.toString()}`
+}
 
 // Mirrors services/runner/src/tracing/otel.ts; park sentinels report skipped or unobserved work, not final results.
 export const DEFERRED_NOT_EXECUTED_PREFIX = "DEFERRED_NOT_EXECUTED"
@@ -41,6 +56,11 @@ interface DraftMessage {
     traceId?: string
     /** Token/cost totals from the turn's persisted `usage` event, in the raw stream shape. */
     usage?: {input?: number; output?: number; total?: number; cost?: number}
+    /** The turn's terminal `done` carried `stopReason:"paused"` — it ended mid-approval, not at a
+     *  real boundary. Surfaced on the message so a cold reload's adoption heuristic can compare state. */
+    paused?: boolean
+    /** The turn paused for approval and then RESUMED to completion (a second, non-paused `done`). */
+    resumed?: boolean
 }
 
 interface TranscriptIndex {
@@ -110,6 +130,7 @@ function applyEvent(
     draft: DraftMessage,
     payload: Record<string, unknown>,
     index: TranscriptIndex,
+    sessionId: string,
 ): void {
     const type = payload.type as string | undefined
     const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v))
@@ -117,6 +138,25 @@ function applyEvent(
     switch (type) {
         case "message": {
             draft.parts.push({type: "text", text: str(payload.text)})
+            const attachments = Array.isArray(payload.attachments) ? payload.attachments : []
+            for (const raw of attachments) {
+                if (!raw || typeof raw !== "object") continue
+                const attachment = raw as Record<string, unknown>
+                const attachmentId = str(attachment.attachmentId)
+                if (!attachmentId) continue
+                draft.parts.push({
+                    type: "file",
+                    url: attachmentContentUrl(sessionId, attachmentId),
+                    mediaType: str(attachment.mediaType) || "application/octet-stream",
+                    filename: str(attachment.filename) || undefined,
+                    providerMetadata: {
+                        agenta: {
+                            attachmentId,
+                            size: typeof attachment.size === "number" ? attachment.size : undefined,
+                        },
+                    },
+                })
+            }
             return
         }
         case "message_start": {
@@ -147,6 +187,14 @@ function applyEvent(
         }
         case "tool_call": {
             const toolCallId = str(payload.id)
+            const existing = index.tools.get(toolCallId)
+            if (existing) {
+                // A resume re-emits the approved call with the same toolCallId. Update the existing
+                // part (kept across the pause boundary) in place instead of rendering a duplicate;
+                // its tool_result then settles that one part to a single ✓.
+                if (payload.input !== undefined) existing.input = payload.input
+                return
+            }
             const part: Part = {
                 type: toolPartType(payload.name as string),
                 toolCallId,
@@ -214,18 +262,30 @@ function applyEvent(
             const responsePayload = (payload.payload ?? {}) as Record<string, unknown>
             const responseId = str(payload.id)
             const toolCallId = str(responsePayload.toolCallId)
+            // A cold resume re-raises the approved call under a NEW toolCallId, so the interaction
+            // id (identical on request and response by contract) is the reliable key to the gate.
             const part =
-                (toolCallId ? index.tools.get(toolCallId) : undefined) ??
-                index.approvals.get(responseId)
-            if (
-                !part ||
-                part.state !== "approval-requested" ||
-                typeof responsePayload.approved !== "boolean"
-            ) {
-                return
+                index.approvals.get(responseId) ??
+                (toolCallId ? index.tools.get(toolCallId) : undefined)
+            if (!part || typeof responsePayload.approved !== "boolean") return
+            if (part.state === "approval-requested") {
+                part.state = "approval-responded"
+                part.approval = {id: responseId, approved: responsePayload.approved}
             }
-            part.state = "approval-responded"
-            part.approval = {id: responseId, approved: responsePayload.approved}
+            if (!toolCallId || toolCallId === str(part.toolCallId)) return
+            // Re-raised under a new id: point that id at the gated part and fold in the duplicate
+            // it created — an executed result supersedes the approval-responded state.
+            const duplicate = index.tools.get(toolCallId)
+            index.tools.set(toolCallId, part)
+            if (!duplicate || duplicate === part) return
+            const at = draft.parts.indexOf(duplicate)
+            if (at >= 0) draft.parts.splice(at, 1)
+            if (duplicate.input !== undefined) part.input = duplicate.input
+            if (typeof duplicate.state === "string" && duplicate.state.startsWith("output-")) {
+                part.state = duplicate.state
+                if (duplicate.output !== undefined) part.output = duplicate.output
+                if (duplicate.errorText !== undefined) part.errorText = duplicate.errorText
+            }
             return
         }
         case "file": {
@@ -233,6 +293,7 @@ function applyEvent(
                 type: "file",
                 url: str(payload.url),
                 mediaType: str(payload.mediaType),
+                filename: str(payload.filename) || undefined,
             })
             return
         }
@@ -286,7 +347,23 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
         // this every turn folds into one assistant bubble; closing the draft here starts a
         // fresh message per turn.
         if (row.session_update === "done" || p.type === "done") {
-            if (current && traceId && !current.traceId) current.traceId = traceId
+            // Last-wins: a paused turn folds into its resume (below), and that turn has two `done`s
+            // with two traceIds — prefer the RESUME trace, where the approved tool actually executed.
+            // A normal turn has a single `done`, so this is unchanged for it.
+            if (current && traceId) current.traceId = traceId
+            if (current && p.stopReason === "paused") {
+                // Paused mid-approval: the resume turn's records (the re-emitted call, its result,
+                // the follow-up text) belong to the SAME assistant turn the user saw live, so keep
+                // the draft OPEN and let them fold into it instead of splitting into a dangling
+                // "awaiting approval" bubble + a resumed bubble. A paused turn blocks the session,
+                // so it's always followed by its own resume or is the last (abandoned) turn. Mark it
+                // paused for the adoption heuristic; the normal `done` below clears it on resume.
+                current.paused = true
+                continue
+            }
+            // A resumed-then-completed turn is no longer paused.
+            if (current?.paused) current.resumed = true
+            if (current) current.paused = false
             current = null
             continue
         }
@@ -296,7 +373,18 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
-        applyEvent(current, p, index)
+        applyEvent(current, p, index, row.session_id)
+    }
+
+    // A RESUMED turn's gate was answered by definition — the runner only emits post-pause records
+    // once the user responded (a deny settles its own part via `tool_result denied`). The durable
+    // log doesn't always persist the `interaction_response`, so settle whatever is left awaiting:
+    // otherwise a completed turn replays as still parked and the reload keeps the approval dock up.
+    for (const d of drafts) {
+        if (!d.resumed) continue
+        for (const part of d.parts) {
+            if (part.state === "approval-requested") part.state = "approval-responded"
+        }
     }
 
     const messages = drafts
@@ -308,6 +396,7 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             const metadata: Record<string, unknown> = {}
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
+            if (d.paused) metadata.paused = true
             return {
                 id: d.id,
                 role: d.role,

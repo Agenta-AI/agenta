@@ -120,3 +120,262 @@ describe("transcriptToMessages", () => {
         expect(messages?.[0].parts[0]).toMatchObject({state: "output-denied"})
     })
 })
+
+const approvalRecords = (): SessionRecord[] => [
+    record("record-call", {
+        type: "tool_call",
+        id: "tool-1",
+        name: "bash",
+        input: {command: "ls"},
+    }),
+    record("record-request", {
+        type: "interaction_request",
+        id: "approval-1",
+        kind: "user_approval",
+        payload: {toolCallId: "tool-1"},
+    }),
+]
+
+/**
+ * Ported from the OSS original (see the copy header): a resumed turn must not replay as still
+ * parked, or a reload keeps the approval dock up on a turn the user already answered.
+ */
+describe("transcriptToMessages approval resume", () => {
+    it("merges a paused turn with its resume into one message and settles the re-emitted call once", () => {
+        // Real cold-replay shape (verified against records): a Write call pauses for approval, the
+        // turn ends stopReason:"paused", then the resume turn RE-EMITS the same call id, settles it,
+        // and finishes. Reload must match the single live turn, not a dangling "awaiting" bubble.
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "write notes.md"}, "user"),
+            record("r-thought-1", {type: "thought", text: "let me write it"}),
+            record("r-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "Write",
+                input: {path: "notes.md"},
+            }),
+            record("r-req", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-done-paused", {
+                type: "done",
+                stopReason: "paused",
+                traceId: "trace-paused",
+            }),
+            // resume turn: re-emits the SAME call id, then settles it and finishes.
+            record("r-call-reemit", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "Write",
+                input: {path: "notes.md"},
+            }),
+            record("r-resp", {
+                type: "interaction_response",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", approved: true},
+            }),
+            record("r-result", {type: "tool_result", id: "tool-1", output: "written"}),
+            record("r-thought-2", {type: "thought", text: "done"}),
+            record("r-msg", {type: "message", text: "Done!"}),
+            record("r-done", {type: "done", traceId: "trace-resume"}),
+        ])
+
+        expect(messages).not.toBeNull()
+        // user + ONE merged assistant turn, not user + paused bubble + resumed bubble.
+        expect(messages).toHaveLength(2)
+        const assistant = messages![1]
+        expect(assistant.role).toBe("assistant")
+
+        // Exactly one Write tool part, settled to a single output-available — no duplicate.
+        const toolParts = (assistant.parts as unknown as Record<string, unknown>[]).filter(
+            (part) => "toolCallId" in part,
+        )
+        expect(toolParts).toHaveLength(1)
+        expect(toolParts[0]).toMatchObject({toolCallId: "tool-1", state: "output-available"})
+
+        // The resumed-and-completed turn is no longer flagged paused.
+        expect(
+            (assistant as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
+
+        // "View full trace" on the merged turn links to the RESUME trace (where the tool ran),
+        // not the paused turn's trace.
+        expect((assistant as unknown as {metadata?: {traceId?: string}}).metadata?.traceId).toBe(
+            "trace-resume",
+        )
+    })
+
+    it("settles a resumed turn's gate even when the log has no interaction_response", () => {
+        // Real shape of an approval answered on ANOTHER device (verified against `records`): the
+        // paused turn carries the request, the resume turn carries only thought/usage/message/done —
+        // no `interaction_response`, no re-emitted call, no `tool_result`. The gate must NOT replay
+        // as pending, or the desktop reload keeps showing "Approval needed to continue".
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            record("r-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "bash",
+                input: {command: "cat > hello.md"},
+            }),
+            record("r-req", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-thought", {type: "thought", text: "the user approved it"}),
+            record("r-msg", {type: "message", text: "Created hello.md"}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(messages).toHaveLength(2)
+        const assistant = messages![1]
+        const parts = assistant.parts as unknown as Record<string, unknown>[]
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+            approval: {id: "approval-1"},
+        })
+        expect(
+            (assistant as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
+    })
+
+    it("keeps a still-parked turn's gate pending (no resume records yet)", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            ...approvalRecords(),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+        ])
+
+        const parts = messages![1].parts as unknown as Record<string, unknown>[]
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-requested",
+        })
+    })
+
+    it("leaves a denied call denied across the pause boundary", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            ...approvalRecords(),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-result-denied", {type: "tool_result", id: "tool-1", denied: true}),
+            record("r-msg", {type: "message", text: "Okay, skipping it."}),
+            record("r-done", {type: "done"}),
+        ])
+
+        const parts = messages![1].parts as unknown as Record<string, unknown>[]
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "output-denied",
+        })
+    })
+})
+
+/**
+ * Cold approval resume: the harness re-raises the approved call under a NEW toolCallId, so the
+ * response's `toolCallId` no longer matches the gated part. Only the interaction id still does.
+ */
+describe("transcriptToMessages cold approval resume (re-raised tool call id)", () => {
+    const pausedTurn = (): SessionRecord[] => [
+        record("r-user", {type: "message", text: "delete the file"}, "user"),
+        record("r-call-old", {
+            type: "tool_call",
+            id: "tool-old",
+            name: "bash",
+            input: {command: "rm x"},
+        }),
+        record("r-req", {
+            type: "interaction_request",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-old"},
+        }),
+        record("r-done-paused", {type: "done", stopReason: "paused"}),
+        record("r-call-new", {
+            type: "tool_call",
+            id: "tool-new",
+            name: "bash",
+            input: {command: "rm x"},
+        }),
+    ]
+
+    const response = (approved: boolean): SessionRecord =>
+        record("r-resp", {
+            type: "interaction_response",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-new", approved},
+        })
+
+    const errorResult = (): SessionRecord =>
+        record("r-result", {
+            type: "tool_result",
+            id: "tool-new",
+            output: "boom",
+            isError: true,
+        })
+
+    const toolParts = (records: SessionRecord[]): Record<string, unknown>[] => {
+        const messages = transcriptToMessages(records)
+        expect(messages).not.toBeNull()
+        return (messages ?? [])
+            .flatMap((message) => message.parts as unknown as Record<string, unknown>[])
+            .filter((part) => "toolCallId" in part)
+    }
+
+    it("settles the gated part when the response arrives before the re-raised result", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            response(true),
+            errorResult(),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-error",
+            errorText: "boom",
+            approval: {id: "approval-1", approved: true},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+
+    it("settles the gated part when the re-raised result arrives before the response", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            errorResult(),
+            response(true),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-error",
+            errorText: "boom",
+            approval: {id: "approval-1", approved: true},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+
+    it("resolves a denied re-raised call to output-denied", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            response(false),
+            record("r-result", {type: "tool_result", id: "tool-new", denied: true}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-denied",
+            approval: {id: "approval-1", approved: false},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+})
