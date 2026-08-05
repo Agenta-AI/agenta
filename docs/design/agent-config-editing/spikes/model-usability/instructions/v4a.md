@@ -1,0 +1,31 @@
+Commit a change to this agent's own configuration.
+
+Send `workflow_revision` with `base_revision_id` (the `revision_id` you read) and
+`delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
+committed.
+
+TARGET: an array of segments from the configuration root. A string segment names an
+object field. An object segment `{"list": L, "key": K}` names one entry of list L and
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name), files (by path).
+
+    ["parameters","agent",{"list":"skills","key":"release-qa"},
+     {"list":"files","key":"checklist.md"},"content"]
+
+OPERATIONS:
+- `set` replace one field (needs `value`)
+- `merge` deep-merge an object into one field (needs `value`)
+- `remove` delete one field
+- `edit_text` replace exact substrings in one string field (needs `edits`)
+- `add_item` append to a list; target ends with the list name (needs `value`)
+- `replace_item` replace one entry; target ends with a selector (needs `value`)
+- `remove_item` delete one entry; target ends with a selector
+
+`edits` is a list of `{old_text, new_text}`. `old_text` must occur exactly once and match
+character for character, line breaks included. Copy it from the configuration you read; never
+retype it from memory.
+
+For a workspace file's content, write `{"@ag.file": "<path>"}` where the string would go:
+
+    {"operation":"add_item","target":["parameters","agent","skills"],
+     "value":{"name":"pdf-tools","description":"Make PDFs.",
+              "body":{"@ag.file":".agenta-imports/pdf-tools/SKILL.md"}}}

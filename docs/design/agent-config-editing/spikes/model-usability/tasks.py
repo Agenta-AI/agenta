@@ -60,10 +60,12 @@ BASE_CONFIG: Dict[str, Any] = {
                     "name": "release-qa",
                     "description": "Run the release QA suite.",
                     "body": RELEASE_QA_BODY,
+                    "allow_executable_files": False,
                     "files": [
                         {
                             "path": "checklist.md",
                             "content": "- [ ] smoke suite\n- [ ] deploy logs\n",
+                            "executable": False,
                         }
                     ],
                 },
@@ -71,12 +73,14 @@ BASE_CONFIG: Dict[str, Any] = {
                     "name": "changelog-writer",
                     "description": "Write the changelog.",
                     "body": CHANGELOG_BODY,
+                    "allow_executable_files": False,
                     "files": [],
                 },
                 {
                     "name": "triage",
                     "description": "Triage incoming issues.",
                     "body": "# Triage\n\nLabel the issue. Assign a priority.\n",
+                    "allow_executable_files": False,
                     "files": [],
                 },
             ],
@@ -111,14 +115,23 @@ NEW_HEAD_REVISION_ID = "019c8a10-0000-7000-8000-000000000002"
 
 # The simulated workspace the runner can read. Keys are paths relative to the repo root.
 WORKSPACE: Dict[str, str] = {
-    "imports/pdf-tools/SKILL.md": (
+    ".agenta-imports/pdf-tools/SKILL.md": (
         "---\nname: pdf-tools\ndescription: Make and merge PDF files.\n---\n"
         "# PDF tools\n\nMake and merge PDF files.\n\n"
         "Use `pdftk` to merge. Use `weasyprint` to render HTML to PDF.\n"
     ),
-    "imports/pdf-tools/reference.md": (
+    ".agenta-imports/pdf-tools/reference.md": (
         "# Reference\n\n- merge: `pdftk a.pdf b.pdf cat output out.pdf`\n"
         "- render: `weasyprint in.html out.pdf`\n"
+    ),
+    ".agenta-imports/deploy-helper/SKILL.md": (
+        "---\nname: deploy-helper\ndescription: Deploy the service.\n---\n"
+        "# Deploy helper\n\nRun `scripts/run.sh` to deploy.\n\n"
+        "Check the health endpoint afterwards.\n"
+    ),
+    ".agenta-imports/deploy-helper/scripts/run.sh": (
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        'echo "deploying $1"\ncurl -fsS "$DEPLOY_HOOK"\n'
     ),
     # The same folder, misplaced. Task (h) points here first.
     "scratch/pdf-tools/SKILL.md": (
@@ -127,7 +140,7 @@ WORKSPACE: Dict[str, str] = {
     ),
 }
 
-IMPORT_ROOT = "imports/"
+IMPORT_ROOT = ".agenta-imports/"
 
 
 # --------------------------------------------------------------------------------------
@@ -364,6 +377,37 @@ def check_k(config: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def check_l(config: Dict[str, Any]) -> Optional[str]:
+    skills = agent(config)["skills"]
+    skill = find(skills, "name", "deploy-helper")
+    if skill is None:
+        return f"the deploy-helper skill is missing; found {[s.get('name') for s in skills]}"
+    if len(skills) != 4:
+        return f"expected 4 skills, found {len(skills)}"
+    if "@ag.file" in str(skill):
+        return "an unresolved content marker survived into the config"
+
+    files = skill.get("files") or []
+    script = find(files, "path", "scripts/run.sh")
+    if script is None:
+        return f"scripts/run.sh is missing; found {[f.get('path') for f in files]}"
+    if "curl -fsS" not in (script.get("content") or ""):
+        return "scripts/run.sh does not carry the file content"
+
+    if script.get("executable") is not True:
+        return f"the file is not marked executable (executable={script.get('executable')!r})"
+    if skill.get("allow_executable_files") is not True:
+        return (
+            "the skill does not allow executable files "
+            f"(allow_executable_files={skill.get('allow_executable_files')!r})"
+        )
+
+    body = skill.get("body")
+    if not isinstance(body, str) or "scripts/run.sh" not in body:
+        return "the skill body does not carry the SKILL.md content"
+    return unchanged_except(config, allowed=["skills"])
+
+
 class Task:
     def __init__(
         self,
@@ -419,7 +463,7 @@ TASKS: List[Task] = [
     Task(
         "e",
         "add a skill from workspace files",
-        "I wrote a new skill in the workspace at imports/pdf-tools/. It has "
+        "I wrote a new skill in the workspace at .agenta-imports/pdf-tools/. It has "
         "SKILL.md (the skill body) and reference.md (a bundled file). Add it as a skill "
         "named pdf-tools with the description 'Make and merge PDF files.'. Do not "
         "retype the file contents; pull them from those paths.",
@@ -452,6 +496,15 @@ TASKS: List[Task] = [
         "contents; pull them from those paths.",
         check_h,
         recovery="import_root",
+    ),
+    Task(
+        "l",
+        "add a skill with an executable script",
+        "Add the deploy-helper skill from .agenta-imports/deploy-helper/. It has "
+        "SKILL.md (the skill body) and scripts/run.sh. Its scripts/run.sh must be "
+        "runnable as a program. Do not retype the file contents; pull them from those "
+        "paths.",
+        check_l,
     ),
     Task(
         "i",
