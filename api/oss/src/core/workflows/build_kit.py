@@ -6,6 +6,7 @@ from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SKILL,
     BUILD_AN_AGENT_SLUG,
 )
+from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_WORKFLOW_SLUG,
 )
@@ -22,9 +23,19 @@ REQUEST_CONNECTION_WORKFLOW_NAME = "Request connection"
 REQUEST_INPUT_WORKFLOW_SLUG = "__ag__request_input"
 REQUEST_INPUT_WORKFLOW_NAME = "Request input"
 
+# `read_config` is the read half of the read-then-edit loop, and without it a playground agent
+# can commit but never read what it is editing. It exists in the catalog only when ordered
+# operations are enabled, so membership is tested against the catalog itself rather than
+# re-reading the flag: an op name the catalog does not define raises `UnknownPlatformOpError`
+# for every build-kit resolution.
+_READ_CONFIG_OPS: tuple[str, ...] = (
+    ("read_config",) if "read_config" in PLATFORM_OPS else ()
+)
+
 # Cut ops stay catalog opt-ins.
 DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "discover_tools",
+    *_READ_CONFIG_OPS,
     "commit_revision",
     "annotate_trace",
     "query_spans",

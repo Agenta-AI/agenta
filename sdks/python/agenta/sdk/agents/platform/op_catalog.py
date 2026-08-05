@@ -771,7 +771,7 @@ _COMMIT_REVISION_DESCRIPTION_LEGACY = (
 # every error names a next step, and the selector key is `list`.
 _COMMIT_REVISION_DESCRIPTION_ORDERED = """Commit a change to this agent's own configuration.
 
-Send `workflow_revision` with `base_revision_id` (the `revision_id` you read) and
+Send `workflow_revision` with `base_revision_id` (the `base_revision_id` you read) and
 `delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
 committed.
 
@@ -819,7 +819,7 @@ Send `target.path`: an array of segments from the configuration root, the same s
     ["parameters","agent","llm"]
     ["parameters","agent",{"list":"skills","key":"release-qa"},"body"]
 
-The response carries `revision_id`. Copy it into your next commit's `base_revision_id`.
+The response carries `base_revision_id`. Copy it into your next commit's `base_revision_id`.
 If the head moved in between, the commit answers 409 and you read again.
 
 Text comes back exactly as stored, so an `old_text` you copy from it will match. A value
@@ -969,7 +969,7 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                         "base_revision_id": {
                             "type": "string",
                             "description": (
-                                "The revision_id you read. Required for `operations`."
+                                "The base_revision_id you read. Required for `operations`."
                             ),
                         }
                     }
