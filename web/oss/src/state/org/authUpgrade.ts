@@ -1,6 +1,18 @@
 import {atom} from "jotai"
 
-import type {AuthUpgradeDetail} from "@/oss/components/Sidebar/components/AuthUpgradeModal"
+/** Auth-upgrade payload from the org-access check. Lives here (state, not a component) so
+ * consumers of `authUpgradeAtom` don't pull a Sidebar component into their type graph. */
+export interface AuthUpgradeDetail {
+    message?: string
+    required_methods?: string[]
+    session_identities?: string[]
+    user_identities?: string[]
+    sso_providers?: {
+        id: string
+        slug: string
+        third_party_id?: string
+    }[]
+}
 
 /** localStorage keys shared by the switcher (writes) and the auth-redirect flow (reads). */
 export const AUTH_UPGRADE_ORG_KEY = "authUpgradeOrgId"

@@ -26,9 +26,8 @@ type Panel = "projects" | "orgs"
 const ROW_CLASS =
     "flex w-full items-center gap-2 h-8 px-2 rounded-md text-[13.5px] leading-none text-left cursor-pointer border-0 bg-transparent [font:inherit] text-[var(--ag-colorText)] hover:bg-[var(--ag-colorFillTertiary)] transition-colors"
 
-/** Taller than action rows so the avatar options breathe; shrink-0 stops the capped
- * scroll list from compressing rows instead of scrolling. */
-const ITEM_ROW_CLASS = "!h-8 shrink-0"
+/** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
+const ITEM_ROW_CLASS = "shrink-0"
 
 const CAPTION_CLASS =
     "px-2 pt-1.5 pb-1 text-[11.5px] font-medium text-[var(--ag-colorTextTertiary)] truncate"
@@ -83,8 +82,8 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
         () => (
             <div className="flex flex-col p-1">
                 <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
-                {/* Cap the list at 3 item rows (h-10 each); the rest scrolls. */}
-                <div className="flex h-[100px] flex-col overflow-y-auto">
+                {/* Cap the list at 3 item rows (h-8 each); the rest scrolls. */}
+                <div className="flex max-h-24 flex-col overflow-y-auto">
                     {projectsForOrg.map((proj) => {
                         const isActive =
                             proj.project_id === currentProject?.project_id &&
@@ -165,6 +164,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     </Row>
                     <button
                         type="button"
+                        aria-label="Close"
                         title="Close"
                         onClick={close}
                         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border-0 bg-transparent cursor-pointer text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)]"
@@ -173,8 +173,8 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     </button>
                 </div>
                 <div className={CAPTION_CLASS}>Organizations</div>
-                {/* Cap the list at 3 item rows (h-10 each); the rest scrolls. */}
-                <div className="flex max-h-[120px] flex-col overflow-y-auto">
+                {/* Cap the list at 3 item rows (h-8 each); the rest scrolls. */}
+                <div className="flex max-h-24 flex-col overflow-y-auto">
                     {orgOptions.map((org) => {
                         const isActive = org.id === currentOrg?.id
                         return (

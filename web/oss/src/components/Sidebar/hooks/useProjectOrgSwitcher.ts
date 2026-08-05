@@ -62,7 +62,10 @@ export const useProjectOrgSwitcher = () => {
 
     const effectiveSelectedId = selectedOrg?.id || selectedOrgId || orgs?.[0]?.id || null
 
-    const safeOrganizationList = Array.isArray(organizationList) ? organizationList : []
+    const safeOrganizationList = useMemo(
+        () => (Array.isArray(organizationList) ? organizationList : []),
+        [organizationList],
+    )
     const currentOrg = useMemo<SwitcherOrg | null>(() => {
         const match =
             safeOrganizationList.find((org) => org.id === effectiveSelectedId) ||
@@ -129,11 +132,8 @@ export const useProjectOrgSwitcher = () => {
             message.success("Project created")
             createProjectForm.resetFields()
             setCreateProjectOpen(false)
-            const workspaceKey =
-                createdProject?.workspace_id ||
-                createdProject?.organization_id ||
-                effectiveSelectedId ||
-                ""
+            // Only a real workspace id routes correctly; org id would build /w/<orgId>/... .
+            const workspaceKey = createdProject?.workspace_id || currentWorkspaceId || ""
             if (workspaceKey && createdProject?.project_id) {
                 navigateToProject(
                     workspaceKey,
@@ -201,18 +201,21 @@ export const useProjectOrgSwitcher = () => {
                     detail?.error === "AUTH_SSO_DENIED"
                 ) {
                     setAuthFlow("authing")
+                    // Write both keys before opening the modal so the SSO redirect can't
+                    // fire ahead of the identities write.
                     if (typeof window !== "undefined") {
                         window.localStorage.setItem(AUTH_UPGRADE_ORG_KEY, organizationId)
-                        Session.getAccessTokenPayloadSecurely()
-                            .then((payload) => {
-                                const sessionIdentities =
-                                    payload?.session_identities || payload?.sessionIdentities || []
-                                window.localStorage.setItem(
-                                    AUTH_UPGRADE_IDENTITIES_KEY,
-                                    JSON.stringify(sessionIdentities),
-                                )
-                            })
-                            .catch(() => null)
+                        try {
+                            const payload = await Session.getAccessTokenPayloadSecurely()
+                            const sessionIdentities =
+                                payload?.session_identities || payload?.sessionIdentities || []
+                            window.localStorage.setItem(
+                                AUTH_UPGRADE_IDENTITIES_KEY,
+                                JSON.stringify(sessionIdentities),
+                            )
+                        } catch {
+                            // identities are optional for the redirect
+                        }
                     }
                     setAuthUpgrade({open: true, orgId: organizationId, detail})
                     return

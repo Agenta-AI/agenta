@@ -25,10 +25,11 @@ const SidebarLogo = ({collapsed}: SidebarLogoProps) => {
                 collapsed ? "justify-center" : "px-3",
             ].join(" ")}
         >
+            {/* unoptimized: SVGs skip /_next/image, which rejects SVG without dangerouslyAllowSVG. */}
             {collapsed ? (
-                <Image src={symbolSrc} alt="Agenta" width={20} height={20} priority />
+                <Image src={symbolSrc} alt="Agenta" width={20} height={20} priority unoptimized />
             ) : (
-                <Image src={fullSrc} alt="Agenta" width={85} height={20} priority />
+                <Image src={fullSrc} alt="Agenta" width={85} height={20} priority unoptimized />
             )}
         </div>
     )
