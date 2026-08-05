@@ -276,3 +276,22 @@ handoff on 5 August. The original option text stays below for the record.
    scope section.) Recommended: no.
 6. **Store the authored operations for audit** (blocks S1b persistence design).
    Recommended: yes, on the revision commit record.
+
+## Agent scope enforcement seam (team-lead, 5 August final review, item E2)
+
+- Problem: `AGENT_COMMIT_SCOPE` (decisions 4 and 5: the agent may not write
+  `harness.kind`, `harness.permissions`, `runner.permissions`, `sandbox.kind`,
+  `sandbox.permissions`) existed but was never applied. The agent's commit is
+  relayed by the runner, which makes the HTTP call itself with a body identical
+  to a human's, so the API had no signal to scope on.
+- Rejected: a runner-minted header (fail-open: an omitted header silently grants
+  full scope) and moving the tool to handler mode (sound, but it changes the
+  transport after the execution-authorization wiring was verified against the
+  current relay branch; too much late churn).
+- Ruling: a scoped sibling route, `POST /api/workflows/revisions/commit/agent`,
+  same handler flow with the scope policy hard-applied on both delta arms and a
+  refusal of full-data commits. The op catalog points the agent's tool at this
+  route in both flag states. Fail-closed by construction: the model holds no API
+  credential and the path comes from server-side catalog code, so an unscoped
+  agent commit cannot be expressed. The human and SDK route stays unscoped by
+  design. Details: contracts/read-config.md §11.2.
