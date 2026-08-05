@@ -229,11 +229,11 @@ const ApprovalDock = ({
         }
     }, [approvals, resolvingIds])
 
-    // Friendly bodies are Chat-mode (maximized) sugar and need a revision to diff against;
-    // Build and the entityId-less host keep the exact-payload card.
+    // Friendly bodies run in BOTH modes: a raw payload is not a readable change, and Build is the
+    // default mode. They still need a revision to diff against, so the entityId-less host keeps
+    // the exact-payload card. Build gets the compact one-column shape (`compact` below).
     const chatMode = useAtomValue(chatPanelMaximizedAtom)
-    const renderer =
-        current && entityId && chatMode ? resolveApprovalRenderer(current.toolName) : null
+    const renderer = current && entityId ? resolveApprovalRenderer(current.toolName) : null
     // The manifest is a SIBLING of the payload, never inside it, so the generic card has to render
     // it itself: the frozen content is what the approval binds, in every mode. Skipped when a
     // specialized body is active, because that body renders the manifest already.
@@ -337,11 +337,11 @@ const ApprovalDock = ({
                             ) : null}
                         </div>
 
-                        {/* Identity + ask. Build keeps the raw tool name (debuggers steer by it);
-                            Chat folds a humanized name into one sentence — the raw name stays
-                            reachable via the tooltip and the payload expander. A friendly body
-                            (headline: null) already says what's happening — nothing extra. */}
-                        {!renderer && !chatMode ? (
+                        {/* Identity + ask. Build always keeps the raw tool name, friendly body or
+                            not (debuggers steer by it); Chat folds a humanized name into one
+                            sentence — the raw name stays reachable via the tooltip and the payload
+                            expander. A friendly body (headline: null) says the rest. */}
+                        {!chatMode ? (
                             <div className="flex min-w-0 items-center gap-2">
                                 <Text
                                     className="!text-xs !font-medium min-w-0 truncate"
@@ -387,6 +387,7 @@ const ApprovalDock = ({
                                 input={current.input}
                                 entityId={entityId}
                                 manifest={current.manifest}
+                                compact={!chatMode}
                                 fallback={<PayloadBlock input={current.input} />}
                             />
                         ) : (

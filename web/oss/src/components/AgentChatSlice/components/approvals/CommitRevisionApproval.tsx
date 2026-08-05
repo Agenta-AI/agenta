@@ -14,7 +14,9 @@ import {useAtomValue} from "jotai"
 import {type CallDescription, extractCallDescription} from "../../assets/toolDisplay"
 
 import ApprovedContentManifest, {parseApprovedContentManifest} from "./ApprovedContentManifest"
+import {parseRevisionOperations} from "./operationsPreview"
 import type {ApprovalBodyProps} from "./registry"
+import RevisionOperations from "./RevisionOperations"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))
@@ -40,7 +42,48 @@ const StatedIntent = ({intent}: {intent: CallDescription}) => (
     </div>
 )
 
-const CommitRevisionApproval = ({input, entityId, manifest, fallback}: ApprovalBodyProps) => {
+/** The saved commit message. Labelled, so a reader never takes it for the agent's stated intent. */
+const CommitMessage = ({
+    message,
+    long,
+    expanded,
+    onToggle,
+}: {
+    message: string
+    long: boolean
+    expanded: boolean
+    onToggle: () => void
+}) => (
+    <div className="flex min-w-0 flex-col gap-1">
+        <FieldLabel>Commit message</FieldLabel>
+        <div className="border-0 border-l-2 border-solid border-colorBorderSecondary pl-2.5">
+            <div
+                className={`whitespace-pre-line text-xs leading-relaxed text-colorTextSecondary ${
+                    long && !expanded ? "line-clamp-4" : ""
+                }`}
+            >
+                {message}
+            </div>
+            {long ? (
+                <button
+                    type="button"
+                    onClick={onToggle}
+                    className="mt-1 cursor-pointer border-0 bg-transparent p-0 text-[11px] text-colorTextTertiary transition-colors hover:text-colorText"
+                >
+                    {expanded ? "Show less" : "Show more"}
+                </button>
+            ) : null}
+        </div>
+    </div>
+)
+
+const CommitRevisionApproval = ({
+    input,
+    entityId,
+    manifest,
+    compact,
+    fallback,
+}: ApprovalBodyProps) => {
     const [messageExpanded, setMessageExpanded] = useState(false)
     const imported = useMemo(() => parseApprovedContentManifest(manifest), [manifest])
     // Rides at the TOP level of the input, beside `workflow_revision`: it describes the call, not
@@ -56,14 +99,37 @@ const CommitRevisionApproval = ({input, entityId, manifest, fallback}: ApprovalB
     const messageLong =
         !!message && (message.length > MESSAGE_CLAMP_CHARS || message.includes("\n"))
 
+    // Legacy `{set, remove}` delta: the entities classifier resolves it into commit-modal sections.
     const preview = useMemo(() => {
         if (!commit || !serverParams) return null
         return classifyRevisionDeltaChanges(serverParams, commit.delta)
     }, [commit, serverParams])
 
-    // No committed base yet or an unpreviewable delta — the exact payload is still the truth. The
-    // imported content still renders: it is what the approval binds.
-    if (!preview) {
+    // Ordered `{operations}` delta: the form the agent actually sends. The classifier above reads
+    // only the legacy arm and returns null for it, which is what dropped this card to raw JSON.
+    // Needs no serverParams: it describes the request, and reads the old side only if it can.
+    const operations = useMemo(
+        () => (commit ? parseRevisionOperations(commit.delta, serverParams) : null),
+        [commit, serverParams],
+    )
+
+    // A file-backed operation is presented by the manifest, which holds the frozen bytes and the
+    // runner's real diff. Describing it here as well would state the same change twice.
+    const describedOperations = useMemo(() => {
+        if (!operations) return null
+        const shown = imported ? operations.filter((operation) => !operation.fromFile) : operations
+        return shown.length ? shown : null
+    }, [operations, imported])
+
+    const changes = preview ? (
+        <AgentChangesSummary compact size="small" defaultOpen sections={preview.sections} />
+    ) : describedOperations ? (
+        <RevisionOperations operations={describedOperations} />
+    ) : null
+
+    // Nothing readable at all: no delta arm parsed and no imported content. The exact payload is
+    // the only truth left, so it becomes the body rather than sitting under an empty card.
+    if (!changes && !imported) {
         return (
             <>
                 {intent ? (
@@ -72,12 +138,29 @@ const CommitRevisionApproval = ({input, entityId, manifest, fallback}: ApprovalB
                     </div>
                 ) : null}
                 {fallback}
-                {imported ? (
-                    <div className="mt-3">
-                        <ApprovedContentManifest manifest={imported} />
-                    </div>
-                ) : null}
             </>
+        )
+    }
+
+    // Build mode: one column, and the change leads. The dock is narrower there, so a 2fr/3fr split
+    // would squeeze the diff into an unreadable strip.
+    if (compact) {
+        return (
+            <div className="flex min-w-0 flex-col gap-3">
+                {changes}
+                {imported ? <ApprovedContentManifest manifest={imported} /> : null}
+                {intent ? <StatedIntent intent={intent} /> : null}
+                {message ? (
+                    <CommitMessage
+                        message={message}
+                        long={messageLong}
+                        expanded={messageExpanded}
+                        onToggle={() => setMessageExpanded((s) => !s)}
+                    />
+                ) : null}
+                {/* Exact arguments stay one click away in Build, where debuggers expect them. */}
+                {fallback}
+            </div>
         )
     }
 
@@ -93,31 +176,16 @@ const CommitRevisionApproval = ({input, entityId, manifest, fallback}: ApprovalB
                 </div>
                 {intent ? <StatedIntent intent={intent} /> : null}
                 {message ? (
-                    <div className="flex min-w-0 flex-col gap-1">
-                        <FieldLabel>Commit message</FieldLabel>
-                        <div className="border-0 border-l-2 border-solid border-colorBorderSecondary pl-2.5">
-                            <div
-                                className={`whitespace-pre-line text-xs leading-relaxed text-colorTextSecondary ${
-                                    messageLong && !messageExpanded ? "line-clamp-4" : ""
-                                }`}
-                            >
-                                {message}
-                            </div>
-                            {messageLong ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setMessageExpanded((s) => !s)}
-                                    className="mt-1 cursor-pointer border-0 bg-transparent p-0 text-[11px] text-colorTextTertiary transition-colors hover:text-colorText"
-                                >
-                                    {messageExpanded ? "Show less" : "Show more"}
-                                </button>
-                            ) : null}
-                        </div>
-                    </div>
+                    <CommitMessage
+                        message={message}
+                        long={messageLong}
+                        expanded={messageExpanded}
+                        onToggle={() => setMessageExpanded((s) => !s)}
+                    />
                 ) : null}
             </div>
             <div className="flex min-w-0 flex-col gap-3 md:border-0 md:border-l md:border-solid md:border-colorBorderSecondary md:pl-6">
-                <AgentChangesSummary compact size="small" sections={preview.sections} />
+                {changes}
                 {imported ? <ApprovedContentManifest manifest={imported} /> : null}
             </div>
         </div>
