@@ -866,13 +866,48 @@ platform-tool rejection (11), the derived message (14), and the enriched error c
    excluded because they change length, and a length-changing normalization breaks the
    byte-exact write. If prose edits fail often on trailing whitespace, the answer is a
    length-preserving pre-check that reports the difference, not a folding match.
-2. **Unicode NFC against NFD** is likewise excluded. It is length-changing in the general
+2. **A bare LF does NOT fold to a space, and the reason is not length.** A single LF to a
+   single space is one code point to one code point, so it passes the length-preserving
+   test that excludes CRLF. It is excluded for a different and stronger reason.
+
+   Every other fold is a glyph variant: a smart quote and an ASCII quote are two spellings
+   of the same character, so the anchor and the stored span hold the same characters and
+   the model authored the whole span. An LF against a space is a **structural** difference.
+   The model believes the span is one line, and it writes `new_text` for that belief. The
+   write then replaces the matched span, so it deletes a line break the model never saw.
+
+   In the prose class that is not hypothetical. `agents_md` and skill bodies are Markdown,
+   and they routinely hold lists, headings, and fenced code, where a line break is meaning.
+   Two measured examples, from a model that only wanted to change one token:
+
+   ```text
+   "Steps:\n- item one\n- item two\n"   ->   "Steps:\n- item 1 - item two\n"
+   "```python\nx = 1\ny = 2\n```"        ->   "```python\nx = 3 y = 2\n```"
+   ```
+
+   The first silently merges a two-item list into one. The second silently turns valid
+   Python into a syntax error. Both are inside a prose-class field, and neither is
+   reported, because from the matcher's view the anchor matched once.
+
+   So the prose/code split does not contain this risk: prose documents EMBED code and
+   structure. **The observed failure (spike F.3.6, a stored soft-wrap newline against a
+   sent space) is handled by the enriched `text_not_found` instead** (12.4): it returns the
+   nearest lines, the model sees the real break, and it re-anchors. That costs one turn and
+   risks nothing.
+
+   A narrower rule could keep the win: fold an LF only when it is a soft wrap — not part of
+   a blank line, not before a Markdown block marker, and not inside a fence. It excludes
+   the list and heading cases, but not the fenced-code case without fence tracking, and it
+   puts state into the matcher, which is what this design has kept out. Revisit only if the
+   enriched error proves insufficient in measurement, and measure the corruption rate, not
+   only the success rate.
+3. **Unicode NFC against NFD** is likewise excluded. It is length-changing in the general
    case. Decision 1 chose exact storage, so a mixed-form field can only be repaired by
    rewriting it whole.
-3. **Product call 2, unique-name enforcement**, may still change section 9 rule 1.
-4. **Product call 6, storing the authored operations for audit**, would add a field to the
+4. **Product call 2, unique-name enforcement**, may still change section 9 rule 1.
+5. **Product call 6, storing the authored operations for audit**, would add a field to the
    commit record and interacts with section 14.
-5. **The four content classes in 5.6.1 are the fields we know today.** A later schema field
+6. **The four content classes in 5.6.1 are the fields we know today.** A later schema field
    needs a class. The classification must live in one place, beside the `item_key` table.
 
 ## 19. Decision history
