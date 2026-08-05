@@ -269,8 +269,10 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                     isFetchingMore={isFetchingNextPage}
                 />
             ) : (
-                // Regular list
+                // Regular list — listbox parent for the rows' role=option (axe aria-required-parent).
                 <div
+                    role="listbox"
+                    aria-label={currentLevelLabel}
                     className="overflow-auto"
                     style={{maxHeight: typeof maxHeight === "number" ? maxHeight : undefined}}
                 >

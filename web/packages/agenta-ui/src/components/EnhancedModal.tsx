@@ -109,6 +109,8 @@ interface ModalProps {
     open?: boolean
     confirmLoading?: boolean
     title?: React.ReactNode
+    /** Accessible name when `title` is null (a dialog must be named). @default "Dialog" */
+    "aria-label"?: string
     closable?: ModalClosable
     closeIcon?: React.ReactNode
     okText?: React.ReactNode
@@ -215,6 +217,7 @@ export function EnhancedModal(props: EnhancedModalProps) {
         style,
         maxHeight = "90vh",
         lazyRender = true,
+        "aria-label": ariaLabel,
     } = props
 
     const [shouldRender, setShouldRender] = useState(false)
@@ -333,7 +336,11 @@ export function EnhancedModal(props: EnhancedModalProps) {
                     <DialogHeader className="shrink-0 px-6 pb-2 pt-5" style={resolved?.header}>
                         <DialogTitle>{title}</DialogTitle>
                     </DialogHeader>
-                ) : null}
+                ) : (
+                    // A titleless modal still needs a name (axe aria-dialog-name); sr-only is
+                    // position:absolute so it takes no space.
+                    <DialogTitle className="sr-only">{ariaLabel ?? "Dialog"}</DialogTitle>
+                )}
                 <div
                     data-slot="modal-body"
                     className={cn(

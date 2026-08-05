@@ -8,12 +8,27 @@
  * This mirrors the Feedback Configuration UI from the debug section.
  */
 
-import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Field} from "@agenta/ui/ui"
+import {
+    Alert,
+    Button,
+    Field,
+    Input,
+    InputNumber,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Switch,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {Info, Plus, Trash} from "@phosphor-icons/react"
-import {Alert, Button, Input, InputNumber, Modal, Select, Switch, Tooltip, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -35,6 +50,12 @@ export const feedbackConfigModeAtomFamily = atomFamily((_entityId: string) =>
 // ============================================================================
 
 export type ResponseFormatType = "continuous" | "boolean" | "categorical"
+
+const RESPONSE_FORMAT_OPTIONS: {value: ResponseFormatType; label: string}[] = [
+    {value: "boolean", label: "Boolean (True/False)"},
+    {value: "continuous", label: "Continuous (Numeric Range)"},
+    {value: "categorical", label: "Categorical (Predefined Options)"},
+]
 
 export interface CategoricalOption {
     name: string
@@ -215,6 +236,9 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
     originalValue,
     entityId,
 }: FeedbackConfigurationControlProps) {
+    // Names the reasoning Switch from its adjacent visible text (axe button-name).
+    const reasoningLabelId = useId()
+
     // Parse value prop to config
     const parsedConfig = useMemo(() => parseJSONSchema(value), [value])
 
@@ -245,7 +269,6 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
         if (!value) return ""
         return typeof value === "string" ? value : JSON.stringify(value, null, 2)
     })
-    const [, contextHolder] = Modal.useModal()
 
     // Track the previous value to detect external changes (e.g., discard)
     const prevValueRef = useRef(value)
@@ -498,7 +521,6 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                         syncWithInitialValueChanges={true}
                     />
                 </div>
-                {contextHolder}
             </div>
         )
     }
@@ -513,24 +535,29 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                     tooltip="Choose the format for your evaluation results"
                 >
                     <Select
-                        style={{width: "100%"}}
                         value={responseFormat}
-                        onChange={handleResponseFormatChange}
+                        onValueChange={(v) => handleResponseFormatChange(v as ResponseFormatType)}
                         disabled={disabled}
-                        size="small"
-                        options={[
-                            {label: "Boolean (True/False)", value: "boolean"},
-                            {label: "Continuous (Numeric Range)", value: "continuous"},
-                            {label: "Categorical (Predefined Options)", value: "categorical"},
-                        ]}
-                    />
+                    >
+                        {/* Field's htmlFor lands on the Radix Root, not this button. */}
+                        <SelectTrigger size="sm" className="w-full" aria-label="Response Format">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {RESPONSE_FORMAT_OPTIONS.map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </Field>
             </div>
 
             {/* Boolean info */}
             {responseFormat === "boolean" && (
                 <Alert
-                    title="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
+                    message="The evaluator will provide a true (1) or false (0) response based on the feedback criteria."
                     type="info"
                     showIcon
                     className="mb-4"
@@ -542,7 +569,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                 <div className="mb-4 flex flex-col gap-3">
                     <Field label="Minimum" tooltip="The minimum value for the numeric score range">
                         <InputNumber
-                            style={{width: "100%"}}
+                            className="w-full"
                             value={minimum}
                             onChange={handleMinimumChange}
                             disabled={disabled}
@@ -550,7 +577,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                     </Field>
                     <Field label="Maximum" tooltip="The maximum value for the numeric score range">
                         <InputNumber
-                            style={{width: "100%"}}
+                            className="w-full"
                             value={maximum}
                             onChange={handleMaximumChange}
                             disabled={disabled}
@@ -564,24 +591,25 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                 <div className="mb-4">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1">
-                            <Typography.Text className="font-medium text-xs">
-                                Categories
-                            </Typography.Text>
-                            <Tooltip title="Define the possible category values for the evaluation">
-                                <Info
-                                    size={12}
-                                    className="text-gray-400 cursor-help"
-                                    aria-hidden="true"
-                                />
-                            </Tooltip>
+                            <span className="text-xs font-medium">Categories</span>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Info size={12} className="cursor-help text-gray-400" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        Define the possible category values for the evaluation
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
                         <Button
-                            size="small"
-                            type="dashed"
-                            icon={<Plus size={14} />}
+                            size="sm"
+                            variant="dashed"
                             onClick={addCategory}
                             disabled={disabled}
                         >
+                            <Plus size={14} />
                             Add
                         </Button>
                     </div>
@@ -590,6 +618,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                             <div key={index} className="flex gap-2 items-start">
                                 <Input
                                     placeholder="Name"
+                                    aria-label={`Category ${index + 1} name`}
                                     value={cat.name}
                                     onChange={(e) => updateCategory(index, "name", e.target.value)}
                                     disabled={disabled}
@@ -597,6 +626,7 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                 />
                                 <Input
                                     placeholder="Description"
+                                    aria-label={`Category ${index + 1} description`}
                                     value={cat.description}
                                     onChange={(e) =>
                                         updateCategory(index, "description", e.target.value)
@@ -604,13 +634,18 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
                                     disabled={disabled}
                                     className="flex-[2]"
                                 />
+                                {/* antd `type="text" danger`: chrome-less, colorError text,
+                                    colorErrorBg on hover — ghost + the error colour pair. */}
                                 <Button
-                                    type="text"
-                                    danger
-                                    icon={<Trash size={14} />}
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Remove category ${index + 1}`}
+                                    className="text-error hover:bg-error-bg hover:text-error-hover"
                                     onClick={() => removeCategory(index)}
                                     disabled={disabled || categories.length <= 1}
-                                />
+                                >
+                                    <Trash size={14} />
+                                </Button>
                             </div>
                         ))}
                     </div>
@@ -620,23 +655,30 @@ export const FeedbackConfigurationControl = memo(function FeedbackConfigurationC
             {/* Include reasoning */}
             <div className="flex items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-1">
-                    <Typography.Text className="font-medium text-xs">
+                    <span className="text-xs font-medium" id={reasoningLabelId}>
                         Include reasoning
-                    </Typography.Text>
-                    <Tooltip title="When enabled, the evaluator will also provide a comment explaining the score">
-                        <Info size={12} className="text-gray-400 cursor-help" aria-hidden="true" />
-                    </Tooltip>
+                    </span>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Info size={12} className="cursor-help text-gray-400" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                When enabled, the evaluator will also provide a comment explaining
+                                the score
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
                 <Switch
                     checked={includeReasoning}
-                    onChange={(checked) => handleIncludeReasoningChange(checked)}
+                    onCheckedChange={(checked) => handleIncludeReasoningChange(checked)}
                     disabled={disabled}
-                    size="small"
+                    size="sm"
+                    aria-labelledby={reasoningLabelId}
                     className="flex-shrink-0"
                 />
             </div>
-
-            {contextHolder}
         </div>
     )
 })
