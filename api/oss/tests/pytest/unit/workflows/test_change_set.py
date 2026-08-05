@@ -2176,6 +2176,92 @@ class TestAgentCommitScope:
         assert error.retryable is False
 
 
+class TestMalformedEntriesAndBounds:
+    """Three ways a payload used to leave the engine's own error vocabulary."""
+
+    def test_a_non_string_tool_name_is_not_addressable(self):
+        # `item_key` fed the raw value to the duplicate report, which joins keys into a
+        # sentence. A number there raised TypeError, so a malformed payload became a 500
+        # instead of a change-set refusal. An entry with no usable key is simply not
+        # addressable, which is what the keyed lists already did.
+        base = {"parameters": {"agent": {"tools": [{"type": "platform", "op": 7}]}}}
+        result = apply(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["llm", "model"],
+                    "value": "z",
+                }
+            ),
+            base,
+        )
+        assert result["parameters"]["agent"]["tools"][0]["op"] == 7
+
+    def test_two_unaddressable_tools_do_not_collide(self):
+        # Neither entry has a key, so neither is a duplicate of the other.
+        base = {
+            "parameters": {
+                "agent": {
+                    "tools": [
+                        {"type": "platform", "op": None},
+                        {"type": "platform", "op": 7},
+                    ]
+                }
+            }
+        }
+        assert apply(
+            ops({"operation": "set", "target": AGENT + ["llm", "model"], "value": "z"}),
+            base,
+        )
+
+    def test_edits_that_would_grow_past_the_limit_are_refused(self):
+        # The input and each anchor are bounded; the RESULT was not. A field pushed past
+        # the limit can never be edited again, because the next call refuses its own input.
+        text = "a" * 100
+        base = {"parameters": {"agent": {"instructions": {"agents_md": text}}}}
+        error = failure(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "edits": [{"old_text": "a" * 100, "new_text": "b" * 200_001}],
+                }
+            ),
+            base,
+        )
+        assert error.reason == Reason.TEXT_TOO_LARGE
+
+    def test_an_edit_that_lands_exactly_on_the_limit_is_allowed(self):
+        text = "a" * 100
+        base = {"parameters": {"agent": {"instructions": {"agents_md": text}}}}
+        result = apply(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "edits": [{"old_text": "a" * 100, "new_text": "b" * 200_000}],
+                }
+            ),
+            base,
+        )
+        assert (
+            len(result["parameters"]["agent"]["instructions"]["agents_md"]) == 200_000
+        )
+
+    def test_the_caller_delta_is_not_modified(self):
+        # `remove_path` mutates the result, and the result held the caller's own sub-dicts.
+        # A caller that reused its delta got a tree the engine had already edited.
+        delta = {
+            "set": {
+                "parameters": {"agent": {"llm": {"model": "z", "extras": {"a": 1}}}}
+            },
+            "remove": ["parameters.agent.llm.extras"],
+        }
+        snapshot = copy.deepcopy(delta)
+        apply(delta)
+        assert delta == snapshot
+
+
 class TestAgentCommitScopeThroughAnAncestor:
     """A write to a parent of a refused path is a write to the refused path.
 
