@@ -571,6 +571,9 @@ You decide four things under `parameters.agent`:
 Everything else is fixed unless the user explicitly asks to change it. Configure yourself with
 `commit_revision` by setting `parameters.agent` fields; do not create a separate app.
 
+Editing files in your workspace does not change your configuration. That copy is rebuilt, and
+the edits are lost. Change your instructions and configuration only through `commit_revision`.
+
 Read `references/config-schema.md` before your first `commit_revision`. It gives:
 
 - the exact shape of every field,

@@ -756,7 +756,11 @@ def _ordered_operations_enabled() -> bool:
 # build-kit exception because the server REFUSES a commit that carries a platform-kind tool
 # entry: telling the model to send its own build-kit tools back would earn that refusal.
 _COMMIT_REVISION_DESCRIPTION_LEGACY = (
-    "Commit a new revision to your own workflow variant (update yourself). Send only the "
+    "Commit a new revision to your own workflow variant (update yourself). "
+    "Editing files in your workspace does not change your configuration. That copy is "
+    "rebuilt, and the edits are lost. Change your instructions and configuration only "
+    "through this tool. "
+    "Send only the "
     "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
     "current config) and any field paths to drop under `delta.remove`. Put agent-template "
     "edits under `delta.set.parameters.agent`. Lists such as `tools`, `skills`, and `mcps` "
@@ -774,6 +778,9 @@ _COMMIT_REVISION_DESCRIPTION_LEGACY = (
 # It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
 # every error names a next step, and the selector key is `list`.
 _COMMIT_REVISION_DESCRIPTION_ORDERED = """Commit a change to this agent's own configuration.
+
+Editing files in your workspace does not change your configuration. That copy is rebuilt,
+and the edits are lost. Change your instructions and configuration only through this tool.
 
 Send `workflow_revision` with `base_revision_id` (the `base_revision_id` you read) and
 `delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
@@ -980,43 +987,52 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                     if _ordered_operations_enabled()
                     else {}
                 ),
+                # ONE delta arm is model-visible per deployment. With ordered operations on,
+                # `set` and `remove` leave this schema: a model that sees both picks a
+                # different arm from call to call, which is what made the approval cards
+                # inconsistent on one stack. The API still accepts the legacy form, so
+                # shipped callers are unaffected; this is the catalog surface only.
                 "delta": {
                     "type": "object",
                     "additionalProperties": False,
                     "description": (
-                        "Change set applied to your current revision. `set` is deep-merged "
-                        "(omitted fields preserved); `remove` deletes the listed paths."
+                        "Ordered operations applied to your current revision, in array "
+                        "order. If one fails, nothing is committed."
+                        if _ordered_operations_enabled()
+                        else "Change set applied to your current revision. `set` is "
+                        "deep-merged (omitted fields preserved); `remove` deletes the "
+                        "listed paths."
                     ),
-                    "properties": {
-                        "set": _delta_set_schema(
-                            "Partial workflow revision data to merge. For agent-template "
-                            "updates, include parameters.agent with instructions, llm, tools, "
-                            "mcps, skills, harness, runner, or sandbox fields as needed."
-                        ),
-                        "remove": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": (
-                                "Dotted field paths to delete, e.g. parameters.agent.tools."
-                            ),
-                        },
-                        **(
-                            {
-                                "operations": {
-                                    "type": "array",
-                                    "minItems": 1,
-                                    "maxItems": 64,
-                                    "items": _OPERATION_SCHEMA,
-                                    "description": (
-                                        "Ordered operations, applied in array order. Use "
-                                        "these instead of set/remove; never both."
-                                    ),
-                                }
+                    "properties": (
+                        {
+                            "operations": {
+                                "type": "array",
+                                "minItems": 1,
+                                "maxItems": 64,
+                                "items": _OPERATION_SCHEMA,
+                                "description": (
+                                    "Ordered operations, applied in array order."
+                                ),
                             }
-                            if _ordered_operations_enabled()
-                            else {}
-                        ),
-                    },
+                        }
+                        if _ordered_operations_enabled()
+                        else {
+                            "set": _delta_set_schema(
+                                "Partial workflow revision data to merge. For "
+                                "agent-template updates, include parameters.agent with "
+                                "instructions, llm, tools, mcps, skills, harness, runner, "
+                                "or sandbox fields as needed."
+                            ),
+                            "remove": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": (
+                                    "Dotted field paths to delete, e.g. "
+                                    "parameters.agent.tools."
+                                ),
+                            },
+                        }
+                    ),
                 },
             },
             "required": ["workflow_variant_id", "delta"],
