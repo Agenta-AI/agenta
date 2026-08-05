@@ -45,7 +45,7 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                 {/* Identity and what it needs — a rail, not a column: it bleeds to the page's own
                     edges and carries the divider, so the decision half is a distinct surface from
                     the reading half rather than the same page with a gap down the middle. */}
-                <aside className="box-border flex w-full shrink-0 flex-col gap-6 lg:-mb-4 lg:-ml-14 lg:w-[376px] lg:border-0 lg:border-r lg:border-solid lg:border-colorBorderSecondary lg:bg-colorFillQuaternary lg:py-8 lg:pl-14 lg:pr-8">
+                <aside className="box-border flex w-full shrink-0 flex-col gap-6 lg:-mb-4 lg:-ml-14 lg:w-[344px] lg:border-0 lg:border-r lg:border-solid lg:border-colorBorderSecondary lg:bg-colorFillQuaternary lg:px-6 lg:py-6">
                     <Link
                         href={`${baseAppURL}/agent-templates`}
                         className="inline-flex w-fit items-center gap-1 text-xs !text-colorTextSecondary"
