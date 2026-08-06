@@ -64,7 +64,21 @@ export function skillLocationAppendix(): SystemPromptAppendix {
   };
 }
 
-/** What the caller knows about this run's durable agent folder. */
+/**
+ * The tool that changes a configuration. The skill sentence names it, so the sentence only
+ * applies to a run that HAS it.
+ *
+ * It is checked by name here rather than by a flag at the call site, deliberately. The natural
+ * guess is the ordered-operations flag, since that is what gates the config-editing surface, but
+ * the flag is the wrong axis: `commit_revision` is in `DEFAULT_BUILD_KIT_OPS` unconditionally and
+ * the flag changes the commit's DELTA SHAPE rather than the tool's existence, so a flag-off agent
+ * with the build kit really can do what the sentence says (its legacy description covers skills by
+ * sending the whole list). Presence is the honest test, and it also catches the case a flag check
+ * would miss: a flag-ON agent that simply has no config tools.
+ */
+const CONFIG_COMMIT_TOOL = "commit_revision";
+
+/** What the caller knows about this run's durable agent folder and its tools. */
 export interface PlatformGuidanceInput {
   /** The harness's ACP agent id: `pi`, `claude` or `codex`. */
   readonly acpAgent: string;
@@ -74,6 +88,8 @@ export interface PlatformGuidanceInput {
   readonly agentMountedPath: string | undefined;
   /** True when a durable agent folder was ATTEMPTED for this run and refused. */
   readonly agentMountSkipped: boolean;
+  /** The names of the tools this run offers the model. */
+  readonly toolNames: readonly string[];
 }
 
 /**
@@ -108,6 +124,12 @@ function mountGuidanceServedElsewhere(input: PlatformGuidanceInput): boolean {
 export function platformGuidanceAppendix(
   input: PlatformGuidanceInput,
 ): string | undefined {
+  // The skill sentence tells the model to use a tool. A run that does not offer that tool would
+  // be reading about a capability it does not have, which is the confusion this block exists to
+  // remove rather than create. The mount paragraph has no such dependency and is unaffected.
+  const skills = input.toolNames.includes(CONFIG_COMMIT_TOOL)
+    ? skillLocationAppendix()
+    : undefined;
   const mount = mountGuidanceServedElsewhere(input)
     ? undefined
     : input.agentMountedPath
@@ -115,5 +137,5 @@ export function platformGuidanceAppendix(
       : input.agentMountSkipped
         ? agentMountUnavailableAppendix()
         : undefined;
-  return composeSystemPromptAppendix([skillLocationAppendix(), mount]);
+  return composeSystemPromptAppendix([skills, mount]);
 }

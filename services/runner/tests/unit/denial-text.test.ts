@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 
 import {
   declinedByUserText,
+  approvalUnavailableText,
   deniedByPolicyText,
   refusedAtGateText,
 } from "../../src/tools/denial-text.ts";
@@ -117,5 +118,41 @@ describe("the text a gate returns when the decider is unknowable", () => {
     ]) {
       assert.doesNotMatch(t, /currently|for now|at this time|try again later|as soon as/i);
     }
+  });
+});
+
+describe("the text a BROKEN approval channel returns", () => {
+  const text = approvalUnavailableText("bash", "this session has no approval dialog.");
+
+  it("names the call and the operational cause", () => {
+    assert.match(text, /'bash'/);
+    assert.match(text, /no approval dialog/);
+  });
+
+  it("says nothing ran, which is the part that stops a retry loop", () => {
+    assert.match(text, /Nothing ran/);
+    assert.match(text, /not something you can fix by trying again/);
+  });
+
+  it("does not blame a person or a policy, because neither refused", () => {
+    // This is not a denial. The machinery that would have ASKED was missing, so claiming a
+    // decider would be inventing one.
+    assert.doesNotMatch(text, /declined|policy|refused by/i);
+  });
+
+  it("sends the model to the user rather than leaving it to guess", () => {
+    assert.match(text, /Tell the user the approval step is unavailable/);
+    assert.match(text, /ask how they would like to proceed/);
+  });
+
+  it("keeps the two causes distinguishable for whoever reads the transcript", () => {
+    const missing = approvalUnavailableText("bash", "this session has no approval dialog.");
+    const threw = approvalUnavailableText("bash", "the approval dialog failed (socket closed).");
+    assert.notEqual(missing, threw);
+    assert.match(threw, /socket closed/);
+  });
+
+  it("never suggests waiting, like every other message in this file", () => {
+    assert.doesNotMatch(text, /currently|for now|at this time|try again later|as soon as/i);
   });
 });

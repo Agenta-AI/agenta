@@ -38,7 +38,10 @@ import {
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
-import { refusedAtGateText } from "../tools/denial-text.ts";
+import {
+  approvalUnavailableText,
+  refusedAtGateText,
+} from "../tools/denial-text.ts";
 import {
   assertRequiredArguments,
   requiredFields,
@@ -116,7 +119,13 @@ async function piDialogAllows(
   const ui = ctx?.ui;
   const confirm = ui?.confirm;
   if (!ui || typeof confirm !== "function") {
-    return { allowed: false, reason: "Permission dialog is unavailable." };
+    return {
+      allowed: false,
+      reason: approvalUnavailableText(
+        toolName,
+        "this session has no approval dialog.",
+      ),
+    };
   }
   const message = buildPiGateEnvelope({ gate, toolName, toolCallId, input });
   try {
@@ -131,9 +140,15 @@ async function piDialogAllows(
       ? { allowed: true }
       : { allowed: false, reason: refusedAtGateText(toolName) };
   } catch (err) {
+    // The thrown detail is the operational fault (a transport that died, a closed plane). It rides
+    // the cause so a transcript still says WHAT broke, while the instruction stays the same,
+    // because the model can do nothing different about one cause versus the other.
     return {
       allowed: false,
-      reason: err instanceof Error ? err.message : "Permission dialog failed.",
+      reason: approvalUnavailableText(
+        toolName,
+        `the approval dialog failed (${err instanceof Error ? err.message : "unknown error"}).`,
+      ),
     };
   }
 }
