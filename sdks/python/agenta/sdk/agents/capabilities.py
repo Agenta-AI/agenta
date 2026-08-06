@@ -45,7 +45,7 @@ from pydantic import BaseModel, Field
 
 from agenta.sdk.utils.assets import supported_llm_models
 
-# The eight Agenta-vault-mapped providers Pi reaches directly via its env-key map (a stored
+# The Agenta-vault-mapped providers Pi reaches directly via its env-key map (a stored
 # ``provider_key`` secret of these drives Pi). Kept in agreement with the SDK resolver
 # provider-env maps.
 PI_VAULT_PROVIDERS: List[str] = [
@@ -57,6 +57,7 @@ PI_VAULT_PROVIDERS: List[str] = [
     "minimax",
     "together_ai",
     "openrouter",
+    "orcarouter",
 ]
 
 # Subscription/OAuth-only providers Pi also reaches. ``openai-codex`` is OpenAI's ChatGPT/Codex
@@ -137,6 +138,7 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
     # must use Pi's name or the key never reaches the harness.
     "together_ai": "TOGETHER_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
+    "orcarouter": "ORCAROUTER_API_KEY",
 }
 
 

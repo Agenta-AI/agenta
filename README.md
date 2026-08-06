@@ -174,6 +174,7 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 - [x] OpenAI
 - [x] Anthropic
 - [x] OpenRouter
+- [x] OrcaRouter
 - [x] Mistral AI
 - [x] Cohere
 - [x] Anyscale

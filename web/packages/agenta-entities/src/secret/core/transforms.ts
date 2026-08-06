@@ -47,6 +47,7 @@ const STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, string
     [StandardProviderKind.Perplexityai]: "PERPLEXITYAI_API_KEY",
     [StandardProviderKind.TogetherAi]: "TOGETHERAI_API_KEY",
     [StandardProviderKind.Openrouter]: "OPENROUTER_API_KEY",
+    [StandardProviderKind.Orcarouter]: "ORCAROUTER_API_KEY",
     [StandardProviderKind.Gemini]: "GEMINI_API_KEY",
     [StandardProviderKind.Minimax]: "MINIMAX_API_KEY",
 }

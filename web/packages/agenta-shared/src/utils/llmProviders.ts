@@ -39,6 +39,7 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "Together AI", key: "", name: "TOGETHERAI_API_KEY"},
     {title: "Aleph Alpha", key: "", name: "ALEPHALPHA_API_KEY"},
     {title: "OpenRouter", key: "", name: "OPENROUTER_API_KEY"},
+    {title: "OrcaRouter", key: "", name: "ORCAROUTER_API_KEY"},
     {title: "Groq", key: "", name: "GROQ_API_KEY"},
     {title: "Google Gemini", key: "", name: "GEMINI_API_KEY"},
     {title: "MiniMax", key: "", name: "MINIMAX_API_KEY"},

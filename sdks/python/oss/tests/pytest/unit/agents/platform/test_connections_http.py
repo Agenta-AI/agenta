@@ -241,6 +241,7 @@ async def test_bare_model_matching_a_candidate_infers_the_provider(
         ("openai", "OPENAI_API_KEY"),
         ("anthropic", "ANTHROPIC_API_KEY"),
         ("openrouter", "OPENROUTER_API_KEY"),
+        ("orcarouter", "ORCAROUTER_API_KEY"),
     ],
 )
 async def test_known_direct_custom_provider_uses_direct_deployment(

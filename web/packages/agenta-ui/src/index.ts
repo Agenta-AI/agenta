@@ -158,6 +158,7 @@ export {
     Mistral,
     OpenAi,
     OpenRouter,
+    OrcaRouter,
     Perplexity,
     Replicate,
     Sagemaker,

@@ -166,6 +166,21 @@ supported_llm_models = {
         # Z.ai via OpenRouter
         "openrouter/z-ai/glm-5",
     ],
+    # OrcaRouter's headline models (gateway catalog at api.orcarouter.ai/v1/models).
+    # Like OpenRouter, OrcaRouter fronts multiple vendors under one key; ids are
+    # `orcarouter/<vendor>/<model>`. The provider kind matches the Secrets API enum
+    # ("orcarouter") and the model ids are valid in Pi's vendored OrcaRouter catalog.
+    "orcarouter": [
+        # Anthropic via OrcaRouter
+        "orcarouter/anthropic/claude-opus-5",
+        "orcarouter/anthropic/claude-sonnet-5",
+        "orcarouter/anthropic/claude-haiku-4.5",
+        # DeepSeek via OrcaRouter
+        "orcarouter/deepseek/deepseek-v4-flash-0731",
+        "orcarouter/deepseek/deepseek-v4-pro",
+        # OpenAI via OrcaRouter
+        "orcarouter/openai/gpt-5.5",
+    ],
     # NOTE: provider kind must match Secrets API enums ("perplexityai").
     # Models remain "perplexity/..." but the provider key is used to match secrets.
     "perplexityai": [

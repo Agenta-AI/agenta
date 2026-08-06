@@ -1,13 +1,11 @@
-import os
 import hashlib
+import os
 import warnings
-from typing import List, Optional
-from uuid import getnode
 from json import loads
-from urllib.parse import urlparse, quote_plus
+from urllib.parse import quote_plus, urlparse
+from uuid import getnode
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 _LICENSE = "ee" if os.getenv("AGENTA_LICENSE") == "ee" else "oss"
@@ -967,6 +965,7 @@ class LLMConfig(BaseModel):
     mistral: str = os.getenv("MISTRAL_API_KEY", "")
     openai: str = os.getenv("OPENAI_API_KEY", "")
     openrouter: str = os.getenv("OPENROUTER_API_KEY", "")
+    orcarouter: str = os.getenv("ORCAROUTER_API_KEY", "")
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
     minimax: str = os.getenv("MINIMAX_API_KEY", "")
@@ -989,6 +988,7 @@ class LLMConfig(BaseModel):
                 "mistral",
                 "openai",
                 "openrouter",
+                "orcarouter",
                 "perplexityai",
                 "togetherai",
                 "minimax",
@@ -1029,7 +1029,7 @@ _SANDBOX_LOCAL_WARNED = False
 _KNOWN_SANDBOX_PROVIDERS = ("local", "daytona")
 
 
-def _parse_enabled_sandbox_providers(raw: Optional[str]) -> List[str]:
+def _parse_enabled_sandbox_providers(raw: str | None) -> list[str]:
     """Parse ``AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`` with the runner's rules.
 
     Unset -> ``["local"]``; explicit empty invalid; ids normalized lowercase; unknown and
@@ -1066,7 +1066,7 @@ def _parse_enabled_sandbox_providers(raw: Optional[str]) -> List[str]:
     return ids
 
 
-def _parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> str:
+def _parse_default_sandbox_provider(raw: str | None, enabled: list[str]) -> str:
     """Parse ``AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER``; unset -> ``local``; must be enabled."""
     value = (raw or "").strip().lower() or "local"
     if value not in _KNOWN_SANDBOX_PROVIDERS:
@@ -1082,7 +1082,7 @@ def _parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> s
     return value
 
 
-def _enabled_sandbox_providers_default() -> List[str]:
+def _enabled_sandbox_providers_default() -> list[str]:
     return _parse_enabled_sandbox_providers(
         os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
     )
@@ -1103,7 +1103,7 @@ class RunnerConfig(BaseModel):
     # The sandbox-provider registry the runner and API share. `local` is unconfined host bash —
     # not a tenant boundary; enabled by default for zero-config self-host. Canonical declaration;
     # services/oss and the SDK read the same variables directly with the same rules.
-    enabled_sandbox_providers: List[str] = Field(
+    enabled_sandbox_providers: list[str] = Field(
         default_factory=_enabled_sandbox_providers_default
     )
     default_sandbox_provider: str = Field(
@@ -1115,8 +1115,8 @@ class RunnerConfig(BaseModel):
     # uses to reach the runner's HTTP surface. None/blank means kill only edits the Redis
     # nest + row (best-effort; the runner's own orphan sweep/TTL expiry still reclaims the
     # sandbox eventually, just not immediately).
-    internal_url: Optional[str] = os.getenv("AGENTA_RUNNER_INTERNAL_URL") or None
-    token: Optional[str] = os.getenv("AGENTA_RUNNER_TOKEN") or None
+    internal_url: str | None = os.getenv("AGENTA_RUNNER_INTERNAL_URL") or None
+    token: str | None = os.getenv("AGENTA_RUNNER_TOKEN") or None
 
     model_config = ConfigDict(extra="ignore")
 

@@ -28,6 +28,7 @@ class StandardProviderKind(str, Enum):
     PERPLEXITYAI = "perplexityai"
     TOGETHERAI = "together_ai"
     OPENROUTER = "openrouter"
+    ORCAROUTER = "orcarouter"
     GEMINI = "gemini"
 
 
@@ -50,4 +51,5 @@ class CustomProviderKind(str, Enum):
     PERPLEXITYAI = "perplexityai"
     TOGETHERAI = "together_ai"
     OPENROUTER = "openrouter"
+    ORCAROUTER = "orcarouter"
     GEMINI = "gemini"
