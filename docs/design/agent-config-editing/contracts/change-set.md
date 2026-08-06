@@ -726,7 +726,7 @@ The agent can fix these and send again. Each one carries `next_step`.
 | `item_key_undefined` | The value has no derivable key. |
 | `unkeyed_collection` | The list has no key field. |
 | `missing_operation_value` | A value-bearing operation carried no `value`. |
-| `invalid_operation_shape` | Any other malformed operation the schema also rejects. |
+| `invalid_operation_shape` | Any other malformed operation the schema also rejects, including a `match_mode` that is not `auto` or `exact`. That case carries a `next_step` naming the modes. |
 | `text_not_found` | The anchor does not occur. |
 | `text_not_unique` | The anchor occurs more than once. |
 | `text_edits_overlap` | Two matches share a character. |
@@ -737,7 +737,6 @@ The agent can fix these and send again. Each one carries `next_step`.
 | `platform_tool_not_committable` | The `tools` list holds a platform-kind entry. Section 11. |
 | `non_embeddable_reference` | The result embeds a static workflow that may not be embedded. Wrapper-owned; `commit-transaction.md` section 4.1. |
 | `final_validation_failed` | The finished tree is not a valid configuration. Carries `issues`. |
-| `invalid_match_mode` | `edit_text` carried a `match_mode` that is not `auto` or `exact`. The operation itself is valid, so the fix is one word. |
 
 ### 12.2 Non-retryable refusals
 
@@ -747,7 +746,7 @@ Sending the same payload again never helps.
 |---|---|
 | `out_of_scope` | The scope policy refuses the target. |
 | `invalid_delta` | Both forms, no form, or an unknown delta field. |
-| `unknown_operation` | An unknown verb. A bad `match_mode` is `invalid_match_mode` and retryable: the verb was right. |
+| `unknown_operation` | An unknown verb. A bad `match_mode` is NOT this: the verb was right, so it is a retryable `invalid_operation_shape`. |
 | `unresolved_file_marker` | An `@ag.file` reached the engine. Section 6.5. |
 | `invalid_embed` | An `@ag.embed` that is not one: no references, a reference that is not an object, or a key an embed does not hold. Section 6.7. |
 | `unknown_marker` | An `@ag.*` key the platform does not define. Section 6.7. |
