@@ -47,7 +47,8 @@ import {
   seedAgentReadme,
 } from "../engines/sandbox_agent/agent-mount.ts";
 import {
-  AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
+  agentMountGuidance,
+  agentMountUnavailableGuidance,
 } from "../engines/sandbox_agent/agent-mount-guidance.ts";
 import {
   isSubscriptionCodexRun,
@@ -75,6 +76,48 @@ export interface MountDeps {
   ) => Promise<import("../engines/sandbox_agent/mount.ts").MountCredentials | null>;
   /** The remote Pi directory constant, passed in rather than imported. */
   daytonaPiDir: string;
+}
+
+/**
+ * Tell the model that durable storage was attempted for this run and is NOT reachable.
+ *
+ * The mirror of `activateAgentMountGuidance`, and it exists for the reason spelled out on
+ * `agentMountUnavailableGuidance`: the model's history can contain a session where the folder
+ * worked, and only a statement in THIS turn can contradict it.
+ *
+ * It writes no daemon env var, because there is no path to advertise. It reuses the same prompt
+ * channels as the positive case so the two can never disagree about how the model is told.
+ */
+export async function activateAgentMountUnavailableGuidance(
+  ctx: AcquireContext,
+  deps: MountDeps,
+): Promise<void> {
+  if (ctx.guidanceActive) return;
+  ctx.markGuidanceActive();
+
+  const plan = ctx.plan;
+  if (!plan.isPi) return;
+
+  ctx.appendAgentMountGuidance(agentMountUnavailableGuidance());
+
+  if (plan.isDaytona) {
+    await uploadSystemPromptToSandbox(
+      ctx.env.sandbox,
+      deps.daytonaPiDir,
+      plan.prompt.systemPrompt,
+      plan.prompt.appendSystemPrompt,
+      ctx.log,
+    );
+    return;
+  }
+  if (ctx.env.runAgentDir) {
+    writeSystemPromptLocal(
+      ctx.env.runAgentDir,
+      plan.prompt.systemPrompt,
+      plan.prompt.appendSystemPrompt,
+      ctx.log,
+    );
+  }
 }
 
 /**
@@ -107,7 +150,7 @@ export async function activateAgentMountGuidance(
   }
   if (!plan.isPi) return;
 
-  ctx.appendAgentMountGuidance(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT);
+  ctx.appendAgentMountGuidance(agentMountGuidance(mountedPath));
 
   if (plan.isDaytona) {
     await uploadSystemPromptToSandbox(
