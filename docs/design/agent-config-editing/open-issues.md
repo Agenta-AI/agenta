@@ -579,45 +579,62 @@ reader can act on it cold.
 
 ## A pool eviction can kill the endpoint an in-flight ACP write is using
 
-- Found by: the migration's G1 certification run, 6-7 August 2026, when pi went 0 of 3
-  with "Retrying (attempt 1/3, waiting 2s)..." as each turn's final text. Diagnosed the
-  same night; not fixed.
-- **Symptom.** Under concurrent load a turn ends mid-flight, and the last thing the user
-  sees is a retry message rather than an answer. Gates are never raised and tools never
-  run, so from the outside the agent simply stops talking. Under light load the same
-  operation retries and recovers, which is why it reads as flakiness rather than as a
-  bug.
+- Found by: the migration's G1 certification run, 6-7 August 2026. Diagnosed the same
+  night, then substantially REVISED when the benchmark supplied a discriminator. Not
+  fixed.
+- **Status, corrected: real in the runner logs, never yet shown to reach a user.** The
+  race below is genuine and measured. What was originally attributed to it, a G1 pi cell
+  failing 0 of 3 with a retry message as its final text, was NOT this: that cell runs on
+  Daytona against a shared Anthropic key that was throttling in the same window, and its
+  visible retries are the provider's, not the transport's.
+- **The discriminator that settled it.** `pi-luna` and `pi-haiku` ran in the SAME window
+  under the SAME concurrent load on the SAME `pi_core` transport. `pi-haiku` shows 14
+  retry replies; `pi-luna` shows ZERO. Failures track the PROVIDER behind the cell, not
+  the harness transport. A transport fault cannot be selective by model.
+- **Two retries that look identical and are not, which is how the attribution went
+  wrong.** The client-visible text is `Retrying (attempt 1/3, waiting 2s)...` and the
+  runner log line is `ACP write retry 1/3`. Both say 1 of 3. They are different
+  mechanisms at different layers, and one G1 trial ending in that text had
+  `gates_approved: 1` and a real `new_revision_id`, so its turn had worked.
+- **Symptom, as far as anyone can actually observe it: NONE.** Grepping every pi row of
+  all eight benchmark runs for `fetch failed` or `ACP write` returns zero hits. Under
+  heavy concurrent `pi_core` load between 22:36 and 23:00 there were no client-visible
+  ACP failures at all.
+- **That zero is the finding, not an all-clear.** 63 ACP write retries happened in the
+  runner logs and NONE of them surfaced onto a client stream. Either every one recovered
+  on retry (consistent with 55 of 63 sitting at attempt 1 of 3), or failures are being
+  swallowed before the SSE stream, which is the blank-success shape the gate exists to
+  catch. Nothing currently distinguishes those two readings from outside the runner, and
+  that is the actual defect: an intermittent transport fault invisible to every client is
+  undiagnosable by construction.
 - **Mechanism.** The keepalive pool expires an idle session on its 60 second TTL and
-  evicts it, which tears down the local harness process and the HTTP listener the runner
-  writes ACP frames to. A write that is in flight, or issued moments later, then fails
-  with `TypeError: fetch failed` on a `local/127.0.0.1:PORT` endpoint.
-- **The evidence that makes it a race rather than a guess.** Over one runner log: 132
-  evictions, 63 ACP write retries, and 55 of the 63 (87%) immediately follow an
-  `expire` + `evict` pair, while only about 42% of evictions produce a retry at all. The
-  high adjacency rules out coincidence; the partial hit rate is what a timing race looks
-  like. Observed at `poolSize=7`.
-- **The load pattern that exposes it.** Two concurrent pi workloads sharing the pool,
-  which happened for the first time on the night of 6 August (a certification cell and a
-  benchmark baseline running together). One workload at a time stays in the regime where
-  the retry succeeds.
-- **Two candidate fixes, both runner-side.** Either hold the endpoint open until
-  in-flight writes settle (evict on quiesce rather than on the timer alone), or
-  liveness-check the endpoint immediately before writing and treat a dead one as a
-  session that must be re-acquired rather than as a transport error to retry. The first
-  is more correct and more invasive; the second is cheaper and leaves a smaller window.
-- **Cost of NOT fixing.** Bounded today and sharply load-dependent: single-workload runs
-  recover, so ordinary product use is unlikely to hit it. It becomes a real user-facing
-  failure exactly when the system is busiest, which is the worst time, and it is
-  invisible in any test that runs one session at a time. Every gate cell we have runs
-  serially.
-- **Acceptance test.** Two concurrent pi workloads against one runner, asserting zero
-  turns whose final text is a retry message. It must be concurrent by construction: a
-  serial version of this test passes against the broken code.
+  evicts it, tearing down the local harness process and the HTTP listener the runner
+  writes ACP frames to. A write in flight, or issued moments later, fails with
+  `TypeError: fetch failed` on a `local/127.0.0.1:PORT` endpoint.
+- **The evidence it is a race.** Over one runner log: 132 evictions, 63 ACP write
+  retries, 55 of the 63 (87%) immediately following an `expire` + `evict` pair, and only
+  about 42% of evictions producing a retry. High adjacency rules out coincidence; the
+  partial hit rate is what a timing race looks like. Observed at `poolSize=7`.
+- **Load pattern.** Two concurrent pi workloads sharing one pool, first seen on the night
+  of 6 August. Note this is the pattern for the RETRIES in the log; it is not evidence of
+  user-visible failure, per the discriminator above.
+- **Three fixes, and the first one now comes first.**
+  (1) SURFACE ACP write failures onto the wire, so a client can see that a transport
+  fault occurred and how it resolved. Without this the other two cannot be evaluated,
+  because there is no external signal to improve.
+  (2) Hold the endpoint open until in-flight writes settle (evict on quiesce rather than
+  on the timer alone). More correct, more invasive.
+  (3) Liveness-check the endpoint immediately before writing and treat a dead one as a
+  session to re-acquire rather than a transport error to retry. Cheaper, smaller window.
+- **Acceptance test.** Two concurrent pi workloads against one runner, asserting on
+  WIRE-VISIBLE evidence that no ACP write failure reached a client unresolved. It must be
+  concurrent by construction: a serial version passes against the broken code, and every
+  gate cell we have today is serial, which is why nothing caught this. The test cannot be
+  written until fix (1) exists, since the evidence it must assert on does not exist yet.
 - **Onset is UNDATABLE, and the reason is worth keeping.** The first investigation read a
-  runner log that began at 22:14 as evidence that the error started at 22:16, when in
-  fact the container had been recreated at 22:14 and the previous container's logs were
-  destroyed with it. A log that starts at T cannot testify about T minus one. Whether
-  this race predates that night is unknown and probably unknowable now.
+  runner log beginning at 22:14 as evidence about 22:16, when the container had been
+  recreated at 22:14 and the previous logs destroyed with it. A log that starts at T
+  cannot testify about T minus one.
 
 ## The dev runner image is only accidentally reproducible
 
