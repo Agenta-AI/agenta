@@ -748,9 +748,11 @@ One failure aborts everything. HTTP 422 for a bad change set, 409 for a stale ba
 }
 ```
 
-### 12.1 Retryable errors
+### 12.1 Correctable refusals
 
-The agent can fix these and send again. Each one carries `next_step`.
+The agent changes its request and sends a NEW one. Each carries `next_step`, and each is
+`retryable: false`, because resending the SAME request cannot succeed: a target that does
+not exist keeps not existing, an anchor that does not match keeps not matching.
 
 | Code | Meaning |
 |---|---|
@@ -776,9 +778,11 @@ The agent can fix these and send again. Each one carries `next_step`.
 | `non_embeddable_reference` | The result embeds a static workflow that may not be embedded. Wrapper-owned; `commit-transaction.md` section 4.1. |
 | `final_validation_failed` | The finished tree is not a valid configuration. Carries `issues`. |
 
-### 12.2 Non-retryable refusals
+### 12.2 Terminal refusals
 
-Sending the same payload again never helps.
+Also `retryable: false`, and the difference from 12.1 is what the next_step asks for: these
+need a different approach rather than a corrected field. Both groups tell the agent what to
+do; neither can be replayed unchanged.
 
 | Code | Meaning |
 |---|---|
@@ -792,10 +796,19 @@ Sending the same payload again never helps.
 | `text_too_large` | The target string is above the work limit. |
 | `source_too_large` | The file a marker names is above the byte limit. |
 
-**Why the split matters.** The old model had one `invalid_operation` code marked
-non-retryable. An agent honoring `retryable: false` would dead-end on every rename, because
-a rename arrived as a shape error. Shape errors an agent can correct are now retryable and
-carry the correction; only true refusals are terminal.
+**Why `retryable` is not the recovery field.** It answers exactly one question: can this
+REQUEST be sent again, unchanged, and succeed? Almost nothing here can, so almost everything
+is false, and `next_step` is what carries recovery. The two are independent: a refusal can be
+non-replayable and still perfectly recoverable, which is the normal case.
+
+The one genuinely retryable refusal in this engine is `source_not_found`: the agent writes
+the file the marker names and sends THE SAME request, and it succeeds. The world changed,
+not the request. `commit_lock_timeout` on the commit route has the same shape.
+
+This replaced an earlier split where `retryable` meant "the agent can fix this". That made
+almost everything retryable and told a model to resend bytes that could never work. The
+dead-end risk it was guarding against is real, and it is handled by requiring a `next_step`
+on every code rather than by overloading `retryable`.
 
 ### 12.2b The envelope every error uses
 

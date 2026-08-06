@@ -1314,7 +1314,7 @@ class TestErrorModel:
         detail = error.to_detail()
         assert detail["code"] == "text_not_unique"
         assert detail["message"].startswith("edits[0].old_text matched")
-        assert detail["retryable"] is True
+        assert detail["retryable"] is False
         assert detail["next_step"]
         assert detail["details"]["operation_index"] == 1
         assert detail["details"]["operation"] == "edit_text"
@@ -1780,7 +1780,8 @@ class TestMatchTolerance:
         # retryable code rather than adding one: the specific guidance rides on `next_step`,
         # which is what that field is for.
         assert error.reason == Reason.INVALID_OPERATION_SHAPE
-        assert error.retryable is True
+        # Correctable, not replayable: the same bad mode fails the same way every time.
+        assert error.retryable is False
         assert "'auto'" in error.next_step and "'exact'" in error.next_step
         # The rejected value is named, so the agent can see what it sent.
         assert "fuzzy" in error.message
@@ -2107,7 +2108,15 @@ class TestNestedCollectionIdentity:
 
 
 class TestErrorSplit:
-    RETRYABLE = [
+    """`retryable` answers one question: can this REQUEST be sent again, unchanged?
+
+    It used to mean "the agent can fix this", which made almost everything retryable and
+    told a model to resend bytes that could never succeed. The way forward moved to
+    `next_step`, which every one of these still carries: `retryable: false` with a
+    `next_step` means correct it and send a NEW request.
+    """
+
+    CORRECTABLE = [
         (
             Reason.TARGET_NOT_FOUND,
             ops({"operation": "remove", "target": AGENT + ["x"]}),
@@ -2132,21 +2141,23 @@ class TestErrorSplit:
         ),
     ]
 
-    @pytest.mark.parametrize("reason,delta", RETRYABLE)
-    def test_shape_errors_are_retryable(self, reason, delta):
-        # An agent honoring `retryable: false` would otherwise dead-end on a mistake it
-        # could fix in one turn.
+    @pytest.mark.parametrize("reason,delta", CORRECTABLE)
+    def test_a_correctable_mistake_is_not_a_replayable_one(self, reason, delta):
+        # A target that does not exist keeps not existing. Resending the identical request
+        # fails identically, so `retryable` is false and the correction rides on next_step.
         error = failure(delta)
         assert error.reason == reason
-        assert error.retryable is True
+        assert error.retryable is False
 
-    @pytest.mark.parametrize("reason,delta", RETRYABLE)
-    def test_every_retryable_error_names_a_next_step(self, reason, delta):
+    @pytest.mark.parametrize("reason,delta", CORRECTABLE)
+    def test_every_correctable_mistake_names_a_next_step(self, reason, delta):
+        # This is what keeps the flip from creating dead ends: the agent still learns what
+        # to do, it just learns it from the field designed to say so.
         error = failure(delta)
         assert error.next_step
         assert error.to_detail()["next_step"] == error.next_step
 
-    def test_a_rename_has_its_own_retryable_code(self):
+    def test_a_rename_has_its_own_code_and_its_own_recovery(self):
         error = failure(
             ops(
                 {
@@ -2157,7 +2168,7 @@ class TestErrorSplit:
             )
         )
         assert error.reason == Reason.ITEM_RENAME_NOT_ALLOWED
-        assert error.retryable is True
+        assert error.retryable is False
         assert "remove_item" in error.next_step
         assert "add_item" in error.next_step
 
@@ -2176,17 +2187,27 @@ class TestErrorSplit:
         error = ChangeSetError(reason, "x")
         assert error.retryable is False
 
-    def test_every_retryable_code_has_a_next_step_sentence(self):
-        # Contract 12.3 makes this mandatory, so a missing entry is a contract violation,
-        # not a cosmetic gap.
-        from oss.src.core.workflows.change_set import NEXT_STEPS, _NOT_RETRYABLE
+    def test_the_only_replayable_refusal_is_the_one_the_world_can_fix(self):
+        # The audit behind the flip, executed. `source_not_found` is retryable because the
+        # agent writes the missing file and sends THE SAME request: the world changed, not
+        # the request. Nothing else in this engine has that shape.
+        from oss.src.core.workflows.change_set import _RETRYABLE
+
+        assert _RETRYABLE == {Reason.SOURCE_NOT_FOUND}
+
+    def test_no_refusal_is_a_dead_end(self):
+        # Every code an agent can hit names an action, whether it is replayable or not. A
+        # refusal with no way forward is what makes a model invent one.
+        from oss.src.core.workflows.change_set import NEXT_STEPS
 
         codes = {
             value
             for name, value in vars(Reason).items()
             if not name.startswith("_") and isinstance(value, str)
         }
-        for code in codes - _NOT_RETRYABLE:
+        # `out_of_scope` carries a next_step built from the policy that refused it, so it
+        # is set at the raise site rather than in the table.
+        for code in codes - {Reason.OUT_OF_SCOPE}:
             assert code in NEXT_STEPS, f"{code} has no next_step sentence"
 
     def test_a_text_too_large_target_is_refused(self):
