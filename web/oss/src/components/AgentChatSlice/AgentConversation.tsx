@@ -272,11 +272,15 @@ const AgentConversation = ({
     const handleSubmitRef = useRef<(text: string) => void | Promise<void>>(() => {})
     const {firstRunPrompt} = useFirstRunSeed({
         entityId,
+        scopeKey,
         sessionId,
         activeSessionId,
         messagesCount: messages.length,
         modelBlocked,
         handleSubmitRef,
+        // Files picked on Home / the overview, where there was no session to upload against.
+        onSeedFiles: attachments.addFiles,
+        attachmentsSettled,
     })
     const consumedRunNonceRef = useRef<number | null>(null)
 
