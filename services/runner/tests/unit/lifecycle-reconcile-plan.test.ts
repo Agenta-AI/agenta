@@ -27,9 +27,12 @@ import {
 import {
   capabilitiesFor,
   harnessKind,
+  liveActionKindsFor,
   LIVE_ACTION_KINDS,
   logReconcileShadow,
   planReconcile,
+  WORKSPACE_FILES_EDITS_REBUILD,
+  workspaceFilesActionFor,
 } from "../../src/lifecycle/reconciliation-router.ts";
 
 const BASE: AgentRunRequest = {
@@ -459,5 +462,89 @@ describe("shadow logging", () => {
       shadowInput({ ...BASE, model: "m2" }, digestsOf(BASE), "rebuild", "mismatch:config"),
     );
     assert.deepEqual(plan?.changedFacets, ["model"]);
+  });
+});
+
+describe("the cold-vs-live switch for configuration edits", () => {
+  // Mahmoud's switch: one constant decides whether editing instructions or skills rebuilds the
+  // sandbox or takes the in-place route. Both positions are pinned here, because a switch whose
+  // other position is untested is a switch nobody can flip with confidence.
+
+  it("defaults to REBUILD, the only position that is verified correct", () => {
+    // The default is not a preference. The in-place route is known broken: the harness reads its
+    // instruction file once at session start, so a rewrite is never observed and the agent goes on
+    // obeying stale instructions while applied state claims otherwise.
+    assert.equal(WORKSPACE_FILES_EDITS_REBUILD, true);
+    assert.equal(capabilitiesFor(BASE).workspaceFiles, "rebuild-sandbox");
+    assert.equal(LIVE_ACTION_KINDS.has("refresh-workspace"), false);
+  });
+
+  it("moves BOTH halves together, in either position", () => {
+    // THE INVARIANT THE CONSTANT EXISTS FOR, and the reason both halves derive from it rather than
+    // being set by hand. The two broken combinations are what this makes unrepresentable:
+    //
+    //   capability=refresh + live-set refuses -> the router plans `reuse` while the coordinator
+    //     rebuilds, so every instructions edit logs a permanent DISAGREE nothing can drive to zero.
+    //   capability=rebuild + live-set allows  -> a live entry nothing routes to, so a later table
+    //     edit alone can make the route live again with no guard firing.
+    for (const rebuild of [true, false]) {
+      const capability = workspaceFilesActionFor(rebuild);
+      const live = liveActionKindsFor(rebuild);
+      assert.equal(
+        capability === "refresh-workspace",
+        live.has("refresh-workspace"),
+        `the two halves disagree when the switch is ${rebuild}`,
+      );
+    }
+  });
+
+  it("flipped to false, the workspace route is live again on every known harness", () => {
+    // The other position, asserted rather than described. `unknown` is deliberately NOT included:
+    // it fails closed to a rebuild independently of this switch, because an unrecognized harness
+    // gets the safest answer available whatever the product wants.
+    assert.equal(workspaceFilesActionFor(false), "refresh-workspace");
+    assert.deepEqual([...liveActionKindsFor(false)].sort(), [
+      "apply-live",
+      "no-op",
+      "refresh-workspace",
+    ]);
+  });
+
+  it("leaves the unknown harness failing closed in both positions", () => {
+    // The table hard-codes it, so the switch cannot reach it. Worth pinning: deriving it from the
+    // switch would be an easy and wrong refactor.
+    const unknown = capabilitiesFor({ ...BASE, harness: "future-thing" } as never);
+    assert.equal(unknown.workspaceFiles, "rebuild-sandbox");
+  });
+
+  it("changes nothing about the other facets, in either position", () => {
+    // The blast radius, stated. A flip must move the workspace route and NOTHING else: `model`
+    // stays live and the four escalating facets stay escalating, or the switch is doing more than
+    // it claims.
+    const c = capabilitiesFor(BASE);
+    assert.equal(c.model, "apply-live");
+    for (const facet of ["prompts", "harnessFiles", "harnessSession", "toolCatalog"] as const) {
+      assert.equal(c[facet], "reopen-session", facet);
+    }
+    for (const rebuild of [true, false]) {
+      assert.equal(liveActionKindsFor(rebuild).has("reopen-session"), false);
+      assert.equal(liveActionKindsFor(rebuild).has("restart-runtime"), false);
+      assert.equal(liveActionKindsFor(rebuild).has("rebuild-sandbox"), false);
+      assert.equal(liveActionKindsFor(rebuild).has("apply-live"), true);
+      assert.equal(liveActionKindsFor(rebuild).has("no-op"), true);
+    }
+  });
+
+  it("keeps the shipped constants consistent with the switch's own derivation", () => {
+    // The wiring check: the exported table and set must BE what the constant derives, not a copy
+    // that drifted. This is what catches someone hand-editing one of them back.
+    assert.equal(
+      capabilitiesFor(BASE).workspaceFiles,
+      workspaceFilesActionFor(WORKSPACE_FILES_EDITS_REBUILD),
+    );
+    assert.deepEqual(
+      [...LIVE_ACTION_KINDS].sort(),
+      [...liveActionKindsFor(WORKSPACE_FILES_EDITS_REBUILD)].sort(),
+    );
   });
 });
