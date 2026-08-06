@@ -17,7 +17,7 @@ import {
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
 import {ArrowClockwise, Lightning, Plus, Trash, XCircle} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip, Typography, message} from "antd"
+import {Button, message, Tag, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
@@ -272,7 +272,7 @@ export default function GatewayTriggersSection() {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-base font-semibold text-colorText">
+                                            <span className="text-sm font-medium text-colorText">
                                                 No connections yet
                                             </span>
                                             <span>

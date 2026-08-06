@@ -2,8 +2,8 @@ import {useCallback, useMemo, useState} from "react"
 
 import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
 import {
-    createStandardColumns,
     InfiniteVirtualTableFeatureShell,
+    createStandardColumns,
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
@@ -20,7 +20,7 @@ import {
 } from "@/oss/components/Webhooks/utils/handleTestResult"
 import WebhookDrawer from "@/oss/components/Webhooks/WebhookDrawer"
 import {WebhookProvider, WebhookSubscription} from "@/oss/services/webhooks/types"
-import {setWebhookActiveAtom, webhooksAtom, testWebhookAtom} from "@/oss/state/webhooks/atoms"
+import {setWebhookActiveAtom, testWebhookAtom, webhooksAtom} from "@/oss/state/webhooks/atoms"
 import {
     editingWebhookAtom,
     isWebhookDrawerOpenAtom,
@@ -309,7 +309,7 @@ const Webhooks: React.FC = () => {
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-base font-semibold text-colorText">
+                                        <span className="text-sm font-medium text-colorText">
                                             No webhooks yet
                                         </span>
                                         <span>

@@ -258,7 +258,7 @@ const APIKeys: React.FC = () => {
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-base font-semibold text-colorText">
+                                        <span className="text-sm font-medium text-colorText">
                                             No API keys yet
                                         </span>
                                         <span>
@@ -284,12 +284,12 @@ const APIKeys: React.FC = () => {
             />
 
             <EnhancedModal
-                title="Workspace ID required"
+                title="Workspace still loading"
                 open={isModalVisible}
                 onOk={() => setIsModalVisible(false)}
                 onCancel={() => setIsModalVisible(false)}
             >
-                <p>Please provide a valid Workspace ID to proceed with creating an API key.</p>
+                <p>Your workspace is still loading. Try again in a moment.</p>
             </EnhancedModal>
         </div>
     )

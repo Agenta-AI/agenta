@@ -244,7 +244,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-base font-semibold text-colorText">
+                                            <span className="text-sm font-medium text-colorText">
                                                 No custom endpoints
                                             </span>
                                             <span>
@@ -266,12 +266,12 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-base font-semibold text-colorText">
-                                                No providers available
+                                            <span className="text-sm font-medium text-colorText">
+                                                No providers to show
                                             </span>
                                             <span>
-                                                Standard providers appear here once they are
-                                                available for your workspace.
+                                                The provider list could not be loaded. Reload the
+                                                page to try again.
                                             </span>
                                         </div>
                                     }

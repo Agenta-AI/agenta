@@ -511,8 +511,8 @@ const Organization: FC = () => {
                             </p>
                             <p>
                                 <strong>
-                                    To prevent lockout, the "Owner can bypass controls" flag will be
-                                    enabled automatically.
+                                    To prevent lockout, the "Owners bypass restrictions" setting
+                                    will be enabled automatically.
                                 </strong>
                             </p>
                             <p>Do you want to continue?</p>
@@ -1230,7 +1230,7 @@ const Organization: FC = () => {
                                 <Input placeholder="openid, profile, email" />
                             </Form.Item>
                             <Text type="secondary" style={{fontSize: "12px"}}>
-                                After adding the provider, use the "Test" button to verify the
+                                After adding the provider, click Enable in the table to verify the
                                 connection.
                             </Text>
                         </Form>

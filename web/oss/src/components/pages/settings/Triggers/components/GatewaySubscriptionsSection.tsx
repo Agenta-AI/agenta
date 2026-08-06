@@ -27,7 +27,7 @@ import {
     Trash,
     XCircle,
 } from "@phosphor-icons/react"
-import {Button, Tag, Tooltip, Typography, message} from "antd"
+import {Button, message, Tag, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
@@ -270,7 +270,7 @@ export default function GatewaySubscriptionsSection() {
                         <div className="flex flex-col gap-1">
                             <h3 className="m-0 font-medium text-colorText">Event triggers</h3>
                             <p className="m-0 font-normal text-colorTextSecondary">
-                                Run a workflow whenever an event fires in a connected app.
+                                Run a workflow whenever a connected app sends an event.
                             </p>
                         </div>
                     }
@@ -315,7 +315,7 @@ export default function GatewaySubscriptionsSection() {
                                         image="simple"
                                         description={
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-base font-semibold text-colorText">
+                                                <span className="text-sm font-medium text-colorText">
                                                     Connect an app first
                                                 </span>
                                                 <span>
@@ -330,7 +330,7 @@ export default function GatewaySubscriptionsSection() {
                                         image="simple"
                                         description={
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-base font-semibold text-colorText">
+                                                <span className="text-sm font-medium text-colorText">
                                                     No event triggers yet
                                                 </span>
                                                 <span>

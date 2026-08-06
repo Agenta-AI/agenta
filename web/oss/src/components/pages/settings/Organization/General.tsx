@@ -332,7 +332,7 @@ const OrganizationGeneral = () => {
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-base font-semibold text-colorText">
+                                        <span className="text-sm font-medium text-colorText">
                                             No organizations yet
                                         </span>
                                         <span>

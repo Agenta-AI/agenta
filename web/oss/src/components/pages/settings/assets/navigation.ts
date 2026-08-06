@@ -154,7 +154,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         key: "preferences",
         scope: "personal",
         description:
-            "Personal settings for this browser. They are stored on this device and are not shared with your organizations.",
+            "Personal settings stored in this browser. They are not shared with your organizations.",
     },
 ]
 

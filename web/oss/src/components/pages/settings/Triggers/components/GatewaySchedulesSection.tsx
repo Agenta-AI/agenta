@@ -18,7 +18,7 @@ import {
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
 import {ArrowClockwise, ListChecks, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography, message} from "antd"
+import {Button, message, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
@@ -237,7 +237,7 @@ export default function GatewaySchedulesSection() {
                         <div className="flex flex-col gap-1">
                             <h3 className="m-0 font-medium text-colorText">Scheduled runs</h3>
                             <p className="m-0 font-normal text-colorTextSecondary">
-                                Run a workflow automatically on a recurring cadence.
+                                Run a workflow automatically on a schedule you define.
                             </p>
                         </div>
                     }
@@ -275,11 +275,12 @@ export default function GatewaySchedulesSection() {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-base font-semibold text-colorText">
+                                            <span className="text-sm font-medium text-colorText">
                                                 No scheduled runs yet
                                             </span>
                                             <span>
-                                                Run a workflow automatically on a recurring cadence.
+                                                Run a workflow automatically on a schedule you
+                                                define.
                                             </span>
                                         </div>
                                     }

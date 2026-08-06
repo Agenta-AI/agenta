@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {useVaultSecret, CustomSecretFormat, type NamedSecretRow} from "@agenta/entities/secret"
+import {CustomSecretFormat, useVaultSecret, type NamedSecretRow} from "@agenta/entities/secret"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
@@ -169,7 +169,7 @@ const NamedSecretTable = () => {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-base font-semibold text-colorText">
+                                            <span className="text-sm font-medium text-colorText">
                                                 No secrets yet
                                             </span>
                                             <span>

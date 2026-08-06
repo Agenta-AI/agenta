@@ -18,7 +18,7 @@ import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTab
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {isEmailInvitationsEnabled, isEE} from "@/oss/lib/helpers/isEE"
+import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
@@ -119,7 +119,7 @@ const WorkspaceManage: FC = () => {
             if (!organizationId || !user.email || !workspaceId) return
             AlertPopup({
                 title: "Remove member",
-                message: `Are you sure you want to remove ${user.username} from this workspace?`,
+                message: `Are you sure you want to remove ${user.username} from this organization?`,
                 okText: "Remove",
                 onOk: () =>
                     removeFromWorkspace(
@@ -296,11 +296,11 @@ const WorkspaceManage: FC = () => {
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-base font-semibold text-colorText">
+                                        <span className="text-sm font-medium text-colorText">
                                             No members yet
                                         </span>
                                         <span>
-                                            Invite people to collaborate in this workspace.
+                                            Invite people to collaborate in this organization.
                                             Invitations appear here until they are accepted or
                                             expire.
                                         </span>
