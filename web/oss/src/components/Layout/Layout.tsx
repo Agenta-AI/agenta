@@ -11,6 +11,7 @@ import {ErrorBoundary} from "react-error-boundary"
 
 import {currentAppAtom} from "@/oss/state/app"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
+import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
 import {
@@ -71,6 +72,11 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAgentTemplates = pathname.includes("/agent-templates")
     // Covers /agents and /agents/archived, both full-height InfiniteVirtualTable pages.
     const isAgents = pathname.includes("/agents")
+    const isSessions = pathname.includes("/sessions")
+    // The apps INDEX only (Home): its two columns scroll independently, so it needs the bounded
+    // frame. Anchored to the end of the path so an app's own sub-routes — /apps/<id>/overview,
+    // /apps/<id>/playground — keep whichever layout they already had.
+    const isAppsHome = /\/apps\/?$/.test(pathname)
 
     return {
         isAuthRoute:
@@ -90,7 +96,11 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isObservability ||
             isAuditLog ||
             isAgentTemplates ||
-            isAgents,
+            isAgents ||
+            isSessions ||
+            isAppsHome ||
+            // Asked for by the page — see `layoutFullHeightRequestAtom`.
+            get(layoutFullHeightRequestAtom),
     }
 })
 
@@ -360,6 +370,11 @@ const AppWithVariants = memo(
                                                 "pb-0 mb-8": !isFullHeight,
                                                 "h-[calc(100%-30px)]": !isFullHeight && !isAppRoute,
                                                 "flex flex-col min-h-0 grow": isFullHeight,
+                                                // The shared content style carries a 2rem bottom
+                                                // margin for flowing pages. A full-height page
+                                                // fills the frame, so that margin is pure dead
+                                                // space under it.
+                                                "[&.ant-layout-content]:!mb-0": isFullHeight,
                                                 "h-full": isFullHeight && !isAppRoute,
                                                 "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                                     isPlayground ||
