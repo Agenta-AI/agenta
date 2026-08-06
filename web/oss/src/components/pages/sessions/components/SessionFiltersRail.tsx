@@ -1,22 +1,14 @@
+import {useSessionFilters} from "@agenta/sessions/state"
 import {
-    sessionAgentFilterAtom,
-    sessionSearchAtom,
-    sessionShowArchivedAtom,
-    sessionShowTriggeredAtom,
-    sessionStatusFilterAtom,
-    type SessionStatusFilter,
-} from "@agenta/sessions/state"
-import {MagnifyingGlassIcon} from "@phosphor-icons/react"
-import {Input, Select, Switch, Tooltip, Typography} from "antd"
-import {useAtom, useAtomValue} from "jotai"
+    SessionArchivedControl,
+    SessionModeControl,
+    SessionSearchControl,
+    SessionStatusListControl,
+} from "@agenta/sessions-ui"
+import {Select, Typography} from "antd"
+import {useAtomValue} from "jotai"
 
 import {agentsWorkflowsAtom} from "../../agents/store"
-
-const STATUSES: {value: SessionStatusFilter; label: string}[] = [
-    {value: "all", label: "All sessions"},
-    {value: "live", label: "Live"},
-    {value: "waiting", label: "Waiting on you"},
-]
 
 const RailLabel = ({children}: {children: React.ReactNode}) => (
     <h2 className="m-0 text-[11px] font-semibold uppercase tracking-wide text-colorTextTertiary">
@@ -32,19 +24,13 @@ interface Props {
 }
 
 /**
- * The session filters as a rail.
- *
- * They had outgrown a toolbar: five dimensions on one row, two of them unlabelled switches, and
- * nowhere to put the ones still coming (date range, origin, trigger). Vertically each gets a label
- * and a group, and the status choice becomes a list you read rather than a segmented control you
- * decode. Every control still maps to the same atom, and so to the same server predicate.
+ * The session filters as a rail — the SHELL. The controls themselves come from
+ * `@agenta/sessions-ui` and bind to the shared filter atoms, so this file owns only the 280px
+ * column, the group labels, and the agent picker (antd `Select`, which stays app-injected until
+ * the EntityPicker migrates off antd).
  */
 const SessionFiltersRail = ({title, waitingCount, hideAgentFilter}: Props) => {
-    const [search, setSearch] = useAtom(sessionSearchAtom)
-    const [agentId, setAgentId] = useAtom(sessionAgentFilterAtom)
-    const [status, setStatus] = useAtom(sessionStatusFilterAtom)
-    const [showArchived, setShowArchived] = useAtom(sessionShowArchivedAtom)
-    const [showTriggered, setShowTriggered] = useAtom(sessionShowTriggeredAtom)
+    const {agentId, setAgentId} = useSessionFilters()
     const agents = useAtomValue(agentsWorkflowsAtom)
 
     return (
@@ -53,35 +39,9 @@ const SessionFiltersRail = ({title, waitingCount, hideAgentFilter}: Props) => {
                 {title}
             </Typography.Title>
 
-            <Input
-                allowClear
-                value={search}
-                placeholder="Search sessions"
-                prefix={<MagnifyingGlassIcon size={14} className="text-colorTextTertiary" />}
-                onChange={(event) => setSearch(event.target.value)}
-            />
+            <SessionSearchControl />
 
-            <nav className="flex flex-col gap-0.5">
-                {STATUSES.map((option) => (
-                    <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => setStatus(option.value)}
-                        className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors ${
-                            option.value === status
-                                ? "bg-colorFillSecondary text-colorText"
-                                : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
-                        }`}
-                    >
-                        <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                        {option.value === "waiting" && waitingCount ? (
-                            <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText">
-                                {waitingCount}
-                            </span>
-                        ) : null}
-                    </button>
-                ))}
-            </nav>
+            <SessionStatusListControl waitingCount={waitingCount} />
 
             {hideAgentFilter ? null : (
                 <section className="flex flex-col gap-2">
@@ -103,25 +63,12 @@ const SessionFiltersRail = ({title, waitingCount, hideAgentFilter}: Props) => {
                 other widens the set. Under one "Include" label they read as the same thing. */}
             <section className="flex flex-col gap-3">
                 <RailLabel>Show</RailLabel>
-                <Tooltip
-                    title="Runs started by an automation, instead of the sessions you started"
-                    placement="right"
-                >
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-colorTextSecondary">
-                        <Switch checked={showTriggered} onChange={setShowTriggered} />
-                        Automation runs
-                    </label>
-                </Tooltip>
+                <SessionModeControl />
             </section>
 
             <section className="flex flex-col gap-3">
                 <RailLabel>Include</RailLabel>
-                <Tooltip title="Archived sessions are hidden but recoverable" placement="right">
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-colorTextSecondary">
-                        <Switch checked={showArchived} onChange={setShowArchived} />
-                        Archived
-                    </label>
-                </Tooltip>
+                <SessionArchivedControl />
             </section>
         </aside>
     )

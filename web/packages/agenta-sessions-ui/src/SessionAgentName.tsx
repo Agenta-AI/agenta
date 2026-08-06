@@ -7,11 +7,14 @@ import {useAtomValue} from "jotai"
  * The owning agent's name for a session row. Reads the workflow ARTIFACT's name — never a
  * revision's, which carries the variant label or nothing at all (see web/CLAUDE.md).
  */
-const SessionAgentLabel = ({appId}: {appId: string | null}) => {
-    const nameAtom = useMemo(() => workflowMolecule.selectors.artifactName(appId ?? ""), [appId])
+export const SessionAgentName = ({agentId}: {agentId: string | null}) => {
+    const nameAtom = useMemo(
+        () => workflowMolecule.selectors.artifactName(agentId ?? ""),
+        [agentId],
+    )
     const name = useAtomValue(nameAtom)
 
-    if (!appId) {
+    if (!agentId) {
         return (
             <span className="text-xs text-colorTextTertiary" title="This session has no turns yet">
                 No agent yet
@@ -21,5 +24,3 @@ const SessionAgentLabel = ({appId}: {appId: string | null}) => {
 
     return <span className="text-xs text-colorTextSecondary truncate">{name || "Agent"}</span>
 }
-
-export default SessionAgentLabel

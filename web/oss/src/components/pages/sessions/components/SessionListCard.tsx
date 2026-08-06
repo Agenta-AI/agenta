@@ -13,6 +13,7 @@ import {
     useActionableInteractions,
     useSessionList,
 } from "@agenta/sessions/state"
+import {SessionAgentName} from "@agenta/sessions-ui"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {ArrowRightIcon, ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
 import {Dropdown, Skeleton, Tooltip} from "antd"
@@ -27,8 +28,6 @@ import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessio
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
-
-import SessionAgentLabel from "./SessionAgentLabel"
 
 interface Props {
     title: string
@@ -258,7 +257,7 @@ const SessionListCard = ({
                             spends a third of the row width restating the heading. */}
                                 {agentId ? null : (
                                     <span className="w-24 shrink-0 truncate text-right">
-                                        <SessionAgentLabel appId={target?.appId ?? null} />
+                                        <SessionAgentName agentId={target?.appId ?? null} />
                                     </span>
                                 )}
                                 <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
