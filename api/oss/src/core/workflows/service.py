@@ -105,6 +105,7 @@ from oss.src.core.workflows.change_set import (
     ChangeSetError,
     Reason,
     apply_change_set,
+    strip_guidance_from_data,
 )
 from oss.src.core.workflows.read_config import (
     ReadConfigError,
@@ -2027,6 +2028,23 @@ class WorkflowsService:
                 workflow_revision_commit=workflow_revision_commit,
                 current=head,
             )
+
+            # A full-data commit never reaches the engine, so the guidance block would be
+            # stored verbatim. A copied-back instructions file arrives this way as easily as
+            # through a delta, and the playground's own save path is full-data.
+            if workflow_revision_commit.data is not None:
+                stripped, guidance_warnings = strip_guidance_from_data(
+                    workflow_revision_commit.data.model_dump(
+                        mode="json", exclude_none=True
+                    )
+                )
+                if guidance_warnings:
+                    warnings.extend(
+                        CommitWarning(**w.to_dict()) for w in guidance_warnings
+                    )
+                    workflow_revision_commit = workflow_revision_commit.model_copy(
+                        update={"data": WorkflowRevisionData(**stripped)}
+                    )
 
         # Built before the comparison, because the comparison runs on what would be
         # STORED: enrichment fills `url` and `schemas`, and the flags are inferred from the
