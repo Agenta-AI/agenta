@@ -19,13 +19,20 @@ import json
 
 import pytest
 
+from agenta.sdk.redaction.context import redaction_context
+from agenta.sdk.redaction.redactor import Redactor
+
 from agenta.sdk.agents import (
     AgentaAgentTemplate,
+    AgentTemplate,
     ClaudeAgentTemplate,
+    CodexAgentTemplate,
+    ContentBlock,
     Endpoint,
     HarnessKind,
     Message,
     PiAgentTemplate,
+    PiHarness,
     ResolvedConnection,
     RunContext,
     RunContextReference,
@@ -33,8 +40,10 @@ from agenta.sdk.agents import (
     RunContextTrace,
     RunContextWorkflow,
     SandboxPermission,
+    SessionConfig,
     SkillTemplate,
     ToolCallback,
+    ToolResolver,
     TraceContext,
 )
 from agenta.sdk.agents.utils.wire import (
@@ -42,23 +51,31 @@ from agenta.sdk.agents.utils.wire import (
     result_from_wire,
     sanitize_runner_error,
 )
+from agenta.sdk.agents.wire_models import WireRunRequest
+from agenta.sdk.agents.pi_builtins import PI_BUILTIN_TOOL_NAMES
+from agenta.sdk.utils.types import build_agent_v0_default
 
-# The full set of top-level keys ``request_to_wire`` may emit. The TS ``AgentRunRequest``
-# interface must declare a superset of these. Adding a key here without adding it to
-# protocol.ts is exactly the drift this set exists to catch.
+# The full set of top-level keys ``request_to_wire`` may emit. THREE things must agree on it:
+# this set, the ``WireRunRequest`` schema, and the TS ``AgentRunRequest`` interface. Adding a key
+# to the producer without adding it here, or here without adding it to protocol.ts, is exactly
+# the drift this set exists to catch.
+#
+# The schema half is checked structurally by ``test_known_request_keys_match_the_wire_schema``
+# below, because a payload-validation test cannot catch it: ``_WireModel`` sets
+# ``extra="allow"``, so a payload carrying a field the schema forgot still validates cleanly and
+# the field silently becomes an extra. A generated client built from that schema would then drop
+# it. That is how ``connection`` went missing once already.
 KNOWN_REQUEST_KEYS = {
     "harness",
     "sandbox",
     "sessionId",
     "agentsMd",
     "model",
-    "provider",
     "connection",
-    "deployment",
-    "endpoint",
-    "credentialMode",
+    "harnessMode",
+    "modelCapabilities",
+    "modelConnection",
     "messages",
-    "secrets",
     "context",
     "telemetry",
     "runContext",
@@ -122,7 +139,20 @@ def _pi_payload():
     config = PiAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="openai-codex/gpt-5.5",
-        builtin_tools=["read", "write"],
+        resolved_connection=ResolvedConnection(
+            provider="openai-codex",
+            model="gpt-5.5",
+            deployment="direct",
+            credential_mode="env",
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-test",
+                    "usage": "opaque_http",
+                }
+            ],
+            endpoint=Endpoint(base_url="https://api.openai.com/v1"),
+        ),
         custom_tools=[dict(_CUSTOM_TOOL), dict(_DIRECT_CALL_TOOL)],
         tool_callback=_CALLBACK,
         skills=[dict(_SKILL)],
@@ -135,7 +165,6 @@ def _pi_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
-        secrets={"OPENAI_API_KEY": "sk-test"},
         trace=TraceContext(
             traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             endpoint="https://otlp.example/v1/traces",
@@ -168,6 +197,23 @@ def _claude_payload():
     config = ClaudeAgentTemplate(
         agents_md="You are a helpful assistant.",
         model="claude-sonnet-4-6",
+        resolved_connection=ResolvedConnection(
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+            deployment="direct",
+            credential_mode="env",
+            credentials=[
+                {
+                    "binding": {
+                        "kind": "environment",
+                        "name": "ANTHROPIC_API_KEY",
+                    },
+                    "value": "sk-ant",
+                    "usage": "opaque_http",
+                }
+            ],
+            endpoint=Endpoint(base_url="https://api.anthropic.com"),
+        ),
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         permission_default="deny",
@@ -183,7 +229,36 @@ def _claude_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
-        secrets={"ANTHROPIC_API_KEY": "sk-ant"},
+        trace=None,
+        run_context=RunContext(run=RunContextRun(kind="test")),
+        session_id=None,
+    )
+
+
+def _codex_payload():
+    config = CodexAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="gpt-5.6-luna",
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.6-luna",
+            deployment="direct",
+            credential_mode="env",
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-openai",
+                    "usage": "opaque_http",
+                }
+            ],
+            endpoint=Endpoint(base_url="https://api.openai.com/v1"),
+        ),
+    )
+    return request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
         trace=None,
         run_context=RunContext(run=RunContextRun(kind="test")),
         session_id=None,
@@ -194,7 +269,6 @@ def _agenta_payload():
     config = AgentaAgentTemplate(
         agents_md="Agenta preamble + project rules.",
         model="gpt-5.5",
-        builtin_tools=["read", "bash"],
         custom_tools=[dict(_CUSTOM_TOOL)],
         tool_callback=_CALLBACK,
         append_system="You are an Agenta agent.",
@@ -208,12 +282,46 @@ def _agenta_payload():
     )
 
 
+def _attachment_payload():
+    config = PiAgentTemplate(
+        agents_md="Use the attached file.",
+        model="anthropic/claude-sonnet-4-6",
+        resolved_connection=ResolvedConnection(
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+            credential_mode="runtime_provided",
+            input_modalities=["text", "image"],
+        ),
+    )
+    return request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[
+            Message(
+                role="user",
+                content=[
+                    ContentBlock(
+                        type="attachment",
+                        attachment_id="019c471b-5b91-71d2-9d4b-5486013e6e9b",
+                        filename="photo.png",
+                        mime_type="image/png",
+                        size=482113,
+                    ),
+                    ContentBlock(type="text", text="Describe this image."),
+                ],
+            )
+        ],
+        session_id="sess-attachment",
+    )
+
+
 def test_request_to_wire_agenta_carries_skills_and_pi_shape():
     payload = _agenta_payload()
     assert set(payload) <= KNOWN_REQUEST_KEYS
     # Agenta is a Pi config: same tool shape and shared permission plan, plus prompt overrides.
     assert payload["permissions"] == {"default": "allow_reads"}
-    assert payload["tools"] == ["read", "bash"]
+    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
     assert payload["appendSystemPrompt"] == "You are an Agenta agent."
     # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
     assert payload["skills"][0]["name"] == "release-notes"
@@ -307,6 +415,54 @@ def test_request_to_wire_pi_matches_golden(golden):
     }
     # Pi renders no harness files, so the generic `harnessFiles` key is absent.
     assert "harnessFiles" not in payload
+
+
+def test_request_to_wire_attachment_matches_golden(golden):
+    payload = _attachment_payload()
+    assert payload == golden("run_request.attachment.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["modelCapabilities"] == {"inputModalities": ["text", "image"]}
+    assert payload["messages"][0]["content"][0] == {
+        "type": "attachment",
+        "attachmentId": "019c471b-5b91-71d2-9d4b-5486013e6e9b",
+        "filename": "photo.png",
+        "mimeType": "image/png",
+        "size": 482113,
+    }
+
+
+async def test_default_template_carries_no_tool_entries_and_still_names_every_builtin_on_the_wire(
+    make_env,
+):
+    """Two guarantees at once, both of which a future edit could silently break.
+
+    The shipped default template carries NO tool entries: built-ins are activated by the
+    runner, never configured. And the wire's deprecated ``tools`` field still names every
+    built-in, so an older runner that reads it as a grant list activates the same set instead
+    of the empty list that caused issue #5590. This starts from the SHIPPED default rather than
+    a hand-written template, and it runs the real chain (template parse, tool resolution, the Pi
+    harness adapter, the wire serializer).
+    """
+    assert build_agent_v0_default()["tools"] == []
+
+    template = AgentTemplate.from_params({"agent": build_agent_v0_default()})
+    resolved = await ToolResolver().resolve(template.tools)
+    harness = PiHarness(make_env(supported=[HarnessKind.PI]))
+    config = harness._to_harness_config(
+        SessionConfig(
+            agent=template,
+            tool_specs=resolved.tool_specs,
+        )
+    )
+
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
 
 
 def test_request_to_wire_omits_run_context_when_none():
@@ -433,6 +589,132 @@ def test_request_to_wire_claude_matches_golden(golden):
     ]
 
 
+def test_request_to_wire_codex_matches_golden(golden):
+    payload = _codex_payload()
+    assert payload == golden("run_request.codex.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["harness"] == "codex"
+    assert payload["tools"] == []  # Codex has no Pi built-ins
+    assert payload["model"] == "gpt-5.6-luna"
+    assert "harnessMode" not in payload
+    assert payload["permissions"] == {"default": "allow_reads"}
+    assert "permissionPolicy" not in payload
+    assert "systemPrompt" not in payload  # Codex exposes no prompt overrides
+    assert "appendSystemPrompt" not in payload
+    # A managed codex run (credential_mode "env") renders config.toml carrying the file-free auth
+    # provider block (env_key OPENAI_API_KEY), even with no authored options. The secret never
+    # appears in the file; it rides `modelConnection.credentials` (D-002 final ruling).
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+    assert payload["modelConnection"]["credentials"] == [
+        {
+            "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+            "value": "sk-openai",
+            "usage": "opaque_http",
+        }
+    ]
+    assert payload["context"] is None
+    assert payload["telemetry"] is None
+    assert "trace" not in payload
+
+
+def test_request_to_wire_codex_renders_config_toml_from_authored_options():
+    # The Milestone 1 authoring schema does not yet carry these keys. That support lands in the
+    # permissions milestone, so this test drives the pass-through directly to pin the rendering.
+    # No resolved connection is threaded here, so the run defaults to MANAGED (file-free auth): the
+    # config gains the `model_provider` pointer + the custom provider table (env_key OPENAI_API_KEY)
+    # around the authored scalars (D-002 final ruling).
+    config = CodexAgentTemplate(
+        harness_permissions={
+            "approval_policy": "untrusted",
+            "sandbox_mode": "read-only",
+        }
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                'approval_policy = "untrusted"\n'
+                'sandbox_mode = "read-only"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+
+
+def test_request_to_wire_codex_managed_is_file_free_provider_block():
+    # A managed codex run (unresolved connection => managed) with nothing else authored still writes
+    # config.toml carrying ONLY the file-free auth provider block. No credential appears in the file.
+    config = CodexAgentTemplate(model="gpt-5.6-luna")
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["harnessFiles"] == [
+        {
+            "path": ".codex/config.toml",
+            "content": (
+                'model_provider = "agenta-openai"\n'
+                "\n[model_providers.agenta-openai]\n"
+                'name = "Agenta OpenAI"\n'
+                'env_key = "OPENAI_API_KEY"\n'
+            ),
+        }
+    ]
+    # No credential value ever appears in the file.
+    assert "sk-openai" not in payload["harnessFiles"][0]["content"]
+
+
+def test_request_to_wire_codex_subscription_renders_no_provider_block():
+    # A subscription codex run (resolved credential_mode runtime_provided) uses the built-in provider
+    # + its mounted OAuth login, so NO provider block is rendered. With nothing else authored, the
+    # run stays fileless (byte-identical to before).
+    from agenta.sdk.agents.connections.models import Connection, ResolvedConnection
+    from agenta.sdk.agents.dtos import ModelRef
+
+    config = CodexAgentTemplate(
+        model="gpt-5.6-luna",
+        model_ref=ModelRef(
+            model="gpt-5.6-luna",
+            provider="openai",
+            connection=Connection(mode="self_managed", slug=None),
+        ),
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.6-luna",
+            credential_mode="runtime_provided",
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "harnessFiles" not in payload
+
+
 def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
     config = ClaudeAgentTemplate(
         harness_permissions={
@@ -483,26 +765,81 @@ def test_request_to_wire_has_no_prompt_key():
 def test_request_to_wire_emits_only_known_keys():
     pi = _pi_payload()
     claude = _claude_payload()
+    codex = _codex_payload()
     assert set(pi) <= KNOWN_REQUEST_KEYS
     assert set(claude) <= KNOWN_REQUEST_KEYS
+    assert set(codex) <= KNOWN_REQUEST_KEYS
     # The Pi case must actually exercise the prompt-override keys, otherwise this guard would
     # silently stop covering them.
     assert {"systemPrompt", "appendSystemPrompt"} <= set(pi)
 
 
-def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
-    # A threaded resolved connection is the authoritative provider/model descriptor: the
-    # resolved `model` overrides the config-build `model`, `provider`/`deployment`/
-    # `credentialMode`/`endpoint.baseUrl` ride the wire, and the secret `key` NEVER does (it
-    # rides `secrets`; `env` is masked from the wire by `ResolvedConnection.to_wire`).
+def test_known_request_keys_match_the_wire_schema():
+    """``WireRunRequest`` must declare exactly the keys the producer may emit.
+
+    The subset guard above cannot catch a field the SCHEMA forgot, for two reasons. It only sees
+    the keys the three sample payloads happen to carry, and ``_WireModel`` sets ``extra="allow"``,
+    so even a payload that does carry the field validates cleanly with the field demoted to an
+    extra. The schema is what generated clients are built from, so a field missing here is a
+    field those clients drop.
+
+    Equality, not a subset, in both directions: a key the schema declares and the producer never
+    emits is dead contract surface that readers will assume is real.
+    """
+    declared = {
+        field.alias or name for name, field in WireRunRequest.model_fields.items()
+    }
+    assert declared == KNOWN_REQUEST_KEYS
+
+
+def test_named_connection_choice_is_a_declared_schema_field():
+    """A named Agenta connection reaches the runner as a first-class field, not as an extra.
+
+    The runner registers a custom OpenAI-compatible Pi run in Pi's ``models.json`` under a
+    provider named after this slug (``pi-model-config.ts``), so a client that dropped the field
+    would silently misroute those runs to the generic provider path.
+    """
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(
+            model={
+                "provider": "openai",
+                "model": "gpt-5.5",
+                "connection": {"mode": "agenta", "slug": "openrouter-prod"},
+            }
+        ),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["connection"] == {"mode": "agenta", "slug": "openrouter-prod"}
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.connection is not None
+    assert parsed.connection.slug == "openrouter-prod"
+    # The point of the assertion: `connection` is a MODELLED field, so it survives a schema
+    # round-trip. An extra would be dropped by `model_dump` without `serialize_as_any`.
+    assert parsed.model_dump(by_alias=True, exclude_none=True)["connection"] == {
+        "mode": "agenta",
+        "slug": "openrouter-prod",
+    }
+
+
+def test_request_to_wire_carries_consumer_owned_model_connection():
     config = PiAgentTemplate(
-        model="openai/gpt-5.5",  # the config-build model
+        model="openai/gpt-5.5",
         resolved_connection=ResolvedConnection(
             provider="openai",
-            model="gpt-5.5-2026",  # the resolved EXACT model, wins over `model`
+            model="gpt-5.5-2026",
             deployment="custom",
             credential_mode="env",
-            env={"OPENAI_API_KEY": "sk-secret"},  # secret channel; never on the wire
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-secret",
+                    "usage": "opaque_http",
+                }
+            ],
             endpoint=Endpoint(base_url="https://gw.example/v1"),
         ),
     )
@@ -511,21 +848,77 @@ def test_request_to_wire_carries_resolved_connection_non_secret_descriptor():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
-        secrets={"OPENAI_API_KEY": "sk-secret"},  # the secret rides here, by design
     )
     assert set(payload) <= KNOWN_REQUEST_KEYS
-    assert payload["provider"] == "openai"
-    assert payload["credentialMode"] == "env"
-    assert payload["deployment"] == "custom"
-    assert payload["endpoint"] == {"baseUrl": "https://gw.example/v1"}
-    # Exactly one `model` key, and it is the resolved exact model (last spread wins).
-    assert payload["model"] == "gpt-5.5-2026"
-    # The secret only rides `secrets`; `env` is never serialized onto the wire.
-    assert payload["secrets"] == {"OPENAI_API_KEY": "sk-secret"}
-    assert "env" not in payload
-    assert (
-        "sk-secret" not in {k: v for k, v in payload.items() if k != "secrets"}.values()
+    assert payload["model"] == "openai/gpt-5.5-2026"
+    assert payload["modelConnection"] == {
+        "provider": "openai",
+        "deployment": "custom",
+        "credentialMode": "env",
+        "credentials": [
+            {
+                "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                "value": "sk-secret",
+                "usage": "opaque_http",
+            }
+        ],
+        "endpoint": {"baseUrl": "https://gw.example/v1"},
+    }
+    for removed in (
+        "secrets",
+        "provider",
+        "connection",
+        "deployment",
+        "endpoint",
+        "credentialMode",
+    ):
+        assert removed not in payload
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "expected"),
+    [
+        ("openai", "shared-model", "openai/shared-model"),
+        ("openrouter", "shared-model", "openrouter/shared-model"),
+        ("openrouter", "meta-llama/llama-3", "openrouter/meta-llama/llama-3"),
+    ],
+)
+def test_pi_wire_model_preserves_resolved_provider(provider, model, expected):
+    config = PiAgentTemplate(
+        model=model,
+        resolved_connection=ResolvedConnection(
+            provider=provider,
+            model=model,
+            deployment="direct",
+            credential_mode="runtime_provided",
+        ),
     )
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["model"] == expected
+
+
+def test_claude_wire_model_keeps_bare_alias():
+    config = ClaudeAgentTemplate(
+        model="sonnet",
+        resolved_connection=ResolvedConnection(
+            provider="anthropic",
+            model="sonnet",
+            deployment="direct",
+            credential_mode="runtime_provided",
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CLAUDE,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    assert payload["model"] == "sonnet"
 
 
 def test_request_to_wire_omits_resolved_connection_when_none():
@@ -538,11 +931,8 @@ def test_request_to_wire_omits_resolved_connection_when_none():
         config=config,
         messages=[Message(role="user", content="hi")],
     )
-    assert config.wire_resolved_connection() == {}
-    assert "provider" not in payload
-    assert "credentialMode" not in payload
-    assert "deployment" not in payload
-    assert "endpoint" not in payload
+    assert config.wire_model_connection() == {}
+    assert "modelConnection" not in payload
     assert payload["model"] == "gpt-5.5"
 
 
@@ -813,3 +1203,23 @@ def test_permission_policy_absent_from_serialized_session_config():
     claude_payload = _claude_payload()
     assert "permissionPolicy" not in json.dumps(pi_payload)
     assert "permissionPolicy" not in json.dumps(claude_payload)
+
+
+def test_result_from_wire_redacts_seeded_credential_from_output_events_and_errors():
+    marker = "sk-live-marker-12345678"
+    redactor = Redactor().with_known_secrets([marker])
+    with redaction_context(redactor):
+        result = result_from_wire(
+            {
+                "ok": True,
+                "output": f"echo {marker}",
+                "messages": [{"role": "assistant", "content": marker}],
+                "events": [{"type": "message", "content": marker}],
+            }
+        )
+        assert marker not in result.output
+        assert marker not in repr(result.messages)
+        assert marker not in repr(result.events)
+        with pytest.raises(RuntimeError) as exc:
+            result_from_wire({"ok": False, "error": f"provider rejected {marker}"})
+        assert marker not in str(exc.value)

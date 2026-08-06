@@ -1769,3 +1769,9 @@ section.row > .col--6 {
   flex: 0 0 100% !important;
   width: 100% !important;
 }
+
+/* The version selector next to the logo already tells the reader which version
+   they are on, so the per-page version chip is redundant. */
+.theme-doc-version-badge {
+  display: none;
+}

@@ -30,6 +30,7 @@ import type {SidebarView} from "../Sidebar/types"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
 import {useStyles} from "./assets/styles"
+import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
 import PostHogThemeCapture from "./PostHogThemeCapture"
 import {SidebarIsland} from "./SidebarIsland"
@@ -306,6 +307,7 @@ const AppWithVariants = memo(
                         return.
                     </p>
                 </Modal>
+                <AuthUpgradeHost />
                 {project?.is_demo && (
                     <>
                         <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium">

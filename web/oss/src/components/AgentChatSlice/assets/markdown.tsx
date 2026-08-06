@@ -133,7 +133,7 @@ const CodeBlock = ({
                         text={code}
                         buttonText={null}
                         icon
-                        size="small"
+                        size="icon-sm"
                         aria-label="Copy code"
                         successMessage=""
                         className="!h-7 !w-7 !border-colorBorderSecondary !bg-colorBgElevated !p-0 !text-colorTextSecondary shadow-sm"

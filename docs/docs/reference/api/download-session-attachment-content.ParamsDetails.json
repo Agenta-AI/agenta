@@ -1,0 +1,1 @@
+{"parameters":[{"name":"attachment_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Attachment Id"}},{"name":"session_id","in":"query","required":true,"schema":{"type":"string","title":"Session Id"}}]}

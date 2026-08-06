@@ -1,0 +1,25 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Feedback/Overview" />
+
+# Presentational · Feedback
+
+Loading / empty placeholders shaped for specific surfaces (list rows, tables) plus a
+copy-on-click tooltip. They compose the feedback primitives into a ready-made state rather
+than replacing one antd control, so their stories render alone.
+
+| Component           | What it is                                                          | antd inside?                 |
+| ------------------- | ------------------------------------------------------------------- | ---------------------------- |
+| **LoadingSkeleton** | `variant="paragraph"` (text rows) or `"list"` (avatar + line rows). | no — `@agenta/ui` Skeleton   |
+| **TableEmptyState** | Empty-table message + action slot.                                  | no — `@agenta/ui` EmptyState |
+| **CopyTooltip**     | Tooltip that copies its target on click.                            | antd `Tooltip`               |
+
+_**LoadingSkeleton** merged the former **ListItemSkeleton** (list) + **TableLoadingState** (paragraph) into one component on the `@agenta/ui` Skeleton primitive._
+
+**How to read these stories**
+
+- The **antd** column names the antd part still used internally — that doubles as a
+  migration to-do toward the `@agenta/ui` Skeleton / EmptyState / Tooltip primitives.
+- Stories toggle the loading / empty state via controls so both branches are visible.
+
+Open a component's **Docs** tab for its full prop table.

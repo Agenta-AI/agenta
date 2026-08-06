@@ -36,6 +36,11 @@ const GITHUB_OWNER = 'Agenta-AI';
 const GITHUB_REPO = 'agenta';
 const NEW_DISCUSSION_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/discussions/new?category=ideas`;
 
+// The list of GitHub discussions is hidden until there are enough of them to be
+// worth showing. The fetching and rendering code below stays in place; flip this
+// to true to bring the list back.
+const SHOW_DISCUSSIONS = false;
+
 // We will use the Discussions list API via the REST endpoint.
 // Note: For unauthenticated requests there is a low rate-limit. You can
 // set an environment var in production to add a token if needed and pass it
@@ -433,7 +438,9 @@ export default function RoadmapPage() {
 
                 <SectionHeader>Feature Requests</SectionHeader>
                 <p className={styles.discussionsIntro}>
-                    Upvote or comment on the features you care about or request a new feature.
+                    {SHOW_DISCUSSIONS
+                        ? 'Upvote or comment on the features you care about or request a new feature.'
+                        : 'Tell us what you need. Feature requests go to GitHub Discussions, where you and others can comment on them.'}
                 </p>
                 <div className={styles.actionsBar}>
                     <a
@@ -445,7 +452,7 @@ export default function RoadmapPage() {
                         Request a feature
                     </a>
                 </div>
-                <DiscussionsTable />
+                {SHOW_DISCUSSIONS && <DiscussionsTable />}
             </main>
         </Layout>
     );

@@ -10,11 +10,21 @@
 
 /** One piece of a message. `text` is all the playground sends today; the rest is plumbed. */
 export interface ContentBlock {
-  type: "text" | "image" | "resource" | "tool_call" | "tool_result" | string;
+  type:
+    | "text"
+    | "image"
+    | "resource"
+    | "attachment"
+    | "tool_call"
+    | "tool_result"
+    | string;
   text?: string;
   data?: string;
   mimeType?: string;
   uri?: string;
+  attachmentId?: string;
+  filename?: string;
+  size?: number;
   // Tool-turn carriers, used for structured-message continuation (cross-turn HITL): a
   // resolved tool call replays as a `tool_call` block plus a `tool_result` block so the
   // model resumes from the result instead of re-asking. The `/messages` egress folds the
@@ -28,8 +38,19 @@ export interface ContentBlock {
 
 export interface ChatMessage {
   role: string;
-  /** A plain string, or ACP-style content blocks (text/image/resource). */
+  /** A plain string, or ACP-style content blocks (text/image/resource/attachment). */
   content: string | ContentBlock[];
+}
+
+export interface AttachmentRef {
+  attachmentId: string;
+  /**
+   * Delivery never trusts wire display fields and re-reads them from the attachment API. Transcript
+   * replay may render the record-sourced fields the runner previously persisted for a warm turn.
+   */
+  filename?: string;
+  mediaType?: string;
+  size?: number;
 }
 
 /**
@@ -239,13 +260,49 @@ export interface McpToolPolicy {
   names?: string[];
 }
 
+/**
+ * One secret HTTP header an MCP server needs, e.g. `Authorization: Bearer <token>`.
+ *
+ * The three fields answer three separate questions, and keeping them separate is what makes a
+ * credential substitutable on a remote sandbox:
+ *
+ * - `binding` says WHERE the value goes. Today the only answer for MCP is `header`, because the
+ *   only MCP transport we accept is HTTP and a remote server reads its credential from a header.
+ *   A future stdio MCP server would need `{ kind: "environment", name }` instead, which is why
+ *   this is an object with a `kind` rather than a bare header name.
+ * - `value` is the secret itself.
+ * - `usage` says WHO reads the value, which decides whether we can hide it. See the note on
+ *   `ModelCredential.usage` below for the full reasoning; `opaque_http` means the value is only
+ *   ever read by the remote server on the other end of an HTTPS request, so the sandbox never
+ *   needs to see it and Daytona can substitute it into the outbound request.
+ *
+ * MCP has only `opaque_http` today because every MCP server we support is remote and HTTPS. When
+ * OAuth lands, the token is still an `opaque_http` header credential; what changes is who mints
+ * it and how often, which is a resolver concern upstream of this wire, not a new `usage`. A
+ * gateway MCP server is the same shape too: it is an HTTP MCP server whose URL happens to be
+ * ours. Neither needs a new field here.
+ */
+export interface McpCredential {
+  binding: { kind: "header"; name: string };
+  value: string;
+  usage: "opaque_http";
+}
+
+/**
+ * A user-declared HTTP MCP server attached to the run. Public HTTP headers and secret HTTP
+ * header credentials remain separate by protocol role: `headers` carries non-secret values
+ * only, and every secret header rides a typed `McpCredential` so the runner can materialize
+ * it (plaintext locally; a Daytona Secret placeholder on a remote sandbox).
+ */
 export interface McpServerConfig {
   name: string;
   connection: {
     type: "http";
     url: string;
-    /** Resolved per-run headers. Values may be secret and must never be logged. */
+    /** Resolved per-run PUBLIC headers. Secret headers ride `credentials`. */
     headers?: Record<string, string>;
+    /** Typed secret header bindings. Values must never be logged. */
+    credentials?: McpCredential[];
   };
   policy: {
     tools: McpToolPolicy;
@@ -323,7 +380,7 @@ export type RenderHint =
   | { kind: "elicitation" };
 
 export type AgentEvent =
-  | { type: "message"; text: string }
+  | { type: "message"; text: string; attachments?: AttachmentRef[] }
   | { type: "thought"; text: string }
   | { type: "message_start"; id: string }
   | { type: "message_delta"; id: string; delta: string }
@@ -378,6 +435,14 @@ export type AgentEvent =
   | { type: "data"; name: string; data: unknown; transient?: boolean }
   | { type: "file"; url: string; mediaType: string }
   | {
+      type: "attachment_delivery";
+      attachmentId: string;
+      outcome: "native" | "workspace_only" | "failed";
+      /** Stable string code, never a display string. */
+      reasonCode: string;
+      workingPath?: string;
+    }
+  | {
       type: "usage";
       input?: number;
       output?: number;
@@ -401,6 +466,101 @@ export interface AgentUsage {
   cost: number;
 }
 
+/**
+ * WHERE a model credential has to land for the harness to pick it up.
+ *
+ * `environment` is the only kind today, and it is not a placeholder for a missing case: every
+ * agent harness we run (Pi, Claude, Codex) reads its provider key from an environment variable,
+ * because that is the convention their underlying SDKs use. A `header` kind would be the natural
+ * addition if we ever call a provider over raw HTTP ourselves instead of handing the key to a
+ * harness, which is exactly what MCP does (see `McpCredential`). Modeling this as an object with
+ * a `kind` rather than a bare variable name is what lets the two consumers share one shape.
+ */
+export interface ModelCredentialBinding {
+  kind: "environment";
+  name: string;
+}
+
+/**
+ * One secret the model provider needs, plus enough information to decide whether the sandbox is
+ * allowed to see it.
+ *
+ * `usage` is the field that decides that, and it has exactly two answers because there are
+ * exactly two ways a provider credential gets consumed:
+ *
+ * - `opaque_http` — the value is a bearer token that only the provider's own server reads, over
+ *   HTTPS, at a host we know in advance. Nothing inside the sandbox ever needs the real string.
+ *   On Daytona we therefore replace it with a `dtn_secret_<id>` placeholder and let Daytona's
+ *   egress proxy substitute the real value into the outbound request, so a compromised agent
+ *   that dumps its own environment gets a useless placeholder. `OPENAI_API_KEY` and
+ *   `ANTHROPIC_API_KEY` are the common cases.
+ * - `local_use` — the value is consumed by a provider SDK running INSIDE the sandbox, which
+ *   signs the request locally rather than sending the secret. AWS SigV4 is the reason this
+ *   exists: `AWS_SECRET_ACCESS_KEY` never travels on the wire, boto derives a signature from it
+ *   on the spot, so an outbound-substitution trick cannot work and the sandbox must hold the
+ *   real value. We accept that and keep the list of names that may claim `local_use` short and
+ *   explicit (`daytona-secret-plan.ts`), so nobody can smuggle an opaque provider key through
+ *   this door and quietly lose the hiding.
+ *
+ * The split is deliberately about the CONSUMER, not the provider name: it is the only property
+ * that determines whether hiding is even possible, and it stays correct when a new provider
+ * arrives.
+ */
+export interface ModelCredential {
+  binding: ModelCredentialBinding;
+  value: string;
+  usage: "opaque_http" | "local_use";
+}
+
+/**
+ * Everything the runner needs to reach the model, grouped under the consumer that owns it.
+ *
+ * The organization mirrors `ResolvedConnection` in the Python SDK
+ * (`sdks/python/agenta/sdk/agents/connections/models.py`), which is the authority: the resolver
+ * builds it from the vault, validates it there, and serializes it onto this wire. The runner
+ * re-validates rather than trusting it, but it does not invent fields. Grouping matters because
+ * the run has more than one credential consumer: the model owns this object, each MCP server
+ * owns its own `connection.credentials`. Before this grouping, every consumer's keys were mixed
+ * into one flat `secrets` map and the runner could not tell whose key was whose, which is
+ * precisely what made hiding them impossible.
+ *
+ * The fields:
+ *
+ * - `provider` is the credential-ownership family (`openai`, `anthropic`, `bedrock`, ...). It
+ *   says who issued the key, not which model runs.
+ * - `deployment` is HOW that provider is reached: `direct` (the provider's own API), `custom`
+ *   (an OpenAI-compatible third party such as OpenRouter or a self-hosted gateway), or `bedrock`
+ *   / `vertex` (a cloud reseller with its own auth scheme).
+ * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is what an
+ *   OpenAI-compatible deployment needs; `apiVersion` is what Azure needs; `region` is what AWS
+ *   and Vertex need; `headers` carries non-secret routing headers some gateways require. A
+ *   given deployment fills in the subset that applies to it and leaves the rest unset. AWS and
+ *   the other cloud resellers are covered by exactly this: `deployment: "bedrock"` plus
+ *   `endpoint.region`, with their access keys arriving as `local_use` credentials because the
+ *   AWS SDK signs locally.
+ * - `credentialMode` says where the credential comes from at all: `env` (we resolved one and it
+ *   is in `credentials`), `runtime_provided` (the harness authenticates with its own login, e.g.
+ *   a Claude or Codex subscription, and we inject nothing), or `none`.
+ * - `environment` is non-secret configuration that still has to reach the process as environment
+ *   variables, such as `AWS_REGION`. It is a separate field from `credentials` so that nothing
+ *   secret can hide in a map we treat as public; the runner enforces a short allowlist of names
+ *   that may appear here.
+ * - `credentials` are the secrets, each one typed as above.
+ */
+export interface ModelConnection {
+  provider: string;
+  deployment: string;
+  endpoint?: {
+    baseUrl?: string;
+    apiVersion?: string;
+    region?: string;
+    headers?: Record<string, string>;
+  };
+  credentialMode: "env" | "runtime_provided" | "none";
+  environment?: Record<string, string>;
+  credentials: ModelCredential[];
+}
+
 export interface AgentRunRequest {
   /**
    * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
@@ -412,8 +572,6 @@ export interface AgentRunRequest {
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
-  /** Provider API keys as env vars ({OPENAI_API_KEY,...}), resolved from the vault. */
-  secrets?: Record<string, string>;
   /** AGENTS.md text injected as the agent's instructions. */
   agentsMd?: string;
   /**
@@ -430,42 +588,37 @@ export interface AgentRunRequest {
   appendSystemPrompt?: string;
   /** Model id ("gpt-5.5") or "provider/id" ("openai-codex/gpt-5.5"). */
   model?: string;
+  /** Resolved model input modalities. Omitted when the resolver cannot determine them. */
+  modelCapabilities?: { inputModalities?: string[] };
   /**
-   * Provider family for the run, e.g. "openai" | "anthropic" | <custom-slug>. Non-secret.
-   * Present only when the config carries a structured model ref. See the provider-model-auth
-   * design (Concern 1).
+   * Codex only: ACP session mode override ("agent" | "read-only" | "agent-full-access"). Absent
+   * means the Codex default (agent-full-access). Ignored by non-Codex harnesses.
    */
-  provider?: string;
+  harnessMode?: string;
   /**
-   * Where the credential comes from, named portably (a slug, never a db id). Non-secret.
-   * Present only when the config carries a structured model ref. See the provider-model-auth
-   * design (Concern 1).
+   * Which connection the author CHOSE, named portably (a slug, never a database id). Non-secret.
+   *
+   * Distinct from `modelConnection`, which is what that choice resolved to: the route and the
+   * credential values. This field carries only the intent (`mode`) and the identity (`slug`).
+   *
+   * It is load-bearing, not informational. A named Agenta connection on a custom
+   * OpenAI-compatible Pi run is registered in Pi's own models.json under a provider named after
+   * this slug (`pi-model-config.ts` gates on `mode === "agenta"` and reads `slug`). Without it
+   * those runs fall back to the generic provider-override path and route differently, which is
+   * a silent behavior change rather than a failure. The SDK emits it from
+   * `HarnessAgentTemplate.wire_connection_ref()` and the schema declares it on
+   * `WireRunRequest`; both are pinned by tests, so do not read this field as optional in
+   * practice for a named connection.
+   *
+   * Omitted for the project default (`agenta` with no slug), which carries no information
+   * beyond the model itself.
    */
   connection?: { mode: string; slug?: string };
-  /**
-   * Deployment surface for the provider: "direct" | "azure" | "bedrock" | "vertex" |
-   * "custom". From a resolved connection; see the provider-model-auth design (Concern 3).
-   */
-  deployment?: string;
-  /**
-   * Non-secret connection config (custom base URL, api version, region, public headers).
-   * Secret values never live here; they ride `secrets`. See the provider-model-auth design
-   * (Concern 3).
-   */
-  endpoint?: {
-    baseUrl?: string;
-    apiVersion?: string;
-    region?: string;
-    headers?: Record<string, string>;
-  };
-  /**
-   * How the credential is delivered: "env" | "runtime_provided" | "none". From a resolved
-   * connection; see the provider-model-auth design (Concern 3).
-   */
-  credentialMode?: string;
+  /** Resolved model routing and credential bindings, grouped under their consumer. */
+  modelConnection?: ModelConnection;
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
-  /** Built-in tools to enable. */
+  /** Deprecated: accepted and ignored. Pi activates every built-in tool on every run. */
   tools?: string[];
   /**
    * Resolved inline skill packages. Each rode the wire as concrete content (references
@@ -581,7 +734,101 @@ export function messageText(
     .join("");
 }
 
-/** The latest user turn: the last user message's text (the wire carries no standalone prompt). */
+export interface CurrentUserTurn {
+  /** The tail message when it is a user turn, else null. Never an earlier message. */
+  message: ChatMessage | null;
+  text: string;
+  attachments: AttachmentRef[];
+  /** The tail carries a legacy inline image block rather than an attachment reference. */
+  hasInlineMedia: boolean;
+  /** A genuinely new user turn: role user, carrying no tool envelope. */
+  isFresh: boolean;
+  carriesToolEnvelope: boolean;
+}
+
+function carriesToolEnvelope(content: ChatMessage["content"]): boolean {
+  return (
+    Array.isArray(content) &&
+    content.some(
+      (block) => block?.type === "tool_call" || block?.type === "tool_result",
+    )
+  );
+}
+
+/** Read only the tail message when it is a user turn. */
+export function currentUserTurn(request: AgentRunRequest): CurrentUserTurn {
+  const messages = request.messages ?? [];
+  const tail = messages[messages.length - 1];
+  if (!tail || tail.role !== "user") {
+    return {
+      message: null,
+      text: "",
+      attachments: [],
+      hasInlineMedia: false,
+      isFresh: false,
+      carriesToolEnvelope: false,
+    };
+  }
+
+  const attachments: AttachmentRef[] = [];
+  let hasInlineMedia = false;
+  if (Array.isArray(tail.content)) {
+    for (const block of tail.content) {
+      hasInlineMedia ||= isLegacyInlineImageBlock(block);
+      const attachmentBlock = block as ContentBlock & {
+        attachmentId?: unknown;
+        filename?: unknown;
+        size?: unknown;
+      };
+      if (
+        attachmentBlock?.type !== "attachment" ||
+        typeof attachmentBlock.attachmentId !== "string"
+      ) {
+        continue;
+      }
+      attachments.push({
+        attachmentId: attachmentBlock.attachmentId,
+        ...(typeof attachmentBlock.filename === "string"
+          ? { filename: attachmentBlock.filename }
+          : {}),
+        ...(typeof block.mimeType === "string"
+          ? { mediaType: block.mimeType }
+          : {}),
+        ...(typeof attachmentBlock.size === "number"
+          ? { size: attachmentBlock.size }
+          : {}),
+      });
+    }
+  }
+
+  const toolEnvelope = carriesToolEnvelope(tail.content);
+  return {
+    message: tail,
+    text: messageText(tail.content),
+    attachments,
+    hasInlineMedia,
+    isFresh: !toolEnvelope,
+    carriesToolEnvelope: toolEnvelope,
+  };
+}
+
+/**
+ * True when the turn carries something the person actually sent: text, an attachment, or inline
+ * media. The single admission rule for "new user content", so callers that decide freshness,
+ * boundaries, or persistence cannot drift apart on an attachment-only or image-only turn.
+ */
+export function userTurnCarriesContent(turn: CurrentUserTurn): boolean {
+  return (
+    turn.text.trim() !== "" ||
+    turn.attachments.length > 0 ||
+    turn.hasInlineMedia
+  );
+}
+
+/**
+ * Approval-resume fallback: scan backward for the most recent non-empty user text. Use
+ * currentUserTurn for the current turn.
+ */
 export function resolvePromptText(request: AgentRunRequest): string {
   const messages = request.messages ?? [];
   for (let i = messages.length - 1; i >= 0; i--) {
@@ -601,4 +848,19 @@ export function resolveRunSessionId(
   return request.sessionId && request.sessionId.trim()
     ? request.sessionId
     : fallback;
+}
+
+/**
+ * Recognize the legacy inline-image shapes still sent by the playground. Keep this shape
+ * predicate at the protocol boundary so current-turn admission and ACP image extraction cannot
+ * drift apart.
+ */
+export function isLegacyInlineImageBlock(
+  block: ContentBlock | null | undefined,
+): block is ContentBlock & { type: "image" } {
+  return (
+    block?.type === "image" &&
+    ((typeof block.uri === "string" && block.uri.startsWith("data:")) ||
+      (typeof block.data === "string" && block.data.length > 0))
+  );
 }

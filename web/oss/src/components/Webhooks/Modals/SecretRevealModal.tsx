@@ -37,7 +37,7 @@ const SecretRevealModal: React.FC = () => {
                         text={createdWebhookSecret || ""}
                         buttonText="Copy"
                         icon
-                        type="text"
+                        variant="ghost"
                     />
                 </div>
             </ModalContent>

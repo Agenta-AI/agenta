@@ -24,6 +24,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.redaction.context import get_active_redactor
 
 from ..permission_rules import PermissionRule
+from ..errors import AgentRunFailed
 from ..dtos import (
     Event,
     AgentResult,
@@ -85,7 +86,6 @@ def request_to_wire(
     sandbox: str,
     config: HarnessAgentTemplate,
     messages: Sequence[Message],
-    secrets: Optional[Dict[str, str]] = None,
     trace: Optional[TraceContext] = None,
     run_context: Optional[RunContext] = None,
     session_id: Optional[str] = None,
@@ -103,15 +103,11 @@ def request_to_wire(
     packages, likewise omitted when there are none (skills ride their own seam, not the tool
     wire). ``config.wire_sandbox_permission()`` adds the declared sandbox security boundary,
     omitted when unset (plumbing only; the runner does not enforce it yet).
-    ``config.wire_model_ref()`` adds the non-secret provider/connection fields, omitted when no
-    structured ``model_ref`` is set so a string-only config's payload is unchanged (the secret
-    still rides ``secrets``; ``model`` stays the plain string).
-    ``config.wire_resolved_connection()`` adds the resolved-connection descriptor
-    (``provider`` / ``model`` / ``deployment`` / ``credentialMode`` / ``endpoint``), omitted when
-    no ``resolved_connection`` is threaded so a config without one is unchanged. It is spread
-    LAST among the model fields so the resolved ``provider``/``model`` override the base ``model``
-    and ``wire_model_ref``'s ``provider`` (its ``env`` never reaches the wire; the secret rides
-    ``secrets``).
+    ``config.wire_connection_ref()`` adds the author's connection CHOICE (``self_managed``, or an
+    Agenta connection named by slug), omitted for the project default because it carries nothing
+    beyond the model. ``config.wire_model_connection()`` adds what that choice RESOLVED to: the
+    model route and typed credentials as one consumer-owned object. It is omitted when no
+    connection was resolved and overrides the base model id with the exact resolved model.
     ``config.wire_harness_files()`` adds the generic ``harnessFiles`` array: files the active
     harness's config rendered from its own ``permissions`` / ``extras`` slice, to materialize in the session
     cwd before the session starts (``path`` relative to cwd, ``content`` the file text). Omitted
@@ -131,7 +127,6 @@ def request_to_wire(
         "agentsMd": config.agents_md,
         "model": config.model,
         "messages": [message.to_wire() for message in messages],
-        "secrets": dict(secrets or {}),
         # The run's tracing inputs ride the wire grouped by role (see the trace/telemetry interface
         # restructure): `context.propagation` carries the per-call W3C trace-context headers, and
         # `telemetry` carries the operator-owned exporter config + capture policy. Both come from the
@@ -144,8 +139,9 @@ def request_to_wire(
         **config.wire_mcp(),
         **config.wire_skills(),
         **config.wire_sandbox_permission(),
-        **config.wire_model_ref(),
-        **config.wire_resolved_connection(),
+        **config.wire_connection_ref(),
+        **config.wire_model_connection(),
+        **config.wire_harness_mode(),
         **config.wire_harness_files(),
     }
     if run_context is not None:
@@ -162,14 +158,13 @@ def request_to_wire(
 def result_from_wire(data: Dict[str, Any]) -> AgentResult:
     """Parse a ``/run`` result JSON into an :class:`AgentResult`.
 
-    Raises ``RuntimeError`` when the runner reported a failure, so the caller surfaces a
-    clear message rather than handing the model an empty reply. The runner ``error`` is
+    Raises :class:`AgentRunFailed` when the runner reported a failure, so the caller gets a
+    stable code and a clear message rather than an empty reply. The runner ``error`` is
     sanitized at this boundary (one clean line, no stack/path leak); the full detail is logged.
     """
+    data = get_active_redactor().redact_json(data, sink="runner_result")
     if not data.get("ok"):
-        raise RuntimeError(
-            f"Agent run failed: {sanitize_runner_error(data.get('error'))}"
-        )
+        raise AgentRunFailed(sanitize_runner_error(data.get("error")))
 
     messages: List[Message] = []
     for raw in data.get("messages") or []:

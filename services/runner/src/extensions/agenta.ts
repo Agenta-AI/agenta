@@ -48,6 +48,10 @@ import {
   PI_GATE_DIALOG_TITLE,
   type PiGateKind,
 } from "../engines/sandbox_agent/pi-gate-envelope.ts";
+import {
+  decodePiModelProviderOverride,
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
+} from "./model-provider-override.ts";
 
 /** Read the OTLP bearer from its runner-written file once, then best-effort delete it. */
 export function readOtlpAuthFile(path?: string): string | undefined {
@@ -72,7 +76,9 @@ function log(message: string): void {
   process.stderr.write(`[agenta-pi-ext] ${message}\n`);
 }
 
-const PI_BUILTIN_TOOL_NAMES = [
+/** The bundle cannot import the runner's identity table, so this copy is pinned against the
+ *  shared golden in `tests/unit/pi-builtin-tools-parity.test.ts`. */
+export const PI_BUILTIN_TOOL_NAMES = [
   "read",
   "bash",
   "edit",
@@ -129,53 +135,20 @@ function isPiBuiltinToolName(name: string): name is PiBuiltinToolName {
   return PI_BUILTIN_TOOL_NAME_SET.has(name);
 }
 
-export function normalizeBuiltinGrants(
-  raw: string | undefined,
-  logDrop: (message: string) => void = log,
-): PiBuiltinToolName[] {
-  if (!raw) return [];
-  const grants: PiBuiltinToolName[] = [];
-  const seen = new Set<string>();
-  const unknown = new Set<string>();
-  for (const part of raw.split(",")) {
-    const name = part.trim().toLowerCase();
-    if (!name) continue;
-    if (!isPiBuiltinToolName(name)) {
-      if (!unknown.has(name)) {
-        unknown.add(name);
-        logDrop(`dropping unknown builtin grant '${name}'`);
-      }
-      continue;
-    }
-    if (seen.has(name)) continue;
-    seen.add(name);
-    grants.push(name);
-  }
-  return grants;
-}
-
 export function replaceActiveBuiltinTools(
   activeTools: string[],
   allTools: Array<{ name: string }>,
-  builtinGrants: readonly PiBuiltinToolName[],
 ): string[] {
-  const grantSet = new Set<string>(builtinGrants);
-  const inserted = new Set<string>();
-  const grantedBuiltinTools = allTools
-    .map((tool) => tool.name)
-    .filter(isPiBuiltinToolName)
-    .filter((name) => {
-      if (!grantSet.has(name) || inserted.has(name)) return false;
-      inserted.add(name);
-      return true;
-    });
+  const builtinTools = [
+    ...new Set(allTools.map((tool) => tool.name).filter(isPiBuiltinToolName)),
+  ];
 
   let replacedBuiltinSlice = false;
   const next: string[] = [];
   for (const name of activeTools) {
     if (isPiBuiltinToolName(name)) {
       if (!replacedBuiltinSlice) {
-        next.push(...grantedBuiltinTools);
+        next.push(...builtinTools);
         replacedBuiltinSlice = true;
       }
       continue;
@@ -183,7 +156,7 @@ export function replaceActiveBuiltinTools(
     next.push(name);
   }
 
-  if (!replacedBuiltinSlice) next.push(...grantedBuiltinTools);
+  if (!replacedBuiltinSlice) next.push(...builtinTools);
   return next;
 }
 
@@ -207,20 +180,16 @@ function blockReason(reason: string | undefined): ToolCallEventResult {
   };
 }
 
-function registerBuiltinGating(
-  pi: ExtensionAPI,
-  builtinGrants: readonly PiBuiltinToolName[],
-): void {
+/** Pi alone activates only four builtins; Agenta activates every one it implements. */
+function registerBuiltinActivation(pi: ExtensionAPI): void {
   pi.on("before_agent_start", async () => {
     pi.setActiveTools(
-      replaceActiveBuiltinTools(
-        pi.getActiveTools(),
-        pi.getAllTools(),
-        builtinGrants,
-      ),
+      replaceActiveBuiltinTools(pi.getActiveTools(), pi.getAllTools()),
     );
   });
+}
 
+function registerBuiltinGating(pi: ExtensionAPI): void {
   pi.on(
     "tool_call",
     async (event, ctx): Promise<ToolCallEventResult | undefined> => {
@@ -292,6 +261,13 @@ function registerTools(pi: ExtensionAPI): void {
 
   let registered = 0;
   for (const spec of specs) {
+    // Pi keys its tool registry by name, so registering a custom tool under a built-in name would
+    // replace the built-in the platform activates on every run. The SDK refuses such a config;
+    // skip it here too, for a request that reaches the runner some other way.
+    if (isPiBuiltinToolName((spec.name ?? "").trim().toLowerCase())) {
+      log(`skipped custom tool '${spec.name}': the name is a built-in tool`);
+      continue;
+    }
     // The dialog gate applies to EXECUTABLE custom tools only. `client` tools are
     // browser-fulfilled across a turn boundary through the relay's own pause semantics; gating
     // one via the dialog would be wrong, so they keep their path.
@@ -356,6 +332,12 @@ function registerTools(pi: ExtensionAPI): void {
 
 /** The Pi ExtensionFactory: tools + (env-driven) tracing + usage writeback. */
 const factory = (pi: ExtensionAPI): void => {
+  const modelProviderOverrideRaw =
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
+  const modelProviderOverride =
+    modelProviderOverrideRaw === undefined
+      ? undefined
+      : decodePiModelProviderOverride(modelProviderOverrideRaw);
   // Fully inert unless Agenta wired this run (so it is safe to install globally in a
   // shared Pi agent dir — a normal `pi` session with no Agenta env does nothing).
   const hasTracing = !!(
@@ -363,17 +345,34 @@ const factory = (pi: ExtensionAPI): void => {
   );
   const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
   const hasTools = !!(process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS && relayDir);
+  const hasBuiltinActivation = isTruthyFlag(
+    process.env.AGENTA_AGENT_BUILTIN_ACTIVATION,
+  );
   const hasBuiltinGating = isTruthyFlag(
     process.env.AGENTA_AGENT_BUILTIN_GATING,
   );
-  const builtinGrants = normalizeBuiltinGrants(
-    process.env.AGENTA_AGENT_BUILTIN_GRANTS,
-  );
   const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
-  if (!hasTracing && !hasTools && !hasBuiltinGating && !usageOut) return;
+  if (
+    !modelProviderOverride &&
+    !hasTracing &&
+    !hasTools &&
+    !hasBuiltinActivation &&
+    !hasBuiltinGating &&
+    !usageOut
+  )
+    return;
+
+  // Extension factories complete before Pi selects the configured model. Registering only a
+  // baseUrl here overrides the built-in provider without replacing its model catalog or auth.
+  if (modelProviderOverride) {
+    pi.registerProvider(modelProviderOverride.provider, {
+      baseUrl: modelProviderOverride.baseUrl,
+    });
+  }
 
   if (hasTools) registerTools(pi);
-  if (hasBuiltinGating) registerBuiltinGating(pi, builtinGrants);
+  if (hasBuiltinActivation) registerBuiltinActivation(pi);
+  if (hasBuiltinGating) registerBuiltinGating(pi);
   // Tracing exports the span tree (when the OTLP target is reachable, i.e. local runs).
   // Usage accumulation is needed both for that export AND for the writeback the runner
   // uses on Daytona (where the in-sandbox process can't reach Agenta's OTLP, so the

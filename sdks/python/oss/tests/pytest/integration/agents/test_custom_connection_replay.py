@@ -14,9 +14,9 @@ service uses:
    offline stand-in for the live ``GET /secrets/`` fetch), threads the resulting
    ``ResolvedConnection`` onto the ``SessionConfig``, and ``request_to_wire`` spreads it onto the
    ``/run`` payload. The test drives that through the real subprocess transport and asserts the
-   wire carries ``deployment=custom``, ``provider=openai``, the author's ``connection``, the
-   endpoint ``baseUrl``, the exact resolved ``model``, and the provider key present in
-   ``secrets`` by NAME (``OPENAI_API_KEY``), value redacted.
+   wire carries ``modelConnection`` with ``deployment=custom``, ``provider=openai``, the endpoint
+   ``baseUrl``, and the provider key as a typed credential bound to ``OPENAI_API_KEY`` (value
+   redacted), plus the author's ``connection`` and the exact resolved ``model`` at the top level.
 
 2. The RESULT-parsing half. The recorded runner response replays back through
    ``result_from_wire`` / the transport, proving the SDK folds a real recorded custom-connection
@@ -125,13 +125,12 @@ async def test_custom_openai_compatible_connection_replays(tmp_path):
     assert resolved.endpoint is not None
     assert resolved.endpoint.base_url == "https://openrouter.ai/api/v1"
     assert resolved.credential_mode == "env"
-    assert set(resolved.env) == {"OPENAI_API_KEY"}
+    assert [credential.binding.name for credential in resolved.credentials] == [
+        "OPENAI_API_KEY"
+    ]
 
-    session_config = SessionConfig(
-        agent=template,
-        secrets=resolved.env,  # Slice 1 ships the credential through `secrets` on the wire
-        resolved_connection=resolved,
-    )
+    # The resolved connection is the only credential channel; nothing rides beside it.
+    session_config = SessionConfig(agent=template, resolved_connection=resolved)
     messages = [
         Message(role=m["role"], content=m["content"])
         for m in rec["request"]["messages"]
@@ -145,16 +144,24 @@ async def test_custom_openai_compatible_connection_replays(tmp_path):
 
     # 1) REQUEST-shaping half: the /run wire carries the resolved custom-connection descriptor.
     sent = json.loads(capture_path.read_text(encoding="utf-8"))
-    assert sent["deployment"] == "custom"
-    assert sent["provider"] == "openai"
     assert sent["connection"] == {"mode": "agenta", "slug": "replay-compat"}
-    assert sent["endpoint"] == {"baseUrl": "https://openrouter.ai/api/v1"}
     assert sent["model"] == "openai/gpt-oss-20b:free"
-    assert sent["credentialMode"] == "env"
-    # The provider key rides `secrets` by NAME; the value is the redacted placeholder, and no
-    # real key ever reaches the wire (the fixture carries only `sk-test`).
-    assert "OPENAI_API_KEY" in sent["secrets"]
-    assert sent["secrets"]["OPENAI_API_KEY"] == "sk-test"
+    connection = sent["modelConnection"]
+    assert connection["deployment"] == "custom"
+    assert connection["provider"] == "openai"
+    assert connection["endpoint"] == {"baseUrl": "https://openrouter.ai/api/v1"}
+    assert connection["credentialMode"] == "env"
+    # The provider key rides one typed credential naming its own binding; the value is the
+    # redacted placeholder, and no real key ever reaches the wire (the fixture carries only
+    # `sk-test`). `usage: opaque_http` marks it as a key the remote provider reads over HTTPS,
+    # which is what makes it substitutable by a Daytona Secret on a remote sandbox.
+    assert connection["credentials"] == [
+        {
+            "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+            "value": "sk-test",
+            "usage": "opaque_http",
+        }
+    ]
 
     # 2) RESULT-parsing half: the recorded runner response folds back cleanly, no live LLM.
     assert result.output == rec["result"]["output"] == "REPLAY-COMPAT-OK"

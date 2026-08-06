@@ -10,6 +10,7 @@ from .errors import (
     DuplicateToolNameError,
     GatewayToolResolutionError,
     MissingToolSecretError,
+    ReservedToolNameError,
     ToolConfigError,
     ToolConfigurationError,
     ToolError,
@@ -83,4 +84,5 @@ __all__ = [
     "UnknownPlatformOpError",
     "MissingToolSecretError",
     "DuplicateToolNameError",
+    "ReservedToolNameError",
 ]

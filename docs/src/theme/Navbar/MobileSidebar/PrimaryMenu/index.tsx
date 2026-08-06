@@ -54,11 +54,14 @@ export default function NavbarMobilePrimaryMenu(): ReactNode {
     | { href?: string; html?: string }
     | undefined;
 
-  // Everything that isn't the search box, a CTA button, or a social icon is a
-  // normal navigation link shown in the scrolling list.
+  // Everything that isn't the search box, the version selector, a CTA button,
+  // or a social icon is a normal navigation link shown in the scrolling list.
+  // The version selector is rendered next to the logo by Navbar/Content at
+  // every width, so repeating it here would show the same control twice.
   const navItems = items.filter(
     (i) =>
       (i as { type?: string }).type !== "search" &&
+      (i as { type?: string }).type !== "docsVersionDropdown" &&
       !hasClass(i, "nav_secondary_button") &&
       !hasClass(i, "nav_primary_button") &&
       !hasClass(i, "nav_github_icons") &&

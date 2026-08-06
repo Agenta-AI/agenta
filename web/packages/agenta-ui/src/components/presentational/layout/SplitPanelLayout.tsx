@@ -18,9 +18,8 @@
 
 import type {CSSProperties, ReactNode} from "react"
 
-import {Divider} from "antd"
-
 import {cn, flexLayouts, gapClasses, layoutSizes, spacingClasses} from "../../../utils/styles"
+import {Divider} from "../../ui/divider"
 
 // ============================================================================
 // TYPES
@@ -101,7 +100,7 @@ export function SplitPanelLayout({
                 {left}
             </div>
 
-            {showDivider && <Divider orientation="vertical" className="m-0 h-full" />}
+            {showDivider && <Divider type="vertical" className="m-0 h-full" />}
 
             {/* Right Panel */}
             <div

@@ -23,10 +23,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import factory, {
-  normalizeBuiltinGrants,
   readOtlpAuthFile,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
 
 const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_PUBLIC_SPECS",
@@ -36,8 +36,9 @@ const TOOL_ENV = [
   "AGENTA_AGENT_OTLP_AUTH_FILE",
   "AGENTA_AGENT_USAGE_CAPTURE_PATH",
   "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
+  "AGENTA_AGENT_BUILTIN_ACTIVATION",
   "AGENTA_AGENT_BUILTIN_GATING",
-  "AGENTA_AGENT_BUILTIN_GRANTS",
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
 ];
 
 /** A fake extension UI context whose `confirm` records its calls and returns a scripted answer. */
@@ -60,13 +61,18 @@ function fakeDialogCtx(answer: boolean | (() => Promise<boolean>)) {
 
 function fakePi(opts: { activeTools?: string[]; allTools?: string[] } = {}) {
   const registered: any[] = [];
+  const registeredProviders: Array<{ name: string; config: unknown }> = [];
   const handlers: Record<string, any[]> = {};
   let activeTools = opts.activeTools ?? [];
   return {
     registered,
+    registeredProviders,
     handlers,
     registerTool(spec: any) {
       registered.push(spec);
+    },
+    registerProvider(name: string, config: unknown) {
+      registeredProviders.push({ name, config });
     },
     on(event: string, handler: any) {
       (handlers[event] ??= []).push(handler);
@@ -88,6 +94,44 @@ function clearEnv() {
 }
 
 afterEach(clearEnv);
+
+describe("agenta extension model provider override", () => {
+  it("overrides the built-in provider during extension initialization", () => {
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "https://proxy.example.test/anthropic",
+    });
+    const pi = fakePi();
+
+    factory(pi as any);
+
+    assert.deepEqual(pi.registeredProviders, [
+      {
+        name: "anthropic",
+        config: { baseUrl: "https://proxy.example.test/anthropic" },
+      },
+    ]);
+    assert.equal(pi.registered.length, 0);
+    assert.deepEqual(pi.handlers, {});
+  });
+
+  it("rejects malformed public override config before registration", () => {
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "http://proxy.example.test",
+    });
+    const pi = fakePi();
+
+    assert.throws(() => factory(pi as any), /must be an HTTPS URL/);
+    assert.deepEqual(pi.registeredProviders, []);
+
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = "";
+    assert.throws(() => factory(pi as any), /must be valid JSON/);
+    assert.deepEqual(pi.registeredProviders, []);
+  });
+});
 
 describe("agenta extension tool registration", () => {
   it("registers one tool per public spec, schema passed through", () => {
@@ -148,6 +192,27 @@ describe("agenta extension tool registration", () => {
     );
   });
 
+  it("skips a custom tool named after a built-in, so the built-in survives", () => {
+    // Pi keys its registry by name: registering these would replace the built-ins the platform
+    // guarantees are active. The SDK refuses such a config; the runner refuses it again.
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "read", description: "shadow" },
+      { name: "Bash", description: "shadow, other case" },
+      { name: "reader", description: "not a built-in" },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    assert.deepEqual(
+      pi.registered.map((t) => t.name),
+      ["reader"],
+      "only the non-colliding tool is registered",
+    );
+  });
+
   it("is inert without the tool env (the F-005 bug shape: never delivered)", () => {
     clearEnv();
     const pi = fakePi();
@@ -159,7 +224,7 @@ describe("agenta extension tool registration", () => {
     );
   });
 
-  it("does not register builtin gating hooks when gating env is absent", () => {
+  it("registers no builtin hooks when the activation and gating env are absent", () => {
     clearEnv();
     const pi = fakePi();
     factory(pi as any);
@@ -167,10 +232,22 @@ describe("agenta extension tool registration", () => {
     assert.equal(pi.handlers.tool_call?.length ?? 0, 0);
   });
 
-  it("registers builtin gating hooks for a gating-only run", () => {
+  it("registers activation without gating when only the activation env is set", () => {
     clearEnv();
+    process.env.AGENTA_AGENT_BUILTIN_ACTIVATION = "1";
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    assert.equal(pi.registered.length, 0);
+    assert.equal(pi.handlers.before_agent_start?.length ?? 0, 1);
+    assert.equal(pi.handlers.tool_call?.length ?? 0, 0);
+  });
+
+  it("registers both hooks for an activated, gated run", () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_BUILTIN_ACTIVATION = "1";
     process.env.AGENTA_AGENT_BUILTIN_GATING = "true";
-    process.env.AGENTA_AGENT_BUILTIN_GRANTS = "read";
     process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
 
     const pi = fakePi();
@@ -181,11 +258,9 @@ describe("agenta extension tool registration", () => {
     assert.equal(pi.handlers.tool_call?.length ?? 0, 1);
   });
 
-  it("removes non-granted builtins from the active set at before_agent_start", async () => {
+  it("activates every builtin the harness reports at before_agent_start", async () => {
     clearEnv();
-    process.env.AGENTA_AGENT_BUILTIN_GATING = "1";
-    process.env.AGENTA_AGENT_BUILTIN_GRANTS = "read,write";
-    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+    process.env.AGENTA_AGENT_BUILTIN_ACTIVATION = "1";
 
     const pi = fakePi({
       activeTools: ["read", "bash", "edit", "write", "custom_tool"],
@@ -204,19 +279,16 @@ describe("agenta extension tool registration", () => {
 
     await pi.handlers.before_agent_start[0]({});
 
-    assert.deepEqual(pi.getActiveTools(), ["read", "write", "custom_tool"]);
-  });
-
-  it("validates builtin grants by de-duping and dropping unknown names", () => {
-    const logs: string[] = [];
-
-    const grants = normalizeBuiltinGrants(
-      "read,unknown,read,Find,BASH,unknown",
-      (message) => logs.push(message),
-    );
-
-    assert.deepEqual(grants, ["read", "find", "bash"]);
-    assert.deepEqual(logs, ["dropping unknown builtin grant 'unknown'"]);
+    assert.deepEqual(pi.getActiveTools(), [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "grep",
+      "find",
+      "ls",
+      "custom_tool",
+    ]);
   });
 
   it("replaces only the builtin portion of the active tool set", () => {
@@ -226,15 +298,12 @@ describe("agenta extension tool registration", () => {
         [
           { name: "read" },
           { name: "bash" },
-          { name: "edit" },
-          { name: "write" },
           { name: "grep" },
           { name: "custom_before" },
           { name: "custom_after" },
         ],
-        ["read", "grep"],
       ),
-      ["custom_before", "read", "grep", "custom_after"],
+      ["custom_before", "read", "bash", "grep", "custom_after"],
     );
   });
 

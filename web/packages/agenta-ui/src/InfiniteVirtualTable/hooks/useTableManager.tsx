@@ -1,12 +1,13 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {Key, MouseEvent, ReactNode, RefObject} from "react"
 
-import {Grid, Input} from "antd"
+import {Grid} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import type {WritableAtom} from "jotai"
 import {useAtom} from "jotai"
 import {atom} from "jotai"
 
+import {SearchInput} from "../../components/ui/input-composed"
 import {cn} from "../../utils/styles"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
 import type {
@@ -446,11 +447,11 @@ export function useTableManager<T extends InfiniteTableRowBase>({
     const searchNode = useMemo<ReactNode>(() => {
         if (!searchConfig) return undefined
         return (
-            <Input.Search
+            <SearchInput
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={searchConfig.placeholder ?? "Search"}
-                allowClear
+                onClear={() => setSearchTerm("")}
                 disabled={searchConfig.disabled}
                 className={cn("w-full", searchConfig.className ?? "max-w-[320px]")}
             />

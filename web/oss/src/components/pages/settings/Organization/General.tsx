@@ -1,12 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
-import {ArrowsLeftRight, Trash} from "@phosphor-icons/react"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {ArrowsLeftRight, CopyIcon, Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {App, Button, Form, Input, Select, Typography} from "antd"
 import clsx from "clsx"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import type {OrgDetails} from "@/oss/lib/Types"
 import {
@@ -131,6 +131,20 @@ const OrganizationGeneral = () => {
         },
     })
 
+    const copyOrganizationId = useCallback(async () => {
+        if (!organizationId) return
+        if (typeof navigator === "undefined" || !navigator?.clipboard) {
+            message.error("Clipboard not supported")
+            return
+        }
+        try {
+            await navigator.clipboard.writeText(organizationId)
+            message.success("Organization ID copied")
+        } catch {
+            message.error("Failed to copy organization ID")
+        }
+    }, [message, organizationId])
+
     const handleDelete = useCallback(async () => {
         if (!organizationId || !isDeleteNameMatch) return
 
@@ -197,6 +211,22 @@ const OrganizationGeneral = () => {
                         Save
                     </Button>
                 </Form>
+            </SettingsSection>
+
+            <SettingsSection
+                title="Organization ID"
+                description="Use this identifier when referencing your organization in the API or with support."
+            >
+                <div className="flex items-center gap-2">
+                    <Input value={organizationId} readOnly className="flex-1 font-mono" />
+                    <Button
+                        icon={<CopyIcon size={14} />}
+                        disabled={!organizationId}
+                        onClick={copyOrganizationId}
+                    >
+                        Copy
+                    </Button>
+                </div>
             </SettingsSection>
 
             <SettingsSection

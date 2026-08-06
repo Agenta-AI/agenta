@@ -1,11 +1,11 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {humanEvaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {atom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useLocalStorage} from "usehooks-ts"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getProjectValues} from "@/oss/state/project"
 
@@ -234,10 +234,10 @@ const AnnotateDrawer = ({
                     createEvaluatorMode={createEvaluatorProps?.mode}
                 />
             }
-            closeIcon={null}
+            closable={false}
             width={400}
             onClose={onClose}
-            classNames={{body: "!p-0", header: "!p-4"}}
+            styles={{body: {padding: 0}, header: {padding: 16}}}
             afterOpenChange={onAfterClose}
         >
             {renderContent}

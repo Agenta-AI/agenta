@@ -7,7 +7,7 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/server.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import * as http from "node:http";
 import type { AddressInfo } from "node:net";
@@ -26,6 +26,7 @@ const LIMIT_ENV = "AGENTA_RUNNER_CONCURRENCY_LIMIT";
 const previousLimit = process.env[LIMIT_ENV];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   if (previousToken === undefined) delete process.env[TOKEN_ENV];
   else process.env[TOKEN_ENV] = previousToken;
   if (previousLimit === undefined) delete process.env[LIMIT_ENV];
@@ -428,6 +429,207 @@ describe("createAgentServer", () => {
         "terminal result does not echo events",
       );
     } finally {
+      await s.close();
+    }
+  });
+
+  it("redacts this run's credentials from the stderr stack log when a run throws", async () => {
+    // A per-run provider key rides ONLY the typed request (never process env). When the run
+    // throws with that key captured in the error message/stack (an auth failure echoing it,
+    // a dumped env), the stack must pass through the run's deny-set before reaching the
+    // stderr sink — persistence is already redacted; stderr must be too.
+    const PER_RUN_KEY = "sk-escaping-stack-fake-key-DO-NOT-USE-9a8b7c";
+    const throwingRun: RunAgent = async () => {
+      throw new Error(`provider auth failed for key ${PER_RUN_KEY}`);
+    };
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const s = await listen(throwingRun);
+    try {
+      const res = await fetch(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          modelConnection: {
+            provider: "openai",
+            deployment: "direct",
+            endpoint: { baseUrl: "https://api.openai.com/v1" },
+            credentialMode: "env",
+            credentials: [
+              {
+                binding: { kind: "environment", name: "OPENAI_API_KEY" },
+                value: PER_RUN_KEY,
+                usage: "opaque_http",
+              },
+            ],
+          },
+        }),
+      });
+      assert.equal(res.status, 200);
+      const records = (await res.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+      // The escaping error still terminates the stream with a failed result.
+      assert.equal(records.at(-1)!.kind, "result");
+      assert.equal(records.at(-1)!.result.ok, false);
+
+      const logged = errorSpy.mock.calls
+        .map((args) => args.map(String).join(" "))
+        .join("\n");
+      // The log keeps its shape (an Error stack was written)...
+      assert.match(logged, /Error: provider auth failed/);
+      assert.match(logged, /\n\s+at /);
+      // ...but the live credential value never reaches the stderr sink.
+      assert.equal(logged.includes(PER_RUN_KEY), false);
+      assert.match(logged, /\[ag:redacted/);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("rejects an over-cap session turn before persistence or attachment claiming", async () => {
+    // Override the cap rather than generating a default-sized batch, so the case stays small.
+    process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN = "2";
+    const attachmentIds = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+    ];
+    let runCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "should not run", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const sessionApiCalls: string[] = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        // Trace export is unrelated to session persistence; keep it out so an empty-list
+        // failure can only mean a persist or claim call happened.
+        if (!url.includes("/otlp/")) sessionApiCalls.push(url);
+        return new Response("{}", { status: 200 });
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-1",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "ApiKey test" },
+              },
+            },
+          },
+          messages: [
+            {
+              role: "user",
+              content: attachmentIds.map((attachmentId) => ({
+                type: "attachment",
+                attachmentId,
+              })),
+            },
+          ],
+        }),
+      });
+      const records = (await res.text())
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, any>);
+
+      assert.equal(runCalls, 0);
+      assert.deepEqual(sessionApiCalls, []);
+      assert.equal(records.length, 1);
+      assert.equal(records[0].kind, "result");
+      assert.equal(records[0].result.ok, false);
+      assert.equal(
+        records[0].result.error,
+        "A user turn may carry at most 2 attachments.",
+      );
+    } finally {
+      delete process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN;
+      fetchSpy.mockRestore();
+      await s.close();
+    }
+  });
+
+  it("persists a legacy image-only tail without attachment references", async () => {
+    let runCalls = 0;
+    const s = await listen(async () => {
+      runCalls += 1;
+      return { ok: true, output: "done", events: [] };
+    });
+    const realFetch = globalThis.fetch.bind(globalThis);
+    const ingested: Array<Record<string, any>> = [];
+    const sessionApiCalls: string[] = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url === `${s.url}/run`) return realFetch(input, init);
+        sessionApiCalls.push(url);
+        if (url.endsWith("/sessions/streams/heartbeat")) {
+          return Response.json({
+            stream: { id: "stream-1" },
+            is_current_turn: true,
+          });
+        }
+        if (url.endsWith("/sessions/records/ingest")) {
+          ingested.push(JSON.parse(String(init?.body)));
+        }
+        return Response.json({});
+      });
+
+    try {
+      const res = await fetchSpy(`${s.url}/run`, {
+        method: "POST",
+        headers: { accept: "application/x-ndjson", ...AUTH },
+        body: JSON.stringify({
+          harness: "pi_core",
+          sessionId: "session-1",
+          telemetry: {
+            exporters: {
+              otlp: {
+                endpoint: `${s.url}/otlp/v1/traces`,
+                headers: { authorization: "ApiKey test" },
+              },
+            },
+          },
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "image", uri: "data:image/png;base64,AQID" }],
+            },
+          ],
+        }),
+      });
+      await res.text();
+
+      assert.equal(runCalls, 1);
+      const userRecords = ingested.filter(
+        (record) => record.record_source === "user",
+      );
+      assert.equal(userRecords.length, 1);
+      assert.deepEqual(userRecords[0].attributes, {
+        type: "message",
+        text: "",
+        attachments: [],
+      });
+      assert.equal(
+        sessionApiCalls.some((url) =>
+          url.endsWith("/sessions/attachments/reference"),
+        ),
+        false,
+      );
+    } finally {
+      fetchSpy.mockRestore();
       await s.close();
     }
   });

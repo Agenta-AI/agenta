@@ -1,0 +1,68 @@
+---
+title: "API Keys Are Hidden from Agent Sandboxes"
+slug: api-keys-hidden-from-agent-sandboxes
+date: 2026-08-04
+tags: [v0.108.1]
+description: "Agents running in a cloud sandbox no longer see your provider API keys. Each key becomes a Daytona Secret scoped to a single host, and the sandbox holds only a placeholder."
+---
+
+<Summary>
+
+We improved security in Agenta. An agent can no longer see your API keys when it runs in a cloud sandbox. This covers both your model provider keys and the credentials on your MCP servers.
+
+Ask an agent to print its own environment variables now, and you get a useless placeholder instead of a key.
+
+This is on by default in Agenta Cloud, and there is nothing for you to do.
+
+If you self-host, it applies to agents running in a Daytona sandbox, and your Daytona API key now needs permission to manage Secrets. Read the upgrade note below before you upgrade.
+
+</Summary>
+
+{/* truncate */}
+
+An agent is not ordinary application code. It writes code and runs it, it installs packages, and it downloads things you did not choose. Until now, the API key it used to call the model was an ordinary environment variable in the same sandbox, readable by all of that. A prompt injection that persuaded an agent to print its environment printed your key.
+
+That is no longer the case on [Daytona](/self-host/agent-execution/daytona) sandboxes.
+
+## How it works
+
+The runner no longer puts the real key in the sandbox. For each key a run carries, it does three things:
+
+1. Stores the key as a Daytona Secret record, restricted to the one hostname that key authenticates against.
+2. Puts an opaque placeholder in the sandbox in place of the real value.
+3. Lets Daytona substitute the real value back in on outbound requests to that host.
+
+The model call and the MCP call still work, because the substitution happens after the request leaves the sandbox. Everything inside the sandbox, including anything the agent installs or downloads, only ever holds the placeholder. A request to any other host carries the placeholder as well, which is what makes exfiltration fail.
+
+## What it covers
+
+Model provider API keys, and the credentials and headers you set on an HTTP MCP server. Each one is scoped separately, to its own host, so an MCP credential cannot be used against your model provider and the other way round. The host comes from the credential's own endpoint, and it has to be a plain HTTPS hostname: no wildcards, no IP addresses, no `localhost`.
+
+One class of credential is not covered. Some keys are signed locally by the provider's own SDK rather than sent, which today means the AWS keys behind Bedrock and the Google service account credentials behind Vertex AI. Those still reach the sandbox in full, because there is no outbound header to substitute them into. Those runs work normally, they just do not get this protection yet. We are working on covering them.
+
+Local sandbox runs are unaffected. The harness runs inside the runner container there, so its keys never leave your deployment in the first place.
+
+## Self-hosting: your Daytona API key needs a new permission
+
+:::warning Grant the Secrets permission before you upgrade
+A Daytona API key is minted with a set of permissions, and a key that can create sandboxes does **not** automatically have the separate permission to manage Secrets.
+
+Because hiding is on by default, a key without that permission fails every Daytona run that carries a model or MCP key, at sandbox creation. Grant the key in `AGENTA_RUNNER_DAYTONA_API_KEY` permission to manage Secrets, or reissue it with that permission, before you upgrade. The error names the variable and the permission, so it is recognizable, but runs keep failing until the key is fixed.
+
+The runner never quietly falls back to sending keys as plaintext. Silently doing the unprotected thing is worse than stopping.
+:::
+
+## Bugs and improvements
+
+- Agent replies no longer end with an error after the turn finished successfully.
+- Codex sessions on your own subscription no longer fail after the first turn when you self-host.
+- Browser tabs now name the page you are on.
+- Voice input, for dictating in the agent chat, is available as an experimental setting.
+
+## Getting started
+
+There is nothing to turn on. If you use Agenta Cloud, it is already in effect.
+
+- [Configuration reference](/self-host/configuration#hiding-api-keys-from-the-sandbox) has the full setting, the cleanup guarantee behind the `process_local` mode, and the upgrade note.
+- [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) covers the Daytona setup.
+- [Sandbox isolation and security](/self-host/agent-execution/sandbox-isolation-and-security) covers what each sandbox type isolates.

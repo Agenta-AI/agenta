@@ -11,13 +11,21 @@
 <div align="center">
   <strong> <h1> The open-source workspace for building and running agents </h1></strong>
 
-
-<img width="1800" height="680" alt="agenta-github-banner" src="https://github.com/user-attachments/assets/afc83f8f-d644-4dc6-bae7-b26ed2512986" />
+  Build agents that **automate your work** by chatting with them. Share them with **your team**, connect them to the apps you use, and run them in the **background**.
+  
+  ---
+  
+<a href="https://youtu.be/Y5l2BPRkKC8?si=HoIflTHFhXKEgyo3">
+  <img
+    width="900"
+    alt="Watch the Agenta platform demo"
+    src="https://github.com/user-attachments/assets/93e894fb-2b7a-4190-a1e5-b2c84a907c29"
+  />
+</a>
 
   ---
 
 
-  Build agents that **automate your work** by chatting with them. Share them with **your team**, connect them to the apps you use, and run them in the **background**.
 
 </div>
 
@@ -36,6 +44,10 @@
   <a href="./README.ja.md"><img alt="日本語のREADME" src="https://img.shields.io/badge/日本語-d9d9d9"></a>
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
+<div align="center">
+
+<a href="https://trendshift.io/repositories/46?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-46" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/46" alt="Agenta-AI%2Fagenta | Trendshift" width="250" height="55"/></a>
+</div>
 
 ---
 
@@ -95,7 +107,7 @@ When you self-host Agenta, you can run agents locally with your existing Claude 
 
 ### Choose your harness and model
 
-Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code and Pi as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
+Switch harnesses and models without rebuilding your agent. Agenta already supports almost any model, whether self-hosted or accessed through an API. Agenta supports Claude Code, Pi, and Codex as harnesses today, with [more harnesses planned](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ### Build with open agent standards
 
@@ -152,7 +164,7 @@ For more details, read the [self-hosting documentation](https://agenta.ai/docs/s
 
 - [x] Claude Code
 - [x] Pi
-- [ ] Codex
+- [x] Codex
 - [ ] Gemini
 - [ ] OpenCode
 - [ ] [Create an issue to prioritize yours](https://github.com/Agenta-AI/agenta/issues)
@@ -214,7 +226,7 @@ Claude Cowork provides a workspace built around Claude. Agenta is open source an
 
 ### Claude Code, Codex, Pi, and OpenCode
 
-These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code and Pi today. Support for more harnesses is on the roadmap.
+These coding agents provide the execution layer that plans work and uses tools. Agenta adds the shared workspace around that execution layer: files, team access, triggers, versions, and traces. Agenta supports Claude Code, Pi, and Codex today. Support for more harnesses is on the roadmap.
 
 ## Community and contributing
 
@@ -244,7 +256,7 @@ If Agenta is useful to you, star the repository and tell us what you build.
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-70-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-71-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -343,6 +355,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Koushik-Salammagari"><img src="https://avatars.githubusercontent.com/u/138836560?v=4?s=100" width="100px;" alt="Koushik-Salammagari"/><br /><sub><b>Koushik-Salammagari</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3AKoushik-Salammagari" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/truecallerabreham"><img src="https://avatars.githubusercontent.com/u/180291642?v=4?s=100" width="100px;" alt="Abreham Melese"/><br /><sub><b>Abreham Melese</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Atruecallerabreham" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://kunaal-portfolio.vercel.app"><img src="https://avatars.githubusercontent.com/u/126342173?v=4?s=100" width="100px;" alt="Boggavarapu Yuva Satya Kunaal"/><br /><sub><b>Boggavarapu Yuva Satya Kunaal</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Yuvakunaal" title="Tests">⚠️</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/MarceloAdan73"><img src="https://avatars.githubusercontent.com/u/112431764?v=4?s=100" width="100px;" alt="Marcelo-Palma"/><br /><sub><b>Marcelo-Palma</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=MarceloAdan73" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>

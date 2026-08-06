@@ -3,10 +3,14 @@
 This adapter translates between the Vercel AI SDK ``UIMessage`` parts shape and the
 neutral agent runtime ``Message`` / ``ContentBlock`` types. The neutral DTOs stay the port;
 Vercel-specific part names live here.
+
+Attachment references are ingress-only. A neutral ``attachment`` block has no URL, so
+``_block_to_parts`` cannot reconstruct a Vercel ``FileUIPart`` from it.
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -29,6 +33,10 @@ TOOL_OUTPUT_MARKER_TYPES = {
     TOOL_OUTPUT_ERROR,
     TOOL_OUTPUT_DENIED,
 }
+# Lowercase-only is deliberate and pinned by the invalid-metadata test.
+_CANONICAL_UUID = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+)
 
 
 def vercel_messages_to_agenta_messages(raw: Optional[List[Any]]) -> List[Message]:
@@ -68,7 +76,7 @@ def _part_to_blocks(part: Any) -> List[ContentBlock]:
 
     Agenta's ``ContentBlock`` model is canonical. This mapper only ever produces
     ``ContentBlock`` types Agenta already defines internally (``text``, ``image``,
-    ``resource``, ``tool_call``, ``tool_result``). To support a new Vercel part kind,
+    ``resource``, ``attachment``, ``tool_call``, ``tool_result``). To support a new Vercel part kind,
     first add first-class support for it in the Agenta ``ContentBlock`` model, then map
     it here — never fabricate an adapter-specific block type or pass an unmapped kind
     through opaquely. A part kind Agenta does not define is dropped (observably via a
@@ -76,9 +84,9 @@ def _part_to_blocks(part: Any) -> List[ContentBlock]:
 
     Keep this channel symmetric: a kind must be handled in both directions or neither. If
     something is mapped inbound it must map outbound too (and vice versa); a kind dropped
-    here must also be absent in ``_block_to_parts`` — never add one side alone. The only
-    exception is a direction that explicitly cannot occur (e.g. the one-way live event
-    stream in ``stream.py``, which has no inbound counterpart by design).
+    here must also be absent in ``_block_to_parts`` — never add one side alone. Attachment
+    references are the module-documented ingress-only exception because their neutral block
+    has no URL.
 
     Reasoning is such a stream-only concept: the live event stream maps the ``thought``
     event to Vercel ``reasoning`` frames. Stored ``UIMessage`` conversion has no reasoning
@@ -96,6 +104,32 @@ def _part_to_blocks(part: Any) -> List[ContentBlock]:
 
     if ptype == "file":
         media = part.get("mediaType") or part.get("mimeType")
+        provider_metadata = part.get("providerMetadata")
+        agenta_metadata = (
+            provider_metadata.get("agenta")
+            if isinstance(provider_metadata, dict)
+            else None
+        )
+        attachment_id = (
+            agenta_metadata.get("attachmentId")
+            if isinstance(agenta_metadata, dict)
+            else None
+        )
+        if isinstance(attachment_id, str) and _CANONICAL_UUID.fullmatch(attachment_id):
+            size = (
+                agenta_metadata.get("size")
+                if isinstance(agenta_metadata, dict)
+                else None
+            )
+            return [
+                ContentBlock(
+                    type="attachment",
+                    attachment_id=attachment_id,
+                    filename=part.get("filename"),
+                    mime_type=media,
+                    size=size,
+                )
+            ]
         kind = (
             "image"
             if isinstance(media, str) and media.startswith("image/")
@@ -302,8 +336,8 @@ def _block_to_parts(block: ContentBlock) -> List[Dict[str, Any]]:
     Keep this channel symmetric: a kind must be handled in both directions or neither. If
     something is mapped here outbound it must map inbound too (and vice versa); a kind
     dropped in ``_part_to_blocks`` must also be absent here — never add one side alone. The
-    only exception is a direction that explicitly cannot occur (e.g. the one-way live event
-    stream in ``stream.py``, which has no inbound counterpart by design).
+    module documents the ingress-only ``attachment`` case; its neutral block has no URL to
+    render here.
     """
     if block.type == "text":
         return [{"type": "text", "text": block.text or ""}]
@@ -334,6 +368,11 @@ def _block_to_parts(block: ContentBlock) -> List[Dict[str, Any]]:
                 "output": block.output,
             }
         ]
+    if block.type == "attachment":
+        log.debug(
+            "vercel adapter: dropping outbound attachment block with no FileUIPart URL: %r",
+            block.attachment_id,
+        )
     return []
 
 

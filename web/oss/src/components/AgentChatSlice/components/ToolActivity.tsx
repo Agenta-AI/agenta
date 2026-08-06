@@ -173,7 +173,9 @@ const ToolRow = ({
         state === "approval-requested"
             ? "Awaiting approval"
             : state === "approval-responded"
-              ? "approved"
+              ? (part as {approval?: {approved?: boolean}}).approval?.approved === false
+                  ? "denied"
+                  : "approved"
               : live && running
                 ? "running…"
                 : detailed

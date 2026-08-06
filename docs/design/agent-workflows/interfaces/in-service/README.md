@@ -15,7 +15,7 @@ resolvers that turn config into concrete inputs.
 - [Neutral runtime DTOs](neutral-runtime-dtos.md): the semantic vocabulary of the runtime.
 - [Runtime ports](runtime-ports.md): the abstract seams backends and harnesses plug into.
 - [Backend adapter](backend-adapter.md): the one backend wired today.
-- [Harness adapters](harness-adapters.md): how Pi, Claude, and Agenta differ.
+- [Harness adapters](harness-adapters.md): how Pi, Claude, Agenta, and Codex differ.
 - [Browser protocol adapter](browser-protocol-adapter.md): the Vercel translation layer.
 - [Tool models and resolution](tool-models-and-resolution.md): tool config to runnable spec.
 - [MCP models and resolution](mcp-models-and-resolution.md): MCP config to resolved server.

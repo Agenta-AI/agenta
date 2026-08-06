@@ -10,13 +10,20 @@
 
 import React, {useCallback, useMemo} from "react"
 
-import {DownOutlined} from "@ant-design/icons"
-import {Button, Dropdown, Space} from "antd"
-import type {ButtonProps, MenuProps} from "antd"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomFamily} from "jotai-family"
-import {CheckCircle, LoaderCircle, XCircle} from "lucide-react"
+import {CheckCircle, ChevronDown, LoaderCircle, XCircle} from "lucide-react"
+
+import {Button, type ButtonProps} from "./ui/button"
+import {LoadingButton} from "./ui/button-composed"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "./ui/dropdown-menu"
+import {cn} from "./ui/utils"
 
 // ============================================================================
 // ATOMS
@@ -35,8 +42,10 @@ export const dropdownSelectionAtomFamily = atomFamily((storageKey: string) =>
  * Returns [selectedKey, setSelectedKey] tuple.
  */
 function useDropdownSelection(storageKey: string | undefined, defaultKey: string) {
-    const atom = storageKey ? dropdownSelectionAtomFamily(storageKey) : null
-    const [storedKey, setStoredKey] = useAtom(atom ?? dropdownSelectionAtomFamily("__noop__"))
+    const selectionAtom = storageKey ? dropdownSelectionAtomFamily(storageKey) : null
+    const [storedKey, setStoredKey] = useAtom(
+        selectionAtom ?? dropdownSelectionAtomFamily("__noop__"),
+    )
 
     // If no storageKey, we don't use the atom at all
     if (!storageKey) {
@@ -79,21 +88,23 @@ export interface DropdownButtonProps {
     /** Callback when a dropdown option is selected */
     onOptionSelect?: (key: string) => void
     /** Button size */
-    size?: "small" | "middle" | "large"
-    /** Button type for main button */
-    type?: ButtonProps["type"]
+    size?: ButtonProps["size"]
+    /** Button variant for main button */
+    variant?: ButtonProps["variant"]
     /** Additional class name for the container */
     className?: string
     /** Whether the main button is disabled */
     disabled?: boolean
     /** Whether the dropdown button is disabled */
     dropdownDisabled?: boolean
-    /** Dropdown trigger */
+    /** Dropdown trigger. Accepted for API compat but ignored — the Radix menu opens on click. */
     trigger?: ("click" | "hover" | "contextMenu")[]
     /** Dropdown placement */
     placement?: "bottom" | "bottomLeft" | "bottomRight" | "top" | "topLeft" | "topRight"
-    /** Custom dropdown icon (defaults to DownOutlined) */
+    /** Custom dropdown icon (defaults to a chevron-down). */
     dropdownIcon?: React.ReactNode
+    /** Accessible name for the icon-only chevron segment. */
+    dropdownAriaLabel?: string
     /**
      * Optional localStorage key for persisting the last selected option.
      * When provided, the main button will show the last selected option's label
@@ -116,14 +127,14 @@ export function DropdownButton({
     options,
     onClick,
     onOptionSelect,
-    size = "middle",
-    type = "default",
+    size = "default",
+    variant = "outline",
     className = "",
     disabled = false,
     dropdownDisabled = false,
-    trigger = ["hover"],
     placement = "bottomRight",
     dropdownIcon,
+    dropdownAriaLabel = "More actions",
     storageKey,
     defaultSelectedKey,
     loading = false,
@@ -178,7 +189,7 @@ export function DropdownButton({
     }, [storageKey, options, selectedKey, label])
 
     // Dropdown menu items
-    const menuItems: MenuProps["items"] = useMemo(
+    const menuItems = useMemo(
         () =>
             options.map((option) => {
                 const hasActiveStatus = option.status && option.status !== "idle"
@@ -196,35 +207,81 @@ export function DropdownButton({
                         </span>
                     ),
                     disabled: option.disabled || option.status === "running",
-                    onClick: () => handleOptionSelect(option.key),
                 }
             }),
-        [options, handleOptionSelect],
+        [options],
     )
 
-    const chevronIcon = dropdownIcon ?? <DownOutlined style={{fontSize: 10}} />
+    // antd placement → Radix align/side. bottom* opens below (default), top* above;
+    // *Left→align="start", *Right→align="end", bare bottom/top→center.
+    const side: "top" | "bottom" = placement.startsWith("top") ? "top" : "bottom"
+    const align: "start" | "center" | "end" = placement.endsWith("Left")
+        ? "start"
+        : placement.endsWith("Right")
+          ? "end"
+          : "center"
+
+    // 15, not 10: lucide's chevron path spans only 12x6 of its 24-unit box, so a like-for-like
+    // size={10} drew 5.8x3.3 against antd DownOutlined's measured 8.48x5.71. Including the
+    // scaled stroke, 15 gives 8.75x5.0. antd's glyph is FILLED and lucide's is STROKED, so the
+    // weights can never match exactly — size only matches the extent.
+    const chevronIcon = dropdownIcon ?? <ChevronDown size={15} />
+
+    // SOLID segments have no visible border, so the split would read as one blob. antd draws a
+    // 1px connector between two solid compact items (antd/lib/button/style/compact.js L26-46:
+    // `& + .ant-btn-variant-solid:before`, inset -1px, colour = the segment's own hover
+    // background), hidden while that segment is hovered. Same rule, same tokens, here.
+    const connector =
+        variant === "default"
+            ? "before:absolute before:-inset-y-px before:-left-px before:w-px before:content-[''] before:bg-btn-primary-hover hover:before:hidden disabled:before:hidden"
+            : variant === "destructive"
+              ? "before:absolute before:-inset-y-px before:-left-px before:w-px before:content-[''] before:bg-error-hover hover:before:hidden disabled:before:hidden"
+              : ""
 
     return (
-        <Space.Compact size={size} className={className}>
-            <Button
-                type={type}
-                className="flex items-center gap-1"
+        // Split-button join (replaces antd Space.Compact): flex row, inner radii
+        // removed, 1px overlap, hovered/focused segment raised so its border wins.
+        <div className={cn("inline-flex", className)}>
+            <LoadingButton
+                variant={variant}
+                size={size}
+                className="relative rounded-r-none hover:z-[1] focus:z-[1]"
                 onClick={handleMainClick}
                 disabled={disabled}
                 loading={loading}
-                icon={loading ? undefined : icon}
             >
+                {loading ? null : icon}
                 {effectiveLabel}
-            </Button>
-            <Dropdown
-                menu={{items: menuItems}}
-                trigger={trigger}
-                placement={placement}
-                disabled={dropdownDisabled || disabled}
-            >
-                <Button type={type} icon={chevronIcon} disabled={dropdownDisabled || disabled} />
-            </Dropdown>
-        </Space.Compact>
+            </LoadingButton>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild disabled={dropdownDisabled || disabled}>
+                    {/* Icon-only size: antd's chevron segment is `.ant-btn-icon-only` (square). */}
+                    <Button
+                        variant={variant}
+                        size={size === "sm" ? "icon-sm" : "icon"}
+                        aria-label={dropdownAriaLabel}
+                        disabled={dropdownDisabled || disabled}
+                        className={cn(
+                            "relative -ml-px rounded-l-none hover:z-[1] focus:z-[1]",
+                            connector,
+                        )}
+                    >
+                        {chevronIcon}
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side={side} align={align}>
+                    {menuItems.map((item) => (
+                        <DropdownMenuItem
+                            key={item.key}
+                            disabled={item.disabled}
+                            onClick={() => handleOptionSelect(item.key)}
+                        >
+                            {item.label}
+                        </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
     )
 }
 

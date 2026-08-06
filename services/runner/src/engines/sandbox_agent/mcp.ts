@@ -3,10 +3,9 @@ import type {
   McpServerConfig,
   ResolvedToolSpec,
 } from "../../protocol.ts";
-import {
-  buildToolMcpServers,
-} from "../../tools/mcp-bridge.ts";
+import { buildToolMcpServers } from "../../tools/mcp-bridge.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
+import type { ExecutableToolGate } from "../../tools/executable-tool-gate.ts";
 // The shim's env contract, from the dependency-free names module — never from the shim's
 // bundle entrypoint (`tool-mcp-stdio.ts`), which server code must not import.
 import {
@@ -56,6 +55,12 @@ export interface McpServerStdio {
   command: string;
   args: string[];
   env: EnvVariable[];
+}
+
+/** Runner-local hooks accepted by the internal entry constructor but never serialized. */
+export interface BuildInternalToolMcpEntryOptions {
+  clientToolRelay?: ClientToolRelay;
+  executableToolGate?: ExecutableToolGate;
 }
 
 /** One delivered MCP server: the internal stdio shim entry or an HTTP entry. */
@@ -108,6 +113,7 @@ export function assertNoReservedUserMcpName(
 export function buildInternalToolMcpEntry(
   assets: ToolMcpAssets,
   relayDir: string,
+  _options: BuildInternalToolMcpEntryOptions = {},
 ): McpServerStdio {
   const env: EnvVariable[] = [
     { name: PUBLIC_SPECS_FILE_ENV, value: assets.specsPath },
@@ -192,7 +198,58 @@ export async function validateUserMcpUrl(
   return undefined;
 }
 
-/** Convert external HTTP MCP servers into Claude ACP session entries. */
+/**
+ * Structural validation of user-declared HTTP MCP servers: public headers and typed secret
+ * header credentials must be well-formed (non-empty names and values, `header` bindings with
+ * `opaque_http` usage, no duplicate header name across the public and secret sets), and the
+ * URL must pass the SSRF guard. Called early in acquire — BEFORE any sandbox or Daytona Secret
+ * is created — and again per server at ACP materialization (`toAcpMcpServers`).
+ */
+export async function validateUserMcpServers(
+  servers: McpServerConfig[] | undefined,
+): Promise<void> {
+  for (const server of servers ?? []) {
+    const url = server.connection?.url;
+    if (!url) throw new Error("http MCP server requires url");
+    const names = new Set<string>();
+    for (const [name, value] of Object.entries(
+      server.connection.headers ?? {},
+    )) {
+      if (!name.trim() || !value) {
+        throw new Error("HTTP MCP headers require non-empty names and values");
+      }
+      names.add(name.toLowerCase());
+    }
+    for (const credential of server.connection.credentials ?? []) {
+      const name = credential?.binding?.name;
+      if (
+        credential?.binding?.kind !== "header" ||
+        !name?.trim() ||
+        !credential.value ||
+        credential.usage !== "opaque_http"
+      ) {
+        throw new Error(
+          "HTTP MCP credential binding, value, or usage is invalid",
+        );
+      }
+      const normalized = name.toLowerCase();
+      if (names.has(normalized)) {
+        throw new Error(`duplicate HTTP MCP header binding '${name}'`);
+      }
+      names.add(normalized);
+    }
+    const urlError = await validateUserMcpUrl(url);
+    if (urlError) throw new Error(urlError);
+  }
+}
+
+/**
+ * Convert external HTTP MCP servers into Claude ACP session entries. Public headers and typed
+ * secret header credentials stay separate until this final ACP materialization boundary, where
+ * each credential is emitted as a request header. On a Daytona run the caller has already
+ * swapped credential values for Daytona Secret placeholders (`materializeDaytonaMcpServers`),
+ * so no plaintext secret reaches the sandbox creation request there.
+ */
 export async function toAcpMcpServers(
   servers: McpServerConfig[] | undefined,
   log: Log = () => {},
@@ -204,15 +261,21 @@ export async function toAcpMcpServers(
       log(`skipping HTTP MCP server '${s?.name ?? "?"}' (no URL)`);
       continue;
     }
-    const urlError = await validateUserMcpUrl(url);
-    if (urlError) throw new Error(urlError);
+    await validateUserMcpServers([s]);
     out.push({
       type: "http",
       name: s.name,
       url,
-      headers: Object.entries(s.connection.headers ?? {}).map(
-        ([name, value]) => ({ name, value }),
-      ),
+      headers: [
+        ...Object.entries(s.connection.headers ?? {}).map(([name, value]) => ({
+          name,
+          value,
+        })),
+        ...(s.connection.credentials ?? []).map((credential) => ({
+          name: credential.binding.name,
+          value: credential.value,
+        })),
+      ],
     });
   }
   return out;
@@ -244,11 +307,13 @@ export interface BuildSessionMcpServersInput {
    */
   internalToolMcp?: ToolMcpAssets;
   /**
-   * The shared client-tool relay. When set (local Claude), the internal channel advertises
+   * The shared client-tool relay. When set (local non-Pi), the internal channel advertises
    * `client` tools and pauses a `tools/call` for one. Omit for Pi (which uses the file relay);
    * on Daytona the channel is skipped entirely.
    */
   clientToolRelay?: ClientToolRelay;
+  /** Runner-side permission gate for local executable tools. */
+  executableToolGate?: ExecutableToolGate;
   /** Engine pause/teardown abort signal, threaded to the internal MCP server. */
   signal?: AbortSignal;
   log?: Log;
@@ -297,6 +362,7 @@ export async function buildSessionMcpServers({
   relayDir,
   internalToolMcp,
   clientToolRelay,
+  executableToolGate,
   signal,
   log = () => {},
 }: BuildSessionMcpServersInput): Promise<SessionMcpServers> {
@@ -330,6 +396,7 @@ export async function buildSessionMcpServers({
   if (!isDaytona) {
     internal = await buildToolMcpServers(toolSpecs, relayDir, {
       clientToolRelay,
+      executableToolGate,
       signal,
       log,
     });

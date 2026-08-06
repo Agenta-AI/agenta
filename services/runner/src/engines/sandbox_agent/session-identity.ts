@@ -1,12 +1,18 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { inspect } from "node:util";
 
 import {
+  currentUserTurn,
+  isLegacyInlineImageBlock,
   type AgentRunRequest,
   type ChatMessage,
   type ContentBlock,
   messageText,
+  resolvePromptText,
+  userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import { resolveCodexMode } from "./codex-mode.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
 
@@ -61,8 +67,10 @@ function nonNegativeIntEnv(name: string, fallback: number): number {
 function boolEnv(name: string, fallback: boolean): boolean {
   const raw = (process.env[name] ?? "").trim().toLowerCase();
   if (!raw) return fallback;
-  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") return true;
-  if (raw === "0" || raw === "false" || raw === "no" || raw === "off") return false;
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on")
+    return true;
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "off")
+    return false;
   return fallback;
 }
 
@@ -83,10 +91,7 @@ export function readKeepaliveConfig(
       approvalTtlMs: ttlMs,
       // This budgets billed compute (idle warm sandboxes), deliberately separate from the local
       // pool's host-memory budget; Slice 4 adds the strict warm-slot accounting semantics.
-      poolMax: positiveIntEnv(
-        DAYTONA_POOL_MAX_ENV,
-        DEFAULT_DAYTONA_POOL_MAX,
-      ),
+      poolMax: positiveIntEnv(DAYTONA_POOL_MAX_ENV, DEFAULT_DAYTONA_POOL_MAX),
     };
   }
   return {
@@ -117,6 +122,55 @@ function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+/**
+ * The credential material a session was built with, kept only so a later turn can answer one
+ * question: did any of it change?
+ *
+ * It holds the values rather than a digest of them, and that is deliberate. A digest of an API
+ * key is not much protection (keys have little enough entropy that a leaked digest can be
+ * attacked offline), and it invites exactly the misreading that a security scanner makes: that
+ * this is a password hash, which it is not. Nothing here authenticates anything.
+ *
+ * The real risk with holding the values is that one leaks into a log line, so this class makes
+ * that structurally impossible instead of relying on a convention. The material lives in a
+ * private field with no getter, and every way of turning an object into text (`String()`, a
+ * template literal, `JSON.stringify`, `console.log` / `util.inspect`) is overridden to print a
+ * placeholder. This mirrors what the Python side already does for the same reason
+ * (`ResolvedCredential` masks its value on dump and hides it from `repr`).
+ *
+ * Comparison is constant time so the check cannot be turned into a way to learn a key one byte
+ * at a time.
+ */
+export class CredentialMaterial {
+  readonly #canonical: string;
+
+  constructor(canonical: string) {
+    this.#canonical = canonical;
+  }
+
+  /** True when both were built from identical credential material. */
+  equals(other: CredentialMaterial): boolean {
+    const mine = Buffer.from(this.#canonical, "utf8");
+    const theirs = Buffer.from(other.#canonical, "utf8");
+    // `timingSafeEqual` throws on a length mismatch, and lengths differ freely here, so the
+    // length check comes first. Length is not secret: it follows from the request's shape,
+    // which the config fingerprint already covers in the clear.
+    return mine.length === theirs.length && timingSafeEqual(mine, theirs);
+  }
+
+  toString(): string {
+    return "[credential-material]";
+  }
+
+  toJSON(): string {
+    return "[credential-material]";
+  }
+
+  [inspect.custom](): string {
+    return "[credential-material]";
+  }
+}
+
 /** Deterministic JSON: object keys sorted recursively so equal values hash equal. */
 function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value);
@@ -134,10 +188,13 @@ function canonicalJson(value: unknown): string {
 /**
  * A canonical hash over the config-bearing request fields (the continuation-versus-cold
  * decision). Per-turn volatiles are excluded: `messages`, `turnId`, trace propagation
- * (`context`), the rotating telemetry headers, and secret VALUES (`secrets` — the credential
- * epoch covers rotation, and values must never enter any hash used for logging). The
- * tool-callback ENDPOINT is included (routing config); its authorization is a credential and
- * lives in the credential epoch instead.
+ * (`context`), the rotating telemetry headers, and credential VALUES
+ * (`modelConnection.credentials` / MCP `connection.credentials` — the credential epoch covers
+ * rotation, and values must never enter any hash used for logging). The tool-callback ENDPOINT
+ * is included (routing config); its authorization is per-turn credential material excluded from
+ * every hash, the credential epoch included — each turn's relay uses the INCOMING request's
+ * `toolCallback` (see `CredentialEpoch` and `run-turn.ts`), so the parked copy never executes
+ * anything.
  */
 export function configFingerprint(request: AgentRunRequest): string {
   const workflow = request.runContext?.workflow;
@@ -145,18 +202,47 @@ export function configFingerprint(request: AgentRunRequest): string {
     harness: request.harness ?? null,
     sandbox: request.sandbox ?? null,
     model: request.model ?? null,
-    provider: request.provider ?? null,
+    // Harness mode is applied once, at session acquire (codex-mode.ts). Normalize Codex defaults
+    // and ignore the field for other harnesses so only effective mode changes evict warm sessions.
+    harnessMode:
+      request.harness === "codex"
+        ? resolveCodexMode(request.harnessMode)
+        : null,
     connection: request.connection ?? null,
-    deployment: request.deployment ?? null,
-    endpoint: request.endpoint ?? null,
-    credentialMode: request.credentialMode ?? null,
+    modelConnection: request.modelConnection
+      ? {
+          provider: request.modelConnection.provider,
+          deployment: request.modelConnection.deployment,
+          endpoint: request.modelConnection.endpoint ?? null,
+          credentialMode: request.modelConnection.credentialMode,
+          environment: request.modelConnection.environment ?? null,
+          credentials: (request.modelConnection.credentials ?? []).map(
+            (credential) => ({
+              binding: credential.binding,
+              usage: credential.usage,
+            }),
+          ),
+        }
+      : null,
+    modelCapabilities: request.modelCapabilities ?? null,
     agentsMd: request.agentsMd ?? null,
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
-    tools: request.tools ?? null,
     skills: request.skills ?? null,
     customTools: request.customTools ?? null,
-    mcpServers: request.mcpServers ?? null,
+    // Credential VALUES are stripped (binding + usage identify the shape); public headers are
+    // config and stay in.
+    mcpServers:
+      request.mcpServers?.map((server) => ({
+        ...server,
+        connection: {
+          ...server.connection,
+          credentials: server.connection?.credentials?.map((credential) => ({
+            binding: credential.binding,
+            usage: credential.usage,
+          })),
+        },
+      })) ?? null,
     toolCallbackEndpoint: request.toolCallback?.endpoint ?? null,
     permissions: request.permissions ?? null,
     sandboxPermission: request.sandboxPermission ?? null,
@@ -193,6 +279,27 @@ function collectToolCallIds(
 }
 
 /**
+ * One stable digest per legacy inline-media block: its media type plus a hash of the payload,
+ * so the fingerprint stays short whatever the image weighs.
+ */
+function inlineMediaDigests(
+  content: string | ContentBlock[] | undefined,
+): string[] {
+  if (!Array.isArray(content)) return [];
+  const digests: string[] = [];
+  for (const block of content) {
+    if (!isLegacyInlineImageBlock(block)) continue;
+    const payload =
+      typeof block.uri === "string" && block.uri.startsWith("data:")
+        ? block.uri
+        : String(block.data ?? "");
+    const mediaType = typeof block.mimeType === "string" ? block.mimeType : "";
+    digests.push(sha256(`${mediaType}\n${payload}`));
+  }
+  return digests;
+}
+
+/**
  * A hash over the conversation the server received (the FE's pruned array): the ordered user
  * message texts, the ordered tool-call ids across every message, and the user-message count.
  * Assistant TEXT is deliberately ignored, so a live session that has already answered a plain
@@ -211,6 +318,8 @@ function collectToolCallIds(
  */
 export function historyFingerprint(messages: readonly ChatMessage[]): string {
   const userTexts: string[] = [];
+  const userAttachmentIds: string[][] = [];
+  const userInlineMedia: string[][] = [];
   const toolCallIds: string[] = [];
   const seenIds = new Set<string>();
   let promptCount = 0;
@@ -218,10 +327,28 @@ export function historyFingerprint(messages: readonly ChatMessage[]): string {
     if (message.role === "user") {
       promptCount += 1;
       userTexts.push(messageText(message.content));
+      userAttachmentIds.push(
+        currentUserTurn({ messages: [message] }).attachments.map(
+          (attachment) => attachment.attachmentId,
+        ),
+      );
+      // A legacy inline image carries no reference id, so hash its content: two histories that
+      // differ only in the image bytes must not share one warm harness.
+      userInlineMedia.push(inlineMediaDigests(message.content));
     }
     collectToolCallIds(message.content, toolCallIds, seenIds);
   }
-  return sha256(canonicalJson({ userTexts, toolCallIds, promptCount }));
+  // Attachment ids change every canonical hash once; deploys already cold-start parked
+  // sessions because the pool is process-local.
+  return sha256(
+    canonicalJson({
+      userTexts,
+      userAttachmentIds,
+      userInlineMedia,
+      toolCallIds,
+      promptCount,
+    }),
+  );
 }
 
 /**
@@ -259,6 +386,36 @@ export function priorConversation(request: AgentRunRequest): ChatMessage[] {
   const messages = request.messages ?? [];
   if (messages.length && messages[messages.length - 1].role === "user") {
     return messages.slice(0, -1);
+  }
+  return messages.slice();
+}
+
+/**
+ * True when the request ASSERTED a transcript beyond its own turn: its prior conversation (see
+ * `priorConversation`) still holds a user message. A last-message-only client never does (its
+ * prior conversation is empty), and neither does turn one of any conversation, which carries a
+ * single user message however the client sends history.
+ *
+ * A park records this so the resume knows how much of the incoming transcript the parked
+ * fingerprint can legitimately be compared against: a park whose request carried only the
+ * trailing user turn can only vouch for that turn and the tool calls it produced — see
+ * `historyTailFromLastUserTurn`.
+ */
+export function assertsPriorConversation(request: AgentRunRequest): boolean {
+  return priorConversation(request).some((message) => message.role === "user");
+}
+
+/**
+ * The tail of a conversation from its LAST user message onward (inclusive); the whole array when
+ * it holds no user message. This is exactly the span a minimal park's fingerprint covers: the
+ * one user turn its request carried plus that turn's own tool calls. Everything earlier is
+ * history the park never saw and therefore cannot check.
+ */
+export function historyTailFromLastUserTurn(
+  messages: readonly ChatMessage[],
+): ChatMessage[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") return messages.slice(i);
   }
   return messages.slice();
 }
@@ -305,41 +462,70 @@ export function carriesMinimalHistory(request: AgentRunRequest): boolean {
 }
 
 /**
- * True when the request's tail is a fresh user message with text and NOT an approval envelope.
+ * True when the request is an OUT-OF-BAND approval reply: it carries an approval envelope and no
+ * prompt text. That is what a caller answering from the durable interaction row alone sends
+ * (an inbox, a webhook, a CLI) — the parked tool call plus its `{approved}` result, nothing else.
+ *
+ * "No prompt text" means exactly what `resolvePromptText` reads and nothing more: `text` blocks on
+ * a `role: "user"` message. Text carried any other way (a non-`text` block type, another role)
+ * does not disqualify a request here — deliberately, because this predicate decides whether the
+ * run has a prompt to SEND, and `resolvePromptText` is what produces that prompt. The two must
+ * agree; a stricter check here would classify a request as having a prompt the run then omits.
+ *
+ * Such a request is the mirror image of `carriesMinimalHistory`: it asserts no conversation, so
+ * the prior turns come from the durable record log and there is no history for the keep-alive
+ * check to compare. It also has no prompt to send, which is why `buildRunPlan` must not reject it
+ * for having none. A playground approval reply carries the full transcript (its user turns
+ * included) and is therefore NOT this shape.
+ */
+export function carriesApprovalReplyOnly(request: AgentRunRequest): boolean {
+  if (resolvePromptText(request)) return false;
+  // The reply must be the request's terminal tool envelope, not merely present somewhere: a
+  // history whose newest envelope is an unresolved call is a stalled conversation, and reading
+  // it as an approval reply would let it through the empty-prompt rejection.
+  const messages = request.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const content = messages[i]?.content;
+    if (!Array.isArray(content)) continue;
+    const envelope = content.filter(
+      (block) => block?.type === "tool_call" || block?.type === "tool_result",
+    );
+    if (envelope.length === 0) continue;
+    return envelope.some(
+      (block) =>
+        block.type === "tool_result" && approvalDecisionOf(block) !== undefined,
+    );
+  }
+  return false;
+}
+
+/**
+ * True when the request's tail is a fresh user message with content and NOT an approval envelope.
  * A continuation only takes the live path for a plain new user turn; an approval reply (a
  * trailing tool-role message, or a user turn carrying a tool_result) stays cold here.
  */
 export function tailIsFreshUserMessage(request: AgentRunRequest): boolean {
-  const messages = request.messages ?? [];
-  const tail = messages[messages.length - 1];
-  if (!tail || tail.role !== "user") return false;
-  if (!messageText(tail.content).trim()) return false;
-  if (Array.isArray(tail.content)) {
-    const carriesToolTurn = tail.content.some(
-      (block) => block?.type === "tool_result" || block?.type === "tool_call",
-    );
-    if (carriesToolTurn) return false;
-  }
-  return true;
+  const turn = currentUserTurn(request);
+  return turn.isFresh && userTurnCarriesContent(turn);
 }
 
 /**
- * The credential epoch bounds how long a parked session may reuse its baked credentials. It is
- * a PROCESS-LOCAL hash over the actual resolved secret VALUES (held only in runner memory —
- * never logged, persisted, or emitted), combined with the mount credential expiry. A rotated
- * same-slug secret changes the hash; an elapsed expiry invalidates the epoch. Either way the
- * dispatch evicts and cold-starts with fresh credentials.
+ * The credential epoch bounds how long a parked session may reuse its baked credentials. It pairs
+ * the resolved secret material (see `CredentialMaterial`: process-local, never logged, persisted,
+ * or emitted) with the mount credential expiry. A rotated same-slug secret changes the material;
+ * an elapsed expiry invalidates the epoch. Either way the dispatch evicts and cold-starts with
+ * fresh credentials.
  *
  * The tool-callback bearer is deliberately EXCLUDED: it is per-turn material the backend
  * re-mints on its auth-cache cadence (~60s), and every turn — continuation included — starts
  * its tool relay from the INCOMING request's `toolCallback`, so the parked copy is never used
- * to execute anything. Hashing it made warm sessions evict as "credentials-rotated" on every
+ * to execute anything. Including it made warm sessions evict as "credentials-rotated" on every
  * cache rollover for no protective value. Only material actually BAKED into the parked
- * environment (the sandbox env secrets) belongs in the hash; the mount expiry bounds the rest.
+ * environment (the sandbox env secrets) belongs here; the mount expiry bounds the rest.
  */
 export interface CredentialEpoch {
-  /** sha256 over canonical(secrets). In-memory only; never surfaced. */
-  secretsHash: string;
+  /** The credentials this session was built with. Compared, never read. */
+  secrets: CredentialMaterial;
   /**
    * Parked epochs only: the environment's installed-mount lease as epoch millis, or undefined when
    * it has no mounts. Incoming epochs never carry one.
@@ -360,7 +546,9 @@ export function mountExpiryMs(
 }
 
 /**
- * The epoch an INCOMING request carries: just the secret material. An incoming request has no
+ * The epoch an INCOMING request carries: just the secret material — the typed model credentials
+ * and the typed MCP header credentials, i.e. exactly what gets BAKED into the sandbox/session
+ * environment (plaintext locally; Daytona Secret records remotely). An incoming request has no
  * mount lease of its own to contribute; a parked epoch's `mountExpiresAtMs` is stamped from the
  * environment's installed mounts at park time (see `installedMountLease`).
  */
@@ -368,9 +556,33 @@ export function computeCredentialEpoch(
   request: AgentRunRequest,
 ): CredentialEpoch {
   const material = canonicalJson({
-    secrets: request.secrets ?? {},
+    modelEnvironment: request.modelConnection?.environment ?? {},
+    modelCredentials: (request.modelConnection?.credentials ?? []).map(
+      (credential) => ({
+        binding: credential.binding,
+        value: credential.value,
+        usage: credential.usage,
+      }),
+    ),
+    mcpCredentials: (request.mcpServers ?? []).flatMap((server) =>
+      (server.connection?.credentials ?? []).map((credential) => ({
+        server: server.name,
+        url: server.connection?.url ?? null,
+        binding: credential.binding,
+        value: credential.value,
+        usage: credential.usage,
+      })),
+    ),
   });
-  return { secretsHash: sha256(material) };
+  return { secrets: new CredentialMaterial(material) };
+}
+
+/** True when credentials baked into a parked sandbox/session changed (rotation ⇒ evict). */
+export function sandboxCredentialsRotated(
+  parked: CredentialEpoch,
+  incoming: CredentialEpoch,
+): boolean {
+  return !parked.secrets.equals(incoming.secrets);
 }
 
 /**
@@ -430,7 +642,7 @@ export function credentialEpochMismatch(
   now = Date.now(),
 ): "credentials-expired" | "credentials-rotated" | undefined {
   if (mountCredentialsExpired(parked, now)) return "credentials-expired";
-  if (parked.secretsHash !== incoming.secretsHash) return "credentials-rotated";
+  if (!parked.secrets.equals(incoming.secrets)) return "credentials-rotated";
   return undefined;
 }
 
@@ -491,7 +703,8 @@ export function projectScopeFor(
   mountProjectId: string | undefined,
 ): { id: string; source: PoolScopeSource } | undefined {
   const runContextProject = request.runContext?.project?.id?.trim();
-  if (runContextProject) return { id: runContextProject, source: "run-context" };
+  if (runContextProject)
+    return { id: runContextProject, source: "run-context" };
   const mount = mountProjectId?.trim();
   if (mount) return { id: mount, source: "mount" };
   return undefined;

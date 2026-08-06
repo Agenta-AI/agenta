@@ -40,8 +40,8 @@ All in `dtos.py`. The ones that carry the most weight:
   capabilities, session id, model, trace id).
 - **`HarnessCapabilities`**: the boolean feature flags a harness reports.
 - **`TraceContext`**: the trace block sent to the runner.
-- **`PiAgentConfig`, `ClaudeAgentConfig`, `AgentaAgentConfig`**: harness-specific configs
-  that subclass a common base and each emit their own `/run` wire fields. They are the bridge
+- **`PiAgentConfig`, `ClaudeAgentConfig`, `AgentaAgentConfig`, `CodexAgentTemplate`**:
+  harness-specific configs that subclass a common base and each emit their own `/run` wire fields. They are the bridge
   from neutral config to harness behavior; see [Harness adapters](harness-adapters.md).
 
 ## Appendix: the message representation, all cases

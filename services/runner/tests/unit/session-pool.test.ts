@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
+import { inspect } from "node:util";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
@@ -14,6 +15,7 @@ import {
   credentialEpochMismatch,
   credentialEpochValid,
   mountCredentialsExpired,
+  sandboxCredentialsRotated,
   expectedNextHistoryFingerprint,
   historyFingerprint,
   poolKeyFor,
@@ -22,6 +24,7 @@ import {
   resolvesToLocalProvider,
   tailIsFreshUserMessage,
   type CredentialEpoch,
+  CredentialMaterial,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 
@@ -61,7 +64,7 @@ function fakeEnv() {
   };
 }
 
-const epoch: CredentialEpoch = { secretsHash: "h" };
+const epoch: CredentialEpoch = { secrets: new CredentialMaterial("h") };
 
 function parkInput(key: string, env = fakeEnv()) {
   return {
@@ -216,13 +219,40 @@ describe("configFingerprint", () => {
     messages: [{ role: "user", content: "hi" }],
   };
 
-  it("ignores per-turn volatiles (messages, turnId, telemetry, secrets)", () => {
-    const a = configFingerprint(base);
+  it("ignores per-turn volatiles and credential values", () => {
+    const a = configFingerprint({
+      ...base,
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: "original",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
     const b = configFingerprint({
       ...base,
       messages: [{ role: "user", content: "totally different" }],
       turnId: "t-2",
-      secrets: { ANTHROPIC_API_KEY: "sekret" },
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.anthropic.com" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+            value: "sekret",
+            usage: "opaque_http",
+          },
+        ],
+      },
       telemetry: {
         exporters: { otlp: { headers: { authorization: "Bearer x" } } },
       },
@@ -235,6 +265,33 @@ describe("configFingerprint", () => {
     );
   });
 
+  it("ignores MCP credential values while retaining their binding contract", () => {
+    const withMcp = (value: string): AgentRunRequest => ({
+      ...base,
+      mcpServers: [
+        {
+          name: "linear",
+          connection: {
+            type: "http",
+            url: "https://mcp.linear.app/sse",
+            credentials: [
+              {
+                binding: { kind: "header", name: "Authorization" },
+                value,
+                usage: "opaque_http",
+              },
+            ],
+          },
+          policy: { tools: { mode: "all" } },
+        },
+      ],
+    });
+    assert.equal(
+      configFingerprint(withMcp("secret-a")),
+      configFingerprint(withMcp("secret-b")),
+    );
+  });
+
   it("changes when a config-bearing field changes (model)", () => {
     assert.notEqual(
       configFingerprint(base),
@@ -242,10 +299,44 @@ describe("configFingerprint", () => {
     );
   });
 
-  it("changes when tools change", () => {
-    assert.notEqual(
+  it("ignores the deprecated tools field", () => {
+    // The runner activates every built-in regardless, so `tools` must not force a cold restart.
+    assert.equal(
       configFingerprint(base),
       configFingerprint({ ...base, tools: ["read"] }),
+    );
+  });
+
+  it("changes when resolved model capabilities change", () => {
+    assert.notEqual(
+      configFingerprint(base),
+      configFingerprint({
+        ...base,
+        modelCapabilities: { inputModalities: ["text", "image"] },
+      }),
+    );
+  });
+
+  it("distinguishes different Codex harness modes", () => {
+    const codex = { ...base, harness: "codex" };
+    assert.notEqual(
+      configFingerprint({ ...codex, harnessMode: "agent" }),
+      configFingerprint({ ...codex, harnessMode: "read-only" }),
+    );
+  });
+
+  it("treats omitted Codex mode as the explicit default", () => {
+    const codex = { ...base, harness: "codex" };
+    assert.equal(
+      configFingerprint(codex),
+      configFingerprint({ ...codex, harnessMode: "agent-full-access" }),
+    );
+  });
+
+  it("ignores harness mode for non-Codex harnesses", () => {
+    assert.equal(
+      configFingerprint(base),
+      configFingerprint({ ...base, harnessMode: "read-only" }),
     );
   });
 
@@ -253,12 +344,16 @@ describe("configFingerprint", () => {
   // model, or endpoint must cold-start rather than reuse a mismatched live session. No new
   // fingerprint field is needed — these already ride configFingerprint.
   it("changes when the connection changes (custom provider identity)", () => {
-    const withConn = {
+    const withConn: AgentRunRequest = {
       ...base,
-      provider: "openai",
-      deployment: "custom",
       connection: { mode: "agenta", slug: "ollama-a" },
-      endpoint: { baseUrl: "https://a.test/v1" },
+      modelConnection: {
+        provider: "openai",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://a.test/v1" },
+        credentialMode: "none",
+        credentials: [],
+      },
     };
     assert.notEqual(
       configFingerprint(withConn),
@@ -270,17 +365,25 @@ describe("configFingerprint", () => {
   });
 
   it("changes when the endpoint base URL changes", () => {
-    const withEndpoint = {
+    const withEndpoint: AgentRunRequest = {
       ...base,
-      deployment: "custom",
       connection: { mode: "agenta", slug: "ollama-a" },
-      endpoint: { baseUrl: "https://a.test/v1" },
+      modelConnection: {
+        provider: "openai",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://a.test/v1" },
+        credentialMode: "none",
+        credentials: [],
+      },
     };
     assert.notEqual(
       configFingerprint(withEndpoint),
       configFingerprint({
         ...withEndpoint,
-        endpoint: { baseUrl: "https://b.test/v1" },
+        modelConnection: {
+          ...withEndpoint.modelConnection!,
+          endpoint: { baseUrl: "https://b.test/v1" },
+        },
       }),
     );
   });
@@ -315,6 +418,53 @@ describe("historyFingerprint (pruned-array contract)", () => {
     assert.notEqual(
       historyFingerprint([u1]),
       historyFingerprint([{ role: "user", content: "hello!" }]),
+    );
+  });
+
+  it("changes when ordered user attachment ids change", () => {
+    const withAttachment = (attachmentId: string) => ({
+      role: "user",
+      content: [{ type: "attachment", attachmentId }],
+    });
+    assert.notEqual(
+      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd21")]),
+      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd22")]),
+    );
+  });
+
+  it("changes when the order of user attachment ids changes", () => {
+    const ids = [
+      "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+      "019a52c2-14c0-7c14-b874-2f5798f9cd22",
+    ];
+    const withAttachments = (attachmentIds: string[]) => ({
+      role: "user",
+      content: attachmentIds.map((attachmentId) => ({
+        type: "attachment",
+        attachmentId,
+      })),
+    });
+    assert.notEqual(
+      historyFingerprint([withAttachments(ids)]),
+      historyFingerprint([withAttachments([...ids].reverse())]),
+    );
+  });
+
+  it("changes when a legacy inline image's content changes", () => {
+    const withImage = (data: string) => ({
+      role: "user",
+      content: [
+        { type: "image", uri: `data:image/png;base64,${data}` },
+        { type: "text", text: "describe this" },
+      ],
+    });
+    assert.notEqual(
+      historyFingerprint([withImage("AQID")]),
+      historyFingerprint([withImage("BAUG")]),
+    );
+    assert.equal(
+      historyFingerprint([withImage("AQID")]),
+      historyFingerprint([withImage("AQID")]),
     );
   });
 
@@ -404,6 +554,39 @@ describe("tailIsFreshUserMessage", () => {
       false,
     );
   });
+  it("true for an attachment-only trailing user message", () => {
+    assert.equal(
+      tailIsFreshUserMessage({
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "attachment",
+                attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+              },
+            ],
+          },
+        ],
+      } as unknown as AgentRunRequest),
+      true,
+    );
+  });
+
+  it("true for both legacy inline-image-only trailing user messages", () => {
+    for (const block of [
+      { type: "image", uri: "data:image/png;base64,AQID" },
+      { type: "image", data: "AQID", mimeType: "image/webp" },
+    ]) {
+      assert.equal(
+        tailIsFreshUserMessage({
+          messages: [{ role: "user", content: [block] }],
+        } as AgentRunRequest),
+        true,
+      );
+    }
+  });
+
   it("false when the tail user turn carries a tool_result (approval reply)", () => {
     assert.equal(
       tailIsFreshUserMessage({
@@ -427,24 +610,79 @@ describe("tailIsFreshUserMessage", () => {
 });
 
 describe("credential epoch", () => {
+  it("never surfaces the credential values, however it is turned into text", () => {
+    // The epoch holds the real values so it can compare them, so the one thing that must be
+    // impossible is a value reaching a log line. Every route from an object to a string is
+    // pinned here, because a future refactor that drops one of these overrides would leak
+    // silently: the code would still work and the key would appear in stderr.
+    const epoch = computeCredentialEpoch({
+      modelConnection: {
+        provider: "openai",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.openai.com/v1" },
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "OPENAI_API_KEY" },
+            value: "sk-should-never-be-printed",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    });
+
+    const renderings = [
+      String(epoch.secrets),
+      `${epoch.secrets}`,
+      JSON.stringify(epoch),
+      inspect(epoch, { depth: null }),
+      inspect(epoch.secrets),
+    ];
+    for (const rendering of renderings) {
+      assert.equal(
+        rendering.includes("sk-should-never-be-printed"),
+        false,
+        `leaked the credential value through: ${rendering}`,
+      );
+    }
+  });
+
+  // A typed model connection whose one credential carries `value` under env var `name`.
+  const modelConnection = (
+    value: string,
+    name = "A",
+  ): AgentRunRequest["modelConnection"] => ({
+    provider: "test",
+    deployment: "custom",
+    endpoint: { baseUrl: "https://model.example" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name },
+        value,
+        usage: "opaque_http",
+      },
+    ],
+  });
+
   it("same secrets hash equal; a changed secret value differs", () => {
     const a = computeCredentialEpoch({
-      secrets: { A: "1" },
+      modelConnection: modelConnection("1"),
       toolCallback: { endpoint: "e", authorization: "z" },
     });
     const b = computeCredentialEpoch({
-      secrets: { A: "1" },
+      modelConnection: modelConnection("1"),
       toolCallback: { endpoint: "e", authorization: "z" },
     });
     const c = computeCredentialEpoch({
-      secrets: { A: "2" },
+      modelConnection: modelConnection("2"),
       toolCallback: { endpoint: "e", authorization: "z" },
     });
-    assert.equal(a.secretsHash, b.secretsHash);
-    assert.notEqual(
-      a.secretsHash,
-      c.secretsHash,
-      "a rotated same-slug secret changes the hash",
+    assert.equal(a.secrets.equals(b.secrets), true);
+    assert.equal(
+      a.secrets.equals(c.secrets),
+      false,
+      "a rotated same-slug secret changes the material",
     );
   });
 
@@ -453,36 +691,68 @@ describe("credential epoch", () => {
     // with the fresh key rather than reuse a warm session baked with the old one (design
     // Decision 7 — the credential epoch already covers this; no new key is needed).
     const parked = computeCredentialEpoch({
-      secrets: { OPENAI_API_KEY: "sk-old" },
+      modelConnection: modelConnection("sk-old", "OPENAI_API_KEY"),
     });
     const rotated = computeCredentialEpoch({
-      secrets: { OPENAI_API_KEY: "sk-new" },
+      modelConnection: modelConnection("sk-new", "OPENAI_API_KEY"),
     });
-    assert.notEqual(parked.secretsHash, rotated.secretsHash);
+    assert.equal(parked.secrets.equals(rotated.secrets), false);
+    assert.equal(sandboxCredentialsRotated(parked, rotated), true);
     assert.equal(credentialEpochValid(parked, rotated, Date.now()), false);
   });
 
-  it("a re-minted tool-callback bearer does NOT change the hash (per-turn material)", () => {
+  it("a re-minted tool-callback bearer does NOT change the material (per-turn)", () => {
     // The backend re-mints the callback bearer on its auth-cache cadence (~60s); the turn's
     // relay always uses the incoming bearer, so a warm continue must not evict over it.
     const parked = computeCredentialEpoch({
-      secrets: { A: "1" },
+      modelConnection: modelConnection("1"),
       toolCallback: { endpoint: "e", authorization: "bearer-old" },
     });
     const incoming = computeCredentialEpoch({
-      secrets: { A: "1" },
+      modelConnection: modelConnection("1"),
       toolCallback: { endpoint: "e", authorization: "bearer-new" },
     });
-    assert.equal(parked.secretsHash, incoming.secretsHash);
+    assert.equal(parked.secrets.equals(incoming.secrets), true);
+    assert.equal(sandboxCredentialsRotated(parked, incoming), false);
     assert.equal(credentialEpochMismatch(parked, incoming), undefined);
+  });
+
+  it("rotates the epoch when an MCP header credential changes", () => {
+    const withMcp = (value: string): AgentRunRequest => ({
+      mcpServers: [
+        {
+          name: "linear",
+          connection: {
+            type: "http",
+            url: "https://mcp.linear.app/sse",
+            credentials: [
+              {
+                binding: { kind: "header", name: "Authorization" },
+                value,
+                usage: "opaque_http",
+              },
+            ],
+          },
+          policy: { tools: { mode: "all" } },
+        },
+      ],
+    });
+    assert.equal(
+      computeCredentialEpoch(withMcp("secret-a")).secrets.equals(
+        computeCredentialEpoch(withMcp("secret-b")).secrets,
+      ),
+      false,
+    );
   });
 
   it("valid until the mount expiry elapses; invalid once expired", () => {
     const parked = {
-      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      ...computeCredentialEpoch({ modelConnection: modelConnection("1") }),
       mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
     };
-    const incoming = computeCredentialEpoch({ secrets: { A: "1" } });
+    const incoming = computeCredentialEpoch({
+      modelConnection: modelConnection("1"),
+    });
     const before = Date.parse("2026-01-01T00:00:05.000Z");
     const after = Date.parse("2026-01-01T00:00:15.000Z");
     assert.equal(credentialEpochValid(parked, incoming, before), true);
@@ -494,18 +764,26 @@ describe("credential epoch", () => {
   });
 
   it("invalid when the secret material changed even if not expired", () => {
-    const parked = computeCredentialEpoch({ secrets: { A: "1" } });
-    const incoming = computeCredentialEpoch({ secrets: { A: "2" } });
+    const parked = computeCredentialEpoch({
+      modelConnection: modelConnection("1"),
+    });
+    const incoming = computeCredentialEpoch({
+      modelConnection: modelConnection("2"),
+    });
     assert.equal(credentialEpochValid(parked, incoming, Date.now()), false);
   });
 
   it("credentialEpochMismatch splits the reason: expired vs rotated vs none", () => {
     const parked = {
-      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      ...computeCredentialEpoch({ modelConnection: modelConnection("1") }),
       mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
     };
-    const same = computeCredentialEpoch({ secrets: { A: "1" } });
-    const rotated = computeCredentialEpoch({ secrets: { A: "2" } });
+    const same = computeCredentialEpoch({
+      modelConnection: modelConnection("1"),
+    });
+    const rotated = computeCredentialEpoch({
+      modelConnection: modelConnection("2"),
+    });
     const before = Date.parse("2026-01-01T00:00:05.000Z");
     const after = Date.parse("2026-01-01T00:00:15.000Z");
     assert.equal(credentialEpochMismatch(parked, same, before), undefined);
@@ -526,7 +804,7 @@ describe("credential epoch", () => {
 
   it("mountCredentialsExpired checks only the mount lifetime, ignoring the secret hash", () => {
     const parked = {
-      ...computeCredentialEpoch({ secrets: { A: "1" } }),
+      ...computeCredentialEpoch({ modelConnection: modelConnection("1") }),
       mountExpiresAtMs: Date.parse("2026-01-01T00:00:10.000Z"),
     };
     const before = Date.parse("2026-01-01T00:00:05.000Z");
@@ -534,7 +812,9 @@ describe("credential epoch", () => {
     assert.equal(mountCredentialsExpired(parked, before), false);
     assert.equal(mountCredentialsExpired(parked, after), true);
     // No expiry recorded => never expired, regardless of the secret material.
-    const noExpiry = computeCredentialEpoch({ secrets: { A: "1" } });
+    const noExpiry = computeCredentialEpoch({
+      modelConnection: modelConnection("1"),
+    });
     assert.equal(mountCredentialsExpired(noExpiry, after), false);
   });
 });

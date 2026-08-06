@@ -1,9 +1,8 @@
 """Neutral provider / model / connection contracts for the agent runtime.
 
 These models carry *intent* (which model, which provider, where its credential comes from)
-and the *resolved* least-privilege output a harness adapter applies. They are deliberately
-credential-shaped only at the edges: ``ResolvedConnection.env`` is the one secret-bearing
-channel; everything else (``Endpoint``, ``Connection``, ``ModelRef``) names non-secret intent.
+and the *resolved* least-privilege output a harness adapter applies. They are deliberately credential-shaped only at the edges: typed credentials live under
+``ResolvedConnection``; everything else (``Endpoint``, ``Connection``, ``ModelRef``) names non-secret intent.
 
 The design is in
 ``docs/design/agent-workflows/projects/provider-model-auth/design.md`` (Concerns 1-3). This
@@ -16,7 +15,8 @@ imports the ``.mcp`` / ``.skills`` / ``.tools`` subsystems), so keep it dependen
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
+from urllib.parse import urlparse
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_serializer, model_validator
@@ -32,6 +32,7 @@ ConnectionMode = Literal["agenta", "self_managed"]
 # provider's vars; ``runtime_provided`` injects nothing (the harness owns auth, e.g. an OAuth
 # login or a self-managed sidecar); ``none`` injects nothing and asserts no credential.
 CredentialMode = Literal["env", "runtime_provided", "none"]
+CredentialUsage = Literal["opaque_http", "local_use"]
 
 # Which deployment surface a provider is reached through. ``direct`` is the provider's own
 # API; custom-provider deployments preserve the vault ``data.kind`` value (for example
@@ -77,8 +78,8 @@ class Endpoint(BaseModel):
     """NON-secret connection config a harness applies alongside its credential.
 
     This carries only public, non-secret fields: a custom base URL, an API version, a region,
-    and public headers. Secret-bearing values (the api key, secret auth headers) never live
-    here; they ride ``ResolvedConnection.env``, the one secret channel.
+    and public headers. Secret-bearing values never live here; they ride typed credential bindings under the
+    resolved connection.
     """
 
     base_url: Optional[str] = None
@@ -103,6 +104,52 @@ class Endpoint(BaseModel):
         if self.headers:
             wire["headers"] = dict(self.headers)
         return wire
+
+
+class EnvironmentCredentialBinding(BaseModel):
+    """Bind one resolved credential to the harness environment protocol."""
+
+    kind: Literal["environment"] = "environment"
+    name: str
+
+    @model_validator(mode="after")
+    def _require_name(self) -> "EnvironmentCredentialBinding":
+        if not self.name.strip():
+            raise ValueError("credential environment binding requires a non-empty name")
+        return self
+
+    def to_wire(self) -> Dict[str, str]:
+        return {"kind": self.kind, "name": self.name}
+
+
+class ResolvedCredential(BaseModel):
+    """One secret value, its protocol binding, and how the consumer uses it."""
+
+    binding: EnvironmentCredentialBinding
+    value: str = Field(repr=False)
+    usage: CredentialUsage
+
+    @model_validator(mode="after")
+    def _require_value(self) -> "ResolvedCredential":
+        if not self.value:
+            raise ValueError("resolved credential requires a non-empty value")
+        return self
+
+    @field_serializer("value", when_used="always")
+    def _mask_value(self, value: str) -> str:
+        """Structural guard (F-SDK-DUMP): a dump can never carry the credential value.
+
+        Attribute access stays plain for the legitimate consumers (:meth:`to_wire` and
+        ``ResolvedConnection.plaintext_environment``), which read ``self.value`` directly.
+        """
+        return "**********"
+
+    def to_wire(self) -> Dict[str, Any]:
+        return {
+            "binding": self.binding.to_wire(),
+            "value": self.value,
+            "usage": self.usage,
+        }
 
 
 class ModelRef(BaseModel):
@@ -160,50 +207,70 @@ class ModelRef(BaseModel):
 
 
 class ResolvedConnection(BaseModel):
-    """The least-privilege output a :class:`ConnectionResolver` returns for one run.
+    """Resolved route and credentials for one model consumer.
 
-    ``env`` is the ONLY channel that carries secret values: one provider's vars (the api key
-    and any secret-bearing extras). ``endpoint`` carries only non-secret connection config.
-    The harness adapter applies ``env`` + ``endpoint`` + ``model`` and never sees a vault, a
-    connection, or a slug.
+    Credentials stay nested under the connection they authenticate. ``environment`` carries
+    non-secret provider configuration such as regions and project ids, rather than disguising
+    those values as credentials. Credential values are secret-bearing and must not be logged.
 
-    Serialization safety: ``env`` is masked from ``repr``/``str`` AND from
-    ``model_dump()``/``model_dump_json()`` by construction — the values never leave this model.
-    Read ``env`` directly (attribute access is unmasked) to hand the credential to a harness;
-    :meth:`to_wire` never emits ``env`` at all.
+    Serialization safety: each credential ``value`` is masked from ``repr``/``str`` AND from
+    ``model_dump()``/``model_dump_json()`` by construction — the values never leave this model
+    on a dump. Attribute access (unmasked) hands the credential to a harness via
+    :meth:`to_wire` / :meth:`plaintext_environment`.
     """
 
     provider: str
-    model: str  # possibly rewritten for the deployment (e.g. a bedrock id)
+    model: str
     deployment: Deployment = "direct"
     credential_mode: CredentialMode
-    env: Dict[str, str] = Field(
-        default_factory=dict, repr=False
-    )  # the ONLY secret channel
+    credentials: List[ResolvedCredential] = Field(default_factory=list, repr=False)
+    environment: Dict[str, str] = Field(default_factory=dict)
     endpoint: Optional[Endpoint] = None  # NON-secret connection config only
+    input_modalities: Optional[List[str]] = None
 
-    @field_serializer("env", when_used="always")
-    def _mask_env(self, env: Dict[str, str]) -> Dict[str, str]:
-        """Structural guard: a dump can never carry the credential (keys survive, values do not)."""
-        return {key: "**********" for key in env}
+    @model_validator(mode="after")
+    def _validate_credential_route(self) -> "ResolvedConnection":
+        names = [item.binding.name for item in self.credentials]
+        if len(names) != len(set(names)) or any(
+            name in self.environment for name in names
+        ):
+            raise ValueError("model connection environment bindings must be unique")
+        if self.credential_mode == "env" and not self.credentials:
+            raise ValueError("credential_mode 'env' requires at least one credential")
+        if self.credential_mode != "env" and self.credentials:
+            raise ValueError("resolved credentials require credential_mode 'env'")
+        if any(item.usage == "opaque_http" for item in self.credentials):
+            base_url = self.endpoint.base_url if self.endpoint else None
+            parsed = urlparse(base_url or "")
+            if parsed.scheme.lower() != "https" or not parsed.hostname:
+                raise ValueError(
+                    "opaque_http model credentials require an effective HTTPS endpoint"
+                )
+        return self
+
+    def plaintext_environment(self) -> Dict[str, str]:
+        """Materialize the validated contract at a local execution boundary."""
+        values = dict(self.environment)
+        for credential in self.credentials:
+            values[credential.binding.name] = credential.value
+        return values
 
     def to_wire(self) -> Dict[str, Any]:
-        """The NON-secret camelCase fields for the wire. Never emits ``env``.
-
-        ``env`` is the secret channel and rides the existing ``secrets`` wire field during the
-        transition (Slice 1); only the non-secret descriptor is serialized here so a trace or
-        an echoed payload never carries credentials.
-        """
+        """Serialize the consumer-owned model connection onto the trusted internal wire."""
         wire: Dict[str, Any] = {
             "provider": self.provider,
-            "model": self.model,
             "deployment": self.deployment,
             "credentialMode": self.credential_mode,
+            "credentials": [item.to_wire() for item in self.credentials],
         }
+        if self.environment:
+            wire["environment"] = dict(self.environment)
         if self.endpoint is not None:
             endpoint_wire = self.endpoint.to_wire()
             if endpoint_wire:
                 wire["endpoint"] = endpoint_wire
+        if self.input_modalities is not None:
+            wire["modelCapabilities"] = {"inputModalities": list(self.input_modalities)}
         return wire
 
 
