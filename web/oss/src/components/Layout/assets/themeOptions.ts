@@ -8,8 +8,7 @@ export interface ThemeOption {
     short: string
 }
 
-// Single source of truth for the theme choices shown in the Preferences tab and the
-// sidebar switcher fly-out. Order: light first.
+// Single source of truth for theme choices (Preferences tab + sidebar fly-out); light first.
 export const THEME_OPTIONS: ThemeOption[] = [
     {mode: ThemeMode.Light, label: "Light", short: "Light"},
     {mode: ThemeMode.Dark, label: "Dark", short: "Dark"},

@@ -39,6 +39,10 @@ const ITEM_ROW_CLASS = "shrink-0"
 const CAPTION_CLASS =
     "px-2 pt-1.5 pb-1 text-[11.5px] font-medium text-[var(--ag-colorTextTertiary)] truncate"
 
+/** Capped scroll list (3 h-8 rows) with the scrollbar hidden. */
+const SCROLL_LIST_CLASS =
+    "flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+
 const Row = ({
     onClick,
     className,
@@ -154,12 +158,16 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
         setPanel("projects")
     }, [])
 
+    const handleLogout = useCallback(() => {
+        close()
+        confirmLogout()
+    }, [close, confirmLogout])
+
     const projectPanel = useMemo(
         () => (
             <div className="flex flex-col p-1">
                 <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
-                {/* Cap the list at 3 item rows (h-8 each); the rest scrolls. */}
-                <div className="flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                <div className={SCROLL_LIST_CLASS}>
                     {projectsForOrg.map((proj) => {
                         const isActive =
                             proj.project_id === currentProject?.project_id &&
@@ -203,20 +211,15 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     <Plus size={14} className="shrink-0" />
                     <span className="flex-1">New project</span>
                 </Row>
-                <SwitcherFooter
-                    onLogout={() => {
-                        close()
-                        confirmLogout()
-                    }}
-                />
+                <SwitcherFooter onLogout={handleLogout} />
             </div>
         ),
         [
             close,
-            confirmLogout,
             createProject,
             currentProject?.project_id,
             currentProject?.workspace_id,
+            handleLogout,
             orgLabel,
             projectsForOrg,
             switchProject,
@@ -245,8 +248,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     </button>
                 </div>
                 <div className={CAPTION_CLASS}>Organizations</div>
-                {/* Cap the list at 3 item rows (h-8 each); the rest scrolls. */}
-                <div className="flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                <div className={SCROLL_LIST_CLASS}>
                     {orgOptions.map((org) => {
                         const isActive = org.id === currentOrg?.id
                         return (
@@ -293,15 +295,10 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     <GearSix size={14} className="shrink-0" />
                     <span className="flex-1">Organization settings</span>
                 </Row>
-                <SwitcherFooter
-                    onLogout={() => {
-                        close()
-                        confirmLogout()
-                    }}
-                />
+                <SwitcherFooter onLogout={handleLogout} />
             </div>
         ),
-        [close, confirmLogout, createOrg, currentOrg?.id, goToOrgSettings, orgOptions, switchOrg],
+        [close, createOrg, currentOrg?.id, goToOrgSettings, handleLogout, orgOptions, switchOrg],
     )
 
     return (
