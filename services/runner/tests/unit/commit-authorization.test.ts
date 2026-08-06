@@ -624,13 +624,12 @@ describe("the forged relay record, end to end", () => {
       authorizer: relayAuthorizerFor(h.authorizer),
     });
 
-    assert.equal(
-      response.ok,
-      true,
-      "a refusal is a tool RESULT, so the model loop continues",
-    );
+    // A refusal is an ERROR result carrying its reason. It reached Codex as a blank SUCCESS
+    // before this, and the model responded by inventing an explanation and asking the user to
+    // approve again.
+    assert.equal(response.ok, false, "a refusal is a tool ERROR, not a success");
     assert.match(
-      String((response as { text: string }).text),
+      String((response as { error: string }).error),
       /authorization_missing/,
     );
     assert.deepEqual(calls, [], "nothing was dispatched to Agenta");
@@ -767,8 +766,9 @@ describe("a denied gate keeps nothing", () => {
         toolCallId: "call-denied",
         authorizer: wiring.authorizer,
       });
+      assert.equal(forged.ok, false, "a refusal is a tool ERROR, not a success");
       assert.match(
-        String((forged as { text: string }).text),
+        String((forged as { error: string }).error),
         /authorization_missing/,
       );
       assert.deepEqual(dispatched, [], "nothing reached Agenta");
@@ -877,6 +877,88 @@ describe("an approved import, executed through the shim's own call id", () => {
       assert.match(dispatched[0], /print\('approved'\)/);
       assert.doesNotMatch(dispatched[0], /@ag\.file/);
       assert.equal(state.store.size, 0, "and the approval was consumed exactly once");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// A refusal must never read as success (the Codex blank-success defect)
+// ---------------------------------------------------------------------------
+
+describe("the invariant: a logged refusal is never an empty success", () => {
+  it("holds for every refusal the relay can produce", async () => {
+    // What the model saw on Codex was `output: "" isError: false`. It read that as the commit
+    // having worked, said so, then invented reasons when the change was not there. The invariant
+    // is the general form: if the runner logged a refusal, the transport must not report a
+    // non-error result, and it must not report an empty one.
+    const dir = mkdtempSync(join(tmpdir(), "agenta-refusal-"));
+    mkdirSync(join(dir, ".agenta-imports"), { recursive: true });
+    writeFileSync(join(dir, ".agenta-imports", "x.py"), "print(1)\n");
+    const state = createCommitAuthorizationState();
+    const logged: string[] = [];
+    const wiring = buildApprovedContentWiring({
+      state,
+      isDaytona: false,
+      workspaceCwd: dir,
+      sandbox: undefined,
+      callback: undefined,
+      runContext: undefined,
+      permissionPlan: { default: "ask", rules: [] },
+      toolSpecs: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission: "ask",
+          readOnly: false,
+        },
+      ],
+      turnId: TURN,
+      sessionId: SESSION,
+      log: (message) => logged.push(message),
+    });
+
+    const args = commitArgs([
+      {
+        operation: "add_item",
+        target: ["parameters", "agent", "skills"],
+        value: {
+          name: "pdf",
+          files: [{ path: "x.py", content: { "@ag.file": ".agenta-imports/x.py" } }],
+        },
+      },
+    ]);
+
+    try {
+      // Never gated, so the relay must refuse.
+      const response = await relayOnce({
+        spec: {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission: "ask",
+          readOnly: false,
+        },
+        args,
+        authorizer: wiring.authorizer,
+      });
+
+      const refusalLogged = logged.some((line) =>
+        line.includes("[commit-auth] refused"),
+      );
+      assert.ok(refusalLogged, "the runner logged a refusal");
+
+      assert.equal(
+        response.ok,
+        false,
+        "a logged refusal must not be reported as a successful call",
+      );
+      const reason = String((response as { error?: string }).error ?? "");
+      assert.notEqual(reason, "", "and it must not be reported with no reason");
+      assert.match(reason, /authorization_missing/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

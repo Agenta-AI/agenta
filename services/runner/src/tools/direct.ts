@@ -283,6 +283,9 @@ export function stripEphemeralArgs(
   return resolveEphemeralArgs(args, ephemeralArgs).args;
 }
 
+/** The schema marker a payload property carries to say it is the ephemeral note, not a field. */
+export const EPHEMERAL_SCHEMA_MARKER = "x-ag-ephemeral";
+
 /**
  * Whether the endpoint declares a REAL field of this name inside this payload object.
  *
@@ -307,9 +310,17 @@ function payloadDeclaresField(
   if (!isPlainObject(payload)) return "unknown";
   const fields = payload.properties;
   if (!isPlainObject(fields)) return "unknown";
-  return Object.prototype.hasOwnProperty.call(fields, name)
-    ? "declared"
-    : "absent";
+  if (!Object.prototype.hasOwnProperty.call(fields, name)) return "absent";
+  // A property the catalog marks ephemeral is ADVERTISED but not a field. The schema tolerates the
+  // position models keep writing to, so the call validates instead of being refused, and the note
+  // is still lifted out and never dispatched. Only a literal `true` opts in: a missing or falsy
+  // marker leaves the property a genuine field, which is what protects `create_schedule` and the
+  // three other ops whose payload `description` really is persisted.
+  const field = fields[name];
+  if (isPlainObject(field) && field[EPHEMERAL_SCHEMA_MARKER] === true) {
+    return "absent";
+  }
+  return "declared";
 }
 
 /** What the ephemeral pass found, beyond the arguments it hands to the dispatch. */

@@ -946,6 +946,67 @@ describe("resolveEphemeralArgs", () => {
     assert.equal(out.args, args, "the arguments are handed on untouched");
   });
 
+  it("lifts a property the catalog marks ephemeral, even though the schema declares it", () => {
+    // SCHEMA TOLERANCE (cross-lane, verify-api). The catalog now ADVERTISES `description` in the
+    // position models keep writing to, so the call validates instead of being refused. The marker
+    // is what keeps it a note rather than a field: without this branch the note stops being
+    // stripped and lands in `workflow_revision.description`, a REAL persisted column, which
+    // read-config.md 12.3 forbids.
+    const tolerantSchema = {
+      type: "object",
+      properties: {
+        workflow_revision: {
+          type: "object",
+          properties: {
+            message: { type: "string" },
+            description: {
+              type: "string",
+              maxLength: 500,
+              "x-ag-ephemeral": true,
+            },
+          },
+        },
+      },
+    };
+    const args = {
+      workflow_revision: { message: "m", description: "my note" },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], tolerantSchema);
+
+    assert.deepEqual(out.lifted, [
+      { name: "description", from: "workflow_revision", value: "my note" },
+    ]);
+    assert.deepEqual(out.args, { workflow_revision: { message: "m" } });
+  });
+
+  it("treats a falsy or missing marker as a genuine field", () => {
+    // Only a literal `true` opts in. Anything else leaves the guard intact, which is what keeps
+    // `create_schedule` and the three other ops with a real payload `description` untouched.
+    for (const marker of [false, "true", 1, undefined]) {
+      const schema = {
+        type: "object",
+        properties: {
+          schedule: {
+            type: "object",
+            properties: {
+              description: {
+                type: "string",
+                ...(marker === undefined ? {} : { "x-ag-ephemeral": marker }),
+              },
+            },
+          },
+        },
+      };
+      const args = { schedule: { description: "a real payload field" } };
+
+      const out = resolveEphemeralArgs(args, ["description"], schema);
+
+      assert.deepEqual(out.lifted, [], `marker ${String(marker)} must not opt in`);
+      assert.equal(out.args, args);
+    }
+  });
+
   it("refuses to lift when the payload schema is unknown", () => {
     // A rejected call is visible and recoverable. A silently deleted field is neither, so an
     // unknown schema keeps today's behavior.
