@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 import httpx
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -1276,21 +1277,29 @@ class ToolsRouter:
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
-        # A business-level failed verdict is still a successful tool call (OK); only an
-        # infrastructure failure (child invoke never completed) surfaces as an error status,
-        # mirroring the adapter path's successful/unsuccessful split.
+        # The boundary reads only the generic result now. It used to reach into a
+        # `TestRunResponse` by field name, so registering any second handler meant teaching
+        # this branch a new response type.
+        #
+        # `STATUS_CODE_ERROR` here ALWAYS means `content` is the canonical `AgentError`
+        # envelope. The runner keys on the status code alone (a mirrored message can stop
+        # being mirrored), so an error status that carried anything else would be parsed as
+        # an envelope and read as a success.
+        content = response.content
         result = ToolResult(
             id=uuid4(),
             data=ToolResultData(
                 tool_call_id=body.data.id,
-                content=response.model_dump_json(exclude_none=True),
+                content=(
+                    content.model_dump_json(exclude_none=True)
+                    if isinstance(content, BaseModel)
+                    else json.dumps(content)
+                ),
             ),
             status=Status(
                 timestamp=datetime.now(timezone.utc),
-                code="STATUS_CODE_ERROR"
-                if response.infra_failure
-                else "STATUS_CODE_OK",
-                message=response.verdict_reason if response.infra_failure else None,
+                code="STATUS_CODE_OK" if response.ok else "STATUS_CODE_ERROR",
+                message=response.message,
             ),
         )
 
