@@ -168,6 +168,68 @@ proves nothing about the durable working directory (LESSONS #16).
   it. Verified PASS 3/3 runs after the tunnel-seat fix (2026-08-06); this line was absent on
   every attempt before that fix landed.
 
+### The lifecycle cells (`matrix_l*.py`) — cold ↔ warm, and what survives each transition
+
+These four cover the session-lifecycle work: which config changes are applied to a RUNNING
+sandbox and which tear it down, and what happens to a pending approval, a client tool and the
+durable mount across each transition. They all assert the STORED turn ledger
+(`POST /sessions/turns/query` → one `sandbox_id` per turn) or the STORED interaction rows
+(`POST /sessions/interactions/query`), never the SSE echo — nothing about warm-versus-rebuilt
+ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not evidence.
+
+- `resources/matrix_l1_lifecycle_routes.py` — **MANDATORY. [mechanism-blind]** the routing matrix
+  itself: for each kind of mid-conversation config change, assert the route the runner took. One
+  sandbox id = applied in place, two = rebuilt. Blocks on the four unambiguous cases (no change
+  and an instructions edit must stay warm; a permissions edit and a tool-catalog edit must
+  escalate) and reports the `model` case rather than guessing at a deployment's connection shape.
+  This is the cell that would have caught the `cold1` rot described below.
+- `resources/matrix_l2_approval_across_config_change.py` — **MANDATORY. [coached]** the killer
+  combination: an approval answered while a config change rides along in the SAME request. It is
+  the regression test for the applied-state bug (the pool used to stamp the INCOMING fingerprint
+  on the approval-resume path, so the next turn continued warm on an environment running
+  something else). Asserts the gated commit lands, the approval row ends `resolved`/`responded`,
+  and — the real tell — the config change is not swallowed: it takes effect on the FOLLOWING
+  turn, warm for an instructions edit and via a rebuild for a permissions edit.
+- `resources/matrix_l3_abandoned_approval.py` — **MANDATORY. [coached]** the user sends a new
+  message instead of answering the card. Asserts the gated tool does NOT run (an unanswered
+  approval is not consent), the row is swept to `cancelled` rather than left `pending`, and the
+  session still works. `cancelled` vs `pending` is the loud-vs-silent distinction: a `pending` row
+  is a card sitting on the page that no process is waiting on.
+- `resources/matrix_l5_live_route_observed.py` — **MANDATORY. [mechanism-blind, with a control]**
+  the other half of L1: an instructions edit applied to a running session must actually be
+  OBSERVED by the harness, not merely written to disk. Runs the same configuration on a fresh cold
+  session as a control, so a warm failure isolates the runner rather than blaming the model; when
+  the control also fails it reports INCONCLUSIVE instead of a confident wrong verdict.
+  **Currently FAILS (2026-08-06, claude/local):** the warm session goes on answering from the
+  instructions it started with while the pool reports the new fingerprint — see the finding note
+  below.
+- `resources/matrix_l4_client_tool_lifecycle.py` — **nice-to-have. [coached]** the client-tool
+  round trip, and the only cell that covers client tools at all. Asserts the browser's result
+  reaches the model and the `client_tool` interaction is stored. It RECORDS rather than asserts
+  the sandbox count, which is two today: a client-tool pause is deliberately not parkable
+  (`"warm-hold": RESERVED, not built`, #5384), so every client-tool round trip currently costs a
+  rebuild. If that number ever reads one, the warm hold landed and the docstring needs updating.
+
+**Open finding the lifecycle cells surfaced (2026-08-06, claude on local, reproduced 3×):** the
+`workspaceFiles` live route rewrites the instruction file and advances applied state, but the
+running harness never re-reads it. A warm session keeps obeying the instructions it started with
+while the pool reports the NEW fingerprint, so every later turn matches and continues warm and the
+user's edit has no effect until something else evicts the session. A cold session with the
+identical configuration obeys it immediately, which is what isolates the runner. This is the
+failure `desired-state.ts` refuses to allow for the `prompts` facet ("refreshing them and claiming
+the model saw the change would be a lie") reappearing on the facet that WAS made live — and note
+the direction: before the live route existed, an instructions edit forced a rebuild and therefore
+took effect on the next turn, so this is a regression in what the user sees, not a speedup.
+`matrix_l5_live_route_observed.py` is the repro.
+
+**Why `cold1` changed (read before trusting an old green):** that tier used to force its eviction
+by editing `instructions.agents_md`. `agentsMd` is the `workspaceFiles` facet, which the
+lifecycle work made one of exactly two LIVE routes, so an instructions edit is now satisfied in
+place — the tier would have gone on passing while measuring warm reuse, and `park`'s "one sandbox
+id is meaningful" argument rests on `cold1` reporting two on the same deployment. It now moves
+`harness.permissions` (the `harnessSession` facet → `reopen-session`, deliberately not live) and
+ASSERTS two distinct sandbox ids. Any future forcing function needs the same check.
+
 **Known verification gap, recorded rather than pretended away:** the cold-resume
 stale-approval-regate path (`shouldRegateStaleApproval`, acp-interactions.ts — a stored `allow`
 for a marker call whose frozen bytes no longer exist must raise a FRESH gate, not execute on
@@ -179,6 +241,14 @@ silently drops the stale decision on resume rather than raising a new card or ex
 itself worth a second look, separate from the original regate question). Do not write a new
 wire cell for this without a different approach (e.g. a runner-side hook) than a pure HTTP
 client.
+
+*A candidate approach, found while building the `matrix_l*` cells and not yet tried:* a turn that
+raises an approval gate AND a client-tool pause together takes the `mixed-gate-no-park` branch in
+`session-coordinator.ts` (`approvalToPark` refuses when `nonParkablePauseCount > 0`), so the
+environment is destroyed with the approval still pending — "gate pending → environment evicted"
+without any intervening user turn and without touching the message history. Answering afterwards
+lands on a pool miss and takes the cold decision-map path, which is exactly the state
+`shouldRegateStaleApproval` guards. Worth a spike before concluding this needs a runner-side hook.
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.

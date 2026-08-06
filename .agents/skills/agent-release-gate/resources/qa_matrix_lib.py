@@ -382,6 +382,84 @@ def approval_reply(turn: Turn, approved: bool) -> dict:
     raise ValueError("gated tool call missing from assistant message")
 
 
+def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
+    """The session's turn rows, newest first.
+
+    THE ONLY CONTINUITY SIGNAL A PURE HTTP CLIENT CAN SEE. Nothing about warm-versus-cold ever
+    reaches the SSE stream, so an assertion built on the reply text cannot tell a reused daemon
+    from a rebuilt one. The runner writes `agent_session_id` and `sandbox_id` on every turn
+    (`services/runner/src/engines/sandbox_agent/run-turn.ts` -> `appendSessionTurn` ->
+    `POST /sessions/turns/`), which makes this a STORED outcome rather than an echo.
+
+    Returns [] when the ledger is unavailable, which callers must treat as MISSING EVIDENCE and
+    fail on -- never as evidence of stability."""
+    r = api_call(
+        "POST",
+        "/sessions/turns/query",
+        json={
+            "query": {"session_id": session_id},
+            "windowing": {"limit": limit, "order": "descending"},
+        },
+    )
+    if r.status_code != 200:
+        return []
+    return r.json().get("turns") or []
+
+
+def ledger_ids(session_id: str) -> tuple[list[str], list[str]]:
+    """(agent_session_ids, sandbox_ids) across the session's ledger, de-duplicated.
+
+    ONE sandbox id  = the sandbox was never replaced (warm reuse, an applied-in-place config
+                      change, or a park/reconnect -- a stopped sandbox keeps its id).
+    TWO sandbox ids = the sandbox was deleted and rebuilt.
+
+    The agent session id deliberately SURVIVES a rebuild (preserving it is the entire job of the
+    session-continuity store), so it is corroboration, never the verdict."""
+    rows = turn_ledger(session_id)
+    agents = list(
+        {r.get("agent_session_id") for r in rows if r.get("agent_session_id")}
+    )
+    sandboxes = list({r.get("sandbox_id") for r in rows if r.get("sandbox_id")})
+    return agents, sandboxes
+
+
+def interactions(session_id: str, limit: int = 50) -> list[dict]:
+    """The session's stored interaction rows (approvals, client tools, user input).
+
+    The second STORED outcome this matrix asserts on. Every approval gate and every client-tool
+    call writes a row here with a `kind` and a lifecycle `status`
+    (`api/oss/src/core/sessions/interactions/dtos.py`):
+
+      pending   -- awaiting a reaction
+      responded -- answered through the interactions API plane
+      resolved  -- answered in-band, through the messages plane (what the playground does)
+      cancelled -- the runner abandoned the gate; nobody is waiting on the token
+
+    `cancelled` is the one that matters for lifecycle testing: it is the difference between an
+    approval that died LOUDLY (a row a client can see and re-render) and one that died silently
+    while the card sat on the page forever."""
+    r = api_call(
+        "POST",
+        "/sessions/interactions/query",
+        json={
+            "query": {"session_id": session_id},
+            "windowing": {"limit": limit, "order": "descending"},
+        },
+    )
+    if r.status_code != 200:
+        return []
+    return r.json().get("interactions") or []
+
+
+def interaction_states(session_id: str) -> list[tuple[str, str]]:
+    """[(kind, status)] for the session's interaction rows, newest first. Convenience over
+    `interactions` for the common assertion "no approval row was left `pending`"."""
+    return [
+        (row.get("kind") or "?", row.get("status") or "?")
+        for row in interactions(session_id)
+    ]
+
+
 def refs(workflow_id: str, variant_id: str, revision_id: str) -> dict:
     return {
         "application": {"id": workflow_id},
