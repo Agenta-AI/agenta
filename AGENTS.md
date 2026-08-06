@@ -185,6 +185,13 @@ lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in 
   token silently rubs the wrong thing. Commit cliIds also rotate after every
   background sync, so re-read them in the same breath as the command that uses
   them.
+- **Lane a test with the half that appears LAST, not the half you were thinking
+  about.** A test that drives two halves (a DAO and its wrapper, an API parser
+  and the SDK catalog) fails in isolation on every lane between them if it lands
+  below the upper half — and a green local run proves nothing, because the
+  working tree has all lanes applied. The cheap check before landing any new
+  test file: ask which lane's tip FIRST contains every symbol the test touches,
+  and put the test there. (Three instances in one day before this rule.)
 - **Remote-tracking refs go stale under `but push` and lie convincingly.**
   `git show <remote>/<branch>:<file>` can show old content long after the push
   landed (observed: the tracking ref pointing at neither the local ref nor the
