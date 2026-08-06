@@ -31,6 +31,7 @@
         "@agenta/playground": "workspace:../packages/agenta-playground",
         "@agenta/playground-ui": "workspace:../packages/agenta-playground-ui",
         "@agenta/sdk": "workspace:../packages/agenta-sdk",
+        "@agenta/sessions": "workspace:../packages/agenta-sessions",
         "@agenta/shared": "workspace:../packages/agenta-shared",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@agenta/web-tests": "workspace:../tests",

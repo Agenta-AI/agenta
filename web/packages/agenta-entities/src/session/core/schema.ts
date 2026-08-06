@@ -109,6 +109,9 @@ export const sessionStreamSchema = z.object({
     name: z.string().nullish(),
     description: z.string().nullish(),
     turn_id: z.string().nullish(),
+    // Reserved `ag.*` tags. `ag.origin` says a run was automated; `ag.trigger.*` says which
+    // automation, stamped at dispatch because nothing links a session back to a trigger after.
+    tags: z.record(z.string(), z.unknown()).nullish(),
     status: z.object({code: z.string().nullish(), message: z.string().nullish()}).nullish(),
     flags: z
         .object({
@@ -125,6 +128,16 @@ export const sessionStreamSchema = z.object({
     // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
     // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
     references: z.array(sessionReferenceSchema).nullish(),
+    // `/sessions/query` only: the session's newest `message` record, so a row can say what
+    // happened rather than only when. Absent for a session with no message yet.
+    last_message: z
+        .object({
+            text: z.string(),
+            /** "user" or "agent" — a row prefixes your own words so a preview isn't read as a reply. */
+            source: z.string().nullish(),
+            timestamp: z.string().nullish(),
+        })
+        .nullish(),
 })
 
 export const sessionStreamsResponseSchema = z.object({
