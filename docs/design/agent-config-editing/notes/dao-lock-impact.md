@@ -71,8 +71,9 @@ The two remaining callers are the DAO's own `fork_variant`
 
 Every one of them is unaffected for the same structural reason: **the new behavior is
 opt-in at the call site, and only the workflows checked-commit path opts in.** The
-parameter defaults to `None`, the lock condition is unchanged when it is `None`, and no
-existing caller was edited.
+parameter defaults to `None`, and the lock condition is unchanged when it is `None`. No
+caller that omits `expected_head_revision_id` was edited; the checked workflow path was
+wired to pass it (see the correction below).
 
 > **Corrected after the external security pass, 5 August.** The first version of this note
 > claimed the checked workflow path already opted in. It did not: `S1b` called the DAO
@@ -168,7 +169,8 @@ Consequences for this lane:
 **State it plainly: this is not the full atomic transaction the contract describes.** The
 lock is released by the explicit commit inside `commit_revision`, before the version
 bookkeeping runs, and the service's apply still happens in an earlier transaction. What
-this lane buys is exactly one thing: **two concurrent writers cannot both insert.** The
+this lane buys is exactly one thing: **two concurrent checked writers cannot both
+insert.** (An unchecked caller takes no lock and keeps last-write-wins.) The
 guard and the insert are atomic with respect to each other, so a lost update is impossible.
 Everything wider — read, apply, validate, and insert as one transaction — needs the `build`
 callback of `contracts/commit-transaction.md` section 3.1 and is not in this lane.
