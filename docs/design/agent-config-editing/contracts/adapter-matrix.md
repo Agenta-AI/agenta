@@ -603,6 +603,23 @@ rebuild. A rebuild is wasteful and always sound; a reopen that reports the incom
 as applied after installing none of it is neither, and `harnessFiles` may BE a permission file.
 Steps 1 and 2 are what let that route come back.
 
+**`workspaceFiles` joined them, and the reason generalizes the rule above.** The workspace refresh
+was live, and it was the only route that genuinely INSTALLED what it claimed. It was still a lie,
+because installing is not observing: every harness reads its instruction file once, at session
+start, so an instructions edit applied to a running session left the model answering from the
+instructions it was started with while applied state advanced to the new ones. Live cell
+`matrix_l5_live_route_observed.py` caught it, with a cold control proving the configuration itself
+was reachable. `workspaceFiles` now routes to `rebuild-sandbox` and `refresh-workspace` has left
+`LIVE_ACTION_KINDS`, so a capability table flipped back on its own fails closed.
+
+The rule this leaves for anyone adding a live route: **the test is whether the running harness
+OBSERVED the change, not whether the runner performed it.** A route may be made live only with a
+live cell that reads the change back out of the harness's own behavior.
+
+The intended shape for this facet is refresh THEN reopen, so the new files are on disk before the
+harness reads them. It needs step 2 first, and it needs L5 green with one sandbox id — which is
+why L5 asserts the observation and merely REPORTS the sandbox count.
+
 1. Split tools into `ToolCatalogManifest` and `ToolExecutionPlan`. One generation. No behavior
    change.
 2. Make `runTurn` build both from the incoming request. Remove the `env.plan` read at

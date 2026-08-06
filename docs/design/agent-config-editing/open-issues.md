@@ -207,3 +207,37 @@ reader can act on it cold.
   (3) optional automatic re-issue of the gate on the next turn.
 - The ask: pick the layer set for v1. Layer 1 alone removes the stuck-card lie
   at UI cost only.
+
+## The workspace live route is withdrawn; refresh-then-reopen is the follow-up
+
+- Found by: gate cell `matrix_l5_live_route_observed.py`, 6 August 2026 (claude
+  on local, reproduced three times). Fixed the same day as a release blocker.
+- The `workspaceFiles` facet was live: an instructions edit rewrote `AGENTS.md`
+  on the running sandbox, `applyReconcilePlan` committed the incoming
+  configuration as applied, and every later turn then matched and continued warm
+  while the model went on answering from the instructions the session started
+  with. Installing is not observing: every harness reads its instruction file
+  once, at session start. The user's edit was dead until something else evicted
+  the session, and before the optimisation the same edit took effect on the very
+  next turn.
+- The fix: `workspaceFiles` routes to `rebuild-sandbox`, and `refresh-workspace`
+  left `LIVE_ACTION_KINDS` so restoring the capability table on its own fails
+  closed. An instructions edit costs a sandbox again. The applier in
+  `apply-plan.ts` keeps the refresh arm, unreachable, because the follow-up needs
+  exactly that write.
+- The ask: refresh the workspace and THEN reopen the session, so the new files
+  are on disk before the harness reads them. Two things must land first, and
+  neither may be assumed: the reopen must build its session init from the
+  INCOMING request (adapter-matrix.md §8 steps 1 and 2 — today `env.reopenSession`
+  closes over the init the environment was built with, so a reopen would
+  reinstall the old MCP list, prompts and harness files), and a workspaceFiles-only
+  reopen must be proven on L5, which asserts the observation and only reports the
+  sandbox count for exactly this reason.
+- Two entries above are affected. "Pi refresh refuses any request that carries
+  skills" is now moot in practice, since nothing routes to the refresh arm; it
+  becomes live again the moment the follow-up ships. "Shadow router logs a
+  permanent DISAGREE for rebuilt reopen facets" is why the fix moved the
+  CAPABILITY TABLE rather than only dropping the kind from `LIVE_ACTION_KINDS`:
+  dropping it alone would have left the router planning `refresh-workspace`
+  (outcome `reuse`) against a coordinator that rebuilds, adding a fifth permanent
+  false positive to that count.
