@@ -68,7 +68,6 @@ class Reason:
     PLATFORM_TOOL_NOT_COMMITTABLE = "platform_tool_not_committable"
     NON_EMBEDDABLE_REFERENCE = "non_embeddable_reference"
     FINAL_VALIDATION_FAILED = "final_validation_failed"
-    INVALID_MATCH_MODE = "invalid_match_mode"
 
     # --- non-retryable refusals: the same payload never succeeds (12.2) ---
     OUT_OF_SCOPE = "out_of_scope"
@@ -165,9 +164,6 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.FINAL_VALIDATION_FAILED: (
         "Correct the fields listed in `issues` and send the commit again."
-    ),
-    Reason.INVALID_MATCH_MODE: (
-        "Set match_mode to 'auto' or 'exact', or leave it out to get 'auto'."
     ),
     Reason.VALUE_TOO_DEEP: (
         "Flatten the value: the configuration nests a few levels deep, not hundreds."
@@ -1218,9 +1214,10 @@ def _apply_operation(
             # an unknown OPERATION for a bad modifier told the agent its verb was wrong,
             # and non-retryably, so a one-word fix looked like a dead end.
             raise _Fail(
-                Reason.INVALID_MATCH_MODE,
+                Reason.INVALID_OPERATION_SHAPE,
                 f"{mode!r} is not a match_mode. The modes are "
                 f"{', '.join(repr(m) for m in MATCH_MODES)}.",
+                next_step="Set match_mode to 'auto' or 'exact', or leave it out.",
                 match_mode=mode,
             )
         edits = operation.get("edits")
