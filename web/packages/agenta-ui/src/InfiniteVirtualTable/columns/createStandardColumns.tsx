@@ -575,7 +575,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
 
             // Hidden items can strand a divider at the top/bottom or double it up; a
             // divider only reads as a separator between two visible groups.
-            const isDivider = (mi: (typeof menuItems)[number]) =>
+            const isDivider = (mi: (typeof menuItems)[number] | undefined) =>
                 !!mi && typeof mi === "object" && "type" in mi && mi.type === "divider"
             const cleanedItems: typeof menuItems = []
             menuItems.forEach((mi) => {
