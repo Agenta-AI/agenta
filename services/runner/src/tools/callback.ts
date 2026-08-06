@@ -241,10 +241,25 @@ export async function callAgentaTool(
   // not hypothetical: it is the shape a handler-mode op produces when its error envelope lives in
   // `content`.
   //
-  // `detail` is passed through rather than redacted. To reach this line the body already parsed as
-  // our own `ToolCallResponse`, so `content` is our API's tool result, and it is exactly what the
-  // model needs to correct its call. A proxy's HTML error page never gets here: it fails the parse
-  // above, and a non-2xx is redacted to its status code further up.
+  // `detail` is passed through rather than redacted, and the reason is a SYMMETRY INVARIANT rather
+  // than an argument about what can reach this line.
+  //
+  // Every producer of a `ToolResult` in the tools router serializes ONE content expression and
+  // branches only on `status.code`. The Composio arm sends `json.dumps(execution_result...)`, the
+  // workflow arm `json.dumps(outputs)`, the handler seam whatever the handler returned. So the
+  // failure branch hands the model exactly what the success branch hands it, from the same
+  // expression. Redacting on failure would strip a value we give away freely one branch earlier:
+  // if that content can leak a secret, it leaks on SUCCESS, where nothing redacts it. The failure
+  // branch is not where that question lives, and scrubbing third-party output, if it is ever
+  // wanted, is both-branches work needing its own justification.
+  //
+  // WHAT A REVIEWER SHOULD NOTICE: a new producer that serializes DIFFERENT content on its two
+  // branches. None does today. The handler seam varies its content (an envelope on failure, the
+  // op's payload on success), but it does so INSIDE the handler, above the router's single
+  // expression, and that is the sanctioned case rather than the surprising one.
+  //
+  // The narrower guards are untouched and still carry their own weight: a proxy's HTML error page
+  // fails the JSON parse above, and a non-2xx is redacted to its status code further up.
   if (status?.code === "STATUS_CODE_ERROR") {
     const reason =
       typeof status?.message === "string" && status.message

@@ -243,13 +243,16 @@ describe("a handler-mode domain failure on the way to the model", () => {
     // If they are ever converted too, this test keeps its value as the guard on an unhandled
     // path rather than on our own inconsistency.
     //
-    // A CORRECTION TO WHAT I FIRST TOLD VERIFY-API. I said the runner would redact a content that
-    // did not parse as an envelope, reasoning by analogy with `agentaErrorDetail` in
-    // tools/direct.ts. That was wrong here, for two reasons. To reach this line the body already
-    // parsed as our own `ToolCallResponse`, so `content` came from our API rather than from a
-    // proxy; a proxy's HTML page fails the JSON parse above and a non-2xx is redacted to its
-    // status code further up. And redacting would delete the gateway's reason, which is the one
-    // thing that lets the model fix its arguments. So the text passes through.
+    // WHY THE TEXT PASSES THROUGH INSTEAD OF BEING REDACTED. The full reasoning is the symmetry
+    // invariant on `callAgentaTool`: every producer in the tools router serializes ONE content
+    // expression and branches only on the status, so the failure branch hands the model exactly
+    // what the success branch hands it. Redacting on failure would strip a value given away freely
+    // one branch earlier.
+    //
+    // I first told verify-api the opposite, reasoning by analogy with `agentaErrorDetail` in
+    // tools/direct.ts, then argued it was merely unreachable. The symmetry argument is the better
+    // one and it is what the source now records: it survives a new producer being added, where
+    // "nothing can reach that line" would quietly stop being true.
     answerWith("upstream rejected the argument 'channel': not a member", {
       code: "STATUS_CODE_ERROR",
       message: "action failed",
