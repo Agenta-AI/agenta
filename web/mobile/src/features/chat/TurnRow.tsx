@@ -70,11 +70,29 @@ export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
                                     )
                                 }
                                 const summary = rowSummary(part)
+                                const failed = part.state === "output-error"
+                                // The name and a state dot are the whole row; the summary is a
+                                // tool's raw output and can be many lines of YAML or JSON, which
+                                // spilled down the screen when it rendered inline.
                                 return (
-                                    <p key={key} className="text-muted-foreground text-xs">
-                                        {partToolName(part)} — {part.state ?? "pending"}
-                                        {summary ? ` · ${summary}` : ""}
-                                    </p>
+                                    <details key={key} className="max-w-full">
+                                        <summary className="flex cursor-pointer select-none items-center gap-1.5 text-xs">
+                                            <span
+                                                aria-hidden
+                                                className={`size-1.5 shrink-0 rounded-full ${
+                                                    failed
+                                                        ? "bg-destructive"
+                                                        : "bg-muted-foreground"
+                                                }`}
+                                            />
+                                            <span className="truncate">{partToolName(part)}</span>
+                                        </summary>
+                                        {summary ? (
+                                            <p className="text-muted-foreground border-border mt-1 border-l-2 pl-2 text-xs break-words whitespace-pre-wrap">
+                                                {summary}
+                                            </p>
+                                        ) : null}
+                                    </details>
                                 )
                             })}
                         </div>
