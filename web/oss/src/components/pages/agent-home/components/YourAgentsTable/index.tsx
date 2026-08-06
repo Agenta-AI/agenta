@@ -34,6 +34,10 @@ import {useWaitingByAgent} from "./useAgentActivity"
 // the table measures its own rendered height and feeds it back into its scroll viewport.
 const AGENT_TABLE_BODY_HEIGHT = 576
 
+// The rail is a shortlist, and "All agents" is the full-roster path. Unbounded, a big project
+// mounts hundreds of cards (each with its own activity query) into a 280px column.
+const RAIL_AGENT_LIMIT = 5
+
 interface YourAgentsTableProps {
     /** Force the empty state (first-run preview). */
     forceEmpty?: boolean
@@ -45,8 +49,6 @@ interface YourAgentsTableProps {
  * "Your agents" — lean read-only table over the shared, correctly-classified agents list
  * (agent identity is revision-derived; see @/oss/components/pages/agents/store).
  */
-const RAIL_LIST_SIZE = 10
-
 const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTableProps) => {
     const router = useRouter()
     const {baseAppURL, projectURL} = useURL()
@@ -102,6 +104,20 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
     const columns = useMemo(
         () => createAgentColumns(actions, waitingByAgent),
         [actions, waitingByAgent],
+    )
+
+    // Recency is re-derived from updatedAt rather than trusted from the query, whose descending
+    // window follows creation.
+    const recentRows = useMemo(
+        () =>
+            [...rows]
+                .sort(
+                    (a, b) =>
+                        Date.parse(b.updatedAt ?? b.createdAt ?? "") -
+                        Date.parse(a.updatedAt ?? a.createdAt ?? ""),
+                )
+                .slice(0, RAIL_AGENT_LIMIT),
+        [rows],
     )
 
     const tableScope = useMemo<TableScopeConfig>(
@@ -170,19 +186,14 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
                 {showEmpty ? (
                     <EmptyAgents />
                 ) : (
-                    // Capped: the rail is a shortlist, and "All agents" is the full-roster path.
-                    // Unbounded, a big project mounts hundreds of cards (each with its own
-                    // activity query) into a 280px column.
-                    rows
-                        .slice(0, RAIL_LIST_SIZE)
-                        .map((record) => (
-                            <AgentCard
-                                key={record.key}
-                                record={record}
-                                waiting={waitingByAgent.get(record.workflowId) ?? 0}
-                                actions={actions}
-                            />
-                        ))
+                    recentRows.map((record) => (
+                        <AgentCard
+                            key={record.key}
+                            record={record}
+                            waiting={waitingByAgent.get(record.workflowId) ?? 0}
+                            actions={actions}
+                        />
+                    ))
                 )}
             </PanelSection>
         )
