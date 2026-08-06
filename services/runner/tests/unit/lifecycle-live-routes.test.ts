@@ -1,10 +1,15 @@
 /**
- * The two LIVE routes, end to end through the dispatch (lifecycle migration, step 6).
+ * The LIVE route, end to end through the dispatch (lifecycle migration, step 6).
  *
  * This is the first genuine behavior change in the lifecycle work: a configuration change that
  * used to throw away a warm sandbox now mutates it in place. These tests exist to prove the
  * guards, not the happy path — the happy path is one assertion and the guards are the reason it
  * is safe.
+ *
+ * ONE ROUTE, NOT TWO. The workspace refresh was the second, and it was withdrawn: rewriting
+ * `AGENTS.md` on a running sandbox does not make a harness that already read the file read it
+ * again, so an instructions edit was applied, committed, and never observed. The model change is
+ * what remains, and `setModel` is answered by the running session itself.
  *
  * WHAT MUST HOLD:
  *  - Only a plan that is ENTIRELY live-applicable takes the route. A mixed plan rebuilds.
@@ -258,20 +263,26 @@ function turn2(overrides: Partial<AgentRunRequest> = {}): AgentRunRequest {
 
 describe("the live-route gate", () => {
   it("declares EXACTLY the authorized kinds, plus the trivial no-op", () => {
-    // DELIBERATE EDIT. `reopen-session` LEFT the live set. `env.reopenSession` closes over the
-    // session init the environment was BUILT with, so a reopen reinstalls the old MCP list,
-    // prompts and harness files while the turn keeps serving the old tool catalog from
-    // `env.plan`. Applying it would commit the incoming configuration as applied after
-    // installing none of it. It returns when the turn builds both from the incoming request
-    // (adapter-matrix.md section 8, steps 1 and 2).
+    // DELIBERATE EDIT, TWICE, and both edits REMOVED a kind for the same reason: it changed the
+    // environment in a way the running harness never observed, while the applier committed the
+    // incoming configuration as applied.
     //
-    // The guard still matters: this list is the single place that says how many routes are live,
-    // and a fourth entry must be a decision, never an accident.
-    assert.deepEqual([...LIVE_ACTION_KINDS].sort(), [
-      "apply-live",
-      "no-op",
-      "refresh-workspace",
-    ]);
+    //  - `reopen-session`. `env.reopenSession` closes over the session init the environment was
+    //    BUILT with, so a reopen reinstalls the old MCP list, prompts and harness files while the
+    //    turn keeps serving the old tool catalog from `env.plan`. It returns when the turn builds
+    //    both from the incoming request (adapter-matrix.md section 8, steps 1 and 2).
+    //  - `refresh-workspace`. The refresh really does rewrite `AGENTS.md` on the running sandbox.
+    //    Every harness reads that file once, at session start, so the model went on answering from
+    //    the instructions it was started with. Live cell `matrix_l5_live_route_observed.py` caught
+    //    it, with a cold control proving the configuration itself was fine.
+    //
+    // The guard is the point: this list is the single place that says how many routes are live,
+    // and a third entry must be a decision, never an accident.
+    assert.deepEqual([...LIVE_ACTION_KINDS].sort(), ["apply-live", "no-op"]);
+    assert.ok(
+      !LIVE_ACTION_KINDS.has("refresh-workspace"),
+      "rewriting the instruction file does not make a running harness read it again",
+    );
     assert.ok(
       !LIVE_ACTION_KINDS.has("reopen-session"),
       "a reopen reinstalls the captured session init; it delivers nothing new",
@@ -288,15 +299,16 @@ describe("the live-route gate", () => {
 
   it("refuses a plan containing ANY non-live action", () => {
     // All or nothing. Applying the live half of a mixed plan would leave the environment in a
-    // state no request ever described.
+    // state no request ever described. One live action and one escalating action, so the refusal
+    // is caused by the mix rather than by a plan that had nothing live in it to begin with.
     assert.equal(
       isLivelyApplicable(
         buildPlan(
           [
-            { facet: "workspaceFiles", kind: "refresh-workspace", reason: "r" },
+            { facet: "model", kind: "apply-live", reason: "r" },
             { facet: "runtime", kind: "restart-runtime", reason: "r" },
           ],
-          ["workspaceFiles", "runtime"],
+          ["model", "runtime"],
         ),
       ),
       false,
@@ -308,13 +320,28 @@ describe("the live-route gate", () => {
       isLivelyApplicable(
         buildPlan(
           [
-            { facet: "workspaceFiles", kind: "refresh-workspace", reason: "r" },
+            { facet: "sandbox", kind: "no-op", reason: "r" },
             { facet: "model", kind: "apply-live", reason: "r" },
           ],
-          ["workspaceFiles", "model"],
+          ["sandbox", "model"],
         ),
       ),
       true,
+    );
+  });
+
+  it("refuses a plan carrying a workspace refresh", () => {
+    // The L5 fix, at the gate. The applier in `apply-plan.ts` still knows HOW to refresh, so this
+    // set is what keeps the route shut until a refresh-then-reopen route proves the harness
+    // observed the change.
+    assert.equal(
+      isLivelyApplicable(
+        buildPlan(
+          [{ facet: "workspaceFiles", kind: "refresh-workspace", reason: "r" }],
+          ["workspaceFiles"],
+        ),
+      ),
+      false,
     );
   });
 
@@ -331,8 +358,17 @@ describe("the live-route gate", () => {
   });
 });
 
-describe("LIVE ROUTE: an instructions change reuses the warm environment", () => {
-  it("does not rebuild, and runs the turn on the SAME environment", async () => {
+describe("THE RELEASE BLOCKER: an instructions change REBUILDS", () => {
+  // This describe block asserted the opposite until an instructions edit was found to be dead on a
+  // warm session. The route kept the sandbox, which is what these tests checked, and the harness
+  // went on obeying the instructions it started with, which nothing checked. The whole point of
+  // the pair is that "the sandbox survived" is worthless on its own.
+  //
+  // The live evidence, both cells rerun after this change:
+  //  - `matrix_l1_lifecycle_routes.py` — an instructions edit now reports TWO sandbox ids.
+  //  - `matrix_l5_live_route_observed.py` — the next turn answers with the new passphrase.
+
+  it("tears the environment down instead of refreshing it in place", async () => {
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
@@ -345,33 +381,53 @@ describe("LIVE ROUTE: an instructions change reuses the warm environment", () =>
       ctx,
     );
 
-    assert.equal(
-      calls.acquire,
-      1,
-      "the warm sandbox survives an instructions change",
-    );
-    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.acquire, 2, "an instructions edit costs a new sandbox");
+    assert.equal(env1.destroyed, 1);
     assert.equal(calls.turns.length, 2);
-    assert.equal(calls.turns[1].id, env1.id);
-    assert.deepEqual(calls.applied[0].actions, ["refresh-workspace"]);
+    assert.notEqual(
+      calls.turns[1].id,
+      env1.id,
+      "the second turn must run on the environment built from the NEW instructions",
+    );
+    assert.equal(
+      calls.applied.length,
+      0,
+      "the applier must never see a plan whose result the harness cannot observe",
+    );
   });
 
-  it("advances applied state to the NEW configuration", async () => {
+  it("leaves the OLD environment's applied state exactly where it was", async () => {
+    // The half that made the bug silent. A live refresh advanced applied state to the incoming
+    // configuration, so the pool reported the new fingerprint and every later turn matched and
+    // continued warm — against a harness still running the old instructions. Nothing may advance
+    // here, because nothing was applied.
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
     const env1 = calls.acquiredEnvs[0];
     const before = env1.appliedState.generation;
+    const fingerprintBefore = env1.appliedState.configFingerprint;
 
     const next = turn2({ agentsMd: "REWRITTEN instructions" });
     await runWithKeepalive(next, undefined, undefined, ctx);
 
-    assert.equal(
-      env1.appliedState.configFingerprint,
-      configFingerprint(next),
-      "the environment now reports what it actually applied",
+    assert.equal(env1.appliedState.configFingerprint, fingerprintBefore);
+    assert.notEqual(env1.appliedState.configFingerprint, configFingerprint(next));
+    assert.equal(env1.appliedState.generation, before);
+  });
+
+  it("a skills change rebuilds too, on the same facet", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1, undefined, undefined, ctx);
+    await runWithKeepalive(
+      turn2({ skills: [{ name: "s", description: "d", body: "b" }] as never }),
+      undefined,
+      undefined,
+      ctx,
     );
-    assert.ok(env1.appliedState.generation > before, "the generation advanced");
+    assert.equal(calls.acquire, 2);
+    assert.equal(calls.applied.length, 0);
   });
 });
 
@@ -385,7 +441,28 @@ describe("LIVE ROUTE: a model change applies to the running session", () => {
     assert.deepEqual(calls.applied[0].actions, ["apply-live"]);
   });
 
-  it("both live routes in one plan still reuse", async () => {
+  it("runs the turn on the SAME environment, and advances applied state", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1, undefined, undefined, ctx);
+    const env1 = calls.acquiredEnvs[0];
+    const before = env1.appliedState.generation;
+
+    const next = turn2({ model: "m2" });
+    await runWithKeepalive(next, undefined, undefined, ctx);
+
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.turns[1].id, env1.id);
+    assert.equal(
+      env1.appliedState.configFingerprint,
+      configFingerprint(next),
+      "the environment now reports what it actually applied",
+    );
+    assert.ok(env1.appliedState.generation > before, "the generation advanced");
+  });
+
+  it("the live route plus an escalating facet in one plan rebuilds", async () => {
+    // The model half could be applied on its own. It is not, because a plan is all or nothing.
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
@@ -395,11 +472,8 @@ describe("LIVE ROUTE: a model change applies to the running session", () => {
       undefined,
       ctx,
     );
-    assert.equal(calls.acquire, 1);
-    assert.deepEqual(calls.applied[0].actions, [
-      "refresh-workspace",
-      "apply-live",
-    ]);
+    assert.equal(calls.acquire, 2);
+    assert.equal(calls.applied.length, 0);
   });
 });
 
@@ -408,10 +482,10 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
-    // Instructions (live) plus a model-connection change (restart-runtime: NOT live).
+    // The model (live) plus a model-connection change (restart-runtime: NOT live).
     await runWithKeepalive(
       turn2({
-        agentsMd: "REWRITTEN",
+        model: "m2",
         modelConnection: {
           provider: "openai",
           deployment: "direct",
@@ -431,6 +505,10 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     );
   });
 
+  // These three drive the applier through the ONE remaining live route. They used to move
+  // `agentsMd`, which now escalates on its own — so each would have passed no matter what the
+  // applier did, and proved nothing about refusals or throws.
+
   it("a REFUSED apply rebuilds", async () => {
     const { engine, calls } = makeEngine({ apply: "refuse" });
     const ctx = makeCtx(engine);
@@ -438,13 +516,9 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     const env1 = calls.acquiredEnvs[0];
     const before = env1.appliedState.configFingerprint;
 
-    await runWithKeepalive(
-      turn2({ agentsMd: "REWRITTEN" }),
-      undefined,
-      undefined,
-      ctx,
-    );
+    await runWithKeepalive(turn2({ model: "m2" }), undefined, undefined, ctx);
 
+    assert.equal(calls.applied.length, 1, "the applier was actually reached");
     assert.equal(calls.acquire, 2);
     assert.equal(
       env1.appliedState.configFingerprint,
@@ -458,7 +532,7 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
     const result = await runWithKeepalive(
-      turn2({ agentsMd: "REWRITTEN" }),
+      turn2({ model: "m2" }),
       undefined,
       undefined,
       ctx,
@@ -468,6 +542,7 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
       true,
       "a live-route failure must never fail the turn",
     );
+    assert.equal(calls.applied.length, 1, "the applier was actually reached");
     assert.equal(calls.acquire, 2);
   });
 
@@ -475,12 +550,7 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     const { engine, calls } = makeEngine({ noApplier: true });
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
-    await runWithKeepalive(
-      turn2({ agentsMd: "REWRITTEN" }),
-      undefined,
-      undefined,
-      ctx,
-    );
+    await runWithKeepalive(turn2({ model: "m2" }), undefined, undefined, ctx);
     assert.equal(
       calls.acquire,
       2,
@@ -617,8 +687,13 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
   });
 });
 
-describe("the disagreement counters go quiet for the two live routes", () => {
-  it("an instructions change records an AGREEMENT, not a disagreement", async () => {
+describe("the disagreement counters stay quiet", () => {
+  it("an instructions change agrees on a REBUILD, so the withdrawal is silent too", async () => {
+    // Why the fix moved the capability table and not only the live set. Dropping
+    // `refresh-workspace` from `LIVE_ACTION_KINDS` alone would leave the router planning a
+    // workspace refresh — outcome `reuse` — while the coordinator rebuilds, and every instructions
+    // edit in production would log a DISAGREE that no router work could ever drive to zero. That
+    // is the permanent false positive `DecisionScope` exists to prevent.
     const { engine } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
@@ -631,11 +706,11 @@ describe("the disagreement counters go quiet for the two live routes", () => {
 
     const counters = reconcileCounters();
     assert.equal(
-      counters.disagree["refresh-workspace"] ?? 0,
+      Object.values(counters.disagree).reduce((a, b) => a + b, 0),
       0,
-      "the workspace route must be silent",
+      "an instructions edit must not disagree with anything",
     );
-    assert.ok((counters.agree["refresh-workspace"] ?? 0) > 0);
+    assert.ok((counters.agree["rebuild-sandbox"] ?? 0) > 0);
   });
 
   it("a model change records an AGREEMENT", async () => {
@@ -948,9 +1023,12 @@ describe("route selection matches the facet diff", () => {
   };
 
   it("routes each facet to its authorized action", () => {
+    // The workspace files route to a rebuild because no harness rereads its instruction file, and
+    // to a REBUILD rather than a reopen because a reopen writes no files at all: it would install
+    // nothing and report the new configuration as applied, which is the same lie one step cheaper.
     assert.deepEqual(routeFor({ agentsMd: "x" }), {
-      kinds: ["refresh-workspace"],
-      live: true,
+      kinds: ["rebuild-sandbox"],
+      live: false,
     });
     assert.deepEqual(routeFor({ model: "m2" }), {
       kinds: ["apply-live"],
