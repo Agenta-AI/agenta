@@ -33,23 +33,18 @@ with the earlier "no new package for entity state" decision.
 Two parts. The second is a move; **the first is new work** and was the surprise from the
 lane-0 audit.
 
-### 1a. Missing primitives (build, don't move)
+### 1a. Missing primitives — RESOLVED: nothing to build
 
-`@agenta/ui` has domain components (`AddButton`, `RunButton`, `ListItemSkeleton`,
-`SimpleDropdownSelect`, `LabelInput`) but no generic:
-
-| Primitive | Needed by | Notes |
-|---|---|---|
-| `Tooltip` | almost every component in lanes 3–4 | Radix, following the `Slider` precedent that already added Radix |
-| `DropdownMenu` | row kebabs, `NewAgentButton` | an **action menu**, not a select — `SimpleDropdownSelect` is the wrong shape |
-| `Switch` | filters rail | Radix |
-
-Verify first: is `EnhancedButton` antd-free at *runtime*, or only type-decoupled? If the
-latter, `Button` joins this list and the lane grows.
+The lane-0 audit predated the rebase onto `feat/mobile-parity-and-consolidation`, which
+brought the full shadcn/Radix set into `@agenta/ui/src/components/ui/` (exported via the
+`./ui` subpath). `Tooltip`, `DropdownMenu`, and `Switch` all exist, all Radix, antd
+mentioned only in skin comments. `EnhancedButton` is antd-free at **runtime** — a facade
+over `ui/button` (Radix Slot + cva) and the Radix `ui/tooltip` — so `Button` does not
+join the lane either.
 
 `Typography` is not needed — semantic HTML + tokens.
 
-Gates: both themes, keyboard + screen-reader behaviour, no antd import anywhere in the package.
+Remaining 1a work is zero; lanes 3–4 import from `@agenta/ui/ui`.
 
 ### 1b. Surfaces (move)
 
@@ -57,8 +52,8 @@ Gates: both themes, keyboard + screen-reader behaviour, no antd import anywhere 
 `PanelSection`, `PANEL_ACTION_CLASS`. Already antd-free. Drop the THROWAWAY marker — four
 pages depend on it.
 
-Also in this lane: the `RichChatInput` composer fill (`colorFillTertiary`) if not already
-carried across by the rebase.
+The `RichChatInput` composer fill (`colorFillTertiary`) was already carried across by the
+rebase (`RichChatInput.tsx` uses `bg-[var(--ag-colorFillTertiary)]`) — nothing to do.
 
 **Gotchas to preserve in the move:**
 - Sticky headers need an **opaque** background, never a fill token — rows scroll through rgba.
@@ -167,11 +162,18 @@ Migrating `mobile/src/features/sessions/` (which today duplicates list logic in
 **after** mobile's release. It is also the lane that proves the extraction was real — without it
 we ship a package and a duplicate side by side.
 
-## Open decisions
+## Open decisions — RESOLVED
 
-1. Is `EnhancedButton` antd-free at runtime? Determines lane 1's size.
-2. `@agenta/sessions` as a new package vs growing `@agenta/entities/session`. The plan assumes
-   new-package-for-orchestration; if that's rejected, lanes 2–3 collapse into `entities` +
-   `entity-ui`.
-3. Do `NextTriggers` / `UsageSummary` belong in `@agenta/entity-ui` or a separate agent package?
-   Cheap to decide in lane 4, awkward to retrofit.
+1. **Yes, `EnhancedButton` is antd-free at runtime** (facade over Radix `ui/button` +
+   `ui/tooltip`; local antd-compatible prop types, no antd import). Lane 1a is empty — see
+   above.
+2. **New `@agenta/sessions` package.** The consolidation branch itself created
+   `@agenta/chat` as a headless orchestration package, which settles the precedent: the
+   earlier "no new package" ruling was about *entity state*, and schema/`listOptions`/query
+   stay in `@agenta/entities/session`. Orchestration (filters, grouping, row view-model,
+   pins) mirrors `@agenta/chat`'s shape.
+3. **`@agenta/entity-ui` under a new `./agent` subpath.** The package already exports
+   per-module subpaths (`./variant`, `./workflow`, …), so mobile can import
+   `@agenta/entity-ui/agent` without touching the antd modules. The antd ban is enforced by
+   eslint on that directory. A separate package would add a workspace unit for four
+   components with no distinct dependency profile.
