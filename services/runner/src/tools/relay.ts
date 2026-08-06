@@ -34,6 +34,7 @@ import {
 
 import { callAgentaTool } from "./callback.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "./code.ts";
+import { specInputSchema } from "./spec-schema.ts";
 import { declinedByUserText } from "./denial-text.ts";
 import {
   applyContextBindings,
@@ -42,7 +43,7 @@ import {
   deepDelete,
   directCallUrl,
   pathParamNames,
-  stripEphemeralArgs,
+  resolveEphemeralArgs,
 } from "./direct.ts";
 import type {
   ResolvedToolSpec,
@@ -345,6 +346,7 @@ async function executeRelayedTool(
   clientToolRelay: ClientToolRelay | undefined,
   guard: RelayExecutionGuard | undefined,
   authorizer: RelayExecutionAuthorizer | undefined,
+  log: ((msg: string) => void) | undefined,
 ): Promise<string | typeof PAUSED> {
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
@@ -392,10 +394,11 @@ async function executeRelayedTool(
       { ...req, args: verdict.args },
       callback,
       runContext,
+      log,
     );
   }
 
-  return executeAllowedRelayedTool(spec, req, callback, runContext);
+  return executeAllowedRelayedTool(spec, req, callback, runContext, log);
 }
 
 async function executeAllowedRelayedTool(
@@ -403,6 +406,7 @@ async function executeAllowedRelayedTool(
   req: ExecuteRelayRequest,
   callback: ToolCallbackContext | undefined,
   runContext: RunContext | undefined,
+  log?: (msg: string) => void,
 ): Promise<string> {
   assertRequiredArguments(spec, req.args);
   if (spec.kind === "code") {
@@ -417,7 +421,27 @@ async function executeAllowedRelayedTool(
   // `description`, R12). This runs BEFORE the dispatch fork so both modes strip identically, and
   // before `assembleBody` so an `args_into` op cannot deep-set the note inside its payload. The
   // recorded call and the approval card keep the full arguments; only the request loses them.
-  const dispatchArgs = stripEphemeralArgs(req.args, spec.ephemeralArgs);
+  //
+  // The same pass lifts a note the model wrote one level too deep, inside the payload object,
+  // which a closed schema would otherwise reject outright. See `resolveEphemeralArgs`.
+  const ephemeral = resolveEphemeralArgs(
+    req.args,
+    spec.ephemeralArgs,
+    specInputSchema(spec) ?? undefined,
+  );
+  const dispatchArgs = ephemeral.args;
+  for (const entry of ephemeral.lifted) {
+    log?.(
+      `[tool-relay] lifted '${entry.name}' out of '${entry.from}' for ${spec.name}: ` +
+        "the model wrote it inside the payload, where the endpoint would refuse it",
+    );
+  }
+  for (const entry of ephemeral.shadowed) {
+    log?.(
+      `[tool-relay] dropped a second '${entry.name}' from '${entry.from}' for ${spec.name}: ` +
+        "the call already carries one at the top level",
+    );
+  }
   // Direct-call tools (reference / platform): the host makes the call directly so the sandbox
   // child still sends only name + args. The origin is bound to the run's own callback endpoint
   // and the run's authorization is reused (see tools/direct.ts). A spec carries `call` XOR
@@ -613,6 +637,7 @@ export function startToolRelay(
         clientToolRelay,
         guard,
         opts?.authorizer,
+        opts?.log,
       );
       if (text === PAUSED) {
         // A client tool parked. Pi writes no answer; the non-Pi shim gets a benign paused answer so

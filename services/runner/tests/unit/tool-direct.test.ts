@@ -30,6 +30,7 @@ import { join } from "node:path";
 import {
   agentaErrorDetail,
   assembleBody,
+  resolveEphemeralArgs,
   deepDelete,
   deepMerge,
   deepSet,
@@ -872,6 +873,148 @@ describe("stripEphemeralArgs", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// The misplaced description (R12 lift)
+// ---------------------------------------------------------------------------
+
+/** A commit-shaped schema: a payload object with no `description` field of its own. */
+const COMMIT_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    workflow_revision: {
+      type: "object",
+      additionalProperties: false,
+      properties: { message: { type: "string" }, delta: { type: "object" } },
+    },
+  },
+};
+
+describe("resolveEphemeralArgs", () => {
+  it("lifts a description the model wrote inside the payload", () => {
+    // The whole point. A closed schema REJECTS this call, so the note the agent wrote for the
+    // human stops the build instead of decorating it.
+    const args = {
+      workflow_revision: { message: "Add pdf-tools.", description: "why I did it" },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], COMMIT_SCHEMA);
+
+    assert.deepEqual(out.lifted, [
+      { name: "description", from: "workflow_revision", value: "why I did it" },
+    ]);
+    assert.deepEqual(out.args, {
+      workflow_revision: { message: "Add pdf-tools." },
+    });
+    assert.deepEqual(out.shadowed, []);
+  });
+
+  it("prefers the top level and drops the nested copy", () => {
+    const args = {
+      description: "the one the model meant",
+      workflow_revision: { message: "m", description: "the stray copy" },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], COMMIT_SCHEMA);
+
+    assert.deepEqual(out.lifted, [], "nothing to lift: the top level said it");
+    assert.deepEqual(out.shadowed, [
+      { name: "description", from: "workflow_revision" },
+    ]);
+    assert.deepEqual(out.args, { workflow_revision: { message: "m" } });
+  });
+
+  it("never lifts a field the endpoint actually declares", () => {
+    // The guard that lets this be a RULE rather than a list of tool names. Four platform ops carry
+    // a real `description` inside their payload; none accepts the ephemeral one today, and this is
+    // what keeps that from being load-bearing.
+    const scheduleSchema = {
+      type: "object",
+      properties: {
+        schedule: {
+          type: "object",
+          properties: { description: { type: "string" }, cron: { type: "string" } },
+        },
+      },
+    };
+    const args = { schedule: { description: "a real payload field", cron: "* * * * *" } };
+
+    const out = resolveEphemeralArgs(args, ["description"], scheduleSchema);
+
+    assert.deepEqual(out.lifted, []);
+    assert.deepEqual(out.shadowed, []);
+    assert.equal(out.args, args, "the arguments are handed on untouched");
+  });
+
+  it("refuses to lift when the payload schema is unknown", () => {
+    // A rejected call is visible and recoverable. A silently deleted field is neither, so an
+    // unknown schema keeps today's behavior.
+    const args = { mystery: { description: "cannot prove this is ephemeral" } };
+
+    const out = resolveEphemeralArgs(args, ["description"], undefined);
+
+    assert.deepEqual(out.lifted, []);
+    assert.equal(out.args, args);
+  });
+
+  it("looks one level down and no deeper", () => {
+    // `parameters.agent.skills[].description` is a real field a user asked to commit. A deeper
+    // walk would delete it.
+    const args = {
+      workflow_revision: {
+        delta: { set: { parameters: { agent: { skills: [{ description: "a real skill note" }] } } } },
+      },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], COMMIT_SCHEMA);
+
+    assert.deepEqual(out.lifted, []);
+    assert.equal(out.args, args);
+  });
+
+  it("lifts the first of several and reports the rest", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        first: { type: "object", properties: { a: {} } },
+        second: { type: "object", properties: { b: {} } },
+      },
+    };
+    const args = {
+      first: { a: 1, description: "one" },
+      second: { b: 2, description: "two" },
+    };
+
+    const out = resolveEphemeralArgs(args, ["description"], schema);
+
+    assert.deepEqual(out.lifted, [
+      { name: "description", from: "first", value: "one" },
+    ]);
+    assert.deepEqual(out.shadowed, [{ name: "description", from: "second" }]);
+    assert.deepEqual(out.args, { first: { a: 1 }, second: { b: 2 } });
+  });
+
+  it("leaves a tool that declares no ephemeral args completely alone", () => {
+    const args = { workflow_revision: { description: "not ephemeral here" } };
+
+    assert.equal(resolveEphemeralArgs(args, undefined, COMMIT_SCHEMA).args, args);
+    assert.equal(resolveEphemeralArgs(args, [], COMMIT_SCHEMA).args, args);
+  });
+
+  it("does not mutate the caller's arguments, so the recorded call keeps the note", () => {
+    // The recorded call and the approval card read the model's own arguments. The dispatch copy is
+    // the only thing that loses the note.
+    const args = {
+      workflow_revision: { message: "m", description: "why I did it" },
+    };
+    const snapshot = structuredClone(args);
+
+    resolveEphemeralArgs(args, ["description"], COMMIT_SCHEMA);
+
+    assert.deepEqual(args, snapshot);
+  });
+});
+
 describe("relay strips ephemeral args before it builds a request", () => {
   /** A builder op: self-targeting, and it accepts the ephemeral description. */
   const commitSpec: ResolvedToolSpec = {
@@ -906,6 +1049,55 @@ describe("relay strips ephemeral args before it builds a request", () => {
       body.description,
       undefined,
       "the ephemeral note never reaches the API",
+    );
+    assert.deepEqual(body, {
+      workflow_revision: {
+        message: "Add the pdf-tools skill.",
+        workflow_variant_id: "own-variant",
+      },
+    });
+  });
+
+  it("lifts a nested description out of the dispatched body", async () => {
+    // The production shape: the model writes the note one level down, and the endpoint's closed
+    // schema refuses the whole call. The lift makes the commit land while the recorded call keeps
+    // the note for the human.
+    const calls = stubFetch("committed");
+    const liftSpec: ResolvedToolSpec = {
+      ...commitSpec,
+      inputSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          workflow_revision: {
+            type: "object",
+            additionalProperties: false,
+            properties: { message: { type: "string" } },
+          },
+        },
+      },
+    };
+
+    const res = await relayOnce(
+      liftSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      {
+        workflow_revision: {
+          message: "Add the pdf-tools skill.",
+          description: "Adding the pdf-tools skill you asked for.",
+        },
+      },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    const body = JSON.parse(calls[0].init.body as string);
+    // Asserted before the whole-shape check below, which narrows `body` to the literal type.
+    assert.equal(
+      body.workflow_revision.description,
+      undefined,
+      "the misplaced note never reaches the API, so the call is no longer refused",
     );
     assert.deepEqual(body, {
       workflow_revision: {

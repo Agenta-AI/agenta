@@ -280,15 +280,142 @@ export function stripEphemeralArgs(
   args: unknown,
   ephemeralArgs: string[] | undefined,
 ): unknown {
-  if (!ephemeralArgs || ephemeralArgs.length === 0) return args;
-  if (!isPlainObject(args)) return args;
-  const present = ephemeralArgs.filter((name) =>
-    Object.prototype.hasOwnProperty.call(args, name),
+  return resolveEphemeralArgs(args, ephemeralArgs).args;
+}
+
+/**
+ * Whether the endpoint declares a REAL field of this name inside this payload object.
+ *
+ * This is the guard that makes the lift safe to apply by rule rather than by tool name. Four
+ * platform ops carry a genuine `description` inside their payload (`create_schedule` and friends),
+ * and today none of them accepts the ephemeral one, so the two sets do not overlap. That is an
+ * accident of the current catalog and not an invariant anybody enforces, so the runner checks the
+ * advertised schema instead of trusting it: a declared field is the endpoint's, and it is never
+ * lifted or removed.
+ *
+ * An UNKNOWN payload schema also refuses the lift. A rejected call is visible and recoverable; a
+ * silently deleted field is neither, so the tie goes to leaving the arguments alone.
+ */
+function payloadDeclaresField(
+  schema: Record<string, unknown> | undefined,
+  payloadKey: string,
+  name: string,
+): "declared" | "absent" | "unknown" {
+  const properties = schema?.properties;
+  if (!isPlainObject(properties)) return "unknown";
+  const payload = properties[payloadKey];
+  if (!isPlainObject(payload)) return "unknown";
+  const fields = payload.properties;
+  if (!isPlainObject(fields)) return "unknown";
+  return Object.prototype.hasOwnProperty.call(fields, name)
+    ? "declared"
+    : "absent";
+}
+
+/** What the ephemeral pass found, beyond the arguments it hands to the dispatch. */
+export interface EphemeralArgsResolution {
+  /** The arguments to dispatch: every ephemeral name removed, at the top level and one below it. */
+  args: unknown;
+  /**
+   * Ephemeral values the model wrote INSIDE a payload object, with nothing at the top level.
+   * Keyed by ephemeral name, with the payload key it came from, so a caller can log or record it.
+   */
+  lifted: Array<{ name: string; from: string; value: unknown }>;
+  /** Nested values discarded because the top level already carried the same name. */
+  shadowed: Array<{ name: string; from: string }>;
+}
+
+/**
+ * The ephemeral pass: strip, and lift a misplaced value out of a payload object.
+ *
+ * WHY THE LIFT EXISTS. `description` is ephemeral and belongs at the TOP level of the call. Models
+ * write it one level down instead, inside the payload object, and the two that do this are not
+ * moved by any wording we measured (371 trials). The endpoint's schema is closed, so a nested
+ * `description` is not merely ignored: the call is REJECTED, the agent reads a validation error,
+ * and a build stops for a note that was never meant to reach the API at all.
+ *
+ * Lifting it costs nothing and ends the class. The value is reported to the caller as the call's
+ * description, exactly as a top-level one, and removed from the payload before dispatch.
+ *
+ * DEPTH ONE, AND NEVER DEEPER. Only a DIRECT child of a top-level object is eligible. Real fields
+ * named `description` do exist further down (a skill inside `parameters.agent.skills[]` carries
+ * one, and a user asked for it), so a deeper walk would silently delete content the human meant to
+ * commit. No `accepts_description` op today has a real `description` field at depth one, which is
+ * exactly why the misplaced note is a rejection rather than an overwrite.
+ *
+ * SPEC-DRIVEN, NOT NAME-DRIVEN. This reads only `spec.ephemeralArgs`, so an op that gains
+ * `accepts_description` later inherits the lift with no code change here, and a tool without it is
+ * untouched.
+ *
+ * TOP LEVEL WINS. A model that writes both has already said what it meant in the right place; the
+ * nested copy is dropped and reported so it is visible rather than silent.
+ *
+ * THE LIMIT, STATED. On Pi this only helps once the catalog schema permits the nested position,
+ * because Pi validates against the advertised schema in its own process and rejects the call
+ * before the runner ever sees it. On Claude and Codex nothing validates client-side, so the lift
+ * fixes the class immediately.
+ */
+export function resolveEphemeralArgs(
+  args: unknown,
+  ephemeralArgs: string[] | undefined,
+  inputSchema?: Record<string, unknown>,
+): EphemeralArgsResolution {
+  const lifted: EphemeralArgsResolution["lifted"] = [];
+  const shadowed: EphemeralArgsResolution["shadowed"] = [];
+  if (!ephemeralArgs || ephemeralArgs.length === 0) return { args, lifted, shadowed };
+  if (!isPlainObject(args)) return { args, lifted, shadowed };
+
+  const source = args as Record<string, unknown>;
+  // Every top-level payload object, in the order the model wrote them. Arrays are not payload
+  // objects: a positional element carries no field the note could be mistaken for.
+  const payloadKeys = Object.keys(source).filter((key) =>
+    isPlainObject(source[key]),
   );
-  if (present.length === 0) return args;
-  const stripped = { ...(args as Record<string, unknown>) };
-  for (const name of present) delete stripped[name];
-  return stripped;
+
+  for (const name of ephemeralArgs) {
+    const topHas = Object.prototype.hasOwnProperty.call(source, name);
+    const nestedIn = payloadKeys.filter(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(
+          source[key] as Record<string, unknown>,
+          name,
+        ) &&
+        // Only a value the endpoint has no field for can be the misplaced note.
+        payloadDeclaresField(inputSchema, key, name) === "absent",
+    );
+    if (!topHas && nestedIn.length > 0) {
+      // The first is the lifted one. More than one is pathological rather than meaningful, so the
+      // rest are reported as shadowed instead of being guessed between or silently kept.
+      const [first, ...rest] = nestedIn;
+      lifted.push({
+        name,
+        from: first,
+        value: (source[first] as Record<string, unknown>)[name],
+      });
+      for (const key of rest) shadowed.push({ name, from: key });
+    } else {
+      for (const key of nestedIn) shadowed.push({ name, from: key });
+    }
+  }
+
+  const removeTop = ephemeralArgs.filter((name) =>
+    Object.prototype.hasOwnProperty.call(source, name),
+  );
+  const touchedPayloads = new Set(
+    [...lifted, ...shadowed].map((entry) => entry.from),
+  );
+  if (removeTop.length === 0 && touchedPayloads.size === 0) {
+    return { args, lifted, shadowed };
+  }
+
+  const next = { ...source };
+  for (const name of removeTop) delete next[name];
+  for (const key of touchedPayloads) {
+    const payload = { ...(next[key] as Record<string, unknown>) };
+    for (const name of ephemeralArgs) delete payload[name];
+    next[key] = payload;
+  }
+  return { args: next, lifted, shadowed };
 }
 
 export function applyContextBindings(
