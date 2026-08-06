@@ -25,6 +25,7 @@ import {Input, Alert, Typography, Radio, Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
+import type {CommitErrorAction} from "../../types"
 import {
     commitModalEntityAtom,
     commitModalEntityNameAtom,
@@ -101,6 +102,7 @@ export function EntityCommitContent({
     const entitySlug = useAtomValue(commitModalEntitySlugAtom)
     const message = useAtomValue(commitModalMessageAtom)
     const error = useAtomValue(commitModalErrorAtom)
+    const errorAction = (error as (Error & {action?: CommitErrorAction}) | null)?.action
     const canCommit = useAtomValue(commitModalCanCommitAtom)
     const context = useAtomValue(commitModalContextAtom)
     const actionLabel = useAtomValue(commitModalActionLabelAtom)
@@ -570,6 +572,13 @@ export function EntityCommitContent({
                             type="error"
                             title={`${actionLabel} failed`}
                             description={error.message}
+                            action={
+                                errorAction ? (
+                                    <Button size="small" onClick={errorAction.onClick}>
+                                        {errorAction.label}
+                                    </Button>
+                                ) : undefined
+                            }
                             className="[&_.ant-alert]:!py-5"
                             showIcon
                         />

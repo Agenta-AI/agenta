@@ -66,6 +66,9 @@ export {
     type WorkflowCatalogTemplatesResponse,
 } from "./api"
 
+// Revision-commit conflict parsing (409 `revision_conflict`)
+export {parseWorkflowRevisionConflict, type WorkflowRevisionConflictInfo} from "./revisionConflict"
+
 // Create from template (legacy endpoint orchestration)
 export {
     createAppFromTemplate,

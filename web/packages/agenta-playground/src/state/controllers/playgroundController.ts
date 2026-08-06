@@ -1801,6 +1801,7 @@ const controllerCommitRevisionAtom = atom(
             success: result.success,
             newRevisionId: result.success ? result.newRevisionId : undefined,
             error: result.success ? undefined : result.error.message,
+            errorCode: result.success ? undefined : (result.error as {code?: string}).code,
         }
     },
 )

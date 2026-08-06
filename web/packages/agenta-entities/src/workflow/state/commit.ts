@@ -39,6 +39,8 @@ import {
     archiveWorkflowRevision,
     archiveWorkflowVariant,
     queryWorkflowRevisions,
+    parseWorkflowRevisionConflict,
+    type WorkflowRevisionConflictInfo,
 } from "../api"
 import {generateSlug, type Workflow, type WorkflowData} from "../core"
 
@@ -101,6 +103,37 @@ function prepareCommitSchemas(
         return edited
     }
     return {...edited, parameters: flatSchemas?.parameters ?? edited.parameters}
+}
+
+const REVISION_CONFLICT_MESSAGE = "This agent changed since you opened it. Reload before saving."
+
+/**
+ * A commit failure Error, decorated with the parsed `revision_conflict` details when the
+ * failure was one. Consumers (the playground save flow) check `.code` to show a reload
+ * affordance instead of the generic error message, and must not retry the same commit — the
+ * base has moved.
+ */
+export type WorkflowRevisionCommitError = Error & {
+    code?: "revision_conflict"
+    conflict?: WorkflowRevisionConflictInfo
+}
+
+/**
+ * Build the error returned from a failed commit. Revision conflicts get a fixed, human message
+ * and a `code` the caller can branch on; every other failure keeps the server's own message.
+ */
+function buildCommitError(error: unknown): WorkflowRevisionCommitError {
+    const conflict = parseWorkflowRevisionConflict(error)
+    if (!conflict) {
+        return preserveResponseStatus(error, extractApiErrorMessage(error))
+    }
+    const err: WorkflowRevisionCommitError = preserveResponseStatus(
+        error,
+        REVISION_CONFLICT_MESSAGE,
+    )
+    err.code = "revision_conflict"
+    err.conflict = conflict
+    return err
 }
 
 // ============================================================================
@@ -292,6 +325,8 @@ export const commitWorkflowRevisionAtom = atom(
                     parameters: prepareCommitParameters(entity, flatParams),
                     schemas: prepareCommitSchemas(entity, flatSchemas),
                 },
+                // Guards against overwriting a newer commit — see `buildCommitError` below.
+                baseRevisionId: revisionId,
             })
 
             const newRevisionId = newWorkflow.id
@@ -337,7 +372,7 @@ export const commitWorkflowRevisionAtom = atom(
 
             return result
         } catch (error) {
-            const err = new Error(extractApiErrorMessage(error))
+            const err = buildCommitError(error)
 
             if (_commitCallbacks.onError) {
                 _commitCallbacks.onError(err, params)

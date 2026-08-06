@@ -295,6 +295,7 @@ export {
     type CommitModeOption,
     type CommitCreateFieldsConfig,
     type CommitDeployOption,
+    type CommitErrorAction,
     // Commit modal state atoms
     commitModalOpenAtom,
     commitModalEntityAtom,

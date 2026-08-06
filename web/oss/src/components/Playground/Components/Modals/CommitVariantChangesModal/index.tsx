@@ -198,6 +198,16 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             })
 
             if (!result.success || !result.newRevisionId) {
+                // Base revision moved since this save read it — don't retry or overwrite.
+                if (result.errorCode === "revision_conflict") {
+                    return {
+                        success: false,
+                        error:
+                            result.error ||
+                            "This agent changed since you opened it. Reload before saving.",
+                        errorAction: {label: "Reload", onClick: () => window.location.reload()},
+                    }
+                }
                 return {
                     success: false,
                     error: result.error || "Failed to commit revision",

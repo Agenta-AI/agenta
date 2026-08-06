@@ -281,6 +281,12 @@ export interface CommitModeOption {
     label: string
 }
 
+/** An affordance rendered alongside a commit error (e.g. "Reload"). */
+export interface CommitErrorAction {
+    label: string
+    onClick: () => void
+}
+
 export interface CommitSubmitResult {
     success: boolean
     newRevisionId?: string
@@ -289,6 +295,8 @@ export interface CommitSubmitResult {
     errorStatus?: number
     /** True when failure is known to be a slug collision. */
     slugConflict?: boolean
+    /** Optional action shown next to the error message (e.g. reload after a stale-base conflict). */
+    errorAction?: CommitErrorAction
 }
 
 export interface CommitSubmitParams {
