@@ -9,14 +9,14 @@ did with the session between two turns.
 L1: the cold -> warm routing matrix. For each kind of mid-conversation config change, assert the
 route the runner actually took, read back from the STORED turn ledger.
 
-WHY THIS CELL EXISTS. The v1 lifecycle work made exactly TWO config changes applicable to a
-running environment, and left every other change escalating to a rebuild
+WHY THIS CELL EXISTS. The v1 lifecycle work made ONE config change applicable to a running
+environment, and left every other change escalating to a rebuild
 (`services/runner/src/lifecycle/reconciliation-router.ts`):
 
     facet            change                       action            sandbox survives?
     ---------------- ---------------------------- ----------------- -----------------
-    workspaceFiles   instructions / skills        refresh-workspace YES  (live)
     model            the model id alone           apply-live        YES  (live)
+    workspaceFiles   instructions / skills        rebuild-sandbox   no   -> rebuild
     prompts          system / append prompts      reopen-session    no   -> rebuild
     harnessFiles     harness-rendered files       reopen-session    no   -> rebuild
     harnessSession   permissions, MCP list, mode  reopen-session    no   -> rebuild
@@ -27,6 +27,13 @@ running environment, and left every other change escalating to a rebuild
 `isLivelyApplicable` is all-or-nothing, so a change that moves a live facet AND an escalating one
 rebuilds. That routing table is the whole product promise of "editing your agent no longer throws
 your sandbox away", and NOTHING else in the gate asserts it.
+
+`workspaceFiles` WAS LIVE, AND THIS TABLE ASSERTED IT. The route was withdrawn because it was a
+silent lie: the refresh rewrote the instruction file, but the harness had already read that file
+at session start, so the model kept obeying the old instructions while applied state advanced.
+`matrix_l5_live_route_observed.py` is the cell that caught it, and it is why this cell alone was
+never enough. Two sandbox ids for an instructions edit is the CORRECTED expectation, not a
+regression: it is what an instructions edit cost before the live route existed.
 
 WHAT MAKES THE ASSERTION REAL. Warm-versus-rebuilt never reaches the SSE stream. The turn ledger
 does: the runner stamps `sandbox_id` on every turn row. ONE distinct id across the session means
@@ -84,10 +91,12 @@ CASES = [
     ),
     (
         "instructions",
-        1,
+        2,
         True,
-        "agents_md is the `workspaceFiles` facet -> refresh-workspace, the flagship live route: "
-        "editing an agent's instructions mid-conversation must NOT cost a sandbox",
+        "agents_md is the `workspaceFiles` facet -> rebuild-sandbox. It was the flagship LIVE "
+        "route and the route was withdrawn: no harness re-reads its instruction file, so a warm "
+        "refresh left the model obeying the old instructions. An edit that takes effect is worth "
+        "more than a sandbox, so the escalation must actually happen",
     ),
     (
         "harness_permissions",
@@ -215,9 +224,10 @@ def l1():
             "workflow_id": wf,
             "cases": results,
             "runner_log_grep": (
-                "warm cases: `[keepalive] live-route key=... applied=[workspaceFiles="
-                "refresh-workspace]` or `[keepalive] hit-continue`; rebuild cases: "
-                "`[keepalive] mismatch (config) ...; evict + cold`"
+                "warm cases: `[keepalive] hit-continue` or `[keepalive] live-route key=... "
+                "applied=[model=apply-live]`; rebuild cases: `[keepalive] mismatch (config) ...; "
+                "evict + cold`, with the shadow line naming the facet, e.g. "
+                "`facets=[workspaceFiles=rebuild-sandbox]`"
             ),
         }
     finally:

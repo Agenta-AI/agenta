@@ -31,14 +31,21 @@ stamp. This cell asserts the OBSERVABLE consequence of that, so the class cannot
      fingerprint (the old bug), turn 3 would match and continue warm on the old configuration,
      and the new instructions would never take effect at all.
 
-Two variants, because the two routes fail differently:
+Two variants, because two different facets must both survive the same treatment:
 
-  live    -- the change is an instructions edit (`workspaceFiles` -> refresh-workspace). The
-             sandbox must survive the whole session (ONE sandbox id) and turn 3 must obey the new
-             instructions.
-  rebuild -- the change is a permissions edit (`harnessSession` -> reopen-session, which is not
-             live). The gated tool must still land, and the escalation must actually happen by
-             turn 3 (TWO sandbox ids) rather than being lost.
+  instructions -- the change is an instructions edit (`workspaceFiles` -> rebuild-sandbox).
+  permissions  -- the change is a permissions edit (`harnessSession` -> reopen-session, which is
+                  not live).
+
+In both, the gated tool must still land and the escalation must actually happen by turn 3 (TWO
+sandbox ids) rather than being lost.
+
+THE `instructions` VARIANT USED TO EXPECT ONE SANDBOX ID, and that was the live workspace refresh.
+The route was withdrawn: no harness re-reads its instruction file, so the refresh left the model
+obeying the old instructions while applied state claimed the new ones. See
+`matrix_l5_live_route_observed.py`. Both variants therefore escalate today, and both now have a
+MECHANICAL witness that the change took effect -- the second sandbox id -- instead of the model
+prose the live variant had to fall back on.
 
   uv run matrix_l2_approval_across_config_change.py
 """
@@ -119,9 +126,9 @@ def run_variant(variant: str, wf: str, var: str, rev_id: str, cfg: dict) -> dict
     echo = f"L2ECHO{uuid.uuid4().hex[:6].upper()}"
 
     changed = json.loads(json.dumps(base_params))
-    if variant == "live":
+    if variant == "instructions":
         changed["agent"]["instructions"]["agents_md"] = ECHO_RULE.format(token=echo)
-        expected_sandboxes, route = 1, "workspaceFiles -> refresh-workspace (live)"
+        expected_sandboxes, route = 2, "workspaceFiles -> rebuild-sandbox (escalates)"
     else:
         changed["agent"].setdefault("harness", {})["permissions"] = {
             "allow": [],
@@ -161,25 +168,17 @@ def run_variant(variant: str, wf: str, var: str, rev_id: str, cfg: dict) -> dict
     t3 = invoke(session_id, msgs3, changed, references, log=False)
     agents, sandboxes = ledger_ids(session_id)
 
-    # WHAT BLOCKS, AND WHAT ONLY GETS REPORTED. The two variants can be held to different
-    # standards because only one of them has a mechanical witness.
+    # WHAT BLOCKS, AND WHAT ONLY GETS REPORTED. "The change took effect" is now MECHANICAL for
+    # both variants: each facet escalates, so the escalation shows up as a second sandbox id in the
+    # stored ledger. Blocking.
     #
-    #   rebuild -- "the change took effect" IS mechanical: the escalation shows up as a second
-    #              sandbox id in the stored ledger. Blocking.
-    #   live    -- the only mechanical witness that a workspace refresh RAN is the runner's own
-    #              `live-route ... applied=[workspaceFiles=refresh-workspace]` log line, which a
-    #              pure HTTP client cannot see. The probe below asks the model to obey a rule the
-    #              new instructions carry, which is MODEL PROSE -- exactly what this gate refuses
-    #              to hang a verdict on (a model that ignores an instruction would fail a healthy
-    #              product). So it is reported, and the blocking assertions for this variant are
-    #              the ones that are real side effects: the gated commit landed, the approval row
-    #              is terminal, and the sandbox was never replaced.
+    # The prose probe below asks the model to obey a rule the new instructions carry. It is MODEL
+    # PROSE -- exactly what this gate refuses to hang a verdict on, since a model that ignores an
+    # instruction would fail a healthy product -- so it is reported as corroboration only. The
+    # cell that DOES hold the "an edit is observed" line, with a cold control to keep a model
+    # failure from being read as a runner failure, is `matrix_l5_live_route_observed.py`.
     prose_probe_saw_new_instructions = echo in t3.reply.upper()
-    applied_after = (
-        len(sandboxes) >= 2
-        if variant == "rebuild"
-        else prose_probe_saw_new_instructions
-    )
+    applied_after = len(sandboxes) >= 2
 
     ok = (
         gated
@@ -188,7 +187,7 @@ def run_variant(variant: str, wf: str, var: str, rev_id: str, cfg: dict) -> dict
         and approval_ok
         and bool(sandboxes)
         and len(sandboxes) == expected_sandboxes
-        and (variant != "rebuild" or bool(applied_after))
+        and bool(applied_after)
         and not t3.errors
     )
     return {
@@ -202,8 +201,8 @@ def run_variant(variant: str, wf: str, var: str, rev_id: str, cfg: dict) -> dict
         "approval_row_statuses": statuses,
         "approval_rows_ok": approval_ok,
         "config_applied_on_next_turn": applied_after,
-        # Reported for the `live` variant, never blocking -- see the comment above. The runner log
-        # is the definitive witness there.
+        # Corroboration, never blocking -- see the comment above. Meaningful for the
+        # `instructions` variant only; the `permissions` variant changes no reply.
         "prose_probe_saw_new_instructions": prose_probe_saw_new_instructions,
         "expected_sandboxes": expected_sandboxes,
         "sandbox_ids": sandboxes,
@@ -223,13 +222,13 @@ def l2():
         # Each variant commits an edit_text whose anchor is the BASELINE string, and the first
         # variant's commit replaces it. So the second variant gets its own workflow rather than
         # an anchor that no longer matches the stored text.
-        results = [run_variant("live", wf, var, rev_id, cfg)]
+        results = [run_variant("instructions", wf, var, rev_id, cfg)]
 
         hexid2 = uuid.uuid4().hex[:8]
         wf2, var2 = create_workflow(hexid2, "qa-l2b")
         try:
             rev_id2, _ = seed_and_baseline(wf2, var2, cfg, hexid2)
-            results.append(run_variant("rebuild", wf2, var2, rev_id2, cfg))
+            results.append(run_variant("permissions", wf2, var2, rev_id2, cfg))
         finally:
             archive(wf2)
 
@@ -251,9 +250,9 @@ def l2():
             ),
             "variants": results,
             "runner_log_grep": (
-                "`[keepalive] resume key=... answered=1 approve=1` on the answering turn, then on "
-                "the FOLLOWING turn either `[keepalive] live-route ... applied=` (live variant) or "
-                "`[keepalive] mismatch (config) ...; evict + cold` (rebuild variant)"
+                "`[keepalive] resume key=... answered=1 approve=1` on the answering turn, then "
+                "`[keepalive] mismatch (config) ...; evict + cold` on the FOLLOWING turn, in both "
+                "variants"
             ),
         }
     finally:

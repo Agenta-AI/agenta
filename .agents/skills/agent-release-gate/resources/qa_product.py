@@ -997,20 +997,23 @@ def _continuity(cell: dict, tier: str) -> dict:
         # Force the eviction from the CLIENT, with byte-faithful history, by moving a facet that
         # CANNOT be applied to a running environment.
         #
-        # THIS USED TO EDIT `instructions.agents_md`, AND THAT STOPPED WORKING. `agentsMd` is the
-        # `workspaceFiles` facet, and the v1 lifecycle work made that one of exactly two LIVE
-        # routes (`reconciliation-router.ts`: workspaceFiles -> refresh-workspace, which IS in
-        # `LIVE_ACTION_KINDS`). So an instructions edit is now satisfied in place: the sandbox is
-        # never torn down, the durable cwd is never unmounted, and this tier would have gone on
-        # passing while measuring warm reuse — a false green, and one that also dissolves `park`'s
-        # rationale, since park's "one sandbox id is meaningful" argument rests on cold1
-        # reporting two on the same deployment.
+        # THIS USED TO EDIT `instructions.agents_md`, AND THAT STOPPED WORKING FOR A WHILE. The v1
+        # lifecycle work made `agentsMd` (the `workspaceFiles` facet) a LIVE route, so an
+        # instructions edit was satisfied in place: the sandbox was never torn down, the durable
+        # cwd was never unmounted, and this tier would have gone on passing while measuring warm
+        # reuse — a false green, and one that also dissolves `park`'s rationale, since park's "one
+        # sandbox id is meaningful" argument rests on cold1 reporting two on the same deployment.
         #
-        # `harness.permissions` is the `harnessSession` facet -> `reopen-session`, which is
-        # deliberately NOT live (a permission change must never be routed through an in-place
-        # refresh), so it still escalates to a rebuild. A rule naming a tool this journey never
-        # calls moves the facet without changing what the turn may do, so the transition cannot
-        # be confused with a behaviour change.
+        # That live route has since been withdrawn (no harness re-reads its instruction file, so
+        # the edit never took effect — see `matrix_l5_live_route_observed.py`), which means an
+        # instructions edit would force an eviction again today. The forcing function stays on
+        # `harness.permissions` anyway: it is the `harnessSession` facet -> `reopen-session`, which
+        # is deliberately NOT live and can never BECOME live, because a permission change must
+        # never be routed through an in-place refresh. A tier that depends on a route staying
+        # escalated should depend on the one that is escalated by policy, not by capability.
+        #
+        # A rule naming a tool this journey never calls moves the facet without changing what the
+        # turn may do, so the transition cannot be confused with a behaviour change.
         params = json.loads(json.dumps(params))
         params.setdefault("harness", {})["permissions"] = {
             "allow": [],
