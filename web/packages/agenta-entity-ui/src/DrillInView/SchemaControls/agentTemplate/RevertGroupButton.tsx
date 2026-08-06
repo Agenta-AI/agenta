@@ -56,7 +56,7 @@ export function RevertGroupButton({
                     onClick={(e) => e.stopPropagation()}
                     disabled={disabled}
                     // text-[11px] must not fight the colour class in tailwind-merge, so the
-                    // colour comes from the named token, not an arbitrary `text-[var(…)]`.
+                    // colour comes from the named token, not an arbitrary CSS variable.
                     className="!h-auto !px-1 !py-0.5 !text-[11px] !text-colorTextSecondary"
                 >
                     <ArrowCounterClockwise size={13} />
