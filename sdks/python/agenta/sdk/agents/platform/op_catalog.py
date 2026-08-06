@@ -56,7 +56,13 @@ _CTX_TOKEN_PREFIX = "$ctx."
 # Exact allowlist of handler call-refs a handler-mode op may target. Must match the
 # server's registered handlers (``PLATFORM_TOOL_HANDLERS`` in the API's
 # ``core/tools/platform_handlers.py``); an op naming anything else fails at import.
-_HANDLER_CALL_REFS = frozenset({f"{PLATFORM_OP_NAMESPACE}test_run"})
+_HANDLER_CALL_REFS = frozenset(
+    {
+        f"{PLATFORM_OP_NAMESPACE}test_run",
+        f"{PLATFORM_OP_NAMESPACE}read_config",
+        f"{PLATFORM_OP_NAMESPACE}commit_revision",
+    }
+)
 
 # The ephemeral per-call description (R12). The model writes it, the frontend shows it beside
 # the call, and the runner deletes it before it builds the request. It is NOT the commit message:
@@ -1453,8 +1459,11 @@ _READ_CONFIG_OPS: tuple = (
         PlatformOp(
             op="read_config",
             description=_READ_CONFIG_DESCRIPTION,
-            method="POST",
-            path="/api/workflows/revisions/read-config",
+            # Handler mode: the logic runs behind a registered handler in the API process,
+            # reached through the generic `/tools/call`. There is no public read-config
+            # endpoint any more, because every detail of it was agent-shaped and no second
+            # consumer existed.
+            handler=f"{PLATFORM_OP_NAMESPACE}read_config",
             input_schema=_READ_CONFIG_INPUT_SCHEMA,
             context_bindings={
                 "target.workflow_variant_id": "$ctx.workflow.variant.id",
@@ -1513,12 +1522,12 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         PlatformOp(
             op="commit_revision",
             description=_COMMIT_REVISION_DESCRIPTION,
-            method="POST",
-            # The scoped sibling of `/revisions/commit`, in both flag states. It confines
-            # every write to `parameters.agent`, and it is the ONLY commit surface the
-            # agent is given: the path comes from this catalog, and the sandbox holds no
-            # credential, so an unscoped agent commit cannot be expressed.
-            path="/api/workflows/revisions/commit/agent",
+            # Handler mode. The confinement to `parameters.agent` is a property of the
+            # HANDLER now rather than of a scoped route, and it is unforgeable for the same
+            # reason it was before: the call_ref comes from this catalog, the runner makes
+            # the call from outside the sandbox, and the sandbox holds no credential. There
+            # is no field an agent can set to reach an unscoped commit.
+            handler=f"{PLATFORM_OP_NAMESPACE}commit_revision",
             input_schema=_COMMIT_REVISION_INPUT_SCHEMA,
             context_bindings={
                 "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"

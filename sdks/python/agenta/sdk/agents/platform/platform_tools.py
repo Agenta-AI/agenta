@@ -37,6 +37,11 @@ _ENABLE_PLATFORM_HANDLERS_ENV = "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS"
 _DISABLED_ENV_VALUES = {"0", "false", "f", "n", "no", "off", "disable", "disabled"}
 # Empty string intentionally follows the default-on behavior. Unset now means enabled.
 
+# Ops whose ONLY transport is handler mode, so disabling handler dispatch does not degrade
+# them, it removes them. Skipping an optional op is a degradation; skipping the only
+# transport for a core capability is an outage wearing a warning's clothes.
+_HANDLER_REQUIRED_OPS = frozenset({"read_config", "commit_revision"})
+
 
 def _platform_handlers_enabled() -> bool:
     value = os.getenv(_ENABLE_PLATFORM_HANDLERS_ENV)
@@ -73,6 +78,20 @@ class AgentaPlatformToolResolver:
         for tool_config in tools:
             op = get_platform_op(tool_config.op)
             if op.handler is not None and not _platform_handlers_enabled():
+                if op.op in _HANDLER_REQUIRED_OPS:
+                    # Loud, not silent. Dropping this tool would leave the model with no
+                    # way to read or change its own configuration and no error to report,
+                    # so it improvises: it writes workspace files and says it succeeded.
+                    # A failed resolution tells the operator what they turned off.
+                    error = GatewayToolResolutionError(
+                        f"{_ENABLE_PLATFORM_HANDLERS_ENV} is disabled, which removes "
+                        f"{op.op!r}: this agent cannot read or change its own "
+                        "configuration without it. Unset that variable, or remove the "
+                        "config tools from this agent.",
+                        reference=op.reserved_id,
+                    )
+                    log.error("agent: %s", error)
+                    raise error
                 log.warning(
                     "agent: skipping platform handler-mode op %r because "
                     "%s is explicitly disabled",

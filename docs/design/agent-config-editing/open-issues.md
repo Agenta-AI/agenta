@@ -543,3 +543,36 @@ reader can act on it cold.
 - **Acceptance test.** The benchmark's claude cells report the InputValidationError
   rate per run. A shape fix is proven when that rate is zero across a full run and the
   corrected and raw one-shot numbers converge.
+
+## `commit_revision`'s tool-list membership is not governed by the feature flag
+
+- Found while auditing the `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` kill switch for the
+  API migration, 6 August 2026. Recorded for Mahmoud's ruling; tonight's build
+  is compatible with every option below.
+- The fact: `read_config` enters the catalog only when
+  `AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED` is on, and `build_kit.py` gates
+  its build-kit membership on that. **`commit_revision` is unconditional**: a
+  plain entry in `DEFAULT_BUILD_KIT_OPS`, present in both flag states. Verified
+  by resolving the build kit with the flag on and off.
+- Why it matters: the flag reads like the switch that governs config editing, and
+  for reads it is. For writes it is not. Anything that reasons about blast radius
+  from "the feature is behind a flag" is half right, and the wrong half is the
+  one that writes.
+- Three options were weighed when the kill switch forced the question:
+  1. **Fail loudly on both ops** (BUILT). Disabling handler dispatch now raises at
+     resolution rather than silently dropping the tools. Worst case: a deployment
+     that set the switch off gets a loud, self-explaining failure naming the
+     variable and the fix. It satisfies both standing rulings at once (the
+     endpoints get deleted, and no capability is lost silently).
+  2. Flip `read_config` only. Restores the "contradictory setup" bound, but the
+     commit route survives, so the migration half-lands and the public surface
+     keeps an agent-shaped endpoint. Rejected.
+  3. **Gate `commit_revision`'s build-kit membership on the feature flag**, making
+     the whole config-editing surface consistently flagged. Argued on the merits:
+     it makes the flag mean what everyone already believes it means, and it would
+     shrink the kill switch's blast radius to the contradictory setup for BOTH
+     ops. Not built, because it changes which tools a flag-off agent gets TODAY,
+     which is a live general-path behavior change and exactly the class this
+     audit exists to catch. It deserves a decision, not an initiative.
+- Option 3 remains available. Nothing in the fail-loud build fights it, and it
+  can be layered on later as its own change.

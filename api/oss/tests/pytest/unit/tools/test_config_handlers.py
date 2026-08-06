@@ -515,3 +515,59 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
 
         assert not invalidated
         assert not emitted
+
+
+class TestRefusalsSplitByWhoCausedThem:
+    """Who authored the mistake decides whether the model ever hears about it.
+
+    Arguments are the MODEL's, so a malformed one comes back as the canonical envelope over
+    HTTP 200 and reaches it. A context binding is OURS: the runner fills it server-side, so
+    a missing one is a non-2xx the runner redacts. Telling a model to fix something it
+    cannot reach spends its turn and teaches it nothing.
+    """
+
+    @pytest.mark.parametrize(
+        "handler,arguments",
+        [
+            (handle_read_config, "this is not json"),
+            (handle_commit_revision, "[1, 2, 3]"),
+            (handle_read_config, 42),
+        ],
+        ids=["not-json", "json-but-not-an-object", "not-even-a-string"],
+    )
+    async def test_a_model_authored_mistake_comes_back_as_an_envelope(
+        self, handler, arguments
+    ):
+        result = await handler(
+            arguments=arguments,
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=_service(),
+        )
+
+        assert result.ok is False
+        assert result.content.code == "invalid_arguments"
+        assert result.content.retryable is False
+        assert result.content.next_step
+
+    @pytest.mark.parametrize(
+        "handler,arguments",
+        [
+            (handle_read_config, {"target": {}}),
+            (handle_commit_revision, {"workflow_revision": {}}),
+        ],
+        ids=["read", "commit"],
+    )
+    async def test_our_own_bug_never_reaches_the_model(self, handler, arguments):
+        # The binding is filled server-side, so a missing one means the runner did not do
+        # its job. It stays an exception, which the boundary turns into a non-2xx and the
+        # runner redacts, rather than an envelope inviting the model to fix our plumbing.
+        from oss.src.core.tools.platform_handlers import PlatformToolHandlerRefused
+
+        with pytest.raises(PlatformToolHandlerRefused):
+            await handler(
+                arguments=arguments,
+                project_id=uuid4(),
+                user_id=uuid4(),
+                workflows_service=_service(),
+            )

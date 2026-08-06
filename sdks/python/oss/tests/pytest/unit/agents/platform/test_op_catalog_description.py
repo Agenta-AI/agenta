@@ -186,13 +186,14 @@ async def test_the_resolver_puts_the_strip_list_on_the_spec(connection, op_name)
 
 
 async def test_both_dispatch_modes_carry_the_strip_list(connection):
-    # `commit_revision` is endpoint mode (a direct `call`); `test_run` is handler mode (a
-    # `call_ref`). Both must strip, so both must carry the list.
+    # Both are handler mode now (a `call_ref`). The list is what the runner reads to strip
+    # the ephemeral note before dispatch, so it has to survive the transport change: an op
+    # that lost it would send the note to the API, where nothing has a field for it.
     resolution = await _resolver(connection).resolve(
         [PlatformToolConfig(op="commit_revision"), PlatformToolConfig(op="test_run")]
     )
     by_name = {spec.name: spec for spec in resolution.tool_specs}
-    assert by_name["commit_revision"].call is not None
+    assert by_name["commit_revision"].call_ref == "tools.agenta.commit_revision"
     assert by_name["commit_revision"].ephemeral_args == [EPHEMERAL_DESCRIPTION_ARG]
     assert by_name["test_run"].call_ref == "tools.agenta.test_run"
     assert by_name["test_run"].ephemeral_args == [EPHEMERAL_DESCRIPTION_ARG]

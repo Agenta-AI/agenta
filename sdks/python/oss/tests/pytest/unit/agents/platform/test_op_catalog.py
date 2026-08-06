@@ -393,12 +393,14 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
         [PlatformToolConfig(op="commit_revision")]
     )
     spec = resolution.tool_specs[0]
-    # The SCOPED sibling route, never the open one. The confinement to `parameters.agent`
-    # lives on that route, and this path is where the agent's write scope is decided: the
-    # model cannot ask for a different one, because the path comes from this catalog.
-    assert spec.call.path == "/api/workflows/revisions/commit/agent"
-    # The context binding rides as call.context — the runner fills it from runContext at dispatch.
-    assert spec.call.context == {
+    # Handler mode: there is no scoped route any more. The confinement to `parameters.agent`
+    # is a property of the handler this call_ref names, and it is unforgeable for the same
+    # reason the route was: the ref comes from this catalog, the runner calls from outside
+    # the sandbox, and the sandbox holds no credential.
+    assert spec.call_ref == "tools.agenta.commit_revision"
+    assert spec.call is None
+    # The binding rides as a spec-level context binding the relay injects at dispatch.
+    assert spec.context_bindings == {
         "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
     }
     # The bound field is gone from the model-visible schema (and its `required`); the payload fields
@@ -716,3 +718,58 @@ async def test_duplicate_platform_tool_rejected(connection):
                 PlatformToolConfig(op="discover_tools"),
             ]
         )
+
+
+# --- the kill switch, and what it may and may not take away ------------------
+
+
+async def test_disabling_handlers_still_skips_the_optional_op(connection, monkeypatch):
+    # `test_run` is genuinely optional: an agent without it loses a convenience and can
+    # still do its job, so the switch keeps degrading it quietly.
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "false")
+
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="test_run")]
+    )
+
+    assert resolution.tool_specs == []
+
+
+@pytest.mark.parametrize("op", ["commit_revision", "read_config"])
+async def test_disabling_handlers_cannot_silently_remove_config_editing(
+    connection, monkeypatch, op
+):
+    # The asymmetry that matters: skipping an optional op is a degradation; skipping the
+    # only transport for a core capability is an outage wearing a warning's clothes.
+    #
+    # Dropped silently, the model has no commit tool AND no error to report, so it
+    # improvises: it writes workspace files and says it succeeded. That is the exact
+    # failure this whole feature exists to prevent, so it fails at resolution instead.
+    if op == "read_config" and not _ordered_operations_enabled():
+        # `read_config` enters the catalog only with ordered operations on, which is the
+        # flag gating this whole surface. `commit_revision` does NOT (it is in the build
+        # kit unconditionally), which is why that half of this cell runs in both states and
+        # is the one that decides the upgrade blast radius.
+        pytest.skip("read_config is not in the catalog with ordered operations off")
+
+    monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "false")
+
+    with pytest.raises(GatewayToolResolutionError) as caught:
+        await _resolver(connection).resolve([PlatformToolConfig(op=op)])
+
+    message = str(caught.value)
+    # What happened, what it cost, and the one-step fix.
+    assert "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS" in message
+    assert op in message
+    assert "Unset" in message
+
+
+async def test_the_switch_left_alone_changes_nothing(connection, monkeypatch):
+    # Unset means enabled, so the overwhelmingly common deployment is untouched.
+    monkeypatch.delenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", raising=False)
+
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="commit_revision")]
+    )
+
+    assert resolution.tool_specs[0].call_ref == "tools.agenta.commit_revision"

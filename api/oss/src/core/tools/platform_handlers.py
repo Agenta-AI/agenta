@@ -627,14 +627,40 @@ def _verdict(
 # public API carries no agent-specific surface and one error contract covers everything.
 
 
+class _ArgumentsRefused(Exception):
+    """The MODEL authored these arguments, so the model is the one who can fix them.
+
+    Refusals split by WHO CAUSED THEM. A malformed argument object is model-caused and
+    model-fixable, so it comes back as the canonical envelope over HTTP 200 and reaches the
+    model. A missing context binding is OUR bug: the runner fills it, so it stays a non-2xx
+    that the runner redacts. Telling a model to fix something it cannot reach spends its
+    turn and teaches it nothing.
+    """
+
+    def __init__(self, message: str, *, next_step: str) -> None:
+        super().__init__(message)
+        self.error = AgentError(
+            code="invalid_arguments",
+            message=message,
+            retryable=False,
+            next_step=next_step,
+        )
+
+
 def _parse_arguments(arguments: Any) -> Dict[str, Any]:
     if isinstance(arguments, str):
         try:
             arguments = json.loads(arguments)
         except json.JSONDecodeError as e:
-            raise PlatformToolHandlerRefused("arguments must be a JSON object.") from e
+            raise _ArgumentsRefused(
+                f"arguments are not valid JSON: {e.msg}",
+                next_step="Send the arguments as a JSON object.",
+            ) from e
     if not isinstance(arguments, dict):
-        raise PlatformToolHandlerRefused("arguments must be a JSON object.")
+        raise _ArgumentsRefused(
+            f"arguments must be a JSON object, not {type(arguments).__name__}.",
+            next_step="Send the arguments as a JSON object.",
+        )
     return arguments
 
 
@@ -678,7 +704,10 @@ async def handle_read_config(
     if workflows_service is None:
         raise PlatformToolHandlerRefused("read_config is unavailable.")
 
-    parsed = _parse_arguments(arguments)
+    try:
+        parsed = _parse_arguments(arguments)
+    except _ArgumentsRefused as e:
+        return PlatformHandlerResult.failure(e.error)
     variant_id = _bound_variant_id(parsed, key="target")
     target = parsed.get("target") or {}
 
@@ -752,7 +781,10 @@ async def handle_commit_revision(
     if workflows_service is None:
         raise PlatformToolHandlerRefused("commit_revision is unavailable.")
 
-    parsed = _parse_arguments(arguments)
+    try:
+        parsed = _parse_arguments(arguments)
+    except _ArgumentsRefused as e:
+        return PlatformHandlerResult.failure(e.error)
     variant_id = _bound_variant_id(parsed, key="workflow_revision")
     payload = dict(parsed.get("workflow_revision") or {})
     payload["workflow_variant_id"] = str(variant_id)
