@@ -596,6 +596,12 @@ reader can act on it cold.
   runner log line is `ACP write retry 1/3`. Both say 1 of 3. They are different
   mechanisms at different layers, and one G1 trial ending in that text had
   `gates_approved: 1` and a real `new_revision_id`, so its turn had worked.
+- **The cheapest change here is not a fix, it is a rename.** Three people independently
+  read those two messages as one mechanism because both layers happened to choose the
+  same retry budget and the same phrasing. Making the runner's own line unmistakable
+  (naming the layer and the endpoint, and not formatting as `N/3`) costs one string and
+  removes a class of misattribution that consumed most of a night. Worth doing whenever
+  the runner is next touched for another reason; not worth a landing of its own.
 - **Symptom, as far as anyone can actually observe it: NONE.** Grepping every pi row of
   all eight benchmark runs for `fetch failed` or `ACP write` returns zero hits. Under
   heavy concurrent `pi_core` load between 22:36 and 23:00 there were no client-visible
