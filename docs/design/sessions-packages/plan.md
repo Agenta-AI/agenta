@@ -140,18 +140,22 @@ be props/slots rather than baked in, or mobile inherits a dead control.
 slot technique. `AgentCard`'s avatar colour hashes the **workflow id**, not the name — two agents
 share the name "New agent" constantly, and hashing the name gave them the same avatar.
 
-**Scoping (2026-08-06):** unlike lane 3, these are DATA-coupled, so each needs a headless
-contract before its markup moves — the antd swap itself is the easy part (same Radix
-pattern as `SessionRow`):
+**STATUS (2026-08-06): shipped, with a narrower cut than first listed.** The test applied:
+a component ports only if a headless contract survives with logic left in it.
 
-- `AgentCard` (196 lines): antd Button/Dropdown/Tooltip, but takes `AppWorkflowRow` (app
-  store type) and renders `AgentActivityCell` + `UserReference` (data-connected). Needs an
-  agent-card view-model + activity/owner slots.
-- `NextTriggers` (181): antd Skeleton/Tooltip only, but reads `agentsWorkflowsAtom` (app
-  store); trigger data should come via `@agenta/entities/gatewayTrigger`.
-- `UsageSummary` (141): coupled to the observability dashboard state and `Filters/Sort` —
-  the hardest boundary; may stay app-side longer or take charts as slots.
-- `NewAgentButton`: locate in agent-home; the create-blank-or-from-template control.
+- `AgentCard` ✅ → `@agenta/entity-ui/agent` (antd-free, eslint-scoped to `src/agent/**`):
+  neutral `AgentCardData` + callbacks; the data-connected cells (`AgentActivityCell`,
+  `UserReference`) arrive as `activity`/`owner` slots. The oss `components/AgentCard`
+  became the adapter, so the two call-sites didn't change.
+- `NextTriggers` ✅ → `NextTriggersSection` in the same module: trigger data via
+  `@agenta/entities/gatewayTrigger`; the classified agents list is app state, so display
+  names arrive as an `agentNames` map from the oss adapter.
+- `UsageSummary` ✗ stays app-side: it is a thin composition over observability dashboard
+  state, `Filters/Sort`, and the dynamic `AnalyticsDashboard` — a port would leave an
+  empty shell, and mobile won't render those charts.
+- `NewAgentButton` ✗ stays app-side: router pushes + the `AGENT_TEMPLATES` catalog; same
+  empty-shell verdict.
+- `timeAgo` graduated to `@agenta/shared/utils` (was about to grow a third copy).
 
 ---
 

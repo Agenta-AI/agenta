@@ -1,4 +1,9 @@
-/** Coarse relative time for a row's activity stamp — "just now", "5m ago", "3d ago". */
+/**
+ * Coarse relative time for an activity stamp — "just now", "5m ago", "3d ago".
+ *
+ * Deliberately coarse: list rows re-render on their own cadence (a shared minute tick, a
+ * refetch), so sub-minute precision would only promise a liveness the row doesn't have.
+ */
 export const timeAgo = (ts?: number): string => {
     if (!ts) return ""
     const s = Math.max(0, Math.round((Date.now() - ts) / 1000))

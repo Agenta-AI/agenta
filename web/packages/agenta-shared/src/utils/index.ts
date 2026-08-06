@@ -19,6 +19,7 @@ export type {FilterItemLabel} from "./filterItems"
 // Date/time utilities
 export {default as dayjs} from "./dayjs"
 export {normalizeEntityTimestamps, normalizeTimestamps, parseEntityDate} from "./entityTransforms"
+export {timeAgo} from "./timeAgo"
 
 // Path utilities for nested data navigation
 export {

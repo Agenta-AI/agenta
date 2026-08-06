@@ -1,6 +1,7 @@
 import {memo, type ReactNode} from "react"
 
 import {pendingGateLabel, type SessionRowVm} from "@agenta/sessions/row"
+import {timeAgo} from "@agenta/shared/utils"
 import {
     Button,
     DropdownMenu,
@@ -12,7 +13,6 @@ import {
 import {DotsThreeIcon, PushPinIcon, PushPinSlashIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-import {timeAgo} from "./assets/timeAgo"
 import {Tip} from "./assets/Tip"
 import {isMenuDivider, type SessionMenuEntry} from "./menu"
 import {SessionAgentName} from "./SessionAgentName"
