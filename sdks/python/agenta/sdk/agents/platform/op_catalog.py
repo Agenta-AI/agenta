@@ -910,11 +910,12 @@ _COMMIT_REVISION_DESCRIPTION = (
 
 _READ_CONFIG_DESCRIPTION = """Read your own configuration, or one part of it.
 
-Send `target.path`: an array of segments from the configuration root, the same shape
-`commit_revision` takes. Omit it to read everything you can change.
+Send `target`, an object holding `path`: an array of segments from the configuration
+root, the same shape `commit_revision` takes. Omit `path` to read everything you can
+change.
 
-    ["parameters","agent","llm"]
-    ["parameters","agent",{"list":"skills","key":"release-qa"},"body"]
+    {"target": {"path": ["parameters","agent","llm"]}}
+    {"target": {"path": ["parameters","agent",{"list":"skills","key":"release-qa"},"body"]}}
 
 The response carries `base_revision_id`. Copy it into your next commit's `base_revision_id`.
 If the head moved in between, the commit answers 409 and you read again.
