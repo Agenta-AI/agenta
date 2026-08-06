@@ -2,8 +2,6 @@ export type { ArchiveSimpleWorkflowRequest } from "./ArchiveSimpleWorkflowReques
 export type { ArchiveWorkflowRequest } from "./ArchiveWorkflowRequest.js";
 export type { ArchiveWorkflowRevisionRequest } from "./ArchiveWorkflowRevisionRequest.js";
 export type { ArchiveWorkflowVariantRequest } from "./ArchiveWorkflowVariantRequest.js";
-export type { CommitAgentWorkflowRevisionRequest } from "./CommitAgentWorkflowRevisionRequest.js";
-export type { CommitWorkflowRevisionRequest } from "./CommitWorkflowRevisionRequest.js";
 export type { FetchSimpleWorkflowRequest } from "./FetchSimpleWorkflowRequest.js";
 export type { FetchWorkflowCatalogHarnessRequest } from "./FetchWorkflowCatalogHarnessRequest.js";
 export type { FetchWorkflowCatalogPresetRequest } from "./FetchWorkflowCatalogPresetRequest.js";
@@ -17,7 +15,6 @@ export type { ListWorkflowCatalogTemplatesRequest } from "./ListWorkflowCatalogT
 export type { QueryWorkflowRevisionsRequest } from "./QueryWorkflowRevisionsRequest.js";
 export type { QueryWorkflowsRequest } from "./QueryWorkflowsRequest.js";
 export type { QueryWorkflowVariantsRequest } from "./QueryWorkflowVariantsRequest.js";
-export type { ReadConfigRequest } from "./ReadConfigRequest.js";
 export type { SimpleWorkflowCreateRequest } from "./SimpleWorkflowCreateRequest.js";
 export type { SimpleWorkflowEditRequest } from "./SimpleWorkflowEditRequest.js";
 export type { SimpleWorkflowQueryRequest } from "./SimpleWorkflowQueryRequest.js";
@@ -27,6 +24,7 @@ export type { UnarchiveWorkflowRevisionRequest } from "./UnarchiveWorkflowRevisi
 export type { UnarchiveWorkflowVariantRequest } from "./UnarchiveWorkflowVariantRequest.js";
 export type { WorkflowCreateRequest } from "./WorkflowCreateRequest.js";
 export type { WorkflowEditRequest } from "./WorkflowEditRequest.js";
+export type { WorkflowRevisionCommitRequest } from "./WorkflowRevisionCommitRequest.js";
 export type { WorkflowRevisionCreateRequest } from "./WorkflowRevisionCreateRequest.js";
 export type { WorkflowRevisionDeployRequest } from "./WorkflowRevisionDeployRequest.js";
 export type { WorkflowRevisionEditRequest } from "./WorkflowRevisionEditRequest.js";
