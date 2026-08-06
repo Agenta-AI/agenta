@@ -183,7 +183,7 @@ const Webhooks: React.FC = () => {
                     render: (_value, record) => {
                         const url = record.data?.url
                         return (
-                            <span className="truncate" title={url}>
+                            <span className="block truncate" title={url}>
                                 {formatDestination(url)}
                             </span>
                         )
@@ -197,7 +197,7 @@ const Webhooks: React.FC = () => {
                     render: (_value, record) => {
                         const value = record.data?.event_types?.join(", ") || "-"
                         return (
-                            <span className="truncate" title={value}>
+                            <span className="block truncate" title={value}>
                                 {value}
                             </span>
                         )

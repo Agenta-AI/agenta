@@ -43,7 +43,7 @@ const DeleteAccount: React.FC = () => {
             <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
                     <Typography.Text strong>Username</Typography.Text>
-                    <Input value={user?.username ?? ""} readOnly className="max-w-[560px]" />
+                    <Input value={user?.username ?? ""} disabled />
                     <Typography.Text type="secondary" className="text-xs">
                         How you appear in member lists and audit entries.
                     </Typography.Text>
@@ -51,7 +51,7 @@ const DeleteAccount: React.FC = () => {
 
                 <div className="flex flex-col gap-1.5">
                     <Typography.Text strong>Email</Typography.Text>
-                    <Input value={email} readOnly className="max-w-[560px] font-mono" />
+                    <Input value={email} disabled className="font-mono" />
                     <Typography.Text type="secondary" className="text-xs">
                         Used for sign-in and for organization invitations.
                     </Typography.Text>

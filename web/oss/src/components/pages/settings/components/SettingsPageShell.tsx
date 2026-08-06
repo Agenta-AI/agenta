@@ -24,7 +24,8 @@ export interface SettingsPageShellProps {
     /** Optional tertiary docs link, rendered at the far right of the header. */
     docs?: {label: string; href: string}
     /**
-     * Content cap. `full` (default) = no cap. `table` = 1120px, `form` = 640px. All
+     * Content cap. `full` (default) = no cap. `table` = 1120px, `form` = 640px. Caps the
+     * body only — the header and its divider always span the full page width. All
      * left-anchored, so eye travel from the nav rail to the content stays constant.
      */
     variant?: "full" | "table" | "form"
@@ -55,20 +56,13 @@ const SettingsPageShell = ({
                 fullHeight ? "h-full min-h-0" : "min-h-full",
             )}
         >
-            <div
-                className={clsx(
-                    "flex w-full flex-col gap-6",
-                    fullHeight && "min-h-0 flex-1",
-                    variant === "form" && "max-w-[640px]",
-                    variant === "table" && "max-w-[1120px]",
-                )}
-            >
+            <div className={clsx("flex w-full flex-col gap-6", fullHeight && "min-h-0 flex-1")}>
                 <header className="flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary pb-6">
                     <div className="flex min-w-0 flex-col gap-1">
                         {/* Sized off antd's own heading tokens so it scales and flips with
                             the theme. `m-0` kills the UA margin (preflight is off). */}
                         <h1
-                            className="m-0 truncate"
+                            className="m-0 truncate text-colorText"
                             style={{
                                 fontSize: "var(--ant-font-size-heading-3)",
                                 lineHeight: "var(--ant-line-height-heading-3)",
@@ -93,7 +87,16 @@ const SettingsPageShell = ({
                     ) : null}
                 </header>
 
-                <div className={clsx("flex flex-col", fullHeight && "min-h-0 flex-1")}>
+                {/* The cap lives on the content only, so the header + its divider span the
+                    full page width while the body stays left-anchored at its variant width. */}
+                <div
+                    className={clsx(
+                        "flex flex-col",
+                        fullHeight && "min-h-0 flex-1",
+                        variant === "form" && "max-w-[640px]",
+                        variant === "table" && "max-w-[1120px]",
+                    )}
+                >
                     {children}
                 </div>
             </div>

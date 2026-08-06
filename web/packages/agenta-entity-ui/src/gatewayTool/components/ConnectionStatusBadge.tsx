@@ -15,5 +15,5 @@ export default function ConnectionStatusBadge({connection}: {connection: ToolCon
     if (!isActive) {
         return <StatusIndicator tone="default" label="Inactive" />
     }
-    return <StatusIndicator tone="processing" label="Pending" />
+    return <StatusIndicator tone="warning" label="Pending" />
 }

@@ -204,10 +204,19 @@ export default function GatewayToolsSection() {
             createStandardColumns<ToolRow>([
                 {
                     type: "text",
+                    key: "name",
+                    title: "Name",
+                    width: 200,
+                    fixed: "left",
+                    render: (_value, record) => (
+                        <Typography.Text>{record.name || record.slug}</Typography.Text>
+                    ),
+                },
+                {
+                    type: "text",
                     key: "integration_key",
                     title: "Tool",
                     width: 180,
-                    fixed: "left",
                     render: (_value, record) => (
                         <Tag
                             bordered={false}
@@ -216,15 +225,6 @@ export default function GatewayToolsSection() {
                         >
                             {record.integration_key}
                         </Tag>
-                    ),
-                },
-                {
-                    type: "text",
-                    key: "name",
-                    title: "Name",
-                    width: 200,
-                    render: (_value, record) => (
-                        <Typography.Text>{record.name || record.slug}</Typography.Text>
                     ),
                 },
                 // The slug is what you reference in code, so it gets its own copy button.

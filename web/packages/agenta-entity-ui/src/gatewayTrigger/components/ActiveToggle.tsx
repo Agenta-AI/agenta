@@ -71,7 +71,7 @@ export default function ActiveToggle({
                         aria-pressed={active}
                         onClick={handleClick}
                     >
-                        {loading ? null : active ? <Pause size={16} /> : <Play size={16} />}
+                        {loading ? null : active ? <Pause size={14} /> : <Play size={14} />}
                     </LoadingButton>
                 </TooltipTrigger>
                 <TooltipContent>{active ? "Pause" : "Resume"}</TooltipContent>
