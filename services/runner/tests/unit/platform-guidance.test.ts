@@ -29,6 +29,9 @@ const run = (
   isPi: false,
   agentMountedPath: undefined,
   agentMountSkipped: false,
+  // A config-editing agent by default, since that is what the skill sentence addresses. The
+  // gate's other arm is exercised explicitly below.
+  toolNames: ["commit_revision"],
   ...overrides,
 });
 
@@ -145,5 +148,45 @@ describe("the context budget", () => {
       skillLocationAppendix().text.length < 600,
       `the always-on guidance is ${skillLocationAppendix().text.length} chars`,
     );
+  });
+});
+
+describe("the skill sentence follows the TOOL, not the flag", () => {
+  it("is absent for a run that does not offer commit_revision", async () => {
+    // A plain agent with no config tools would otherwise read a sentence telling it to use a
+    // tool it does not have. The block is guidance about this environment, so naming a
+    // capability the run lacks is the confusion it exists to remove.
+    const guidance = platformGuidanceAppendix(run({ toolNames: [] }));
+    assert.equal(guidance, undefined, "and with nothing else to say, the block is silent");
+  });
+
+  it("is present for a run that offers it, alongside unrelated tools", async () => {
+    const guidance = platformGuidanceAppendix(
+      run({ toolNames: ["bash", "commit_revision", "read_config"] }),
+    );
+    assert.ok(guidance?.includes("parameters.agent.skills"));
+  });
+
+  it("does NOT gate the mount paragraph, which has no tool dependency", async () => {
+    // The two contributors are independent. A Codex run with no config tools still needs to be
+    // told where its durable folder is, and silencing that with the skill sentence would be the
+    // mount bug all over again.
+    const guidance = platformGuidanceAppendix(
+      run({ toolNames: [], agentMountedPath: MOUNT }),
+    );
+    assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
+    assert.ok(!guidance?.includes("parameters.agent.skills"));
+  });
+
+  it("keys on the tool name rather than on the ordered-operations flag", async () => {
+    // THE AXIS IS DELIBERATE. The natural guess is the flag that gates the config-editing
+    // surface, and it is the wrong one: `commit_revision` is in the default build kit
+    // unconditionally and the flag changes the commit's DELTA SHAPE, not the tool's existence.
+    // A flag-off agent with the build kit really can add a skill (its legacy description says to
+    // send the whole list), so gating on the flag would delete correct guidance from the
+    // release-default configuration. Presence also catches what a flag check cannot: a flag-ON
+    // agent that simply has no config tools.
+    assert.ok(platformGuidanceAppendix(run({ toolNames: ["commit_revision"] })));
+    assert.equal(platformGuidanceAppendix(run({ toolNames: ["read_config"] })), undefined);
   });
 });

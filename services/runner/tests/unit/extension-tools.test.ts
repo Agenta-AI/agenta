@@ -430,6 +430,12 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       hasUI: false,
     });
     assert.equal(noUi.block, true, "no UI plane fails closed");
+    // The block is only half of it. A broken approval channel used to answer with a bare
+    // statement of fact and no next step, which is the shape that produced "I'll retry as soon
+    // as that is allowed".
+    assert.match(noUi.reason, /Nothing ran/);
+    assert.match(noUi.reason, /Tell the user the approval step is unavailable/);
+    assert.match(threw.reason, /dialog transport gone/, "the cause survives");
   });
 
   it("custom-tool gate: a deny returns the reason WITHOUT relaying (early return)", async () => {
