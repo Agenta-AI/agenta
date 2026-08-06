@@ -58,7 +58,30 @@
         {
           "check": "revision_created"
         }
-      ]
+      ],
+      "baseline": {
+        "note": "Measured by this benchmark, run results/20260806-200904 (3 cells x 3 trials). 0/9 one-shot. Kept here because the row measures TWO different failures and a future reader should not fix the wrong one.",
+        "shapes": [
+          {
+            "cells": [
+              "claude-haiku-local",
+              "pi-luna-local"
+            ],
+            "trials": 6,
+            "shape": "no_action",
+            "detail": "Behavioural adoption: the model reads the handbook and adopts it for the conversation instead of storing it. pi even echoes the user's own persistence signal back \u2014 \"I'll follow it from now on\" \u2014 while nothing is stored. The signal is received and misapplied; this is not a discovery failure."
+          },
+          {
+            "cells": [
+              "codex-luna-local"
+            ],
+            "trials": 2,
+            "shape": "no_action",
+            "detail": "\"I couldn't find handbook.md in the workspace. Please save it there.\" The file was in the durable agent folder, where the user said they put it. A probe ruled out reachability: asked to READ the same seeded file, codex found it with both vague (\"your folder\") and explicit (\"your durable agent folder\") wording. Surviving hypothesis, untested at n>1: the search changes with task framing, and an instructions-shaped task sends it to the workspace root where AGENTS.md lives."
+          }
+        ],
+        "candidate_change": "A persistence-signal sentence (\"from now on\", \"always\", \"remember to\" = a configuration change, not a conversational instruction). DELIBERATELY NOT PROPOSED YET: this row is the CONTROL for the instructions-source sentence, which predicts fm-01 will not move. Landing a second sentence first would make neither delta attributable, and 9 trials should not pre-empt the 64 that wrong_surface costs."
+      }
     },
     {
       "id": "fm-02-stale-recitation",
