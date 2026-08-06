@@ -77,6 +77,30 @@ mutation. This script does: create a real workflow + revision, invoke a live age
 revision landed with REST fetch-back. Treat a FAIL here as blocking, the same as any other gate
 FAIL.
 
+## Tiers: coached vs. mechanism-blind
+
+Every cell in this gate (`qa_product.py`'s journeys, `qa_commit_approval.py`,
+`qa_probe.py`, and all `matrix_w*.py` cells) declares which of two tiers it belongs to, in its
+own docstring:
+
+- **Coached (backend-path test).** The prompt names the mechanism verbatim — which tool, which
+  operation, which target path. This proves OUR CODE works (the gate, the base check, the
+  authorization handoff, the sandbox path) when the right call is made. It proves NOTHING about
+  whether a model finds that call from a plain-language human ask.
+- **Mechanism-blind (model-behavior test).** The prompt is phrased the way a real user types —
+  no tool names, no operation names, no schema hints. Only these cells license a claim about
+  what the model can do unprompted.
+
+**Rule: claims of model behavior may only cite mechanism-blind cells.** Every cell currently in
+this directory is coached tier — they test backend paths, correctly, but do not stand in for
+model-discovery evidence. The gap this rule exists to close, found live: asked in plain words to
+"add the skill I saved in your folder," Haiku invented a nonexistent marker syntax
+(`{"@ag.embed": {"@ag.references": ...}}`) and the engine accepted it as literal data — a failure
+none of the coached cells (including `matrix_w7.py`, whose prompt names `@ag.file` outright)
+could ever have caught, because they never test whether the model reaches for the real mechanism
+on its own. The mechanism-blind tier is being built separately as the one-shot benchmark (Tier
+B), reusing `qa_matrix_lib.py` — do not duplicate it here.
+
 ## When results lie
 
 The runtime **fails open**: a component can break, get logged, and the turn still succeeds with a
@@ -99,28 +123,54 @@ proves nothing about the durable working directory (LESSONS #16).
   side per cell before this driver runs again; do not resolve it blind.
 - `resources/qa_probe.py` — a one-turn wire probe: `uv run resources/qa_probe.py` confirms the
   product path answers at all before running the full gate.
-- `resources/qa_commit_approval.py` — the mandatory pre-handoff commit-approval round trip (see
-  above). Self-contained; does not import `qa_product.py`, so it still runs while that file is
-  broken.
+- `resources/qa_commit_approval.py` — **[coached]** the mandatory pre-handoff commit-approval
+  round trip (see above). Self-contained; does not import `qa_product.py`, so it still runs
+  while that file is broken.
 - `resources/qa_matrix_lib.py` — shared helpers (session/turn plumbing, workflow/revision REST
   calls, the multi-round approval loop) for the `matrix_w*.py` adversarial cells below. Import
   only, no CLI.
-- `resources/matrix_w3.py` — two sessions, disjoint edits, one hits a stale `base_revision_id`
-  and must recover; asserts both edits land in the final head. Guards the optimistic-concurrency
-  base check.
-- `resources/matrix_w4.py` — a pending approval whose base goes stale while it waits (a second
-  session commits first); the EXECUTE-time check must catch it, not just the gate-time check.
-- `resources/matrix_w5.py` — interrupt a running turn (steer) then use the session again. Caught
-  a real bug: the durable mount never gets re-established after a steer, breaking every
-  subsequent turn on that session. Distinct from Mahmoud's own steer repro (that one is a
+- `resources/matrix_w3.py` — **[coached, with a narrow mechanism-blind sliver]** two sessions,
+  disjoint edits; session B is given a stale `base_revision_id` and ZERO coaching on recovery.
+  Two-tier pass: autonomous correct recovery passes outright; a model that diagnoses the 409
+  correctly and asks before re-attempting a config write ALSO passes (that is desirable caution,
+  not a failure) once one bare "yes, retry" permission (no mechanics) completes the recovery.
+  Guards both the optimistic-concurrency base check and the instructive-error design (a 409 must
+  be readable without coaching). The initial action in both sessions is still coached — only the
+  RECOVERY step is mechanism-blind; don't cite this cell for "the model finds commit_revision
+  unprompted."
+- `resources/matrix_w4.py` — **[coached]** a pending approval whose base goes stale while it
+  waits (a second session commits first); the EXECUTE-time check must catch it, not just the
+  gate-time check.
+- `resources/matrix_w5.py` — **[coached]** interrupt a running turn (steer) then use the session
+  again. Caught a real bug: the durable mount never gets re-established after a steer, breaking
+  every subsequent turn on that session. Distinct from Mahmoud's own steer repro (that one is a
   turn-currency/heartbeat bug; this is a mount-lifecycle bug) — keep the two separate when
   triaging.
-- `resources/matrix_w7.py` — an agent writes a workspace file and commits it via an `@ag.file`
-  marker; asserts the approval manifest carries digest+bytes and the commit lands with the exact
-  bytes. Caught a real bug: the gate approves cleanly but execution then always refuses with
-  `authorization_missing` — no file-marker commit can currently land. Also blocks any test of the
-  stale-approval-regate mechanism (that mechanism is specifically about file-marker
-  authorizations going stale).
+- `resources/matrix_w7.py` — **[coached]** an agent writes a workspace file and commits it via an
+  `@ag.file` marker; asserts the approval manifest carries digest+bytes and the commit lands with
+  the exact bytes. Caught a real bug (fixed, PR #5763-adjacent runner fix): the gate approved
+  cleanly but execution always refused with `authorization_missing` — no file-marker commit could
+  land. Re-verified PASS after the fix. Note: `DEFERRED_NOT_EXECUTED` on a queued second tool
+  call is benign (another gate is already pending), not a real tool error — don't let it fail
+  this cell. Naming `@ag.file` verbatim in the prompt is correct for this cell's backend-path
+  purpose but means it cannot catch a model failing to find the marker syntax unprompted — see
+  Tiers above.
+- `resources/matrix_w1_daytona.py` — **[coached]** the commit round-trip on `sandbox=daytona`
+  (every other cell runs local). Needs a funded provider vault key (see the file's own docstring
+  for the exact vault-secret shape and the `provider_key` slug gotcha). PASS confirms
+  `DaytonaWorkspaceReader` and the placeholder-secrets flow live.
+
+**Known verification gap, recorded rather than pretended away:** the cold-resume
+stale-approval-regate path (`shouldRegateStaleApproval`, acp-interactions.ts — a stored `allow`
+for a marker call whose frozen bytes no longer exist must raise a FRESH gate, not execute on
+stale content) has unit coverage through the real wiring (the F8 tests) but no live wire-level
+cell. A scripted client cannot force "gate pending → environment evicted → gate answered"
+without violating the message-history contract real clients honor (confirmed: inserting an
+intervening turn triggers `approval-mismatch(history)` eviction correctly, but the runner then
+silently drops the stale decision on resume rather than raising a new card or executing —
+itself worth a second look, separate from the original regate question). Do not write a new
+wire cell for this without a different approach (e.g. a runner-side hook) than a pure HTTP
+client.
 - `resources/qa_longctx.py` — optional long-context / Gmail / concurrent-session probes. Needs
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.

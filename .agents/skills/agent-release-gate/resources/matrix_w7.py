@@ -2,7 +2,16 @@
 # requires-python = ">=3.10"
 # dependencies = ["httpx>=0.27"]
 # ///
-"""W7: guards against the file-marker execution-authorization handoff being broken -- an agent
+"""TIER: coached (backend-path test). The prompt names the mechanism verbatim: 'body set to
+{"@ag.file": ".agenta-imports/<file>"} (the file marker, not the literal text)'. This is
+CORRECT for this cell's purpose -- proving the backend mint/gate/execute path works -- but it
+means this cell says NOTHING about whether a model finds the @ag.file mechanism from a plain
+human ask like "add the skill I saved in your folder". It does not (root-caused live: Haiku
+invented a nonexistent {"@ag.embed": {"@ag.references": ...}} syntax instead, and the engine
+accepted it as literal data). Never cite this cell for a model-discovery claim; that needs a
+Tier B (mechanism-blind) cell.
+
+W7: guards against the file-marker execution-authorization handoff being broken -- an agent
 writes a workspace file and commits it via an `@ag.file` marker (contract: change-set.md 6,
 workspace-import.md 8). Asserts the approval manifest carries digest+bytes+path, AND that the
 approved commit actually lands with the exact file content.
@@ -11,9 +20,8 @@ Caught a real, 100%-reproducible bug on first run: mintForGate correctly mints a
 record and the manifest renders correctly, the HITL gate correctly fires and gets approved
 ("[HITL] gate ... outcome=allow" in runner logs), but authorizeExecution then IMMEDIATELY refuses
 with `authorization_missing` every single time -- the mint-to-consume handoff never succeeds, so
-no file-marker commit can ever land (services/runner/src/tools/commit-authorization.ts). This
-blocks W11 too (its stale-approval-regate mechanism is specifically about file-marker
-authorizations). Do not treat a PASS here as proven until this bug is confirmed fixed.
+no file-marker commit can ever land (services/runner/src/tools/commit-authorization.ts). FIXED
+and re-verified PASS (2026-08-06); this repro stays in the docstring as the regression signature.
 
   uv run matrix_w7.py
 """

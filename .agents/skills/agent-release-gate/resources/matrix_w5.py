@@ -2,7 +2,11 @@
 # requires-python = ">=3.10"
 # dependencies = ["httpx>=0.27"]
 # ///
-"""W5: guards against the durable workspace mount not being re-established after a steer --
+"""TIER: coached (backend-path test). The post-steer prompt names the exact tool/operation/
+target -- this proves the mount and steer lifecycle work, not that a model reaches for
+read_config/commit_revision unprompted. Do not cite for model one-shot-discovery claims.
+
+W5: guards against the durable workspace mount not being re-established after a steer --
 interrupt a running turn (send a second message on the same session while the first is mid-
 flight, the force-interrupt "steer" path), then assert a NEW turn on that session still works.
 
