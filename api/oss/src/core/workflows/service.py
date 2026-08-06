@@ -105,12 +105,10 @@ from oss.src.core.workflows.change_set import (
     ChangeSetError,
     Reason,
     apply_change_set,
-    strip_guidance_from_data,
 )
 from oss.src.core.workflows.read_config import (
     ReadConfigError,
     clamp_max_bytes,
-    draft_warning,
     project_config,
 )
 from oss.src.core.workflows.commit_support import (
@@ -1947,13 +1945,16 @@ class WorkflowsService:
         workflow_variant_id: UUID,
         path: Optional[list] = None,
         max_bytes: Optional[int] = None,
-        run_is_draft: Optional[bool] = None,
     ) -> "ConfigReadOutcome":
         """Read one part of the variant's committed configuration.
 
-        The answer always comes from the stored head, on every kind of run. On a draft run
-        that is not what is executing, and the response says so: the read and the commit
-        then still agree, because the commit applies to the head too.
+        The answer always comes from the stored head, on every kind of run.
+
+        Whether the RUN is a draft is not an input here. It is a fact about the caller's
+        run context, not about the configuration, and it used to arrive as a request field,
+        which meant a caller could assert it about itself (audit leak C38). The tool
+        handler knows it from the run and decorates the answer; this method reports what is
+        stored and nothing about who is asking.
         """
         head = await self.fetch_workflow_revision(
             project_id=project_id,
@@ -1972,17 +1973,13 @@ class WorkflowsService:
         )
         result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
 
-        warnings = list(result.warnings)
-        if run_is_draft:
-            warnings.append(draft_warning(getattr(head, "version", None)))
-
         return ConfigReadOutcome(
             revision=head,
             path=result.path,
             value=result.value,
             bytes=result.bytes,
-            is_draft=bool(run_is_draft),
-            warnings=warnings,
+            is_draft=False,
+            warnings=list(result.warnings),
         )
 
     async def commit_workflow_revision_checked(
@@ -2040,23 +2037,6 @@ class WorkflowsService:
                 workflow_revision_commit=workflow_revision_commit,
                 current=head,
             )
-
-            # A full-data commit never reaches the engine, so the guidance block would be
-            # stored verbatim. A copied-back instructions file arrives this way as easily as
-            # through a delta, and the playground's own save path is full-data.
-            if workflow_revision_commit.data is not None:
-                stripped, guidance_warnings = strip_guidance_from_data(
-                    workflow_revision_commit.data.model_dump(
-                        mode="json", exclude_none=True
-                    )
-                )
-                if guidance_warnings:
-                    warnings.extend(
-                        CommitWarning(**w.to_dict()) for w in guidance_warnings
-                    )
-                    workflow_revision_commit = workflow_revision_commit.model_copy(
-                        update={"data": WorkflowRevisionData(**stripped)}
-                    )
 
         # Built before the comparison, because the comparison runs on what would be
         # STORED: enrichment fills `url` and `schemas`, and the flags are inferred from the

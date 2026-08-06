@@ -234,3 +234,75 @@ class TestTheCommitIsScopedAtThisEntryPoint:
 
         call = service.commit_workflow_revision_checked.await_args
         assert call.kwargs["scope_policy"] is AGENT_COMMIT_SCOPE
+
+
+class TestTheDraftFactBelongsToTheRun:
+    """`run_is_draft` describes the RUN, not the configuration and not the request.
+
+    It used to be a field on the public read-config request, so a caller could assert it
+    about itself (audit leak C38). It is bound server-side from run context now, and the
+    core read method no longer accepts it at all: that method reports what is stored and
+    nothing about who is asking.
+    """
+
+    @staticmethod
+    def _service(**over):
+        from types import SimpleNamespace
+
+        service = SimpleNamespace()
+        service.read_workflow_revision_config = AsyncMock(
+            return_value=SimpleNamespace(
+                revision=SimpleNamespace(id=uuid4(), version="3", variant_id=VARIANT),
+                path=["parameters", "agent"],
+                value={"instructions": "hi"},
+                bytes=12,
+                is_draft=False,
+                warnings=[],
+            )
+        )
+        for key, value in over.items():
+            setattr(service, key, value)
+        return service
+
+    async def test_the_core_read_is_never_told_about_the_run(self):
+        service = self._service()
+
+        await handle_read_config(
+            arguments={
+                "target": {"workflow_variant_id": str(VARIANT), "run_is_draft": True}
+            },
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=service,
+        )
+
+        assert (
+            "run_is_draft"
+            not in service.read_workflow_revision_config.await_args.kwargs
+        )
+
+    async def test_a_draft_run_still_gets_its_warning(self):
+        # The behavior survives the move: the answer comes from the stored head, and the
+        # response says that is not what is executing.
+        result = await handle_read_config(
+            arguments={
+                "target": {"workflow_variant_id": str(VARIANT), "run_is_draft": True}
+            },
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=self._service(),
+        )
+
+        assert result.content.is_draft is True
+        assert result.content.warnings
+
+    async def test_a_normal_run_carries_no_draft_warning(self):
+        result = await handle_read_config(
+            arguments={"target": {"workflow_variant_id": str(VARIANT)}},
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=self._service(),
+        )
+
+        assert result.content.is_draft is False
+        assert not result.content.warnings
