@@ -52,6 +52,7 @@ class FakeWorkflowsService:
         )
         self.ensure_calls = []
         self.delta_calls = []
+        self.agent_context_calls = []
         self.prepare_calls = []
 
     async def _ensure_request_revision(self, *, project_id, request):
@@ -63,8 +64,15 @@ class FakeWorkflowsService:
         request.data.revision = {"data": self.revision_data}
 
     async def _resolve_revision_delta(
-        self, *, project_id, workflow_revision_commit, scope_policy=None, preview=False
+        self,
+        *,
+        project_id,
+        workflow_revision_commit,
+        scope_policy=None,
+        preview=False,
+        agent_context=False,
     ):
+        self.agent_context_calls.append(agent_context)
         self.delta_calls.append(
             {
                 "project_id": project_id,
@@ -817,3 +825,17 @@ async def test_infra_failure_surfaces_as_error_status_on_the_tool_result(monkeyp
     assert "timed out" in content["message"]
     # Mirrored for logs, never the mechanism.
     assert "timed out" in response.call.status.message
+
+
+async def test_test_run_previews_a_delta_in_the_agents_context(monkeypatch):
+    # `test_run` previews the AGENT's delta, so it must get the agent's transformations:
+    # a preview that normalized selectors differently from the commit would show the agent
+    # one result and store another.
+    outputs = {"messages": [{"role": "assistant", "content": "pong"}]}
+    _, workflows, _ = await _run(
+        monkeypatch,
+        outputs=outputs,
+        args=_args(delta={"set": {"parameters": {"agent": {"instructions": "hi"}}}}),
+    )
+
+    assert workflows.agent_context_calls == [True]

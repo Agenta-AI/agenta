@@ -1994,6 +1994,7 @@ class WorkflowsService:
         workflow_revision_commit: WorkflowRevisionCommit,
         #
         scope_policy=None,
+        agent_context: bool = False,
     ) -> "CommitOutcome":
         """Commit with the base check, the no-change answer, and the warning list.
 
@@ -2015,6 +2016,7 @@ class WorkflowsService:
                 project_id=project_id,
                 workflow_revision_commit=workflow_revision_commit,
                 scope_policy=scope_policy,
+                agent_context=agent_context,
             )
             warnings = list(resolution.warnings)
             head = resolution.head
@@ -2396,6 +2398,7 @@ class WorkflowsService:
         workflow_revision_commit: WorkflowRevisionCommit,
         scope_policy=None,
         preview: bool = False,
+        agent_context: bool = False,
     ) -> "DeltaResolution":
         """Resolve a delta commit into a full-data commit against the variant's head.
 
@@ -2436,6 +2439,7 @@ class WorkflowsService:
             base=base,
             workflow_revision_commit=workflow_revision_commit,
             scope_policy=scope_policy,
+            agent_context=agent_context,
         )
 
         return DeltaResolution(
@@ -2490,14 +2494,25 @@ class WorkflowsService:
         base: dict,
         workflow_revision_commit: WorkflowRevisionCommit,
         scope_policy=None,
+        agent_context: bool = False,
     ) -> tuple[dict, Optional[str], List[CommitWarning]]:
-        """Run either delta form through the engine, plus the wrapper-owned jobs the engine
-        cannot do: selector normalization, the platform-tool rejection, the derived
-        message, and the warning list (contract change-set.md 17).
+        """Run either delta form through the engine, plus the wrapper-owned jobs.
 
         The engine classifies the form, so a delta carrying both arms is refused rather
         than silently losing one of them, and the legacy arm earns the same marker,
         scope, and unique-name refusals the ordered arm does.
+
+        ``agent_context`` gates the three transformations that exist FOR THE AGENT, and
+        gates nothing else. They were unconditional, so the general commit path (the
+        playground's own save, the SDK, applications and evaluators) silently inherited
+        agent policy it never asked for: its selectors were rewritten, a `tools` list
+        holding a platform entry was refused, and a caller's own commit message was
+        replaced by a derived one. Audit leaks C24, C25, C26 and C43.
+
+        Scope ENFORCEMENT is deliberately NOT gated here. It travels as `scope_policy`
+        into the engine, which sees the RESULT of an operation; a check at this level sees
+        only what the caller named, and an operation that writes an ancestor object can
+        change a refused path without naming it.
         """
         # `exclude_unset` and not `exclude_none`: an explicit `"value": null` is a value
         # the contract writes, and dropping it would report a missing value instead.
@@ -2515,9 +2530,12 @@ class WorkflowsService:
                 "ordered operations are not enabled on this deployment.",
             )
 
-        operations: list = []
+        operations: list = delta.get("operations") or []
         warnings: list = []  # engine warnings; typed at the return
-        if is_ordered:
+        if is_ordered and agent_context:
+            # Forgives the two unambiguous selector mistakes and says so. A model makes
+            # them; a caller writing operations by hand gets its target back unchanged and
+            # a precise refusal if it is wrong, which is what a program wants.
             operations, warnings = normalize_operations(delta["operations"])
             delta = {**delta, "operations": operations}
 
@@ -2531,18 +2549,25 @@ class WorkflowsService:
         )
         warnings = warnings + list(result.warnings)
 
-        # Rejection beats silent stripping: the spike showed that errors teach.
-        offenders = find_platform_tool_entries(result.data)
-        if offenders:
-            raise ChangeSetError(
-                Reason.PLATFORM_TOOL_NOT_COMMITTABLE,
-                PLATFORM_TOOL_REJECTION.format(names=", ".join(offenders)),
-                entries=offenders,
-            )
+        # The build kit is injected for an agent's run and is not part of its stored
+        # configuration, so an agent committing one is committing the playground's own
+        # tools. Rejection beats silent stripping: the spike showed that errors teach.
+        # Only the agent has a build kit, so only the agent is checked for it.
+        if agent_context:
+            offenders = find_platform_tool_entries(result.data)
+            if offenders:
+                raise ChangeSetError(
+                    Reason.PLATFORM_TOOL_NOT_COMMITTABLE,
+                    PLATFORM_TOOL_REJECTION.format(names=", ".join(offenders)),
+                    entries=offenders,
+                )
 
+        # Derived for the agent, because free text was the site of every measured
+        # argument-corruption failure. A human or an SDK caller writes its own message and
+        # keeps it: replacing that was the leak, not the derivation.
         message = (
             derive_commit_message(operations)
-            if is_ordered
+            if is_ordered and agent_context
             else workflow_revision_commit.message
         )
         # The engine speaks its own dataclass. The typed model is what leaves the service.

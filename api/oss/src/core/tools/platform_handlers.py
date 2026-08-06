@@ -224,6 +224,7 @@ async def _build_test_workflow_request(
         )
 
     if request.delta is not None:
+        # `test_run` previews an AGENT's delta, so it gets the agent's transformations.
         resolution = await workflows_service._resolve_revision_delta(
             project_id=project_id,
             workflow_revision_commit=WorkflowRevisionCommit(
@@ -234,6 +235,7 @@ async def _build_test_workflow_request(
             # base revision id. Without this an ordered delta could never be previewed:
             # the commit path requires that id, and it exists to protect a write.
             preview=True,
+            agent_context=True,
         )
         resolved = resolution.commit
         if resolved.data is None:
@@ -788,6 +790,9 @@ async def handle_commit_revision(
             user_id=user_id,
             workflow_revision_commit=commit,
             scope_policy=AGENT_COMMIT_SCOPE,
+            # The agent's own commit: selector normalization, the build-kit rejection and
+            # the derived message all apply here and nowhere else.
+            agent_context=True,
         )
     except ChangeSetError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
