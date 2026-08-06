@@ -865,7 +865,19 @@ async def handle_commit_revision(
             "status": outcome.status,
             "workflow_revision": revision.model_dump(mode="json") if revision else None,
             "warnings": [w.model_dump(mode="json") for w in outcome.warnings],
-        }
+        },
+        # A commit event evicts the warm session, so `no_change` must identify nothing:
+        # it stored nothing, and throwing the session away for it is the cost the whole
+        # no-change answer exists to avoid.
+        committed_revision=(
+            {
+                "variant_id": str(revision.workflow_variant_id or revision.variant_id),
+                "revision_id": str(revision.id),
+                "version": revision.version,
+            }
+            if outcome.status == "committed" and revision
+            else None
+        ),
     )
 
 

@@ -365,6 +365,11 @@ class PlatformHandlerResult(BaseModel):
     # the runner decides failure from the status code alone, because a message that stops
     # being mirrored must not turn a failure into a success.
     message: Optional[str] = None
+    # Set ONLY when this call actually wrote a revision. The API boundary reads it to evict
+    # the warm session and emit the frontend event, so a handler that stores nothing (a
+    # `no_change` answer, a refusal, a read) leaves it None and nothing is emitted. Plain
+    # ids rather than a workflow DTO: the tools layer does not depend on the workflows one.
+    committed_revision: Optional[Dict[str, Any]] = None
 
     @classmethod
     def failure(cls, error: AgentError) -> "PlatformHandlerResult":
