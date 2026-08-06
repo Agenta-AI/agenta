@@ -45,20 +45,45 @@ import bench_lib as B  # noqa: E402
 
 # A leg that cannot run because the deployment lacks a credential is SKIPPED with its reason, never
 # quietly omitted and never counted as a pass. A skip is an untested claim.
+#
+# THE MARKERS MUST BE SPECIFIC, AND THE FIRST VERSION WAS NOT. It matched the bare word
+# "connection", which also appears in "All connection attempts failed" and "peer closed connection
+# without sending complete message body". Four genuine TRANSPORT failures on pi-haiku were
+# therefore labelled "missing credential" and SKIPPED — removed from the denominator, so the cell
+# scored 12/44 when it should have scored 12/48, and four real failures disappeared from the
+# result rather than counting against it.
+#
+# That is the precise failure this benchmark exists to shout about, committed by the benchmark:
+# a skip is an untested claim, and a MISCLASSIFIED skip is worse, because it hides a real failure
+# behind a reassuring word. Transport errors are checked FIRST and never skip; they fall through
+# to `unsettled`, which is a counted, visible, failing outcome.
+TRANSPORT_MARKERS = (
+    "connection attempts failed",
+    "peer closed connection",
+    "incomplete chunked read",
+    "connection reset",
+    "connection refused",
+    "timed out",
+    "read timeout",
+)
+
 MISSING_CREDENTIAL_MARKERS = (
-    "connection",
     "not found for provider",
     "no connections",
     "multiple connections",
+    "ambiguous connection",
     "requires a mounted subscription",
-    "credential",
+    "missing credential",
+    "no credential",
     "provider_key",
-    "subscription",
+    "does not support value",
 )
 
 
 def looks_like_missing_credential(text: str) -> bool:
     lowered = (text or "").lower()
+    if any(marker in lowered for marker in TRANSPORT_MARKERS):
+        return False
     return any(marker in lowered for marker in MISSING_CREDENTIAL_MARKERS)
 
 
@@ -548,6 +573,11 @@ def main() -> int:
         "--list", action="store_true", help="list cells and scenarios, then exit"
     )
     p.add_argument(
+        "--no-preflight",
+        action="store_true",
+        help="skip the endpoint health probe. Only for deliberately measuring a broken stack.",
+    )
+    p.add_argument(
         "--dry-run",
         action="store_true",
         help="resolve everything and print the plan without spending a single token",
@@ -594,6 +624,32 @@ def main() -> int:
                 print(f"  {cid} x {s['id']} x{args.trials}")
         return 0
 
+    # PRE-FLIGHT BEFORE SPEND. A direct, model-free probe of the endpoints under test. On 6 August
+    # a migration broke `read_config` on a stack whose own suite was green, and this benchmark
+    # spent 63 trials before noticing; every result had to be quarantined. Refusing to start costs
+    # one throwaway workflow. Not refusing cost half an hour and a run nobody could read.
+    if args.no_preflight:
+        health = {"ok": None, "skipped": True, "checks": []}
+    else:
+        print("preflight ...", end=" ", flush=True, file=sys.stderr)
+        health = B.preflight(all_cells[cell_ids[0]])
+        for check in health["checks"]:
+            if not check["ok"]:
+                print(
+                    f"\n  FAIL {check['check']}: HTTP {check.get('status', '?')} "
+                    f"{str(check.get('detail', ''))[:200]}",
+                    file=sys.stderr,
+                )
+        if not health["ok"]:
+            print(
+                "\nPREFLIGHT FAILED — refusing to spend trials against a deployment that cannot "
+                "serve the endpoints under test. Such a run measures the outage, not the model. "
+                "Re-run when the deployment is healthy, or pass --no-preflight to override.",
+                file=sys.stderr,
+            )
+            return 1
+        print("ok", file=sys.stderr)
+
     stamps = B.protocol_stamps()
     outdir = pathlib.Path(args.out) if args.out else B.RESULTS_DIR / B.utc_stamp()
     outdir.mkdir(parents=True, exist_ok=True)
@@ -608,6 +664,7 @@ def main() -> int:
             "project_id": creds["project_id"],
             "api_key_fingerprint": creds["api_key_fingerprint"],
             "stamps": stamps,
+            "preflight": health,
         },
         "scenarios": [s["id"] for s in scenarios],
         "scenario_defs": {

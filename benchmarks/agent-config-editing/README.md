@@ -267,11 +267,33 @@ being comparable to these — which would forfeit the only reason to build it.
 `results/20260806-200904/` — claude-haiku, pi-luna, codex-luna, local sandbox, 20 scenarios x 3
 trials, 180 trials, $2.93.
 
-| cell | one-shot | excl. harness |
-|---|---|---|
-| claude-haiku-local | 42% | 53% |
-| pi-luna-local | 30% (35% excluding pi-unsupported rows) | 40% |
-| codex-luna-local | 23% | 32% |
+| cell | one-shot | excl. harness | gap | guidance |
+|---|---|---|---|---|
+| claude-haiku-local | 42% | 53% | 11 pts | `92da411b` |
+| pi-luna-local | 30% (35% excluding pi-unsupported rows) | 40% | 10 pts | `92da411b` |
+| codex-luna-local | 23% | 32% | 9 pts | `92da411b` |
+| pi-haiku-local (`results/20260806-212004/`) | **27%** | **75%** | **48 pts** | `cda38f6f` |
+
+**The last row is not comparable to the first three, and the stamps are the only reason anyone
+knows.** The platform guidance changed between the two runs — verify-runner landed the
+instructions-source sentence at 21:00, between the three-cell slice (20:09) and the pi-haiku run
+(21:20). So `pi-haiku-local` has no pre-change baseline, and its low `wrong_surface` count may
+already reflect the fix rather than the harness. I published this table once without the guidance
+column and had to correct it; the column is now mandatory whenever rows come from different runs.
+This is the failure mode the version stamps exist to catch, and it caught it.
+
+**Read the gap column before the score.** `pi-haiku-local` looks like the worst cell and is very
+nearly the best one: it completes the task in 75% of trials and loses 48 points to a single
+repeated error. A benchmark that only published `one_shot` would have sent someone to fix the
+model.
+
+That error turned out not to be plumbing at all — it is the `read_config` tool description. It
+says "Send `target.path`" once in dotted prose, then shows two worked examples that are **bare
+arrays with no key and no envelope**. Models copy the examples: pi sends `{"target": [...]}` and
+drops the wrapper (32 occurrences), and claude emits
+`{"target": \n<parameter name="path">[...]}`, reaching for an XML tag to name the wrapper (16
+occurrences). One confusion, two serializers. `commit_revision` shows a complete argument object in
+its example and does not have the problem.
 
 **`wrong_surface` was 64 of 117 failures**, on every harness: the model edits the rendered
 instructions file and reports success. Nothing is stored.
@@ -300,6 +322,69 @@ install it into the configured skills location."* A sentence in an appendix does
 documented procedure sitting in the model's own workspace. Fixing it is a packaging decision about
 the codex home the runner assembles, not a text change.
 
+## Round 1 of the improvement loop
+
+The instructions-source sentence landed at ~21:00 (`platform_guidance` `92da411b` -> `cda38f6f`).
+Re-measured like-for-like, same 7 instruction-targeted scenarios, same 3 cells, 3 trials, against
+`results/20260806-200904/`:
+
+| cell | before | after (clean) |
+|---|---|---|
+| claude-haiku-local | 0/21 | 10/21 (48%) |
+| pi-luna-local | 2/21 | 19/21 (90%) |
+| codex-luna-local | 0/21 | 13/21 (62%) |
+| **total** | **2/63 (3%)** | **42/63 (67%)** |
+
+**The stamps separated the two causes, which is the whole reason they exist.** Three runs, and
+exactly one surface moved between each pair:
+
+| run | guidance | tools | one-shot | `wrong_surface` | `attempt_refused` |
+|---|---|---|---|---|---|
+| pre 20:09 | `92da411b` | `7d39c5d9` | 32% | 37% | 1% |
+| 21:36 (contaminated) | `cda38f6f` | `7d39c5d9` | 24% | 10% | 52% |
+| clean 22:09 | `cda38f6f` | `a85076d4` | 67% | 11% | 0% |
+
+Between the first two only the **guidance** moved, and `wrong_surface` fell 37% -> 10%: that is
+the sentence, single-variable. Between the last two only the **tools** stamp moved (a migration
+milestone) and an outage was fixed, and `wrong_surface` stayed flat at 11% while one-shot went
+24% -> 67%. So the sentence owns the `wrong_surface` drop and held it across an unrelated landing;
+the one-shot recovery is the outage fix, not the sentence.
+
+Do not read `3% -> 67%` as the sentence's effect. It spans three changes and is the honest
+answer to "where were we, where are we now". The sentence's own effect is the `wrong_surface`
+line. And do not compare the 32% and 67% one-shot figures directly: the first is across 20
+scenarios, the second across the 7 hardest.
+
+`wrong_surface` fell from 37% to 10% of trials and `fm-01` — the control — did not move, so the
+predicted shape is the one that changed. Three caveats travel with the number and none of them are
+optional: codex's jump is **jointly caused** (a codex-specific sentence landed in the same window),
+pi regressed for reasons not readable through the outage below, and **the whole run is
+contaminated** — the read-config endpoint began returning HTTP 500 on every call between the two
+runs (84 occurrences), so this is a floor rather than a result. It is recorded here as provisional
+and will be re-run against a healthy stack.
+
+The reading that fits: the sentence made models reach for the tool instead of editing the file,
+which exposed them far more to the tool path's own defects. The sentence worked; the tool path
+became the binding constraint.
+
+### The codex half
+
+A codex-specific sentence landed in the same window, naming the bundled `skill-creator` and
+`skill-installer` as installing somewhere that is not the configuration. Deleting those bundled
+skills was investigated and **refused as unsafe** (they are literals inside the codex binary, a
+sibling skill depends on them by relative path, and codex's own prompt references the `.system`
+tree), so the sentence was the only lever. On the codex skill set:
+
+| | before | after |
+|---|---|---|
+| one-shot | 6/21 (29%) | 14/21 (67%) |
+| `wrong_surface` | 13 | 2 |
+
+`fm-03` — the verbatim `gstack-autoplan` prompt that started all of this — went 1/3 to 3/3.
+Attribution is the same argument as above: a migration milestone landed in the window too, but it
+changed routing and error envelopes, which have no mechanism for changing *where* a model writes a
+file. The `wrong_surface` collapse is the sentence.
+
 ## Notes for anyone extending this
 
 - **MCP entries are nested** (`connection.url`, not a flat `url`), and the **hostname must
@@ -319,6 +404,18 @@ the codex home the runner assembles, not a text change.
 - **The Pi harness rejects user MCP servers outright.** Scenarios that seed `mcps` carry
   `"unsupported_harness": ["pi_core"]` and skip there; without it the run fails before the model
   sees the task and 12 trials counted as config-editing failures that measured nothing.
+- **Skip markers must be specific, or the benchmark hides failures behind a reassuring word.**
+  The first credential matcher included the bare string `connection`, which also matches
+  `All connection attempts failed` and `peer closed connection`. Four transport failures were
+  labelled "missing credential" and skipped out of the denominator (`pi-haiku-local` read 12/44
+  when it was 12/48). `TRANSPORT_MARKERS` is now checked first and never skips — a transport error
+  falls through to `unsettled`, which is counted and visible. A skip is an untested claim; a
+  *misclassified* skip is worse, because it hides a real failure.
+- **Codex's search changes with task framing (n=1, unconfirmed).** Asked to READ a file seeded in
+  the durable agent folder, codex found it with both vague ("your folder") and explicit wording.
+  Asked to adopt the same file as its instructions, it looked at the workspace root and told the
+  user to save a file they had already saved. That rules out reachability and delivery; what
+  remains is a hypothesis worth one run if `fm-01` still fails after the guidance change.
 - **Codex reports no usage on the wire**, so cost accounting is blind for codex cells and every
   total understates by whatever they spent.
 - **`table.py` re-labels stored trials on read.** Outcome definitions will keep improving; an
