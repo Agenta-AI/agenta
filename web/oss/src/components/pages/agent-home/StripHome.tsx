@@ -38,6 +38,10 @@ import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
  * TemplateStrip + (returning users) the one-line Usage card and agents table. Replaces the
  * grid/drawer/IDE-modal flows entirely on this surface; those stay behind flag-off.
  */
+// Hidden, not removed: the rail felt crowded with four sections, and templates already have
+// the gallery + first-run grid. Flip back on to restore the rail card.
+const SHOW_RAIL_TEMPLATES = false
+
 const StripHome: React.FC = () => {
     const composerRef = useRef<RichChatInputHandle>(null)
     // Home creates, navigates to the playground, and auto-sends (owner decision).
@@ -268,12 +272,14 @@ const StripHome: React.FC = () => {
                             <PanelScroll>
                                 {/* Rows, not the scroller: a 238px card and a six-tab category
                                     row both need width this column doesn't have. */}
-                                <TemplateStrip
-                                    surface="home"
-                                    layout="list"
-                                    selectedTemplateKey={provenance.selectedTemplateKey}
-                                    onPick={handlePick}
-                                />
+                                {SHOW_RAIL_TEMPLATES ? (
+                                    <TemplateStrip
+                                        surface="home"
+                                        layout="list"
+                                        selectedTemplateKey={provenance.selectedTemplateKey}
+                                        onPick={handlePick}
+                                    />
+                                ) : null}
                                 <YourAgentsTable variant="list" />
                                 {/* Forward-looking, unlike the automation RUNS in the main column:
                                     a schedule that stopped firing is invisible in a list of things
