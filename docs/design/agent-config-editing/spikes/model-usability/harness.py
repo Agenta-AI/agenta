@@ -13,8 +13,12 @@ instruction document under test), and the tool results the three layers return.
 
 import copy
 import json
-import os
 from typing import Any, Dict, List, Optional, Tuple
+
+# `real_surface` loads the SHIPPED engine under the name `change_set`. The first spike
+# imported a prototype from a worktree that no longer exists, so this import used to fail
+# outright: the harness could not run at all before this run.
+import real_surface  # noqa: F401
 
 from change_set import ChangeSetError, apply_change_set
 from tasks import IMPORT_ROOT, WORKSPACE
@@ -25,7 +29,9 @@ MARKER = "$content_from"
 MARKER_V3 = "@ag.file"
 MARKERS = (MARKER, MARKER_V3)
 
-V3_SURFACE = False  # schema advertises {"list": ...} and @ag.file, and message is optional
+V3_SURFACE = (
+    False  # schema advertises {"list": ...} and @ag.file, and message is optional
+)
 V4_SURFACE = False  # V3 plus: no value_from at all; the schema documents the item shape
 
 
@@ -89,7 +95,7 @@ RICH_ERRORS = False  # set by the runner: does source_not_found list what does e
 def _import_folders() -> List[str]:
     return sorted(
         {
-            f"{IMPORT_ROOT}{key[len(IMPORT_ROOT):].split('/')[0]}/"
+            f"{IMPORT_ROOT}{key[len(IMPORT_ROOT) :].split('/')[0]}/"
             for key in WORKSPACE
             if key.startswith(IMPORT_ROOT)
         }
@@ -199,7 +205,7 @@ def resolve_value_from(delta: Any) -> Any:
         if not isinstance(source, dict) or not source.get("path"):
             raise RunnerRefusal(
                 "source_invalid",
-                "'value_from' needs {\"type\": \"workspace\", \"path\": \"...\"}.",
+                '\'value_from\' needs {"type": "workspace", "path": "..."}.',
                 retryable=False,
             )
         if verb in ("add_item", "replace_item"):
@@ -391,11 +397,17 @@ def _walk_config(config: Dict[str, Any], segments: Any) -> Any:
                 return None
             node = node[segment]
         elif isinstance(segment, dict):
-            collection = node.get(segment.get("field")) if isinstance(node, dict) else None
+            collection = (
+                node.get(segment.get("field")) if isinstance(node, dict) else None
+            )
             if not isinstance(collection, list):
                 return None
             key_field = _KEY_FIELD_OF.get(segment.get("field"), "name")
-            match = [e for e in collection if isinstance(e, dict) and e.get(key_field) == segment.get("key")]
+            match = [
+                e
+                for e in collection
+                if isinstance(e, dict) and e.get(key_field) == segment.get("key")
+            ]
             if len(match) != 1:
                 return None
             node = match[0]
@@ -474,14 +486,22 @@ def run_commit(
     try:
         result = apply_change_set(copy.deepcopy(head_config), resolved)
     except ChangeSetError as error:
-        return None, {
-            "error": enrich_error(error.to_detail(), resolved, head_config)
-        }
+        return None, {"error": enrich_error(error.to_detail(), resolved, head_config)}
 
-    return result, {
+    # The shipped engine answers with a result object; the spike's prototype returned the
+    # tree. The object also carries `changed` and `warnings`, which the prototype had no
+    # way to express, so a no-change commit was invisible to the first spike.
+    config = getattr(result, "data", result)
+    payload: Dict[str, Any] = {
         "committed": True,
         "revision_id": "019c8a10-0000-7000-8000-0000000000ff",
     }
+    warnings = [w.to_dict() for w in getattr(result, "warnings", [])]
+    if warnings:
+        payload["warnings"] = warnings
+    if getattr(result, "changed", True) is False:
+        payload["status"] = "no_change"
+    return config, payload
 
 
 # --------------------------------------------------------------------------------------
@@ -668,7 +688,8 @@ def tool_schema(*, union: bool = False) -> Dict[str, Any]:
         _strip_value_from(operation)
         operation = json.loads(
             json.dumps(operation).replace(
-                "VALUE_DESCRIPTION", 'The new value. A skills entry is {name, description, body, allow_executable_files (boolean, default false), files: [{path, content, executable (boolean, default false)}]}. A tools entry is {type, name, ...}. An mcps entry is {name, transport, url}.'
+                "VALUE_DESCRIPTION",
+                "The new value. A skills entry is {name, description, body, allow_executable_files (boolean, default false), files: [{path, content, executable (boolean, default false)}]}. A tools entry is {type, name, ...}. An mcps entry is {name, transport, url}.",
             )
         )
     else:
@@ -716,6 +737,77 @@ def tool_schema(*, union: bool = False) -> Dict[str, Any]:
             }
         },
     }
+
+
+# --------------------------------------------------------------------------------------
+# The SHIPPED surface
+# --------------------------------------------------------------------------------------
+
+
+def shipped_tool_schema(*, with_placement: bool = True) -> Dict[str, Any]:
+    """The schema the product actually serves, from `op_catalog.py` with the flag on.
+
+    `with_placement=False` is the control arm: the same schema with one sentence removed
+    from the description field, so the fix's effect is a difference of one sentence and
+    nothing else.
+    """
+    schema = real_surface.commit_tool_schema()
+    if not with_placement:
+        schema = real_surface.strip_placement_sentence(schema)
+    return schema
+
+
+def shipped_tool_description() -> str:
+    return real_surface.commit_tool_description()
+
+
+def validate_envelope(
+    envelope: Any, schema: Dict[str, Any]
+) -> Optional[Dict[str, Any]]:
+    """The harness's own schema check, or None when the arguments fit.
+
+    A coding harness validates a tool call against the tool's schema before it sends it.
+    Our schemas are closed, so a field in the wrong place is rejected there and the turn
+    pays for a retry. Skipping this step would hide the exact failure being measured.
+    """
+    import jsonschema
+
+    try:
+        jsonschema.validate(envelope, schema)
+        return None
+    except jsonschema.ValidationError as error:
+        where = ".".join(str(part) for part in error.absolute_path) or "(root)"
+        return {
+            "error": {
+                "code": "invalid_tool_arguments",
+                "message": f"{error.message} (at {where})",
+                "retryable": True,
+            }
+        }
+
+
+def grade_envelope(envelope: Any) -> Dict[str, Any]:
+    """Where the model put the per-call description, and whether it sent the base id.
+
+    Both are envelope facts, independent of whether the operations were right. A model can
+    author a perfect delta and still lose the turn on either one.
+    """
+    grade = {
+        "description_top_level": False,
+        "description_nested": False,
+        "base_revision_id_present": False,
+    }
+    if not isinstance(envelope, dict):
+        return grade
+    if isinstance(envelope.get("description"), str) and envelope["description"].strip():
+        grade["description_top_level"] = True
+    revision = envelope.get("workflow_revision")
+    if isinstance(revision, dict):
+        if isinstance(revision.get("description"), str):
+            grade["description_nested"] = True
+        if revision.get("base_revision_id"):
+            grade["base_revision_id_present"] = True
+    return grade
 
 
 def read_config_result(config: Dict[str, Any], revision_id: str) -> str:

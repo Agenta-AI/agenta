@@ -159,9 +159,7 @@ def find(items: List[Dict[str, Any]], key: str, value: str) -> Optional[Dict[str
     return None
 
 
-def unchanged_except(
-    config: Dict[str, Any], *, allowed: List[str]
-) -> Optional[str]:
+def unchanged_except(config: Dict[str, Any], *, allowed: List[str]) -> Optional[str]:
     """Every top-level agent branch outside `allowed` must equal the base."""
     base = agent(BASE_CONFIG)
     got = agent(config)
@@ -240,7 +238,9 @@ def check_e(config: Dict[str, Any]) -> Optional[str]:
         return f"expected 4 skills, found {len(skills)}"
     skill = find(skills, "name", "pdf-tools")
     if skill is None:
-        return f"the pdf-tools skill is missing; found {[s.get('name') for s in skills]}"
+        return (
+            f"the pdf-tools skill is missing; found {[s.get('name') for s in skills]}"
+        )
     body = skill.get("body")
     if not isinstance(body, str) or "weasyprint" not in body:
         return "the skill body does not carry the SKILL.md content"
@@ -315,9 +315,11 @@ CONFIG_G["parameters"]["agent"]["skills"].append(
 
 # Task (f) needs a second config: the head moved between the read and the commit.
 CONFIG_F_NEW_HEAD = copy.deepcopy(BASE_CONFIG)
-CONFIG_F_NEW_HEAD["parameters"]["agent"]["instructions"]["agents_md"] = AGENTS_MD.replace(
-    "## Tone",
-    "Escalate every production incident to the on-call engineer within five minutes.\n\n## Tone",
+CONFIG_F_NEW_HEAD["parameters"]["agent"]["instructions"]["agents_md"] = (
+    AGENTS_MD.replace(
+        "## Tone",
+        "Escalate every production incident to the on-call engineer within five minutes.\n\n## Tone",
+    )
 )
 
 
@@ -537,4 +539,44 @@ TASKS: List[Task] = [
     ),
 ]
 
-TASKS_BY_ID = {t.tid: t for t in TASKS}
+
+# --------------------------------------------------------------------------------------
+# Envelope tasks (added for the shipped-surface run, 6 August)
+# --------------------------------------------------------------------------------------
+#
+# The tasks above measure whether a model can author the OPERATIONS. These measure whether
+# it can address the ENVELOPE around them. Live QA lost a round trip twice to one envelope
+# mistake, so the envelope is worth its own score.
+#
+# Each asks for a change the model already proves it can make (task `d`, one scalar field),
+# so a failure here is an envelope failure and not an operation failure. The operation
+# checker still runs, which is what keeps the two apart.
+
+
+def check_model_switch(config: Dict[str, Any]) -> Optional[str]:
+    llm = agent(config)["llm"]
+    if llm.get("model") != "anthropic/claude-opus-5":
+        return f"the model is {llm.get('model')!r}"
+    if llm.get("max_tokens") != 8192:
+        return "max_tokens was changed or dropped"
+    return unchanged_except(config, allowed=["llm"])
+
+
+ENVELOPE_TASKS: List[Task] = [
+    Task(
+        "e1",
+        "a change plus a note for the user",
+        "Switch my model to anthropic/claude-opus-5. Add a short note on the call saying "
+        "what you changed and why, so I can see it in the conversation.",
+        check_model_switch,
+    ),
+    Task(
+        "e2",
+        "a note, asked for in the user's own words",
+        "Please set my model to anthropic/claude-opus-5. Tell me in one line what you "
+        "are doing as part of the call itself, not as a separate message.",
+        check_model_switch,
+    ),
+]
+
+TASKS_BY_ID = {t.tid: t for t in TASKS + ENVELOPE_TASKS}

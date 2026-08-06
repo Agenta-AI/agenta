@@ -38,7 +38,7 @@ GOLDEN = {
         "operations": [
             {
                 "operation": "edit_text",
-                "target": AGENT + [{"field": "skills", "key": "release-qa"}, "body"],
+                "target": AGENT + [{"list": "skills", "key": "release-qa"}, "body"],
                 "edits": [
                     {
                         "old_text": "pytest -m smoke",
@@ -61,7 +61,7 @@ GOLDEN = {
         "operations": [
             {
                 "operation": "remove_item",
-                "target": AGENT + [{"field": "mcps", "key": "linear"}],
+                "target": AGENT + [{"list": "mcps", "key": "linear"}],
             }
         ]
     },
@@ -92,7 +92,10 @@ GOLDEN = {
                 "operation": "edit_text",
                 "target": AGENT + ["instructions", "agents_md"],
                 "edits": [
-                    {"old_text": "Do not use emojis.", "new_text": "Use plain language."}
+                    {
+                        "old_text": "Do not use emojis.",
+                        "new_text": "Use plain language.",
+                    }
                 ],
             }
         ]
@@ -101,7 +104,7 @@ GOLDEN = {
         "operations": [
             {
                 "operation": "edit_text",
-                "target": AGENT + [{"field": "skills", "key": "onboarding"}, "body"],
+                "target": AGENT + [{"list": "skills", "key": "onboarding"}, "body"],
                 "edits": [
                     {
                         "old_text": "Ask the new hire for their laptop serial number.\nCreate the accounts",
@@ -159,7 +162,7 @@ GOLDEN = {
         "operations": [
             {
                 "operation": "remove_item",
-                "target": AGENT + [{"field": "skills", "key": "triage"}],
+                "target": AGENT + [{"list": "skills", "key": "triage"}],
             },
             {
                 "operation": "add_item",
@@ -180,8 +183,8 @@ GOLDEN = {
                 "operation": "edit_text",
                 "target": AGENT
                 + [
-                    {"field": "skills", "key": "release-qa"},
-                    {"field": "files", "key": "checklist.md"},
+                    {"list": "skills", "key": "release-qa"},
+                    {"list": "files", "key": "checklist.md"},
                     "content",
                 ],
                 "edits": [
@@ -202,13 +205,16 @@ GOLDEN = {
             },
             {
                 "operation": "remove_item",
-                "target": AGENT + [{"field": "tools", "key": "send-slack-message"}],
+                "target": AGENT + [{"list": "tools", "key": "send-slack-message"}],
             },
             {
                 "operation": "edit_text",
                 "target": AGENT + ["instructions", "agents_md"],
                 "edits": [
-                    {"old_text": "Do not use emojis.", "new_text": "Use plain language."}
+                    {
+                        "old_text": "Do not use emojis.",
+                        "new_text": "Use plain language.",
+                    }
                 ],
             },
         ]
@@ -270,7 +276,7 @@ short = {
             "operations": [
                 {
                     "operation": "edit_text",
-                    "target": AGENT + [{"field": "skills", "key": "onboarding"}, "body"],
+                    "target": AGENT + [{"list": "skills", "key": "onboarding"}, "body"],
                     "edits": [
                         {
                             "old_text": "Ask the new hire for their laptop serial number.",
@@ -315,7 +321,10 @@ wrong_folder = {
 config, payload = harness.run_commit(
     wrong_folder, head_config=T.BASE_CONFIG, head_revision_id=T.HEAD_REVISION_ID
 )
-if config is not None or payload["error"]["reason"]["code"] != "source_outside_import_root":
+if (
+    config is not None
+    or payload["error"]["reason"]["code"] != "source_outside_import_root"
+):
     failures.append(f"h: the wrong folder was not refused: {payload}")
 else:
     print("negative h: source_outside_import_root ok")

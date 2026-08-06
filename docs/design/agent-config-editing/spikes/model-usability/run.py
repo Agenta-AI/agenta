@@ -9,7 +9,6 @@ Usage:
 """
 
 import argparse
-import copy
 import json
 import os
 import pathlib
@@ -42,6 +41,22 @@ MODELS = {
     "deepseek": {
         "provider": "openrouter",
         "id": "deepseek/deepseek-v4-flash",
+    },
+    # Reached through OpenRouter: the OpenAI key in the repo env files is dead, and the
+    # provider makes no difference to what is being measured.
+    "gpt-4o-mini": {
+        "provider": "openrouter",
+        "id": "openai/gpt-4o-mini",
+    },
+    "gpt-5-mini": {
+        "provider": "openrouter",
+        "id": "openai/gpt-5-mini",
+    },
+    # The nearest relative of the model the live QA agent ran (gpt-5.3-codex-spark, which
+    # OpenRouter does not serve). The stumble this benchmark exists to measure was its.
+    "gpt-5.3-codex": {
+        "provider": "openrouter",
+        "id": "openai/gpt-5.3-codex",
     },
 }
 
@@ -169,7 +184,9 @@ class OpenRouter:
             try:
                 response = self.http.post("/chat/completions", json=body)
                 if response.status_code >= 500 or response.status_code == 429:
-                    raise RuntimeError(f"http {response.status_code}: {response.text[:200]}")
+                    raise RuntimeError(
+                        f"http {response.status_code}: {response.text[:200]}"
+                    )
                 response.raise_for_status()
                 data = response.json()
                 if "choices" not in data:
@@ -234,7 +251,9 @@ def head_for(task: "T.Task") -> Tuple[Dict[str, Any], str]:
     return task.config, task.base_revision_id
 
 
-def run_trial(client: Any, task: "T.Task", trial: int) -> Dict[str, Any]:
+def run_trial(
+    client: Any, task: "T.Task", trial: int, schema: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
     head_config, head_revision_id = head_for(task)
 
     user = (
@@ -257,6 +276,10 @@ def run_trial(client: Any, task: "T.Task", trial: int) -> Dict[str, Any]:
         "input_tokens": 0,
         "output_tokens": 0,
         "error": None,
+        # The envelope facts, graded on the FIRST call only. A model that recovers on a
+        # retry still lost the turn, and the turn is what the user waits for.
+        "first_call_envelope": None,
+        "first_call_valid": None,
     }
 
     served_conflict = False
@@ -288,6 +311,28 @@ def run_trial(client: Any, task: "T.Task", trial: int) -> Dict[str, Any]:
             )
             record["error"] = "unparseable tool arguments"
             return record
+
+        if attempt == 0:
+            record["first_call_envelope"] = harness.grade_envelope(envelope)
+
+        # The harness validates a tool call against the tool's schema before it sends it,
+        # and our schemas are closed. A field in the wrong place is refused here, which is
+        # exactly where the live stumble cost its round trip.
+        if schema is not None:
+            invalid = harness.validate_envelope(envelope, schema)
+            if attempt == 0:
+                record["first_call_valid"] = invalid is None
+            if invalid is not None:
+                record["attempts"].append(
+                    {
+                        "attempt": attempt,
+                        "envelope": envelope,
+                        "error": invalid["error"],
+                    }
+                )
+                messages.append(client.assistant_message(turn))
+                messages.append(client.tool_result_message(turn, invalid))
+                continue
 
         # For the conflict flow the model's first call is aimed at the stale head; the
         # commit wrapper answers 409 and hands back the moved head.
@@ -365,6 +410,12 @@ def main() -> None:
     parser.add_argument("--lenient", action="store_true")
     parser.add_argument("--v3-surface", action="store_true")
     parser.add_argument("--v4-surface", action="store_true")
+    # The shipped surface: the schema and the tool description the product serves today.
+    # `shipped-control` is the same schema with the placement sentence removed, which is
+    # the only difference between the two arms.
+    parser.add_argument(
+        "--surface", choices=["spike", "shipped", "shipped-control"], default="spike"
+    )
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
@@ -374,11 +425,19 @@ def main() -> None:
     harness.V3_SURFACE = args.v3_surface
     harness.V4_SURFACE = args.v4_surface
 
-    instructions = (HERE / "instructions" / f"{args.instructions}.md").read_text()
-    schema = harness.tool_schema(union=args.union_schema)
+    if args.surface == "spike":
+        instructions = (HERE / "instructions" / f"{args.instructions}.md").read_text()
+        schema = harness.tool_schema(union=args.union_schema)
+    else:
+        # Fidelity: both the schema and the description come from `op_catalog.py`.
+        instructions = harness.shipped_tool_description()
+        schema = harness.shipped_tool_schema(with_placement=args.surface == "shipped")
     spec = MODELS[args.model]
 
-    selected = [t for t in T.TASKS if not args.tasks or t.tid in args.tasks.split(",")]
+    pool_of_tasks = T.TASKS + T.ENVELOPE_TASKS
+    selected = [
+        t for t in pool_of_tasks if not args.tasks or t.tid in args.tasks.split(",")
+    ]
     if not args.v4_surface:
         # A v4-only task's checker asserts on fields only the v4 surface produces; running
         # it under another surface is not a harness failure but a task that cannot pass.
@@ -396,7 +455,7 @@ def main() -> None:
 
     def work(item: Tuple["T.Task", int]) -> Dict[str, Any]:
         task, trial = item
-        record = run_trial(client, task, trial)
+        record = run_trial(client, task, trial, schema=schema)
         record["model"] = args.model
         record["instructions"] = args.instructions
         record["union_schema"] = args.union_schema
@@ -404,6 +463,7 @@ def main() -> None:
         record["lenient"] = args.lenient
         record["v3_surface"] = args.v3_surface
         record["v4_surface"] = args.v4_surface
+        record["surface"] = args.surface
         with lock:
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
             handle.flush()
@@ -424,10 +484,22 @@ def main() -> None:
     for task in selected:
         rows = [r for r in records if r["task"] == task.tid]
         n = len(rows)
+        envelope = ""
+        if any(r.get("first_call_envelope") for r in rows):
+            top = sum(
+                bool(r["first_call_envelope"].get("description_top_level"))
+                for r in rows
+            )
+            nested = sum(
+                bool(r["first_call_envelope"].get("description_nested")) for r in rows
+            )
+            envelope = f"  description top {top}/{n} nested {nested}/{n}"
         print(
             f"  {task.tid}  tool_call {sum(r['tool_call_made'] for r in rows)}/{n}  "
             f"engine_ok {sum(r['engine_accepted'] for r in rows)}/{n}  "
             f"correct {sum(r['correct'] for r in rows)}/{n}"
+            f"  first_call_valid {sum(bool(r.get('first_call_valid')) for r in rows)}/{n}"
+            f"{envelope}"
         )
     total = len(records)
     print(
