@@ -14,3 +14,4 @@ export {
     type SessionRowStatus,
     type SessionRowStatusMeta,
 } from "./sessionRowStatus"
+export {sessionRowVm, type SessionRowVm} from "./viewModel"
