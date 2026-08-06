@@ -37,6 +37,8 @@ from oss.src.core.tools.dtos import (
     TestRunExpectations,
     TestRunRequest,
     TestRunResolved,
+    AgentError,
+    PlatformHandlerResult,
     TestRunResponse,
     TestRunToolDigest,
     TestRunVerdict,
@@ -97,7 +99,7 @@ async def handle_test_run(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     timeout_ms: int = TEST_RUN_DEFAULT_TIMEOUT_MS,
-) -> TestRunResponse:
+) -> PlatformHandlerResult:
     if _header_value(headers, TEST_RUN_RECURSION_HEADER) == TEST_RUN_RECURSION_VALUE:
         raise PlatformToolHandlerRefused(
             "test_run refused: recursive test runs are not allowed."
@@ -295,7 +297,7 @@ async def _digest_test_run_response(
     tracing_service: Optional[TracingService],
     project_id: UUID,
     expectations: Optional[TestRunExpectations],
-) -> TestRunResponse:
+) -> PlatformHandlerResult:
     status_code = response.status.code if response.status else None
     status_message = response.status.message if response.status else None
     if status_code is not None and (status_code < 200 or status_code >= 300):
@@ -329,28 +331,44 @@ async def _digest_test_run_response(
         invoke_stop_reason=outputs.get("stop_reason"),
     )
 
-    return TestRunResponse(
-        output=_last_assistant_content(messages),
-        tools=list(tools.values()),
-        approvals=approvals,
-        resolved=resolved,
-        trace_id=response.trace_id,
-        verdict=verdict,
-        verdict_reason=reason,
+    # A `failed` VERDICT is still a successful tool call: the run happened and produced a
+    # judgement. Only a run that never completed is a failure (see `_failed_response`).
+    return PlatformHandlerResult(
+        content=TestRunResponse(
+            output=_last_assistant_content(messages),
+            tools=list(tools.values()),
+            approvals=approvals,
+            resolved=resolved,
+            trace_id=response.trace_id,
+            verdict=verdict,
+            verdict_reason=reason,
+        )
     )
 
 
 def _failed_response(
     message: str, *, trace_id: Optional[str] = None
-) -> TestRunResponse:
-    """A ``failed`` verdict for a run that never produced a digestible child response
-    (no service URL, timeout, non-2xx, malformed body). ``infra_failure`` marks it so
-    the API boundary reports an error status instead of a normal tool result."""
-    return TestRunResponse(
-        trace_id=trace_id,
-        verdict="failed",
-        verdict_reason=message,
-        infra_failure=True,
+) -> PlatformHandlerResult:
+    """A run that never produced a digestible child response.
+
+    No service URL, a timeout, a non-2xx, or a malformed body. This is not a verdict about
+    the agent's configuration, so it is reported as a failure rather than as a result whose
+    verdict happens to be `failed`.
+
+    It carries the same envelope as every other failure a model can see. It used to return
+    a near-empty `TestRunResponse` with `infra_failure=True`, which meant an error status
+    on this seam sometimes carried an envelope and sometimes carried a test-run object, so
+    nothing downstream could parse an error without first knowing which op produced it.
+    """
+    return PlatformHandlerResult.failure(
+        AgentError(
+            code="test_run_incomplete",
+            message=message,
+            # The request was never digested, so the identical one can succeed.
+            retryable=True,
+            next_step="Run the test again.",
+            details={"trace_id": trace_id} if trace_id else None,
+        )
     )
 
 
@@ -659,7 +677,7 @@ async def dispatch_platform_tool_handler(
     user_id: UUID,
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
-) -> TestRunResponse:
+) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
         raise PlatformToolHandlerNotFound(

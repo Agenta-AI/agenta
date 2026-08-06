@@ -180,7 +180,10 @@ async def _run(monkeypatch, *, outputs, args=None, tracing=None, raises=None):
         workflows_service=workflows,
         tracing_service=tracing or FakeTracingService(),
     )
-    return result, workflows, http
+    # The handler returns the generic `PlatformHandlerResult` now. These cells are about
+    # the DIGEST, so they get the payload; the cells about the failure envelope reach for
+    # the result itself.
+    return result.content, workflows, http
 
 
 async def test_test_run_happy_path_invokes_child_and_returns_digest(monkeypatch):
@@ -317,6 +320,7 @@ async def test_test_run_parameters_less_agent_revision_succeeds_with_resolver_ba
         workflows_service=workflows,
         tracing_service=FakeTracingService(),
     )
+    result = result.content
 
     assert result.verdict == "unconfirmed"
     assert result.output == "pong"
@@ -350,6 +354,7 @@ async def test_test_run_applies_delta_in_memory(monkeypatch):
         workflows_service=workflows,
         tracing_service=FakeTracingService(),
     )
+    result = result.content
 
     assert result.verdict == "unconfirmed"
     assert workflows.ensure_calls
@@ -699,8 +704,13 @@ async def test_test_run_timeout_returns_failed_verdict(monkeypatch):
         raises=httpx.ReadTimeout("too slow"),
     )
 
-    assert result.verdict == "failed"
-    assert "timed out" in result.verdict_reason
+    # A run that never completed is a FAILURE now, not a result whose verdict happens to
+    # be "failed". It carries the canonical envelope like every other failure a model can
+    # see, so nothing downstream has to know which op produced the error to parse it.
+    assert result.code == "test_run_incomplete"
+    assert "timed out" in result.message
+    assert result.retryable is True
+    assert result.next_step
 
 
 async def test_test_run_retries_spans_for_returned_confirmation(monkeypatch):
@@ -796,9 +806,14 @@ async def test_infra_failure_surfaces_as_error_status_on_the_tool_result(monkeyp
 
     response = await router.call_tool(request, body=body)
 
+    # STATUS_CODE_ERROR on this seam ALWAYS means the content is the canonical envelope.
+    # The runner keys on the status code alone, because a mirrored status message can stop
+    # being mirrored; an error status carrying anything else would be read as a success.
     content = json.loads(response.call.data.content)
-    assert content["verdict"] == "failed"
     assert response.call.status.code == "STATUS_CODE_ERROR"
+    assert content["code"] == "test_run_incomplete"
+    assert content["retryable"] is True
+    assert content["next_step"]
+    assert "timed out" in content["message"]
+    # Mirrored for logs, never the mechanism.
     assert "timed out" in response.call.status.message
-    # The infra marker itself never rides in the tool-result payload.
-    assert "infra_failure" not in content
