@@ -573,9 +573,21 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                 }
             }
 
+            // Hidden items can strand a divider at the top/bottom or double it up; a
+            // divider only reads as a separator between two visible groups.
+            const isDivider = (mi: (typeof menuItems)[number]) =>
+                !!mi && typeof mi === "object" && "type" in mi && mi.type === "divider"
+            const cleanedItems: typeof menuItems = []
+            menuItems.forEach((mi) => {
+                if (isDivider(mi) && (cleanedItems.length === 0 || isDivider(cleanedItems.at(-1))))
+                    return
+                cleanedItems.push(mi)
+            })
+            if (isDivider(cleanedItems.at(-1))) cleanedItems.pop()
+
             // Nothing to show for this row (every item hidden, no copy/export): render
             // no trigger rather than an empty ⋮ menu.
-            if (menuItems.length === 0) return null
+            if (cleanedItems.length === 0) return null
 
             return (
                 <div
@@ -587,7 +599,7 @@ function createActionsColumn<T extends InfiniteTableRowBase>(
                         // minWidth (not a fixed width) so long labels like "Switch to this
                         // organization" grow the menu instead of wrapping onto two lines.
                         styles={{root: {minWidth: 200}}}
-                        menu={{items: menuItems}}
+                        menu={{items: cleanedItems}}
                     >
                         <Tooltip title="Actions">
                             <Button onClick={(e) => e.stopPropagation()} variant="ghost" size="sm">
