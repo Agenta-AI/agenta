@@ -127,6 +127,30 @@ reader can act on it cold.
 - Related: environment-setup.ts's "denied by policy" fires on a no-turn-wired
   race, not a denial; it needs its own message.
 
+## Harness file tools do not expand environment variables in a path
+
+- Found by: the Luna session triage (cfa9d1ed), 6 August 2026. Third
+  harness-authored limit, beside the deny narration above.
+- The harness's Read File tool fails on a literal `$AGENTA_AGENT_MOUNT_DIR`
+  path while its Terminal tool succeeds with the same string. Both are the
+  harness's own built-ins: the ACP gate reports
+  `{"anchor":"Read File","executor":"harness","argKeys":["file_path"]}`, and
+  `services/runner/src` neither implements nor wraps either one. Our shim serves
+  only `mcp__agenta-tools__*`.
+- Not a defect we can patch, and arguably not a defect at all. Terminal expands
+  `$VAR` because a shell runs the command; a file API takes its path literally
+  because no shell is involved. That asymmetry is normal for every such pair.
+- Mitigation, shipped with the loud mount-skip work: wherever the runner authors
+  text, it advertises the RESOLVED absolute path and never a variable name. The
+  `"(also $AGENTA_AGENT_MOUNT_DIR)"` clause is gone from the agent-mount system
+  prompt segment, which is where the model learned the variable. On Daytona that
+  clause was doubly wrong: the runner never sets that variable there at all,
+  because Daytona freezes the daemon environment at sandbox creation, so it
+  expanded to the empty string.
+- Residual: a model can still learn a variable name from the user, from its own
+  earlier turns, or from a skill file we do not author, and hit the same
+  asymmetry. Nothing in the runner can prevent that.
+
 ## The legacy delta classifier needs a decision: teach or retire
 
 - Found by: the card fix round, 5 August 2026.
