@@ -192,7 +192,16 @@ function defaultLog(message: string): void {
  * The function must never throw. A shadow component that can fail a turn is worse than none.
  */
 export function logReconcileShadow(input: ShadowLogInput): ReconcilePlan | undefined {
-  const log = input.log ?? defaultLog;
+  const rawLog = input.log ?? defaultLog;
+  // A caller-supplied logger that throws must not fail the turn either: the catch below would
+  // re-enter the same logger and the second throw would escape the shadow.
+  const log = (line: string) => {
+    try {
+      rawLog(line);
+    } catch {
+      /* a shadow never fails a turn, not even for its own logger */
+    }
+  };
   try {
     const desired = normalizeDesiredState(
       input.request,
@@ -245,16 +254,12 @@ export function logReconcileShadow(input: ShadowLogInput): ReconcilePlan | undef
 /**
  * The facet digests an environment has applied.
  *
- * STEP 4 LIMITATION, STATED PLAINLY. `AppliedEnvironmentState` carries one whole-request
- * fingerprint, not per-facet digests, because step 2 deliberately carried the single facet the
- * pool compares. So the router cannot yet ask an environment what it applied PER FACET.
- *
- * During the shadow period the router therefore recomputes the desired digests from the request
- * that BUILT the environment, when the coordinator can supply it, and otherwise compares whole
- * fingerprints and reports every facet as changed. That is why a shadow line on a real config
- * change reads `rebuild`: the router cannot yet see which facet moved. Widening
- * `AppliedEnvironmentState` into per-facet digests is step 5's job, and it is what turns this
- * from a shadow into a router.
+ * `AppliedEnvironmentState` now carries per-facet digests, and the coordinator passes them to
+ * the shadow directly. This helper remains as the LEGACY reconstruction path: for an
+ * environment built before the widening (or a caller that cannot supply digests), it recomputes
+ * the desired digests from the request that BUILT the environment. With neither input the
+ * router compares whole fingerprints and reports every facet as changed, which is why such a
+ * shadow line reads `rebuild`.
  */
 export function appliedDigestsFrom(
   acquiringRequest: AgentRunRequest | undefined,
