@@ -797,6 +797,30 @@ non-retryable. An agent honoring `retryable: false` would dead-end on every rena
 a rename arrived as a shape error. Shape errors an agent can correct are now retryable and
 carry the correction; only true refusals are terminal.
 
+### 12.2b The envelope every error uses
+
+Every expected failure an agent can see, from this engine or from anywhere else on the
+path, is one flat object:
+
+```json
+{"code": "...", "message": "...", "retryable": false, "next_step": "...", "details": {}}
+```
+
+The reason code IS the `code`. It used to sit inside a nested `reason` under a constant
+outer `change_set_rejected`, so a reader that looked at the top level learned that
+something was rejected and nothing about what. Everything error-specific, including the
+operation index, the operation, the target, and each reason's own fields, lives in
+`details`. There are no other top-level keys and no nested envelopes.
+
+`retryable` and `next_step` answer different questions, and the split is the point.
+`retryable` is about replaying the SAME request unchanged. `next_step` is the way forward,
+and a refusal that is not retryable still carries one whenever the caller can correct its
+request. `value_too_deep` is the clearest case: the same bytes never succeed, and the
+agent still needs to be told to flatten the value.
+
+`api/AGENTS.md` states the rule for the whole API, and handler-mode failures carry this
+same object in `ToolResult.content` with `STATUS_CODE_ERROR` over HTTP 200.
+
 ### 12.3 Every retryable error names the next action
 
 `next_step` is one sentence in the imperative. It is not optional, and it is not a

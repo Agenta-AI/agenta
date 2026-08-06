@@ -203,9 +203,12 @@ class TestDomainRefusals:
 
         assert 400 <= caught.value.status_code < 500
 
-    async def test_a_non_embeddable_reference_answers_422_with_its_reason(
+    async def test_a_non_embeddable_reference_answers_400_like_everywhere_else(
         self, router, allow_access
     ):
+        # It answered 422 here and 400 on every other route that raises the same failure,
+        # so a caller had to learn the status per route rather than per cause (audit leak
+        # C31). One code, one status.
         router.workflows_service.commit_workflow_revision_checked.side_effect = (
             NonEmbeddableWorkflowReferenceError("__ag__llm")
         )
@@ -213,8 +216,9 @@ class TestDomainRefusals:
         with pytest.raises(HTTPException) as caught:
             await _commit(router)
 
-        assert caught.value.status_code == 422
+        assert caught.value.status_code == 400
         assert caught.value.detail["code"] == "non_embeddable_reference"
+        assert caught.value.detail["next_step"]
 
     async def test_a_moved_head_answers_409_with_the_current_head(
         self, router, allow_access
@@ -231,7 +235,12 @@ class TestDomainRefusals:
             await _commit(router)
 
         assert caught.value.status_code == 409
-        assert caught.value.detail["current_revision_id"] == current
+        # Error-specific fields live in `details` now (api/AGENTS.md), and the conflict is
+        # NOT retryable: replaying it resends the same stale base_revision_id forever. The
+        # way forward is the next_step, which says to re-read and re-anchor.
+        assert caught.value.detail["details"]["current_revision_id"] == current
+        assert caught.value.detail["retryable"] is False
+        assert caught.value.detail["next_step"]
 
     async def test_a_change_set_refusal_answers_422(self, router, allow_access):
         router.workflows_service.commit_workflow_revision_checked.side_effect = (
@@ -242,7 +251,7 @@ class TestDomainRefusals:
             await _commit(router)
 
         assert caught.value.status_code == 422
-        assert caught.value.detail["reason"]["code"] == Reason.INVALID_DELTA
+        assert caught.value.detail["code"] == Reason.INVALID_DELTA
 
 
 class TestTheScopedAgentRoute:

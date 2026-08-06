@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, HTTPException, Depends
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
@@ -1733,25 +1734,39 @@ class WorkflowsRouter:
         except ChangeSetError as e:
             raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except NonEmbeddableWorkflowReferenceError as e:
-            # A change-set refusal like any other on this endpoint, so it answers 422 with
-            # a reason code rather than the shared 400 the other workflow routes give
-            # (contract commit-transaction.md 4.1).
+            # One code, one status. This used to answer 422 here and 400 everywhere else
+            # the same failure is raised, so a caller had to learn the status per route
+            # rather than per cause (audit leak C31).
             raise HTTPException(
-                status_code=422,
+                status_code=400,
                 detail={
                     "code": "non_embeddable_reference",
                     "message": str(e),
                     "retryable": False,
+                    "next_step": (
+                        "Remove the embedded reference to that workflow and send the "
+                        "commit again."
+                    ),
                 },
             ) from e
         except CommitLockTimeout as e:
             raise HTTPException(
                 status_code=503,
                 detail={
+                    # The one genuinely retryable failure on this path: the request was
+                    # never applied, and the identical bytes can succeed once the commit
+                    # in flight releases the variant lock.
                     "code": "commit_lock_timeout",
                     "message": e.message,
-                    "next_step": "Wait for the commit in flight to finish, then send this commit again.",
                     "retryable": True,
+                    "next_step": (
+                        "Wait for the commit in flight to finish, then send this commit "
+                        "again."
+                    ),
+                    "details": {
+                        "variant_id": str(e.variant_id) if e.variant_id else None,
+                        "timeout_ms": env.postgres.commit_lock_timeout_ms,
+                    },
                 },
             ) from e
 
@@ -1763,9 +1778,13 @@ class WorkflowsRouter:
             raise HTTPException(
                 status_code=500,
                 detail={
+                    # NOT retryable, and no next_step. This fires when the write layer
+                    # reported success and produced nothing, which is an invariant failure
+                    # inside the server. Telling a caller to retry an unknown-state write
+                    # invites a duplicate commit; there is no action it can take.
                     "code": "commit_failed",
                     "message": "The commit did not produce a revision.",
-                    "retryable": True,
+                    "retryable": False,
                 },
             )
 
