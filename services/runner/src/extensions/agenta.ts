@@ -38,6 +38,7 @@ import {
 import { createAgentaOtel } from "../tracing/otel.ts";
 import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA } from "../tools/callback.ts";
+import { refusedAtGateText } from "../tools/denial-text.ts";
 import {
   assertRequiredArguments,
   requiredFields,
@@ -120,9 +121,15 @@ async function piDialogAllows(
   const message = buildPiGateEnvelope({ gate, toolName, toolCallId, input });
   try {
     const confirmed = await confirm.call(ui, PI_GATE_DIALOG_TITLE, message);
+    // A confirm resolves to a BOOLEAN, so every refusal arrives here identical: a policy deny, a
+    // human declining live, a stored decline replayed out of the conversation, and a fail-closed
+    // reject. This used to answer "Denied by the permission policy.", which names a decider it
+    // cannot know and was simply wrong whenever a human had declined one specific change: the
+    // model read it as the tool being unavailable for the whole run and stopped asking. See
+    // `refusedAtGateText` for why the honest message drops the attribution instead of guessing.
     return confirmed === true
       ? { allowed: true }
-      : { allowed: false, reason: "Denied by the permission policy." };
+      : { allowed: false, reason: refusedAtGateText(toolName) };
   } catch (err) {
     return {
       allowed: false,
@@ -173,10 +180,13 @@ function builtinToolNameFromEvent(
   return undefined;
 }
 
-function blockReason(reason: string | undefined): ToolCallEventResult {
+function blockReason(
+  toolName: string,
+  reason: string | undefined,
+): ToolCallEventResult {
   return {
     block: true,
-    reason: reason || "Denied by the permission policy.",
+    reason: reason || refusedAtGateText(toolName),
   };
 }
 
@@ -202,7 +212,7 @@ function registerBuiltinGating(pi: ExtensionAPI): void {
         event.toolCallId,
         event.input,
       );
-      return allowed ? undefined : blockReason(reason);
+      return allowed ? undefined : blockReason(toolName, reason);
     },
   );
 }
@@ -307,7 +317,7 @@ function registerTools(pi: ExtensionAPI): void {
               content: [
                 {
                   type: "text",
-                  text: reason ?? "Denied by the permission policy.",
+                  text: reason ?? refusedAtGateText(spec.name),
                 },
               ],
               details: { toolName: spec.name },

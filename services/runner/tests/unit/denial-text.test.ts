@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import {
   declinedByUserText,
   deniedByPolicyText,
+  refusedAtGateText,
 } from "../../src/tools/denial-text.ts";
 
 describe("the text a declined call returns", () => {
@@ -74,5 +75,47 @@ describe("the text a policy refusal returns", () => {
 
   it("does not blame the user for a policy refusal", () => {
     assert.doesNotMatch(text, /declined/i);
+  });
+});
+
+describe("the text a gate returns when the decider is unknowable", () => {
+  const text = refusedAtGateText("bash");
+
+  it("names the call", () => {
+    assert.match(text, /'bash'/);
+  });
+
+  it("claims NEITHER a person nor a policy, because this side cannot tell", () => {
+    // The whole reason this third string exists. The Pi extension gates through
+    // `ctx.ui.confirm`, which resolves to a boolean, so a policy deny, a live human decline, a
+    // replayed stored decline and a fail-closed reject all arrive identical. Naming either
+    // decider would be a confident guess, wrong in one arm every time.
+    assert.doesNotMatch(text, /policy/i);
+    assert.doesNotMatch(text, /The user declined|declined this/i);
+  });
+
+  it("still says the decision is settled, and forbids the reshaped retry", () => {
+    // Everything that remains TRUE without knowing who decided. Losing these would trade one
+    // wrong message for a useless one: the reshaped retry is the behavior QA actually watched.
+    assert.match(text, /already made/);
+    assert.match(text, /reshaped version of it/);
+    assert.match(text, /will be refused too/);
+  });
+
+  it("sends the model to the user, which is correct under BOTH arms", () => {
+    assert.match(text, /Tell the user this call was refused/);
+    assert.match(text, /ask how they would like to proceed/);
+  });
+
+  it("never suggests waiting, on any of the three", () => {
+    // The failure mode that started this file: an agent telling a user it would retry "as soon
+    // as that is allowed". No refusal message may imply time will help.
+    for (const t of [
+      refusedAtGateText("bash"),
+      declinedByUserText("bash"),
+      deniedByPolicyText("bash"),
+    ]) {
+      assert.doesNotMatch(t, /currently|for now|at this time|try again later|as soon as/i);
+    }
   });
 });
