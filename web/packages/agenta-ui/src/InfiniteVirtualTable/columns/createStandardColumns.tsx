@@ -369,7 +369,7 @@ function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>)
                         buttonText={null}
                         icon
                         stopPropagation
-                        size="sm"
+                        size="icon-sm"
                         variant="ghost"
                         className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                         successMessage={`${title} copied`}

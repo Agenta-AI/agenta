@@ -55,35 +55,30 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "apiKeys",
         scope: "project",
-        description:
-            "Keys authenticate requests to the Agenta API from your code, CI jobs, and SDKs. A key is shown once, at creation.",
+        description: "Manage API keys used to authenticate requests.",
         docs: {label: "Using the API", href: `${DOCS_BASE}/reference/api-guide/overview`},
     },
     {
         key: "secrets",
         scope: "project",
-        description:
-            "Credentials your workflows read at runtime. Values are encrypted and never displayed again after they are saved.",
+        description: "Store credentials your agents use at runtime.",
     },
     {
         key: "llms",
         scope: "project",
-        description:
-            "Bring your own provider keys. Agenta uses them for playground runs, evaluations, and deployed workflows.",
+        description: "Connect AI providers using your own API keys.",
         docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
     },
     {
         key: "tools",
         scope: "project",
-        description:
-            "Integrations your agents can call as tools. The slug is what you reference in code.",
+        description: "Configure integrations your agents can use.",
         docs: {label: "About tools", href: `${DOCS_BASE}/concepts/tools-and-integrations`},
     },
     {
         key: "triggers",
         scope: "project",
-        description:
-            "Run workflows automatically — on a schedule, or when a connected app sends an event.",
+        description: "Run agents automatically from schedules or events.",
         docs: {label: "About automations", href: `${DOCS_BASE}/concepts/automations`},
     },
     {
@@ -95,8 +90,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "organizationGeneral",
         scope: "organization",
-        description:
-            "Every organization you belong to. Rename, transfer ownership, or delete one from its row menu.",
+        description: "Every organization you belong to.",
         docs: {
             label: "About organizations",
             href: `${DOCS_BASE}/administration/access-control/organizations`,
@@ -105,8 +99,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "workspace",
         scope: "organization",
-        description:
-            "People with access to this organization. Invitations appear here until they are accepted or expire.",
+        description: "Manage members, invitations, and access.",
         docs: {
             label: "Roles and permissions",
             href: `${DOCS_BASE}/administration/access-control/rbac`,
@@ -115,8 +108,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "projects",
         scope: "organization",
-        description:
-            "Projects keep agents, datasets, and deployments separate. Every API call is scoped to one project ID.",
+        description: "Organize agents, datasets, and deployments.",
         docs: {
             label: "About projects",
             href: `${DOCS_BASE}/administration/access-control/organizations`,
@@ -132,7 +124,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "auditLog",
         scope: "organization",
-        description: "A record of who changed what in this organization, and when.",
+        description: "Review changes made across your organization.",
     },
     {
         key: "billing",
