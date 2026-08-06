@@ -32,6 +32,23 @@ interface ToolDisplayOverride {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))
 
+/** Our in-sandbox MCP server (runner: `INTERNAL_TOOL_MCP_SERVER_NAME`). */
+const INTERNAL_MCP_PREFIX = "mcp__agenta-tools__"
+
+/**
+ * The platform tool name behind a harness wrapper.
+ *
+ * Pi sends `commit_revision`; Claude exposes the same tool over MCP and sends
+ * `mcp__agenta-tools__commit_revision`. Anything keyed BY tool name must key on this, or one call
+ * renders two different ways depending on the harness.
+ *
+ * Only OUR server is unwrapped. A third-party MCP tool keeps its full name, so it can never
+ * collide with a platform tool of the same bare name. NOT for permission rules: those must match
+ * the wire name verbatim (see `useAlwaysAllowTool`).
+ */
+export const canonicalToolName = (raw: string): string =>
+    raw.startsWith(INTERNAL_MCP_PREFIX) ? raw.slice(INTERNAL_MCP_PREFIX.length) || raw : raw
+
 /** Special cases, keyed by wire name. */
 const BY_TOOL_NAME: Record<string, ToolDisplayOverride> = {
     commit_revision: {
@@ -63,7 +80,9 @@ const parseNameShape = (raw: string): {label: string; source?: string; kind: Too
 
 /** Resolve display info for a raw runtime tool name. Pure and total — never throws. */
 export const resolveToolDisplay = (raw: string): ToolDisplay => {
-    const override = BY_TOOL_NAME[raw]
+    // Canonical for the override lookup, raw for the shape: the same platform tool must get its
+    // summary under both harnesses, while an MCP-wrapped name still reads as an MCP tool.
+    const override = BY_TOOL_NAME[canonicalToolName(raw)]
     const parsed = parseNameShape(raw)
     return {
         raw,

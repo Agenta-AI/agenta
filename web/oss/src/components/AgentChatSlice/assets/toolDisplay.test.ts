@@ -1,6 +1,12 @@
 import {describe, expect, it} from "vitest"
 
-import {CALL_DESCRIPTION_MAX_LENGTH, extractCallDescription, partToolName} from "./toolDisplay"
+import {
+    CALL_DESCRIPTION_MAX_LENGTH,
+    canonicalToolName,
+    extractCallDescription,
+    partToolName,
+    resolveToolDisplay,
+} from "./toolDisplay"
 
 // The agent's own note about a builder tool call (R12). It rides in the call's arguments, so the
 // tool card reads it straight off `input` on both the live and the replay path.
@@ -88,5 +94,39 @@ describe("partToolName", () => {
 
     it("reads toolName off a dynamic part", () => {
         expect(partToolName({type: "dynamic-tool", toolName: "test_run"} as never)).toBe("test_run")
+    })
+})
+
+describe("canonicalToolName", () => {
+    it("unwraps our own MCP server so both harnesses key the same", () => {
+        expect(canonicalToolName("mcp__agenta-tools__commit_revision")).toBe("commit_revision")
+        expect(canonicalToolName("commit_revision")).toBe("commit_revision")
+    })
+
+    it("leaves another server's tool wrapped, so it cannot collide with a platform tool", () => {
+        expect(canonicalToolName("mcp__other__commit_revision")).toBe("mcp__other__commit_revision")
+        expect(canonicalToolName("mcp__other__x")).toBe("mcp__other__x")
+    })
+
+    it("never returns an empty name", () => {
+        expect(canonicalToolName("mcp__agenta-tools__")).toBe("mcp__agenta-tools__")
+        expect(canonicalToolName("")).toBe("")
+    })
+})
+
+describe("resolveToolDisplay under an MCP wrapper", () => {
+    it("applies the platform tool's override to the wrapped name", () => {
+        // The commit summary is keyed by tool name, so it went missing under Claude too.
+        const summary = resolveToolDisplay("mcp__agenta-tools__commit_revision").summary
+        expect(summary?.({workflow_revision: {message: "Add the skill."}}, null)).toBe(
+            "Add the skill.",
+        )
+    })
+
+    it("still presents it as an MCP tool, and keeps the raw name reachable", () => {
+        const display = resolveToolDisplay("mcp__agenta-tools__commit_revision")
+
+        expect(display.kind).toBe("mcp")
+        expect(display.raw).toBe("mcp__agenta-tools__commit_revision")
     })
 })
