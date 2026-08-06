@@ -14,3 +14,4 @@ Append-only. One line per benchmark run. A row whose path is marked `(outside re
 | `/home/mahmoud/.claude/jobs/8a4c460e/tmp/credcheck` (outside results/) | 2 | 1 | 2 | 100% | 100% | 0 | 0 | $0.01 | `7d39c5d962945c54*` | `92da411be0b09e83*` |
 | `/home/mahmoud/.claude/jobs/8a4c460e/tmp/pihaiku` (outside results/) | 1 | 1 | 1 | — | — | 0 | 1 | $0.00 | `7d39c5d962945c54*` | `92da411be0b09e83*` |
 | [20260806-200904](20260806-200904/summary.md) | 3 | 20 | 180 | 32% | 46% | 0 | 9 | $2.94 | `7d39c5d962945c54*` | `92da411be0b09e83*` |
+| `/home/mahmoud/.claude/jobs/8a4c460e/tmp/pihaiku2` (outside results/) | 1 | 1 | 1 | 100% | 100% | 0 | 0 | $0.01 | `7d39c5d962945c54*` | `cda38f6ff5d31334*` |
