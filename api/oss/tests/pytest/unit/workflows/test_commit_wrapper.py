@@ -551,6 +551,27 @@ async def _is_no_change(service, *, stored, commit):
     )
 
 
+def _locked_commit(service, *, stored, committed=None):
+    """Stand in for the DAO's locked region.
+
+    The no-change decision moved inside the variant lock, so the wrapper's contract with
+    the layer below is now: hand down a comparison, and get back either a revision or
+    `RevisionUnchanged`. A mock that just returns a revision would pass whatever the
+    wrapper did with the callback, including dropping it.
+    """
+    from oss.src.core.git.types import RevisionUnchanged
+
+    async def commit(*, no_change_check=None, **_):
+        if no_change_check is not None and no_change_check(stored):
+            raise RevisionUnchanged(
+                head_revision_id=stored.id if stored is not None else None
+            )
+        return committed
+
+    service.commit_workflow_revision = AsyncMock(side_effect=commit)
+    return service.commit_workflow_revision
+
+
 class TestNoChange:
     async def test_an_identical_tree_writes_nothing(self, service):
         data = {"parameters": {"agent": {"instructions": "hi"}}}
@@ -617,7 +638,7 @@ class TestNoChange:
         )
         service.fetch_workflow_revision = AsyncMock(return_value=_head(stored.id))
         service.workflows_dao.fetch_revision.return_value = stored
-        service.commit_workflow_revision = AsyncMock()
+        _locked_commit(service, stored=stored)
 
         outcome = await service.commit_workflow_revision_checked(
             project_id=uuid4(),
@@ -628,7 +649,12 @@ class TestNoChange:
         assert outcome.status == "no_change"
         assert outcome.revision.id == stored.id
         assert [w.code for w in outcome.warnings] == ["no_change"]
-        service.commit_workflow_revision.assert_not_awaited()
+        # The wrapper no longer decides this: it hands the comparison down and the locked
+        # region refuses. Asserting it never called down would pin the old, racy shape.
+        assert (
+            service.commit_workflow_revision.await_args.kwargs["no_change_check"]
+            is not None
+        )
 
     async def test_a_real_change_still_commits(self, service):
         commit = WorkflowRevisionCommit(
@@ -681,7 +707,7 @@ class TestNoChange:
             return_value=_head(stored.id, data=data)
         )
         service.workflows_dao.fetch_revision.return_value = stored
-        service.commit_workflow_revision = AsyncMock()
+        _locked_commit(service, stored=stored)
 
         outcome = await service.commit_workflow_revision_checked(
             project_id=uuid4(),
@@ -690,7 +716,6 @@ class TestNoChange:
         )
 
         assert outcome.status == "no_change"
-        service.commit_workflow_revision.assert_not_awaited()
 
     async def test_a_stale_base_beats_no_change(self, service):
         # Contract precedence (commit-transaction.md 6, rule 2 over rule 6): a stale caller
@@ -761,7 +786,7 @@ class TestNoChange:
             return_value=_head(stored.id, data=data)
         )
         service.workflows_dao.fetch_revision.return_value = stored
-        service.commit_workflow_revision = AsyncMock()
+        _locked_commit(service, stored=stored)
 
         outcome = await service.commit_workflow_revision_checked(
             project_id=uuid4(),
@@ -815,7 +840,7 @@ class TestTheFlagOffCommitPath:
             return_value=_head(stored.id, data=data)
         )
         service.workflows_dao.fetch_revision.return_value = stored
-        service.commit_workflow_revision = AsyncMock(return_value=committed)
+        _locked_commit(service, stored=stored, committed=committed)
         return stored, committed
 
     async def test_a_legacy_no_op_set_still_creates_a_revision(
@@ -870,4 +895,7 @@ class TestTheFlagOffCommitPath:
         )
 
         assert outcome.status == "no_change"
-        service.commit_workflow_revision.assert_not_awaited()
+        assert (
+            service.commit_workflow_revision.await_args.kwargs["no_change_check"]
+            is not None
+        )

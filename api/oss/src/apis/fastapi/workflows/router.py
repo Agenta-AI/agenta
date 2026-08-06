@@ -1689,6 +1689,24 @@ class WorkflowsRouter:
                     "retryable": False,
                 },
             )
+        # `description` on a scoped commit is dropped, never stored. The model never sets the
+        # persisted revision description (read-config.md 12.2); the field it does write is the
+        # ephemeral per-call note, which shares this name and must not reach the audit trail
+        # (12.3). The runner strips that note before dispatch, so one arriving here means the
+        # runner did not, and storing it would persist exactly what the contract forbids.
+        if (
+            scope_policy is not None
+            and workflow_revision_commit.description is not None
+        ):
+            workflow_revision_commit = workflow_revision_commit.model_copy(
+                update={"description": None}
+            )
+            workflow_revision_commit_request = (
+                workflow_revision_commit_request.model_copy(
+                    update={"workflow_revision": workflow_revision_commit}
+                )
+            )
+
         if not has_data and not has_delta:
             current_revision = await self.workflows_service.fetch_workflow_revision(
                 project_id=UUID(request.state.project_id),

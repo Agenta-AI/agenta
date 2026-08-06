@@ -38,6 +38,7 @@ from oss.src.core.git.dtos import (
     VariantQuery,
     VariantFork,
     #
+    Revision,
     RevisionCreate,
     RevisionEdit,
     RevisionQuery,
@@ -93,6 +94,7 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.git.types import (
     InlineResolveInvalid,
     RevisionConflict,
+    RevisionUnchanged,
     VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
@@ -2041,11 +2043,30 @@ class WorkflowsService:
             is_ordered or env.agenta.api.workflows.ordered_operations_enabled
         )
 
-        if answers_no_change and await self._is_no_change(
-            project_id=project_id,
-            head=head,
-            candidate=candidate,
-        ):
+        # There is ONE decision point, and it is inside the lock. Deciding here, before the
+        # call, reads a head another writer can move afterwards: the caller was then told
+        # `no_change` about a revision that was no longer the head, and the conflict the DAO
+        # would have raised never happened because the early return skipped it.
+        # Passing the expectation down is what makes the DAO re-read under the variant lock
+        # and refuse the loser. `CommitLockTimeout` travels on unchanged: it is the 503.
+        try:
+            revision = await self.commit_workflow_revision(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_revision_commit=workflow_revision_commit,
+                expected_head_revision_id=workflow_revision_commit.base_revision_id,
+                no_change_check=(
+                    self._no_change_check(candidate=candidate)
+                    if answers_no_change
+                    else None
+                ),
+            )
+        except RevisionConflict as e:
+            raise RevisionConflictError(
+                base_revision_id=e.expected_head_revision_id,
+                current_revision_id=e.current_head_revision_id,
+            ) from e
+        except RevisionUnchanged as e:
             # A commit event evicts the warm session, so a change that changes nothing
             # must not create a revision, publish an event, or invalidate a cache.
             warnings.append(
@@ -2057,25 +2078,42 @@ class WorkflowsService:
                     ),
                 )
             )
-            return CommitOutcome(revision=head, status="no_change", warnings=warnings)
-
-        # The pre-check above is an early-out, not the guarantee: it reads the head in its
-        # own transaction, so two writers can both pass it. Passing the expectation down
-        # is what makes the DAO re-read under the variant lock and refuse the loser.
-        # `CommitLockTimeout` from that lock travels on unchanged: it is the router's 503.
-        try:
-            revision = await self.commit_workflow_revision(
-                project_id=project_id,
-                user_id=user_id,
-                workflow_revision_commit=workflow_revision_commit,
-                expected_head_revision_id=workflow_revision_commit.base_revision_id,
+            # Re-read rather than answering with the head fetched earlier: the decision was
+            # made against the head under the lock, and the answer has to describe that one.
+            unchanged_head = (
+                await self.fetch_workflow_revision(
+                    project_id=project_id,
+                    workflow_revision_ref=Reference(id=e.head_revision_id),
+                )
+                if e.head_revision_id is not None
+                else None
             )
-        except RevisionConflict as e:
-            raise RevisionConflictError(
-                base_revision_id=e.expected_head_revision_id,
-                current_revision_id=e.current_head_revision_id,
-            ) from e
+            return CommitOutcome(
+                revision=unchanged_head,
+                status="no_change",
+                warnings=warnings,
+            )
         return CommitOutcome(revision=revision, status="committed", warnings=warnings)
+
+    def _no_change_check(self, *, candidate: RevisionCommit):
+        """The comparison the DAO runs against the head it holds the lock on.
+
+        A closure rather than a value, because the row it compares against does not exist
+        yet at this point: it is whatever the head turns out to be once the lock is taken.
+        """
+
+        def unchanged(stored_head: Optional[Revision]) -> bool:
+            if stored_head is None:
+                return False
+            return self._canonical_revision_record(
+                data=candidate.data,
+                flags=candidate.flags,
+            ) == self._canonical_revision_record(
+                data=stored_head.data,
+                flags=stored_head.flags,
+            )
+
+        return unchanged
 
     async def _is_no_change(
         self,
@@ -2138,6 +2176,8 @@ class WorkflowsService:
         emit: bool = True,
         #
         expected_head_revision_id: Optional[UUID] = None,
+        #
+        no_change_check=None,
     ) -> Optional[WorkflowRevision]:
         self._reject_static_slug(workflow_revision_commit.slug)
 
@@ -2176,6 +2216,8 @@ class WorkflowsService:
             initial=initial,
             #
             expected_head_revision_id=expected_head_revision_id,
+            #
+            no_change_check=no_change_check,
         )
 
         if not revision:
