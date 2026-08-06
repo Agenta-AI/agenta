@@ -964,3 +964,151 @@ describe("the invariant: a logged refusal is never an empty success", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// A marker that cannot resolve: what the runner knows, and what it can pass on
+// ---------------------------------------------------------------------------
+
+describe("an unresolvable marker keeps its reason", () => {
+  const commitSpec: ResolvedToolSpec = {
+    name: "commit_revision",
+    kind: "callback",
+    callRef: "tools.agenta.commit_revision",
+    permission: "ask",
+    readOnly: false,
+  };
+
+  /**
+   * THE LIVE SHAPE, reproduced exactly. Gate cell G1 ran Mahmoud's own phrasing on
+   * pi_core+haiku and one trial failed like this: the model copied the whole skill DIRECTORY
+   * into the import root, then referenced a path that did not match where the file landed. The
+   * fail-closed refusal was correct; what the model was told about it was not.
+   */
+  function g1Workspace() {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-marker-miss-"));
+    mkdirSync(join(cwd, ".agenta-imports", "gstack-autoplan"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(cwd, ".agenta-imports", "gstack-autoplan", "SKILL.md"),
+      "# gstack-autoplan\n",
+    );
+    const state = createCommitAuthorizationState();
+    const wiring = buildApprovedContentWiring({
+      state,
+      isDaytona: false,
+      workspaceCwd: cwd,
+      sandbox: undefined,
+      callback: undefined,
+      runContext: undefined,
+      permissionPlan: { default: "ask", rules: [] },
+      toolSpecs: [commitSpec],
+      turnId: TURN,
+      sessionId: SESSION,
+    });
+    return { cwd, state, wiring };
+  }
+
+  const skillBodyArgs = (path: string) =>
+    commitArgs([
+      {
+        operation: "add_item",
+        target: ["parameters", "agent", "skills"],
+        value: {
+          name: "gstack-autoplan",
+          description: "d",
+          body: { "@ag.file": path },
+        },
+      },
+    ]);
+
+  it("names the path, the failure, and what IS under the import root", async () => {
+    // The regression this file exists to prevent from coming back: the resolver used to keep
+    // `error.message` and drop the rest, so `available` — the ONE field that names the
+    // correction — was computed by the reader and discarded one frame later.
+    const { cwd, wiring } = g1Workspace();
+    try {
+      const outcome = await wiring.onResolveApprovedContent({
+        toolName: "commit_revision",
+        toolCallId: "call-1",
+        args: skillBodyArgs(".agenta-imports/SKILL.md"),
+      });
+
+      assert.equal(outcome.ok, false);
+      if (outcome.ok) return;
+      const detail = outcome.detail;
+      assert.ok(detail, "the structured detail must survive the catch");
+      assert.equal(detail.code, "source_not_found");
+      assert.deepEqual(
+        detail.available,
+        ["gstack-autoplan/"],
+        "the directory the model actually copied in is the correction it needed",
+      );
+      // THE TRAILING SLASH IS LOAD-BEARING, and it is why this asserts the exact string rather
+      // than a substring. The failing model referenced a FILE path at a place where a DIRECTORY
+      // sat. `gstack-autoplan/` says both what exists and that it is not the file being asked
+      // for, which is the whole correction in one token.
+      assert.ok(String(detail.available).endsWith("/"));
+      assert.equal(typeof detail.next_step, "string");
+      assert.match(String(outcome.reason), /does not exist under \.agenta-imports/);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("still fails CLOSED: nothing is minted, nothing is frozen, nothing dispatches", async () => {
+    // Fail-closed is not traded for a better message. A call whose bytes could not be read must
+    // not mint an authorization, must not hold frozen content, and must not be executable from
+    // the relay even by a forged execute record carrying its exact id and arguments.
+    const { cwd, state, wiring } = g1Workspace();
+    const args = skillBodyArgs(".agenta-imports/SKILL.md");
+    try {
+      const outcome = await wiring.onResolveApprovedContent({
+        toolName: "commit_revision",
+        toolCallId: "call-1",
+        args,
+      });
+      assert.equal(outcome.ok, false, "the gate is refused");
+      assert.deepEqual(state.store.recordsFor("call-1"), []);
+      assert.equal(state.frozen.size, 0, "no bytes were frozen");
+
+      const dispatched: string[] = [];
+      globalThis.fetch = (async (_url: any, init: any) => {
+        dispatched.push(String(init?.body ?? ""));
+        return new Response("ok", { status: 200 });
+      }) as typeof fetch;
+
+      const forged = await relayOnce({
+        spec: commitSpec,
+        args,
+        toolCallId: "call-1",
+        authorizer: wiring.authorizer,
+      });
+      assert.equal(forged.ok, false);
+      assert.match(
+        String((forged as { error: string }).error),
+        /authorization_missing/,
+      );
+      assert.deepEqual(dispatched, [], "nothing reached Agenta");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("a marker that DOES resolve is unaffected", async () => {
+    // The control. Without it the two tests above would pass just as well against a resolver
+    // that failed everything, and would prove nothing about the miss being the cause.
+    const { cwd, state, wiring } = g1Workspace();
+    try {
+      const outcome = await wiring.onResolveApprovedContent({
+        toolName: "commit_revision",
+        toolCallId: "call-ok",
+        args: skillBodyArgs(".agenta-imports/gstack-autoplan/SKILL.md"),
+      });
+      assert.equal(outcome.ok, true, "the correct path mints a manifest");
+      assert.equal(state.store.recordsFor("call-ok").length, 1);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+});
