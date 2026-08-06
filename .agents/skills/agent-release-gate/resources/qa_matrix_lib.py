@@ -155,11 +155,56 @@ def seed_and_baseline(
     return rev["id"], rev.get("version")
 
 
+def _handler_call(
+    call_ref: str, arguments: dict, timeout: float = 60.0
+) -> httpx.Response:
+    """Call a platform-tool handler through the generic `/tools/call` seam.
+
+    The agent endpoints (`/workflows/revisions/read-config` and `.../commit/agent`) are
+    gone: every detail of both was agent-shaped, so the logic moved behind registered
+    handlers reached by call_ref. These probes take the same transport a live agent takes.
+
+    The response is translated back into the shape these helpers have always returned, so
+    gate cells keep reading `.status_code` and `.json()`. Note what HTTP status now means:
+    the seam answers 200 for a domain FAILURE too, with `STATUS_CODE_ERROR` and the
+    canonical error envelope in the content. A failure is surfaced here as a non-200 with
+    the envelope as the body, so a cell that checks `status_code != 200` still sees a
+    failure, and a cell that reads the body gets `code` / `retryable` / `next_step`.
+    """
+    response = api_call(
+        "POST",
+        "/tools/call",
+        timeout=timeout,
+        json={
+            "data": {
+                "id": f"qa-{uuid.uuid4().hex[:8]}",
+                "function": {"name": call_ref, "arguments": arguments},
+            }
+        },
+    )
+    if response.status_code != 200:
+        return response
+
+    call = (response.json() or {}).get("call") or {}
+    content = ((call.get("data") or {}).get("content")) or "null"
+    status_code = ((call.get("status") or {}).get("code")) or "STATUS_CODE_OK"
+    try:
+        payload = json.loads(content)
+    except (TypeError, json.JSONDecodeError):
+        payload = {"raw": content}
+
+    return httpx.Response(
+        status_code=200 if status_code == "STATUS_CODE_OK" else 422,
+        json=payload,
+        request=response.request,
+    )
+
+
 def read_config_direct(variant_id: str, path: list | None = None) -> httpx.Response:
-    body = {"target": {"workflow_variant_id": variant_id}}
+    target: dict = {"workflow_variant_id": variant_id}
     if path is not None:
-        body["target"]["path"] = path
-    return api_call("POST", "/workflows/revisions/read-config", json=body)
+        target["path"] = path
+    return _handler_call("tools.agenta.read_config", {"target": target})
 
 
 def commit_agent_direct(
@@ -171,10 +216,9 @@ def commit_agent_direct(
     `workflow_variant_id` is normally injected by the runner from run context
     ($ctx.workflow.variant.id) when a live agent calls commit_revision -- a direct probe has no
     run context, so it must be supplied explicitly or the endpoint 400s asking for it."""
-    return api_call(
-        "POST",
-        "/workflows/revisions/commit/agent",
-        json={
+    return _handler_call(
+        "tools.agenta.commit_revision",
+        {
             "description": description,
             "workflow_revision": {
                 "base_revision_id": base_revision_id,

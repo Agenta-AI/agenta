@@ -243,6 +243,30 @@ proves nothing about the durable working directory (LESSONS #16).
   the FILE, not the directory" and "always attempt the tool calls, don't just describe the
   mechanism"), or whether ~2/3 is an acceptable bar for this feature's launch.
 
+### Builtin capability cells (`matrix_b*.py`) — does the harness's own tooling still work
+
+- `resources/matrix_b1_builtin_find.py` — **[coached, harness-mechanism test]** one native
+  file-search call per harness (write three known marker files, then ask the model to locate
+  them via its own search capability — never a manual directory listing), asserting the exact
+  filenames come back in the TOOL OUTPUT payload, never the reply. Exists because nothing else in
+  the gate ever exercised a harness builtin: verify-runner's overnight diagnosis found Pi's
+  `find` builtin dead 52/52 across two benchmark runs (it shells out to the vendored `fd` binary
+  with a flag that only exists from fd 9 onward; the runner image ships fd 8.6.0) — a total
+  capability loss that sat invisible with nothing calling it. This cell closes that discoverability
+  gap for the class, not just this one instance. **Open discrepancy, not yet reconciled**: this
+  cell's own pi_core leg PASSED twice, live, with real filenames back
+  (2026-08-07, sessions dd9c51ef-92d0-4780-855e-da6f48e07d9f and
+  47f02ab1-61ec-4db8-a0d6-2d96e98b9188) — which does not match "52/52 failed". Either the break is
+  conditional on a flag/option this cell's simple case never exercises, or something already
+  changed; needs reconciling with verify-runner before Pi's `find` gets called either fixed or
+  still broken. **Codex SKIPs by design**, not tested: its exec output doesn't land in the
+  `tool-output-available` payload's `.output` field (the same quirk `qa_product.py`'s `j2_mount`
+  already names and skips codex for), so this cell's evidence extraction cannot see codex's real
+  results — a codex-shaped extraction is a follow-up. Claude PASSED cleanly on the two-turn
+  version (session 4081e9ee-11c1-4f12-8245-6c390f90e9d8). Needed two EXPLICIT turns (write, then
+  search) — one combined instruction left claude stopping after the write step without
+  attempting the search at all.
+
 ### The lifecycle cells (`matrix_l*.py`) — cold ↔ warm, and what survives each transition
 
 These four cover the session-lifecycle work: which config changes are applied to a RUNNING
