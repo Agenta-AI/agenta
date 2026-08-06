@@ -108,6 +108,15 @@ describe("the imported file list", () => {
         expect(rendered).toContain("abcdef012345")
     })
 
+    it("labels the file digest and the whole-change digest as different things", () => {
+        // The card shows two digests with different SCOPES: this file's bytes, and the fully
+        // resolved arguments. Unlabelled, a reviewer reads the two hexes as a mismatch.
+        const rendered = text(<ApprovedContentManifest manifest={manifest()} />)
+
+        expect(rendered).toContain("file digest")
+        expect(rendered).toContain("whole-change digest")
+    })
+
     it("flags an executable file, and says nothing for a plain one", () => {
         const plain = text(<ApprovedContentManifest manifest={manifest()} />)
         expect(plain).not.toContain("executable")
@@ -141,6 +150,8 @@ describe("the imported file list", () => {
         const rendered = text(<ApprovedContentManifest manifest={manifest()} />)
         expect(rendered).toContain("0123456789ab")
         expect(rendered).toMatch(/covering the full text, not only what is shown/)
+        // The two digests must stay distinguishable, not just both present.
+        expect(rendered).not.toContain("abcdef012345, covering")
     })
 })
 

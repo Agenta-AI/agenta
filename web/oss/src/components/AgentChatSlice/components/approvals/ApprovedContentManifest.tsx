@@ -134,8 +134,14 @@ const ApprovedContentManifest = ({manifest}: {manifest: ApprovedContentManifestV
                         {file.executableBit ? (
                             <span className="text-colorWarning">executable</span>
                         ) : null}
-                        <span className="font-mono text-colorTextTertiary">
-                            {file.digest.slice(0, 12)}
+                        {/* Scoped label: this one covers the FILE, the line below covers the whole
+                            change, and two bare hexes read as a mismatch. */}
+                        <span
+                            className="text-colorTextTertiary"
+                            title="Digest of this file's contents"
+                        >
+                            file digest{" "}
+                            <span className="font-mono">{file.digest.slice(0, 12)}</span>
                         </span>
                     </div>
                 ))}
@@ -144,8 +150,11 @@ const ApprovedContentManifest = ({manifest}: {manifest: ApprovedContentManifestV
 
         {/* Contract: the card must say the digest covers the FULL content, not the shown view. */}
         {manifest.contentDigest ? (
-            <div className="text-[11px] text-colorTextTertiary">
-                Approving commits exactly this content (digest{" "}
+            <div
+                className="text-[11px] text-colorTextTertiary"
+                title="Digest over the fully resolved arguments, including every file's bytes"
+            >
+                Approving commits exactly this content (whole-change digest{" "}
                 <span className="font-mono">{manifest.contentDigest.slice(0, 12)}</span>, covering
                 the full text, not only what is shown).
             </div>
