@@ -899,3 +899,46 @@ class TestTheFlagOffCommitPath:
             service.commit_workflow_revision.await_args.kwargs["no_change_check"]
             is not None
         )
+
+
+class TestTheFlagDecidesWhetherTheCommitTakesTheLock:
+    """The flag decides whether the commit path takes the variant lock at all.
+
+    The no-change comparison is only meaningful against a head that cannot move under it,
+    so asking for one makes the DAO take the variant lock. With the flag off the wrapper
+    hands none down, and that is what keeps the flag-off path byte-for-byte today's: no
+    lock, no serialization, no behavior change for callers who never opted in.
+
+    The DAO half of the same claim, which commits take the lock given what they are passed,
+    is in `unit/git/test_commit_lock_scope.py` two lanes down.
+    """
+
+    @staticmethod
+    async def _comparison_handed_down(service):
+        head = _head(uuid4(), data={"parameters": {"agent": {"instructions": "old"}}})
+        service.fetch_workflow_revision = AsyncMock(return_value=head)
+        service.commit_workflow_revision = AsyncMock(return_value=head)
+
+        await service.commit_workflow_revision_checked(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=WorkflowRevisionCommit(
+                workflow_variant_id=VARIANT_ID,
+                data={"parameters": {"agent": {"instructions": "new"}}},
+            ),
+        )
+
+        return service.commit_workflow_revision.await_args.kwargs["no_change_check"]
+
+    async def test_the_flag_off_path_hands_down_no_comparison(
+        self, service, ordered_off
+    ):
+        assert await self._comparison_handed_down(service) is None, (
+            "the flag-off path asked for the no-change comparison, which takes the "
+            "variant lock and changes today's behavior"
+        )
+
+    async def test_the_flag_on_path_hands_down_the_comparison(
+        self, service, ordered_on
+    ):
+        assert await self._comparison_handed_down(service) is not None
