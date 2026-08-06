@@ -24,6 +24,7 @@ import {
 import type { PermissionPlan, Verdict } from "../../src/permission-plan.ts";
 import {
   attachPermissionResponder,
+  formatResolutionDetail,
   type PiToolSpecMeta,
 } from "../../src/engines/sandbox_agent/acp-interactions.ts";
 import {
@@ -2099,5 +2100,44 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
     assert.equal(gates[0].gateType, "claude-acp-permission");
     assert.equal(events.length, 1, "the approval card was emitted");
     assert.equal((events[0] as any).payload.toolCallId, "tc-claude");
+  });
+});
+
+describe("the marker-resolution log detail", () => {
+  it("names the failure, where it sat, and what is really under the import root", () => {
+    // The operator line for a gate that failed on an unresolvable marker. `available` is the
+    // field worth reading: the trailing slash says the entry is a DIRECTORY, which is the whole
+    // correction when a model copied a skill folder in and then referenced a file path.
+    assert.equal(
+      formatResolutionDetail({
+        code: "source_not_found",
+        message: "SKILL.md does not exist under .agenta-imports/.",
+        next_step: "Write the file under .agenta-imports/ first, then send the commit again.",
+        retryable: true,
+        value_pointer: "/workflow_revision/delta/operations/0/value/body",
+        operation_index: 0,
+        available: ["gstack-autoplan/"],
+      }),
+      "(code=source_not_found at=/workflow_revision/delta/operations/0/value/body " +
+        "available=[gstack-autoplan/])",
+    );
+  });
+
+  it("carries no file CONTENT, because this line goes to a log", () => {
+    // The import root holds the USER'S bytes. A detail field that ever starts carrying content
+    // must not reach this formatter, so the formatter names its fields explicitly rather than
+    // spreading whatever it is handed.
+    const line = formatResolutionDetail({
+      code: "source_invalid",
+      message: "secret bytes here",
+      content: "SECRET-FILE-BODY",
+      available: ["a/"],
+    });
+    assert.ok(!line.includes("SECRET-FILE-BODY"));
+    assert.ok(!line.includes("secret bytes here"));
+  });
+
+  it("degrades to an empty string rather than printing an empty bracket", () => {
+    assert.equal(formatResolutionDetail({}), "");
   });
 });

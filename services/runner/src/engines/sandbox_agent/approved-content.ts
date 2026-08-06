@@ -188,10 +188,17 @@ export function buildApprovedContentWiring(input: {
         });
         return { ok: true, manifest };
       } catch (error) {
-        if (
-          error instanceof CommitAuthorizationError ||
-          error instanceof MarkerResolutionError
-        ) {
+        if (error instanceof MarkerResolutionError) {
+          // Carry the STRUCTURED account, not just the sentence. `toDetail()` holds the failure
+          // code, the path the model named, the operation index, a next step, and `available` —
+          // the entries that really are under the import root. That last field is the one that
+          // names the correction: a live trial copied a skill DIRECTORY in and then referenced a
+          // path that did not match where the file landed, and `available` held the directory
+          // name it should have used. This resolver used to keep `error.message` alone and drop
+          // the rest, so the answer was computed and thrown away.
+          return { ok: false, reason: error.message, detail: error.toDetail() };
+        }
+        if (error instanceof CommitAuthorizationError) {
           return { ok: false, reason: error.message };
         }
         throw error;

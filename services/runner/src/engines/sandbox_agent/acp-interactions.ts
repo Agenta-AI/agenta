@@ -136,7 +136,28 @@ export interface AttachPermissionResponderInput {
     toolName: string | undefined;
     toolCallId: string | undefined;
     args: unknown;
-  }) => Promise<{ ok: true; manifest?: unknown } | { ok: false; reason: string }>;
+  }) => Promise<
+    | { ok: true; manifest?: unknown }
+    | {
+        ok: false;
+        reason: string;
+        /**
+         * The structured account of WHY, when the failure was a marker that could not resolve.
+         *
+         * `MarkerResolutionError.toDetail()`: the failure code, the path the model named, the
+         * operation it sat in, a next step, and `available` — the entries that DO exist under the
+         * import root. The reader computes all of it and the resolver used to keep only
+         * `error.message`, so the one thing that names the correction was discarded one frame
+         * before anyone could use it.
+         *
+         * READ THE CEILING ON THIS BEFORE BUILDING ON IT: `PermissionReply` is `"once" | "always"
+         * | "reject"`, a bare enum with no text, so answering the gate cannot carry any of this to
+         * the MODEL. Today it reaches the operator log. Delivering it to the model needs a channel
+         * that does not exist on this path; see the block above `resolveApprovedContent`.
+         */
+        detail?: Record<string, unknown>;
+      }
+  >;
   /**
    * Whether a REPLAYED approval must not answer this gate, so the gate asks again.
    *
@@ -330,9 +351,23 @@ export function attachPermissionResponder({
       pauseUserApproval(req, id, gate, gateType, outcome.manifest);
       return;
     }
+    // The structured detail, when the failure was an unresolvable marker. `available` is the
+    // useful field: a wrong path is nearly always a near miss, and this names what is really
+    // there. It used to be computed by the reader and dropped here.
+    //
+    // WHAT THIS LINE CANNOT DO, STATED SO NOBODY BUILDS ON A WRONG ASSUMPTION. It reaches the
+    // OPERATOR, not the model. Answering a gate is `session.respondPermission(id, reply)` where
+    // `PermissionReply` is `"once" | "always" | "reject"` — a bare enum with no room for text —
+    // so the model is told only that its call was rejected, and the harness authors even that
+    // wording. A model that mistyped a path is therefore informed that its change was DENIED,
+    // which reads as a human refusing rather than a file being absent, and it has no way to tell
+    // the difference. That is the same class `denial-text.ts` exists for, one layer up, and it
+    // cannot be closed from this call site.
+    const detail = outcome.detail;
     log?.(
       `[HITL] approved-content resolution failed id=${id} tool=${gate.toolName}: ` +
-        `${outcome.reason}; deny (fail closed)`,
+        `${outcome.reason}${detail ? ` ${formatResolutionDetail(detail)}` : ""}` +
+        `; deny (fail closed)`,
     );
     if (!id) {
       onPause?.();
@@ -920,4 +955,27 @@ function clientToolReply(
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * One greppable line from a marker-resolution detail. Operator-facing.
+ *
+ * Only the fields that help someone answer "why did this call not run": the failure code, the
+ * path the model named, and what is really under the import root. No file CONTENT, because this
+ * goes to a log and the whole point of the import root is that its bytes are the user's.
+ *
+ * `available` lists TOP-LEVEL entries only, which is what `listImportRoot` returns. That is
+ * enough for the common miss (a directory copied in, then referenced by the wrong path) and it
+ * is NOT enough for a path that is wrong INSIDE a directory, e.g. the wrong case on a file name.
+ * Recorded here rather than fixed, because deepening the listing is a bigger change than the
+ * class it would serve.
+ */
+export function formatResolutionDetail(detail: Record<string, unknown>): string {
+  const parts: string[] = [];
+  if (typeof detail.code === "string") parts.push(`code=${detail.code}`);
+  if (typeof detail.value_pointer === "string")
+    parts.push(`at=${detail.value_pointer}`);
+  if (Array.isArray(detail.available))
+    parts.push(`available=[${detail.available.join(", ")}]`);
+  return parts.length ? `(${parts.join(" ")})` : "";
 }
