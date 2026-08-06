@@ -18,6 +18,7 @@ export type {
     CommitSubmitResult,
     CommitModeOption,
     CommitCreateFieldsConfig,
+    CommitErrorAction,
     EntityCommitContentProps,
     AgentChangesSummaryProps,
 } from "./components"

@@ -138,6 +138,7 @@ export type {
     CommitSubmitResult,
     CommitModeOption,
     CommitCreateFieldsConfig,
+    CommitErrorAction,
     AgentChangesSummaryProps,
     UseEntityCommitReturn,
     UseBoundCommitOptions,

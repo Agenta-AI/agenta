@@ -1111,6 +1111,12 @@ export interface CommitWorkflowRevisionPayload {
     name?: string
     data: NonNullable<UpdateWorkflowPayload["data"]>
     message?: string | null
+    /**
+     * The revision this commit was built on (the id the caller last read). Sending it asks the
+     * backend to refuse the commit with a 409 `revision_conflict` when the variant's head moved
+     * since — the concurrency guard for the playground save flow. Omit to keep last-write-wins.
+     */
+    baseRevisionId?: string
 }
 
 export async function commitWorkflowRevisionApi(
@@ -1129,6 +1135,7 @@ export async function commitWorkflowRevisionApi(
                 data: payload.data,
                 flags: revisionFlags,
                 message: payload.message ?? undefined,
+                base_revision_id: payload.baseRevisionId ?? undefined,
             },
         },
         {params: {project_id: projectId}},

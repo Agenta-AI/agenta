@@ -19,6 +19,7 @@ import type {
     CommitSubmitParams,
     CommitCreateFieldsConfig,
     CommitDeployOption,
+    CommitErrorAction,
 } from "../../types"
 import {
     commitModalOpenAtom,
@@ -50,7 +51,7 @@ void testsetModalAdapter
 void revisionModalAdapter
 void variantModalAdapter
 
-export type {CommitSubmitResult, CommitSubmitParams, CommitCreateFieldsConfig}
+export type {CommitSubmitResult, CommitSubmitParams, CommitCreateFieldsConfig, CommitErrorAction}
 
 export interface EntityCommitModalProps {
     /** External control - override atom state */
@@ -408,9 +409,11 @@ export function EntityCommitModal({
                             setSlugFieldError(SLUG_CONFLICT_MESSAGE)
                             setSlugEditing(true)
                         }
-                        setCommitError(
-                            new Error(extractApiErrorMessage(result.error || "Commit failed")),
+                        const err: Error & {action?: CommitErrorAction} = new Error(
+                            extractApiErrorMessage(result.error || "Commit failed"),
                         )
+                        if (result.errorAction) err.action = result.errorAction
+                        setCommitError(err)
                         setCommitLoading(false)
                         return
                     }

@@ -100,6 +100,8 @@ export interface AppRevisionCrudResult {
     message?: string
     error?: string
     errorStatus?: number
+    /** Stable machine-readable failure cause (e.g. `"revision_conflict"`), when known. */
+    errorCode?: string
 }
 
 /**
