@@ -25,6 +25,36 @@ export function declinedByUserText(toolName: string): string {
   );
 }
 
+/**
+ * The gate answered no, and the caller CANNOT TELL whether the human or the policy decided.
+ *
+ * WHY A THIRD MESSAGE INSTEAD OF PICKING ONE OF THE TWO ABOVE. The Pi extension gates a call by
+ * raising `ctx.ui.confirm`, and a confirm resolves to a BOOLEAN. Every refusal collapses into
+ * `false` on that side: a policy deny, a human declining live, a stored decline replayed out of
+ * the conversation, and a fail-closed reject all look identical. The ACP reply the runner sends
+ * back is `"once" | "always" | "reject"`, with no room to say which, so the extension cannot
+ * recover the difference either.
+ *
+ * Using `declinedByUserText` there would tell the model a human said no when the policy did.
+ * Using `deniedByPolicyText` would tell it the tool is unavailable when a human simply declined
+ * this one change, and it is the second that was live: that exact string sat on the Pi builtin
+ * path, which is what this function replaces. Both are confident claims about WHO decided, and
+ * one of them is false in each arm. A message that states only what is known is worth more than a
+ * fluent one that is wrong half the time.
+ *
+ * So this one drops the attribution and keeps everything that is still true: it happened, it is
+ * settled, retrying and reshaping will not move it, and the user is the one to talk to next. That
+ * last instruction is correct under BOTH arms, which is what makes the message safe to use when
+ * the arm is unknown.
+ */
+export function refusedAtGateText(toolName: string): string {
+  return (
+    `The '${toolName}' call was refused and did not run. That decision is already made: ` +
+    `sending the same call again, or a reshaped version of it, will be refused too. Tell the ` +
+    `user this call was refused and ask how they would like to proceed.`
+  );
+}
+
 /** The run's permission policy refuses the tool, whatever its arguments are. */
 export function deniedByPolicyText(toolName: string): string {
   return (
