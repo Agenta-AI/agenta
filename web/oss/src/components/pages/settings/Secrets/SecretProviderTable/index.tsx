@@ -28,9 +28,11 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
     const isCustom = type === "custom"
 
     interface ProviderRow extends LlmProvider {
-        // Identity is rowId; key stays the API key, narrowed to string to meet the table base type.
+        // `key` is the virtual table's unique row identity. The provider's own key (the API
+        // secret) would be "" for every unconfigured provider and collapse the rows, so it
+        // lives on `source` — the untouched provider handed to the modals.
         key: string
-        rowId: string
+        source: LlmProvider
         [extra: string]: unknown
     }
 
@@ -40,15 +42,10 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
         () =>
             (sourceRows ?? []).map((provider, index) => ({
                 ...provider,
-                key: provider.key ?? "",
-                rowId: provider.id || provider.title || provider.name || `provider-${index}`,
+                key: provider.id || provider.title || provider.name || `provider-${index}`,
+                source: provider,
             })),
         [sourceRows],
-    )
-
-    const configuredCount = useMemo(
-        () => (secrets ?? []).filter((provider) => Boolean(provider.key)).length,
-        [secrets],
     )
 
     const columns = useMemo(
@@ -58,7 +55,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     type: "text",
                     key: "name",
                     title: isCustom ? "Name" : "Provider",
-                    width: 220,
+                    width: 320,
                     fixed: "left",
                     render: (_value, record) => {
                         const Icon = LLMIconMap[record.title as string]
@@ -80,24 +77,24 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                               title: "API key",
                               width: 260,
                               render: (_value: unknown, record: ProviderRow) => {
-                                  const key = record.key as string | undefined
-                                  if (!key) {
+                                  const apiKey = record.source.key
+                                  if (!apiKey) {
                                       return (
                                           <Button
                                               size="small"
                                               onClick={(e) => {
                                                   e.stopPropagation()
                                                   setIsAddProviderSecretModalOpen(true)
-                                                  setSelectedProvider(record)
+                                                  setSelectedProvider(record.source)
                                               }}
                                           >
-                                              Add key
+                                              Configure now
                                           </Button>
                                       )
                                   }
                                   return (
                                       <span className="font-mono text-xs">
-                                          {`${key.slice(0, 3)}...${key.slice(-3)}`}
+                                          {`${apiKey.slice(0, 3)}...${apiKey.slice(-3)}`}
                                       </span>
                                   )
                               },
@@ -157,22 +154,21 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                             key: "edit",
                             label: isCustom ? "Edit endpoint" : "Edit key",
                             icon: <PencilSimpleLine size={16} />,
-                            hidden: (record: ProviderRow) => !isCustom && !record.key,
+                            hidden: (record: ProviderRow) => !isCustom && !record.source.key,
                             onClick: (record: ProviderRow) => {
-                                setSelectedProvider(record)
+                                setSelectedProvider(record.source)
                                 if (isCustom) setIsConfigProviderOpen(true)
                                 else setIsAddProviderSecretModalOpen(true)
                             },
                         },
-                        {type: "divider"},
                         {
                             key: "delete",
                             label: isCustom ? "Delete endpoint" : "Remove key",
                             icon: <Trash size={16} />,
                             danger: true,
-                            hidden: (record: ProviderRow) => !isCustom && !record.key,
+                            hidden: (record: ProviderRow) => !isCustom && !record.source.key,
                             onClick: (record: ProviderRow) => {
-                                setSelectedProvider(record)
+                                setSelectedProvider(record.source)
                                 setIsDeleteModalOpen(true)
                             },
                         },
@@ -204,11 +200,11 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                             <h3 className="m-0 font-medium text-colorText">
                                 {isCustom ? "OpenAI-compatible endpoints" : "Standard providers"}
                             </h3>
-                            <p className="m-0 font-normal text-colorTextSecondary">
-                                {isCustom
-                                    ? "Self-hosted or proxied models that speak the OpenAI API."
-                                    : `${configuredCount} of ${secrets?.length ?? 0} configured`}
-                            </p>
+                            {isCustom ? (
+                                <p className="m-0 font-normal text-colorTextSecondary">
+                                    Self-hosted or proxied models that speak the OpenAI API.
+                                </p>
+                            ) : null}
                         </div>
                     }
                     primaryActions={
