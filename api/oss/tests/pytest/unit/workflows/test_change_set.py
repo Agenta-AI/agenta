@@ -26,6 +26,7 @@ from oss.src.core.workflows.change_set import (
     deep_merge,
     find_file_markers,
     item_key,
+    nearest_lines,
     subtree_scope,
 )
 
@@ -719,6 +720,62 @@ class TestTextEditContract:
         )
         assert error.reason == Reason.TEXT_NOT_FOUND
         assert base == base_config()
+
+    # --- the near misses ride along with the refusal (contract 12.4) ---
+
+    def test_a_failed_anchor_carries_the_nearest_lines(self):
+        # The recovery content was written months ago and never wired to anything, so a
+        # failed anchor cost the agent a whole turn reading the field back. It is raised
+        # here because this is the only place holding both the string and the anchor.
+        error = failure(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + [skill("release-qa"), "body"],
+                    "edits": [
+                        {"old_text": "Check the APl.", "new_text": "Check the SDK."}
+                    ],
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.TEXT_NOT_FOUND
+        candidates = error.to_detail()["reason"]["nearest_lines"]
+        assert candidates[0]["text"] == "Check the API."
+        assert candidates[0]["line"] == 1
+
+    def test_a_refusal_with_no_near_miss_carries_no_empty_field(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + [skill("release-qa"), "body"],
+                    "edits": [{"old_text": "zzz", "new_text": "y"}],
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.TEXT_NOT_FOUND
+        assert error.to_detail()["reason"].get("nearest_lines") != []
+
+    def test_nearest_lines_reports_the_line_number_the_agent_can_use(self):
+        text = "# Release QA\nRun the release checks manually.\nThen post the result.\n"
+
+        lines = nearest_lines(text, "Run the release checks manualy.")
+
+        assert lines[0]["text"] == "Run the release checks manually."
+        assert lines[0]["line"] == 2
+
+    def test_nearest_lines_caps_its_output(self):
+        text = "# Release QA\nRun the release checks manually.\nThen post the result.\n"
+
+        assert len(nearest_lines(text, "Run", limit=2)) == 2
+
+    def test_nearest_lines_survives_empty_input(self):
+        assert nearest_lines("", "x") == []
+        assert nearest_lines("x", "") == []
 
     # --- matching is exact: no Pi normalization ---
 
