@@ -117,6 +117,15 @@ RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --age
 # than silently shipping cold approvals. Retires when upstream codex-acp#310 lands.
 RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
 
+# Name the offending key when Pi rejects a tool call for an unexpected property. Pi validates tool
+# arguments against the advertised schema before it dispatches, and typebox's stock message names
+# the OBJECT that has an extra property but never the property itself, so a model has to guess
+# which of the keys it sent is the extra one (seen in live QA on `workflow_revision`). The patch is
+# message formatting only: it changes no validation logic, and it exits non-zero if Pi's formatter
+# no longer matches, so a pi-ai bump breaks the build rather than silently restoring the
+# unactionable message. Retires when upstream Pi names the key itself.
+RUN node_modules/.bin/tsx scripts/patch-pi-validation-message.ts
+
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
 CMD ["node_modules/.bin/tsx", "src/server.ts"]
