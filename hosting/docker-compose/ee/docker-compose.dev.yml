@@ -46,6 +46,13 @@ services:
             - with-web
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
+        # === RESOURCES ============================================ #
+        # `next dev` grows unbounded (measured 7.2GiB steady-state on this box) and an
+        # uncapped dev server took the whole machine into swap on 2026-08-06. 8g is
+        # measured headroom, not a guess; the kernel kills the dev server instead of
+        # the machine when it leaks past that.
+        mem_limit: 8g
+        mem_reservation: 3g
         # === EXECUTION ============================================ #
         command: sh -c "pnpm dev-ee"
         # === STORAGE ============================================== #
