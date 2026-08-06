@@ -121,6 +121,22 @@ export function relayPollDelayMs(idlePolls: number): number {
 const PAUSED = Symbol("paused");
 
 /**
+ * A call the runner REFUSED, carrying the reason the model must read.
+ *
+ * Refusals used to travel as an ordinary return string, so the relay wrote `{ok: true, text}` and
+ * every transport reported a refused commit as a SUCCESS. On Codex that surfaced as a blank
+ * successful tool result: the model saw no error and no text, invented an explanation, and told
+ * the user to approve again. A refusal that reads as success is worse than one that reads as a
+ * crash, because only the second makes the model stop.
+ *
+ * The class exists so the reason cannot be confused with output at any layer between here and the
+ * harness. The model still gets the text and the loop still continues; only `isError` changes.
+ */
+export class RelayRefusal {
+  constructor(readonly reason: string) {}
+}
+
+/**
  * Runner-side authorization for one relay execute record. The relay dir is sandbox-writable,
  * so a record can be forged without ever passing the in-sandbox approval dialog; this re-check
  * is the runner-side enforcement the dialog cannot provide. The deny reason becomes the tool's
@@ -347,7 +363,7 @@ async function executeRelayedTool(
   guard: RelayExecutionGuard | undefined,
   authorizer: RelayExecutionAuthorizer | undefined,
   log: ((msg: string) => void) | undefined,
-): Promise<string | typeof PAUSED> {
+): Promise<string | RelayRefusal | typeof PAUSED> {
   if (spec.kind === "client") {
     assertRequiredArguments(spec, req.args);
     if (!clientToolRelay) {
@@ -369,7 +385,7 @@ async function executeRelayedTool(
       return PAUSED;
     }
     if (decision === "deny") {
-      return declinedByUserText(spec.name);
+      return new RelayRefusal(declinedByUserText(spec.name));
     }
     return JSON.stringify(decision.output ?? {});
   }
@@ -379,7 +395,7 @@ async function executeRelayedTool(
   // dialog gate having run.
   if (guard) {
     const verdict = guard(spec, req);
-    if (!verdict.allow) return verdict.reason;
+    if (!verdict.allow) return new RelayRefusal(verdict.reason);
   }
 
   // Passing the guard is NOT enough for a call that carries approved content: on a non-Pi
@@ -388,7 +404,7 @@ async function executeRelayedTool(
   // arguments it returns carry the frozen bytes the human saw.
   if (authorizer) {
     const verdict = await authorizer(spec, req);
-    if (!verdict.ok) return verdict.reason;
+    if (!verdict.ok) return new RelayRefusal(verdict.reason);
     return executeAllowedRelayedTool(
       spec,
       { ...req, args: verdict.args },
@@ -639,7 +655,12 @@ export function startToolRelay(
         opts?.authorizer,
         opts?.log,
       );
-      if (text === PAUSED) {
+      if (text instanceof RelayRefusal) {
+        // `ok: false` is what makes every transport call this an error. The in-sandbox client
+        // throws on it and the MCP shim turns that into `isError: true` with the reason, so the
+        // model reads a refusal as a refusal rather than as an empty success.
+        res = { ok: false, error: text.reason };
+      } else if (text === PAUSED) {
         // A client tool parked. Pi writes no answer; the non-Pi shim gets a benign paused answer so
         // it ends its blocking `tools/call` at once instead of waiting out the per-tool timeout and
         // emitting a late error frame (see ClientToolPauseDisposition).

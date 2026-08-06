@@ -580,6 +580,12 @@ export function attachPermissionResponder({
     }
 
     const toolCall = req?.toolCall;
+    // Codex sends the approval BEFORE the `tool_call` frame that carries the arguments, so the
+    // gate has to let that frame land or it mints an authorization for a call it cannot see. Only
+    // a frame that arrived WITHOUT arguments waits, so every other harness is untouched.
+    if (isCodex && toolCall?.rawInput === undefined && toolCall?.input === undefined) {
+      await awaitRecordedToolCallArgs(run, toolCall?.toolCallId, log);
+    }
     const { gate, spec } = buildGateDescriptor(
       req,
       toolCall,
@@ -592,7 +598,7 @@ export function attachPermissionResponder({
     // The stable anchor (gate.toolName) vs the drift-prone display fields is what a live
     // session needs to diagnose a resume-key mismatch; keep this greppable via `[HITL]`.
     if (log) {
-      const args = toolCall?.rawInput ?? toolCall?.input;
+      const args = gate.args;
       log(
         `[HITL] ACP gate id=${id} ` +
           JSON.stringify({
@@ -710,6 +716,48 @@ export function buildPiGateDescriptor(
  * The identity the runner already recorded for this tool-call id via the `session/update`
  * `tool_call` event. Used when the ACP permission frame omits or drifts its own identity.
  */
+/**
+ * How long a gate waits for the harness's own `tool_call` event before giving up on it.
+ *
+ * Codex sends the permission request BEFORE the matching `tool_call` frame. Measured on the
+ * preview stack the gap was 28 ms, and the gate ran first every time. Since the frame is the ONLY
+ * source of arguments for a Codex MCP approval, a gate that does not wait for it has no arguments
+ * at all, which is not a display problem: `mintForGate` finds no `@ag.file` markers in undefined
+ * arguments, mints nothing, and the human then approves a card whose commit can never execute.
+ *
+ * The budget is generous against the observed gap and still short against a human. It is spent
+ * only on a Codex frame that arrived without arguments, so no other harness pays for it.
+ */
+const RECORDED_TOOL_CALL_WAIT_MS = 750;
+const RECORDED_TOOL_CALL_POLL_MS = 10;
+
+/**
+ * Wait, briefly, for the recorded `tool_call` to carry arguments.
+ *
+ * Bounded and fail-open on purpose. If the frame never arrives the gate proceeds exactly as it
+ * does today, with no arguments, because a HITL gate that hangs is worse than one that asks about
+ * a call it cannot fully describe. The timeout is logged so the failure is visible rather than
+ * inferred from a downstream `authorization_missing`.
+ */
+async function awaitRecordedToolCallArgs(
+  run: { events?: () => AgentEvent[] },
+  toolCallId: unknown,
+  log?: (msg: string) => void,
+): Promise<void> {
+  if (typeof toolCallId !== "string" || !toolCallId || !run.events) return;
+  const deadline = Date.now() + RECORDED_TOOL_CALL_WAIT_MS;
+  while (Date.now() < deadline) {
+    if (recordedToolCall(run, toolCallId)?.args !== undefined) return;
+    await new Promise((resolve) =>
+      setTimeout(resolve, RECORDED_TOOL_CALL_POLL_MS),
+    );
+  }
+  log?.(
+    `[HITL] no recorded tool_call arguments for ${toolCallId} after ` +
+      `${RECORDED_TOOL_CALL_WAIT_MS}ms; the gate proceeds without arguments`,
+  );
+}
+
 function recordedToolCall(
   run: { events?: () => AgentEvent[] },
   toolCallId: unknown,

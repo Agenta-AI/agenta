@@ -40,6 +40,17 @@ function flushPromises(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+/** Wait for a condition the gate reaches asynchronously (it now awaits a late harness frame). */
+async function waitUntil(
+  predicate: () => boolean,
+  timeoutMs = 2000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+}
+
 function makeSession(
   respondPermission: (
     id: string,
@@ -1146,6 +1157,98 @@ describe("attachPermissionResponder: Codex ACP gates", () => {
     });
     assert.equal(gates[0].gateType, "codex-acp-permission");
     assert.equal((events[0] as any).payload.toolCall.resolvedName, "pnpm test");
+  });
+
+  it("waits for the tool_call frame Codex sends AFTER the approval", async () => {
+    // THE ORDERING, WHICH IS THE WHOLE BUG. Codex sends the permission request BEFORE the
+    // `tool_call` frame carrying the arguments; on the preview stack the gap was 28 ms and the
+    // gate ran first every time. The sibling test above feeds the recorded event synchronously,
+    // so it can never see this: it proves the RECOVERY works once the frame exists, not that the
+    // gate waits for it.
+    //
+    // With no wait, `gate.args` is undefined here, `markersIn(undefined)` finds nothing,
+    // `mintForGate` mints no authorization, and the human approves a commit that can only fail.
+    const { session, emit } = makeSession();
+    const events: AgentEvent[] = [];
+    const recorded: AgentEvent[] = [];
+    const seen: { permission?: any[] } = {};
+    const recordedInput = {
+      server: "agenta-tools",
+      tool: "commit_revision",
+      arguments: { workflow_revision: { message: "ship it" } },
+    };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        events: () => recorded,
+      },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+
+    // The gate arrives with NOTHING: no rawInput, no input, and no recorded event yet.
+    emit({
+      id: "perm-codex-race",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "exec-race-1", kind: "execute" },
+    });
+
+    // The frame lands after the gate is already running, which is the production ordering.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    recorded.push({
+      type: "tool_call",
+      id: "exec-race-1",
+      name: "mcp.agenta-tools.commit_revision",
+      input: recordedInput,
+    } as AgentEvent);
+
+    await waitUntil(() => (seen.permission?.length ?? 0) > 0);
+
+    assert.deepEqual(
+      seen.permission?.[0].gate.args,
+      recordedInput,
+      "the gate must carry the arguments the model actually wrote",
+    );
+  });
+
+  it("proceeds without arguments when the frame never arrives, rather than hanging", async () => {
+    // Fail-open, deliberately. A HITL gate that hangs is worse than one that asks about a call it
+    // cannot fully describe, so the wait is bounded and the gate still reaches the human.
+    const { session, emit } = makeSession();
+    const logs: string[] = [];
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {}, events: () => [] },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      log: (message) => logs.push(message),
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+
+    emit({
+      id: "perm-codex-never",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "exec-never-1", kind: "execute" },
+    });
+
+    await waitUntil(() => (seen.permission?.length ?? 0) > 0, 3000);
+
+    assert.equal(seen.permission?.[0].gate.args, undefined);
+    assert.ok(
+      logs.some((line) => line.includes("no recorded tool_call arguments")),
+      "the timeout is announced, not inferred from a later authorization failure",
+    );
   });
 
   it("recovers a nearly-empty Codex MCP gate and parks an ask spec", async () => {
