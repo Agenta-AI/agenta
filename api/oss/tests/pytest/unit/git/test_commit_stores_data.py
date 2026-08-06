@@ -259,3 +259,46 @@ class TestReadConfigSeesWhatWasStored:
         )
 
         assert head is not None and head.data is not None
+
+
+class TestThePlatformGuidanceNeverReachesTheDatabase:
+    """The stored row is the assertion, not the response.
+
+    The runner appends a fenced guidance block to the instructions file it renders into the
+    workspace. A model that copies that file back into a commit would store our own guidance
+    as the user's configuration. The engine strips it, and this cell proves the strip
+    reaches the DATABASE rather than only the object the endpoint echoes back.
+    """
+
+    async def test_a_copied_back_file_is_stored_without_the_block(
+        self, engine, variant
+    ):
+        from oss.src.core.workflows.change_set import (
+            PLATFORM_GUIDANCE_END,
+            PLATFORM_GUIDANCE_START,
+        )
+
+        service = _service(engine)
+        block = (
+            f"{PLATFORM_GUIDANCE_START}\n"
+            "Commit configuration changes with the commit tool.\n"
+            f"{PLATFORM_GUIDANCE_END}"
+        )
+
+        outcome = await _commit(
+            service,
+            variant,
+            data={
+                "parameters": {
+                    "agent": {
+                        "instructions": {"agents_md": f"Be concise.\n\n{block}\n"}
+                    }
+                }
+            },
+        )
+
+        stored = await _stored_data(engine, outcome.revision.id)
+        agents_md = stored["parameters"]["agent"]["instructions"]["agents_md"]
+        assert PLATFORM_GUIDANCE_START not in agents_md
+        assert PLATFORM_GUIDANCE_END not in agents_md
+        assert agents_md == "Be concise."
