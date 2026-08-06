@@ -422,7 +422,10 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
             "delta",
             "description",
         }
-        assert set(delta["properties"]) == {"set", "remove", "operations"}
+        # ONE arm is visible per deployment. A model that sees both picks a different one
+        # from call to call, and the approval card then varies for the same kind of edit.
+        # The endpoint still accepts the legacy form; only this surface narrows.
+        assert set(delta["properties"]) == {"operations"}
     else:
         assert set(workflow_revision["properties"]) == {
             "message",
@@ -430,7 +433,7 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
             "description",
         }
         assert set(delta["properties"]) == {"set", "remove"}
-    assert "parameters.agent" in delta["properties"]["set"]["description"]
+        assert "parameters.agent" in delta["properties"]["set"]["description"]
 
     if _ordered_operations_enabled():
         # Ordered operations change one entry at a time, so the wholesale-list warning is
@@ -482,6 +485,15 @@ def _has_embed_branch(items):
     )
 
 
+# With ordered operations on, `delta.set` leaves the commit schema, so the three cases below
+# have no surface to inspect there. They are not lost: `test_run` keeps `delta.set` in both
+# states, and case (d) pins the same three properties on it.
+legacy_delta_only = pytest.mark.skipif(
+    _ordered_operations_enabled(),
+    reason="delta.set is not model-visible on commit_revision when ordered operations are on",
+)
+
+
 def _commit_agent_subtree():
     schema = get_platform_op("commit_revision").resolved_input_schema()
     delta = schema["properties"]["workflow_revision"]["properties"]["delta"]
@@ -494,6 +506,7 @@ def _test_run_agent_subtree():
     return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
 
 
+@legacy_delta_only
 def test_commit_revision_delta_set_carries_agent_template_shape():
     # (a) The agent-template shape is reachable under delta.set.parameters.agent, so the tool schema
     # itself (not just prose) tells the model what a `parameters.agent` payload looks like. The
@@ -519,6 +532,7 @@ def test_commit_revision_delta_set_carries_agent_template_shape():
     assert _has_embed_branch(skills_items)
 
 
+@legacy_delta_only
 def test_commit_revision_delta_set_agent_subtree_has_no_required():
     # (b) A delta is a deep partial: EVERY field is optional, so no `required` array may survive
     # anywhere under the agent subtree, or a schema-following harness would think it must resend
@@ -527,6 +541,7 @@ def test_commit_revision_delta_set_agent_subtree_has_no_required():
     assert list(_iter_required_lists(agent)) == []
 
 
+@legacy_delta_only
 def test_commit_revision_delta_set_list_items_accept_embeds():
     # (c) tools/skills/mcps may hold `@ag.embed` build-kit entries; since the model re-sends the
     # whole list, each item schema must accept the embed shape or the embeds get mangled.
@@ -539,6 +554,8 @@ def test_commit_revision_delta_set_list_items_accept_embeds():
 
 def test_test_run_delta_set_matches_commit_revision():
     # (d) test_run's uncommitted delta gets the same typed, deep-partial, embed-tolerant shape.
+    # With ordered operations on this is the only place that shape is pinned, because
+    # `delta.set` is no longer model-visible on commit_revision.
     agent = _test_run_agent_subtree()
     assert set(agent["properties"]) >= {"instructions", "llm", "harness", "sandbox"}
     assert "pi_core" in agent["properties"]["harness"]["properties"]["kind"]["enum"]
