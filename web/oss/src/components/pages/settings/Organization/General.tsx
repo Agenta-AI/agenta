@@ -207,6 +207,7 @@ const OrganizationGeneral = () => {
                     key: "name",
                     title: "Organization",
                     width: 280,
+                    fixed: "left",
                     getName: (record) => record.name ?? record.slug ?? record.id,
                     getChips: (record) =>
                         record.id === selectedOrg?.id ? [{label: "Current", tone: "info"}] : [],
@@ -320,13 +321,11 @@ const OrganizationGeneral = () => {
                     locale: {
                         emptyText: searchTerm.trim() ? (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={`No organizations match “${searchTerm.trim()}”`}
                             />
                         ) : (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">

@@ -59,6 +59,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     key: "name",
                     title: isCustom ? "Name" : "Provider",
                     width: 220,
+                    fixed: "left",
                     render: (_value, record) => {
                         const Icon = LLMIconMap[record.title as string]
                         return isCustom ? (
@@ -239,7 +240,6 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                         locale: {
                             emptyText: isCustom ? (
                                 <EmptyState
-                                    className="py-10"
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
@@ -262,7 +262,6 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                 </EmptyState>
                             ) : (
                                 <EmptyState
-                                    className="py-10"
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">

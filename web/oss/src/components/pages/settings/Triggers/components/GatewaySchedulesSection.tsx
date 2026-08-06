@@ -103,6 +103,7 @@ export default function GatewaySchedulesSection() {
                     key: "name",
                     title: "Name",
                     width: 180,
+                    fixed: "left",
                     render: (_value, record) => (
                         <Typography.Text>{record.name || record.id || "-"}</Typography.Text>
                     ),
@@ -263,7 +264,6 @@ export default function GatewaySchedulesSection() {
                         locale: {
                             emptyText: (
                                 <EmptyState
-                                    className="py-6"
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">

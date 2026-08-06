@@ -141,6 +141,7 @@ export default function GatewayTriggersSection() {
                     key: "integration_key",
                     title: "App",
                     width: 180,
+                    fixed: "left",
                     render: (_value, record) => (
                         <Tag
                             bordered={false}
@@ -267,7 +268,6 @@ export default function GatewayTriggersSection() {
                         locale: {
                             emptyText: (
                                 <EmptyState
-                                    className="py-6"
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">

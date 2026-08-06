@@ -162,6 +162,7 @@ const Webhooks: React.FC = () => {
                     key: "name",
                     title: "Name",
                     width: 200,
+                    fixed: "left",
                     render: (_value, record) => (
                         <Typography.Text>{record.name || "-"}</Typography.Text>
                     ),
@@ -293,13 +294,11 @@ const Webhooks: React.FC = () => {
                     locale: {
                         emptyText: searchTerm.trim() ? (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={`No webhooks match “${searchTerm.trim()}”`}
                             />
                         ) : (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">

@@ -177,6 +177,7 @@ const ProjectsSettings = () => {
                     key: "project_name",
                     title: "Project",
                     width: 260,
+                    fixed: "left",
                     getName: (record) => record.project_name,
                     getChips: (record) => (record.is_default_project ? [{label: "Default"}] : []),
                 },
@@ -267,13 +268,11 @@ const ProjectsSettings = () => {
                     locale: {
                         emptyText: searchTerm.trim() ? (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={`No projects match “${searchTerm.trim()}”`}
                             />
                         ) : (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">

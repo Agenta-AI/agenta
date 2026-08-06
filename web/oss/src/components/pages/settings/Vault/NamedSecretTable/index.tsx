@@ -54,7 +54,7 @@ const NamedSecretTable = () => {
     const columns = useMemo(
         () =>
             createStandardColumns<SecretRow>([
-                {type: "text", key: "name", title: "Name", width: 200},
+                {type: "text", key: "name", title: "Name", width: 200, fixed: "left"},
                 {type: "slug", key: "slug", title: "Slug", width: 240},
                 {
                     type: "text",
@@ -164,7 +164,6 @@ const NamedSecretTable = () => {
                         locale: {
                             emptyText: (
                                 <EmptyState
-                                    className="py-12"
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">

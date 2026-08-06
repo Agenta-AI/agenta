@@ -207,6 +207,7 @@ export default function GatewayToolsSection() {
                     key: "integration_key",
                     title: "Tool",
                     width: 180,
+                    fixed: "left",
                     render: (_value, record) => (
                         <Tag
                             bordered={false}
@@ -345,13 +346,11 @@ export default function GatewayToolsSection() {
                         locale: {
                             emptyText: searchTerm.trim() ? (
                                 <EmptyState
-                                    className="py-10"
                                     image="simple"
                                     description={`No tools match “${searchTerm.trim()}”`}
                                 />
                             ) : (
                                 <EmptyState
-                                    className="py-10"
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">

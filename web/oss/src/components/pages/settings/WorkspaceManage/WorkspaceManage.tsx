@@ -157,6 +157,7 @@ const WorkspaceManage: FC = () => {
                     key: "member",
                     title: "Member",
                     width: 280,
+                    fixed: "left",
                     getName: (record) =>
                         record.user.username || getUsernameFromEmail(record.user.email),
                     getChips: (record) =>
@@ -284,13 +285,11 @@ const WorkspaceManage: FC = () => {
                     locale: {
                         emptyText: searchTerm.trim() ? (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={`No members match “${searchTerm.trim()}”`}
                             />
                         ) : (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">

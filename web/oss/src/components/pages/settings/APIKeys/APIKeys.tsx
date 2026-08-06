@@ -145,6 +145,7 @@ const APIKeys: React.FC = () => {
                     key: "prefix",
                     title: "API key",
                     width: 360,
+                    fixed: "left",
                     getValue: (record) => record.prefix.padEnd(40, "•"),
                 },
                 {
@@ -252,7 +253,6 @@ const APIKeys: React.FC = () => {
                     locale: {
                         emptyText: (
                             <EmptyState
-                                className="py-12"
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">

@@ -138,6 +138,7 @@ export default function GatewaySubscriptionsSection() {
                     key: "name",
                     title: "Name",
                     width: 200,
+                    fixed: "left",
                     render: (_value, record) => (
                         <Typography.Text>{record.name || record.id || "-"}</Typography.Text>
                     ),
@@ -311,7 +312,6 @@ export default function GatewaySubscriptionsSection() {
                             emptyText:
                                 connections.length === 0 ? (
                                     <EmptyState
-                                        className="py-6"
                                         image="simple"
                                         description={
                                             <div className="flex flex-col gap-1">
@@ -327,7 +327,6 @@ export default function GatewaySubscriptionsSection() {
                                     />
                                 ) : (
                                     <EmptyState
-                                        className="py-6"
                                         image="simple"
                                         description={
                                             <div className="flex flex-col gap-1">
