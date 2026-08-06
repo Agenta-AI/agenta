@@ -1,17 +1,17 @@
 """The wrapper-owned half of an ordered commit (slice S1b).
 
-The engine is pure and knows only the data tree. These four jobs need context it does not
+The engine is pure and knows only the data tree. These three jobs need context it does not
 have, so ``contracts/change-set.md`` section 17 gives them to the wrapper: selector
-normalization (4.3), the derived commit message (14), the platform-tool rejection (11),
-and the enriched error content (12.4).
+normalization (4.3), the derived commit message (14), and the platform-tool rejection (11).
+
+The nearest-lines half of the enriched error content (12.4) moved into the engine, which is
+the only place holding both the target string and the anchor; its tests moved with it.
 """
 
 from oss.src.core.workflows.change_set import WarningCode
 from oss.src.core.workflows.commit_support import (
     derive_commit_message,
     find_platform_tool_entries,
-    list_import_folders,
-    nearest_lines,
     normalize_operations,
 )
 
@@ -181,8 +181,11 @@ class TestDeriveCommitMessage:
             "set llm; updated harness; removed mcps; replaced skill qa; removed tool slack"
         )
 
-    def test_the_ephemeral_description_is_appended_not_substituted(self):
-        # The agent's own words survive without being the source of truth.
+    def test_the_message_comes_from_the_operations_and_nothing_else(self):
+        # It used to take a `description` and append it in parentheses, described as the
+        # ephemeral per-call note. The runner deletes that note before it builds the
+        # request (read-config.md 12.3), so the only value that ever arrived was the
+        # PERSISTED revision description: the name collision 12.1 exists to prevent.
         message = derive_commit_message(
             [
                 op(
@@ -190,18 +193,10 @@ class TestDeriveCommitMessage:
                     target=AGENT + ["skills"],
                     value={"name": "pdf-tools", "description": "d", "body": "b"},
                 )
-            ],
-            description="Adding the pdf-tools skill you asked for.",
-        )
-        assert message == (
-            "added skill pdf-tools (Adding the pdf-tools skill you asked for.)"
+            ]
         )
 
-    def test_a_blank_description_is_ignored(self):
-        message = derive_commit_message(
-            [op(operation="remove", target=AGENT + ["mcps"])], description="   "
-        )
-        assert message == "removed mcps"
+        assert message == "added skill pdf-tools"
 
     def test_the_legacy_form_gets_a_generic_message(self):
         assert derive_commit_message(None) == "updated configuration"
@@ -253,34 +248,3 @@ class TestPlatformToolEntries:
 
     def test_it_ignores_a_field_named_tools_that_is_not_a_list(self):
         assert find_platform_tool_entries({"tools": "not a list"}) == []
-
-
-# --------------------------------------------------------------------------------------
-# Enriched error content (contract 12.4)
-# --------------------------------------------------------------------------------------
-
-
-class TestEnrichedContent:
-    TEXT = "# Release QA\nRun the release checks manually.\nThen post the result.\n"
-
-    def test_nearest_lines_finds_the_near_miss(self):
-        lines = nearest_lines(self.TEXT, "Run the release checks manualy.")
-        assert lines[0]["text"] == "Run the release checks manually."
-        assert lines[0]["line"] == 2
-
-    def test_nearest_lines_reports_line_numbers_the_agent_can_use(self):
-        lines = nearest_lines(self.TEXT, "Then post")
-        assert all("line" in row and "text" in row for row in lines)
-
-    def test_nearest_lines_caps_the_output(self):
-        assert len(nearest_lines(self.TEXT, "Run", limit=2)) == 2
-
-    def test_nearest_lines_survives_empty_input(self):
-        assert nearest_lines("", "x") == []
-        assert nearest_lines("x", "") == []
-
-    def test_the_folder_listing_is_sorted_and_deduplicated(self):
-        assert list_import_folders(["b", "a", "b"]) == ["a", "b"]
-
-    def test_the_folder_listing_is_capped(self):
-        assert len(list_import_folders([str(i) for i in range(50)], limit=5)) == 5

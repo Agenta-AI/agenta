@@ -1,24 +1,26 @@
 """Wrapper-owned helpers for an ordered-operations commit (slice S1b).
 
-The engine (``change_set.py``) is pure and knows only the data tree. Four jobs need
+The engine (``change_set.py``) is pure and knows only the data tree. Three jobs need
 context it does not have, so the contract gives them to the wrapper
 (``contracts/change-set.md`` section 17):
 
 - **Selector normalization** (4.3): forgive the two unambiguous target mistakes.
 - **The derived commit message** (14): the model no longer sends one.
 - **The platform-tool rejection** (11): the build kit must be uncommittable.
-- **Enriched error content** (12.4): a folder listing and the nearest lines, both of
-  which need the workspace or the base revision.
+
+Enriched error content (12.4) was a fourth job here, and it does not belong. The nearest
+lines need only the target string and the anchor, so they are raised by the engine itself.
+The folder listing needs a workspace listing that never reaches the API at all: the runner
+resolves file markers before it builds the request, so nothing here can raise
+``source_not_found``.
 
 Everything here is pure and synchronous, so it can run inside the commit transaction.
 """
 
-from difflib import SequenceMatcher
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 from oss.src.core.workflows.change_set import (
     KEY_FIELDS,
-    Reason,
     Warning,
     WarningCode,
     item_key,
@@ -28,8 +30,6 @@ __all__ = [
     "normalize_operations",
     "derive_commit_message",
     "find_platform_tool_entries",
-    "nearest_lines",
-    "list_import_folders",
     "PLATFORM_TOOL_REJECTION",
 ]
 
@@ -143,11 +143,7 @@ _SINGULAR = {
 _LEGACY_MESSAGE = "updated configuration"
 
 
-def derive_commit_message(
-    operations: Optional[Sequence[Any]],
-    *,
-    description: Optional[str] = None,
-) -> str:
+def derive_commit_message(operations: Optional[Sequence[Any]]) -> str:
     """Build the commit message from the operations. The model never sends one.
 
     Free text was the site of every argument-corruption failure the usability spike
@@ -155,19 +151,18 @@ def derive_commit_message(
     #5200 better than the model's own words. It is also the audit record: no new column,
     no migration (decision 6, amended).
 
-    ``description`` is the ephemeral per-call note (R12). When present it is appended in
-    parentheses, so the agent's own words survive without being the source of truth.
+    It took an ephemeral per-call note (R12) and appended it in parentheses. Nothing could
+    ever fill it. The runner deletes that note before it builds the request, deliberately
+    (read-config.md 12.3), so the only value that reached this argument was
+    ``RevisionCommit.description``: the persisted revision field, which is the exact name
+    collision 12.1 exists to prevent. A direct HTTP caller that set it had its description
+    copied verbatim into the message beside itself.
     """
     if not operations:
-        text = _LEGACY_MESSAGE
-    else:
-        clauses = _clauses(operations)
-        text = "; ".join(clauses) if clauses else _LEGACY_MESSAGE
+        return _LEGACY_MESSAGE
 
-    note = (description or "").strip()
-    if note:
-        text = f"{text} ({note})"
-    return text
+    clauses = _clauses(operations)
+    return "; ".join(clauses) if clauses else _LEGACY_MESSAGE
 
 
 def _clauses(operations: Sequence[Any]) -> List[str]:
@@ -257,58 +252,3 @@ def _collect_platform_tools(node: Any, found: List[str]) -> None:
     elif isinstance(node, list):
         for entry in node:
             _collect_platform_tools(entry, found)
-
-
-# --------------------------------------------------------------------------------------
-# Enriched error content (contract 12.4)
-# --------------------------------------------------------------------------------------
-
-
-def nearest_lines(text: str, old_text: str, limit: int = 3) -> List[Dict[str, Any]]:
-    """The lines of ``text`` most similar to ``old_text``, with their line numbers.
-
-    A failed anchor is nearly always a near miss: stale, reformatted, or mistyped. Handing
-    the agent the real lines lets it re-anchor in the same turn instead of spending one on
-    another read.
-    """
-    if not text or not old_text:
-        return []
-    needle = old_text.strip().splitlines()[0] if old_text.strip() else old_text
-    scored: List[Tuple[float, int, str]] = []
-    for number, line in enumerate(text.splitlines(), start=1):
-        ratio = SequenceMatcher(None, needle, line).ratio()
-        scored.append((ratio, number, line))
-    scored.sort(key=lambda row: (-row[0], row[1]))
-    return [
-        {"line": number, "text": line, "similarity": round(ratio, 3)}
-        for ratio, number, line in scored[:limit]
-        if ratio > 0
-    ]
-
-
-def list_import_folders(entries: Sequence[str], limit: int = 20) -> List[str]:
-    """The folder names that DO exist under the import root, sorted and capped.
-
-    A wrong path is nearly always a near miss, so naming what exists is what recovers the
-    call. The runner supplies the listing; this only shapes it.
-    """
-    return sorted(set(entries))[:limit]
-
-
-def enrich_reason(
-    reason: str,
-    context: Dict[str, Any],
-    *,
-    target_text: Optional[str] = None,
-    old_text: Optional[str] = None,
-    import_entries: Optional[Sequence[str]] = None,
-) -> Dict[str, Any]:
-    """Add the recovery content the contract requires to a reason payload."""
-    enriched = dict(context)
-    if reason == Reason.TEXT_NOT_FOUND and target_text and old_text:
-        lines = nearest_lines(target_text, old_text)
-        if lines:
-            enriched["nearest_lines"] = lines
-    elif reason == Reason.SOURCE_NOT_FOUND and import_entries is not None:
-        enriched["available"] = list_import_folders(import_entries)
-    return enriched

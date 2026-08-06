@@ -17,6 +17,7 @@ the parts that need context it does not have.
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 __all__ = [
@@ -859,6 +860,32 @@ def _count_overlapping(text: str, needle: str) -> int:
     return count
 
 
+def nearest_lines(text: str, old_text: str, limit: int = 3) -> List[Dict[str, Any]]:
+    """The lines of ``text`` most similar to ``old_text``, with their line numbers.
+
+    A failed anchor is nearly always a near miss: stale, reformatted, or mistyped. Handing
+    the agent the real lines lets it re-anchor in the same turn instead of spending one on
+    another read (contract 12.4).
+
+    It lives in the engine rather than beside the wrapper's other error helpers because it
+    needs no context the engine lacks: the target string and the anchor are both in hand
+    at the only place that raises ``text_not_found``.
+    """
+    if not text or not old_text:
+        return []
+    needle = old_text.strip().splitlines()[0] if old_text.strip() else old_text
+    scored: List[Tuple[float, int, str]] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        ratio = SequenceMatcher(None, needle, line).ratio()
+        scored.append((ratio, number, line))
+    scored.sort(key=lambda row: (-row[0], row[1]))
+    return [
+        {"line": number, "text": line, "similarity": round(ratio, 3)}
+        for ratio, number, line in scored[:limit]
+        if ratio > 0
+    ]
+
+
 def apply_text_edits(
     text: str,
     edits: Sequence[Dict[str, str]],
@@ -931,11 +958,15 @@ def apply_text_edits(
                 count = folded_count
 
         if count == 0:
+            # The near misses ride along, so the agent can re-anchor in this turn instead
+            # of spending another one reading the field back (contract 12.4).
+            candidates = nearest_lines(text, old_text)
             raise _Fail(
                 Reason.TEXT_NOT_FOUND,
                 f"edits[{index}].old_text does not occur in the target string. "
                 "The text must match exactly, with all whitespace and newlines.",
                 edit_index=index,
+                **({"nearest_lines": candidates} if candidates else {}),
             )
         if count > 1:
             raise _Fail(

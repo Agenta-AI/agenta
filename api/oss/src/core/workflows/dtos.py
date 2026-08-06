@@ -5,6 +5,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    model_validator,
 )
 
 from oss.src.core.git.dtos import (
@@ -341,17 +342,34 @@ class WorkflowRevisionDelta(BaseModel):
     The engine enforces the exclusivity and every operation rule; this model only carries
     the shapes.
 
-    ``extra="forbid"`` applies to the delta ENVELOPE, not to the tree inside ``set``: a
-    stray key beside ``set``/``remove``/``operations`` was silently dropped before, which
-    is how a caller could believe it sent something the server never saw. The payload
-    under ``set`` stays free-form, so shipped callers are unaffected.
+    Unknown keys beside ``set``/``remove``/``operations`` are refused on the ORDERED arm
+    only, so a caller cannot believe it sent an operation modifier the server never saw.
+    A pure-legacy envelope keeps its shipped tolerance: the server has always ignored
+    stray keys there, and playbooks in the field send them. Neither rule reaches the tree
+    inside ``set``, which stays free-form.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     set: Optional[Dict[str, Any]] = None
     remove: Optional[List[str]] = None
     operations: Optional[List[WorkflowRevisionOperation]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _refuse_unknown_keys_on_the_ordered_arm(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or data.get("operations") is None:
+            return data
+
+        unknown = sorted(set(data) - set(cls.model_fields))
+
+        if unknown:
+            raise ValueError(
+                f"unknown field(s) in the delta: {', '.join(unknown)}. "
+                "An ordered delta carries only 'operations'."
+            )
+
+        return data
 
 
 class WorkflowRevisionCommit(
@@ -363,11 +381,17 @@ class WorkflowRevisionCommit(
 
     data: Optional[WorkflowRevisionData] = None
     delta: Optional[WorkflowRevisionDelta] = None
-    # The revision this change was built on. A precondition on the commit, not a mutation,
-    # so it sits beside `delta` and never inside it. Optional: a legacy caller that omits
-    # it keeps today's last-write-wins behavior. An ordered delta requires it, and the
-    # service enforces that (contract commit-transaction.md section 8).
-    base_revision_id: Optional[UUID] = None
+    # A precondition on the commit, not a mutation, so it sits beside `delta` and never
+    # inside it. The service enforces it (contract commit-transaction.md section 8).
+    base_revision_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "The revision this change was built on. Omit it to keep today's "
+            "last-write-wins behavior. Send it on a legacy delta and the commit is "
+            "refused with `409` when the variant's head has moved since: sending the "
+            "field is how a caller asks for that check. An ordered delta requires it."
+        ),
+    )
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
