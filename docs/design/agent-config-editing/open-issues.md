@@ -504,3 +504,34 @@ reader can act on it cold.
 - **Acceptance test.** The benchmark's codex skill scenarios: 6 of 21 with 13
   `wrong_surface` today, and claude and pi's ZERO is the target. Measured immediately on
   landing.
+
+## Claude emits malformed JSON on read_config calls, one wasted round trip each time
+
+- Found by: the benchmark's baseline runs, 6 August 2026, characterised across all 19
+  occurrences in stored results (`benchmarks/agent-config-editing/results/20260806-200904`,
+  grep `debug_calls` for `InputValidationError`).
+- **Symptom.** On claude-haiku cells, `read_config` calls fail with
+  `InputValidationError: input could not be parsed as JSON` in 16 to 21 percent of
+  trials. The model retries and usually recovers, so the user sees only slowness, but
+  two same-text baseline runs read 37 and 24 percent one-shot when the corrected
+  numbers are 45 and 42. Until this is gone, a wording change smaller than about 13
+  points cannot be read on claude cells.
+- **Mechanism, as far as the wire shows.** Three malformation shapes across 19 cases:
+  16 are an XML tag leaking into the JSON (`{"target": ` then a literal
+  `<parameter name="path">` tag, then the value), 1 is unbalanced braces, 2 are
+  `commit_revision` truncations. The 16 are near-identical, which reads as mechanical:
+  the model falls back to Anthropic's XML tool-call syntax for the nested argument
+  specifically, mid-JSON.
+- **The untested lead.** It is read_config only, and commit_revision nests deeper yet
+  never shows the XML leak. After the server-bound fields (`workflow_variant_id`,
+  `run_is_draft`) are stripped from the model-visible schema, read_config's `target`
+  has exactly ONE visible property, `path`. A single-property nested object whose
+  siblings were stripped is the builder's hypothesis for the trigger. Not tested.
+- **Why nothing ships now.** The obvious fix is a tool-shape change (hoist `path` to
+  the top level, or stop presenting a one-property wrapper object). Tool structure is
+  frozen by ruling for this release ("don't touch tool structure unless very
+  minimally"), and a shape change mid-migration would also invalidate the benchmark's
+  baselines. The failure costs a retry, not a wrong result.
+- **Acceptance test.** The benchmark's claude cells report the InputValidationError
+  rate per run. A shape fix is proven when that rate is zero across a full run and the
+  corrected and raw one-shot numbers converge.
