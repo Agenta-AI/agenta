@@ -17,6 +17,7 @@ docstring; fix on PR #5763).
 
   uv run matrix_w4.py
 """
+
 import json
 import pathlib
 import sys
@@ -85,15 +86,22 @@ def w4():
             "step I will handle. Go ahead."
         )
         session_b = str(uuid.uuid4())
-        turns_b, status_b = run_until_settled(session_b, [user_msg(prompt_b)], live_params, references)
+        turns_b, status_b = run_until_settled(
+            session_b, [user_msg(prompt_b)], live_params, references
+        )
         if not status_b["settled"]:
             return {"status": "FAIL", "why": f"session B never settled: {status_b}"}
 
         time.sleep(1.0)
         after_b = latest_revision(wf)
-        b_landed = after_b is not None and int(after_b.get("version") or -1) > int(ver or -1)
+        b_landed = after_b is not None and int(after_b.get("version") or -1) > int(
+            ver or -1
+        )
         if not b_landed:
-            return {"status": "FAIL", "why": "session B's edit did not land; cannot test A's staleness"}
+            return {
+                "status": "FAIL",
+                "why": "session B's edit did not land; cannot test A's staleness",
+            }
 
         # NOW approve A. Its base (rev_id, v1) is stale -- head is now after_b's version.
         msgs_a = [user_msg(prompt_a), approval_reply(t_a1, approved=True)]
@@ -130,12 +138,23 @@ def w4():
 
         time.sleep(1.0)
         final = latest_revision(wf)
-        final_agent = (final.get("data") or {}).get("parameters", {}).get("agent", {}) if final else {}
+        final_agent = (
+            (final.get("data") or {}).get("parameters", {}).get("agent", {})
+            if final
+            else {}
+        )
         a_edit_present = final_agent.get("instructions", {}).get("agents_md") == token_a
         b_skill = next(
-            (s for s in final_agent.get("skills", []) if s.get("name") == "w4-session-b"), None
+            (
+                s
+                for s in final_agent.get("skills", [])
+                if s.get("name") == "w4-session-b"
+            ),
+            None,
         )
-        b_edit_present = b_skill is not None and token_b in json.dumps(b_skill.get("body"))
+        b_edit_present = b_skill is not None and token_b in json.dumps(
+            b_skill.get("body")
+        )
 
         core_ok = conflict_seen and a_edit_present and b_edit_present
         return {

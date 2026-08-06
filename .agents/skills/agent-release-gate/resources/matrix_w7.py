@@ -25,6 +25,7 @@ and re-verified PASS (2026-08-06); this repro stays in the docstring as the regr
 
   uv run matrix_w7.py
 """
+
 import json
 import pathlib
 import sys
@@ -73,7 +74,9 @@ def w7():
             "approved it."
         )
         session_id = str(uuid.uuid4())
-        turns, status = run_until_settled(session_id, [user_msg(prompt)], live_params, references)
+        turns, status = run_until_settled(
+            session_id, [user_msg(prompt)], live_params, references
+        )
 
         if not status["settled"]:
             return {
@@ -90,8 +93,12 @@ def w7():
                 if f.get("type") == "data-approval-manifest":
                     manifest_frames.append(f)
         manifest_evidence = manifest_frames[0].get("data") if manifest_frames else None
-        digest_present = bool(manifest_evidence) and "digest" in json.dumps(manifest_evidence)
-        bytes_present = bool(manifest_evidence) and "bytes" in json.dumps(manifest_evidence)
+        digest_present = bool(manifest_evidence) and "digest" in json.dumps(
+            manifest_evidence
+        )
+        bytes_present = bool(manifest_evidence) and "bytes" in json.dumps(
+            manifest_evidence
+        )
 
         any_errors = any(t.errors for t in turns)
         # DEFERRED_NOT_EXECUTED is benign: it fires when the model queues a second tool call
@@ -109,13 +116,20 @@ def w7():
         time.sleep(1.0)
         newest = latest_revision(wf)
         skills = (
-            (newest.get("data") or {}).get("parameters", {}).get("agent", {}).get("skills", [])
+            (newest.get("data") or {})
+            .get("parameters", {})
+            .get("agent", {})
+            .get("skills", [])
             if newest
             else []
         )
         w7_skill = next((s for s in skills if s.get("name") == "w7-import-test"), None)
-        body_matches = w7_skill is not None and marker in json.dumps(w7_skill.get("body"))
-        version_bumped = newest is not None and int(newest.get("version") or -1) > int(ver or -1)
+        body_matches = w7_skill is not None and marker in json.dumps(
+            w7_skill.get("body")
+        )
+        version_bumped = newest is not None and int(newest.get("version") or -1) > int(
+            ver or -1
+        )
 
         core_ok = (
             not any_errors

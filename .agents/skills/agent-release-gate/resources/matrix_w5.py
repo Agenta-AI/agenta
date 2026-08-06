@@ -21,6 +21,7 @@ turn). Keep both repros distinct when triaging -- do not fold this into that tic
 
   uv run matrix_w5.py
 """
+
 import json
 import pathlib
 import sys
@@ -73,12 +74,16 @@ def w5():
 
         # Interrupt: send a NEW user message on the SAME session while turn 1 is in flight.
         steer_prompt = "Stop what you're doing. Just reply with exactly: STEERED"
-        t_steer = invoke(session_id, [user_msg(steer_prompt)], live_params, references, log=False)
+        t_steer = invoke(
+            session_id, [user_msg(steer_prompt)], live_params, references, log=False
+        )
 
         th.join(timeout=30)
         turn1 = result_holder.get("turn")
 
-        steer_ok = t_steer.finish_reason == "stop" and "STEERED" in t_steer.reply.upper()
+        steer_ok = (
+            t_steer.finish_reason == "stop" and "STEERED" in t_steer.reply.upper()
+        )
 
         # Now a NEW turn on the SAME session must commit successfully afterward.
         token = f"QA-W5-{uuid.uuid4().hex[:12]}"
@@ -94,13 +99,19 @@ def w5():
             session_id, [user_msg(commit_prompt)], live_params, references
         )
 
-        post_interrupt_works = status_c["settled"] and not any(t.errors for t in turns_c)
+        post_interrupt_works = status_c["settled"] and not any(
+            t.errors for t in turns_c
+        )
         time.sleep(1.0)
         newest = latest_revision(wf)
         commit_landed = (
             newest is not None
-            and (newest.get("data") or {}).get("parameters", {}).get("agent", {})
-            .get("instructions", {}).get("agents_md") == token
+            and (newest.get("data") or {})
+            .get("parameters", {})
+            .get("agent", {})
+            .get("instructions", {})
+            .get("agents_md")
+            == token
         )
 
         core_ok = steer_ok and post_interrupt_works and commit_landed

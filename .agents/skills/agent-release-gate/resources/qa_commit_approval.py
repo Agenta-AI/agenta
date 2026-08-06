@@ -115,9 +115,7 @@ class Turn:
                 if text_buf:
                     parts.append({"type": "text", "text": "".join(text_buf)})
                     text_buf = []
-                call = next(
-                    c for c in self.tool_calls if c["toolCallId"] == seg["id"]
-                )
+                call = next(c for c in self.tool_calls if c["toolCallId"] == seg["id"])
                 part: dict = {
                     "type": f"tool-{call['toolName']}",
                     "toolCallId": call["toolCallId"],
@@ -135,10 +133,7 @@ class Turn:
                     part["errorText"] = self.tool_payloads.get(
                         call["toolCallId"], {}
                     ).get("errorText")
-                if (
-                    self.approval
-                    and self.approval["toolCallId"] == call["toolCallId"]
-                ):
+                if self.approval and self.approval["toolCallId"] == call["toolCallId"]:
                     part["state"] = "approval-requested"
                     part["approval"] = {"id": self.approval["approvalId"]}
                 parts.append(part)
@@ -147,7 +142,9 @@ class Turn:
         return {"id": str(uuid.uuid4()), "role": "assistant", "parts": parts}
 
 
-def invoke(session_id: str, messages: list[dict], parameters: dict, references: dict) -> Turn:
+def invoke(
+    session_id: str, messages: list[dict], parameters: dict, references: dict
+) -> Turn:
     url = f"{BASE}/services/agent/v0/invoke"
     body = {
         "session_id": session_id,
@@ -165,7 +162,10 @@ def invoke(session_id: str, messages: list[dict], parameters: dict, references: 
         with client.stream(
             "POST",
             url,
-            params={"project_id": PROJECT, "application_id": references["application"]["id"]},
+            params={
+                "project_id": PROJECT,
+                "application_id": references["application"]["id"],
+            },
             json=body,
             headers=headers,
         ) as r:
@@ -213,8 +213,14 @@ def invoke(session_id: str, messages: list[dict], parameters: dict, references: 
                         "approvalId": f.get("approvalId"),
                         "toolCallId": f.get("toolCallId"),
                     }
-                    print(f"  !! approval-request: {json.dumps(f)[:400]}", file=sys.stderr)
-                elif ftype in ("tool-output-available", "tool-output-error", "tool-output-denied"):
+                    print(
+                        f"  !! approval-request: {json.dumps(f)[:400]}", file=sys.stderr
+                    )
+                elif ftype in (
+                    "tool-output-available",
+                    "tool-output-error",
+                    "tool-output-denied",
+                ):
                     tcid = f.get("toolCallId")
                     if tcid:
                         t.tool_outcomes[tcid] = ftype.replace("tool-output-", "")
@@ -227,10 +233,15 @@ def invoke(session_id: str, messages: list[dict], parameters: dict, references: 
                             )
                         else:
                             t.tool_payloads[tcid] = {"errorText": f.get("errorText")}
-                            print(f"  !! {ftype}: {json.dumps(f)[:400]}", file=sys.stderr)
+                            print(
+                                f"  !! {ftype}: {json.dumps(f)[:400]}", file=sys.stderr
+                            )
                 elif ftype == "data-committed-revision":
                     t.committed_revision = f.get("data")
-                    print(f"  !! data-committed-revision: {json.dumps(f)[:400]}", file=sys.stderr)
+                    print(
+                        f"  !! data-committed-revision: {json.dumps(f)[:400]}",
+                        file=sys.stderr,
+                    )
                 elif ftype == "error":
                     t.errors.append(json.dumps(f)[:500])
                     print(f"  !! error: {json.dumps(f)[:500]}", file=sys.stderr)
@@ -263,12 +274,19 @@ def main() -> int:
                 "workflow": {
                     "slug": f"qa-commit-approve-{hexid}",
                     "name": f"QA commit-approve {hexid}",
-                    "flags": {"is_custom": True, "is_evaluator": False, "is_feedback": False},
+                    "flags": {
+                        "is_custom": True,
+                        "is_evaluator": False,
+                        "is_feedback": False,
+                    },
                 }
             },
         )
         if r.status_code != 200:
-            result = {"pass": False, "why": f"create workflow HTTP {r.status_code}: {r.text[:300]}"}
+            result = {
+                "pass": False,
+                "why": f"create workflow HTTP {r.status_code}: {r.text[:300]}",
+            }
             return 1
         workflow_id = r.json()["workflow"]["id"]
         print(f"workflow_id={workflow_id}", file=sys.stderr)
@@ -285,7 +303,10 @@ def main() -> int:
             },
         )
         if r.status_code != 200:
-            result = {"pass": False, "why": f"create variant HTTP {r.status_code}: {r.text[:300]}"}
+            result = {
+                "pass": False,
+                "why": f"create variant HTTP {r.status_code}: {r.text[:300]}",
+            }
             return 1
         variant_id = r.json()["workflow_variant"]["id"]
         print(f"variant_id={variant_id}", file=sys.stderr)
@@ -315,7 +336,10 @@ def main() -> int:
                         "slug": slug,
                         "name": f"QA commit-approve {hexid} rev",
                         "message": message,
-                        "data": {"uri": "agenta:builtin:agent:v0", "parameters": parameters},
+                        "data": {
+                            "uri": "agenta:builtin:agent:v0",
+                            "parameters": parameters,
+                        },
                         "workflow_id": workflow_id,
                         "workflow_variant_id": variant_id,
                     }
@@ -325,14 +349,20 @@ def main() -> int:
         # v0 seed (nulled by the DAO -- known behavior).
         r = commit(base_params, "seed", f"qa-commit-approve-seed-{hexid}")
         if r.status_code != 200:
-            result = {"pass": False, "why": f"seed commit HTTP {r.status_code}: {r.text[:300]}"}
+            result = {
+                "pass": False,
+                "why": f"seed commit HTTP {r.status_code}: {r.text[:300]}",
+            }
             return 1
         seed_version = r.json()["workflow_revision"].get("version")
 
         # v1: the REAL baseline revision we run the agent against.
         r = commit(base_params, "QA baseline", f"qa-commit-approve-baseline-{hexid}")
         if r.status_code != 200:
-            result = {"pass": False, "why": f"baseline commit HTTP {r.status_code}: {r.text[:300]}"}
+            result = {
+                "pass": False,
+                "why": f"baseline commit HTTP {r.status_code}: {r.text[:300]}",
+            }
             return 1
         baseline = r.json()["workflow_revision"]
         baseline_revision_id = baseline["id"]
@@ -362,11 +392,18 @@ def main() -> int:
 
         session_id = str(uuid.uuid4())
         print(f"session_id={session_id}", file=sys.stderr)
-        print("--- turn 1: expect read_config to run, commit_revision to pause ---", file=sys.stderr)
+        print(
+            "--- turn 1: expect read_config to run, commit_revision to pause ---",
+            file=sys.stderr,
+        )
         t1 = invoke(session_id, [user_msg(prompt)], live_params, references)
 
         if t1.errors:
-            result = {"pass": False, "why": f"turn 1 wire errors: {t1.errors}", "turn1_frames": t1.frames}
+            result = {
+                "pass": False,
+                "why": f"turn 1 wire errors: {t1.errors}",
+                "turn1_frames": t1.frames,
+            }
             return 1
 
         if not t1.approval:
@@ -385,10 +422,14 @@ def main() -> int:
             return 1
 
         gated_call = next(
-            (c for c in t1.tool_calls if c["toolCallId"] == t1.approval["toolCallId"]), None
+            (c for c in t1.tool_calls if c["toolCallId"] == t1.approval["toolCallId"]),
+            None,
         )
         gated_name = (gated_call or {}).get("toolName")
-        print(f"gated tool: {gated_name} input={json.dumps((gated_call or {}).get('input'))[:400]}", file=sys.stderr)
+        print(
+            f"gated tool: {gated_name} input={json.dumps((gated_call or {}).get('input'))[:400]}",
+            file=sys.stderr,
+        )
 
         if gated_name and "commit" not in gated_name.lower():
             result = {
@@ -399,17 +440,24 @@ def main() -> int:
             return 1
 
         # Resume with approval, exactly the browser's addToolApprovalResponse -> re-POST-history.
-        print("--- turn 2: approve, expect commit_revision to execute + a new revision ---", file=sys.stderr)
+        print(
+            "--- turn 2: approve, expect commit_revision to execute + a new revision ---",
+            file=sys.stderr,
+        )
         msgs = [user_msg(prompt), approval_reply(t1, approved=True)]
         t2 = invoke(session_id, msgs, live_params, references)
 
         if t2.errors:
-            result = {"pass": False, "why": f"turn 2 wire errors: {t2.errors}", "turn2_frames": t2.frames}
+            result = {
+                "pass": False,
+                "why": f"turn 2 wire errors: {t2.errors}",
+                "turn2_frames": t2.frames,
+            }
             return 1
 
-        gated_outcome = t2.tool_outcomes.get(t1.approval["toolCallId"]) or t1.tool_outcomes.get(
+        gated_outcome = t2.tool_outcomes.get(
             t1.approval["toolCallId"]
-        )
+        ) or t1.tool_outcomes.get(t1.approval["toolCallId"])
         if gated_outcome != "available":
             result = {
                 "pass": False,
@@ -420,11 +468,13 @@ def main() -> int:
             return 1
 
         # Wire evidence of the new revision, straight off the tool's own output payload.
-        commit_output = (
-            t2.tool_payloads.get(t1.approval["toolCallId"], {}).get("output")
-            or t1.tool_payloads.get(t1.approval["toolCallId"], {}).get("output")
+        commit_output = t2.tool_payloads.get(t1.approval["toolCallId"], {}).get(
+            "output"
+        ) or t1.tool_payloads.get(t1.approval["toolCallId"], {}).get("output")
+        print(
+            f"commit_revision output: {json.dumps(commit_output)[:600]}",
+            file=sys.stderr,
         )
-        print(f"commit_revision output: {json.dumps(commit_output)[:600]}", file=sys.stderr)
 
         # Never trust the tool echo alone -- fetch the workflow's revisions back over REST and
         # confirm the new one carries the token and the version bumped past the baseline.
@@ -446,10 +496,16 @@ def main() -> int:
                 "commit_output": commit_output,
             }
             return 1
-        revisions = r.json().get("workflow_revisions") or r.json().get("workflow_revision") or []
+        revisions = (
+            r.json().get("workflow_revisions")
+            or r.json().get("workflow_revision")
+            or []
+        )
         if isinstance(revisions, dict):
             revisions = [revisions]
-        newest = max(revisions, key=lambda rv: int(rv.get("version") or -1), default=None)
+        newest = max(
+            revisions, key=lambda rv: int(rv.get("version") or -1), default=None
+        )
         if not newest:
             result = {
                 "pass": False,
