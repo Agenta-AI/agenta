@@ -385,9 +385,14 @@ services:
         image: agenta-ee-dev-runner:latest
         # === EXECUTION ============================================ #
         init: true
-        # No file watcher (the box's inotify limit is shared across stacks). The Pi login is
-        # bind-mounted read-write at /pi-agent and the harness runs directly out of it, so a
-        # refreshed OAuth token persists to the host login instead of dying with the container.
+        # `tsx watch` restarts the server on every source change, matching the OSS dev
+        # compose. A dev runner without reload serves stale code after every landing until
+        # someone remembers to recreate it. The old no-watcher rationale (shared inotify
+        # budget across stacks) no longer binds: the watch scope is ~123 files against a
+        # ~500k host limit. A watch restart kills live sessions; in dev that is the point.
+        # The Pi login is bind-mounted read-write at /pi-agent and the harness runs
+        # directly out of it, so a refreshed OAuth token persists to the host login
+        # instead of dying with the container.
         # This command replaces the image CMD, so the Pi extension rebuild
         # has to live here too: dist/ is not bind-mounted and src/extensions/agenta.ts is,
         # so without this a restart keeps a stale bundle and custom tools silently stop
@@ -395,7 +400,7 @@ services:
         # src on start; fail loud if it cannot build rather than run a stale bundle.
         command: >
             sh -c "node scripts/build-extension.mjs &&
-            exec node_modules/.bin/tsx src/server.ts"
+            exec node_modules/.bin/tsx watch src/server.ts"
         # === CONFIGURATION ======================================== #
         # Deliberately no env_file: the harness sandbox must not inherit the stack's
         # secrets (COMPOSIO_API_KEY, STRIPE/POSTHOG/GOOGLE keys, ...). Tools run
