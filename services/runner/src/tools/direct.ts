@@ -358,8 +358,11 @@ export const MAX_ERROR_DETAIL_CHARS = 2000;
  * The `detail` of an Agenta error envelope, or undefined when the body is not one.
  *
  * WHY THIS DOES NOT LEAK. Every `callDirect` URL comes from `directCallUrl`, which locks the
- * origin to the run's own Agenta and confines the path to its API mount. Both call sites use it
- * (the relay's `call` branch and the config-text reader), so the responder is always our own API.
+ * origin to the run's own Agenta and confines the path to its API mount. The one remaining call
+ * site (the relay's `call` branch) uses it, so the responder is always our own API. The
+ * config-text reader was the second until the API migration moved it to the `/tools/call` seam;
+ * its failures now arrive as the handler envelope through `callAgentaTool` instead of through
+ * this function.
  * `detail` is the one field that API puts a caller-facing reason in: a string for the git
  * exceptions, an object carrying `code`, `message` and `next_step` for a change-set refusal or a
  * revision conflict, a list for a FastAPI validation error.
