@@ -56,15 +56,62 @@ def test_the_description_is_never_required(op_name):
 
 
 @pytest.mark.parametrize("op_name", BUILDER_OPS)
-def test_the_description_sits_at_the_top_level(op_name):
-    # It describes the CALL, not the payload. A description nested inside `workflow_revision`
-    # would collide with the persisted `RevisionCommit.description`, which the model never sets.
+def test_the_nested_position_is_accepted_and_says_it_is_lifted(op_name):
+    # The payload objects are closed, so a note written one level too deep used to be
+    # rejected outright and the turn was spent recovering. Advertising the position costs
+    # nothing. The wording has to say what happens to the value, or the tolerance reads as
+    # a place to store something.
     schema = PLATFORM_OPS[op_name].resolved_input_schema()
     payload_keys = set(schema["properties"]) - {EPHEMERAL_DESCRIPTION_ARG}
+
     for key in payload_keys:
         nested = schema["properties"][key]
-        if isinstance(nested, dict) and isinstance(nested.get("properties"), dict):
-            assert EPHEMERAL_DESCRIPTION_ARG not in nested["properties"]
+        if not isinstance(nested, dict) or not isinstance(
+            nested.get("properties"), dict
+        ):
+            continue
+        tolerated = nested["properties"][EPHEMERAL_DESCRIPTION_ARG]
+        assert "never saved" in tolerated["description"]
+        assert "top level" in tolerated["description"]
+
+
+@pytest.mark.parametrize("op_name", BUILDER_OPS)
+def test_the_nested_position_is_marked_ephemeral(op_name):
+    # The runner decides whether a nested `description` is the endpoint's own field or a
+    # misplaced note by reading the advertised schema. Once the tolerated position is
+    # advertised, the NAME can no longer tell those apart, and a note read as a real field
+    # is neither lifted nor stripped: it reaches the API and is persisted, which is exactly
+    # what contract 12.3 forbids. The marker is what keeps that decision machine-readable.
+    from agenta.sdk.agents.platform.op_catalog import EPHEMERAL_MARKER
+
+    schema = PLATFORM_OPS[op_name].resolved_input_schema()
+    payload_keys = set(schema["properties"]) - {EPHEMERAL_DESCRIPTION_ARG}
+
+    for key in payload_keys:
+        nested = schema["properties"][key]
+        if not isinstance(nested, dict) or not isinstance(
+            nested.get("properties"), dict
+        ):
+            continue
+        assert nested["properties"][EPHEMERAL_DESCRIPTION_ARG][EPHEMERAL_MARKER] is True
+
+
+def test_a_real_payload_description_is_never_overwritten():
+    # Four platform ops carry a genuine `description` inside their payload. None of them
+    # accepts the ephemeral note today, which is an accident of the catalog and not an
+    # invariant, so the tolerance checks instead of trusting it.
+    from agenta.sdk.agents.platform.op_catalog import _tolerate_description
+
+    payload = {
+        "type": "object",
+        "properties": {
+            "description": {"type": "string", "description": "the real one"}
+        },
+    }
+
+    _tolerate_description(payload)
+
+    assert payload["properties"]["description"]["description"] == "the real one"
 
 
 @pytest.mark.parametrize("op_name", BUILDER_OPS)
@@ -92,7 +139,9 @@ def test_the_placement_advice_follows_a_renamed_key():
     )
     both = _ephemeral_description_schema(["first", "second"])["description"]
     assert "`first`" in both and "`second`" in both
-    assert "never inside them" in both
+    # It names the preferred position without forbidding the other one, which is now
+    # accepted and lifted. Advice the schema contradicts teaches a model nothing.
+    assert "never inside" not in both
 
 
 def test_a_non_builder_op_does_not_offer_it():

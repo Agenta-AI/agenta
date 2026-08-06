@@ -135,10 +135,10 @@ def _ephemeral_description_schema(siblings: List[str]) -> Dict[str, Any]:
     schema = deepcopy(_EPHEMERAL_DESCRIPTION_SCHEMA)
     if siblings:
         named = ", ".join(f"`{name}`" for name in siblings)
-        target = "them" if len(siblings) > 1 else "it"
+        # It no longer forbids the nested position, because the nested position is now
+        # accepted and lifted. Advice the schema contradicts teaches a model nothing.
         schema["description"] = (
-            f"{schema['description']} Send it at the top level, beside {named}, "
-            f"never inside {target}."
+            f"{schema['description']} Send it at the top level, beside {named}."
         )
     return schema
 
@@ -1110,7 +1110,16 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                     ),
                 },
             },
-            "required": ["workflow_variant_id", "delta"],
+            # `base_revision_id` is required WITH the ordered arm, and the schema has to say
+            # so: the server refuses an ordered delta that omits it, and a model reading only
+            # a prose sentence sends the call anyway and spends the turn on the refusal.
+            # `workflow_variant_id` is bound from run context and stripped from this list
+            # along with the property, so the model never sees it required.
+            "required": (
+                ["workflow_variant_id", "base_revision_id", "delta"]
+                if _ordered_operations_enabled()
+                else ["workflow_variant_id", "delta"]
+            ),
         },
     },
     "required": ["workflow_revision"],

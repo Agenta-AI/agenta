@@ -402,17 +402,33 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     # the model SHOULD supply remain.
     workflow_revision = spec.input_schema["properties"]["workflow_revision"]
     assert "workflow_variant_id" not in workflow_revision["properties"]
-    assert workflow_revision["required"] == ["delta"]
+    # The ordered arm REQUIRES the base revision id: the server refuses a delta that omits
+    # it, so a schema that marks it optional buys a refused call and a wasted turn. Its
+    # absence from the flag-off list is equally deliberate: a legacy delta may omit it, and
+    # sending it is how a caller opts in to the staleness check.
+    assert workflow_revision["required"] == (
+        ["base_revision_id", "delta"] if _ordered_operations_enabled() else ["delta"]
+    )
     delta = workflow_revision["properties"]["delta"]
 
     # The rest of the surface depends on the ordered-operations flag: with it on, the
     # server derives the message and the ordered arm appears. Both states are pinned, so
     # this test is honest whichever way the suite runs.
+    # `description` is the ephemeral per-call note in its tolerated second position, not a
+    # payload field: the runner lifts it out and it is never stored (read-config.md 12).
     if _ordered_operations_enabled():
-        assert set(workflow_revision["properties"]) == {"base_revision_id", "delta"}
+        assert set(workflow_revision["properties"]) == {
+            "base_revision_id",
+            "delta",
+            "description",
+        }
         assert set(delta["properties"]) == {"set", "remove", "operations"}
     else:
-        assert set(workflow_revision["properties"]) == {"message", "delta"}
+        assert set(workflow_revision["properties"]) == {
+            "message",
+            "delta",
+            "description",
+        }
         assert set(delta["properties"]) == {"set", "remove"}
     assert "parameters.agent" in delta["properties"]["set"]["description"]
 
