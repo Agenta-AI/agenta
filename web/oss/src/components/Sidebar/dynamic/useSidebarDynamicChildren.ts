@@ -84,13 +84,32 @@ export const resolveChildren = (
     }
 
     const visibleRefs = refs.slice(0, entity.maxItems)
-    const children: SidebarConfig[] = visibleRefs.map((ref) => ({
-        key: `${entity.parentKey}-${ref.id}`,
-        title: entity.getLabel(ref),
-        link: entity.childLink(ref, projectURL),
-        icon: icon(),
-        isDynamic: true,
-    }))
+    const children: SidebarConfig[] = []
+    let currentGroup: string | null = null
+    for (const ref of visibleRefs) {
+        // Headings are inserted, not sorted — an entity supplying `getGroup` must already order
+        // its refs by group, or the same heading would appear more than once.
+        const group = entity.getGroup?.(ref) ?? null
+        if (group && group !== currentGroup) {
+            children.push({
+                key: `${entity.parentKey}-group-${group}`,
+                title: group,
+                icon: icon(),
+                disabled: true,
+                isDynamic: true,
+                isPlaceholder: true,
+            })
+        }
+        currentGroup = group
+        children.push({
+            key: `${entity.parentKey}-${ref.id}`,
+            title: entity.getLabel(ref),
+            link: entity.childLink(ref, projectURL),
+            icon: entity.getIcon?.(ref) ?? icon(),
+            isDynamic: true,
+            onClick: entity.getOnClick?.(ref),
+        })
+    }
 
     if (entity.showAllLink && refs.length > visibleRefs.length) {
         children.push({

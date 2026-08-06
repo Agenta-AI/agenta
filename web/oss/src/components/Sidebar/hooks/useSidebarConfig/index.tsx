@@ -11,6 +11,7 @@ import {
     HouseIcon,
     ListChecksIcon,
     RobotIcon,
+    ChatsCircleIcon,
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -35,7 +36,7 @@ import {
     useSidebarDynamicChildren,
 } from "../../dynamic/useSidebarDynamicChildren"
 import {SidebarConfig} from "../../engine/types"
-import {HOME_SIDEBAR_KEY} from "../../scopes/constants"
+import {HOME_SIDEBAR_KEY, SESSIONS_SIDEBAR_KEY} from "../../scopes/constants"
 
 export interface MainSidebarItems {
     projectItems: SidebarConfig[]
@@ -81,6 +82,15 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 icon: getEntityKindIcon("app"),
                 isHidden: hideAdvancedNav,
                 disabled: !hasProjectURL,
+            },
+            {
+                key: SESSIONS_SIDEBAR_KEY,
+                title: "Sessions",
+                link: `${projectURL}/sessions`,
+                icon: <ChatsCircleIcon size={14} />,
+                // Sessions only exist once an agent has run — a dead-end during onboarding.
+                disabled: !hasProjectURL || deadEndNavDisabled,
+                tooltip: deadEndNavDisabled ? "Your sessions will appear here" : undefined,
             },
             {
                 key: AGENTS_SIDEBAR_KEY,
@@ -167,6 +177,17 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 icon: <RocketIcon size={14} />,
                 isHidden,
                 disabled: !hasProjectURL,
+            },
+            {
+                key: "app-sessions-link",
+                title: "Sessions",
+                link: `${appURL || recentlyVisitedAppURL}/sessions`,
+                icon: <ChatsCircleIcon size={14} />,
+                isHidden,
+                disabled: !hasProjectURL,
+                // Only agents hold conversations — a prompt app or evaluator would get an
+                // always-empty list.
+                workflowCategories: ["agent"],
             },
             {
                 key: "app-variants-link",
