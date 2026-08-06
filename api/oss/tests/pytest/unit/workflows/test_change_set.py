@@ -3171,3 +3171,94 @@ class TestThePlatformGuidanceBlock:
         )
 
         assert error.reason == Reason.TEXT_NOT_FOUND
+
+
+class TestTheRenderedFileRoundTrips:
+    """Render, copy the rendered file back as a wholesale set, get the stored text back.
+
+    This is the invariant the whole strip exists to protect, stated end to end rather than
+    as a property of the helper. The fixture below stands in for the runner's renderer,
+    which does not exist yet: it is built from the agreed fence literals and a plausible
+    separator. **The runner side must keep this fixture true.** If
+    `services/runner/src/engines/sandbox_agent/system-prompt-appendix.ts` renders a block
+    this fixture does not describe, this test keeps passing while the real round trip
+    breaks, so treat the fixture as part of the contract and not as scaffolding.
+
+    Deliberately not a fixed-newline pattern. The strip normalizes, so the runner may change
+    its spacing without breaking the round trip, and these cells vary the spacing to prove
+    that rather than assume it.
+    """
+
+    GUIDANCE = (
+        "Commit configuration changes with the commit tool.\n"
+        "Files you write in the workspace are not your configuration."
+    )
+
+    @classmethod
+    def _rendered(cls, stored: str, separator: str = "\n\n") -> str:
+        """What the agent sees in its workspace: stored text, then the fenced block."""
+        return (
+            f"{stored}{separator}"
+            f"{PLATFORM_GUIDANCE_START}\n{cls.GUIDANCE}\n{PLATFORM_GUIDANCE_END}\n"
+        )
+
+    @pytest.mark.parametrize(
+        "separator",
+        ["\n\n", "\n", "\n\n\n", "\n\n \n"],
+        ids=["blank-line", "single-newline", "two-blank-lines", "trailing-space"],
+    )
+    def test_the_stored_text_comes_back_byte_for_byte(self, separator):
+        stored = "Be concise.\nAnswer in one paragraph."
+
+        result = run(
+            {
+                "set": {
+                    "parameters": {
+                        "agent": {
+                            "instructions": {
+                                "agents_md": self._rendered(stored, separator)
+                            }
+                        }
+                    }
+                }
+            },
+            base_config(),
+        )
+
+        assert result.data["parameters"]["agent"]["instructions"]["agents_md"] == stored
+
+    def test_the_same_round_trip_through_the_ordered_arm(self):
+        stored = "Be concise.\nAnswer in one paragraph."
+
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "value": self._rendered(stored),
+                }
+            ),
+            base_config(),
+        )
+
+        assert result.data["parameters"]["agent"]["instructions"]["agents_md"] == stored
+
+    def test_a_second_round_trip_changes_nothing(self):
+        # The agent reads, the runner renders, the agent copies back, twice. If the strip
+        # were not idempotent the text would drift a little on every loop.
+        stored = "Be concise."
+        once = strip_platform_guidance(self._rendered(stored))
+        twice = strip_platform_guidance(self._rendered(once))
+
+        assert once == stored
+        assert twice == stored
+
+    def test_trailing_whitespace_on_the_stored_text_is_the_one_exception(self):
+        # Stated rather than hidden. The strip cannot tell a trailing newline the user wrote
+        # from one the renderer's separator swallowed, so it normalizes to neither. A stored
+        # value that ends in whitespace comes back without it, which is a revision differing
+        # by trailing whitespace and never by content. Values converge after one commit,
+        # because what the strip returns has none.
+        rendered = self._rendered("Be concise.\n")
+
+        assert strip_platform_guidance(rendered) == "Be concise."
