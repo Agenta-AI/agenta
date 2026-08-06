@@ -153,24 +153,30 @@ reader can act on it cold.
 
 ## A denied call and its identical-args sibling share one authorization pool
 
-- Found by: the cold/warm lifecycle matrix work, 6 August 2026. Now pinned by a test
-  (`tests/unit/execution-authorization.test.ts`, "still offers an approved set
-  after its IDENTICAL sibling was denied").
-- The mechanism: a deny discards the denied call's own records via `discardAll`,
-  which is keyed by tool-call id, while `findSetByCall` matches on tool name plus
-  args digest and deliberately ignores the id (its header argues the id is
-  correlation and the digest is the binding, which is what makes an MCP relay under
-  a fresh uuid work at all). Two gates for the same tool with byte-identical
-  arguments are therefore indistinguishable to that lookup, so an execution arriving
-  under the DENIED id matches the APPROVED sibling's set and runs.
-- Bounded, not an escalation: the bytes that execute are the frozen bytes the human
-  approved, and the set is single-use, so N approvals still permit exactly N
-  executions. What is not preserved is WHICH call ran — the user can deny a change
-  and watch it succeed, while the call they approved then fails closed.
-- The ask: decide whether a deny should poison identical siblings (discard by
-  name+digest rather than by id) or whether identical arguments make the distinction
-  meaningless by construction. Either answer is defensible; today's behaviour was
-  never chosen, only inherited from the id-versus-digest split.
+- Found by: the cold/warm lifecycle matrix work, 6 August 2026. Pinned by
+  `tests/unit/execution-authorization.test.ts`, "still offers an approved set after
+  its IDENTICAL sibling was denied".
+- **Symptom.** A user denies one change, watches it happen anyway, and then sees the
+  change they DID approve fail. Only possible when one turn raises two gates for the
+  same tool with byte-identical arguments.
+- **Mechanism.** A deny discards the denied call's records with `discardAll`, which is
+  keyed by tool-call id, while `findSetByCall` matches on tool name plus args digest
+  and deliberately ignores the id (the id is correlation, the digest is the binding,
+  which is what makes an MCP relay under a fresh uuid work at all). Two identical
+  gates are therefore indistinguishable to that lookup, so an execution arriving under
+  the denied id consumes the approved sibling's set.
+- **Cost to fix.** One decision and a few lines. Either a deny discards by name plus
+  digest, poisoning identical siblings, or identical arguments are declared to make
+  the distinction meaningless and the behaviour is documented as intended. The
+  existing test inverts to match whichever is chosen.
+- **Cost of NOT fixing.** Bounded and non-escalating: the bytes that run are the bytes
+  a human approved, the set is single-use, and N approvals still permit exactly N
+  executions. What is lost is WHICH call ran. A user who denies something and sees it
+  succeed has no way to understand why, and no way to tell it apart from a bug that
+  ignores denials entirely, which is the more alarming reading they will reach for.
+- **Acceptance test.** Invert the existing unit test, then a live cell that raises two
+  identical gates in one turn, denies the first, approves the second, and asserts the
+  stored revisions match the decisions (one commit, carrying the approved call's id).
 
 ## The legacy delta classifier needs a decision: teach or retire
 
@@ -193,92 +199,127 @@ reader can act on it cold.
 ## A pending approval dies silently when the user moves on (was "W11" in session notes)
 
 - Found by: live QA session forensics, 5-6 August 2026; confirmed by the lifecycle
-  trace and gate cell matrix_l3.
-- At the next turn's start the runner sweeps pending approval rows to `cancelled`
-  (cancelStaleInteractions), and the safety half is correct and now pinned: the
-  gated tool does not run, an unanswered approval is never consent. The broken
-  half is the surface: the wire protocol has no cancellation frame, so the
-  frontend card stays in approval-requested forever, and a user who answers it
-  after eviction feeds a decision into a gate that no longer exists (the session
-  then logs approval-mismatch and rebuilds cold).
-- The proposal awaiting a ruling, three independent layers, any prefix shippable:
-  (1) frontend renders the swept row as cancelled (poll or on next turn render),
-  (2) the runner tells the model the approval lapsed so it can re-ask,
-  (3) optional automatic re-issue of the gate on the next turn.
-- The ask: pick the layer set for v1. Layer 1 alone removes the stuck-card lie
-  at UI cost only.
+  trace and gate cell `matrix_l3`.
+- **Symptom.** A user ignores an approval card and types something else. The card stays
+  on screen in `approval-requested` forever. If they answer it later, nothing happens
+  except that their session silently rebuilds cold and loses its warm state.
+- **Mechanism.** At the next turn's start the runner sweeps unanswered approval rows to
+  `cancelled` (`cancelStaleInteractions`), and the safety half is correct: the gated
+  tool does not run, an unanswered approval is never consent. The wire protocol has no
+  cancellation frame, so the frontend is never told, and a late answer feeds a decision
+  into a gate that no longer exists (the session logs `approval-mismatch` and rebuilds).
+- **Cost to fix.** Three independent layers, any prefix shippable, in increasing cost.
+  (1) The frontend renders a swept row as cancelled, on poll or at the next turn's
+  render. UI only, no protocol change. (2) The runner tells the model the approval
+  lapsed so it can re-ask. Needs a message the model reads, and a decision about
+  whether re-asking is desirable or annoying. (3) The gate re-issues automatically on
+  the next turn. Needs the gate to be reconstructible, which is the part that is not
+  free.
+- **Cost of NOT fixing.** The product shows a control that does nothing, permanently,
+  and punishes using it. This is a trust cost rather than a correctness one: nothing
+  unsafe happens, but a user who answers a stale card pays a cold rebuild for it and
+  is told nothing. It is also self-inflicted confusion during any demo where someone
+  leaves a card unanswered.
+- **Acceptance test.** `matrix_l3` already asserts the safety half (the tool does not
+  run, the row ends `cancelled` rather than `pending`). Layer 1 adds a frontend test
+  that a row swept to `cancelled` renders as cancelled without a reload. Layer 2 adds
+  a live cell asserting the model's next message acknowledges the lapse rather than
+  proceeding as though approved.
 
 ## The workspace live route is withdrawn; refresh-then-reopen is the follow-up
 
-- Found by: gate cell `matrix_l5_live_route_observed.py`, 6 August 2026 (claude
-  on local, reproduced three times). Fixed the same day as a release blocker.
-- The `workspaceFiles` facet was live: an instructions edit rewrote `AGENTS.md`
-  on the running sandbox, `applyReconcilePlan` committed the incoming
-  configuration as applied, and every later turn then matched and continued warm
-  while the model went on answering from the instructions the session started
-  with. Installing is not observing: every harness reads its instruction file
-  once, at session start. The user's edit was dead until something else evicted
-  the session, and before the optimisation the same edit took effect on the very
-  next turn.
-- The fix: `workspaceFiles` routes to `rebuild-sandbox`, and `refresh-workspace`
-  left `LIVE_ACTION_KINDS` so restoring the capability table on its own fails
-  closed. An instructions edit costs a sandbox again. The applier in
-  `apply-plan.ts` keeps the refresh arm, unreachable, because the follow-up needs
-  exactly that write.
-- The ask: refresh the workspace and THEN reopen the session, so the new files
-  are on disk before the harness reads them. Two things must land first, and
-  neither may be assumed: the reopen must build its session init from the
-  INCOMING request (adapter-matrix.md §8 steps 1 and 2 — today `env.reopenSession`
-  closes over the init the environment was built with, so a reopen would
-  reinstall the old MCP list, prompts and harness files), and a workspaceFiles-only
-  reopen must be proven on L5, which asserts the observation and only reports the
-  sandbox count for exactly this reason.
-- Two entries above are affected. "Pi refresh refuses any request that carries
-  skills" is now moot in practice, since nothing routes to the refresh arm; it
-  becomes live again the moment the follow-up ships. "Shadow router logs a
-  permanent DISAGREE for rebuilt reopen facets" is why the fix moved the
-  CAPABILITY TABLE rather than only dropping the kind from `LIVE_ACTION_KINDS`:
-  dropping it alone would have left the router planning `refresh-workspace`
-  (outcome `reuse`) against a coordinator that rebuilds, adding a fifth permanent
-  false positive to that count.
+- Found by: gate cell `matrix_l5_live_route_observed.py`, 6 August 2026 (claude on
+  local, reproduced three times). Fixed the same day as a release blocker.
+- **Symptom.** A user edits their agent's instructions mid-conversation and the agent
+  keeps obeying the old ones, with no error and no indication anything was ignored.
+  The edit appears to save correctly. It takes effect only when something else
+  happens to evict the session.
+- **Mechanism.** The `workspaceFiles` facet was a live route: the runner rewrote
+  `AGENTS.md` on the running sandbox and `applyReconcilePlan` committed the incoming
+  configuration as applied, so the pool reported the new fingerprint and every later
+  turn matched and continued warm. Every harness reads its instruction file once, at
+  session start, so the rewritten file was never re-read and the model went on
+  answering from the instructions the session began with.
+- **Status: FIXED, and the fix is a switch.** `WORKSPACE_FILES_EDITS_REBUILD` in
+  `services/runner/src/lifecycle/reconciliation-router.ts` defaults to `true`, so an
+  instructions or skills edit rebuilds the sandbox and takes effect on the very next
+  turn. **That constant is also the activation mechanism for the follow-up below:**
+  both the capability table and `LIVE_ACTION_KINDS` derive from it, so proving an
+  in-place route and turning it on is one flip rather than two edits that can
+  disagree. Read the comment on the constant before flipping it.
+- **The follow-up, and its two prerequisites.** Refresh the workspace and THEN reopen
+  the session, so the new files are on disk before the harness reads them. Neither
+  prerequisite may be assumed: the reopen must build its session init from the
+  INCOMING request (today `env.reopenSession` closes over the init the environment was
+  built with, so a reopen reinstalls the old MCP list, prompts and harness files, per
+  `adapter-matrix.md` section 8 steps 1 and 2), and a workspaceFiles-only reopen must
+  be proven rather than argued.
+- **Cost to fix.** Real. Step 8's session-init work is the prerequisite, then the
+  refresh-then-reopen sequencing, then a live proof. This is a performance
+  optimisation, not a correctness fix: the product is CORRECT today and merely pays a
+  sandbox rebuild for an instructions edit.
+- **Cost of NOT fixing.** Every instructions or skills edit costs a sandbox rebuild,
+  so the turn after an edit is slow. On a durable-cwd deployment it also costs a
+  remount. Users who iterate on instructions feel this most, which is exactly the
+  audience for a config-editing feature.
+- **Acceptance test.** `matrix_l5_live_route_observed.py` passing live with ONE sandbox
+  id, plus `matrix_l1_lifecycle_routes.py` confirming the route. L5 asserts the
+  observation and only REPORTS the sandbox count precisely so it stays the acceptance
+  test across a change of mechanism. A green unit suite is not acceptance here: the
+  unit tests cannot tell whether a harness re-read a file.
 
 ## The Codex gate waits on a timer for arguments it should be handed
 
 - Found by: the closing review of PR #5760, 6 August 2026.
-- On Codex the permission request can arrive before the `tool_call` update that
-  carries the arguments, so `awaitRecordedToolCallArgs` polls the recorded call
-  for up to `RECORDED_TOOL_CALL_WAIT_MS` (750ms) before the gate reads them. It
-  is a timing workaround: it costs latency on every Codex approval, and a stack
-  slow enough to miss the window degrades to a gate that mints nothing, which is
-  the `authorization_missing` failure the unwrap fix was chasing. Measured at
-  28ms in practice, so the margin is wide today and invisible when it is not.
-- The ask: take the arguments from the event that already carries them rather
-  than racing for them, or make the wait a hard requirement that fails loudly
-  instead of falling through with `undefined`.
+- **Symptom.** None today, and that is the point: this is a latent failure with a
+  measured margin, not an active bug. If it ever fires, a Codex approval mints no
+  authorization and the commit the user approved dies with `authorization_missing`.
+- **Mechanism.** On Codex the permission request can arrive before the `tool_call`
+  update that carries the arguments, so `awaitRecordedToolCallArgs` polls the recorded
+  call for up to `RECORDED_TOOL_CALL_WAIT_MS` (750ms) before the gate reads them. It is
+  a timing workaround: a stack slow enough to miss the window falls through with
+  `undefined` arguments, the marker scan finds nothing, and the gate mints nothing.
+- **Cost to fix.** Moderate and structural rather than fiddly. Either take the
+  arguments from the event that already carries them (removing the race instead of
+  racing), or make the wait a hard requirement that fails LOUDLY on timeout instead of
+  proceeding with `undefined`. The second is much cheaper and converts a silent
+  mis-mint into a visible refusal.
+- **Cost of NOT fixing.** Every Codex approval pays up to 750ms of latency it does not
+  need. The margin is wide today (measured at 28ms in practice) and it is invisible
+  when it closes: the failure looks exactly like the `authorization_missing` bug we
+  already chased once through two incorrect fixes, so it would cost that debugging
+  time again.
+- **Acceptance test.** Unit: force the recorded args to arrive after the deadline and
+  assert the gate REFUSES loudly rather than minting nothing. Live: the Codex arm of
+  `matrix_w7_per_harness.py` still green, since it exercises the real ordering.
 
 ## Gateway and workflow tool failures carry no `next_step`
 
-- Found by: verify-runner's precision check on the envelope guarantee, 6 August
-  2026. Deferred out of the API migration by ruling, not by oversight.
-- The canonical agent-actionable envelope covers failures the platform authors.
-  Two arms of the tools router answer with an upstream's own shape instead: the
-  gateway/Composio arm (`api/oss/src/apis/fastapi/tools/router.py` around
-  1228-1241, content is `ToolExecutionResponse`) and the workflow-tool arm (same
-  file around 1428-1438, content is the workflow's `outputs`). Both now reach the
-  model as errors, since the runner's transport fix, and both carry the
-  upstream's reason. Neither carries `code`, `retryable` or `next_step`.
-- Why it was NOT converted in the migration: the content is a third-party shape,
-  and `next_step` semantics cannot be assigned to it generically without
-  inventing recovery advice the platform does not actually have. The migration
-  scoped ten steps and this is not one of them. The model already receives the
-  full failure reason, which is the thing that lets it correct a bad argument.
-- The open question is worth measuring rather than arguing: would a small model
-  recover from a Composio failure more reliably with a `next_step` than with the
-  upstream's raw reason? The v2 benchmark's Composio-failure recovery numbers
-  make or break the case. Convert only if they do.
-- Do not "simplify" a consumer's non-envelope error path away on the assumption
-  that every `STATUS_CODE_ERROR` carries an envelope. It does not, deliberately,
-  and that path is what delivers the upstream reason to the model.
+- Found by: the API migration's step-8 live proof, 6 August 2026.
+- **Symptom.** A model whose Composio or workflow tool call fails is told what went
+  wrong but not what to do about it, so it guesses: it retries the same call, reshapes
+  the arguments at random, or tells the user the tool is broken. A model whose
+  PLATFORM op fails (read_config, commit_revision) gets a `next_step` and recovers in
+  one turn. The two feel like different products.
+- **Mechanism.** The migration's envelope (`{code, message, retryable, next_step,
+  details}`) is emitted by the platform HANDLERS. The tools router's other two
+  producers do not use it: the gateway arm sends `ToolExecutionResponse` (`{data,
+  error, successful}`) with the upstream reason in `status.message`, and the
+  workflow-tool arm sends the workflow's own `outputs`.
+- **Cost to fix.** Per-arm and mostly about vocabulary rather than plumbing. The
+  transport already works (both arms already answer 200 with `STATUS_CODE_ERROR`, and
+  the runner already surfaces that as a tool error carrying the text). What is missing
+  is a `code` and a `next_step` for each failure a gateway can produce, and the
+  upstream reasons are third-party strings we do not control, so the mapping is a
+  judgement call per integration rather than one rule.
+- **Cost of NOT fixing.** Bounded. The model still receives the upstream's own reason,
+  which is often actionable, and the failure is visibly a failure since the runner
+  marks it `isError`. The cost is the recovery rate on tool failures, which is exactly
+  what the one-shot success bar measures, and an inconsistency a user notices as
+  "sometimes it fixes itself and sometimes it flails".
+- **Acceptance test.** A benchmark cell rather than a unit test: force a Composio call
+  to fail with a correctable argument error and measure whether the model recovers in
+  one turn. Unit tests can only pin the shape, and the shape is not the question.
 
 ## The marker caps are removed; the approval card collapses instead
 
@@ -308,3 +349,71 @@ reader can act on it cold.
   remove the caps while the approval card still renders one row per file, or the
   first large commit produces a card no human can read, which is the failure the
   caps were standing in for.
+
+## A call naming a file that does not exist is refused as a DENIAL, not as a mistake
+
+- Found by: the marker-detail work, 6 August 2026 (PR #5760). The structured reason is
+  now carried to the operator log; this entry is the model-facing half, which was
+  deliberately deferred rather than forgotten.
+- **Symptom.** An agent copies a skill folder into `.agenta-imports/`, references a
+  path that does not match where the file landed, and is told its change was DENIED.
+  It reasonably concludes a human refused, apologises, and stops. It is never told the
+  path was wrong, and it is never shown the directory listing that would name the
+  correction. Observed in the G1 gate cell: one pi_core trial out of three failed
+  exactly this way.
+- **Mechanism.** Marker resolution runs when the gate is RAISED, so an unresolvable
+  path fails before any card is shown, and the runner answers the harness with a
+  permission `reject`. The ACP permission reply is `"once" | "always" | "reject"`, a
+  bare enum with no room for text, so the reason cannot ride it and the harness
+  authors whatever the model reads.
+- **Cost to fix.** The honest fix is not small, and the cheap one is wrong. Validate
+  the marker paths BEFORE raising a gate, and answer a bad path as an ordinary tool
+  error rather than asking a human about a call that cannot execute. That is
+  semantically right (a call naming a nonexistent file never needed a human decision)
+  and it moves a security-relevant ordering, so it needs care. The cheap alternative,
+  allowing the gate so the call reaches the relay where we author the result, was
+  considered and REFUSED: on a non-Pi harness the relay guard passes `ask`, so it
+  would rest the whole fail-closed property on the authorization check alone.
+- **Cost of NOT fixing.** Bounded but expensive where it lands. Nothing unsafe happens:
+  the call does not run, and the reader already computes `available`, the entries that
+  DO exist under the import root, which usually names the fix. The cost is that a
+  recoverable mistake reads as a human refusal, so the model stops instead of
+  retrying, and the user sees an agent that gave up for no visible reason. It is a
+  direct hit on the one-shot success bar.
+- **Acceptance test.** Live: the failing G1 trial shape, an agent that copies a
+  directory and then references a path inside it that does not exist, recovering
+  within the same turn sequence. Unit tests can pin that the error reaches the model
+  with `available` in it, but only the live cell answers whether the model acts on it.
+
+## A client tool that the browser fulfilled is recorded as `cancelled`
+
+- Found by: the open-issues audit, 6 August 2026. Runner side confirmed by reading the
+  code; the API side is not visible from the runner and should be checked before
+  fixing.
+- **Symptom.** A client tool runs correctly. The browser fulfils it, the model gets the
+  result, the turn succeeds. The stored interaction row for that tool then says
+  `cancelled`, so the audit trail claims a tool was abandoned when it actually ran.
+  Anyone reading session history to reconstruct what happened is misled.
+- **Mechanism.** `pauseClientTool` creates the interaction row with
+  `onCreateInteraction(..., "client_tool", ...)` and never resolves it: the runner's
+  single `resolveInteraction` caller sits on the APPROVAL path
+  (`resolveAfterReply`, reached only from `replyPermission` and `rejectRequest`), and
+  its emitted event is hard-coded `kind: "user_approval"`. The row therefore stays
+  `pending` through fulfilment, and the next turn's `cancelStaleInteractions` sweeps
+  every prior-turn pending row to `cancelled`.
+- **Cost to fix.** Small if the fulfilment path already has the token, which is the
+  thing to check first: the client-tool relay knows the tool call it is answering, so
+  resolving the row when the browser's result arrives is the natural place. The event
+  kind is currently hard-coded to `user_approval` and would need to carry the real
+  kind. Confirm the API's resolve endpoint accepts a client-tool resolution before
+  assuming the shape.
+- **Cost of NOT fixing.** No functional impact: the tool ran, the model got its result,
+  nothing is unsafe and no user-facing surface reads this row today. The cost is
+  entirely in forensics, and it is the kind that bites at the worst time. We have
+  twice debugged live failures by reading stored interaction rows, and a row that says
+  `cancelled` for a tool that ran would have sent that reading in the wrong direction.
+- **Acceptance test.** Drive a client tool to completion, then start a second turn, and
+  assert the stored interaction row for the first tool is `resolved` (or whatever the
+  fulfilled state is named) rather than `cancelled`. `matrix_l4_client_tool_lifecycle.py`
+  already drives the round trip and asserts the row is stored, so it is the natural
+  home for the extra assertion.
