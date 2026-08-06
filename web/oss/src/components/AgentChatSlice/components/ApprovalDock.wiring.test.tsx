@@ -48,13 +48,13 @@ const {default: ApprovalDock, getPendingApprovals} = await import("./ApprovalDoc
 const {chatPanelMaximizedAtom} = await import("../state/panelLayout")
 
 /** The turn shape the egress produces: the gated tool part, plus the manifest as a sibling. */
-const assistantTurn = (input: unknown, manifest?: unknown) => [
+const assistantTurn = (input: unknown, manifest?: unknown, toolName = "commit_revision") => [
     {
         id: "msg-1",
         role: "assistant" as const,
         parts: [
             {
-                type: "tool-commit_revision",
+                type: `tool-${toolName}`,
                 toolCallId: "call-1",
                 state: "approval-requested",
                 approval: {id: "approval-1"},
@@ -116,15 +116,17 @@ const renderDock = ({
     chatMode,
     input,
     manifest,
+    toolName,
 }: {
     chatMode: boolean
     input: unknown
     manifest?: unknown
+    toolName?: string
 }) => {
     const store = createStore()
     // Exactly what the playground header's Build/Chat toggle does.
     store.set(chatPanelMaximizedAtom, chatMode)
-    const approvals = getPendingApprovals(assistantTurn(input, manifest) as never)
+    const approvals = getPendingApprovals(assistantTurn(input, manifest, toolName) as never)
     return {
         approvals,
         markup: renderToStaticMarkup(
@@ -209,6 +211,46 @@ describe("a legacy set delta, through the real classifier", () => {
         // This arm does carry a commit message, unlike the ordered one.
         expect(markup).toContain("Commit message")
         expect(markup).toContain("Add the pineapple line.")
+    })
+})
+
+/**
+ * Claude exposes our tools through MCP, so the SAME commit arrives as
+ * `mcp__agenta-tools__commit_revision`. The registry keyed on the raw name, so every Claude plain
+ * commit fell back to the generic raw-JSON card while the identical Pi call rendered properly.
+ */
+describe("the same commit under the Claude harness", () => {
+    it.each([
+        ["Build", false],
+        ["Chat", true],
+    ])("renders the specialized body in %s mode, like the Pi-named call", (_name, chatMode) => {
+        const {approvals, markup} = renderDock({
+            chatMode,
+            input: ORDERED_INPUT,
+            toolName: "mcp__agenta-tools__commit_revision",
+        })
+
+        // The wire name is untouched; only the lookup is canonical.
+        expect(approvals[0].toolName).toBe("mcp__agenta-tools__commit_revision")
+        expect(markup).toContain("Replace instructions")
+        expect(markup).toContain("What the agent says it is doing")
+        // `approveLabel` comes off the same registry entry, so it proves the entry resolved.
+        expect(markup).toContain("Approve &amp; commit")
+        expect(markup).not.toContain("The agent wants to run this tool before it can keep going.")
+    })
+
+    it("leaves a third-party MCP tool on the generic card", () => {
+        // Only OUR server is unwrapped. Another server's tool must never reach our commit body,
+        // even if it were named commit_revision.
+        const {markup} = renderDock({
+            chatMode: false,
+            input: ORDERED_INPUT,
+            toolName: "mcp__other__commit_revision",
+        })
+
+        expect(markup).toContain("Payload")
+        expect(markup).not.toContain("Replace instructions")
+        expect(markup).not.toContain("Approve &amp; commit")
     })
 })
 

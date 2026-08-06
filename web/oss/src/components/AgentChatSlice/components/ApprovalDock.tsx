@@ -9,7 +9,7 @@ import {useAtomValue} from "jotai"
 import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
 
 import {isAgentChatSteerEnabled} from "../assets/constants"
-import {partToolName, resolveToolDisplay} from "../assets/toolDisplay"
+import {canonicalToolName, partToolName, resolveToolDisplay} from "../assets/toolDisplay"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import ApprovedContentManifest, {
@@ -233,7 +233,10 @@ const ApprovalDock = ({
     // default mode. They still need a revision to diff against, so the entityId-less host keeps
     // the exact-payload card. Build gets the compact one-column shape (`compact` below).
     const chatMode = useAtomValue(chatPanelMaximizedAtom)
-    const renderer = current && entityId ? resolveApprovalRenderer(current.toolName) : null
+    // Canonical name: Claude wraps our tools as `mcp__agenta-tools__<tool>`, and keying the
+    // registry on the raw name dropped every Claude commit back to the exact-payload card.
+    const renderer =
+        current && entityId ? resolveApprovalRenderer(canonicalToolName(current.toolName)) : null
     // The manifest is a SIBLING of the payload, never inside it, so the generic card has to render
     // it itself: the frozen content is what the approval binds, in every mode. Skipped when a
     // specialized body is active, because that body renders the manifest already.
