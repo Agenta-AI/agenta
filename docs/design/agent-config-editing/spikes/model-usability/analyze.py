@@ -106,7 +106,9 @@ def main():
             batch = [r for r in arm if r["task"] == tid]
             if not batch:
                 continue
-            first_try = sum(1 for r in batch if r["correct"] and r["attempts_used"] == 1)
+            first_try = sum(
+                1 for r in batch if r["correct"] and r["attempts_used"] == 1
+            )
             after = sum(1 for r in batch if r["correct"] and r["attempts_used"] > 1)
             print(
                 f"  recovery {tid}: correct first call {first_try}, "
@@ -124,13 +126,17 @@ def main():
         example.setdefault(label, row)
     for label, count in counter.most_common():
         row = example[label]
-        print(f"  {count:>3}  [{row['model']}/{row['instructions']} task {row['task']}] {label}")
+        print(
+            f"  {count:>3}  [{row['model']}/{row['instructions']} task {row['task']}] {label}"
+        )
 
     if args.failures:
         print("\n=== verbatim examples ===")
         for label in counter:
             row = example[label]
-            print(f"\n--- {label} :: {row['model']}/{row['instructions']} task {row['task']} trial {row['trial']}")
+            print(
+                f"\n--- {label} :: {row['model']}/{row['instructions']} task {row['task']} trial {row['trial']}"
+            )
             for attempt in row["attempts"]:
                 if attempt.get("no_tool_call"):
                     print("   NO TOOL CALL, model said:")
@@ -139,7 +145,10 @@ def main():
                 print(f"   attempt {attempt['attempt']} sent:")
                 print("   " + json.dumps(attempt["envelope"], ensure_ascii=False)[:900])
                 if attempt.get("error"):
-                    print("   -> " + json.dumps(attempt["error"], ensure_ascii=False)[:400])
+                    print(
+                        "   -> "
+                        + json.dumps(attempt["error"], ensure_ascii=False)[:400]
+                    )
             if row["error"] and row["error"].startswith("wrong result"):
                 print("   -> " + row["error"][:300])
 

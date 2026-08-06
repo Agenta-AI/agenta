@@ -84,7 +84,9 @@ for model, version, lenient, v3_surface, v4_surface, _ in ARMS:
 print("| **all** | | " + " | ".join(f"**{t}**" for t in totals) + " |")
 
 print("\n### Pipeline rates (all tasks pooled)\n")
-print("| Arm | n | called the tool | valid JSON (first call) | engine accepted | correct |")
+print(
+    "| Arm | n | called the tool | valid JSON (first call) | engine accepted | correct |"
+)
 print("|---|---|---|---|---|---|")
 for model, version, lenient, v3_surface, v4_surface, label in ARMS:
     batch = by_arm[(model, version, lenient, v3_surface, v4_surface)]
