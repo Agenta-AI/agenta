@@ -315,23 +315,30 @@ class ChangeSetError(Exception):
         return self.explicit_next_step or NEXT_STEPS.get(self.reason)
 
     def to_detail(self) -> Dict[str, Any]:
-        """The HTTP 422 ``detail`` body. Contract section 12."""
-        reason: Dict[str, Any] = {"code": self.reason, "message": self.message}
-        if self.next_step:
-            reason["next_step"] = self.next_step
-        reason.update(self.context)
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
+
+        The reason code IS the code. It used to sit one level down inside a `reason`
+        object under a constant outer `change_set_rejected`, so every consumer had to know
+        that the useful half was nested, and a model reading only the top level learned
+        that something was rejected and nothing about what.
+        """
         detail: Dict[str, Any] = {
-            "code": self.code,
-            "message": "No revision was committed.",
-            "reason": reason,
+            "code": self.reason,
+            "message": self.message,
             "retryable": self.retryable,
         }
+        if self.next_step:
+            detail["next_step"] = self.next_step
+
+        details: Dict[str, Any] = dict(self.context)
         if self.operation_index is not None:
-            detail["operation_index"] = self.operation_index
+            details["operation_index"] = self.operation_index
         if self.operation is not None:
-            detail["operation"] = self.operation
+            details["operation"] = self.operation
         if self.target is not None:
-            detail["target"] = self.target
+            details["target"] = self.target
+        if details:
+            detail["details"] = details
         return detail
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid

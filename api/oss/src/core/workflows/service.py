@@ -184,20 +184,30 @@ class RevisionConflictError(Exception):
         self.current_revision_version = current_revision_version
 
     def to_detail(self) -> Dict[str, Any]:
-        detail: Dict[str, Any] = {
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
+
+        NOT retryable, which is a correction. Replaying this exact request cannot succeed:
+        it carries a `base_revision_id` that is no longer the head, and it will carry the
+        same one forever. What the caller does is re-read and re-anchor, which is the
+        `next_step`. Marking it retryable told a small model to send the same stale bytes
+        again.
+        """
+        details: Dict[str, Any] = {
+            "base_revision_id": self.base_revision_id,
+            "current_revision_id": self.current_revision_id,
+        }
+        if self.current_revision_version is not None:
+            details["current_revision_version"] = self.current_revision_version
+        return {
             "code": self.code,
             "message": "The workflow head changed. No revision was committed.",
+            "retryable": False,
             "next_step": (
                 "Call read_config for the new revision, re-anchor your edits to it, and "
                 "send the commit again with the new base_revision_id."
             ),
-            "base_revision_id": self.base_revision_id,
-            "current_revision_id": self.current_revision_id,
-            "retryable": True,
+            "details": details,
         }
-        if self.current_revision_version is not None:
-            detail["current_revision_version"] = self.current_revision_version
-        return detail
 
 
 def _validate_persisted_shape(data: dict) -> None:

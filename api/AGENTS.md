@@ -229,6 +229,22 @@ async def create_workflow(
 4. **Include structured context** (not just a message string) so the router can build
    rich HTTP error responses.
 
+**Agent-actionable errors:** Expected domain failures exposed to an agent MUST use
+`{code, message, retryable, next_step?, details?}`. `code` is a stable lower-snake-case
+semantic cause; `message` is a concise diagnosis. `retryable` means the unchanged request
+may safely succeed if repeated later. `retryable: true` requires one imperative
+`next_step`; `next_step` may also accompany `retryable: false` when the caller must change
+its request or state. Put every error-specific field in `details`; do not add other
+top-level fields or nested `reason` envelopes. A code has one public HTTP status, but
+handler-mode domain failures return HTTP 200 with `STATUS_CODE_ERROR` and the same
+envelope in `ToolResult.content`. Core code raises typed exceptions; API and tool-handler
+boundaries select the transport.
+
+The distinction that is easy to get wrong: `retryable` is about replaying the SAME request
+unchanged, not about whether the caller has a way forward. A payload the caller must
+correct is `retryable: false` WITH a `next_step`. Marking it retryable tells a small model
+to send the identical bytes again, which cannot work and burns a turn.
+
 **Example 1 — Folder exceptions (best example of the full pattern):**
 
 Definition in `api/oss/src/core/folders/types.py`:
