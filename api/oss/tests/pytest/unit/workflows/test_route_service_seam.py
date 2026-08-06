@@ -5,6 +5,11 @@ moved into the tool handler, the legacy route kept passing it, and the API suite
 green at 2133 while EVERY live read-config call returned 500. Every route test mocked the
 service, so nothing in CI ever put a route and the real service class in the same room.
 
+The read-config route that caused it is now deleted, so its cell is gone with it: a drift
+test for code that no longer exists is scaffolding around a building that came down. The
+COMMIT route survives the migration, humans and the SDK use it, and its seam is guarded
+here for the same reason the read one needed guarding.
+
 So these cells assert agreement rather than behavior: what a route passes must be what the
 service accepts. They are cheap, they need no database, and they fail on the kind of drift
 that unit tests are structurally blind to.
@@ -55,17 +60,12 @@ def _kwargs_passed(source: str, call: str) -> set:
     "route_method,service_method,call_name",
     [
         (
-            WorkflowsRouter.read_workflow_revision_config,
-            WorkflowsService.read_workflow_revision_config,
-            "self.workflows_service.read_workflow_revision_config",
-        ),
-        (
             WorkflowsRouter._commit_workflow_revision,
             WorkflowsService.commit_workflow_revision_checked,
             "self.workflows_service.commit_workflow_revision_checked",
         ),
     ],
-    ids=["read-config", "commit"],
+    ids=["commit"],
 )
 def test_a_route_passes_only_what_the_service_accepts(
     route_method, service_method, call_name
@@ -79,18 +79,4 @@ def test_a_route_passes_only_what_the_service_accepts(
     assert not unknown, (
         f"{call_name} passes {sorted(unknown)}, which the service does not accept. "
         "This is a 500 on every live call, and mocked route tests cannot see it."
-    )
-
-
-def test_the_read_route_no_longer_passes_the_draft_fact():
-    # The specific regression, pinned by name. `run_is_draft` describes the RUN, so the
-    # core read does not take it: the caller decorates its own answer.
-    source = inspect.getsource(inspect.getmodule(WorkflowsRouter))
-    passed = _kwargs_passed(
-        source, "self.workflows_service.read_workflow_revision_config"
-    )
-
-    assert "run_is_draft" not in passed
-    assert "run_is_draft" not in _accepted(
-        WorkflowsService.read_workflow_revision_config
     )
