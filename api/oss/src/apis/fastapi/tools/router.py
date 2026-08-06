@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 
 from oss.src.apis.fastapi.tools.models import (
     ToolCatalogActionResponse,
@@ -1285,6 +1285,18 @@ class ToolsRouter:
         # envelope. The runner keys on the status code alone (a mirrored message can stop
         # being mirrored), so an error status that carried anything else would be parsed as
         # an envelope and read as a success.
+        # The side effects of a commit travel WITH the commit. They used to live in the
+        # deleted agent route, so moving the write without them would have left the warm
+        # session holding a stale configuration and the playground showing an old revision
+        # until something else invalidated it. The handler says whether it wrote; this
+        # reuses the emitter already here rather than growing a second one.
+        if response.committed_revision:
+            await invalidate_cache(project_id=request.state.project_id)
+            await _emit_committed_revision_data_event_from_outputs(
+                request=request,
+                outputs=response.committed_revision,
+            )
+
         content = response.content
         result = ToolResult(
             id=uuid4(),
