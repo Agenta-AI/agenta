@@ -231,7 +231,8 @@ class TestLegacyMatchesTheOriginalFold:
 
     def test_lists_replace_whole(self):
         result = apply({"set": {"parameters": {"agent": {"skills": []}}}})
-        assert result["parameters"]["agent"]["skills"] == []
+        names = [s["name"] for s in result["parameters"]["agent"]["skills"]]
+        assert "release-qa" not in names
 
     def test_scalars_replace_dicts(self):
         result = apply({"set": {"parameters": {"agent": {"llm": "gpt"}}}})
@@ -1763,8 +1764,14 @@ class TestMatchTolerance:
                 }
             )
         )
-        assert error.reason == Reason.UNKNOWN_OPERATION
-        assert error.retryable is False
+        # The operation is `edit_text` and it exists; only the modifier is wrong. Reporting
+        # an unknown OPERATION, non-retryably, told the agent its verb was wrong and that
+        # there was no way forward, when the fix is one word.
+        assert error.reason == Reason.INVALID_MATCH_MODE
+        assert error.retryable is True
+        assert "'auto'" in error.next_step and "'exact'" in error.next_step
+        # The rejected value is named, so the agent can see what it sent.
+        assert "fuzzy" in error.message
 
     def test_a_normalized_match_must_still_be_unique(self):
         base = base_config()
@@ -2731,3 +2738,251 @@ class TestInventedMarkers:
         ).data
 
         assert result["parameters"]["agent"]["instructions"]["at"] == "an @ in prose"
+
+
+# --------------------------------------------------------------------------------------
+# Bounds and shapes: the engine refuses instead of crashing (#5748)
+# --------------------------------------------------------------------------------------
+
+
+def _nested(depth):
+    """A value nested `depth` levels, the way a JSON body can carry one."""
+    root = {}
+    node = root
+    for _ in range(depth):
+        node["n"] = {}
+        node = node["n"]
+    return root
+
+
+class TestValueDepth:
+    """A value the engine cannot walk earns a refusal, not a stack overflow.
+
+    `deep_merge`, the marker walks and the scope walk all recurse over the value. Before the
+    guard, a deeply nested one raised `RecursionError` from inside the engine, which the API
+    reports as a 500: the caller is told the server broke, when what happened is that the
+    server will not accept what it sent. An agent can act on a refusal and cannot act on a
+    crash.
+    """
+
+    def test_a_deeply_nested_value_is_refused_on_the_ordered_arm(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": _nested(500),
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.VALUE_TOO_DEEP
+
+    def test_a_deeply_nested_value_is_refused_on_the_legacy_arm(self):
+        # The arm that actually overflowed: its `deep_merge` recurses over the whole patch.
+        error = failure(
+            {"set": {"parameters": {"agent": {"instructions": _nested(500)}}}},
+            base_config(),
+        )
+
+        assert error.reason == Reason.VALUE_TOO_DEEP
+
+    def test_the_refusal_beats_the_crash(self):
+        # The point of the whole guard, stated as a test: whatever comes back, it is the
+        # engine's own error and not a RecursionError escaping to the router as a 500.
+        with pytest.raises(ChangeSetError):
+            apply_change_set(
+                {}, {"set": {"parameters": {"agent": _nested(5000)}}}, None
+            )
+
+    def test_a_configuration_shaped_value_is_well_inside_the_limit(self):
+        # The limit has to be generous against real data or it becomes the bug. A skill with
+        # a nested file is six levels; this is twenty.
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": _nested(20),
+                }
+            ),
+            base_config(),
+        ).data
+
+        assert result["parameters"]["agent"]["instructions"] is not None
+
+    def test_the_guard_does_not_recurse_itself(self):
+        # A recursive depth check is the same overflow one frame earlier, so the check walks
+        # iteratively. A value far past Python's own recursion limit proves it.
+        from oss.src.core.workflows.change_set import _reject_deep_values
+
+        with pytest.raises(Exception) as caught:
+            _reject_deep_values(_nested(20_000))
+
+        assert not isinstance(caught.value, RecursionError)
+
+
+class TestTheLegacyFieldShapes:
+    """`set` and `remove` are typed before either arm touches them.
+
+    A `remove` sent as a string used to be iterated character by character, so every letter
+    became a path to delete. Nothing refused it and nothing reported it.
+    """
+
+    def test_a_set_that_is_not_an_object_is_refused(self):
+        error = failure({"set": "parameters.agent.instructions"}, base_config())
+
+        assert error.reason == Reason.INVALID_DELTA
+        assert "object" in error.message
+
+    def test_a_remove_that_is_a_bare_string_is_refused(self):
+        # The nasty one: a string is iterable, so this silently became one removal per
+        # character rather than the single path the caller meant.
+        error = failure(
+            {"set": {}, "remove": "parameters.agent.llm"},
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_DELTA
+        assert "list" in error.message
+
+    def test_a_remove_holding_a_non_string_entry_is_refused(self):
+        error = failure(
+            {"set": {}, "remove": ["parameters.agent.llm", {"path": "x"}]},
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_DELTA
+
+    def test_the_well_formed_legacy_delta_still_applies(self):
+        base = base_config()
+
+        result = run(
+            {
+                "set": {"parameters": {"agent": {"instructions": "new"}}},
+                "remove": ["parameters.agent.llm"],
+            },
+            base,
+        ).data
+
+        assert result["parameters"]["agent"]["instructions"] == "new"
+        assert "llm" not in result["parameters"]["agent"]
+
+
+class TestUnkeyedListsAreNamedPrecisely:
+    """All three item operations answer the same way about a list that has no keys.
+
+    `add_item` always did. Its two siblings went straight to the lookup and reported that
+    the list did not exist, or that no entry matched. Both are true, neither is the reason,
+    and an agent reading them retries the same shape against a list that can never take it.
+    """
+
+    @staticmethod
+    def _base():
+        base = base_config()
+        base["parameters"]["agent"]["outputs"] = [{"name": "a"}]
+        return base
+
+    def test_replace_item_on_an_unkeyed_list_says_so(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "replace_item",
+                    "target": AGENT + [{"list": "outputs", "key": "a"}],
+                    "value": {"name": "a"},
+                }
+            ),
+            self._base(),
+        )
+
+        assert error.reason == Reason.UNKEYED_COLLECTION
+
+    def test_remove_item_on_an_unkeyed_list_says_so(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "remove_item",
+                    "target": AGENT + [{"list": "outputs", "key": "a"}],
+                }
+            ),
+            self._base(),
+        )
+
+        assert error.reason == Reason.UNKEYED_COLLECTION
+
+    def test_all_three_item_operations_agree(self):
+        # The reason this is one rule and not three: an agent that learns the answer from
+        # one operation must get the same answer from the others.
+        reasons = set()
+        for operation in (
+            {
+                "operation": "add_item",
+                "target": AGENT + ["outputs"],
+                "value": {"name": "b"},
+            },
+            {
+                "operation": "replace_item",
+                "target": AGENT + [{"list": "outputs", "key": "a"}],
+                "value": {"name": "a"},
+            },
+            {
+                "operation": "remove_item",
+                "target": AGENT + [{"list": "outputs", "key": "a"}],
+            },
+        ):
+            reasons.add(failure(ops(operation), self._base()).reason)
+
+        assert reasons == {Reason.UNKEYED_COLLECTION}
+
+    def test_a_keyed_list_is_untouched_by_the_guard(self):
+        result = run(
+            ops(
+                {
+                    "operation": "remove_item",
+                    "target": AGENT + [skill("release-qa")],
+                }
+            ),
+            base_config(),
+        ).data
+
+        names = [entry["name"] for entry in result["parameters"]["agent"]["skills"]]
+        assert "release-qa" not in names
+
+
+class TestTheNearMissSearchIsBounded:
+    """`nearest_lines` runs on the way to an error, so its cost must be bounded.
+
+    A field may hold 200_000 characters. Scoring every line of one, on a call that produces
+    nothing, is work an agent can trigger repeatedly by mistyping an anchor.
+    """
+
+    def test_a_huge_field_does_not_pay_for_the_search(self):
+        from oss.src.core.workflows.change_set import MAX_SCANNED_LINES, nearest_lines
+
+        text = "\n".join(f"line {i}" for i in range(MAX_SCANNED_LINES + 1))
+
+        assert nearest_lines(text, "line 3") == []
+
+    def test_a_normal_field_still_gets_its_near_miss(self):
+        from oss.src.core.workflows.change_set import nearest_lines
+
+        text = "# Release QA\nRun the release checks manually.\nThen post the result.\n"
+
+        lines = nearest_lines(text, "Run the release checks manualy.")
+
+        assert lines[0]["line"] == 2
+
+    def test_one_enormous_line_is_clipped_not_scored_whole(self):
+        import time
+
+        from oss.src.core.workflows.change_set import MAX_TEXT_LENGTH, nearest_lines
+
+        # A minified file is one line of the whole field. Comparing against it is quadratic
+        # in its length, so the clip is what keeps a refusal from becoming a stall.
+        text = "x" * MAX_TEXT_LENGTH
+        started = time.monotonic()
+
+        nearest_lines(text, "y" * 10_000)
+
+        assert time.monotonic() - started < 2.0
