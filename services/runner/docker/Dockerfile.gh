@@ -28,16 +28,36 @@ WORKDIR /app
 # unzip/zip + python-is-python3 (which symlinks /usr/bin/python -> python3): the local sandbox
 # IS this container, and an agent handed an archive reaches for `unzip` and plain `python`.
 # Without them every such task burns failed bash calls and extra approval round-trips.
-# ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are the first
-# commands every harness reaches for when searching a tree, and Debian ships fd as `fdfind`,
-# so the symlink below is what makes the command agents actually type resolve.
+# ripgrep/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are the first
+# commands every harness reaches for when searching a tree. `fd` itself is pinned below
+# rather than taken from Debian, for the version reason recorded there.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates git python3 python-is-python3 unzip zip fuse curl \
-        ripgrep fd-find jq procps file tree \
-    && ln -s "$(which fdfind)" /usr/local/bin/fd \
+        ripgrep jq procps file tree \
     && rm -rf /var/lib/apt/lists/* \
     && echo "user_allow_other" >> /etc/fuse.conf
+
+# fd static binary. Debian's `fd-find` is 8.6.0 on bookworm, and Pi's `find` builtin passes
+# `--no-require-git`, a flag fd only gained in 9.0. Every Pi `find` call therefore failed with
+# "Found argument '--no-require-git' which wasn't expected" (measured: 52 of 52 across two
+# benchmark runs). Pinned release, arch-matched, same shape as geesefs above; the tarball holds
+# the binary one directory down, hence the --strip-components.
+ARG FD_VERSION=v10.4.2
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) fdarch="x86_64-unknown-linux-musl" ;; \
+      arm64) fdarch="aarch64-unknown-linux-musl" ;; \
+      *) echo "unsupported arch $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/sharkdp/fd/releases/download/${FD_VERSION}/fd-${FD_VERSION}-${fdarch}.tar.gz" \
+      -o /tmp/fd.tar.gz; \
+    tar -xzf /tmp/fd.tar.gz -C /usr/local/bin --strip-components=1 --wildcards '*/fd'; \
+    rm /tmp/fd.tar.gz; \
+    chmod +x /usr/local/bin/fd; \
+    fd --version; \
+    fd --help | grep -q -- --no-require-git
 
 # geesefs static binary (FUSE-over-S3) for the durable cwd. Pinned release; arch-matched.
 ARG GEESEFS_VERSION=v0.43.0
