@@ -122,7 +122,9 @@ const NamedSecretTable = () => {
         [],
     )
 
-    const {tableScope, pagination} = useStaticTable<SecretRow>("settings-vault-secrets", rows)
+    const {tableScope, pagination} = useStaticTable<SecretRow>("settings-vault-secrets", rows, {
+        loading,
+    })
     return (
         <>
             <div className="flex flex-col gap-2">
@@ -147,6 +149,7 @@ const NamedSecretTable = () => {
                             <Button
                                 icon={<Plus size={14} />}
                                 type="primary"
+                                disabled={loading}
                                 onClick={() => {
                                     setSelectedSecret(null)
                                     setIsConfigModalOpen(true)
@@ -160,7 +163,6 @@ const NamedSecretTable = () => {
                         size: "small",
                         bordered: true,
                         tableLayout: "fixed",
-                        loading,
                         locale: {
                             emptyText: (
                                 <EmptyState

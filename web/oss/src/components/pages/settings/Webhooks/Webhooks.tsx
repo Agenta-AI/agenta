@@ -252,14 +252,16 @@ const Webhooks: React.FC = () => {
         [handleDeleteClick, handleEdit, handleTestWebhook, handleToggle, testingWebhookId],
     )
 
-    const {tableScope, pagination} = useStaticTable<WebhookRow>("settings-webhooks", rows)
+    const {tableScope, pagination} = useStaticTable<WebhookRow>("settings-webhooks", rows, {
+        loading: isLoading,
+    })
     return (
         <div className="flex flex-col gap-2">
             <InfiniteVirtualTableFeatureShell<WebhookRow>
                 tableScope={tableScope}
                 autoHeight={false}
                 columns={columns}
-                rowKey={(record) => record.id}
+                rowKey="key"
                 pagination={pagination}
                 filters={
                     <Input.Search
@@ -268,6 +270,7 @@ const Webhooks: React.FC = () => {
                         allowClear
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        disabled={isLoading}
                     />
                 }
                 primaryActions={
@@ -281,7 +284,12 @@ const Webhooks: React.FC = () => {
                                 onClick={reloadAll}
                             />
                         </Tooltip>
-                        <Button type="primary" icon={<Plus size={14} />} onClick={handleCreate}>
+                        <Button
+                            type="primary"
+                            icon={<Plus size={14} />}
+                            onClick={handleCreate}
+                            disabled={isLoading}
+                        >
                             Subscribe
                         </Button>
                     </>
@@ -290,7 +298,6 @@ const Webhooks: React.FC = () => {
                     size: "small",
                     bordered: true,
                     tableLayout: "fixed",
-                    loading: isLoading,
                     locale: {
                         emptyText: searchTerm.trim() ? (
                             <EmptyState

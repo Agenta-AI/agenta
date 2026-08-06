@@ -728,7 +728,7 @@ const Organization: FC = () => {
             ) : (
                 <UpgradePrompt
                     title="Access Controls"
-                    description="Configure how users authenticate and join your organization with sign-in methods, membership rules, and admin controls."
+                    description="Control how members sign in and who can join this organization."
                 />
             )}
 
@@ -951,7 +951,7 @@ const Organization: FC = () => {
             ) : (
                 <UpgradePrompt
                     title="Verified Domains"
-                    description="Verify domains that belong to your organization to enable domain-based access controls and auto-join features."
+                    description="Verify domains your organization owns, then use them for access rules and auto-join."
                 />
             )}
 
@@ -1239,7 +1239,7 @@ const Organization: FC = () => {
             ) : (
                 <UpgradePrompt
                     title="SSO Providers"
-                    description="Configure identity providers for single sign-on (SSO) using OIDC to enable enterprise-grade authentication for your organization."
+                    description="Connect an OIDC identity provider so members sign in through single sign-on (SSO)."
                 />
             )}
         </div>

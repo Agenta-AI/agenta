@@ -220,7 +220,11 @@ export default function GatewaySchedulesSection() {
         [handleDelete, handleEdit, handleToggle, openDeliveries],
     )
 
-    const {tableScope, pagination} = useStaticTable<ScheduleRow>("settings-trigger-schedules", rows)
+    const {tableScope, pagination} = useStaticTable<ScheduleRow>(
+        "settings-trigger-schedules",
+        rows,
+        {loading: isLoading || isMutating},
+    )
     return (
         <>
             <section className="flex flex-col">
@@ -251,7 +255,12 @@ export default function GatewaySchedulesSection() {
                                     onClick={reloadAll}
                                 />
                             </Tooltip>
-                            <Button type="primary" icon={<Plus size={14} />} onClick={handleCreate}>
+                            <Button
+                                type="primary"
+                                icon={<Plus size={14} />}
+                                onClick={handleCreate}
+                                disabled={isLoading || isMutating}
+                            >
                                 Schedule
                             </Button>
                         </>
@@ -260,7 +269,6 @@ export default function GatewaySchedulesSection() {
                         size: "small",
                         bordered: true,
                         tableLayout: "fixed",
-                        loading: isLoading || isMutating,
                         locale: {
                             emptyText: (
                                 <EmptyState

@@ -218,6 +218,7 @@ export default function GatewayTriggersSection() {
     const {tableScope, pagination} = useStaticTable<ConnectionRow>(
         "settings-trigger-connections",
         rows,
+        {loading: isLoading},
     )
     return (
         <>
@@ -254,6 +255,7 @@ export default function GatewayTriggersSection() {
                             <Button
                                 icon={<Plus size={14} />}
                                 type="primary"
+                                disabled={isLoading}
                                 onClick={() => setCatalogOpen(true)}
                             >
                                 Connect app
@@ -264,7 +266,6 @@ export default function GatewayTriggersSection() {
                         size: "small",
                         bordered: true,
                         tableLayout: "fixed",
-                        loading: isLoading,
                         locale: {
                             emptyText: (
                                 <EmptyState

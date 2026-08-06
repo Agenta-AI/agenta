@@ -13,6 +13,7 @@ import {Tag, type TagProps} from "../../components/presentational/tag"
 import {Button} from "../../components/ui/button"
 import {copyToClipboard} from "../../utils/copyToClipboard"
 import ColumnVisibilityMenuTrigger from "../components/columnVisibility/ColumnVisibilityMenuTrigger"
+import SkeletonLine from "../components/common/SkeletonLine"
 import type {InfiniteTableRowBase} from "../types"
 
 // Default fallback for UserReference - just shows the userId
@@ -258,7 +259,11 @@ function createTextColumn<T>(def: TextColumnDef<T>): ColumnType<T> {
         width: def.width,
         minWidth: def.width,
         fixed: def.fixed,
-        render: def.render as ColumnType<T>["render"],
+        render: ((value: unknown, record: T) => {
+            if ((record as InfiniteTableRowBase).__isSkeleton) return <SkeletonLine width="55%" />
+            if (def.render) return def.render(value, record)
+            return value as ReactNode
+        }) as ColumnType<T>["render"],
         // Lock column from being toggled in visibility menu (explicit or derived from fixed)
         columnVisibilityLocked: def.columnVisibilityLocked ?? Boolean(def.fixed),
         ...(def.exportValue ? {exportValue: def.exportValue} : {}),
@@ -291,7 +296,8 @@ function createDateColumn<T>(def: DateColumnDef): ColumnType<T> {
         key: def.key,
         width,
         minWidth: width,
-        render: (date: string) => {
+        render: (date: string, record: T) => {
+            if ((record as InfiniteTableRowBase).__isSkeleton) return <SkeletonLine width="40%" />
             const formatted = !date ? "—" : def.format ? def.format(date) : formatDateCell(date)
             return <div className="h-full flex items-center">{formatted}</div>
         },
@@ -322,7 +328,7 @@ function createMonoColumn<T extends InfiniteTableRowBase>(def: MonoColumnDef<T>)
         minWidth: width,
         fixed,
         render: (_value: unknown, record: T) => {
-            if (record.__isSkeleton) return null
+            if (record.__isSkeleton) return <SkeletonLine width="70%" />
             const text = readCell(record, key, getValue)
             if (!text) return <Typography.Text type="secondary">{emptyText}</Typography.Text>
             return (
@@ -348,7 +354,7 @@ function createSlugColumn<T extends InfiniteTableRowBase>(def: SlugColumnDef<T>)
         minWidth: width,
         fixed,
         render: (_value: unknown, record: T) => {
-            if (record.__isSkeleton) return null
+            if (record.__isSkeleton) return <SkeletonLine width="70%" />
             const text = readCell(record, key, getValue)
             if (!text) return <Typography.Text type="secondary">{emptyText}</Typography.Text>
             return (
@@ -388,7 +394,15 @@ function createEntityColumn<T extends InfiniteTableRowBase>(
         minWidth: width,
         fixed,
         render: (_value: unknown, record: T) => {
-            if (record.__isSkeleton) return null
+            if (record.__isSkeleton)
+                return (
+                    <div className="h-full flex items-center gap-2 min-w-0">
+                        {hideAvatar ? null : (
+                            <span className="h-6 w-6 shrink-0 rounded-full bg-colorFillSecondary animate-pulse" />
+                        )}
+                        <SkeletonLine width="50%" center={false} />
+                    </div>
+                )
             const name = getName ? getName(record) : readCell(record, key)
             const chips = getChips?.(record) ?? []
             return (
@@ -597,7 +611,7 @@ function createUserColumn<T extends InfiniteTableRowBase>(def: UserColumnDef<T>)
         width,
         minWidth: width,
         render: (value: string | null | undefined, record: T) => {
-            if (record.__isSkeleton) return null
+            if (record.__isSkeleton) return <SkeletonLine width="55%" />
             const userId = getUserId ? getUserId(record) : value
             return (
                 <div className="h-full flex items-center">

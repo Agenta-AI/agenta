@@ -248,14 +248,16 @@ const WorkspaceManage: FC = () => {
         ],
     )
 
-    const {tableScope, pagination} = useStaticTable<MemberRow>("settings-members", rows)
+    const {tableScope, pagination} = useStaticTable<MemberRow>("settings-members", rows, {
+        loading,
+    })
     return (
         <div className="flex flex-col gap-2">
             <InfiniteVirtualTableFeatureShell<MemberRow>
                 tableScope={tableScope}
                 autoHeight={false}
                 columns={columns}
-                rowKey={(record) => record.user.id}
+                rowKey="key"
                 filters={
                     <Input.Search
                         placeholder="Search members"
@@ -263,6 +265,7 @@ const WorkspaceManage: FC = () => {
                         allowClear
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        disabled={loading}
                     />
                 }
                 primaryActions={
@@ -271,6 +274,7 @@ const WorkspaceManage: FC = () => {
                             type="primary"
                             icon={<Plus size={14} />}
                             onClick={() => setIsInviteModalOpen(true)}
+                            disabled={loading}
                         >
                             Invite members
                         </Button>
@@ -281,7 +285,6 @@ const WorkspaceManage: FC = () => {
                     size: "small",
                     bordered: true,
                     tableLayout: "fixed",
-                    loading,
                     locale: {
                         emptyText: searchTerm.trim() ? (
                             <EmptyState

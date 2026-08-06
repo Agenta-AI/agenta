@@ -256,6 +256,7 @@ export default function GatewaySubscriptionsSection() {
     const {tableScope, pagination} = useStaticTable<SubscriptionRow>(
         "settings-trigger-subscriptions",
         rows,
+        {loading: isLoading || isMutating},
     )
     return (
         <>
@@ -296,7 +297,7 @@ export default function GatewaySubscriptionsSection() {
                                     type="primary"
                                     icon={<Plus size={14} />}
                                     onClick={handleCreate}
-                                    disabled={connections.length === 0}
+                                    disabled={isLoading || isMutating || connections.length === 0}
                                 >
                                     Subscribe
                                 </Button>
@@ -307,7 +308,6 @@ export default function GatewaySubscriptionsSection() {
                         size: "small",
                         bordered: true,
                         tableLayout: "fixed",
-                        loading: isLoading || isMutating,
                         locale: {
                             emptyText:
                                 connections.length === 0 ? (
@@ -334,8 +334,8 @@ export default function GatewaySubscriptionsSection() {
                                                     No event triggers yet
                                                 </span>
                                                 <span>
-                                                    Run a workflow whenever an event fires in a
-                                                    connected app.
+                                                    Run a workflow whenever a connected app sends an
+                                                    event.
                                                 </span>
                                             </div>
                                         }

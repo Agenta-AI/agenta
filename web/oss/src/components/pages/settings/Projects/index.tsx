@@ -233,14 +233,16 @@ const ProjectsSettings = () => {
         ],
     )
 
-    const {tableScope, pagination} = useStaticTable<ProjectRow>("settings-projects", rows)
+    const {tableScope, pagination} = useStaticTable<ProjectRow>("settings-projects", rows, {
+        loading: isLoading,
+    })
     return (
         <div className="flex flex-col gap-2">
             <InfiniteVirtualTableFeatureShell<ProjectRow>
                 tableScope={tableScope}
                 autoHeight={false}
                 columns={columns}
-                rowKey={(record) => record.project_id}
+                rowKey="key"
                 pagination={pagination}
                 filters={
                     <Input.Search
@@ -249,6 +251,7 @@ const ProjectsSettings = () => {
                         allowClear
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        disabled={isLoading}
                     />
                 }
                 primaryActions={
@@ -256,6 +259,7 @@ const ProjectsSettings = () => {
                         type="primary"
                         icon={<Plus size={14} />}
                         onClick={() => setCreateModalOpen(true)}
+                        disabled={isLoading}
                     >
                         New project
                     </Button>
@@ -264,7 +268,6 @@ const ProjectsSettings = () => {
                     size: "small",
                     bordered: true,
                     tableLayout: "fixed",
-                    loading: isLoading,
                     locale: {
                         emptyText: searchTerm.trim() ? (
                             <EmptyState

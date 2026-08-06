@@ -296,7 +296,9 @@ export default function GatewayToolsSection() {
         [confirmDelete, confirmRevoke, onRefresh, openExecution],
     )
 
-    const {tableScope, pagination} = useStaticTable<ToolRow>("settings-tools", rows)
+    const {tableScope, pagination} = useStaticTable<ToolRow>("settings-tools", rows, {
+        loading: isLoading,
+    })
     return (
         <>
             <section className="flex flex-col">
@@ -316,6 +318,7 @@ export default function GatewayToolsSection() {
                             allowClear
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            disabled={isLoading}
                         />
                     }
                     primaryActions={
@@ -332,6 +335,7 @@ export default function GatewayToolsSection() {
                             <Button
                                 icon={<Plus size={14} />}
                                 type="primary"
+                                disabled={isLoading}
                                 onClick={() => setCatalogOpen(true)}
                             >
                                 Connect tool
@@ -342,7 +346,6 @@ export default function GatewayToolsSection() {
                         size: "small",
                         bordered: true,
                         tableLayout: "fixed",
-                        loading: isLoading,
                         locale: {
                             emptyText: searchTerm.trim() ? (
                                 <EmptyState

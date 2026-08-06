@@ -286,14 +286,16 @@ const OrganizationGeneral = () => {
         [changeSelectedOrg, message, renameForm, selectedOrg?.id, user?.id],
     )
 
-    const {tableScope, pagination} = useStaticTable<OrgRow>("settings-organizations", rows)
+    const {tableScope, pagination} = useStaticTable<OrgRow>("settings-organizations", rows, {
+        loading,
+    })
     return (
         <div className="flex flex-col gap-2">
             <InfiniteVirtualTableFeatureShell<OrgRow>
                 tableScope={tableScope}
                 autoHeight={false}
                 columns={columns}
-                rowKey={(record) => record.id}
+                rowKey="key"
                 filters={
                     <Input.Search
                         placeholder="Search organizations"
@@ -301,6 +303,7 @@ const OrganizationGeneral = () => {
                         allowClear
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        disabled={loading}
                     />
                 }
                 primaryActions={
@@ -308,6 +311,7 @@ const OrganizationGeneral = () => {
                         type="primary"
                         icon={<Plus size={14} />}
                         onClick={() => setCreateModalOpen(true)}
+                        disabled={loading}
                     >
                         New organization
                     </Button>
@@ -317,7 +321,6 @@ const OrganizationGeneral = () => {
                     size: "small",
                     bordered: true,
                     tableLayout: "fixed",
-                    loading,
                     locale: {
                         emptyText: searchTerm.trim() ? (
                             <EmptyState

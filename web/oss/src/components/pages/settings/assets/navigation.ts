@@ -83,7 +83,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         key: "triggers",
         scope: "project",
         description:
-            "Run workflows automatically — when an event fires in a connected app, or on a schedule.",
+            "Run workflows automatically — on a schedule, or when a connected app sends an event.",
         docs: {label: "About automations", href: `${DOCS_BASE}/concepts/automations`},
     },
     {

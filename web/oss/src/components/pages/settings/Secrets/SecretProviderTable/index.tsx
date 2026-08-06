@@ -185,6 +185,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
     const {tableScope, pagination} = useStaticTable<ProviderRow>(
         isCustom ? "settings-llm-custom" : "settings-llm-standard",
         rows,
+        {loading},
     )
     return (
         <>
@@ -193,7 +194,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     className="ph-no-capture"
                     tableScope={tableScope}
                     columns={columns}
-                    rowKey={(record) => record.rowId}
+                    rowKey="key"
                     pagination={pagination}
                     // Fixed height sized to row count; autoHeight would grow unbounded here.
                     autoHeight={false}
@@ -225,6 +226,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                 <Button
                                     icon={<Plus size={14} />}
                                     type="primary"
+                                    disabled={loading}
                                     onClick={() => setIsConfigProviderOpen(true)}
                                 >
                                     Add endpoint
@@ -236,7 +238,6 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                         size: "small",
                         bordered: true,
                         tableLayout: "fixed",
-                        loading,
                         locale: {
                             emptyText: isCustom ? (
                                 <EmptyState

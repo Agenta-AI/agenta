@@ -203,7 +203,9 @@ const APIKeys: React.FC = () => {
         [canEditApiKeys, deleteKey],
     )
 
-    const {tableScope, pagination} = useStaticTable<APIKeyRow>("settings-api-keys", rows)
+    const {tableScope, pagination} = useStaticTable<APIKeyRow>("settings-api-keys", rows, {
+        loading: loading[Loading.LIST],
+    })
     if (!canViewApiKeys) {
         return (
             <Alert
@@ -220,7 +222,7 @@ const APIKeys: React.FC = () => {
                 tableScope={tableScope}
                 autoHeight={false}
                 columns={columns}
-                rowKey={(record) => record.prefix}
+                rowKey="key"
                 pagination={pagination}
                 primaryActions={
                     canEditApiKeys ? (
@@ -237,6 +239,7 @@ const APIKeys: React.FC = () => {
                             <Button
                                 type="primary"
                                 loading={loading[Loading.CREATE]}
+                                disabled={loading[Loading.LIST]}
                                 icon={<Plus size={14} />}
                                 onClick={createKey}
                             >
@@ -249,7 +252,6 @@ const APIKeys: React.FC = () => {
                     size: "small",
                     bordered: true,
                     tableLayout: "fixed",
-                    loading: loading[Loading.LIST],
                     locale: {
                         emptyText: (
                             <EmptyState
