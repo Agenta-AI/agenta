@@ -42,6 +42,8 @@ import {
   writeOtlpAuthFile,
 } from "../engines/sandbox_agent/pi-assets.ts";
 import { applyClaudeConnectionEnv } from "../engines/sandbox_agent/runtime-policy.ts";
+import type { AgentRunRequest } from "../protocol.ts";
+import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
 import type { Log } from "./timing.ts";
 
 /** The handles this unit tears down. All optional: a partial acquire leaves most unset. */
@@ -105,11 +107,22 @@ export interface RuntimeFilesInput {
  * deleted nothing and stranded the key in the store.
  */
 export function removeRuntimeFiles(input: RuntimeFilesInput): void {
-  if (input.runAgentDir)
-    rmSync(input.runAgentDir, { recursive: true, force: true });
-  if (input.otlpAuthFilePath) rmSync(input.otlpAuthFilePath, { force: true });
-  if (input.codexSqliteHome)
-    rmSync(input.codexSqliteHome, { recursive: true, force: true });
+  // `force: true` suppresses ENOENT and nothing else. A per-run dir under a stale FUSE node can
+  // still fail with EACCES, EBUSY or ENOTCONN, and `destroy` runs this BEFORE the skills cleanup,
+  // so one unlucky unlink used to leak the skills temp root and reject a teardown that promises
+  // never to throw. Each removal is independent, so one failure must not skip the next.
+  for (const [path, recursive] of [
+    [input.runAgentDir, true],
+    [input.otlpAuthFilePath, false],
+    [input.codexSqliteHome, true],
+  ] as const) {
+    if (!path) continue;
+    try {
+      rmSync(path, { recursive, force: true });
+    } catch {
+      // best-effort cleanup of a runner-owned file
+    }
+  }
 }
 
 /**
@@ -126,8 +139,17 @@ export function removeRuntimeFiles(input: RuntimeFilesInput): void {
  * the daemon will ever know has to be in place before that call.
  */
 export interface BuildRuntimeEnvironmentInput {
-  plan: never;
-  request: never;
+  /**
+   * The real types, not `never`.
+   *
+   * These were `never` with `as never` casts at the call site, which meant `tsc --strict` checked
+   * nothing across this module boundary: a renamed field in `RunPlan` or `AgentRunRequest` would
+   * compile on both sides and fail at run time. The structural aliases inside the function were
+   * the same hole in a second place, describing a shape the compiler never compared to the source
+   * of truth.
+   */
+  plan: RunPlan;
+  request: AgentRunRequest;
   piSkillSnapshot: unknown;
   log: Log;
   deps: { buildDaemonEnv?: typeof buildDaemonEnv };
@@ -159,26 +181,8 @@ export interface RuntimeEnvironment {
 export function buildRuntimeEnvironment(
   input: BuildRuntimeEnvironmentInput,
 ): RuntimeEnvironment {
-  const plan = input.plan as never as Record<string, never>;
-  const request = input.request as never as Record<string, never>;
-  const p = plan as unknown as {
-    acpAgent: string;
-    isPi: boolean;
-    isDaytona: boolean;
-    credentials: { credentialMode: string; modelEnvironment: Record<string, string> };
-    workspace: {
-      relayDir: string;
-      usageOutPath: string;
-      skillDirs: Array<{ name: string }>;
-    };
-    tools: { builtinGatingActive: boolean };
-  };
-  const r = request as unknown as {
-    modelConnection?: { provider?: string; deployment?: string };
-    telemetry?: {
-      exporters?: { otlp?: { headers?: { authorization?: string } } };
-    };
-  };
+  const p = input.plan;
+  const r = input.request;
 
   // Only runtime_provided keeps the inherited keys: the harness uses its own login there.
   const clearProviderEnv =
@@ -216,7 +220,7 @@ export function buildRuntimeEnvironment(
         builtinGatingActive: p.tools.builtinGatingActive,
         // The materialized skill names (author plus forced `_agenta.*`) so Pi's own agent span
         // records which skills loaded.
-        skills: p.workspace.skillDirs.map((s) => s.name),
+        skills: p.workspace.skillDirs.map((skill) => skill.name),
       })
     : {};
   // Daytona builds its provider from `piExtEnv` rather than the local daemon env, so the

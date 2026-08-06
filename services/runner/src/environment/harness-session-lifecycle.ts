@@ -163,5 +163,13 @@ export async function teardown(input: {
   alreadyRequested: boolean;
 }): Promise<void> {
   if (!input.session || input.alreadyRequested) return;
-  await input.sandbox?.destroySession?.(input.session.id).catch(() => {});
+  // try/catch rather than `.catch()`: a `destroySession` that throws SYNCHRONOUSLY never returns
+  // a promise, so there is nothing to attach a rejection handler to and the throw escapes into
+  // `destroy`, which must never throw. Teardown is best effort by design; a session the harness
+  // has already lost is not a reason to fail the caller.
+  try {
+    await input.sandbox?.destroySession?.(input.session.id);
+  } catch {
+    // best-effort session teardown
+  }
 }
