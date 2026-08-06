@@ -1,6 +1,8 @@
 import {useMemo, useState} from "react"
 
 import {formatNumber} from "@agenta/shared/utils"
+import {HeightCollapse} from "@agenta/ui"
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {CaretDown, CaretUp, ChartLineIcon} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtom} from "jotai"
@@ -22,76 +24,83 @@ const StatItem = ({label, value}: {label: string; value: string}) => (
     </div>
 )
 
+/** No data reads as an em dash. A falsy check would print it for a genuine zero. */
+const EMPTY = "—"
+
+/** Five-digit milliseconds are unreadable; past a second the useful unit is seconds. */
+const formatLatency = (ms: number | null | undefined) => {
+    if (ms == null) return EMPTY
+    return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`
+}
+
 /** Usage summary with an optional expanded observability dashboard. */
 const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) => {
     const [expanded, setExpanded] = useState(false)
     const {data} = useObservabilityDashboard()
     const [timeRange, setTimeRange] = useAtom(observabilityDashboardTimeRangeAtom)
 
+    // Cost and tokens are out until they're trustworthy: 60 requests reported $0.00 and 0 tokens,
+    // which discredited the two real stats beside them. Both remain in the expanded dashboard.
     const stats = useMemo(
         () => [
-            {label: "Requests", value: data?.total_count ? formatNumber(data.total_count) : "-"},
             {
-                label: "Latency",
-                value: data?.avg_latency ? `${formatNumber(Math.round(data.avg_latency))}ms` : "-",
+                label: "Requests",
+                value: data?.total_count == null ? EMPTY : formatNumber(data.total_count),
             },
-            {label: "Cost", value: data?.total_cost ? `$${data.total_cost.toFixed(2)}` : "-"},
-            {label: "Tokens", value: data?.total_tokens ? formatNumber(data.total_tokens) : "-"},
+            {label: "Latency", value: formatLatency(data?.avg_latency)},
         ],
         [data],
     )
 
     if (variant === "strip") {
-        // Strip-era restyle (TEMPLATE_STRIP_MODE): same behavior, redesigned one-liner.
+        // Rail card: a header row, then a 2×2 grid of label-over-value. The original one-liner
+        // was laid out for the full page width — in a narrow column its stats wrapped mid-row and
+        // stranded the expand control, which read as a broken grid rather than a compact summary.
         return (
-            <section className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center gap-4 rounded-xl border border-solid border-[var(--ag-strip-card-border)] bg-[var(--ag-strip-card-bg)] px-6 py-5">
-                    <div className="flex items-center gap-2">
-                        <ChartLineIcon size={17} className="text-[var(--ag-colorTextSecondary)]" />
-                        <span className="text-[14.5px] font-semibold text-[var(--ag-colorText)]">
-                            Usage
-                        </span>
-                        <Sort
-                            type="text"
-                            onSortApply={setTimeRange}
-                            defaultSortValue={timeRange.label || "1 month"}
-                            exclude={["all time"]}
-                            ariaLabel="Usage date range"
-                        />
-                    </div>
-                    <div className="ml-4 flex flex-wrap items-center gap-8">
-                        {stats.map((stat) => (
-                            <div
-                                key={stat.label}
-                                className="flex items-center gap-1.5 text-[13.5px]"
-                            >
-                                <span className="text-[var(--ag-colorTextSecondary)]">
-                                    {stat.label}
-                                </span>
-                                <span className="font-semibold text-[var(--ag-colorText)]">
-                                    {stat.value}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
+            // The rail's flex item here is this section, not the card inside it, so it carries
+            // the no-shrink itself.
+            <PanelSection
+                title="Usage"
+                bodyClassName="flex flex-col gap-3 px-4 pb-4"
+                titleExtra={
+                    <Sort
+                        type="text"
+                        onSortApply={setTimeRange}
+                        defaultSortValue={timeRange.label || "1 month"}
+                        exclude={["all time"]}
+                        ariaLabel="Usage date range"
+                    />
+                }
+                extra={
                     <button
                         type="button"
                         onClick={() => setExpanded((prev) => !prev)}
-                        className="ml-auto inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13.5px] text-[var(--ag-colorTextSecondary)]"
+                        className={PANEL_ACTION_CLASS}
                     >
                         {expanded ? "Collapse" : "Expand"}
-                        {expanded ? (
-                            <CaretUp size={15} className="text-[var(--ag-colorTextQuaternary)]" />
-                        ) : (
-                            <CaretDown size={15} className="text-[var(--ag-colorTextQuaternary)]" />
-                        )}
+                        {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
                     </button>
+                }
+            >
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    {stats.map((stat) => (
+                        <div key={stat.label} className="flex flex-col gap-0.5">
+                            <span className="text-[11px] text-[var(--ag-colorTextSecondary)]">
+                                {stat.label}
+                            </span>
+                            <span className="text-xs font-semibold text-[var(--ag-colorText)]">
+                                {stat.value}
+                            </span>
+                        </div>
+                    ))}
                 </div>
 
-                {expanded ? (
-                    <AnalyticsDashboard layout="grid-4" showTimeRangeSelector={false} />
-                ) : null}
-            </section>
+                {/* Stacked, not gridded: the grid's breakpoints read the viewport, and this
+                    column is 340px on any of them. */}
+                <HeightCollapse open={expanded}>
+                    <AnalyticsDashboard layout="stack" showTimeRangeSelector={false} />
+                </HeightCollapse>
+            </PanelSection>
         )
     }
 

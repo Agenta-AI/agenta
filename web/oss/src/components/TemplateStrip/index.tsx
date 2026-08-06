@@ -1,6 +1,8 @@
 import {useMemo, useState, type ButtonHTMLAttributes, type ReactNode} from "react"
 
-import {DotsThree, EyeSlash} from "@phosphor-icons/react"
+import {HeightCollapse} from "@agenta/ui"
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
+import {CaretDown, DotsThree, EyeSlash} from "@phosphor-icons/react"
 import {Dropdown} from "antd"
 import {useAtom} from "jotai"
 import {ChevronLeft, ChevronRight} from "lucide-react"
@@ -15,8 +17,12 @@ import {
 import {STRIP_COPY} from "./assets/constants"
 import {PAGE_SIZE} from "./assets/pagerMath"
 import StripCard from "./components/StripCard"
+import StripRow from "./components/StripRow"
 import {useStripPager} from "./hooks/useStripPager"
 import {stripHiddenAtom} from "./state"
+
+/** Rows shown before "Show all" — enough to sample, short enough to sit under a session list. */
+const LIST_SIZE = 5
 
 export interface TemplateStripProps {
     /** Template registry (defaults to AGENT_TEMPLATES). */
@@ -33,9 +39,11 @@ export interface TemplateStripProps {
     /**
      * Card-row layout. `scroll` (default) is the compact horizontal scroller for docked
      * playground strips. `grid` shows exactly one 3-card page (arrows page, nothing clips) —
-     * the wide home surface, where a partially clipped fourth card reads as a bug.
+     * the wide home surface, where a partially clipped fourth card reads as a bug. `list` is the
+     * vertical rail form: the cards and the inline category tabs both need width this column
+     * doesn't have, so rows stack and the categories collapse into a menu.
      */
-    layout?: "scroll" | "grid"
+    layout?: "scroll" | "grid" | "list"
     className?: string
 }
 
@@ -86,6 +94,7 @@ const TemplateStrip = ({
     const [hidden, setHidden] = useAtom(stripHiddenAtom)
     const [activeCategory, setActiveCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
     const [gridPage, setGridPage] = useState(0)
+    const [showAllRows, setShowAllRows] = useState(false)
 
     const categories = useMemo(
         () => [ALL_TEMPLATES_CATEGORY, ...templateCategories()],
@@ -115,10 +124,12 @@ const TemplateStrip = ({
     const gridItems = filtered.slice(gridStart, gridStart + PAGE_SIZE)
 
     const isGrid = layout === "grid"
+    // The rail scrolls, so paging a list would be a second scroll control for the same rows.
+    const isList = layout === "list"
     const {scrollerRef, resetScroll} = scrollPager
     const atStart = isGrid ? page === 0 : scrollPager.atStart
     const atEnd = isGrid ? page >= pageCount - 1 : scrollPager.atEnd
-    const showPager = isGrid ? filtered.length > PAGE_SIZE : scrollPager.showPager
+    const showPager = isList ? false : isGrid ? filtered.length > PAGE_SIZE : scrollPager.showPager
     const counterLabel = isGrid
         ? `${gridStart + 1}–${Math.min(gridStart + PAGE_SIZE, filtered.length)} of ${filtered.length}`
         : scrollPager.counterLabel
@@ -142,40 +153,119 @@ const TemplateStrip = ({
         )
     }
 
+    if (isList) {
+        // A real section, so its header pins like the rest of the rail's — otherwise expanding
+        // "Show all 28" scrolls the only label saying what the rows are off the top.
+        return (
+            <PanelSection
+                sticky
+                title={STRIP_COPY.label}
+                bodyClassName="flex flex-col gap-0.5 px-2 pb-3"
+                extra={
+                    filtered.length > LIST_SIZE ? (
+                        <button
+                            type="button"
+                            onClick={() => setShowAllRows((wasOpen) => !wasOpen)}
+                            className={PANEL_ACTION_CLASS}
+                        >
+                            {showAllRows ? "Show fewer" : `View all ${filtered.length}`}
+                        </button>
+                    ) : null
+                }
+                titleExtra={
+                    <Dropdown
+                        trigger={["click"]}
+                        menu={{
+                            selectedKeys: [activeCategory],
+                            items: categories.map((category) => ({
+                                key: category,
+                                label: `${category} · ${countFor(category)}`,
+                                onClick: () => {
+                                    setActiveCategory(category)
+                                    // A new category starts folded; grid/scroll calls don't
+                                    // apply in this list layout.
+                                    setShowAllRows(false)
+                                },
+                            })),
+                        }}
+                    >
+                        <button
+                            type="button"
+                            className="inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)]"
+                        >
+                            {activeCategory}
+                            <span className="text-[var(--ag-colorTextTertiary)]">
+                                {countFor(activeCategory)}
+                            </span>
+                            <CaretDown size={12} />
+                        </button>
+                    </Dropdown>
+                }
+            >
+                {filtered.slice(0, LIST_SIZE).map((template) => (
+                    <StripRow
+                        key={template.key}
+                        template={template}
+                        selected={template.key === selectedTemplateKey}
+                        onPick={onPick}
+                    />
+                ))}
+                {/* The app's one collapse primitive, so this unfolds the way the tool gutter and
+                    the accordion sections do rather than snapping to its new height. */}
+                <HeightCollapse open={showAllRows} contentClassName="flex flex-col gap-0.5">
+                    {filtered.slice(LIST_SIZE).map((template) => (
+                        <StripRow
+                            key={template.key}
+                            template={template}
+                            selected={template.key === selectedTemplateKey}
+                            onPick={onPick}
+                        />
+                    ))}
+                </HeightCollapse>
+            </PanelSection>
+        )
+    }
+
     return (
         <div className={className}>
             {/* Header: label + tabs + right cluster (counter, arrows, optional hide menu). */}
             <div className="flex items-center gap-[14px]">
-                <span className="text-[14.5px] font-semibold text-[var(--ag-colorText)]">
+                <span
+                    className={`font-semibold text-[var(--ag-colorText)] ${
+                        isList ? "text-[13px]" : "text-[14.5px]"
+                    }`}
+                >
                     {STRIP_COPY.label}
                 </span>
-                <div className="flex items-center">
-                    {categories.map((category) => {
-                        const active = category === activeCategory
-                        return (
-                            <button
-                                key={category}
-                                type="button"
-                                aria-pressed={active}
-                                onClick={() => {
-                                    setActiveCategory(category)
-                                    setGridPage(0)
-                                    resetScroll()
-                                }}
-                                className={`cursor-pointer rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
-                                    active
-                                        ? "border-b-[var(--ag-colorPrimary)] font-semibold text-[var(--ag-colorText)]"
-                                        : "border-b-transparent font-normal text-[var(--ag-colorTextTertiary)]"
-                                }`}
-                            >
-                                {category}
-                                <span className="ml-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                    {countFor(category)}
-                                </span>
-                            </button>
-                        )
-                    })}
-                </div>
+                {isList ? null : (
+                    <div className="flex items-center">
+                        {categories.map((category) => {
+                            const active = category === activeCategory
+                            return (
+                                <button
+                                    key={category}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() => {
+                                        setActiveCategory(category)
+                                        setGridPage(0)
+                                        resetScroll()
+                                    }}
+                                    className={`cursor-pointer rounded-t-md border-0 border-b-2 border-solid bg-transparent px-[11px] py-[5px] text-[13px] hover:bg-[var(--ag-colorFillTertiary)] ${
+                                        active
+                                            ? "border-b-[var(--ag-colorPrimary)] font-semibold text-[var(--ag-colorText)]"
+                                            : "border-b-transparent font-normal text-[var(--ag-colorTextTertiary)]"
+                                    }`}
+                                >
+                                    {category}
+                                    <span className="ml-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                        {countFor(category)}
+                                    </span>
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
                 <div className="ml-auto flex items-center gap-[7px]">
                     {showPager ? (
                         <>
@@ -266,10 +356,12 @@ const TemplateStrip = ({
                             />
                         ))}
                     </div>
-                    {showPager ? (
+                    {/* Gated on `atEnd`, not on the pager: a card cut off at the container edge
+                        with no fade reads as a clipped layout rather than as more to scroll. */}
+                    {!atEnd ? (
                         <div
                             aria-hidden
-                            className="pointer-events-none absolute bottom-1.5 right-0 top-0 w-9"
+                            className="pointer-events-none absolute bottom-1.5 right-0 top-0 w-16"
                             style={{
                                 background: `linear-gradient(to right, transparent, var(${surfaceColorVar}))`,
                             }}

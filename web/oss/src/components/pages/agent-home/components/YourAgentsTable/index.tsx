@@ -1,15 +1,19 @@
 import {useCallback, useMemo} from "react"
 
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
     type TableScopeConfig,
 } from "@agenta/ui/table"
+import {ArrowRightIcon, PlusIcon} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import type {TableProps} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
+import Link from "next/link"
 import {useRouter} from "next/router"
 
+import AgentCard from "@/oss/components/AgentCard"
 import {
     agentsWorkflowsAtom,
     agentsWorkflowsLoadingAtom,
@@ -24,23 +28,30 @@ import useURL from "@/oss/hooks/useURL"
 import EmptyAgents from "../EmptyAgents"
 
 import {createAgentColumns, type AgentColumnActions} from "./columns"
+import {useWaitingByAgent} from "./useAgentActivity"
 
 // Keep the virtual viewport independent from the page's content height. Without this bound,
 // the table measures its own rendered height and feeds it back into its scroll viewport.
 const AGENT_TABLE_BODY_HEIGHT = 576
 
+// The rail is a shortlist, and "All agents" is the full-roster path. Unbounded, a big project
+// mounts hundreds of cards (each with its own activity query) into a 280px column.
+const RAIL_AGENT_LIMIT = 5
+
 interface YourAgentsTableProps {
     /** Force the empty state (first-run preview). */
     forceEmpty?: boolean
+    /** `list` is the rail form — see {@link AgentRow} for why the columns can't come along. */
+    variant?: "table" | "list"
 }
 
 /**
  * "Your agents" — lean read-only table over the shared, correctly-classified agents list
  * (agent identity is revision-derived; see @/oss/components/pages/agents/store).
  */
-const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
+const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTableProps) => {
     const router = useRouter()
-    const {baseAppURL} = useURL()
+    const {baseAppURL, projectURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
     const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
     const openEditAppModal = useSetAtom(openEditAppModalAtom)
@@ -89,7 +100,25 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
         }),
         [handleOpenOverview, handleOpenPlayground, handleRename, handleArchive],
     )
-    const columns = useMemo(() => createAgentColumns(actions), [actions])
+    const waitingByAgent = useWaitingByAgent()
+    const columns = useMemo(
+        () => createAgentColumns(actions, waitingByAgent),
+        [actions, waitingByAgent],
+    )
+
+    // Recency is re-derived from updatedAt rather than trusted from the query, whose descending
+    // window follows creation.
+    const recentRows = useMemo(
+        () =>
+            [...rows]
+                .sort(
+                    (a, b) =>
+                        Date.parse(b.updatedAt ?? b.createdAt ?? "") -
+                        Date.parse(a.updatedAt ?? a.createdAt ?? ""),
+                )
+                .slice(0, RAIL_AGENT_LIMIT),
+        [rows],
+    )
 
     const tableScope = useMemo<TableScopeConfig>(
         () => ({
@@ -113,7 +142,10 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
 
     const tableProps = useMemo<TableProps<AppWorkflowRow>>(
         () => ({
-            bordered: true,
+            // `bordered` draws an outer box AND a full cell grid — the last outlined thing on this
+            // page once the rail became a sheet. Unbordered leaves the row hairlines, which is the
+            // separation the rest of the page now uses.
+            bordered: false,
             loading: isLoading,
             scroll: {y: AGENT_TABLE_BODY_HEIGHT},
             onRow: (record) => ({
@@ -125,6 +157,47 @@ const YourAgentsTable = ({forceEmpty = false}: YourAgentsTableProps) => {
     )
 
     const showEmpty = forceEmpty || (!isLoading && rows.length === 0)
+
+    if (variant === "list") {
+        return (
+            <PanelSection
+                sticky
+                title="Your agents"
+                bodyClassName="flex flex-col gap-1 px-2 pb-3"
+                extra={
+                    <div className="flex shrink-0 items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => router.push(`${baseAppURL}?new=1`)}
+                            className={PANEL_ACTION_CLASS}
+                        >
+                            <PlusIcon size={14} />
+                            New agent
+                        </button>
+                        {/* An arrow means the action leaves the page. In-place reveals
+                            ("View all 28", "Expand") deliberately don't carry one. */}
+                        <Link href={`${projectURL}/agents`} className={PANEL_ACTION_CLASS}>
+                            All agents
+                            <ArrowRightIcon size={12} />
+                        </Link>
+                    </div>
+                }
+            >
+                {showEmpty ? (
+                    <EmptyAgents />
+                ) : (
+                    recentRows.map((record) => (
+                        <AgentCard
+                            key={record.key}
+                            record={record}
+                            waiting={waitingByAgent.get(record.workflowId) ?? 0}
+                            actions={actions}
+                        />
+                    ))
+                )}
+            </PanelSection>
+        )
+    }
 
     return (
         <section className="flex flex-col gap-5">
