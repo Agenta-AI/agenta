@@ -1,1 +1,0 @@
-{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count"},"timestamp":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Timestamp"}},"type":"object","required":["count"],"title":"AddScenariosRequest"}}}}}

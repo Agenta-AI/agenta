@@ -1,1 +1,0 @@
-{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"email":{"type":"string","title":"Email"}},"type":"object","required":["email"],"title":"ResendInviteRequest"}}}}}

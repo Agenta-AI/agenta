@@ -1,1 +1,0 @@
-{"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"string","title":"Response Create Api Key"}}}}}}

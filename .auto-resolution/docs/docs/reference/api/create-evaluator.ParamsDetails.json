@@ -1,1 +1,0 @@
-{"parameters":[{"name":"evaluator_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Evaluator Id"}}]}

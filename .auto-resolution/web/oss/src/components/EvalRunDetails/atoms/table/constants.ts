@@ -1,1 +1,0 @@
-export const DEFAULT_SCENARIO_PAGE_SIZE = 50

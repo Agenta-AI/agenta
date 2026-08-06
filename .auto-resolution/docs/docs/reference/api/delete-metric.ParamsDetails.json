@@ -1,1 +1,0 @@
-{"parameters":[{"name":"metrics_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Metrics Id"}}]}

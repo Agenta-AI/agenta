@@ -1,1 +1,0 @@
-{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"domain_id":{"type":"string","title":"Domain Id"}},"type":"object","required":["domain_id"],"title":"OrganizationDomainVerify","description":"Request model for verifying a domain."}}},"required":true}}

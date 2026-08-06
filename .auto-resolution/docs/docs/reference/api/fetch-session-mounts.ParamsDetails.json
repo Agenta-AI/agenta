@@ -1,1 +1,0 @@
-{"parameters":[{"name":"session_id","in":"query","required":true,"schema":{"type":"string","title":"Session Id"}},{"name":"include_archived","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Include Archived"}}]}

@@ -1,3 +1,0 @@
-ancestorEntries = []
-ourEntries = ["services/runner/tests/unit/workspace-import.test.ts"]
-theirEntries = ["services/runner/tests/unit/workspace-import.test.ts"]

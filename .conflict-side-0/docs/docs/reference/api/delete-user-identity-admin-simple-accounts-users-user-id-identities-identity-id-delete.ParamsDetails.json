@@ -1,1 +1,0 @@
-{"parameters":[{"name":"user_id","in":"path","required":true,"schema":{"type":"string","title":"User Id"}},{"name":"identity_id","in":"path","required":true,"schema":{"type":"string","title":"Identity Id"}}]}

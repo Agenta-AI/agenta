@@ -1,1 +1,0 @@
-{"parameters":[{"name":"session_id","in":"query","required":true,"schema":{"type":"string","title":"Session Id"}}]}
