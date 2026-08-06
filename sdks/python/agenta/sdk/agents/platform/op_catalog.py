@@ -80,6 +80,48 @@ _EPHEMERAL_DESCRIPTION_SCHEMA: Dict[str, Any] = {
 }
 
 
+# Marks a property as the ephemeral note wherever it appears. The runner reads the advertised
+# schema to decide whether a nested `description` is the endpoint's own field or a misplaced note;
+# once the tolerated position is advertised, the name alone can no longer tell those apart. The
+# marker keeps that decision machine-readable instead of hard-coding a tool name in the runner.
+EPHEMERAL_MARKER = "x-ag-ephemeral"
+
+
+def _tolerated_description_schema() -> Dict[str, Any]:
+    """The ephemeral description in its SECOND position, inside a payload object.
+
+    Models put the note here, the payload objects are closed, and the call is rejected before
+    anything runs. Advertising the position costs nothing and removes a whole class of wasted
+    turn. The wording says what happens to it, so a model cannot read the tolerance as a place
+    to store something.
+    """
+    return {
+        "type": "string",
+        "maxLength": EPHEMERAL_DESCRIPTION_MAX_LENGTH,
+        EPHEMERAL_MARKER: True,
+        "description": (
+            "Optional. The same per-call note as the top-level `description`, also accepted "
+            "here. It is lifted to the top level and never saved. Prefer the top level."
+        ),
+    }
+
+
+def _tolerate_description(payload: Dict[str, Any]) -> None:
+    """Advertise the ephemeral note inside one closed payload object.
+
+    A payload that declares a REAL ``description`` of its own is left alone. Four platform ops
+    carry one (``create_schedule`` and friends) and none of them accepts the ephemeral note
+    today, but that is an accident of the current catalog rather than an invariant, and
+    overwriting a real field would delete content the human meant to send.
+    """
+    if payload.get("type") != "object":
+        return
+    fields = payload.get("properties")
+    if not isinstance(fields, dict) or EPHEMERAL_DESCRIPTION_ARG in fields:
+        return
+    fields[EPHEMERAL_DESCRIPTION_ARG] = _tolerated_description_schema()
+
+
 def _ephemeral_description_schema(siblings: List[str]) -> Dict[str, Any]:
     """The ephemeral description field, told where it goes.
 
@@ -236,11 +278,18 @@ class PlatformOp(BaseModel):
             # that says nothing is quieter, not broken.
             properties = schema.setdefault("properties", {})
             if isinstance(properties, dict):
+                payloads = [
+                    name
+                    for name, field in properties.items()
+                    if name != EPHEMERAL_DESCRIPTION_ARG and isinstance(field, dict)
+                ]
                 # The sibling names are read before the field is added, so the placement
                 # sentence lists the payload keys and not itself.
                 properties[EPHEMERAL_DESCRIPTION_ARG] = _ephemeral_description_schema(
-                    [name for name in properties if name != EPHEMERAL_DESCRIPTION_ARG]
+                    payloads
                 )
+                for name in payloads:
+                    _tolerate_description(properties[name])
         return schema
 
     def to_call(self) -> ToolCall:
@@ -765,14 +814,17 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # before the catalog advertises the shape (gate 3, plan ruling).
 _ORDERED_OPERATIONS_ENV = "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED"
 
+# Mirrors `_TRUTHY` in `api/oss/src/utils/env.py`, which the SDK cannot import: that module
+# is the API's foundational config and pulls the whole API package in behind it. The two
+# sets must accept the same spellings, or a deployment written as `enabled` turns the
+# ordered arm on in the API while the catalog keeps advertising the legacy surface. The
+# equality is pinned by `api/oss/tests/pytest/unit/workflows/test_ordered_operations_flag.py`,
+# which is on the one side that can import both.
+_TRUTHY = frozenset({"true", "1", "t", "y", "yes", "on", "enable", "enabled"})
+
 
 def _ordered_operations_enabled() -> bool:
-    return (os.getenv(_ORDERED_OPERATIONS_ENV) or "").strip().lower() in {
-        "true",
-        "1",
-        "yes",
-        "on",
-    }
+    return (os.getenv(_ORDERED_OPERATIONS_ENV) or "").strip().lower() in _TRUTHY
 
 
 # The legacy description, for the flag-off surface. The wholesale-list sentence names the
