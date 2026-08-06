@@ -26,6 +26,8 @@ import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/
 import { shouldSuppressPausedToolCallUpdate } from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
+import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
+import { platformGuidanceAppendix } from "../../src/engines/sandbox_agent/platform-guidance.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
@@ -950,6 +952,117 @@ describe("runSandboxAgent orchestration", () => {
     );
     assert.equal(calls.workspacePlan.prompt.appendSystemPrompt, undefined);
     assert.equal(existsSync(`${cwd}-agent`), false);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  // ============================================================================================
+  // PLATFORM GUIDANCE IN THE INSTRUCTIONS FILE
+  // ============================================================================================
+  //
+  // The fourth guidance channel, and the only one Codex has. These assert the WIRING: that the
+  // text reaches the file the harness reads, with the mount state that was actually settled by
+  // the time the workspace is written. `platform-guidance.test.ts` owns which contributors apply.
+
+  it("renders the platform guidance into the instructions file, after the author's text", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "codex",
+        agentsMd: "Be terse.",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const guidance = platformGuidanceAppendix({
+      acpAgent: "codex",
+      isPi: false,
+      agentMountedPath: undefined,
+      agentMountSkipped: false,
+    });
+    assert.ok(guidance);
+    assert.equal(
+      calls.workspacePlan.prompt.agentsMd,
+      appendPlatformGuidance("Be terse.", guidance),
+      "the file is the author's text, one blank line, then the fenced block",
+    );
+  });
+
+  it("writes the guidance even when the author left the instructions empty", async () => {
+    // The agent most likely to guess wrong about where a skill goes is the one with no
+    // instructions at all. Before this, an empty configuration produced no file and no guidance.
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "codex",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.match(
+      calls.workspacePlan.prompt.agentsMd,
+      /^<!-- agenta:platform-guidance:start -->\n/,
+    );
+    assert.ok(
+      calls.workspacePlan.prompt.agentsMd.includes("parameters.agent.skills"),
+    );
+  });
+
+  it("does not repeat the mount paragraph to Pi, which already has it", async () => {
+    // The no-double-delivery property, asserted end to end rather than only on the selector: Pi
+    // takes the mount paragraph through its append prompt, so the same text in the instructions
+    // file would be the second copy. A live mount is set up here precisely so the paragraph is
+    // available to be duplicated.
+    const cwd = join(
+      tmpdir(),
+      `agenta-guidance-pi-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.signAgentMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/agent-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => true) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        agentsMd: "Be terse.",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const file: string = calls.workspacePlan.prompt.agentsMd;
+    // The append prompt DID get it, which is what makes the file's silence meaningful.
+    assert.match(calls.workspacePlan.prompt.appendSystemPrompt, /agent-files\//);
+    assert.ok(file.includes("parameters.agent.skills"), "the skill sentence still lands");
+    assert.ok(
+      !file.includes("agent-files/"),
+      "the mount paragraph must not appear in the file as well",
+    );
     rmSync(cwd, { recursive: true, force: true });
   });
 
