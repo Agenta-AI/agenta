@@ -175,5 +175,12 @@ client.
   live Gmail and GitHub Composio connections in the target project; skip it otherwise.
 - `resources/seeds/` — representative green `results.json` files kept as regression-seed references.
 
+## Contributing
+
+Before committing any resource script, run the repo-pinned ruff (`uv run --no-sync ruff format`
+then `uv run --no-sync ruff check` from the repo root covers it) — not `uvx`, whose pulled
+version has different defaults and produces a false block. Unformatted resource files break the
+repo-wide format CI job.
+
 Release-night findings and the full evidence history are archived in
 `docs/design/agent-workflows/projects/qa/` (STATUS.md, findings.md, matrix.md).
