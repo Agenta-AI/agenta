@@ -1,11 +1,18 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {CopyOutlined, DeleteOutlined} from "@ant-design/icons"
-import {ArrowClockwise, GearSix, Plus} from "@phosphor-icons/react"
-import {Alert, Button, Modal, Table, Tooltip, Typography, theme} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {EnhancedModal} from "@agenta/ui/components/modal"
+import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {
+    createStandardColumns,
+    InfiniteVirtualTableFeatureShell,
+    type StandardColumnDef,
+} from "@agenta/ui/table"
+import {EmptyState} from "@agenta/ui/ui"
+import {ArrowClockwise, Plus, Trash} from "@phosphor-icons/react"
+import {Alert, Button, Tooltip} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {useLoading} from "@/oss/hooks/useLoading"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
@@ -15,31 +22,27 @@ import {useOrgData} from "@/oss/state/org"
 
 import {Loading} from "./assets/constants"
 
-const {Text} = Typography
-const monospaceFontFamily = "ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace"
-const monospaceKeyStyle = {
-    fontFamily: monospaceFontFamily,
-    letterSpacing: "0.08em",
-    fontVariantLigatures: "none",
-} as const
+/** The virtual table keys rows off `key` and reads arbitrary fields, hence the index signature. */
+interface APIKeyRow extends APIKey {
+    key: string
+    id: string
+    [extra: string]: unknown
+}
+
+const formatDate = (value?: string | null) =>
+    value ? new Date(value).toLocaleDateString() : undefined
 
 const APIKeys: React.FC = () => {
-    const [keys, setKeys] = useState<APIKey[]>([])
+    const [keys, setKeys] = useState<APIKeyRow[]>([])
     const [isModalVisible, setIsModalVisible] = useState(false)
     const [loading, setLoading] = useLoading(Object.values(Loading))
-    const {token} = theme.useToken()
     const {canEditApiKeys, canViewApiKeys} = useProjectPermissions()
 
     const {selectedOrg} = useOrgData()
     const workspaceId: string = selectedOrg?.default_workspace?.id || ""
 
     const listKeys = useCallback(() => {
-        if (!canViewApiKeys) {
-            setKeys([])
-            return
-        }
-
-        if (!workspaceId || workspaceId.trim() === "") {
+        if (!canViewApiKeys || !workspaceId.trim()) {
             setKeys([])
             return
         }
@@ -47,7 +50,13 @@ const APIKeys: React.FC = () => {
         setLoading(Loading.LIST, true)
         fetchAllListApiKeys(workspaceId)
             .then((res) => {
-                setKeys(res.data)
+                setKeys(
+                    (res.data as APIKey[]).map((key) => ({
+                        ...key,
+                        key: key.prefix,
+                        id: key.prefix,
+                    })),
+                )
             })
             .catch(console.error)
             .finally(() => {
@@ -67,7 +76,7 @@ const APIKeys: React.FC = () => {
                     setLoading(Loading.DELETE, true)
                     await deleteApiKey(prefix)
                         .then(() => {
-                            setKeys((keys) => keys.filter((key) => key.prefix !== prefix))
+                            setKeys((current) => current.filter((key) => key.prefix !== prefix))
                         })
                         .catch(console.error)
                         .finally(() => {
@@ -82,56 +91,40 @@ const APIKeys: React.FC = () => {
     const createKey = useCallback(() => {
         if (!canEditApiKeys) return
 
-        setLoading(Loading.CREATE, true)
-        if (!workspaceId || workspaceId.trim() === "") {
-            setLoading(Loading.CREATE, false)
+        if (!workspaceId.trim()) {
             setIsModalVisible(true)
-        } else {
-            createApiKey(workspaceId)
-                .then(({data}) => {
-                    listKeys()
-                    AlertPopup({
-                        width: 650,
-                        type: "success",
-                        title: "API Key created",
-                        message: (
-                            <div>
-                                <div>
-                                    Make sure to copy your API Key now. You won’t be able to see it
-                                    again!
-                                </div>
-                                <div className="mt-[0.5rem] flex items-start gap-2">
-                                    <span
-                                        className="min-w-0 break-all"
-                                        style={{
-                                            ...monospaceKeyStyle,
-                                            color: token.colorTextSecondary,
-                                            fontWeight: 600,
-                                        }}
-                                    >
-                                        {data}
-                                    </span>
-                                    <span className="shrink-0">
-                                        <Tooltip title="Copy">
-                                            <CopyOutlined
-                                                onClick={() => copyToClipboard(data)}
-                                                style={{color: token.colorPrimary}}
-                                            />
-                                        </Tooltip>
-                                    </span>
-                                </div>
-                            </div>
-                        ),
-                        cancelText: null,
-                        okText: "Done",
-                    })
-                })
-                .catch(console.error)
-                .finally(() => {
-                    setLoading(Loading.CREATE, false)
-                })
+            return
         }
-    }, [canEditApiKeys, listKeys, setLoading, token.colorPrimary, workspaceId])
+
+        setLoading(Loading.CREATE, true)
+        createApiKey(workspaceId)
+            .then(({data}) => {
+                listKeys()
+                AlertPopup({
+                    width: 520,
+                    type: "success",
+                    title: "API key created",
+                    message: (
+                        <div className="flex flex-col gap-3">
+                            <div>
+                                Copy this key now — it is shown once and cannot be retrieved again.
+                            </div>
+                            <div className="rounded-md border border-solid border-colorBorder bg-colorFillQuaternary px-3 py-2 font-mono text-xs break-all">
+                                {data}
+                            </div>
+                        </div>
+                    ),
+                    cancelText: null,
+                    okText: "Copy & close",
+                    // The key is unrecoverable once dismissed, so OK copies it.
+                    onOk: () => copyToClipboard(data),
+                })
+            })
+            .catch(console.error)
+            .finally(() => {
+                setLoading(Loading.CREATE, false)
+            })
+    }, [canEditApiKeys, listKeys, setLoading, workspaceId])
 
     useEffect(() => {
         if (!canViewApiKeys) {
@@ -142,82 +135,74 @@ const APIKeys: React.FC = () => {
         listKeys()
     }, [canViewApiKeys, listKeys])
 
-    const columns = useMemo<ColumnsType<APIKey>>(() => {
-        const baseColumns: ColumnsType<APIKey> = [
-            {
-                title: "API Key",
-                dataIndex: "prefix",
-                key: "prefix",
-                width: 400,
-                render: (value: string) => (
-                    <span
-                        style={monospaceKeyStyle}
-                        className="inline-block rounded border border-[var(--ant-color-border)] bg-[var(--ant-color-fill-quaternary)] px-2 py-1 text-[inherit] leading-none"
-                    >
-                        {value.padEnd(40, "*")}
-                    </span>
-                ),
-            },
-            {
-                title: "Created",
-                dataIndex: "created_at",
-                key: "created_at",
-                render: (value: string) => new Date(value).toLocaleDateString(),
-            },
-            {
-                title: "Expires",
-                dataIndex: "expiration_date",
-                key: "expiration_date",
-                render: (value: string) => {
-                    const date = value ? new Date(value) : null
-                    const hasExpired = date ? date < new Date() : false
-                    return (
-                        <Text type={hasExpired ? "danger" : undefined}>
-                            {hasExpired ? "Expired" : date ? date.toLocaleDateString() : "Never"}
-                        </Text>
-                    )
+    const rows = keys
+
+    const columns = useMemo(
+        () =>
+            createStandardColumns<APIKeyRow>([
+                {
+                    type: "mono",
+                    key: "prefix",
+                    title: "API key",
+                    width: 360,
+                    getValue: (record) => record.prefix.padEnd(40, "•"),
                 },
-            },
-            {
-                title: "Last Used",
-                dataIndex: "last_used_at",
-                key: "last_used_at",
-                render: (value: string) => {
-                    if (value) {
-                        return new Date(value).toLocaleString()
-                    }
-
-                    return "Never Used"
+                {
+                    type: "text",
+                    key: "created_at",
+                    title: "Created",
+                    width: 150,
+                    render: (_value, record) => formatDate(record.created_at) ?? "—",
                 },
-            },
-        ]
+                {
+                    type: "text",
+                    key: "expiration_date",
+                    title: "Expires",
+                    width: 150,
+                    render: (_value, record) => {
+                        const date = record.expiration_date
+                            ? new Date(record.expiration_date)
+                            : null
+                        if (!date) return "Never"
+                        return date < new Date() ? (
+                            <StatusIndicator tone="error" label="Expired" />
+                        ) : (
+                            date.toLocaleDateString()
+                        )
+                    },
+                },
+                {
+                    type: "text",
+                    key: "last_used_at",
+                    title: "Last used",
+                    width: 190,
+                    render: (_value, record) =>
+                        record.last_used_at
+                            ? new Date(record.last_used_at).toLocaleString()
+                            : "Never used",
+                },
+                ...(canEditApiKeys
+                    ? [
+                          {
+                              type: "actions",
+                              showCopyId: false,
+                              items: [
+                                  {
+                                      key: "delete",
+                                      label: "Delete key",
+                                      icon: <Trash size={16} />,
+                                      danger: true,
+                                      onClick: (record: APIKeyRow) => deleteKey(record.prefix),
+                                  },
+                              ],
+                          } satisfies StandardColumnDef<APIKeyRow>,
+                      ]
+                    : []),
+            ]),
+        [canEditApiKeys, deleteKey],
+    )
 
-        if (!canEditApiKeys) {
-            return baseColumns
-        }
-
-        return [
-            ...baseColumns,
-            {
-                title: <GearSix size={16} />,
-                key: "action",
-                width: 96,
-                fixed: "right" as const,
-                align: "center" as const,
-                render: (_: unknown, record: APIKey) => (
-                    <div className="flex items-center justify-center gap-1">
-                        <Tooltip title="Delete">
-                            <DeleteOutlined
-                                onClick={() => deleteKey(record.prefix)}
-                                style={{color: token.colorError}}
-                            />
-                        </Tooltip>
-                    </div>
-                ),
-            },
-        ]
-    }, [canEditApiKeys, deleteKey, token.colorError])
-
+    const {tableScope, pagination} = useStaticTable<APIKeyRow>("settings-api-keys", rows)
     if (!canViewApiKeys) {
         return (
             <Alert
@@ -230,46 +215,80 @@ const APIKeys: React.FC = () => {
 
     return (
         <div className="flex flex-col gap-2">
-            {canEditApiKeys ? (
-                <div className="flex items-center gap-2">
-                    <Button
-                        type="primary"
-                        size="small"
-                        loading={loading[Loading.CREATE]}
-                        icon={<Plus size={14} />}
-                        onClick={createKey}
-                    >
-                        Generate
-                    </Button>
-                    <Tooltip title="Reload API keys">
-                        <Button
-                            icon={<ArrowClockwise size={14} />}
-                            type="text"
-                            size="small"
-                            aria-label="Reload API keys"
-                            loading={loading[Loading.LIST]}
-                            onClick={listKeys}
-                        />
-                    </Tooltip>
-                </div>
-            ) : null}
-            <Table<APIKey>
-                dataSource={keys}
-                rowKey="prefix"
-                bordered
-                pagination={false}
-                loading={loading[Loading.LIST]}
+            <InfiniteVirtualTableFeatureShell<APIKeyRow>
+                tableScope={tableScope}
+                autoHeight={false}
                 columns={columns}
+                rowKey={(record) => record.prefix}
+                pagination={pagination}
+                primaryActions={
+                    canEditApiKeys ? (
+                        <>
+                            <Tooltip title="Reload API keys">
+                                <Button
+                                    icon={<ArrowClockwise size={14} />}
+                                    type="default"
+                                    aria-label="Reload API keys"
+                                    loading={loading[Loading.LIST]}
+                                    onClick={listKeys}
+                                />
+                            </Tooltip>
+                            <Button
+                                type="primary"
+                                loading={loading[Loading.CREATE]}
+                                icon={<Plus size={14} />}
+                                onClick={createKey}
+                            >
+                                Generate key
+                            </Button>
+                        </>
+                    ) : null
+                }
+                tableProps={{
+                    size: "small",
+                    bordered: true,
+                    tableLayout: "fixed",
+                    loading: loading[Loading.LIST],
+                    locale: {
+                        emptyText: (
+                            <EmptyState
+                                className="py-12"
+                                image="simple"
+                                description={
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-base font-semibold text-colorText">
+                                            No API keys yet
+                                        </span>
+                                        <span>
+                                            Generate a key to authenticate requests to the Agenta
+                                            API from your code, CI jobs, and SDKs.
+                                        </span>
+                                    </div>
+                                }
+                            >
+                                {canEditApiKeys ? (
+                                    <Button
+                                        icon={<Plus size={14} />}
+                                        onClick={createKey}
+                                        loading={loading[Loading.CREATE]}
+                                    >
+                                        Generate key
+                                    </Button>
+                                ) : null}
+                            </EmptyState>
+                        ),
+                    },
+                }}
             />
 
-            <Modal
-                title="Workspace ID Required"
+            <EnhancedModal
+                title="Workspace ID required"
                 open={isModalVisible}
                 onOk={() => setIsModalVisible(false)}
                 onCancel={() => setIsModalVisible(false)}
             >
-                <p>Please provide a valid Workspace ID to proceed with creating an API Key.</p>
-            </Modal>
+                <p>Please provide a valid Workspace ID to proceed with creating an API key.</p>
+            </EnhancedModal>
         </div>
     )
 }

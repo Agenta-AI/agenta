@@ -13,12 +13,10 @@ import {
 import {Info, Lock} from "@phosphor-icons/react"
 import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
 import {
-    Card,
     Descriptions,
     Input,
     Modal,
     Skeleton,
-    Space,
     Switch,
     Typography,
     message,
@@ -82,7 +80,7 @@ const SettingRow: FC<SettingRowProps> = ({
     >
         <div className="pr-8 flex-1">
             <div className="flex items-center gap-2">
-                <h4 className="text-sm font-medium m-0">{title}</h4>
+                <Typography.Text strong>{title}</Typography.Text>
                 {tooltip && (
                     <Tooltip title={tooltip}>
                         <Info
@@ -98,9 +96,9 @@ const SettingRow: FC<SettingRowProps> = ({
                     </span>
                 )}
             </div>
-            <p className="text-sm text-[var(--ant-color-text-secondary)] mt-0.5 mb-0">
+            <Typography.Paragraph type="secondary" className="!mb-0 !mt-0.5">
                 {description}
-            </p>
+            </Typography.Paragraph>
             {disabled && disabledReason && (
                 <p className="text-xs text-amber-600 mt-1 mb-0 flex items-center gap-1">
                     <Lock size={14} />
@@ -118,9 +116,9 @@ const SettingRow: FC<SettingRowProps> = ({
 )
 
 const SectionLabel: FC<{children: React.ReactNode}> = ({children}) => (
-    <p className="text-xs font-medium text-[var(--ant-color-text-tertiary)] uppercase tracking-wider pt-4 pb-2 m-0">
+    <div className="pt-4 pb-2 text-xs font-medium uppercase tracking-wider text-colorTextTertiary">
         {children}
-    </p>
+    </div>
 )
 
 const Organization: FC = () => {
@@ -299,7 +297,7 @@ const Organization: FC = () => {
             title: "Actions",
             key: "actions",
             render: (_: any, record: OrganizationDomain) => (
-                <Space>
+                <div className="flex items-center gap-2">
                     {!record.flags?.is_verified && (
                         <Button
                             type="primary"
@@ -332,12 +330,10 @@ const Organization: FC = () => {
                             loading={deleteDomainMutation.isPending}
                         />
                     </Popconfirm>
-                </Space>
+                </div>
             ),
         },
     ]
-
-    const sectionTitleStyle = {margin: 0, fontSize: 20, fontWeight: 600}
 
     const pendingDomainRowKeys = domains
         .filter((domain) => !domain.flags?.is_verified && !!domain.token)
@@ -593,7 +589,7 @@ const Organization: FC = () => {
                 const isEnabled = record.flags?.is_enabled !== false
                 const isValid = record.flags?.is_valid !== false
                 return (
-                    <Space>
+                    <div className="flex items-center gap-2">
                         {(!isEnabled || !isValid) && (
                             <Button
                                 type="primary"
@@ -625,7 +621,7 @@ const Organization: FC = () => {
                                 loading={deleteProviderMutation.isPending}
                             />
                         </Popconfirm>
-                    </Space>
+                    </div>
                 )
             },
         },
@@ -633,14 +629,14 @@ const Organization: FC = () => {
 
     if (loading || entitlementsLoading) {
         return (
-            <Space direction="vertical" size="middle" style={{width: "100%"}}>
-                <Card>
+            <div className="flex w-full flex-col gap-8">
+                <section>
                     <Skeleton active paragraph={{rows: 6}} />
-                </Card>
-                <Card>
+                </section>
+                <section>
                     <Skeleton active paragraph={{rows: 4}} />
-                </Card>
-            </Space>
+                </section>
+            </div>
         )
     }
 
@@ -649,12 +645,12 @@ const Organization: FC = () => {
     }
 
     return (
-        <Space direction="vertical" size="middle" style={{width: "100%"}}>
+        <div className="flex w-full flex-col gap-8">
             {hasAccessControl ? (
-                <Card>
+                <section>
                     <div className="px-1">
                         <div className="border-0 border-b border-solid border-[var(--ant-color-border-secondary)] pb-4">
-                            <Title level={1} style={sectionTitleStyle} className="!mb-1">
+                            <Title level={5} className="!mb-1">
                                 Access Controls
                             </Title>
                             <Text type="secondary">
@@ -728,7 +724,7 @@ const Organization: FC = () => {
                             showSuccess={lastSavedFlag === "allow_root"}
                         />
                     </div>
-                </Card>
+                </section>
             ) : (
                 <UpgradePrompt
                     title="Access Controls"
@@ -737,8 +733,8 @@ const Organization: FC = () => {
             )}
 
             {hasDomains ? (
-                <Card>
-                    <Space direction="vertical" size="small" style={{width: "100%"}}>
+                <section>
+                    <div className="flex w-full flex-col gap-3">
                         <div
                             style={{
                                 display: "flex",
@@ -747,7 +743,7 @@ const Organization: FC = () => {
                             }}
                         >
                             <div>
-                                <Title level={1} style={sectionTitleStyle} className="!mb-1">
+                                <Title level={5} className="!mb-1">
                                     Verified Domains
                                 </Title>
                                 <Text type="secondary">
@@ -790,11 +786,7 @@ const Organization: FC = () => {
                                                 </span>
                                             }
                                             description={
-                                                <Space
-                                                    direction="vertical"
-                                                    size="middle"
-                                                    style={{width: "100%"}}
-                                                >
+                                                <div className="flex w-full flex-col gap-4">
                                                     <Text style={{fontSize: "14px"}}>
                                                         1. Add the following DNS TXT record:
                                                     </Text>
@@ -907,7 +899,7 @@ const Organization: FC = () => {
                                                     <Text style={{fontSize: "14px"}}>
                                                         3. Click the "Verify" button.
                                                     </Text>
-                                                </Space>
+                                                </div>
                                             }
                                             type="info"
                                             icon={<InfoCircleOutlined />}
@@ -920,7 +912,7 @@ const Organization: FC = () => {
                                 expandIcon: () => null,
                             }}
                         />
-                    </Space>
+                    </div>
 
                     <Modal
                         title="Add Domain"
@@ -955,7 +947,7 @@ const Organization: FC = () => {
                             </Text>
                         </Form>
                     </Modal>
-                </Card>
+                </section>
             ) : (
                 <UpgradePrompt
                     title="Verified Domains"
@@ -964,8 +956,8 @@ const Organization: FC = () => {
             )}
 
             {hasSSO ? (
-                <Card>
-                    <Space direction="vertical" size="small" style={{width: "100%"}}>
+                <section>
+                    <div className="flex w-full flex-col gap-3">
                         <div
                             style={{
                                 display: "flex",
@@ -974,7 +966,7 @@ const Organization: FC = () => {
                             }}
                         >
                             <div>
-                                <Title level={1} style={sectionTitleStyle} className="!mb-1">
+                                <Title level={5} className="!mb-1">
                                     SSO Providers
                                 </Title>
                                 <Text type="secondary">
@@ -1070,11 +1062,7 @@ const Organization: FC = () => {
                                                 </span>
                                             }
                                             description={
-                                                <Space
-                                                    direction="vertical"
-                                                    size="middle"
-                                                    style={{width: "100%"}}
-                                                >
+                                                <div className="flex w-full flex-col gap-4">
                                                     <Text style={{fontSize: "14px"}}>
                                                         1. Edit your IdP with the following details:
                                                     </Text>
@@ -1144,7 +1132,7 @@ const Organization: FC = () => {
                                                     <Text style={{fontSize: "14px"}}>
                                                         3. Click the "Enable" button.
                                                     </Text>
-                                                </Space>
+                                                </div>
                                             }
                                             type="info"
                                             icon={<InfoCircleOutlined />}
@@ -1157,7 +1145,7 @@ const Organization: FC = () => {
                                 expandIcon: () => null,
                             }}
                         />
-                    </Space>
+                    </div>
 
                     <Modal
                         title={editingProvider ? "Edit SSO Provider" : "Add SSO Provider"}
@@ -1247,14 +1235,14 @@ const Organization: FC = () => {
                             </Text>
                         </Form>
                     </Modal>
-                </Card>
+                </section>
             ) : (
                 <UpgradePrompt
                     title="SSO Providers"
                     description="Configure identity providers for single sign-on (SSO) using OIDC to enable enterprise-grade authentication for your organization."
                 />
             )}
-        </Space>
+        </div>
     )
 }
 

@@ -1,21 +1,22 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
-import {PageLayout} from "@agenta/ui"
-import {Link} from "@phosphor-icons/react"
-import {Tag, Tooltip} from "antd"
+import {Tag} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
     DEFAULT_SETTINGS_TAB,
+    getSettingsTabDescription,
+    getSettingsTabDocs,
     getSettingsTabLabel,
     resolveSettingsTab,
+    type SettingsTabKey,
 } from "@/oss/components/pages/settings/assets/navigation"
+import SettingsPageShell from "@/oss/components/pages/settings/components/SettingsPageShell"
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import PageTitle from "@/oss/components/PageTitle"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
-import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useOrgData} from "@/oss/state/org"
 import {useProjectData} from "@/oss/state/project"
 import {settingsTabAtom} from "@/oss/state/settings"
@@ -76,6 +77,9 @@ interface SettingsProps {
     AuditLogComponent?: React.ComponentType
 }
 
+/** Tabs that render a form rather than a table, so they cap at 640 instead of 1120. */
+const FORM_TABS = new Set<SettingsTabKey>(["account", "preferences"])
+
 export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
@@ -85,7 +89,6 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const resolvedTab = resolveSettingsTab(tab, settingsAccess)
     const {project} = useProjectData()
     const {redirectUrl} = useURL()
-    const [isOrgIdCopied, setIsOrgIdCopied] = useState(false)
     const settingsKey = `${selectedOrg?.id ?? "org"}:${project?.project_id ?? "project"}`
 
     useEffect(() => {
@@ -94,32 +97,17 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
         }
     }, [project, redirectUrl])
 
-    const handleCopyOrgId = useCallback(async () => {
-        if (!selectedOrg?.id) return
-        await copyToClipboard(selectedOrg.id, false)
-        setIsOrgIdCopied(true)
-        setTimeout(() => setIsOrgIdCopied(false), 2000)
-    }, [selectedOrg?.id])
-
     const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
 
+    // The org ID has its own column now; the title only carries the demo marker.
     const buildOrganizationTitle = useCallback(
         (label: string) => (
             <div className="flex items-center gap-2">
                 <span>{label}</span>
-                <Tooltip title={isOrgIdCopied ? "Copied!" : "Click to copy organization ID"}>
-                    <Tag
-                        className="cursor-pointer flex items-center gap-1"
-                        onClick={handleCopyOrgId}
-                    >
-                        <Link size={14} weight="bold" />
-                        <span>Organization ID</span>
-                    </Tag>
-                </Tooltip>
                 {isDemoOrg && <Tag className="bg-[var(--ag-c-0517290F)] m-0 font-normal">demo</Tag>}
             </div>
         ),
-        [handleCopyOrgId, isDemoOrg, isOrgIdCopied],
+        [isDemoOrg],
     )
 
     const {content, title} = useMemo(() => {
@@ -192,16 +180,17 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     return (
         <>
             <PageTitle title="Settings" />
-            <PageLayout
+            <SettingsPageShell
                 key={settingsKey}
                 title={title}
-                // The Audit Log tab hosts a full-height InfiniteVirtualTable, which
-                // needs a bounded parent so it scrolls internally instead of growing
-                // the page. Other tabs keep PageLayout's default `min-h-full` flow.
-                className={resolvedTab === "auditLog" ? "h-full min-h-0" : undefined}
+                description={getSettingsTabDescription(resolvedTab, settingsAccess)}
+                docs={getSettingsTabDocs(resolvedTab)}
+                variant={FORM_TABS.has(resolvedTab) ? "form" : "full"}
+                // Audit Log's virtual table needs a bounded parent to scroll internally.
+                fullHeight={resolvedTab === "auditLog"}
             >
                 {content}
-            </PageLayout>
+            </SettingsPageShell>
         </>
     )
 }

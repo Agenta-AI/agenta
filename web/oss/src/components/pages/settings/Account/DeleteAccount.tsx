@@ -37,38 +37,59 @@ const DeleteAccount: React.FC = () => {
     }
 
     return (
-        <section className="flex flex-col gap-4 max-w-[640px]">
-            <div className="flex flex-col gap-1">
-                <Typography.Title level={5} className="!mb-0">
-                    Delete account
-                </Typography.Title>
-                <Typography.Text type="secondary">
-                    Permanently delete your account and the organizations you own. This cannot be
-                    undone.
-                </Typography.Text>
+        // The shell caps the column; this page only owns its own vertical rhythm.
+        <section className="flex flex-col gap-10">
+            {/* Read-only: username is set at sign-up, email is the sign-in identity. */}
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                    <Typography.Text strong>Username</Typography.Text>
+                    <Input value={user?.username ?? ""} readOnly className="max-w-[560px]" />
+                    <Typography.Text type="secondary" className="text-xs">
+                        How you appear in member lists and audit entries.
+                    </Typography.Text>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                    <Typography.Text strong>Email</Typography.Text>
+                    <Input value={email} readOnly className="max-w-[560px] font-mono" />
+                    <Typography.Text type="secondary" className="text-xs">
+                        Used for sign-in and for organization invitations.
+                    </Typography.Text>
+                </div>
             </div>
 
-            <div className="rounded-lg border border-[var(--ant-color-error-border)] bg-[var(--ant-color-error-bg)] px-4 py-3 flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                    <Typography.Text strong className="!text-[var(--ant-color-error)]">
-                        This action cannot be undone.
-                    </Typography.Text>
-                    <Typography.Paragraph className="!mb-0 text-[var(--ant-color-text)]">
-                        Deletes your account, every organization you own, and all of their
-                        workspaces, projects, applications, and data. You will be signed out
-                        immediately.
-                    </Typography.Paragraph>
-                </div>
-                <div>
-                    <Button
-                        danger
-                        type="primary"
-                        icon={<Trash size={14} />}
-                        onClick={() => setIsModalOpen(true)}
-                        disabled={!email}
-                    >
+                    <Typography.Title level={5} className="!mb-0">
                         Delete account
-                    </Button>
+                    </Typography.Title>
+                    <Typography.Text type="secondary">
+                        Permanently delete your account and the organizations you own.
+                    </Typography.Text>
+                </div>
+
+                <div className="rounded-lg border border-[var(--ant-color-error-border)] bg-[var(--ant-color-error-bg)] px-4 py-3 flex flex-col gap-3">
+                    <div className="flex flex-col gap-1">
+                        <Typography.Text strong className="!text-[var(--ant-color-error)]">
+                            This action cannot be undone.
+                        </Typography.Text>
+                        <Typography.Paragraph className="!mb-0 text-[var(--ant-color-text)]">
+                            Deletes your account, every organization you own, and all of their
+                            workspaces, projects, applications, and data. You will be signed out
+                            immediately.
+                        </Typography.Paragraph>
+                    </div>
+                    <div>
+                        <Button
+                            danger
+                            type="primary"
+                            icon={<Trash size={14} />}
+                            onClick={() => setIsModalOpen(true)}
+                            disabled={!email}
+                        >
+                            Delete account
+                        </Button>
+                    </div>
                 </div>
             </div>
 

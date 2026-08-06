@@ -1,11 +1,17 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
-import {MoreOutlined} from "@ant-design/icons"
-import {ArrowClockwise, GearSix, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
+import {
+    createStandardColumns,
+    InfiniteVirtualTableFeatureShell,
+    type StandardColumnDef,
+} from "@agenta/ui/table"
+import {EmptyState} from "@agenta/ui/ui"
+import {ArrowClockwise, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
+import {Button, Input, Tooltip, Typography, message} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
+import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import DeleteWebhookModal from "@/oss/components/Webhooks/Modals/DeleteWebhookModal"
 import SecretRevealModal from "@/oss/components/Webhooks/Modals/SecretRevealModal"
 import {
@@ -58,8 +64,14 @@ const formatDestination = (url?: string) => {
     return url
 }
 
+interface WebhookRow extends WebhookSubscription {
+    key: string
+    [extra: string]: unknown
+}
+
 const Webhooks: React.FC = () => {
     const [{data: webhooks, isPending: isLoading, refetch}] = useAtom(webhooksAtom)
+    const [searchTerm, setSearchTerm] = useState("")
     const setIsDrawerOpen = useSetAtom(isWebhookDrawerOpenAtom)
     const setEditingWebhook = useSetAtom(editingWebhookAtom)
     const testWebhookSubscription = useSetAtom(testWebhookAtom)
@@ -133,180 +145,191 @@ const Webhooks: React.FC = () => {
         setEditingWebhook(undefined)
     }, [setIsDrawerOpen, setEditingWebhook])
 
+    const rows = useMemo<WebhookRow[]>(() => {
+        const all = (webhooks ?? []).map((webhook) => ({...webhook, key: webhook.id}))
+        const term = searchTerm.trim().toLowerCase()
+        if (!term) return all
+        return all.filter((webhook) =>
+            [webhook.name, webhook.data?.url].some((value) => value?.toLowerCase().includes(term)),
+        )
+    }, [webhooks, searchTerm])
+
     const columns = useMemo(
-        () => [
-            {
-                title: "Name",
-                dataIndex: "name",
-                key: "name",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (name: string | undefined) => (
-                    <Typography.Text>{name || "-"}</Typography.Text>
-                ),
-            },
-            {
-                title: "Type",
-                key: "provider",
-                onHeaderCell: () => ({
-                    style: {minWidth: 100},
-                }),
-                render: (_: any, record: WebhookSubscription) => {
-                    const provider = getProviderLabel(record.data?.url)
-                    return (
-                        <Typography.Text>
-                            {provider === "github" ? "GitHub" : "Webhook"}
-                        </Typography.Text>
-                    )
+        () =>
+            createStandardColumns<WebhookRow>([
+                {
+                    type: "text",
+                    key: "name",
+                    title: "Name",
+                    width: 200,
+                    render: (_value, record) => (
+                        <Typography.Text>{record.name || "-"}</Typography.Text>
+                    ),
                 },
-            },
-            {
-                title: "Target",
-                dataIndex: ["data", "url"],
-                key: "url",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (url?: string) => (
-                    <Typography.Text ellipsis style={{maxWidth: 320}} title={url}>
-                        {formatDestination(url)}
-                    </Typography.Text>
-                ),
-            },
-            {
-                title: "Events",
-                dataIndex: ["data", "event_types"],
-                key: "events",
-                onHeaderCell: () => ({
-                    style: {minWidth: 160},
-                }),
-                render: (events?: string[]) => {
-                    const value = events?.join(", ") || "-"
-                    return (
-                        <Typography.Text ellipsis style={{maxWidth: 260}} title={value}>
-                            {value}
-                        </Typography.Text>
-                    )
+                {
+                    type: "text",
+                    key: "provider",
+                    title: "Type",
+                    width: 110,
+                    render: (_value, record) =>
+                        getProviderLabel(record.data?.url) === "github" ? "GitHub" : "Webhook",
                 },
-            },
-            {
-                title: "Status",
-                key: "status",
-                onHeaderCell: () => ({
-                    style: {minWidth: 100},
-                }),
-                render: (_: any, record: WebhookSubscription) =>
-                    isWebhookActive(record) ? <Tag color="green">Active</Tag> : <Tag>Paused</Tag>,
-            },
-            {
-                title: <GearSix size={16} />,
-                key: "actions",
-                width: 96,
-                fixed: "right" as const,
-                align: "center" as const,
-                render: (_: any, record: WebhookSubscription) => (
-                    <div className="flex items-center justify-center gap-1">
-                        <ActiveToggle
-                            active={isWebhookActive(record)}
-                            onToggle={handleToggle(record)}
-                            activatedMessage="Webhook resumed"
-                            pausedMessage="Webhook paused"
-                            errorMessage="Failed to update webhook"
-                        />
-                        <Dropdown
-                            trigger={["click"]}
-                            styles={{root: {width: 180}}}
-                            menu={{
-                                items: [
-                                    {
-                                        key: "test",
-                                        label: "Test",
-                                        icon: <Play size={16} />,
-                                        disabled: testingWebhookId !== null,
-                                        onClick: (e: any) => {
-                                            e.domEvent.stopPropagation()
-                                            handleTestWebhook(record)
-                                        },
-                                    },
-                                    {
-                                        key: "edit",
-                                        label: "Edit",
-                                        icon: <PencilSimpleLine size={16} />,
-                                        onClick: (e: any) => {
-                                            e.domEvent.stopPropagation()
-                                            handleEdit(record)
-                                        },
-                                    },
-                                    {type: "divider" as const},
-                                    {
-                                        key: "delete",
-                                        label: "Delete",
-                                        icon: <Trash size={16} />,
-                                        danger: true,
-                                        onClick: (e: any) => {
-                                            e.domEvent.stopPropagation()
-                                            handleDeleteClick(record)
-                                        },
-                                    },
-                                ],
-                            }}
-                        >
-                            <Button
-                                type="text"
-                                icon={<MoreOutlined />}
-                                loading={testingWebhookId === record.id}
-                                aria-label="Open webhook actions"
-                                onClick={(e) => e.stopPropagation()}
+                {
+                    type: "text",
+                    key: "url",
+                    title: "Target",
+                    width: 320,
+                    render: (_value, record) => {
+                        const url = record.data?.url
+                        return (
+                            <span className="truncate" title={url}>
+                                {formatDestination(url)}
+                            </span>
+                        )
+                    },
+                },
+                {
+                    type: "text",
+                    key: "events",
+                    title: "Events",
+                    width: 220,
+                    render: (_value, record) => {
+                        const value = record.data?.event_types?.join(", ") || "-"
+                        return (
+                            <span className="truncate" title={value}>
+                                {value}
+                            </span>
+                        )
+                    },
+                },
+                {
+                    // The toggle shows the state and changes it, so it lives in Status.
+                    type: "text",
+                    key: "status",
+                    title: "Status",
+                    width: 120,
+                    render: (_value, record) => (
+                        <div onClick={(event) => event.stopPropagation()}>
+                            <ActiveToggle
+                                active={isWebhookActive(record)}
+                                onToggle={handleToggle(record)}
+                                activatedMessage="Webhook resumed"
+                                pausedMessage="Webhook paused"
+                                errorMessage="Failed to update webhook"
                             />
-                        </Dropdown>
-                    </div>
-                ),
-            },
-        ],
+                        </div>
+                    ),
+                },
+                {
+                    type: "actions",
+                    showCopyId: false,
+                    items: [
+                        {
+                            key: "test",
+                            label: "Test",
+                            icon: <Play size={16} />,
+                            disabled: () => testingWebhookId !== null,
+                            onClick: (record: WebhookRow) => handleTestWebhook(record),
+                        },
+                        {
+                            key: "edit",
+                            label: "Edit",
+                            icon: <PencilSimpleLine size={16} />,
+                            onClick: (record: WebhookRow) => handleEdit(record),
+                        },
+                        {type: "divider"},
+                        {
+                            key: "delete",
+                            label: "Delete",
+                            icon: <Trash size={16} />,
+                            danger: true,
+                            onClick: (record: WebhookRow) => handleDeleteClick(record),
+                        },
+                    ],
+                } satisfies StandardColumnDef<WebhookRow>,
+            ]),
         [handleDeleteClick, handleEdit, handleTestWebhook, handleToggle, testingWebhookId],
     )
 
+    const {tableScope, pagination} = useStaticTable<WebhookRow>("settings-webhooks", rows)
     return (
-        <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-                <Button
-                    type="primary"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    onClick={handleCreate}
-                >
-                    Subscribe
-                </Button>
-                <Tooltip title="Reload all webhooks">
-                    <Button
-                        icon={<ArrowClockwise size={14} />}
-                        type="text"
-                        size="small"
-                        aria-label="Reload all webhooks"
-                        loading={reloading}
-                        onClick={reloadAll}
-                    />
-                </Tooltip>
-            </div>
-
-            <Table
+        <div className="flex flex-col gap-2">
+            <InfiniteVirtualTableFeatureShell<WebhookRow>
+                tableScope={tableScope}
+                autoHeight={false}
                 columns={columns}
-                dataSource={webhooks ?? []}
-                loading={isLoading}
-                rowKey="id"
-                bordered
-                pagination={false}
-                onRow={(record) => ({
-                    onClick: () => handleEdit(record),
-                    style: {cursor: "pointer"},
-                })}
+                rowKey={(record) => record.id}
+                pagination={pagination}
+                filters={
+                    <Input.Search
+                        placeholder="Search webhooks"
+                        className="w-[260px]"
+                        allowClear
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                }
+                primaryActions={
+                    <>
+                        <Tooltip title="Reload all webhooks">
+                            <Button
+                                icon={<ArrowClockwise size={14} />}
+                                type="default"
+                                aria-label="Reload all webhooks"
+                                loading={reloading}
+                                onClick={reloadAll}
+                            />
+                        </Tooltip>
+                        <Button type="primary" icon={<Plus size={14} />} onClick={handleCreate}>
+                            Subscribe
+                        </Button>
+                    </>
+                }
+                tableProps={{
+                    size: "small",
+                    bordered: true,
+                    tableLayout: "fixed",
+                    loading: isLoading,
+                    locale: {
+                        emptyText: searchTerm.trim() ? (
+                            <EmptyState
+                                className="py-12"
+                                image="simple"
+                                description={`No webhooks match “${searchTerm.trim()}”`}
+                            />
+                        ) : (
+                            <EmptyState
+                                className="py-12"
+                                image="simple"
+                                description={
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-base font-semibold text-colorText">
+                                            No webhooks yet
+                                        </span>
+                                        <span>
+                                            Subscribe an endpoint to receive workflow events as
+                                            signed HTTP requests.
+                                        </span>
+                                    </div>
+                                }
+                            >
+                                <Button icon={<Plus size={14} />} onClick={handleCreate}>
+                                    Subscribe
+                                </Button>
+                            </EmptyState>
+                        ),
+                    },
+                    onRow: (record: WebhookRow) => ({
+                        onClick: () => handleEdit(record),
+                        className: "cursor-pointer",
+                    }),
+                }}
             />
 
             <WebhookDrawer onSuccess={handleModalSuccess} />
             <DeleteWebhookModal />
             <SecretRevealModal />
-        </section>
+        </div>
     )
 }
 
