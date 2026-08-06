@@ -4,6 +4,8 @@ Pins ``contracts/read-config.md``: partial reads at every depth with the change-
 grammar, the read scope, refuse-not-truncate with a `children` listing, and the draft echo.
 """
 
+from uuid import uuid4
+
 import pytest
 
 from oss.src.core.workflows.change_set import Reason
@@ -302,3 +304,80 @@ class TestChildrenAndDraft:
 
     def test_the_draft_warning_survives_an_unknown_version(self):
         assert draft_warning(None)["code"] == "draft_run"
+
+
+# --------------------------------------------------------------------------------------
+# The response envelope
+# --------------------------------------------------------------------------------------
+
+
+class TestTheResponseCarriesTheWarnings:
+    """A read that earns a warning must still answer 200.
+
+    The service hands the route `ConfigReadOutcome.warnings`, which is typed
+    `List[CommitWarning]`. The response declared bare dicts, so every draft read raised a
+    validation error inside the route and the caller saw a 500 instead of its config.
+    """
+
+    def _outcome(self, **kwargs):
+        from oss.src.core.workflows.dtos import ConfigReadOutcome, WorkflowRevision
+
+        return ConfigReadOutcome(
+            revision=WorkflowRevision(id=uuid4(), slug="v", version="3"),
+            path=[],
+            value=config(),
+            bytes=12,
+            **kwargs,
+        )
+
+    def _response(self, outcome):
+        from oss.src.apis.fastapi.workflows.models import (
+            ReadConfigResponse,
+            ReadConfigRevision,
+        )
+
+        return ReadConfigResponse(
+            revision=ReadConfigRevision(id=str(outcome.revision.id)),
+            base_revision_id=str(outcome.revision.id),
+            is_draft=outcome.is_draft,
+            path=outcome.path,
+            value=outcome.value,
+            bytes=outcome.bytes,
+            warnings=outcome.warnings or None,
+        )
+
+    def test_a_draft_read_serializes_through_the_response(self):
+        outcome = self._outcome(
+            is_draft=True,
+            warnings=[draft_warning("3")],
+        )
+
+        payload = self._response(outcome).model_dump(mode="json", exclude_none=True)
+
+        assert payload["is_draft"] is True
+        assert payload["warnings"][0]["code"] == "draft_run"
+        assert "committed head" in payload["warnings"][0]["message"]
+
+    def test_a_read_without_warnings_omits_the_field(self):
+        payload = self._response(self._outcome()).model_dump(
+            mode="json", exclude_none=True
+        )
+
+        assert "warnings" not in payload
+
+    def test_a_targeted_warning_keeps_its_target(self):
+        from oss.src.core.workflows.dtos import CommitWarning
+
+        outcome = self._outcome(
+            warnings=[
+                CommitWarning(
+                    code="truncated",
+                    message="The value was too large to return whole.",
+                    target=AGENT + ["skills"],
+                )
+            ]
+        )
+
+        payload = self._response(outcome).model_dump(mode="json", exclude_none=True)
+
+        assert payload["warnings"][0]["target"] == AGENT + ["skills"]
