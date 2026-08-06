@@ -1558,12 +1558,19 @@ class WorkflowsRouter:
                 workflow_variant_id=UUID(variant_id),
                 path=read_config_request.target.path,
                 max_bytes=read_config_request.max_bytes,
-                run_is_draft=read_config_request.target.run_is_draft,
             )
         except ReadConfigError as e:
             raise HTTPException(status_code=e.status_code, detail=e.to_detail()) from e
 
+        # The core read reports what is STORED and nothing about who is asking; whether the
+        # run is a draft belongs to the run. The handler decorates its own answer the same
+        # way, and this route keeps doing it identically until it is deleted.
+        run_is_draft = bool(read_config_request.target.run_is_draft)
+        warnings = list(outcome.warnings)
         revision = outcome.revision
+        if run_is_draft:
+            warnings.append(draft_warning(getattr(revision, "version", None)))
+
         return ReadConfigResponse(
             revision=ReadConfigRevision(
                 id=str(revision.id),
@@ -1575,11 +1582,11 @@ class WorkflowsRouter:
             # The value the agent must copy into its next commit; the commit answers 409
             # when the head moved, which is what makes read-then-edit safe.
             base_revision_id=str(revision.id),
-            is_draft=outcome.is_draft,
+            is_draft=run_is_draft,
             path=outcome.path,
             value=outcome.value,
             bytes=outcome.bytes,
-            warnings=outcome.warnings or None,
+            warnings=warnings or None,
         )
 
     @intercept_exceptions()

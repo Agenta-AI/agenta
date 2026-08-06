@@ -30,6 +30,7 @@ if present:
         read_only=op.read_only,
         path=op.path,
         method=op.method,
+        handler=op.handler,
         bindings=sorted(op.context_bindings),
         top_keys=sorted(schema["properties"]),
         target_keys=sorted(schema["properties"]["target"]["properties"]),
@@ -82,9 +83,13 @@ class TestCatalogEntry:
     def test_it_is_a_read(self, catalog_on):
         assert catalog_on["read_only"] is True
 
-    def test_it_targets_the_read_config_endpoint(self, catalog_on):
-        assert catalog_on["method"] == "POST"
-        assert catalog_on["path"] == "/api/workflows/revisions/read-config"
+    def test_it_dispatches_to_the_handler_not_a_public_route(self, catalog_on):
+        # There is no public read-config endpoint any more: every detail of it was
+        # agent-shaped and no second consumer existed, so the logic moved behind a
+        # registered handler reached through the generic /tools/call.
+        assert catalog_on["handler"] == "tools.agenta.read_config"
+        assert catalog_on["method"] is None
+        assert catalog_on["path"] is None
 
     def test_it_carries_a_timeout(self, catalog_on):
         assert catalog_on["timeout_ms"] == 15000
