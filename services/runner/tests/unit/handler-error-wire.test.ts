@@ -46,7 +46,8 @@
  * and delete the trap test in the same change that makes the runner treat `STATUS_CODE_ERROR` as
  * authoritative.
  *
- * SHAPE STATUS: CONFIRMED by verify-api ahead of their milestone 2. The envelope sits DIRECTLY in
+ * SHAPE STATUS: LIVE. Milestone 3 registered both call_refs, so the envelope below is what
+ * `handle_read_config` and `handle_commit_revision` actually emit rather than what was agreed. The envelope sits DIRECTLY in
  * `content` with no wrapper and no nested `reason`; an expected domain failure is always HTTP 200
  * with `STATUS_CODE_ERROR`; `code`, `message` and `retryable` are always present, `next_step`
  * whenever `retryable` is true and sometimes when it is false, and every error-specific field
@@ -189,8 +190,9 @@ describe("a handler-mode domain failure on the way to the model", () => {
     assert.ok(error.includes("revision_conflict"), "the content survives");
   });
 
-  it.skip("the guarantee: it arrives as an ERROR carrying code, next_step and details", async () => {
-    // UNSKIP WITH STEP 8. This is the acceptance test for the migration's P0. It fails today.
+  it("the guarantee: it arrives as an ERROR carrying code, next_step and details", async () => {
+    // The acceptance test for the migration's P0, unskipped now that milestone 3 makes the
+    // envelope real rather than agreed.
     //
     // What it demands, and why each part:
     //  - `ok: false`, because that is the only thing the shim turns into `isError: true`. Without
@@ -268,10 +270,10 @@ describe("a handler-mode domain failure on the way to the model", () => {
     );
   });
 
-  it.skip("a SUCCESS still reads as a success, so the fix cannot fail everything closed", async () => {
-    // UNSKIP WITH STEP 8. The control. A guard that turned every handler result into an error
-    // would satisfy every test above and break the product, so the success arm is pinned beside
-    // them. The payload is `ReadConfigResponse`, which is what `content` carries on this op.
+  it("a SUCCESS still reads as a success, so the fix cannot fail everything closed", async () => {
+    // The control. A guard that turned every handler result into an error would satisfy every
+    // test above and break the product, so the success arm is pinned beside them. The payload is
+    // `ReadConfigResponse`, which is what `handle_read_config` puts in `content`.
     answerWith(
       {
         revision: { id: "019c-old" },
