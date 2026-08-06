@@ -68,6 +68,12 @@ from oss.src.core.workflows.service import WorkflowsService
 
 AGENTA_TOOL_CALL_REF_PREFIX = "tools.agenta."
 TEST_RUN_CALL_REF = "tools.agenta.test_run"
+# The read is bounded work against one revision; the commit is one transaction. Neither
+# needs test_run's budget, which exists because it invokes a child workflow.
+READ_CONFIG_DEFAULT_TIMEOUT_MS = 15_000
+COMMIT_REVISION_DEFAULT_TIMEOUT_MS = 30_000
+READ_CONFIG_CALL_REF = "tools.agenta.read_config"
+COMMIT_REVISION_CALL_REF = "tools.agenta.commit_revision"
 TEST_RUN_DEFAULT_TIMEOUT_MS = 120_000
 TEST_RUN_SERVER_TIMEOUT_CEILING_MS = 120_000
 TEST_RUN_RECURSION_HEADER = "x-agenta-run-kind"
@@ -609,6 +615,248 @@ def _verdict(
 
 
 # ---------------------------------------------------------------------------
+# read_config / commit_revision — the agent's own configuration, in-process
+# ---------------------------------------------------------------------------
+#
+# These ran as two public routes (`/workflows/revisions/read-config` and
+# `/workflows/revisions/commit/agent`). Every detail of both was agent-shaped, there was no
+# second consumer, and their agent-only behavior leaked onto the general commit path. They
+# are handlers now, reached through the one `/tools/call` seam like `test_run`, so the
+# public API carries no agent-specific surface and one error contract covers everything.
+
+
+def _parse_arguments(arguments: Any) -> Dict[str, Any]:
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError as e:
+            raise PlatformToolHandlerRefused("arguments must be a JSON object.") from e
+    if not isinstance(arguments, dict):
+        raise PlatformToolHandlerRefused("arguments must be a JSON object.")
+    return arguments
+
+
+def _bound_variant_id(arguments: Dict[str, Any], *, key: str) -> UUID:
+    """The variant the run is bound to, filled server-side from run context.
+
+    Fails CLOSED. The binding is what stops an agent editing a different variant, so a
+    missing one is refused rather than defaulted: a handler that guessed here would be a
+    handler that edits whatever it happens to find.
+    """
+    target = arguments.get(key)
+    raw = target.get("workflow_variant_id") if isinstance(target, dict) else None
+    if not raw:
+        raise PlatformToolHandlerRefused(
+            f"{key}.workflow_variant_id is bound from the run and was missing."
+        )
+    try:
+        return UUID(str(raw))
+    except ValueError as e:
+        raise PlatformToolHandlerRefused(
+            f"{key}.workflow_variant_id is not a valid id."
+        ) from e
+
+
+async def handle_read_config(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = READ_CONFIG_DEFAULT_TIMEOUT_MS,
+) -> PlatformHandlerResult:
+    from oss.src.apis.fastapi.workflows.models import (
+        ReadConfigResponse,
+        ReadConfigRevision,
+    )
+    from oss.src.core.workflows.read_config import ReadConfigError
+
+    if workflows_service is None:
+        raise PlatformToolHandlerRefused("read_config is unavailable.")
+
+    parsed = _parse_arguments(arguments)
+    variant_id = _bound_variant_id(parsed, key="target")
+    target = parsed.get("target") or {}
+
+    try:
+        outcome = await workflows_service.read_workflow_revision_config(
+            project_id=project_id,
+            workflow_variant_id=variant_id,
+            path=target.get("path"),
+            max_bytes=parsed.get("max_bytes"),
+            run_is_draft=target.get("run_is_draft"),
+        )
+    except ReadConfigError as e:
+        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
+
+    revision = outcome.revision
+    return PlatformHandlerResult(
+        content=ReadConfigResponse(
+            revision=ReadConfigRevision(
+                id=str(revision.id),
+                version=getattr(revision, "version", None),
+                workflow_variant_id=str(getattr(revision, "variant_id", "") or "")
+                or None,
+                created_at=str(getattr(revision, "created_at", "") or "") or None,
+            ),
+            base_revision_id=str(revision.id),
+            is_draft=outcome.is_draft,
+            path=outcome.path,
+            value=outcome.value,
+            bytes=outcome.bytes,
+            warnings=outcome.warnings or None,
+        )
+    )
+
+
+async def handle_commit_revision(
+    *,
+    arguments: Any,
+    headers: Any = None,
+    project_id: UUID,
+    user_id: UUID,
+    workflows_service: Optional[WorkflowsService],
+    tracing_service: Optional[TracingService] = None,
+    timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+) -> PlatformHandlerResult:
+    """The agent's commit. Confined to `parameters.agent`, minus the platform-owned paths.
+
+    The confinement is a property of THIS ENTRY POINT, not of anything in the request, and
+    that is what makes it unforgeable: the agent never picks the call_ref (it comes from the
+    server-side op catalog), the runner makes the call from outside the sandbox, and the
+    sandbox holds no credential. There is no field an agent can set to widen its own scope.
+
+    Enforcement still happens inside the engine, through `scope_policy`, because the engine
+    sees the RESULT of an operation. A check here would see only what the agent named, and
+    an operation that writes an ancestor object can change a refused path without naming it.
+    """
+    from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+    from oss.src.core.git.types import CommitLockTimeout, VariantNotFound
+    from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
+    from oss.src.core.workflows.dtos import WorkflowRevisionCommit
+    from oss.src.core.workflows.service import RevisionConflictError
+    from oss.src.core.workflows.types import StaticWorkflowSlug
+
+    if workflows_service is None:
+        raise PlatformToolHandlerRefused("commit_revision is unavailable.")
+
+    parsed = _parse_arguments(arguments)
+    variant_id = _bound_variant_id(parsed, key="workflow_revision")
+    payload = dict(parsed.get("workflow_revision") or {})
+    payload["workflow_variant_id"] = str(variant_id)
+
+    # A whole configuration carries every field the scope exists to protect, so the shape
+    # is refused rather than filtered. The agent's tool only ever sends a delta.
+    if payload.get("delta") is None:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="full_data_not_committable",
+                message=(
+                    "This tool commits a change to your configuration, not a whole "
+                    "configuration."
+                ),
+                retryable=False,
+                next_step=(
+                    "Send the change as `delta`, targeting the fields you want to alter."
+                ),
+            )
+        )
+
+    # `description` here is the PERSISTED revision description, which the model never sets.
+    # It shares its name with the ephemeral per-call note the runner strips before dispatch,
+    # so one arriving means the runner did not strip it; storing it would put an ephemeral
+    # note into the audit trail.
+    payload.pop("description", None)
+
+    try:
+        commit = WorkflowRevisionCommit(**payload)
+    except Exception as e:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="commit_payload_invalid",
+                message=str(e),
+                retryable=False,
+                next_step="Correct the fields named above and send the commit again.",
+            )
+        )
+
+    try:
+        outcome = await workflows_service.commit_workflow_revision_checked(
+            project_id=project_id,
+            user_id=user_id,
+            workflow_revision_commit=commit,
+            scope_policy=AGENT_COMMIT_SCOPE,
+        )
+    except ChangeSetError as e:
+        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
+    except RevisionConflictError as e:
+        return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
+    except CommitLockTimeout as e:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="commit_lock_timeout",
+                message=e.message,
+                # The write never happened, so the identical call can win the lock next
+                # time. One of the few genuinely replayable failures.
+                retryable=True,
+                next_step=(
+                    "Wait for the commit in flight to finish, then send this commit again."
+                ),
+            )
+        )
+    except VariantNotFound as e:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="workflow_variant_not_found",
+                message=e.message,
+                retryable=False,
+            )
+        )
+    except NonEmbeddableWorkflowReferenceError as e:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="non_embeddable_reference",
+                message=str(e),
+                retryable=False,
+                next_step=(
+                    "Remove the embedded reference to that workflow and send the commit "
+                    "again."
+                ),
+            )
+        )
+    except StaticWorkflowSlug as e:
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="static_workflow_slug",
+                message=str(e),
+                retryable=False,
+            )
+        )
+
+    revision = outcome.revision
+    if outcome.status == "committed" and not revision:
+        # The write layer reported success and produced nothing. Not retryable and no next
+        # step: retrying a write whose state is unknown invites a duplicate commit.
+        return PlatformHandlerResult.failure(
+            AgentError(
+                code="commit_failed",
+                message="The commit did not produce a revision.",
+                retryable=False,
+            )
+        )
+
+    return PlatformHandlerResult(
+        content={
+            "status": outcome.status,
+            "workflow_revision": revision.model_dump(mode="json") if revision else None,
+            "warnings": [w.model_dump(mode="json") for w in outcome.warnings],
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Registry — the only handlers a reserved call_ref can reach, plus their
 # per-handler policy (timeout budget, elevation). The API boundary consults
 # ``required_elevated_permission`` before ``dispatch_platform_tool_handler``.
@@ -646,7 +894,25 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         # permission as committing one.
         elevated_permission=Permission.EDIT_WORKFLOWS,
         requires_elevation=_arguments_include_delta,
-    )
+    ),
+    # Both are UNCONDITIONALLY elevated: `requires_elevation` is left unset, which the
+    # boundary reads as "always". This is a deliberate change from the routes these
+    # replace, and it is a tightening rather than a loosening: the routes required
+    # VIEW_WORKFLOWS and EDIT_WORKFLOWS on their own, and RUN_TOOLS alone never reached
+    # them. Keeping the requirement means a caller who can run tools still cannot read or
+    # rewrite a configuration without the permission that governs configurations.
+    READ_CONFIG_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=READ_CONFIG_CALL_REF,
+        timeout_ms=READ_CONFIG_DEFAULT_TIMEOUT_MS,
+        handler=handle_read_config,
+        elevated_permission=Permission.VIEW_WORKFLOWS,
+    ),
+    COMMIT_REVISION_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=COMMIT_REVISION_CALL_REF,
+        timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+        handler=handle_commit_revision,
+        elevated_permission=Permission.EDIT_WORKFLOWS,
+    ),
 }
 
 
