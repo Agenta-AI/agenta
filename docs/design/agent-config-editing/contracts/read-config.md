@@ -27,8 +27,7 @@ The tool is playground-only, like the other builder tools. A shared agent does n
 PlatformOp(
     op="read_config",
     description=_READ_CONFIG_DESCRIPTION,
-    method="POST",
-    path="/api/workflows/revisions/read-config",
+    handler="tools.agenta.read_config",   # dispatched by POST /tools/call
     input_schema=_READ_CONFIG_INPUT_SCHEMA,
     context_bindings={
         "target.workflow_variant_id": "$ctx.workflow.variant.id",
@@ -105,9 +104,10 @@ claims the behavior the code does not have: "a token that does not resolve is le
 A reader who trusts the comment will design another broken binding, exactly as this
 contract did. Correct the comment even if nothing else changes.
 
-The op needs a new endpoint. The existing retrieve endpoint returns a whole revision. It
+The op needs its own logic. The existing retrieve endpoint returns a whole revision: it
 cannot do partial reads, it cannot receive these bindings, and it returns fields the model
-must not see.
+must not see. That logic first shipped as a dedicated route and now lives in a registered
+handler; section 16 records the move and why.
 
 ## 3. The request
 
@@ -449,7 +449,7 @@ passed. There are two commit routes over the same handler flow:
 
 | Route | Caller | Policy |
 |---|---|---|
-| `POST /api/workflows/revisions/commit/agent` | the `commit_revision` platform tool | `AGENT_COMMIT_SCOPE` |
+| handler `tools.agenta.commit_revision` (via `POST /tools/call`) | the `commit_revision` platform tool | `AGENT_COMMIT_SCOPE` |
 | `POST /api/workflows/revisions/commit` | a human or SDK caller | none |
 | (not built) a run override, RFC Q6 | out of scope for v1 | `PARAMETERS_ONLY` |
 
@@ -588,3 +588,27 @@ Section 2.2 records the optional-binding marker as a later option, and it report
 found while checking this: the `assembleBody` docstring at
 `services/runner/src/tools/direct.ts:208` describes an absent binding as "left unset",
 while the code throws. The comment misled this contract once already. Fix it.
+
+## 16. The routes are gone; both ops are handlers
+
+`POST /api/workflows/revisions/read-config` and `POST /api/workflows/revisions/commit/agent`
+no longer exist. Both are handler-mode platform ops now, reached by call_ref through the
+generic `POST /tools/call`, with their logic running in the API process.
+
+The reason is the one this whole contract kept running into: every detail of both routes was
+agent-shaped. The bounded read, the refuse-rather-than-truncate answer, the scope
+confinement, the full-data refusal, the bound variant id. Neither had a second consumer, and
+carrying them on the public API meant agent policy leaking onto paths that never asked for
+it.
+
+What did NOT change is the confinement or why it is unforgeable. The agent never chooses the
+call_ref (it comes from the server-side op catalog), the runner makes the call from outside
+the sandbox, and the sandbox holds no credential. Scope enforcement still travels as
+`scope_policy` into the engine, which sees the RESULT of an operation, because a check at the
+handler would see only what the agent named.
+
+Two behaviors moved with the transport. Whether the run is a draft is bound from run context
+rather than sent as a request field, so a caller can no longer assert it about itself. And
+every expected failure now returns the canonical envelope (`api/AGENTS.md`) in
+`ToolResult.content` with `STATUS_CODE_ERROR` over HTTP 200, because the runner hides non-2xx
+tool bodies and a failure the model cannot see is a failure it invents an explanation for.
