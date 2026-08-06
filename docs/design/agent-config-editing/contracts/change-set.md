@@ -444,8 +444,9 @@ Removes one existing entry. A missing entry is `item_not_found`.
 
 ## 6. Markers, and the shape of a committed value
 
-Sections 6.1 to 6.6 are the `@ag.file` marker. 6.7 and 6.8 are the rules that keep every
-other value committable: which markers exist at all, and how deep a value may nest.
+Sections 6.1 to 6.6 are the `@ag.file` marker. 6.7 to 6.9 are the rules that keep every
+other value committable: which markers exist at all, how deep a value may nest, and the
+platform-guidance block that must never be stored.
 
 ### 6.1 The shape
 
@@ -581,6 +582,43 @@ The check runs before anything else touches the delta, because `deepcopy` and th
 walk are themselves recursive passes: a guard placed after either of them is a guard the
 overflow reaches first. It measures depth iteratively, since a recursive depth check is the
 same overflow one frame earlier.
+
+### 6.9 The platform-guidance block is stripped, never stored
+
+The runner appends a fenced block of platform guidance to the instructions file it renders
+into the agent's workspace, on every harness. The stored configuration never contains it:
+it is injected at render time and belongs to the platform, not to the user.
+
+```
+<!-- agenta:platform-guidance:start -->
+...guidance the runner wrote...
+<!-- agenta:platform-guidance:end -->
+```
+
+A model that copies the rendered file back into a commit would store that guidance as the
+user's configuration. So every committed STRING, at any depth, in either delta form and in a
+full-data commit, has the block removed before the value is stored. The whitespace at each
+junction collapses to one blank line and trailing whitespace goes, which makes the strip
+idempotent: a value that has been through it once is stable.
+
+The removal is silent to the model and visible to the human. There is no refusal and no
+reason code, because the model did nothing wrong and an error it has to recover from would
+cost a turn teaching it something it cannot act on. A `platform_guidance_stripped` warning
+names the field, so the removal appears in the response.
+
+Two delimiter cases are decided rather than left to chance. An unmatched OPENING fence strips
+to the end of the string, because whatever follows an opener is guidance whose closer was
+lost. An unmatched CLOSING fence is left as plain text: it is inert without its opener, and
+deleting on the strength of it would let one stray line remove a user's own content.
+
+An `edit_text` anchor copied out of a stripped region is not special-cased. The block is not
+in the stored text, so the anchor misses and earns the ordinary `text_not_found`, which
+already tells the agent to copy its anchor from the configuration it read.
+
+The two literals are the contract with the runner's
+`services/runner/src/engines/sandbox_agent/system-prompt-appendix.ts`. A test pins them on
+this side so neither side can change the fence alone: a fence that no longer matches is not a
+parse error, it is guidance stored as configuration.
 
 ## 7. Application and atomicity
 
