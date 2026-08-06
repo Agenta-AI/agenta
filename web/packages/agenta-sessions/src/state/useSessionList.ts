@@ -7,10 +7,9 @@ import {
     type SessionInteraction,
     type SessionListCursor,
 } from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
 import {keepPreviousData, useInfiniteQuery, useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
-
-import {projectIdAtom} from "@/oss/state/project"
 
 import {type SessionStatusFilter} from "./filters"
 

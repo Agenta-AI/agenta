@@ -1,6 +1,11 @@
 import {memo, useCallback, useMemo} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
+import {sessionPreviewText} from "@agenta/sessions/row"
+import {pendingGateLabel, sessionRowStatus} from "@agenta/sessions/row"
+import {sessionRowTitle} from "@agenta/sessions/row"
+import {sessionTriggerName} from "@agenta/sessions/row"
+import type {SessionPending} from "@agenta/sessions/state"
 import {DotsThreeIcon, PushPinIcon, PushPinSlashIcon} from "@phosphor-icons/react"
 import {Button, Dropdown, Tooltip} from "antd"
 import clsx from "clsx"
@@ -8,12 +13,6 @@ import clsx from "clsx"
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import type {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
-
-import {sessionPreviewText} from "../assets/sessionPreview"
-import {pendingGateLabel, sessionRowStatus} from "../assets/sessionRowStatus"
-import {sessionRowTitle} from "../assets/sessionRowTitle"
-import {sessionTriggerName} from "../assets/sessionTrigger"
-import type {SessionPending} from "../state/useSessionList"
 
 import SessionAgentLabel from "./SessionAgentLabel"
 

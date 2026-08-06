@@ -1,6 +1,23 @@
 import {useCallback, useMemo} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
+import {
+    resetSessionFiltersAtom,
+    sessionAgentFilterAtom,
+    sessionFiltersActiveAtom,
+    sessionFiltersActiveExceptAgentAtom,
+    sessionSearchAtom,
+    sessionShowArchivedAtom,
+    sessionShowTriggeredAtom,
+    sessionStatusFilterAtom,
+} from "@agenta/sessions/state"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {
+    pendingBySessionId,
+    rowsFromPages,
+    useActionableInteractions,
+    useSessionList,
+} from "@agenta/sessions/state"
 import {PageLayout} from "@agenta/ui"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -17,23 +34,6 @@ import {projectIdAtom} from "@/oss/state/project"
 
 import SessionFiltersRail from "./components/SessionFiltersRail"
 import SessionRow from "./components/SessionRow"
-import {
-    resetSessionFiltersAtom,
-    sessionAgentFilterAtom,
-    sessionFiltersActiveAtom,
-    sessionFiltersActiveExceptAgentAtom,
-    sessionSearchAtom,
-    sessionShowArchivedAtom,
-    sessionShowTriggeredAtom,
-    sessionStatusFilterAtom,
-} from "./state/filters"
-import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "./state/pins"
-import {
-    pendingBySessionId,
-    rowsFromPages,
-    useActionableInteractions,
-    useSessionList,
-} from "./state/useSessionList"
 import {SessionListEmpty, SessionListError, SessionListSkeleton} from "./states/SessionListStates"
 
 interface Props {

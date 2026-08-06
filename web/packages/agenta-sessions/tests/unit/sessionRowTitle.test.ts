@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {sessionRowTitle} from "./sessionRowTitle"
+import {sessionRowTitle} from "../../src/row/sessionRowTitle"
 
 describe("sessionRowTitle", () => {
     it("leads with the name when there is one", () => {

@@ -1,8 +1,3 @@
-import {MagnifyingGlassIcon} from "@phosphor-icons/react"
-import {Input, Select, Switch, Tooltip, Typography} from "antd"
-import {useAtom, useAtomValue} from "jotai"
-
-import {agentsWorkflowsAtom} from "../../agents/store"
 import {
     sessionAgentFilterAtom,
     sessionSearchAtom,
@@ -10,7 +5,12 @@ import {
     sessionShowTriggeredAtom,
     sessionStatusFilterAtom,
     type SessionStatusFilter,
-} from "../state/filters"
+} from "@agenta/sessions/state"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
+import {Input, Select, Switch, Tooltip, Typography} from "antd"
+import {useAtom, useAtomValue} from "jotai"
+
+import {agentsWorkflowsAtom} from "../../agents/store"
 
 const STATUSES: {value: SessionStatusFilter; label: string}[] = [
     {value: "all", label: "All sessions"},

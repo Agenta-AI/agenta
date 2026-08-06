@@ -1,6 +1,18 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
+import {sessionPreviewText} from "@agenta/sessions/row"
+import {pendingGateLabel, sessionRowStatus} from "@agenta/sessions/row"
+import {sessionRowTitle} from "@agenta/sessions/row"
+import {sessionTriggerName} from "@agenta/sessions/row"
+import {applySessionScopeAtom} from "@agenta/sessions/state"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {
+    pendingBySessionId,
+    rowsFromPages,
+    useActionableInteractions,
+    useSessionList,
+} from "@agenta/sessions/state"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {ArrowRightIcon, ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
 import {Dropdown, Skeleton, Tooltip} from "antd"
@@ -15,19 +27,6 @@ import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessio
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
-
-import {sessionPreviewText} from "../assets/sessionPreview"
-import {pendingGateLabel, sessionRowStatus} from "../assets/sessionRowStatus"
-import {sessionRowTitle} from "../assets/sessionRowTitle"
-import {sessionTriggerName} from "../assets/sessionTrigger"
-import {applySessionScopeAtom} from "../state/filters"
-import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "../state/pins"
-import {
-    pendingBySessionId,
-    rowsFromPages,
-    useActionableInteractions,
-    useSessionList,
-} from "../state/useSessionList"
 
 import SessionAgentLabel from "./SessionAgentLabel"
 

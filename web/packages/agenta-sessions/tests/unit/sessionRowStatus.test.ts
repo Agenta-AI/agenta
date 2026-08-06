@@ -5,7 +5,7 @@
 import type {SessionStream} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
-import {pendingGateLabel, sessionRowStatus} from "./sessionRowStatus"
+import {pendingGateLabel, sessionRowStatus} from "../../src/row/sessionRowStatus"
 
 const row = (overrides: Partial<SessionStream> = {}): SessionStream =>
     ({

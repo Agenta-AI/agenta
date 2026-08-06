@@ -1,7 +1,6 @@
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
-
-import {projectIdAtom} from "@/oss/state/project"
 
 /**
  * Pinned sessions, per project.

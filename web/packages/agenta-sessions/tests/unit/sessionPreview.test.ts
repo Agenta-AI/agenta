@@ -1,7 +1,7 @@
 import type {SessionStream} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
-import {sessionPreviewText} from "./sessionPreview"
+import {sessionPreviewText} from "../../src/row/sessionPreview"
 
 const row = (last_message?: SessionStream["last_message"]): SessionStream =>
     ({

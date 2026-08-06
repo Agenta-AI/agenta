@@ -6,15 +6,12 @@ import {
     setSessionHeader,
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
 import {useQueryClient} from "@tanstack/react-query"
 import {App, Input} from "antd"
 import type {MenuProps} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
-import {
-    pinnedSessionIdsAtom,
-    toggleSessionPinAtom,
-} from "@/oss/components/pages/sessions/state/pins"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {

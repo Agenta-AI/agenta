@@ -1,14 +1,14 @@
 import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
-
-import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import {
     pendingBySessionId,
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
-} from "@/oss/components/pages/sessions/state/useSessionList"
+} from "@agenta/sessions/state"
+import {useAtomValue} from "jotai"
+
+import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
 import {projectIdAtom} from "@/oss/state/project"
 
 /**

@@ -1,9 +1,9 @@
 import {querySessions, type SessionStream} from "@agenta/entities/session"
+import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
-import {pinnedSessionIdsAtom} from "@/oss/components/pages/sessions/state/pins"
 import {projectIdAtom} from "@/oss/state/project"
 
 import type {SidebarEntityRef} from "./types"
