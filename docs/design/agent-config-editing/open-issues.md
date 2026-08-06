@@ -151,6 +151,27 @@ reader can act on it cold.
   earlier turns, or from a skill file we do not author, and hit the same
   asymmetry. Nothing in the runner can prevent that.
 
+## A denied call and its identical-args sibling share one authorization pool
+
+- Found by: the cold/warm lifecycle matrix work, 6 August 2026. Now pinned by a test
+  (`tests/unit/execution-authorization.test.ts`, "still offers an approved set
+  after its IDENTICAL sibling was denied").
+- The mechanism: a deny discards the denied call's own records via `discardAll`,
+  which is keyed by tool-call id, while `findSetByCall` matches on tool name plus
+  args digest and deliberately ignores the id (its header argues the id is
+  correlation and the digest is the binding, which is what makes an MCP relay under
+  a fresh uuid work at all). Two gates for the same tool with byte-identical
+  arguments are therefore indistinguishable to that lookup, so an execution arriving
+  under the DENIED id matches the APPROVED sibling's set and runs.
+- Bounded, not an escalation: the bytes that execute are the frozen bytes the human
+  approved, and the set is single-use, so N approvals still permit exactly N
+  executions. What is not preserved is WHICH call ran — the user can deny a change
+  and watch it succeed, while the call they approved then fails closed.
+- The ask: decide whether a deny should poison identical siblings (discard by
+  name+digest rather than by id) or whether identical arguments make the distinction
+  meaningless by construction. Either answer is defensible; today's behaviour was
+  never chosen, only inherited from the id-versus-digest split.
+
 ## The legacy delta classifier needs a decision: teach or retire
 
 - Found by: the card fix round, 5 August 2026.
@@ -168,3 +189,21 @@ reader can act on it cold.
   key is visible to a careful reader. The residual: for large objects a subtle
   omission is easy to miss. A card that lists the affected stored paths for a
   wholesale set would close the class.
+
+## A pending approval dies silently when the user moves on (was "W11" in session notes)
+
+- Found by: live QA session forensics, 5-6 August 2026; confirmed by the lifecycle
+  trace and gate cell matrix_l3.
+- At the next turn's start the runner sweeps pending approval rows to `cancelled`
+  (cancelStaleInteractions), and the safety half is correct and now pinned: the
+  gated tool does not run, an unanswered approval is never consent. The broken
+  half is the surface: the wire protocol has no cancellation frame, so the
+  frontend card stays in approval-requested forever, and a user who answers it
+  after eviction feeds a decision into a gate that no longer exists (the session
+  then logs approval-mismatch and rebuilds cold).
+- The proposal awaiting a ruling, three independent layers, any prefix shippable:
+  (1) frontend renders the swept row as cancelled (poll or on next turn render),
+  (2) the runner tells the model the approval lapsed so it can re-ask,
+  (3) optional automatic re-issue of the gate on the next turn.
+- The ask: pick the layer set for v1. Layer 1 alone removes the stuck-card lie
+  at UI cost only.

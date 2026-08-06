@@ -167,6 +167,24 @@ lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in 
   workspace (including uncommitted changes) to any prior snapshot — this is how
   you undo a botched unapply/apply and get a collapsed stack's series back. Take
   a `but oplog snapshot -m "..."` before risky operations.
+- **A dropped-hunk commit can damage the working tree, not just the commit.**
+  When `but commit --only` warns "Some selected changes could not be committed",
+  check the FILE in the tree afterwards, not only the commit: the reconcile can
+  rewrite the working copy and silently lose the uncommitted hunks. Recover the
+  exact bytes from a snapshot's worktree subtree:
+  `git cat-file -p <oplog-sha>:worktree/<path>` (every oplog entry stores one).
+- **Hunks land on the lane whose commits own their line regions — put the file
+  there instead of fighting.** If a file's edits sit in regions a higher lane's
+  commit created, committing them to the lower lane drops them and `but absorb`
+  amends the higher lane's commit anyway (and an absorb that amends a LOWER
+  commit can leave a `{conflicted}` commit above it; if that happens, restore
+  the snapshot rather than uncommitting around it). Keep code and its tests
+  together on whichever lane attribution chooses.
+- **Parse cliIds from `but status --json`** (`filePath`/`cliId` pairs), never by
+  grepping the human output — the graph art breaks naive extraction and a wrong
+  token silently rubs the wrong thing. Commit cliIds also rotate after every
+  background sync, so re-read them in the same breath as the command that uses
+  them.
 
 ## Before committing
 
