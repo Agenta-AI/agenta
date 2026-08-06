@@ -5,8 +5,8 @@
 import typing
 from importlib import import_module
 if typing.TYPE_CHECKING:
-    from .types import GetMountFilesRequestOrder
-_dynamic_imports: typing.Dict[str, str] = {"GetMountFilesRequestOrder": ".types"}
+    from .get_mount_files_request_order import GetMountFilesRequestOrder
+_dynamic_imports: typing.Dict[str, str] = {"GetMountFilesRequestOrder": ".get_mount_files_request_order"}
 def __getattr__(attr_name: str) -> typing.Any:
     module_name = _dynamic_imports.get(attr_name)
     if module_name is None:
