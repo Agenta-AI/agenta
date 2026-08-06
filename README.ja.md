@@ -165,6 +165,7 @@ Agenta を最も手早く試せる方法です。
 - [x] OpenAI
 - [x] Anthropic
 - [x] OpenRouter
+- [x] OrcaRouter
 - [x] Mistral AI
 - [x] Cohere
 - [x] Anyscale

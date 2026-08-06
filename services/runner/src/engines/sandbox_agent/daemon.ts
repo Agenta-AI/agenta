@@ -84,6 +84,7 @@ export const KNOWN_PROVIDER_ENV_VARS = [
   "TOGETHERAI_API_KEY",
   "TOGETHER_API_KEY",
   "OPENROUTER_API_KEY",
+  "ORCAROUTER_API_KEY",
   // Anthropic / Claude auth tokens and OAuth.
   "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_OAUTH_TOKEN",
@@ -147,6 +148,7 @@ const PROVIDER_ENV_VAR_GROUPS: Record<string, readonly string[]> = {
   groq: ["GROQ_API_KEY"],
   together_ai: ["TOGETHER_API_KEY", "TOGETHERAI_API_KEY"],
   openrouter: ["OPENROUTER_API_KEY"],
+  orcarouter: ["ORCAROUTER_API_KEY"],
   // Pi's ChatGPT/Codex subscription authenticates via its own OAuth file, not an env key.
   "openai-codex": [],
 };

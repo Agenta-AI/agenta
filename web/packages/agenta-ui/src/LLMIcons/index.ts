@@ -27,6 +27,7 @@ import MiniMax from "./assets/MiniMax"
 import Mistral from "./assets/Mistral"
 import OpenAi from "./assets/OpenAi"
 import OpenRouter from "./assets/OpenRouter"
+import OrcaRouter from "./assets/OrcaRouter"
 import Perplexity from "./assets/Perplexity"
 import Replicate from "./assets/Replicate"
 import Sagemaker from "./assets/Sagemaker"
@@ -52,6 +53,7 @@ export const LLMIconMap: Record<string, React.FC<{className?: string}>> = {
     "Perplexity AI": Perplexity,
     "Together AI": Together,
     OpenRouter: OpenRouter,
+    OrcaRouter: OrcaRouter,
     "Google Gemini": Gemini,
     "Google Vertex AI": Vertex,
     "AWS Bedrock": Bedrock,
@@ -81,6 +83,7 @@ export {
     Mistral,
     OpenAi,
     OpenRouter,
+    OrcaRouter,
     Perplexity,
     Replicate,
     Sagemaker,

@@ -165,6 +165,7 @@ Agenta 会追踪每一次运行，并为每个智能体的配置保存版本历�
 - [x] OpenAI
 - [x] Anthropic
 - [x] OpenRouter
+- [x] OrcaRouter
 - [x] Mistral AI
 - [x] Cohere
 - [x] Anyscale

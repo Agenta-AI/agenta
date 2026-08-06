@@ -2,4 +2,4 @@
 
 import typing
 
-CustomProviderKind = typing.Union[typing.Literal["custom", "azure", "bedrock", "sagemaker", "vertex_ai", "openai", "cohere", "anyscale", "deepinfra", "alephalpha", "groq", "minimax", "mistral", "mistralai", "anthropic", "perplexityai", "together_ai", "openrouter", "gemini"], typing.Any]
+CustomProviderKind = typing.Union[typing.Literal["custom", "azure", "bedrock", "sagemaker", "vertex_ai", "openai", "cohere", "anyscale", "deepinfra", "alephalpha", "groq", "minimax", "mistral", "mistralai", "anthropic", "perplexityai", "together_ai", "openrouter", "orcarouter", "gemini"], typing.Any]

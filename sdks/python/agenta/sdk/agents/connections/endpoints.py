@@ -18,6 +18,7 @@ _DIRECT_ENDPOINTS: Dict[str, str] = {
     "groq": "https://api.groq.com/openai/v1",
     "together_ai": "https://api.together.xyz/v1",
     "openrouter": "https://openrouter.ai/api/v1",
+    "orcarouter": "https://api.orcarouter.ai/v1",
 }
 _NON_SECRET_ENV = {
     "AWS_REGION",

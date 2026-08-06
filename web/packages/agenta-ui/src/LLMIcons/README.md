@@ -39,6 +39,7 @@ function OpenAIIcon() {
 | Cohere | `Cerebus` |
 | Together AI | `Together` |
 | OpenRouter | `OpenRouter` |
+| OrcaRouter | `OrcaRouter` |
 | Groq | `Groq` |
 | Perplexity AI | `Perplexity` |
 | Anyscale | `AnyScale` |

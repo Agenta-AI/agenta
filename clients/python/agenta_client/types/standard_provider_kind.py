@@ -2,4 +2,4 @@
 
 import typing
 
-StandardProviderKind = typing.Union[typing.Literal["openai", "cohere", "anyscale", "deepinfra", "alephalpha", "groq", "minimax", "mistral", "mistralai", "anthropic", "perplexityai", "together_ai", "openrouter", "gemini"], typing.Any]
+StandardProviderKind = typing.Union[typing.Literal["openai", "cohere", "anyscale", "deepinfra", "alephalpha", "groq", "minimax", "mistral", "mistralai", "anthropic", "perplexityai", "together_ai", "openrouter", "orcarouter", "gemini"], typing.Any]

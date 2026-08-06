@@ -14,6 +14,7 @@ export const StandardProviderKind = {
     Perplexityai: "perplexityai",
     TogetherAi: "together_ai",
     Openrouter: "openrouter",
+    Orcarouter: "orcarouter",
     Gemini: "gemini",
 } as const;
 export type StandardProviderKind = (typeof StandardProviderKind)[keyof typeof StandardProviderKind];

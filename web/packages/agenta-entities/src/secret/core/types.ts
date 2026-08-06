@@ -90,6 +90,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     perplexityai: "Perplexity AI",
     together_ai: "Together AI",
     openrouter: "OpenRouter",
+    orcarouter: "OrcaRouter",
     gemini: "Google Gemini",
     vertex_ai: "Google Vertex AI",
     bedrock: "AWS Bedrock",

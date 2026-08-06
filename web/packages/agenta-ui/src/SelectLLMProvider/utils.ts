@@ -29,6 +29,7 @@ export const PROVIDER_ICON_MAP: Record<string, string> = {
     anyscale: "Anyscale",
     deepinfra: "DeepInfra",
     openrouter: "OpenRouter",
+    orcarouter: "OrcaRouter",
     perplexity: "Perplexity AI",
     perplexityai: "Perplexity AI",
     together_ai: "Together AI",

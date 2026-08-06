@@ -165,6 +165,7 @@ Agenta를 가장 빠르게 사용해 볼 수 있는 방법입니다.
 - [x] OpenAI
 - [x] Anthropic
 - [x] OpenRouter
+- [x] OrcaRouter
 - [x] Mistral AI
 - [x] Cohere
 - [x] Anyscale

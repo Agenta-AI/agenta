@@ -55,8 +55,10 @@ def _all_models():
 # tracks OpenRouter's current top-used models, which routinely include ids the pinned
 # litellm build hasn't indexed yet. For that provider a miss is an expected lag, not a bug,
 # so it is reported as xfail (still runs, still flags a typo'd id via the structural check
-# below) instead of failing CI. Every other provider must resolve in litellm exactly.
-_LITELLM_LAGGING_PROVIDERS = {"openrouter"}
+# below) instead of failing CI. OrcaRouter is in the same position — a gateway whose
+# catalog litellm does not index at all — so it is treated the same way. Every other
+# provider must resolve in litellm exactly.
+_LITELLM_LAGGING_PROVIDERS = {"openrouter", "orcarouter"}
 
 
 @pytest.mark.skipif(not LITELLM_AVAILABLE, reason="litellm not installed")
