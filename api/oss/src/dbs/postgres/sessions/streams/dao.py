@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import delete as sa_delete, func, select
+from sqlalchemy import delete as sa_delete, func, not_, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.streams.dtos import (
@@ -115,6 +115,76 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
             return None
         return map_stream_dbe_to_dto(stream_dbe=dbe)
 
+    @staticmethod
+    def _apply_filters(
+        stmt,
+        *,
+        project_id: UUID,
+        filter: SessionStreamQuery,
+        session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
+    ):
+        """Shared row predicate for `query` and `count` — one definition, so a filtered
+        page and its total can never disagree."""
+        stmt = stmt.where(SessionStreamDBE.project_id == project_id)
+        if not filter.include_ended:
+            stmt = stmt.where(SessionStreamDBE.deleted_at.is_(None))
+        if not filter.include_archived:
+            stmt = stmt.where(SessionStreamDBE.archived_at.is_(None))
+        if filter.session_id is not None:
+            stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
+        if session_ids is not None:
+            stmt = stmt.where(SessionStreamDBE.session_id.in_(session_ids))
+        # Empty exclusions would render an always-true `NOT IN ()`; skip instead.
+        if exclude_session_ids:
+            stmt = stmt.where(SessionStreamDBE.session_id.not_in(exclude_session_ids))
+        if filter.flags is not None:
+            flags_filter = filter.flags.model_dump(
+                exclude_none=True, exclude_unset=True
+            )
+            if flags_filter:
+                stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
+        if filter.tags:
+            stmt = stmt.where(SessionStreamDBE.tags.contains(filter.tags))
+        if filter.exclude_tags:
+            # `NOT (tags @> …)` is NULL — not true — for a row with no tags, which would drop
+            # every session written before origins were stamped. Admit those explicitly.
+            stmt = stmt.where(
+                or_(
+                    SessionStreamDBE.tags.is_(None),
+                    not_(SessionStreamDBE.tags.contains(filter.exclude_tags)),
+                )
+            )
+        term = filter.search.strip() if filter.search else ""
+        if term:
+            # Escape LIKE metacharacters so a literal `%`/`_` in the search term
+            # doesn't act as a wildcard.
+            escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            stmt = stmt.where(SessionStreamDBE.name.ilike(f"%{escaped}%", escape="\\"))
+        return stmt
+
+    async def count(
+        self,
+        *,
+        project_id: UUID,
+        filter: SessionStreamQuery,
+        session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
+    ) -> int:
+        """Total rows matching the filter, ignoring windowing — the number a filter chip
+        shows. Deliberately separate from `query` so a page fetch pays for it only when a
+        caller asks."""
+        async with self.engine.session() as session:
+            stmt = self._apply_filters(
+                select(func.count()).select_from(SessionStreamDBE),
+                project_id=project_id,
+                filter=filter,
+                session_ids=session_ids,
+                exclude_session_ids=exclude_session_ids,
+            )
+            result = await session.execute(stmt)
+        return int(result.scalar_one() or 0)
+
     async def query(
         self,
         *,
@@ -122,35 +192,16 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
     ) -> List[SessionStream]:
         async with self.engine.session() as session:
-            stmt = select(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
+            stmt = self._apply_filters(
+                select(SessionStreamDBE),
+                project_id=project_id,
+                filter=filter,
+                session_ids=session_ids,
+                exclude_session_ids=exclude_session_ids,
             )
-            if not filter.include_ended:
-                stmt = stmt.where(SessionStreamDBE.deleted_at.is_(None))
-            if not filter.include_archived:
-                stmt = stmt.where(SessionStreamDBE.archived_at.is_(None))
-            if filter.session_id is not None:
-                stmt = stmt.where(SessionStreamDBE.session_id == filter.session_id)
-            if session_ids is not None:
-                stmt = stmt.where(SessionStreamDBE.session_id.in_(session_ids))
-            if filter.flags is not None:
-                flags_filter = filter.flags.model_dump(
-                    exclude_none=True, exclude_unset=True
-                )
-                if flags_filter:
-                    stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
-            term = filter.search.strip() if filter.search else ""
-            if term:
-                # Escape LIKE metacharacters so a literal `%`/`_` in the search term
-                # doesn't act as a wildcard.
-                escaped = (
-                    term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-                )
-                stmt = stmt.where(
-                    SessionStreamDBE.name.ilike(f"%{escaped}%", escape="\\")
-                )
             if windowing:
                 stmt = apply_windowing(
                     stmt=stmt,

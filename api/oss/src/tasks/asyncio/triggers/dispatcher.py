@@ -11,7 +11,7 @@ Self-contained so it can run inside its own TaskIQ worker process.
 
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import uuid_utils.compat as uuid_compat
 
@@ -25,6 +25,13 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscription,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
+from oss.src.core.sessions.dtos import (
+    SESSION_ORIGIN_TRIGGER,
+    SESSION_TRIGGER_KIND_SCHEDULE,
+    SESSION_TRIGGER_KIND_SUBSCRIPTION,
+    SessionTriggerRef,
+)
+from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -44,10 +51,14 @@ class TriggersDispatcher:
         triggers_dao: TriggersDAOInterface,
         workflows_service: WorkflowsService,
         dispatch_fn: Optional[Callable] = None,
+        streams_service: Optional[SessionStreamsService] = None,
     ):
         self.triggers_dao = triggers_dao
         self.workflows_service = workflows_service
         self._dispatch_fn = dispatch_fn
+        # Optional so existing wiring keeps working; without it a triggered session is
+        # indistinguishable from one a human started.
+        self._streams_service = streams_service
 
     def _build_context(
         self,
@@ -306,9 +317,37 @@ class TriggersDispatcher:
             )
             return
 
+        # Mint the session here rather than letting the runner fall back to its own: owning the
+        # id is what lets this delivery name the session it produced, and lets the row be marked
+        # as automation-started before the run creates it.
+        session_id = uuid4().hex
+        delivery_data = delivery_data.model_copy(update={"session_id": session_id})
+        if self._streams_service is not None:
+            try:
+                await self._streams_service.set_origin(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    origin=SESSION_ORIGIN_TRIGGER,
+                    # Stamped here because this is the only place that knows WHICH automation
+                    # fired: nothing links a session back to a trigger afterwards.
+                    trigger=SessionTriggerRef(
+                        id=str(entity.id),
+                        name=entity.name,
+                        kind=(
+                            SESSION_TRIGGER_KIND_SUBSCRIPTION
+                            if is_subscription
+                            else SESSION_TRIGGER_KIND_SCHEDULE
+                        ),
+                    ),
+                )
+            except Exception as e:  # best-effort: a missing tag must not block the run
+                log.warning("[TRIGGERS DISPATCHER] origin stamp failed: %s", e)
+
         request = WorkflowServiceRequest(
             references=references,
             selector=selector,
+            session_id=session_id,
             data=WorkflowRequestData(
                 inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
             ),

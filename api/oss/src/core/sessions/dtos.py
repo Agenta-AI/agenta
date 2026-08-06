@@ -2,7 +2,8 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from oss.src.core.sessions.streams.dtos import SessionStream
+from oss.src.core.sessions.records.dtos import SessionMessagePreview
+from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQueryFlags
 from oss.src.core.shared.dtos import Reference
 
 
@@ -10,15 +11,57 @@ class SessionListItem(SessionStream):
     """A `/sessions/query` row, enriched at READ time with the session's HIGHEST
     `turn_index` turn's `references` — the agent/workflow that produced the latest turn.
 
-    Hydrated by `SessionsService.query_sessions` via a batch turns lookup; never
-    denormalized onto `session_streams` (see that method's docstring)."""
+    Also carries the session's last message, so a row can say what happened rather than only
+    when. Both enrichments are batch lookups keyed on the whole page; never one call per row.
+
+    Hydrated by `SessionsService.query_sessions`; never denormalized onto `session_streams`
+    (see that method's docstring)."""
 
     references: Optional[List[Reference]] = None
+    # The session's newest `message` record, hydrated by the same batch pattern. Absent when the
+    # session has no message yet, or when the deployment runs without the records (tracing) engine.
+    last_message: Optional[SessionMessagePreview] = None
+
+
+# Reserved tag naming WHO started a session. Lives in `tags` rather than a column: the sessions
+# list must be able to hide automation runs by default, and a jsonb tag with a GIN index filters
+# as well as a column would without a migration.
+SESSION_ORIGIN_TAG = "ag.origin"
+
+SESSION_ORIGIN_MANUAL = "manual"
+SESSION_ORIGIN_TRIGGER = "trigger"
+
+# WHICH automation started the session. Written by the same single writer as the origin tag
+# (`SessionStreamsService.set_origin`), so the tags stay one write and never need a merge.
+SESSION_TRIGGER_ID_TAG = "ag.trigger.id"
+SESSION_TRIGGER_NAME_TAG = "ag.trigger.name"
+SESSION_TRIGGER_KIND_TAG = "ag.trigger.kind"
+
+SESSION_TRIGGER_KIND_SCHEDULE = "schedule"
+SESSION_TRIGGER_KIND_SUBSCRIPTION = "subscription"
+
+
+class SessionTriggerRef(BaseModel):
+    """The automation that started a session.
+
+    The name is a SNAPSHOT taken at dispatch, not a live join: a row is history, and resolving
+    names at read time would make the session list depend on the triggers domain. Renaming an
+    automation therefore does not retitle its past runs — the id is stamped alongside so a
+    read-time resolve can supersede the snapshot later without a migration.
+    """
+
+    id: str
+    name: Optional[str] = None
+    # "schedule" (a cron fired) or "subscription" (an event arrived).
+    kind: Optional[str] = None
 
 
 class SessionQuery(BaseModel):
     """Root `/sessions/query` filter: reference-scoped, joined through the turns'
-    references (WP1's GIN `.contains()`), not denormalized onto the stream row."""
+    references (WP1's GIN `.contains()`), not denormalized onto the stream row.
+
+    Every predicate a list view offers must live here. A client that filters a windowed
+    page filters the window, not the set — wrong counts, wrong empty states."""
 
     references: Optional[List[Reference]] = None
     # Include ended (killed) sessions so the durable list keeps resumable history — absence then
@@ -28,3 +71,21 @@ class SessionQuery(BaseModel):
     include_archived: bool = False
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
+    # Liveness (alive ⊇ running ⊇ attached), matched against the row's mirrored `flags`.
+    flags: Optional[SessionStreamQueryFlags] = None
+    # Restrict to an explicit id set. The pushdown for any predicate that lives outside the
+    # stream row — pinned ids held client-side, sessions named by a pending-interaction lookup —
+    # so the server still owns the intersection, the ordering and the windowing.
+    session_ids: Optional[List[str]] = None
+    # Its complement: drop known ids from the list, so a group rendered separately (pins) does
+    # not appear twice.
+    exclude_session_ids: Optional[List[str]] = None
+    # Also return the total matching rows, ignoring windowing. Off by default: a filter chip
+    # wants it, a scroll page does not, and it costs a second query.
+    include_total: bool = False
+    # Who started the session (`SESSION_ORIGIN_*`). A triggered run is a session like any other,
+    # so without this filter an automation's work is indistinguishable from your own in the list.
+    origin: Optional[str] = None
+    # The negation, which containment cannot express: hide automation runs while still showing
+    # every session written before origins were stamped (their tags are NULL, not "manual").
+    exclude_origin: Optional[str] = None

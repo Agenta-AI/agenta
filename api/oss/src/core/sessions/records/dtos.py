@@ -39,5 +39,21 @@ class SessionRecord(Lifecycle):
     span_id: Optional[OTelSpanId] = None
 
 
+class SessionMessagePreview(BaseModel):
+    """The last thing said in a session, for a list row.
+
+    A session row carried a title and a timestamp, so deciding whether a session was worth
+    reopening meant opening it. Only `message` records are considered: `done`/`usage` are
+    bookkeeping, `thought` is not addressed to anyone, and a `tool_call` says what the agent
+    reached for rather than what it concluded.
+    """
+
+    session_id: str
+    text: str
+    # "user" or "agent" — the row prefixes your own messages so a preview isn't mistaken for a reply.
+    source: Optional[str] = None
+    timestamp: Optional[datetime] = None
+
+
 class SessionRecordQuery(BaseModel):
     session_id: str

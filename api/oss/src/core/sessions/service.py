@@ -2,8 +2,8 @@
 
 Orchestrates across the session facets (streams, turns, interactions, mounts),
 anchored on `session_id` — the universal handle. Fan-out NEVER routes through
-`stream_id`. Records (tracing DB) are untouched here; tracing retention owns
-them.
+`stream_id`. Records (tracing DB) are READ here for the list's message preview and
+never written; tracing retention still owns their lifecycle.
 
 peek is NOT a verb and NOT built here: the individual reads (this service's
 `query_sessions`, the streams/turns/records fetch-and-query endpoints) are the
@@ -11,17 +11,34 @@ whole surface. The front-end composes them — see `apis/fastapi/sessions/router
 module docstring for the read-walk.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Set
 from uuid import UUID
 
-from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.sessions.dtos import SessionListItem, SessionQuery
+from oss.src.core.shared.dtos import Windowing
+from oss.src.core.sessions.dtos import SESSION_ORIGIN_TAG, SessionListItem, SessionQuery
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQuery
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.dtos import SessionTurnQuery
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.mounts.service import MountsService
+
+
+def _stream_filter(query: Optional[SessionQuery]) -> SessionStreamQuery:
+    """The row predicate shared by the list and its total."""
+    return SessionStreamQuery(
+        include_ended=bool(query and query.include_ended),
+        include_archived=bool(query and query.include_archived),
+        search=query.search if query else None,
+        flags=query.flags if query else None,
+        tags={SESSION_ORIGIN_TAG: query.origin} if query and query.origin else None,
+        exclude_tags=(
+            {SESSION_ORIGIN_TAG: query.exclude_origin}
+            if query and query.exclude_origin
+            else None
+        ),
+    )
 
 
 class SessionsService:
@@ -32,11 +49,15 @@ class SessionsService:
         turns_service: SessionTurnsService,
         interactions_service: SessionInteractionsService,
         mounts_service: MountsService,
+        # Optional: records live in the tracing DB, so a deployment without that engine still
+        # lists sessions — it just lists them without previews.
+        records_service: Optional[RecordsService] = None,
     ) -> None:
         self.streams_service = streams_service
         self.turns_service = turns_service
         self.interactions_service = interactions_service
         self.mounts_service = mounts_service
+        self.records_service = records_service
 
     async def query_sessions(
         self,
@@ -55,38 +76,39 @@ class SessionsService:
         proves hot.
 
         Each row is enriched (READ-time only, see `SessionListItem`) with its latest
-        turn's `references` via a single batch lookup keyed on every listed
-        `session_id` — never one `latest_turn` call per row (WP0-R3).
+        turn's `references` and its last message, each via a single batch lookup keyed on
+        every listed `session_id` — never one call per row (WP0-R3).
         """
-        session_ids: Optional[List[str]] = None
-
-        references: Optional[List[Reference]] = query.references if query else None
-        if references:
-            matching_turns = await self.turns_service.query_turns(
-                project_id=project_id,
-                query=SessionTurnQuery(references=references),
-            )
-            session_ids = sorted({turn.session_id for turn in matching_turns})
-            if not session_ids:
-                return []
+        session_ids = await self._resolve_session_ids(
+            project_id=project_id, query=query
+        )
+        if session_ids is not None and not session_ids:
+            return []
 
         streams = await self.streams_service.query_streams(
             project_id=project_id,
-            filter=SessionStreamQuery(
-                include_ended=bool(query and query.include_ended),
-                include_archived=bool(query and query.include_archived),
-                search=query.search if query else None,
-            ),
+            filter=_stream_filter(query),
             windowing=windowing,
             session_ids=session_ids,
+            exclude_session_ids=query.exclude_session_ids if query else None,
         )
 
         if not streams:
             return []
 
+        listed_ids = [stream.session_id for stream in streams]
+
         latest_turns = await self.turns_service.latest_turn_per_session(
             project_id=project_id,
-            session_ids=[stream.session_id for stream in streams],
+            session_ids=listed_ids,
+        )
+        previews = (
+            await self.records_service.latest_message_per_session(
+                project_id=project_id,
+                session_ids=listed_ids,
+            )
+            if self.records_service
+            else {}
         )
 
         items = []
@@ -96,9 +118,66 @@ class SessionsService:
                 SessionListItem(
                     **stream.model_dump(),
                     references=turn.references if turn else None,
+                    last_message=previews.get(stream.session_id),
                 )
             )
         return items
+
+    async def count_sessions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: Optional[SessionQuery] = None,
+    ) -> int:
+        """Total sessions matching the filter, ignoring windowing — what a filter chip
+        shows. Same predicate as `query_sessions`, so a page and its total agree."""
+        session_ids = await self._resolve_session_ids(
+            project_id=project_id, query=query
+        )
+        if session_ids is not None and not session_ids:
+            return 0
+
+        return await self.streams_service.count_streams(
+            project_id=project_id,
+            filter=_stream_filter(query),
+            session_ids=session_ids,
+            exclude_session_ids=query.exclude_session_ids if query else None,
+        )
+
+    async def _resolve_session_ids(
+        self,
+        *,
+        project_id: UUID,
+        query: Optional[SessionQuery],
+    ) -> Optional[List[str]]:
+        """The id set to restrict the stream query to, or `None` for no restriction.
+
+        `references` resolves through the turns; `session_ids` arrives from the caller
+        (pins, a pending-interaction lookup). Given both, the restriction is their
+        INTERSECTION — each narrows, so an id must satisfy both. An empty list (as opposed
+        to `None`) means the filters can match nothing, and callers short-circuit on it.
+        """
+        if not query:
+            return None
+
+        from_references: Optional[Set[str]] = None
+        if query.references:
+            matching_turns = await self.turns_service.query_turns(
+                project_id=project_id,
+                query=SessionTurnQuery(references=query.references),
+            )
+            from_references = {turn.session_id for turn in matching_turns}
+
+        explicit: Optional[Set[str]] = (
+            set(query.session_ids) if query.session_ids is not None else None
+        )
+
+        if from_references is None:
+            return None if explicit is None else sorted(explicit)
+        if explicit is None:
+            return sorted(from_references)
+        return sorted(from_references & explicit)
 
     async def delete_session(
         self,
