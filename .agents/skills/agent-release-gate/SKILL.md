@@ -91,15 +91,17 @@ own docstring:
   no tool names, no operation names, no schema hints. Only these cells license a claim about
   what the model can do unprompted.
 
-**Rule: claims of model behavior may only cite mechanism-blind cells.** Every cell currently in
-this directory is coached tier — they test backend paths, correctly, but do not stand in for
+**Rule: claims of model behavior may only cite mechanism-blind cells.** Most cells in this
+directory are coached tier — they test backend paths, correctly, but do not stand in for
 model-discovery evidence. The gap this rule exists to close, found live: asked in plain words to
 "add the skill I saved in your folder," Haiku invented a nonexistent marker syntax
 (`{"@ag.embed": {"@ag.references": ...}}`) and the engine accepted it as literal data — a failure
 none of the coached cells (including `matrix_w7.py`, whose prompt names `@ag.file` outright)
 could ever have caught, because they never test whether the model reaches for the real mechanism
-on its own. The mechanism-blind tier is being built separately as the one-shot benchmark (Tier
-B), reusing `qa_matrix_lib.py` — do not duplicate it here.
+on its own. `resources/matrix_g1_guidance_discovery.py` is this directory's first mechanism-blind
+cell, promoted after the platform-guidance fix closed that exact gap; it reuses `qa_matrix_lib.py`
+the same way the separate one-shot benchmark (Tier B) does — check there before writing a new
+mechanism-blind cell from scratch, to avoid duplicating scaffolding.
 
 ## When results lie
 
@@ -202,6 +204,31 @@ proves nothing about the durable working directory (LESSONS #16).
   A reliable deterministic trigger (e.g. a genuine cold-resume stale-approval replay, or a crafted
   duplicate `toolCallId`) is an open follow-up; until then, treat any SKIP from this cell as "the
   invariant was not tested this run," never as green.
+- `resources/matrix_g1_guidance_discovery.py` — **[mechanism-blind]** does the platform guidance
+  actually change what the model does? The trial prompt is Mahmoud's own verbatim phrasing from
+  the live session that found the bug ("can you add gstack-autoplan skill to your skills (i saved
+  it in your folder)") — no tool, operation, or marker syntax named. Before the guidance existed,
+  this exact phrasing made a model copy the skill into its own harness-local skills folder and
+  claim success without ever proposing a commit, 3/3 live (session b59cb549). Two parts per
+  harness/model/sandbox leg: PROBE reads the rendered instructions file out of the workspace and
+  asserts the fenced platform-guidance block and the skill-location sentence are really there;
+  TRIALS run the prompt N times, PASS only when a commit_revision gate fires, is approved, and the
+  STORED revision carries the skill (copying into the harness's own folder is a FAIL). Setup
+  gotchas baked into `qa_matrix_lib.py` (`PI_CORE_HARNESS_KIND`, `PI_CORE_HAIKU_MODEL`): the Pi
+  harness kind enum is `"pi_core"` (bare `"pi"` 500s), and `pi_core` rejects a bare `"haiku"` model
+  id (needs `"claude-haiku-4-5"`); codex accepts its curated short alias (`"gpt-5.6-luna"`) bare.
+  Both legs need `sandbox=daytona` + a vault key (codex: OpenAI; pi_core: the same Anthropic key
+  `matrix_w1_daytona.py` documents) and SKIP with the exact reason when the credential is missing
+  or ambiguous. Verified 2026-08-06: codex SKIPPED (this project's vault held an ambiguous/missing
+  OpenAI credential — open item with Mahmoud, same blocker as `matrix_w7_per_harness.py`'s codex
+  leg); pi_core scored **2/3, not 4/4** — a real, reproducible finding, not noise: trial 2's model
+  ran `cp -r agent-files/gstack-autoplan .agenta-imports/` (copying the whole directory) then
+  referenced a marker path that didn't match where the file landed, and the engine correctly
+  denied it fail-closed (`approved-content resolution failed ...: gstack-autoplan/SKILL.md does
+  not exist under .agenta-imports/.; deny`). Not a product bug — the deny is doing its job — but
+  evidence that even with the guidance present, pi_core+haiku still fumbles the exact
+  copy-then-reference mechanics some of the time. Worth a call on whether the guidance text should
+  say "copy the FILE, not the directory" more explicitly, or whether 2/3 is an acceptable bar.
 
 ### The lifecycle cells (`matrix_l*.py`) — cold ↔ warm, and what survives each transition
 
