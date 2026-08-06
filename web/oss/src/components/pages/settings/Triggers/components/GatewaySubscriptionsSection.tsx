@@ -319,7 +319,7 @@ export default function GatewaySubscriptionsSection() {
                                                     Connect an app first
                                                 </span>
                                                 <span>
-                                                    Connect an app, then subscribe a workflow to its
+                                                    Connect an app, then subscribe an agent to its
                                                     events.
                                                 </span>
                                             </div>
@@ -334,7 +334,7 @@ export default function GatewaySubscriptionsSection() {
                                                     No event triggers yet
                                                 </span>
                                                 <span>
-                                                    Run a workflow whenever a connected app sends an
+                                                    Run an agent whenever a connected app sends an
                                                     event.
                                                 </span>
                                             </div>

@@ -149,10 +149,10 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
                 dividerBefore: false,
                 before: ({collapsed}: SidebarSlotContext) =>
                     collapsed ? null : (
-                        // pl-5 matches the menu items' mx-2 + pl-3.
+                        // pl-[22px] = menu items' mx-2 + pl-3 (20px), nudged 2px right.
                         <div
                             className={[
-                                "pl-5 pr-3 pb-1 text-xs font-medium text-colorTextTertiary",
+                                "pl-[22px] pr-3 pb-1 text-xs font-medium text-colorTextTertiary",
                                 index === 0 ? "pt-1" : "pt-4",
                             ].join(" ")}
                         >

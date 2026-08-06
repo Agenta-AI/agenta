@@ -279,8 +279,7 @@ export default function GatewaySchedulesSection() {
                                                 No scheduled runs yet
                                             </span>
                                             <span>
-                                                Run a workflow automatically on a schedule you
-                                                define.
+                                                Run an agent automatically on a schedule you define.
                                             </span>
                                         </div>
                                     }

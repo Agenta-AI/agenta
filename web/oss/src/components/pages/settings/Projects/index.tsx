@@ -283,8 +283,8 @@ const ProjectsSettings = () => {
                                             No projects in this workspace yet
                                         </span>
                                         <span>
-                                            Create a project to organize your agents, prompts, and
-                                            evaluations.
+                                            Create a project to organize your agents, datasets, and
+                                            deployments.
                                         </span>
                                     </div>
                                 }
