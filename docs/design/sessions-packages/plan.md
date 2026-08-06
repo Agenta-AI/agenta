@@ -108,6 +108,13 @@ useSessionPins()   => {isPinned(id), toggle(id)}
 
 ## Lane 3 — `@agenta/sessions-ui` (antd-free)
 
+**STATUS (2026-08-06): shipped** through `87726d64b2` — `SessionRow` (VM-driven, neutral
+menu shape, `revealActionsOnHover` for touch), the list states, group header, pager, and
+the four filter controls bound to `useSessionFilters`. The desktop page and rail compose
+them; right-click stays an app-side antd affordance. `SessionListCard`'s orchestration
+moved to `useSessionCardList` in lane 2's package; its antd-free re-skin rides with the
+mobile adoption stack.
+
 Depends on lanes 1 + 2. Eslint bans `antd`.
 
 Components: `SessionRow`, `SessionListCard`, the filter **controls** (status list, mode switch,
