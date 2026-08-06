@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import subprocess
 import sys
 import uuid
 
@@ -499,3 +501,71 @@ def run_until_settled(
         "rounds": max_rounds,
         "why": "max_rounds exhausted, still gated",
     }
+
+
+# ---------------------------------------------------------------------------
+# The generic invariant: no tool_result with empty output and isError:false may exist for a call
+# whose runner log says "[commit-auth] refused" (the silent-blank-success class). Added after the
+# Codex approve-then-fail P0 triage found that W7 covered only Claude, so this reusable check is
+# meant to ride along on EVERY cell that exercises commit_revision with a workspace-file marker
+# (matrix_w7*.py, matrix_t8_saved_files.py) rather than living in one standalone script -- the
+# condition it guards is a rare defense-in-depth failure (a call that WAS approved still refuses
+# at execute time: a stale cold-resume record, a digest/generation mismatch, a lost race), not
+# something every run can be relied on to reproduce. A run that never triggers a refusal is not
+# a false pass: `refusals` is simply empty and `violations` is trivially empty too. What this
+# guards against is the P0's actual shape -- the runner log said refused, but the wire told the
+# human (and this suite) a blank success.
+def runner_log_lines(container: str, since: str = "5m") -> list[str]:
+    """Recent lines from a runner container's docker logs, oldest first. LOCAL/dev-box only --
+    needs docker access to the target deployment. On a remote deployment, fetch the log text by
+    whatever operator channel exists and pass it straight to `check_no_blank_success_on_refusal`
+    instead of calling this."""
+    try:
+        out = subprocess.run(
+            ["docker", "logs", container, "--since", since],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        raise RuntimeError(f"docker logs {container} failed: {e}") from e
+    return (out.stdout + out.stderr).splitlines()
+
+
+_REFUSED_RE = re.compile(r"\[commit-auth\] refused .*\bcall=(\S+)")
+
+
+def refused_call_ids(log_lines: list[str]) -> list[str]:
+    """Every toolCallId a `[commit-auth] refused ...` log line named, in log order."""
+    ids = []
+    for line in log_lines:
+        m = _REFUSED_RE.search(line)
+        if m:
+            ids.append(m.group(1))
+    return ids
+
+
+def check_no_blank_success_on_refusal(turns: list[Turn], log_lines: list[str]) -> dict:
+    """The invariant itself: for every toolCallId the runner logged as `[commit-auth] refused`,
+    the SAME call's wire outcome (across all turns) must NOT be an "available" tool-output with
+    empty/falsy content. A refusal must surface as an error or a denial on the wire -- never as a
+    blank "available" that reads as success. Returns {"refusals": [...], "violations": [...]}; a
+    cell should treat any non-empty `violations` as an automatic FAIL regardless of what its own
+    scenario-specific assertions say."""
+    refused_ids = refused_call_ids(log_lines)
+    violations = []
+    for call_id in refused_ids:
+        for t in turns:
+            if call_id not in t.tool_outcomes:
+                continue
+            outcome = t.tool_outcomes[call_id]
+            payload = t.tool_payloads.get(call_id, {})
+            if outcome == "available" and not payload.get("output"):
+                violations.append(
+                    {
+                        "toolCallId": call_id,
+                        "outcome": outcome,
+                        "payload": payload,
+                    }
+                )
+    return {"refusals": refused_ids, "violations": violations}
