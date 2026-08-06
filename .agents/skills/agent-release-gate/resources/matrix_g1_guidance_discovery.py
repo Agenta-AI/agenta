@@ -42,6 +42,7 @@ vault credential is missing or ambiguous -- never silently omitted.
   uv run matrix_g1_guidance_discovery.py
 """
 
+import argparse
 import json
 import pathlib
 import sys
@@ -321,8 +322,18 @@ def run_leg(leg_name: str) -> dict:
 
 
 def main() -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "--only",
+        choices=list(LEGS),
+        help="run a single leg instead of the full matrix (e.g. to re-verify one leg without "
+        "re-spending trial budget on the others)",
+    )
+    args = p.parse_args()
+    leg_names = [args.only] if args.only else list(LEGS)
+
     all_results = {}
-    for leg_name in LEGS:
+    for leg_name in leg_names:
         print(f"\n=== G1 x {leg_name} ===", file=sys.stderr)
         all_results[leg_name] = run_leg(leg_name)
 
