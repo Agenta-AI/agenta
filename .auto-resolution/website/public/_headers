@@ -1,0 +1,56 @@
+# Cloudflare Workers Static Assets edge response headers.
+# https://developers.cloudflare.com/workers/static-assets/headers/
+#
+# A request that matches several rules INHERITS all of their headers, and a
+# header set by more than one matching rule is joined with a comma. Since every
+# path below also matches the `/*` page rule at the bottom, each asset block
+# first clears the inherited `Cache-Control` (`! Cache-Control`) before setting
+# its own — otherwise assets would ship a malformed, dual-`max-age` header.
+# Astro build emits content-hashed filenames under /_astro/; those can be
+# cached forever. Font files under /fonts/ are also content-stable once
+# uploaded to R2 and baked into dist.
+
+# Hashed build assets — cache forever, immutable.
+/_astro/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+# Licensed + open font files — cache forever, immutable.
+/fonts/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+# OG images and other public static assets — 1 week, revalidate.
+/og/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/icons/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/logos/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# Blog + author images live at /blog/<slug>/<file> and /authors/<file>. The
+# generated post/author HTML routes share the /blog/ and /authors/ prefixes
+# (/blog/<slug>/, /blog/, /authors/<slug>/, /authors/), so a bare /blog/* /
+# /authors/* rule would wrongly give that HTML the week-long image TTL. Match the
+# images by their exact segment depth instead (a Cloudflare :placeholder matches
+# one path segment and must consume the whole path — no trailing wildcard), so the
+# HTML routes fall through to the short-TTL /* rule and keep exactly one policy.
+/blog/:slug/:file
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/authors/:file
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# HTML pages — short TTL; stale-while-revalidate so users see fresh content.
+/*
+  Cache-Control: public, max-age=60, stale-while-revalidate=3600
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin

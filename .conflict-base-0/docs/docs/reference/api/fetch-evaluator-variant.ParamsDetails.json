@@ -1,0 +1,1 @@
+{"parameters":[{"name":"evaluator_variant_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Evaluator Variant Id"}}]}

@@ -1,0 +1,649 @@
+import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
+import deepEqual from "fast-deep-equal"
+import {atom} from "jotai"
+import {atomFamily, selectAtom} from "jotai/utils"
+import {eagerAtom} from "jotai-eager"
+import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
+
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {
+    attachAnnotationsToTraces,
+    groupAnnotationsByReferenceId,
+} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
+import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {getNodeById} from "@/oss/lib/traces/observability_helpers"
+import {queryAllAnnotations} from "@/oss/services/annotations/api"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
+import {getOrgValues} from "@/oss/state/org"
+import {projectIdAtom} from "@/oss/state/project"
+import {currentWorkflowContextAtom} from "@/oss/state/workflow"
+
+import {sessionExistsAtom} from "../../session"
+
+import {
+    filtersAtomFamily,
+    limitAtomFamily,
+    realtimeModeAtomFamily,
+    selectedNodeAtom,
+    selectedTraceIdAtom,
+    sortAtomFamily,
+    traceTabsAtom,
+    traceTabsAtomFamily,
+    userFiltersAtomFamily,
+} from "./controls"
+import {buildTraceQueryParams, executeTraceQuery, mergeConditions} from "./queryHelpers"
+
+// Traces query ----------------------------------------------------------------
+export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
+    const appId = get(selectedAppIdAtom)
+    const workflowCtx = get(currentWorkflowContextAtom)
+    // `fetchAllPreviewTraces` writes the legacy `?application_id=` URL param
+    // off this value. For app workflows that's correct (and redundant with the
+    // body filter that also pins `references.application.id`). For evaluator
+    // workflows it would AND with the body's `references.evaluator.id` filter
+    // and return zero traces — `application.id` is a different reference slot
+    // than `evaluator.id`. Drop the URL param for evaluators; the body filter
+    // (from `filtersAtomFamily`'s appScope branch) already pins the scope.
+    const effectiveAppId = workflowCtx.workflowKind === "evaluator" ? "" : appId
+    const sort = get(sortAtomFamily("traces"))
+    const filters = get(filtersAtomFamily("traces"))
+    const traceTabs = get(traceTabsAtomFamily("traces"))
+    const projectId = get(projectIdAtom)
+    const limit = get(limitAtomFamily("traces"))
+
+    const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
+        buildTraceQueryParams(filters, sort, traceTabs, limit)
+
+    const sessionExists = get(sessionExistsAtom)
+
+    // Wait for workflow context to settle before firing the query. While
+    // `workflowCtx.isResolving` is true, `effectiveAppId` falls through to
+    // the app branch with the raw `appId` (which is the evaluator's id when
+    // we're on `/apps/<evalId>/traces`), causing a wrong `application_id`
+    // URL param to be sent. Gating on `!isResolving` skips that wasted
+    // request — once ctx settles, the atom re-evaluates with the correct
+    // `effectiveAppId` and queryFn fires.
+    const enabledFlag = sessionExists && Boolean(appId || projectId) && !workflowCtx.isResolving
+
+    return {
+        queryKey: ["traces", projectId, appId, params],
+        initialPageParam: {
+            newest: typeof params.newest === "string" ? params.newest : undefined,
+        },
+
+        queryFn: async ({pageParam}) =>
+            executeTraceQuery({
+                params,
+                pageParam: pageParam as {newest?: string} | undefined,
+                appId: effectiveAppId as string,
+                isHasAnnotationSelected,
+                hasAnnotationConditions,
+                hasAnnotationOperator,
+            }),
+        enabled: enabledFlag,
+
+        getNextPageParam: (lastPage, _pages) => {
+            const page = lastPage as any
+            const pageSize = page.annotationPageSize ?? page.traces.length
+            return pageSize === limit && page.nextCursor
+                ? {newest: page.nextCursor as string}
+                : undefined
+        },
+
+        refetchOnWindowFocus: false,
+    }
+})
+
+// Base traces atom -------------------------------------------------------------
+export const tracesAtom = selectAtom(
+    tracesQueryAtom,
+    (query) => {
+        const pages = query.data?.pages ?? []
+        if (!pages.length) return []
+
+        const seen = new Set<string>()
+        const deduped: TraceSpanNode[] = []
+
+        pages.forEach((page) => {
+            page.traces.forEach((trace: TraceSpanNode) => {
+                const key = trace.span_id || trace.key
+                if (!key || seen.has(key)) return
+                seen.add(key)
+                deduped.push(trace)
+            })
+        })
+
+        return deduped
+    },
+    deepEqual,
+)
+
+export const traceCountAtom = selectAtom(
+    tracesQueryAtom,
+    (query) => query.data?.pages?.[0]?.traceCount ?? 0,
+)
+
+// Annotation links -------------------------------------------------------------
+const collectInvocationLinks = (nodes: TraceSpanNode[] = []) => {
+    const links: {trace_id: string; span_id: string}[] = []
+    const seen = new Set<string>()
+
+    const visit = (node?: TraceSpanNode) => {
+        if (!node) return
+
+        const ids = node.invocationIds
+        if (ids?.trace_id && ids?.span_id) {
+            const key = `${ids.trace_id}:${ids.span_id}`
+            if (!seen.has(key)) {
+                seen.add(key)
+                links.push(ids)
+            }
+        }
+
+        node.children?.forEach((child) => visit(child as TraceSpanNode))
+    }
+
+    nodes.forEach((node) => visit(node))
+    return links
+}
+
+export const annotationLinksAtom = eagerAtom((get) =>
+    collectInvocationLinks(get(tracesAtom) as TraceSpanNode[]),
+)
+
+// Annotations query ------------------------------------------------------------
+export const annotationsQueryAtom = atomWithQuery((get) => {
+    const links = get(annotationLinksAtom)
+    const {selectedOrg} = getOrgValues()
+    const members = selectedOrg?.default_workspace?.members || []
+
+    return {
+        queryKey: ["annotations", links],
+        queryFn: async () => {
+            if (Array.isArray(links) && !links.length) return [] as AnnotationDto[]
+            const res = await queryAllAnnotations({annotation: {links}})
+            return (
+                res.annotations?.map((a) => transformApiData<AnnotationDto>({data: a, members})) ||
+                []
+            )
+        },
+        enabled: Array.isArray(links) && links.length > 0,
+        refetchOnWindowFocus: false,
+    }
+})
+
+export const annotationsAtom = selectAtom(annotationsQueryAtom, (q) => q.data ?? [], deepEqual)
+
+// Combined traces with annotations --------------------------------------------
+export const tracesWithAnnotationsAtom = eagerAtom<TraceSpanNode[]>((get) =>
+    attachAnnotationsToTraces(
+        get(tracesAtom) as TraceSpanNode[],
+        get(annotationsAtom) as AnnotationDto[],
+    ),
+)
+
+// Loading state ----------------------------------------------------------------
+export const observabilityLoadingAtom = eagerAtom((get) => {
+    const tracesQuery = get(tracesQueryAtom)
+    const annotationsLoading = get(annotationsQueryAtom).isLoading
+    if (tracesQuery.isFetchingNextPage) return false
+    return tracesQuery.isLoading || annotationsLoading
+})
+
+// Derived selection helpers ----------------------------------------------------
+export const activeTraceIndexAtom = eagerAtom((get) => {
+    const traces = get(tracesWithAnnotationsAtom)
+    const selectedId = get(selectedTraceIdAtom)
+    const tab = get(traceTabsAtom)
+    return traces.findIndex((item) =>
+        tab === "span" ? item.span_id === selectedId : item.trace_id === selectedId,
+    )
+})
+
+export const activeTraceAtom = eagerAtom((get) => {
+    const traces = get(tracesWithAnnotationsAtom)
+    const idx = get(activeTraceIndexAtom)
+    return idx >= 0 ? traces[idx] : null
+})
+
+export const selectedItemAtom = eagerAtom((get) => {
+    const traces = get(tracesWithAnnotationsAtom)
+    const selected = get(selectedNodeAtom)
+    if (!traces.length || !selected) return null
+    return getNodeById(traces, selected) || null
+})
+
+// Annotation helpers ----------------------------------------------------------
+export const annotationEvaluatorSlugsAtom = selectAtom(
+    annotationsAtom,
+    (anns: AnnotationDto[]) =>
+        Array.from(
+            new Set(anns.map((a) => a.references?.evaluator?.slug).filter(Boolean)),
+        ) as string[],
+    deepEqual,
+)
+
+export const traceAnnotationInfoAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const [traceId = "", spanId = ""] = key.split(":")
+        const anns = get(annotationsAtom) as AnnotationDto[]
+        const matching = anns.filter((annotation) => {
+            if (!annotation.links || typeof annotation.links !== "object") {
+                return false
+            }
+
+            return Object.values(annotation.links).some(
+                (link) => link?.trace_id === traceId && link?.span_id === spanId,
+            )
+        })
+        return {
+            annotations: matching,
+            aggregatedEvaluatorMetrics: groupAnnotationsByReferenceId(matching),
+        }
+    }, deepEqual),
+)
+
+// Formatting helpers ----------------------------------------------------------
+export const formattedTimestampAtomFamily = atomFamily((ts?: string | number | null) =>
+    atom(() => formatDay({date: ts, outputFormat: "HH:mm:ss DD MMM YYYY"})),
+)
+
+export const formattedDurationAtomFamily = atomFamily((ms?: number) =>
+    atom(() => formatLatency(ms ? ms / 1000 : null)),
+)
+
+export const formattedCostAtomFamily = atomFamily((cost?: number) =>
+    atom(() => formatCurrency(cost)),
+)
+
+export const formattedUsageAtomFamily = atomFamily((tokens?: number) =>
+    atom(() => formatTokenUsage(tokens)),
+)
+
+// Session queries -------------------------------------------------------------
+export const sessionsQueryAtom = atomWithInfiniteQuery((get) => {
+    const appId = get(selectedAppIdAtom)
+
+    const projectId = get(projectIdAtom)
+
+    const sort = get(sortAtomFamily("sessions"))
+    // const filters = get(userFiltersAtomFamily("sessions"))
+    const baseWindowing: {oldest?: string; newest?: string; order?: string} = {}
+
+    if (sort?.type === "standard" && sort.sorted) {
+        baseWindowing.oldest = sort.sorted
+    } else if (
+        sort?.type === "custom" &&
+        (sort.customRange?.startTime || sort.customRange?.endTime)
+    ) {
+        const {startTime, endTime} = sort.customRange
+        if (startTime) baseWindowing.oldest = startTime
+        if (endTime) baseWindowing.newest = endTime
+    }
+
+    const limit = get(limitAtomFamily("sessions"))
+    const sessionExists = get(sessionExistsAtom)
+    const realtimeMode = get(realtimeModeAtomFamily("sessions"))
+
+    return {
+        queryKey: ["sessions", projectId, appId, baseWindowing, limit, realtimeMode],
+        initialPageParam: {
+            newest: undefined as string | undefined,
+            oldest: undefined as string | undefined,
+        },
+
+        queryFn: async ({pageParam}: {pageParam?: {newest?: string; oldest?: string}}) => {
+            // AGE-3788 Phase 1: sessions now go through the Fern client in
+            // @agenta/entities/trace (POST /spans/sessions/query). projectId is
+            // passed explicitly (the entities fn does not read it from state).
+            const {fetchSessions} = await import("@agenta/entities/trace")
+
+            const response = await fetchSessions(
+                {
+                    appId: (appId as string) || undefined,
+                    windowing: {
+                        limit,
+                        // Base time window from sort (initial boundaries for first page)
+                        oldest: baseWindowing.oldest,
+                        newest: baseWindowing.newest,
+                        // Pagination cursors override base boundaries for subsequent pages:
+                        // - In DESC order: pageParam.newest moves backward, oldest stays fixed
+                        // - In ASC order: pageParam.oldest moves forward, newest stays fixed
+                        ...(pageParam?.oldest && {oldest: pageParam.oldest}),
+                        ...(pageParam?.newest && {newest: pageParam.newest}),
+                    },
+                    realtime: realtimeMode,
+                },
+                projectId ?? "",
+            )
+
+            return {
+                session_ids: response?.session_ids || [],
+                count: response?.count || 0,
+                nextWindowing: response?.windowing,
+            }
+        },
+        enabled: sessionExists && Boolean(appId || projectId),
+
+        getNextPageParam: (lastPage: any) => {
+            // Disable pagination in realtime mode (latest activity shows fixed LIMIT items)
+            if (realtimeMode) {
+                return undefined
+            }
+
+            // Use the windowing object from response for time-based pagination
+            const hasMore = lastPage.session_ids.length === limit && lastPage.nextWindowing
+            if (!hasMore) return undefined
+
+            return {
+                newest: lastPage.nextWindowing.newest,
+                oldest: lastPage.nextWindowing.oldest,
+            }
+        },
+
+        refetchOnWindowFocus: false,
+    }
+})
+
+export const sessionIdsAtom = selectAtom(
+    sessionsQueryAtom,
+    (query) => {
+        const pages = query.data?.pages ?? []
+        const sessionIds = pages.flatMap((page: any) => page.session_ids || [])
+        return Array.from(new Set(sessionIds))
+    },
+    deepEqual,
+)
+
+export const sessionCountAtom = selectAtom(
+    sessionsQueryAtom,
+    (query) => (query.data?.pages?.[0] as any)?.count ?? 0,
+)
+
+export const filteredSessionIdsAtom = atom((get) => {
+    const sessionIds = get(sessionIdsAtom)
+    const sessionsSpans = get(sessionsSpansAtom)
+    return sessionIds.filter((id) => (sessionsSpans[id]?.length ?? 0) > 0)
+})
+
+// Session Spans ---------------------------------------------------------------
+export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
+    const appId = get(selectedAppIdAtom)
+    const filters = get(userFiltersAtomFamily("sessions"))
+    const traceTabs = get(traceTabsAtomFamily("sessions"))
+    const projectId = get(projectIdAtom)
+    const limit = get(limitAtomFamily("sessions"))
+    const sessionIds = get(sessionIdsAtom)
+
+    const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
+        buildTraceQueryParams(filters, undefined, traceTabs, undefined)
+
+    const sessionExists = get(sessionExistsAtom)
+
+    return {
+        queryKey: ["session_spans", projectId, appId, params, JSON.stringify(sessionIds)],
+        initialPageParam: {
+            newest: typeof params.newest === "string" ? params.newest : undefined,
+        },
+
+        queryFn: async ({pageParam}) => {
+            if (!sessionIds.length) {
+                return {
+                    traces: [],
+                    traceCount: 0,
+                    nextCursor: undefined,
+                    annotationPageSize: 0,
+                }
+            }
+
+            const promises = sessionIds.map(async (sessionId) => {
+                // Clone params and inject session ID filter for this request
+                const specificParams = JSON.parse(JSON.stringify(params))
+                specificParams.filter = mergeConditions(specificParams.filter, [
+                    {
+                        field: "attributes",
+                        key: "ag.session.id",
+                        operator: "is",
+                        value: sessionId,
+                    },
+                ])
+
+                const result = await executeTraceQuery({
+                    params: specificParams,
+                    pageParam: pageParam as {newest?: string} | undefined,
+                    appId: appId as string,
+                    isHasAnnotationSelected,
+                    hasAnnotationConditions,
+                    hasAnnotationOperator,
+                })
+                // Tag each trace with the session it was queried for. The grouping
+                // below relies on this instead of re-reading `attributes.ag.session.id`:
+                // the new /traces/query endpoint canonicalises `ag` to {data,type,metrics}
+                // and no longer serialises `ag.session.id` on the span, but every trace
+                // here is already scoped to `sessionId` by the filter above. (AGE-3788)
+                result.traces.forEach((t) => {
+                    ;(t as TraceSpanNode & {__sessionId?: string}).__sessionId = sessionId
+                })
+                return result
+            })
+
+            const results = await Promise.all(promises)
+
+            // Merge results
+            const mergedTraces: TraceSpanNode[] = []
+            let maxCount = 0
+
+            results.forEach((res) => {
+                mergedTraces.push(...res.traces)
+                maxCount += res.traceCount // Sum or max? Depending on how we use it. Usually count is total.
+            })
+
+            return {
+                traces: mergedTraces,
+                traceCount: maxCount,
+                nextCursor: undefined, // Pagination for multi-session not supported in this view
+                annotationPageSize: 0,
+            }
+        },
+        enabled: sessionExists && Boolean(appId || projectId) && sessionIds.length > 0,
+
+        getNextPageParam: (lastPage, _pages) => {
+            const page = lastPage as any
+            const pageSize = page.annotationPageSize ?? page.traces.length
+            return pageSize === limit && page.nextCursor
+                ? {newest: page.nextCursor as string}
+                : undefined
+        },
+
+        refetchOnWindowFocus: false,
+    }
+})
+
+export const sessionsSpansAtom = selectAtom(
+    sessionsSpansQueryAtom,
+    (query) => {
+        const pages = query.data?.pages ?? []
+        if (!pages.length) return {} as Record<string, TraceSpanNode[]>
+
+        const seen = new Set<string>()
+        const grouped: Record<string, TraceSpanNode[]> = {}
+
+        pages.forEach((page) => {
+            page.traces.forEach((trace: TraceSpanNode) => {
+                const key = trace.span_id || trace.key
+                if (!key || seen.has(key)) return
+                seen.add(key)
+                // Prefer the session id tagged at query time (the trace was fetched
+                // with a per-session filter). Fall back to the attribute path for any
+                // legacy/other caller that still serialises `ag.session.id`. (AGE-3788)
+                const sessionId = ((trace as TraceSpanNode & {__sessionId?: string}).__sessionId ||
+                    (trace.attributes as any)?.ag?.session?.id) as string
+
+                if (sessionId) {
+                    if (!grouped[sessionId]) grouped[sessionId] = []
+                    grouped[sessionId].push(trace)
+                }
+            })
+        })
+
+        return grouped
+    },
+    deepEqual,
+)
+
+// --- Granular Session Stats Atoms ---
+
+const sessionTracesAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const spansMap = get(sessionsSpansAtom)
+        return spansMap[sessionId] || []
+    }),
+)
+
+export const sessionTraceCountAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        return traces.length
+    }),
+)
+
+// Sorted traces are required for time-based metrics (Start/End/Duration) and for
+// the First input / Last output cells. Sort by `start_time` (falling back to
+// `created_at`) to match the Session drawer's tree ordering
+// (SessionTree sorts its "Trace N" nodes by start_time). Sorting by a different
+// key here made the table's first/last trace diverge from the drawer's.
+const sessionSortedTracesAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        if (!traces.length) return []
+        const sortKey = (t: (typeof traces)[number]) =>
+            new Date(t.start_time || t.created_at || 0).getTime()
+        return [...traces].sort((a, b) => sortKey(a) - sortKey(b))
+    }),
+)
+
+export const sessionTimeRangeAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const sorted = get(sessionSortedTracesAtomFamily(sessionId))
+        if (!sorted.length) return {startTime: undefined, endTime: undefined}
+        return {
+            startTime: sorted[0].start_time || sorted[0].created_at,
+            endTime: sorted[sorted.length - 1].end_time || sorted[sorted.length - 1].created_at,
+        }
+    }),
+)
+
+export const sessionDurationAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const {startTime, endTime} = get(sessionTimeRangeAtomFamily(sessionId))
+        if (!startTime || !endTime) return 0
+        const duration = new Date(endTime).getTime() - new Date(startTime).getTime()
+        return duration > 0 ? duration : 0
+    }),
+)
+
+export const sessionLatencyAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        return traces.reduce((acc, trace) => {
+            if (trace.end_time && trace.start_time) {
+                const lat =
+                    new Date(trace.end_time).getTime() - new Date(trace.start_time).getTime()
+                return acc + (lat > 0 ? lat : 0)
+            }
+            return acc
+        }, 0)
+    }),
+)
+
+export const sessionUsageAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        return traces.reduce((acc, trace) => {
+            const attrs = trace.attributes || {}
+            const tokens =
+                (attrs as any)?.ag?.metrics?.tokens?.incremental?.total ||
+                (attrs as any)?.ag?.metrics?.tokens?.cumulative?.total ||
+                (attrs["ag.usage.total_tokens"] as number) ||
+                (attrs["total_tokens"] as number) ||
+                0
+            return acc + (Number(tokens) || 0)
+        }, 0)
+    }),
+)
+
+export const sessionCostAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const traces = get(sessionTracesAtomFamily(sessionId))
+        return traces.reduce((acc, trace) => {
+            const attrs = trace.attributes || {}
+            const cost =
+                (attrs as any)?.ag?.metrics?.costs?.incremental?.total ||
+                (attrs as any)?.ag?.metrics?.costs?.cumulative?.total ||
+                0
+            return acc + (Number(cost) || 0)
+        }, 0)
+    }),
+)
+
+export const sessionFirstInputAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const sorted = get(sessionSortedTracesAtomFamily(sessionId))
+        if (!sorted.length) return undefined
+        const firstTrace = sorted[0]
+        return (firstTrace.attributes as any)?.ag?.data?.inputs
+    }),
+)
+
+// A streamed agent run's ROOT workflow span returns a generator, so its `ag.data.outputs` is
+// the generator object's repr (`<async_generator object ... at 0x...>`), not the reply — the
+// span is already closed by the time the stream produces text. The real assistant output is on
+// the nested `agent`-type span (e.g. `invoke_agent`). So prefer that span's output, falling back
+// to the root's unless it's the meaningless generator repr.
+const GENERATOR_REPR = /^<(?:async_)?generator object/
+
+const traceDisplayOutput = (root: TraceSpanNode): unknown => {
+    let agentOutput: unknown
+    const visit = (node: TraceSpanNode) => {
+        if (agentOutput !== undefined) return
+        if (node.span_type === "agent") {
+            const out = (node.attributes as any)?.ag?.data?.outputs
+            if (out !== undefined) agentOutput = out
+        }
+        node.children?.forEach((child) => visit(child as TraceSpanNode))
+    }
+    visit(root)
+    if (agentOutput !== undefined) return agentOutput
+
+    const rootOutput = (root.attributes as any)?.ag?.data?.outputs
+    return typeof rootOutput === "string" && GENERATOR_REPR.test(rootOutput)
+        ? undefined
+        : rootOutput
+}
+
+export const sessionLastOutputAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => {
+        const sorted = get(sessionSortedTracesAtomFamily(sessionId))
+        if (!sorted.length) return undefined
+        const lastTrace = sorted[sorted.length - 1]
+
+        if (lastTrace.status_code === "STATUS_CODE_ERROR") {
+            return lastTrace.status_message
+        }
+        return traceDisplayOutput(lastTrace)
+    }),
+)
+
+// Combined loading state for session context
+// Checks strict loading state of sessions list and session spans
+export const sessionsLoadingAtom = atom((get) => {
+    const sessionsQuery = get(sessionsQueryAtom)
+    const isSessionsLoading = sessionsQuery.isLoading && !sessionsQuery.isFetchingNextPage
+
+    const spansQuery = get(sessionsSpansQueryAtom)
+    const isSpansLoading = spansQuery.isLoading && !spansQuery.isFetchingNextPage
+
+    return isSessionsLoading || isSpansLoading
+})

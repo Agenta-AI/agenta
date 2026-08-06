@@ -1,0 +1,76 @@
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $workerQueues := default dict $values.workerQueues -}}
+{{- $newrelic := default dict $values.newrelic -}}
+{{- if eq (include "agenta.workerQueues.enabled" .) "true" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta.fullname" . }}-worker-queues
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker-queues
+spec:
+  replicas: {{ include "agenta.workerQueues.replicas" . }}
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker-queues
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker-queues
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- with $workerQueues.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $init := include "agenta.initContainers" . }}
+      {{- if $init }}
+      initContainers:
+        {{- $init | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: worker-queues
+          image: {{ include "agenta.apiImage" . }}
+          imagePullPolicy: {{ include "agenta.api.pullPolicy" . }}
+          {{- with $workerQueues.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command: {{ if $newrelic.licenseKey }}["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_queues"]{{ else }}["python", "-m", "entrypoints.worker_queues"]{{ end }}
+          env:
+            {{- include "agenta.commonEnv" . | nindent 12 }}
+            # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
+            - name: AGENTA_WORKER_QUEUES
+              value: {{ default "" $workerQueues.queues | quote }}
+            {{- range $key, $val := $workerQueues.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "entrypoints.worker_queues"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with $workerQueues.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $workerQueues.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $workerQueues.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $workerQueues.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

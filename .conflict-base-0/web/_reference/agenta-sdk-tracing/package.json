@@ -1,0 +1,46 @@
+{
+    "name": "@agenta/sdk-tracing",
+    "version": "0.1.0",
+    "private": true,
+    "sideEffects": false,
+    "description": "Agenta SDK — OpenTelemetry tracing pipeline with pluggable framework mappers",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "build:dist": "tsc -p tsconfig.build.json",
+        "types:check": "tsc --noEmit",
+        "lint": "eslint --config ../eslint.config.mjs src/"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./mappers": "./src/mappers/index.ts"
+    },
+    "devDependencies": {
+        "@types/node": "^25.6.0",
+        "typescript": "6.0.2"
+    },
+    "peerDependencies": {
+        "@opentelemetry/api": "^1",
+        "@opentelemetry/core": "^2",
+        "@opentelemetry/exporter-trace-otlp-proto": ">=0.200",
+        "@opentelemetry/resources": "^2",
+        "@opentelemetry/sdk-trace-base": "^2",
+        "@opentelemetry/sdk-trace-node": "^2",
+        "@opentelemetry/semantic-conventions": "^1"
+    },
+    "peerDependenciesMeta": {
+        "@opentelemetry/sdk-trace-node": {
+            "optional": true
+        },
+        "@opentelemetry/exporter-trace-otlp-proto": {
+            "optional": true
+        },
+        "@opentelemetry/resources": {
+            "optional": true
+        },
+        "@opentelemetry/semantic-conventions": {
+            "optional": true
+        }
+    }
+}

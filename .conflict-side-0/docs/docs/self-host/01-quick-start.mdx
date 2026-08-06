@@ -1,0 +1,110 @@
+---
+title: "Quick Start: Self-Hosting Agenta"
+slug: /self-host/quick-start
+sidebar_label: "Quick Start"
+description: "Learn how to deploy Agenta locally using Docker, either on port 80 or a custom port. Step-by-step guide covering installation, configuration, troubleshooting, and version updates"
+sidebar_position: 1
+---
+
+This guide explains how to set up Agenta on your local machine using Docker Compose, either using the default port 80 or a custom port.
+
+:::tip Self-host with your coding agent
+Paste this into Claude Code (or your coding agent) and it will walk you through setup and testing:
+
+```
+1. Install the Agenta self-hosting skill: npx skills add Agenta-AI/agenta-skills
+2. Help me self-host Agenta with its repository.
+```
+:::
+
+:::tip
+Looking to deploy on Kubernetes instead? See the [Deploy on Kubernetes](/self-host/guides/deploy-to-kubernetes) guide for Helm chart installation.
+:::
+
+## Prerequisites
+
+- Docker and Docker Compose installed ([Download Docker](https://docs.docker.com/get-docker/))
+
+## Quick Setup (Port 80)
+
+1. Clone Agenta:
+```bash
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
+cd agenta
+git sparse-checkout set hosting/docker-compose api/oss/databases/postgres api/ee/databases/postgres
+```
+
+2. Copy configuration and, optionally, edit it:
+```bash
+cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+```
+
+3. Start Agenta:
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
+```
+
+4. Access Agenta at `http://localhost`.
+
+:::info Sign-ups are open by default
+Anyone who can reach your instance can sign up and gets their own organization. If people you do not fully trust can reach it, see [Restrict Sign-ups and Organization Creation](/self-host/guides/restrict-organization-creation).
+:::
+
+## Using a Custom Port
+
+To use a different port (e.g., 90):
+
+Change the following variables in the environment file `/hosting/docker-compose/oss/.env.oss.gh` then restart the services:
+```bash
+TRAEFIK_PORT=90
+AGENTA_SERVICES_URL=http://localhost:90/services
+AGENTA_API_URL=http://localhost:90/api
+AGENTA_WEB_URL=http://localhost:90
+```
+
+## Upgrading to the Latest Version of Agenta
+
+Updating your local Agenta installation to the latest version, requires pulling the latest version with `--pull always` and running migrations if any.
+
+1. Pull the latest version:
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh  --profile with-web --profile with-traefik up -d --pull always
+```
+
+2. Run migrations if needed:
+```bash
+docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/core agenta-oss-gh-api-1 alembic -c alembic.ini upgrade head
+```
+
+Consult the [upgrading guide](/self-host/upgrading) for more details.
+
+## Troubleshooting
+
+If Agenta doesn't start properly, check these common issues:
+
+1. Port conflicts: Verify if another application is using your chosen port.
+2. Container status: Run `docker ps` to check if all Agenta containers are running
+3. Logs: Examine container logs with:
+   ```bash
+   docker logs agenta-oss-gh-web
+   docker logs agenta-oss-gh-api
+   ```
+4. SDK connectivity issues: If you're using the Agenta SDK from outside Docker to connect to your localhost Agenta instance and experiencing connection failures, ensure the `DOCKER_NETWORK_MODE` environment variable is unset (this is the default behavior).
+5. Docker network layout: The Docker networks are defined in the compose files. See `hosting/docker-compose/oss/docker-compose.gh.yml` (OSS) or `hosting/docker-compose/ee/docker-compose.dev.yml` (EE) for the network names and service attachments.
+6. Lack of memory provided to docker: If you are experiencing the web container restarting and dying unexpectedly, the most likely cause is that you are running out of memory. You may need to increase the memory allocated to docker (desktop).
+7. The runner container does not start and Docker reports `error gathering device information while adding custom device "/dev/fuse"`: the host has no FUSE device. See [Run agents locally](/self-host/agent-execution/run-agents-locally#troubleshooting).
+8. Docker reports `permission denied` while trying to connect to `/var/run/docker.sock`: your user cannot reach the Docker daemon. Run the commands as `root`, prefix them with `sudo`, or add your user to the `docker` group (`sudo usermod -aG docker $USER`, then open a new login shell). A member of the `docker` group can start a container that mounts the host filesystem, which makes the group equivalent to root on that machine.
+9. Docker reports `failed to resolve reference ... not found` or `manifest unknown` while pulling an image (for example `ghcr.io/agenta-ai/agenta-runner:latest`): the image tag you are pulling is not published to the registry. Pin the image tags to a published release version in your env file. See [How do I lock Agenta to a specific version?](/self-host/faq).
+
+:::info
+To set up a development environment with features like hot-reloading, refer to our [Development Guide](/contributing/guides/development-mode).
+::: 
+
+:::tip Where do agents run?
+Agents run in a separate runner service. To understand the runner topology and where agent code
+executes, see [How agents run](/self-host/agent-execution/how-agents-run).
+:::
+
+Need help? Either:
+- [Create a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw) for quick support

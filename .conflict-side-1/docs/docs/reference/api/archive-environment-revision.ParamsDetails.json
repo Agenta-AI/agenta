@@ -1,0 +1,1 @@
+{"parameters":[{"name":"environment_revision_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Environment Revision Id"}}]}

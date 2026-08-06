@@ -1,0 +1,65 @@
+---
+id: list-workflow-catalog-types
+title: "List Workflow Catalog Types"
+description: "List the shared JSON Schema fragments available to workflow schemas."
+sidebar_label: "List Workflow Catalog Types"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVUtv2zgQ/ivEnBJAtrJ71GmN7qNpFkmwSbGHxIjH0khiQ5EsH068hv77Yij52SAoeq4vtslvZr755sENBGw8FA/wr3HPtTIvHuYZVORLJ22QRkMBf0sfRGhJ+BYdVeLT3c21uCtb6lDUDpuOdPACVygVLhWJYMTL6E34BPPTR/2otyGE1DaG3MRgY9gihKOaHOmSOJQnsZIoFq8TbCZhbWniqF6Is9q4R02v2FlFmVh05D02tBDGiYV1prNhcT4Vnz07kV6QrqyROjClSvrSrMiJlxbDo2an4pnWXtAr57ek2jgSyyhVJXUjcCSWmN8RFeJhJ9H8LN+xzdHKSRNlRfk2aX8+hQyMJYes4GUFBSjpw9MW8FRiQGWaJybhIQNH3hrtyUOxgV8vLvjruAZ3sSzJ+zoq8c8IhgxKowPpwHC0VskyBcy/eLbZwJAB/7KO6QQ5RChNHIw4PhQgdaCGHGQQZFB88iEhThvhOnZLcsLUIqlXUS215LuD6k+TVY1RBSgu+gyGHIsNyECd/5aMxo5SAnp9U0PxsGPlg5O6gT7bneioFPTzPc1rtu1PaP6Yq98PXPQZPNP6QKDRfo++ojWjWOinvcpYVUkOVLdHKX4Hn20Jjiiy2ocnS2MUoU5Hb8eCUroyKnRnf0alPnmjJzdpzM4h23oxyy9UhuRkLMn3WKFzuH5XwRNb6E8j7qEMGzcI9G/gHH2N0lHFi4krcaz0QcztSH4YBuqe/fQnnPfo+3HcTkbrva3mW2ktVeJFhjbtQOtMFcswfZP3O7T8bmx7/mTQUWgNr4aG2NRiaKGA/RLJxyWRpwHKIQNPbkXOp0aKTjEarUw1Gf62IVhf5DnFaalMrKbYkA44RTkA5+yjjE6GdXIyu728ovVHwoocFA/zQ0BSYmjfY9iuAdDKq1SbYYJhFkNrnPwv7SDIQLK47WDFCUtdm2Q+ijRL5MTs9vKbkhxd8ZLDMux3xXgN2Una+2whA+pQ8mUg7H7b3XBzsIZDmIvpL9MLPrLGhw71QYj05u0erLGO4s0G2uzX8M+n8oeeyrGhAr2G3CqUaQOn2m7GuXiAnQV3xFAO2D4uGfBOaI0PjNxslujps1N9z8dfIzlu93kGK3SSZU+9nm17kychrXuYlSVZHsYVqji0+MmjyhOyG9y//riHvv8fhXU/8w==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Workflow Catalog Types"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/catalog/types/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List the shared JSON Schema fragments available to workflow schemas.
+
+Workflow input/output schemas reference these via `x-ag-type-ref` (for
+example, `message` or `prompt`). Use this endpoint to discover what
+type keys exist before building a schema.
+
+See: [Workflows](/reference/api-guide/workflows).
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./list-workflow-catalog-types.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./list-workflow-catalog-types.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

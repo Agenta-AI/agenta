@@ -1,0 +1,402 @@
+import {useCallback, useEffect, useMemo, useState} from "react"
+
+import {
+    createHumanEvaluatorAtom,
+    resolveOutputSchema,
+    updateHumanEvaluatorAtom,
+    type HumanEvaluatorMetric,
+} from "@agenta/entities/workflow"
+import {message} from "@agenta/ui/app-message"
+import {Plus} from "@phosphor-icons/react"
+import {Alert, Button, Form, Input, Typography} from "antd"
+import deepEqual from "fast-deep-equal"
+import {useSetAtom} from "jotai"
+import {useDebounceValue} from "usehooks-ts"
+
+import {isSlugInputValid} from "@/oss/lib/helpers/utils"
+import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
+import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
+
+import {AnnotateDrawerSteps} from "../enum"
+import {CreateEvaluatorProps} from "../types"
+
+import CreateNewMetric from "./assets/CreateNewMetric"
+import {slugify} from "./assets/helper"
+import {MetricFormData} from "./assets/types"
+
+type EvaluatorWithMeta = EvaluatorPreviewDto & {
+    id?: string
+    flags?: Record<string, any>
+    meta?: Record<string, any>
+    tags?: Record<string, any>
+}
+
+const defaultMetric = {name: "", optional: false}
+
+const CreateEvaluator = ({
+    setSteps,
+    setSelectedEvaluators,
+    mode = "create",
+    evaluator,
+    onSuccess,
+    skipPostCreateStepChange = false,
+}: CreateEvaluatorProps) => {
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [errorMessage, setErrorMessage] = useState<string[]>([])
+    const [slugTouched, setSlugTouched] = useState(false)
+
+    const [form] = Form.useForm()
+    const name = Form.useWatch("evaluatorName", form)
+    const slugValue = Form.useWatch("evaluatorSlug", form)
+    const [debouncedName] = useDebounceValue(name, 500)
+    const createHumanEvaluator = useSetAtom(createHumanEvaluatorAtom)
+    const updateHumanEvaluator = useSetAtom(updateHumanEvaluatorAtom)
+    const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
+
+    const isEditMode = mode === "edit" && Boolean(evaluator?.id)
+
+    const metricsFromEvaluator = useMemo(() => {
+        if (!isEditMode || !evaluator) return []
+
+        const outputs = resolveOutputSchema(evaluator.data)
+
+        if (!outputs || typeof outputs !== "object") return []
+
+        const required = Array.isArray(outputs.required) ? outputs.required : []
+        const properties = outputs.properties ?? {}
+
+        return Object.entries(properties).map(([metricName, schema]) => {
+            const metricSchema = schema as Record<string, any>
+            const optional = !required.includes(metricName)
+
+            if (Array.isArray(metricSchema.anyOf) && metricSchema.anyOf.length > 0) {
+                const first = metricSchema.anyOf[0] || {}
+                const enums = Array.isArray(first.enum)
+                    ? first.enum.filter((value: any) => value !== null && value !== undefined)
+                    : []
+                return {
+                    name: metricName,
+                    type: "class",
+                    enum: enums.map(String).filter(Boolean),
+                    optional,
+                }
+            }
+
+            if (metricSchema.type === "array") {
+                const items = metricSchema.items || {}
+                const enums = Array.isArray(items.enum)
+                    ? items.enum.filter((value: any) => value !== null && value !== undefined)
+                    : []
+                return {
+                    name: metricName,
+                    type: "label",
+                    enum: enums.map(String).filter(Boolean),
+                    optional,
+                }
+            }
+
+            const metric: Record<string, any> = {
+                name: metricName,
+                type: metricSchema.type,
+                optional,
+            }
+
+            if (metricSchema.minimum !== undefined) {
+                metric.minimum = metricSchema.minimum
+            }
+
+            if (metricSchema.maximum !== undefined) {
+                metric.maximum = metricSchema.maximum
+            }
+
+            if (Array.isArray(metricSchema.enum)) {
+                metric.enum = metricSchema.enum.filter(
+                    (value: any) => value !== null && value !== undefined,
+                )
+            }
+
+            return metric
+        })
+    }, [evaluator, isEditMode])
+
+    const initialFormValues = useMemo(() => {
+        const metrics =
+            metricsFromEvaluator.length > 0
+                ? metricsFromEvaluator.map((metric) => ({...metric}))
+                : [{...defaultMetric}]
+
+        if (!isEditMode) {
+            return {
+                evaluatorName: null,
+                evaluatorSlug: null,
+                evaluatorDescription: null,
+                metrics,
+            }
+        }
+
+        return {
+            evaluatorName: evaluator?.name,
+            evaluatorSlug: evaluator?.slug,
+            evaluatorDescription: evaluator?.description,
+            metrics,
+        }
+    }, [evaluator, isEditMode, metricsFromEvaluator])
+
+    useEffect(() => {
+        form.setFieldsValue({metrics: []})
+        form.setFieldsValue(initialFormValues)
+        setErrorMessage([])
+        setSlugTouched(isEditMode)
+        setIsFormDirty(false)
+    }, [form, initialFormValues, isEditMode])
+
+    useEffect(() => {
+        if (isEditMode) return
+        if (slugTouched) return
+
+        const nextSlug = slugify(debouncedName || "")
+        if (slugValue !== nextSlug) {
+            form.setFieldValue("evaluatorSlug", nextSlug)
+        }
+    }, [debouncedName, slugTouched, form, slugValue, isEditMode])
+
+    const onScrollTo = useCallback((direction: "top" | "bottom") => {
+        setTimeout(() => {
+            const el = document.querySelector(".create-eval")
+            if (el) {
+                el.scrollTo({
+                    top: direction === "top" ? 0 : el.scrollHeight,
+                    behavior: "smooth",
+                })
+            }
+        }, 100)
+    }, [])
+
+    const normalizeTags = (input: unknown): string[] | undefined => {
+        if (input == null) return undefined
+        if (Array.isArray(input)) return []
+        if (typeof input === "object") return Object.keys(input as Record<string, unknown>)
+        return []
+    }
+
+    const toMetrics = (formMetrics: MetricFormData[]): HumanEvaluatorMetric[] =>
+        formMetrics.map(({name, type, optional, minimum, maximum, ...rest}) => ({
+            name,
+            type,
+            optional,
+            ...(minimum !== undefined ? {minimum} : {}),
+            ...(maximum !== undefined ? {maximum} : {}),
+            ...((rest as any).enum ? {enum: (rest as any).enum} : {}),
+        }))
+
+    const onFinish = useCallback(
+        async (values: any) => {
+            try {
+                setIsSubmitting(true)
+                const metrics = toMetrics(values.metrics)
+
+                if (isEditMode && evaluator?.id) {
+                    const evaluatorWithMeta = evaluator as EvaluatorWithMeta
+                    await updateHumanEvaluator({
+                        id: evaluator.id,
+                        variantId:
+                            (evaluatorWithMeta as any).workflow_variant_id ??
+                            (evaluatorWithMeta as any).variant_id,
+                        name: values.evaluatorName,
+                        description: values.evaluatorDescription,
+                        metrics,
+                        meta: evaluatorWithMeta.meta as Record<string, unknown> | undefined,
+                        tags: normalizeTags(evaluatorWithMeta.tags),
+                    })
+                    message.success("Evaluator updated successfully")
+                    await onSuccess?.(values.evaluatorSlug)
+                    return
+                }
+
+                await createHumanEvaluator({
+                    name: values.evaluatorName,
+                    slug: values.evaluatorSlug,
+                    description: values.evaluatorDescription,
+                    metrics,
+                })
+
+                message.success("Evaluator created successfully")
+                recordWidgetEvent("evaluator_created")
+                if (!skipPostCreateStepChange) {
+                    setSteps?.(AnnotateDrawerSteps.SELECT_EVALUATORS)
+                    setSelectedEvaluators?.((prev) => [...new Set([...prev, values.evaluatorSlug])])
+                }
+                await onSuccess?.(values.evaluatorSlug)
+            } catch (error: any) {
+                if (error?.response?.status === 409) {
+                    setErrorMessage(["Evaluator with this slug already exists"])
+                    message.error("Evaluator with this slug already exists")
+                    onScrollTo("top")
+                } else {
+                    const errorMessages = Array.isArray(error?.response?.data?.detail)
+                        ? error.response?.data?.detail
+                              ?.map((item: any) => item?.msg)
+                              .filter(Boolean)
+                        : [error?.response?.data?.detail]
+
+                    onScrollTo("top")
+                    setErrorMessage((errorMessages || []).filter(Boolean))
+                }
+            } finally {
+                setIsSubmitting(false)
+            }
+        },
+        [
+            createHumanEvaluator,
+            updateHumanEvaluator,
+            setErrorMessage,
+            onScrollTo,
+            setSteps,
+            setSelectedEvaluators,
+            isEditMode,
+            evaluator,
+            onSuccess,
+            skipPostCreateStepChange,
+            recordWidgetEvent,
+        ],
+    )
+
+    const submitLabel = isEditMode ? "Update" : "Create"
+
+    const [isFormDirty, setIsFormDirty] = useState(false)
+
+    const checkDirty = useCallback(() => {
+        if (!isEditMode) return
+        const current = form.getFieldsValue(true)
+        setIsFormDirty(!deepEqual(current, initialFormValues))
+    }, [form, initialFormValues, isEditMode])
+
+    const isSubmitDisabled = isEditMode && !isFormDirty
+
+    return (
+        <Form
+            scrollToFirstError
+            form={form}
+            layout="vertical"
+            onFinish={onFinish}
+            onFieldsChange={checkDirty}
+            onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault()
+                }
+            }}
+            className="create-eval h-full flex flex-col overflow-y-auto gap-4 p-4 pb-0"
+            initialValues={initialFormValues}
+        >
+            {errorMessage?.map((msg, idx) => (
+                <Alert
+                    key={idx}
+                    message={msg}
+                    type="error"
+                    showIcon
+                    closable
+                    onClose={() =>
+                        setErrorMessage((prev) => prev?.filter((_, i) => i !== idx) || [])
+                    }
+                />
+            ))}
+
+            <div className="w-full flex flex-col gap-2">
+                <Typography.Text className="font-medium">Evaluator name</Typography.Text>
+                <Form.Item
+                    name="evaluatorName"
+                    rules={[{required: true, message: "Evaluator name is required!"}]}
+                    className="mb-0"
+                >
+                    {/* TEMPORARY: Disabling name editing */}
+                    <Input placeholder="Enter a name" disabled={isEditMode} />
+                </Form.Item>
+            </div>
+
+            <div className="w-full flex flex-col gap-2">
+                <Typography.Text className="font-medium">Evaluator slug</Typography.Text>
+                <Form.Item
+                    name="evaluatorSlug"
+                    rules={[
+                        {
+                            required: true,
+                            message: "Evaluator slug is required!",
+                        },
+                        {
+                            validator(_, value) {
+                                if (!value) {
+                                    return Promise.resolve()
+                                } else if (!isSlugInputValid(value)) {
+                                    return Promise.reject(
+                                        "Slug must contain only letters, numbers, underscore, or dash without any spaces.",
+                                    )
+                                } else {
+                                    return Promise.resolve()
+                                }
+                            },
+                        },
+                    ]}
+                    className="mb-0"
+                >
+                    <Input
+                        placeholder="Enter a unique slug"
+                        disabled={isEditMode}
+                        onChange={() => !slugTouched && setSlugTouched(true)}
+                    />
+                </Form.Item>
+            </div>
+
+            <div className="w-full flex flex-col gap-2">
+                <Typography.Text className="font-medium">
+                    Evaluator description <span className="text-gray-500">(optional)</span>
+                </Typography.Text>
+                <Form.Item name="evaluatorDescription" rules={[{required: false}]} className="mb-0">
+                    <Input.TextArea placeholder="Enter a description" rows={2} />
+                </Form.Item>
+            </div>
+
+            <Form.List name="metrics">
+                {(fields, {add, remove}) => (
+                    <div className="flex flex-col gap-4">
+                        {fields.map((field) => (
+                            <CreateNewMetric
+                                key={field.key}
+                                field={field}
+                                onRemove={remove}
+                                isFirstMetric={fields.length === 1}
+                            />
+                        ))}
+
+                        <Button
+                            icon={<Plus size={14} />}
+                            className="w-fit"
+                            onClick={() => {
+                                add()
+                                onScrollTo("bottom")
+                            }}
+                        >
+                            Add Feedback
+                        </Button>
+                    </div>
+                )}
+            </Form.List>
+
+            <div className="bg-[var(--ant-color-bg-container)] h-[50px] border-0 border-t border-solid border-[var(--ant-color-border-secondary)] flex items-center justify-end gap-2 sticky bottom-0 -mx-4 px-4 mt-auto shrink-0">
+                <Button
+                    type="primary"
+                    className="w-fit"
+                    onClick={(e) => {
+                        e.preventDefault()
+                        form.submit()
+                    }}
+                    loading={isSubmitting}
+                    disabled={isSubmitDisabled}
+                >
+                    {submitLabel}
+                </Button>
+            </div>
+        </Form>
+    )
+}
+
+export default CreateEvaluator

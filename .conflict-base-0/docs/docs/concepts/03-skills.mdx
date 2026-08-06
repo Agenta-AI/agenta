@@ -1,0 +1,100 @@
+---
+title: "Skills"
+sidebar_label: "Skills"
+description: "Learn what AI agent skills are, what they contain, how they differ from instructions, and when agents load them."
+---
+
+A skill is a short handbook that teaches an agent one kind of task. This page explains what skills contain, how they differ from instructions, when agents load them, and where to find them.
+
+## An example of when to use a skill
+
+Return to the marketing launch agent from the [Agents concept](/concepts/agents). The agent knows your product, audience, and voice because those facts guide all of its work. But preparing a launch brief requires a particular process.
+
+Your team may expect every brief to answer the same questions:
+
+- Who is this launch for?
+- What problem does the feature solve?
+- What evidence supports the message?
+- Which channels should the campaign use?
+- Who must approve the final brief?
+
+Instead of putting that whole process in the agent's standing instructions, you can save it as a `launch-brief` skill. The agent can then follow the same process for every feature launch.
+
+## What a skill is
+
+A skill packages the knowledge an agent needs for one kind of task. For example, a PDF report skill can explain how to lay out pages, which fonts to use, and how to export the file. Other skills might cover your monthly analysis or your team's pull request process.
+
+Every skill is a folder with a file named `SKILL.md` at its center.
+
+`SKILL.md` contains:
+
+- A **name** that identifies the skill.
+- A **description** that tells the agent when to use it.
+- A **body** that explains how to perform the task.
+
+The folder can also include templates, examples, reference material, and scripts. A launch-brief skill might look like this:
+
+```text
+campaign-brief/
+|-- SKILL.md
+|-- templates/
+|   `-- launch-brief.md
+`-- examples/
+    `-- approved-brief.md
+```
+
+The body tells the agent which questions to answer and in what order. The template gives the result a consistent shape. The example shows what your team considers a strong brief.
+
+## The description decides when the agent loads a skill
+
+The description is all the agent sees up front, so it determines when the skill fires. It should say when to use the skill, not only what the skill contains.
+
+A description that names situations the agent can recognize:
+
+> Use when someone asks for a PDF, a printable report, or a document to send to a client. Covers page layout, fonts, and the export step.
+
+A description that only names the subject:
+
+> Instructions for producing PDF documents.
+
+The second description is accurate, but it gives the agent no situation to match. The skill may sit unused while the agent improvises. By contrast, the agent reads the body only after the skill fires, so it can be as long as the task requires.
+
+## When to use a skill
+
+Skills are similar to [instructions](/concepts/instructions). Both tell the agent how to work, and both become part of the prompt sent to the model. The difference is when they are loaded.
+
+Instructions load in full at the start of every session. For a skill, the model initially sees only its name and description. It loads the body when the skill applies to the task at hand.
+
+This difference is why skills exist. Everything the model receives draws on its [context window](/concepts/instructions#the-context-window-is-one-shared-budget), so instructions need to stay short. An agent can carry twenty skills while initially loading only their names and descriptions.
+
+Put what the agent must always know in its instructions: who you are, what the agent is for, and how it should talk. Put processes for occasional tasks, such as writing a PDF report or running an analysis, in skills. Reference material, such as data, notes, or a wiki, belongs in files. See [Files and knowledge](/concepts/files-and-knowledge).
+
+| Use | For | Launch agent example |
+| --- | --- | --- |
+| **[Instructions](/concepts/instructions)** | Context and rules that should guide every task | The audience, product position, and company voice |
+| **Skill** | A process for a recognizable kind of task | The steps for preparing a launch brief |
+| **[File](/concepts/files-and-knowledge)** | Material the agent may need to consult | Product notes or an approved brief from a previous launch |
+
+## How to create skills
+
+You can write a skill yourself or bring one in from outside.
+
+### Writing your own
+
+A skill that captures how your company works starts with someone who knows the process. Often, that means you and the agent write it together. You explain the process in chat, the agent does the task, and you save the explanation as a skill for next time.
+
+[Manage skills](/guides/manage-skills) shows both routes: writing a skill in the `New skill` dialog or uploading an existing skill folder.
+
+### Where to find skills
+
+Skills use a folder format shared across the agent ecosystem. This means skills written for other tools work in Agenta. Published collections include [Anthropic's skills repository](https://github.com/anthropics/skills) and community collections such as [Superpowers](https://github.com/obra/superpowers).
+
+:::note
+A published skill encodes the process its author had in mind, which may not be yours. The body is plain text, so read it before you hand it to an agent.
+:::
+
+## Related
+
+- [Instructions](/concepts/instructions): the always-loaded counterpart to skills.
+- [Tools and integrations](/concepts/tools-and-integrations): the actions a skill tells the agent to take.
+- [Manage skills](/guides/manage-skills): adding, writing, and removing skills.

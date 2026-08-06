@@ -1,0 +1,192 @@
+###
+# Organization Slug Immutability Tests
+# Tests that organization slug cannot be changed once set
+#
+# This validates the business rule:
+# - Slug can be null (for backward compatibility)
+# - Slug can be set once (from null to a value)
+# - Slug CANNOT be changed once set (immutable)
+###
+
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
+@contentType = application/json
+
+# REPLACE WITH ACTUAL VALUES
+@organizationId = 00000000-0000-0000-0000-000000000000
+@apikey = your_api_key_here
+###
+# Scenario 1: Set slug for organization without slug (Should Succeed)
+###
+
+# Step 1: Verify organization has no slug
+# SQL: SELECT id, name, slug FROM organizations WHERE id = '<organizationId>';
+# Expected: slug IS NULL
+
+# Step 2: Set slug for the first time
+# This should SUCCEED
+# Note: Replace with your actual organization update endpoint
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "slug": "some-slug"
+}
+
+# Expected Response: 200 OK
+# Slug should now be set to "some-slug"
+
+
+###
+# Scenario 2: Try to change existing slug (Should Fail)
+###
+
+# Prerequisites: Organization already has slug="some-slug"
+
+# Step 1: Try to change slug to different value
+# This should FAIL with ValueError
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "slug": "different-slug"
+}
+
+# Expected Response: 400 Bad Request or 422 Validation Error
+# {
+#   "detail": "Organization slug cannot be changed once set. Current slug: 'some-slug'"
+# }
+
+
+###
+# Scenario 3: Update slug to same value (Should Succeed)
+###
+
+# Prerequisites: Organization has slug="some-slug"
+
+# Step 1: Set slug to the same value
+# This should SUCCEED (idempotent operation)
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "slug": "some-slug"
+}
+
+# Expected Response: 200 OK
+# Slug remains "some-slug"
+
+###
+# Scenario 4: Update other fields without touching slug (Should Succeed)
+###
+
+# Prerequisites: Organization has slug="some-slug"
+
+# Step 1: Update organization name without changing slug
+# This should SUCCEED
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "name": "ACME Corporation Updated",
+  "description": "New description"
+}
+
+# Expected Response: 200 OK
+# Name and description updated, slug unchanged
+
+
+###
+# Scenario 5: Try to set slug to null/empty (Should Fail)
+###
+
+# Prerequisites: Organization has slug="some-slug"
+
+# Step 1: Try to clear the slug
+# This should FAIL (changing from value to null)
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "slug": null
+}
+
+# Expected Response: 400 Bad Request
+# Slug should remain "some-slug"
+
+
+###
+# Verification Queries
+###
+
+# Check slug value after operations
+# SQL: SELECT id, name, slug FROM organizations WHERE id = '<organizationId>';
+
+# Check slug is unique across organizations
+# SQL: SELECT slug, COUNT(*) FROM organizations WHERE slug IS NOT NULL GROUP BY slug HAVING COUNT(*) > 1;
+# Expected: No rows (all slugs unique)
+
+# Find organizations without slugs (legacy)
+# SQL: SELECT id, name, created_at FROM organizations WHERE slug IS NULL ORDER BY created_at;
+
+
+###
+# Edge Cases
+###
+
+# Edge Case 1: Slug with special characters
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "slug": "some-slug-2025!#$%"
+}
+
+###
+
+# Should succeed if slug validation allows hyphens and numbers
+
+# Edge Case 2: Very long slug
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "slug": "this-looooooooooooooooooooooooooooooooooooooooooooooooooooooong-slug"
+}
+
+###
+
+# Should fail if slug has length constraint
+
+# Edge Case 3: Duplicate slug (different organization)
+# Prerequisites: Organization A has slug="some-slug"
+# Try to set Organization B's slug to "some-slug"
+# Expected: Database constraint violation (unique constraint)
+
+PATCH {{apiUrl}}/organizations/{{organizationId}}
+Content-Type: {{contentType}}
+Authorization: ApiKey {{apikey}}
+
+{
+  "slug": "some-slug"
+}
+
+###
+# Test Summary
+###
+
+# ✅ Setting slug first time (null → value): ALLOWED
+# ❌ Changing slug (value → different value): BLOCKED
+# ✅ Updating slug (value → same value): ALLOWED
+# ❌ Clearing slug (value → null): BLOCKED
+# ✅ Updating other fields with slug set: ALLOWED
+# ❌ Special characters in slug: DEPENDS ON VALIDATION
+# ❌ Very long slug: DEPENDS ON LENGTH CONSTRAINT
+# ❌ Duplicate slugs across orgs: BLOCKED (DB constraint)

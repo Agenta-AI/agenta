@@ -1,0 +1,212 @@
+import {useEffect} from "react"
+
+import {Check, CircleNotch, ExclamationMark} from "@phosphor-icons/react"
+import {Modal, Typography, theme} from "antd"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
+
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
+import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
+import {appCreationMessagesAtom, appCreationNavigationAtom} from "@/oss/state/appCreation/status"
+import {resetAppCreationAtom} from "@/oss/state/appCreation/status"
+import type {AppCreationMessage, AppCreationStatus} from "@/oss/state/appCreation/status"
+
+import CustomAppCreationLoader from "./CustomAppCreationLoader"
+
+const {Text} = Typography
+
+interface Props {
+    loading: boolean
+    onErrorRetry?: () => void
+    onTimeoutRetry?: () => void
+    statusData: AppCreationStatus
+    appName: string
+}
+
+const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>> = ({
+    loading,
+    onErrorRetry,
+    onTimeoutRetry,
+    statusData,
+    appName,
+    ...props
+}) => {
+    const {goToPlayground} = usePlaygroundNavigation()
+    const {
+        token: {colorError, cyan5: colorSuccess},
+    } = theme.useToken()
+    const [messages, setMessages] = useAtom(appCreationMessagesAtom)
+    const navigationTarget = useAtomValue(appCreationNavigationAtom)
+    const setNavigationTarget = useSetAtom(appCreationNavigationAtom)
+    const resetAppCreation = useSetAtom(resetAppCreationAtom)
+
+    const {appId, status, details} = statusData
+    const isError = ["bad_request", "error", "permission_denied"].includes(status)
+    const isTimeout = status === "timeout"
+    const isSuccess = status === "success"
+    const closable = isError || isTimeout
+
+    const reset = () => {
+        setMessages({})
+    }
+
+    const onOk = (e: any) => {
+        reset()
+        if (isError) {
+            onErrorRetry?.()
+        } else if (isTimeout) {
+            onTimeoutRetry?.()
+        } else if (isSuccess) {
+            props.onCancel?.(e)
+            if (appId) setNavigationTarget(appId)
+        }
+    }
+
+    useEffect(() => {
+        setMessages((draft) => {
+            switch (status) {
+                case "creating_app":
+                    draft[status] = {
+                        type: "loading",
+                        message: "Adding application",
+                    }
+                    if (draft.fetching_image?.type === "loading")
+                        draft.fetching_image.type = "success"
+                    break
+                case "configuring_app":
+                    draft[status] = {
+                        type: "loading",
+                        message: "Configuring variant and committing defaults",
+                    }
+                    if (draft.creating_app?.type === "loading") draft.creating_app.type = "success"
+                    break
+                case "success":
+                    draft[status] = {
+                        type: "success",
+                        message: "Launching your application",
+                    }
+                    if (draft.configuring_app?.type === "loading")
+                        draft.configuring_app.type = "success"
+                    if (appId) {
+                        setNavigationTarget(appId)
+                    }
+                    break
+                case "bad_request":
+                case "error":
+                case "permission_denied":
+                    {
+                        const lastStatus = Object.keys(draft).pop() ?? ""
+                        if (!lastStatus) break
+                        // index signature hides that the key may be absent
+                        const lastMessage = draft[lastStatus] as AppCreationMessage | undefined
+                        draft[lastStatus] = {
+                            // fallback branch only runs when lastMessage is absent, so message is ""
+                            ...(lastMessage ?? {
+                                type: "error",
+                                message: "",
+                            }),
+                            type: "error",
+                            errorMessage: `${getErrorMessage(details)}`,
+                        }
+                    }
+                    break
+                case "timeout":
+                    draft.configuring_app = {
+                        ...(draft.configuring_app ?? {
+                            type: "error",
+                            message: "Configuring variant and committing defaults",
+                        }),
+                        type: "error",
+                        errorMessage:
+                            'Error: The app took too long to start. Press the "Retry" button if you want to try again.',
+                    }
+                    break
+                case "cleanup":
+                    draft[status] = {
+                        type: "loading",
+                        message: "Performing cleaning up before retrying",
+                    }
+                    break
+            }
+        })
+    }, [appId, details, setMessages, setNavigationTarget, status])
+
+    useEffect(() => {
+        // Only handle navigation when the status modal is open to prevent
+        // unintended redirects when returning to /apps after creation.
+        if (!props.open) return
+        if (!navigationTarget) return
+
+        const nextAppId = navigationTarget
+        setNavigationTarget(null)
+        goToPlayground(undefined, {appId: nextAppId})
+        // Clear creation state so revisiting /apps doesn't re-trigger navigation
+        resetAppCreation()
+    }, [props.open, goToPlayground, navigationTarget, setNavigationTarget, resetAppCreation])
+
+    return (
+        <Modal
+            destroyOnHidden
+            onOk={onOk}
+            okText={"Retry"}
+            footer={closable ? undefined : null}
+            closable={closable}
+            title={null}
+            {...props}
+            onCancel={closable ? props.onCancel : undefined}
+            classNames={{container: "!p-0 overflow-hidden rounded-lg", footer: "!p-6 !pt-0"}}
+            width={480}
+            centered
+        >
+            <section>
+                <div className="h-[200px] bg-colorFillTertiary flex items-center justify-center">
+                    <div>
+                        {closable ? (
+                            <div className="flex flex-col items-center">
+                                <ExclamationMark
+                                    size={48}
+                                    className="mb-2"
+                                    style={{color: colorError}}
+                                />
+                                <Text className="text-colorTextSecondary">
+                                    Oops, something went wrong.
+                                </Text>
+                                <Text className="text-colorTextSecondary mx-6 text-center">
+                                    {isError && getErrorMessage(details)}{" "}
+                                    {isTimeout &&
+                                        'The app took too long to start. Press the "Retry" button if you want to try again.'}
+                                </Text>
+                            </div>
+                        ) : (
+                            <CustomAppCreationLoader isFinish={isSuccess} />
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-6 grid gap-[10px]">
+                    <Text className="leading-[1.5714285714285714] text-[16px] font-semibold">
+                        Creating your new app
+                    </Text>
+                    {Object.values(messages).map(({type, message}) => (
+                        <div className="flex items-center gap-2" key={message}>
+                            {type === "success" ? (
+                                <Check size={16} style={{color: colorSuccess}} />
+                            ) : type === "error" ? (
+                                <ExclamationMark size={16} style={{color: colorError}} />
+                            ) : (
+                                <CircleNotch size={16} className="animate-spin" />
+                            )}
+                            <Text style={{color: type === "error" ? colorError : ""}}>
+                                {message}{" "}
+                                {message == "Adding application" && (
+                                    <span className="font-medium">{appName}</span>
+                                )}
+                            </Text>
+                        </div>
+                    ))}
+                </div>
+            </section>
+        </Modal>
+    )
+}
+
+export default CreateAppStatusModal

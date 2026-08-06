@@ -1,0 +1,75 @@
+---
+id: archive-workflow
+title: "Archive Workflow"
+description: "Archive a workflow artifact (soft delete)."
+sidebar_label: "Archive Workflow"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV99v2zgM/lcEPrWAl3TDPRk44HLrhvV2dyvWbntIg4ax6VibInkSnS4X+H8/SJYTJ+mvFb23e2pjkR/JjxRFroFx7iAdwxdjvxXK3DiYJJCTy6ysWBoNKYxsVsolCRQ3UUigZVlgxuLImYJFToqYjgdX+kpfEDsxbb/k18hTYbTgknrKOheSnViilajZDUS0kF/pTsgJtCRKmeekRWHNQnyvyUpyotaKnBNTqTNV53SNUfdXtjVNB1f6Iy2lk0aLs1MnLC1QamHJGbXEmSLhjCilY2NlhkqwxYyccIwrITVjxjEISsX4M1kPJPV8cjS0VJAlndEQK/liXsuchsuNwPEAEjAVWfSkneWQQnTsugsJEqjQ4oKYrKd8DRoXBCl0AtcyhwSkp7xCLiEBS99raSmH1AeXgMtKWiCka+BV5VUdW6nnkEBh7AIZUqjrgMKSlRfo0irOcmiaiYd0ldGOnEd5dXLi/+ym+6LOMnKuqJX4GIUhgcxoJs1eHKtKySwEOvzqvM6651llPQ0sWwuZqVul6LDUTHOyPQ9fB4n9mpu+nIqbknS/6KRPJ9dWU56I6UkU0EaTWCBnJeWDgFNgrRjSkybZUBvc1qsPReB918XCqJysJ39H6H6Gm2QjoWulwFPbRfQ2AAbGEyhUuGB3m5fuukdoj6qZMYpQ96g6c2LUE+3FWqBy1CQejJaoamRjH4J6sxG8HchpWVXED8FcRLEDkCbp9MzsK2V8S1WOYht5G0g65NRDHNCHeS59/KjOd4g8SF3nbg83ZtN/uR0GMmmzWqE9+hNnpP5wRr/4UHNV8zHsx9PP+b40HER/X8VctuHDghifGGwvsr2rtmN4Mdv90ufoIUbe1uoBQpI1SKbFI7XQWlzdf5N2dX+O1L88mU0Su+yjKDvA+NvrNnvN6WlQpz2IJoHMErYP5CPbTo5ML1gGf+628rqFFaNAVl3l/4WRTy1sNLJ96p/VyGkLG410dM1Wz9ioO7J+X8Vm3fH1rFY6tjZWOsKe1UpH18aKU/X8qbV64XX9K/Bs7oXx4+EH4VaM3cngcmeUjA/I4FHom3Gmabz4L69eHU4/n1HJPLyv4o214XF84uiTE6NU4Ylve+K+gDLZzunP9PRJs9dGe0+RifOBf1Dc/LZpcdsincM5bfvq3aKBDHHpT31haN+OvXiXXx37c8Y/ejAHqXjtufzBt6ZrO+2OAzet+1GuV0vbFLUZupuK0zYF99XGu8vL8wPAtj4WxKXxk3xlHIfpnUtIYbjZUYbr3ujeDOPADwk4sstuyK+t8kpYyZDI9mfJXLl0OKR6kClT5wOck2YcoGwFJx4jq63kVQAZnZ+9p9U7wpwspONJX+DC119bUbtimyxgJd+T5yUuHKOaS2PlP90YGVaOstVqQnYL00/uKDgnRudnB3P6zpG/KJiFuugshWNI9sLeRgsJ+A3NHzLh4rfNic9qXK8ghZPBy8GJ/+RTsUDdNxG30y/bNWvvtd7c3/832cdusrFw/FUdVgplaCYhh+t4Dcab3cpBAunuDtvdhEkCpb876RjW6xk6+mRV0/jPngNf2pMEAnkzX2jjNeTS+f/zuETck8ujj7FdHIu7HO7KX/va99uO/wUJfKPV3tod+mnZXa91lBhlGVXc0z1o//4ebtrE+YeLS2iafwGIMf4A
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Workflow"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/workflows/{workflow_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Archive a workflow artifact (soft delete).
+
+Sets `deleted_at` on the workflow and its variants. Archived
+workflows are hidden from queries unless `include_archived=true`.
+Revision IDs remain resolvable so historical traces stay intact.
+
+See: [Versioning](/reference/api-guide/versioning).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./archive-workflow.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./archive-workflow.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./archive-workflow.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

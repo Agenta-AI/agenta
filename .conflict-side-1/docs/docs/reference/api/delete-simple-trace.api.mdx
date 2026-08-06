@@ -1,0 +1,75 @@
+---
+id: delete-simple-trace
+title: "Delete Trace"
+description: "Delete a 'simple' trace."
+sidebar_label: "Delete Trace"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1v2zgQ/SvEnBpAtd1gTzqt0WTRbLNIkLh7iY2YlsYSW4pUyVFSr6D/vhhKjiQ7Mbo978kyOV98782QNZDMPMQPsHAyQQ+rCFL0iVMlKWsghgvUSCikWIJXRalxCYLYdrI0S3OHhX1CLyhH4ZXJNL73pTSthUgcSsJUPCm5NOvbm/uFmLZBpsHAT9cTcYdUOdOGWL8L648qjQTHeVTp2VqUUrmloVySeJZeuJAzjcTWOqFtlimTCetEap+NJ4eyEIlGaapyIr54XJr1xeX15eJShKTKZPvk9T5ZsxbPORphS3SSQjgj5NIUlSY1ONAEIuhsrLlKIYY0oPPYHuoxGEEEpXSyQELHyNZgZIEQwz4bRKAY2VJSDhE4/F4phynE5CqMwCc5FhLiGmhXsp8np0wGEZAizQuBKnGVQtOs2N+X1nj07HI+m/HPmML7KknQ+22lxV1nDBEk1hAaYnNZllol4VTTr5596kEZpeMzk2ozJLZqnbrqlCHM0A3K+xgsDnW0/rAWaitkJ40RkevZWljK0T0rH0BOcSsrTRDPmgi0Mt9ClWZ3sw2AjivqhDI2GWPXRC8rptIaGLd9ufdML4MZ9Qz9YqiemAgkkVObitoa+2gyTRVDIvXt6BQ/kW8P9aiEYjNe2VjL4g9Lr+eCRLmk0tK9+6PS+k9vzfubisqKzpjENordfMWEQhBFWPykl3RO7k4idOAbQD/K+JbzvIe0OXLszW4WqK9ZM6/FGotycXLmiMORMzmZ9z4MgaABTj9otXHS/YbYOluIl+E0HoyD2cRZOe9v5+fHvf231CoNnSsunbPu1xs7RZJK81fH+KGBtslo978odtUciKSH7dq2BbIWCp+dGnx/ofcyw141b5sGMMSCdxuetyw2Nu+2r0ynvoR+DMIccfqRsfxBr/LeD+6HgE1bfmc3kG1PUcvQ21BctBScEtmnxeL2KGCrjwIpt/2lFO4hyiGGN6UFEXh0T/t7qnKarWWpAoft35yo9PF0itUk0bZKJzJDQ3IiVWu44hhJ5RTtQpD57dVn3H1CmaKD+GE1NLhn6bViGpu9ECBL9RkZku7OnFeUW6f+aRXSXZx569UEYrd2yOs8FCfmt1dHbTfa4h6RSZDEPlPYhujg2P1pIQIsQocAoSx+f9lhQhnDNs1s8mEy46XSeiqkGaTonlKL7pUwKq/u2/b/J9fBk6vTBjfitNRShVERaKo7iT90QEF3h3uI+DnV3earCHLric3qeiM9fnG6aXj5e4WOZbuK4Ek6JTcsoocaUuX5O4V4K7XHE1y9u+umwJl4q9K9tA3r+knqiv9BBN9wN3wVhhmZ7/um7rbnSYIlDRyPRjo32Evrt7BD0/wLyAUVfA==
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Trace"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/simple/traces/{trace_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a "simple" trace.
+
+Removes the single-span trace created via
+`POST /simple/traces/`. Returns the `(trace_id, span_id)` pair
+that was removed, for logging or downstream cleanup. Use
+`DELETE /tracing/traces/{trace_id}` when operating on a
+multi-span trace.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./delete-simple-trace.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./delete-simple-trace.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./delete-simple-trace.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

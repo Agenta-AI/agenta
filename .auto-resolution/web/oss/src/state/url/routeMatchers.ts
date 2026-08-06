@@ -1,0 +1,25 @@
+const TRACE_ENABLED_PATH_MATCHERS = [
+    "/observability",
+    "/traces",
+    "/playground",
+    "/prompts",
+    "/evaluations",
+    "/annotations",
+    "/evaluators",
+] as const
+
+const DRAWER_ENABLED_PATH_MATCHERS = ["/variants", "/overview", "/evaluators"] as const
+
+const SESSION_ENABLED_PATH_MATCHERS = ["/observability", "/sessions"] as const
+
+export const isTraceSupportedRoute = (pathname: string) =>
+    TRACE_ENABLED_PATH_MATCHERS.some((segment) => pathname.includes(segment))
+
+export const isSessionSupportedRoute = (pathname: string) =>
+    SESSION_ENABLED_PATH_MATCHERS.some((segment) => pathname.includes(segment))
+
+/** @deprecated Use isDrawerSupportedRoute */
+export const isVariantSupportedRoute = (pathname: string) => isDrawerSupportedRoute(pathname)
+
+export const isDrawerSupportedRoute = (pathname: string) =>
+    DRAWER_ENABLED_PATH_MATCHERS.some((segment) => pathname.includes(segment))

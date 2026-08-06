@@ -1,0 +1,1 @@
+{"parameters":[{"name":"trace_id","in":"path","required":true,"schema":{"type":"string","title":"Trace Id"}}]}

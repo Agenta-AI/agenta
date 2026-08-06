@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"result_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Result Ids"}},"type":"object","required":["result_ids"],"title":"EvaluationResultIdsRequest"}}},"required":true}}

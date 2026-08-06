@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROJECT_NAME="${RAILWAY_PROJECT_NAME:-agenta-oss-railway}"
+ENV_NAME="${RAILWAY_ENVIRONMENT_NAME:-staging}"
+POSTGRES_SERVICE="${RAILWAY_POSTGRES_SERVICE:-Postgres}"
+REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
+
+if [ -z "${RAILWAY_API_TOKEN:-}" ] && [ -z "${RAILWAY_TOKEN:-}" ]; then
+    railway whoami >/dev/null 2>&1 || {
+        printf "Railway authentication is required. Set RAILWAY_API_TOKEN or run railway login.\n" >&2
+        exit 1
+    }
+fi
+
+railway link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
+
+# Bring stateful infra up first so credentials/volumes are applied.
+railway service "$POSTGRES_SERVICE" >/dev/null && railway redeploy --service "$POSTGRES_SERVICE" --environment "$ENV_NAME" --yes
+if railway service "$REDIS_SERVICE" >/dev/null 2>&1; then
+    railway up hosting/railway/oss/redis --path-as-root --service "$REDIS_SERVICE" --detach
+fi
+
+# Deployment order matters. Migrations first, gateway last.
+# Alembic runs as a job and should complete before API startup checks.
+railway up hosting/railway/oss/alembic --path-as-root --service alembic
+railway up hosting/railway/oss/api --path-as-root --service api --detach
+railway up hosting/railway/oss/worker-streams --path-as-root --service worker-streams --detach
+railway up hosting/railway/oss/worker-queues --path-as-root --service worker-queues --detach
+railway up hosting/railway/oss/runner --path-as-root --service runner --detach
+railway up hosting/railway/oss/services --path-as-root --service services --detach
+railway up hosting/railway/oss/cron --path-as-root --service cron --detach
+railway up hosting/railway/oss/web --path-as-root --service web --detach
+
+# Give private DNS records and container startups time to settle.
+sleep 45
+
+railway up hosting/railway/oss/gateway --path-as-root --service gateway --detach
+
+printf "Deployments triggered for '%s' (%s)\n" "$PROJECT_NAME" "$ENV_NAME"

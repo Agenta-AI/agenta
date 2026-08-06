@@ -1,0 +1,75 @@
+---
+id: archive-application
+title: "Archive Application"
+description: "Soft-delete an application."
+sidebar_label: "Archive Application"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEuP2zYQ/ivE9NAEkO1N0JOLAnWzCeKmbRZZJxevsaalscWUJlVy6MQ19N+LoSRbtvaVxebW066kmW+G3zw44x2QXHkYTmFUFFqlkpQ1HmYJZOhTpwp+hiFc2iX1MtRIKKQR8iDcvzJXZuTSXG2UWQmP5MW8ksyuJc2FNYJybKsIaTKRqwy9UCSWzq6vzD8BnUIvKJckMmt+JIYSc2VSHTK8ltECZkNBLuC8L8bkxUY6JQ15BrwyDjfKs/tigaldowjGoUxzudAYrQitPLGTi0Dsk3JifO6Fw7VUhvW91Zso7a3IlSfrVCq1ICdT9MKT3AplSKbUvzKXiGL6CR1bVGY1ezZwuESHJsWBLFRvFVSGg81e4If6BD1psl4w9dPzPiRgC3SRmHEGQ6i/XLcIgwQK6eQaCR0HawdGrpFlDzLXKoMEFAerkJRDAg7/CcphBkOmLAGf5riWMNwBbQvW9uSUWUECS+vWkmAIIUQUUqRZoJUTYpxBWc4Y1RfWePQM9PLsjP+c5EpIU/R+GbT4UAtDAqk1hIZYvOX14LNnnV3LucIxH6QqC6kNlVLtszKEK3QtJ19FidOEnb+Yiy85dnPvi/RiaYPJEjE/mwtLObovymM/Qixl0ATDszJpexmdNtv3y8j9sYNLqzN0zP6R0N0Ul8lewgStgYltzvMmAka+E1jqWJ63m1f++sTRGndhrUZpWkSNvRgd5dT+uEupPZYJg+FG6iDJuvugXu8FbwbyRhUF0n0wl7VYB6RMGj27+Iwp3ZyWI0dqKVN6E3k6TYJ2/kYmRU8cE/bLxAX8ucoCUTvoRfBY9wfDYdOi9s2LYDR6L/ArIyjSW+5S/Rviye53QiezTLFVqS+OgthJm4aqFm6dSfzmZhhIlUuDlu7ZH3KB+ndvTe99oCLQczjlsp1vp9LQYf6ubJ3wIcsE1kjykYdtneykyI8MrxfHb9oc3cfIm6DvISTZgSJcP1BLOie3d1fxse63kfonk1kmdZd/EGUdjL9YtzypiMdBnbcgygRSh7K63B/Y8jJJ2CMV/bndyqsKVowiWaHIvoeRjxVsbeQwpjypkfMKtjbS0LXYPuEl0ZD127a+KBq+ntRKw9beSkPYk1pp6Npb8TqsHpurl6zLN9CTuRcHnwddRjfCHN9Ik9NJuL6/EmGdmLPSXKilMJaqIaX/UNutSetkGlNmpbHXNtqMcALNBrUtkK2wnZ9evuyOc5+kVlml+Nq5eN8/cpbLkKTScWqpWu2pgLbp0ddvuSpm5Ul3bt1wdh8fWPvVTRPwofN6L1d4aNe3i0YyxIS/cr4Z7vIs3qSNqdt+Sl9bMJ0YvmIuv9KNcT5M8NPITeV+LddK0UOIqgjdTsV5FYK7kurtZHLRAazyY42UW95RCuspLiWUwxAGrSTwg93xUlIO6oUGEvDoNs0GE5yuVFUMZ/WYExV+OBhg6KfahqwvV2hI9qWqBGeMkQanaBtBRhfjd7h9izJDB8PprC1wyVlY5dWx2D4WslDvkNmpt6lRoNw69W8zH8dlKq+0yhjjpW2HeBSdE6OLcXfybH/icpFpzI7GUvwMycmxD6eFBHgr5Y+Ecv3r/gvHtl4qYQhn/Rf9M37FAVlL0zZRsd4Z+Y+mgX0h/7/gf88Fv843rvNBoaWKnSiGflfX0LTdSHmRGXZW+6aMZgnkXH7DKex2C+nxo9Nlya+ZYq6LWQKRuAVn6XQHmfL8f1avVndkwbMPdcd5Lm5zu6kdw4XDOyA/QQJ/47b7g0TsynlTnrtaaJSmWFBLvXOJcB3vm83F+8sJlOV/Ezp9YA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Application"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/applications/{application_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-delete an application.
+
+Archiving sets `deleted_at` on the application and hides it from
+queries that don't set `include_archived: true`. Its variants and
+revisions become unreachable from listing but their IDs remain
+resolvable so historical traces stay intact.
+See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./archive-application.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./archive-application.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./archive-application.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

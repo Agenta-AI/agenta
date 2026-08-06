@@ -1,0 +1,528 @@
+---
+title: "Annotate Traces"
+sidebar_label: "Annotate Traces"
+description: "Learn how to programmatically add annotations to traces using the Agenta API - collect feedback, scores, and custom metrics"
+sidebar_position: 8
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
+```
+
+Annotations in Agenta let you enrich the traces created by your LLM applications. You can add scores, comments, expected answers and other metrics to help evaluate your application's performance.
+
+<GoogleColabButton notebookPath="examples/jupyter/observability/annotate-traces-tutorial.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
+
+<Image
+  style={{ display: "block", margin: "10px auto", marginBottom: "20px" }}
+  img={require("/images/evaluation/viewing-annotations.png")}
+  alt="Screenshot showing how annotations appear in the Agenta UI"
+  loading="lazy"
+/>
+
+## What You Can Do With Annotations
+
+- Collect user feedback on LLM responses
+- Run custom evaluation workflows
+- Measure application performance in real-time
+
+## Understanding How Annotations Work
+
+Annotations **link** to specific points (spans) in your application traces. You can **link** them to:
+- Parent spans (like an agent invocation)
+- Child spans (like a single LLM call within a larger process)
+
+Each annotation can include:
+- Numbers (scores, ratings)
+- Categories (labels, classifications)
+- Text (comments, reasoning)
+
+### Annotation Structure
+
+Annotations are stored as traces and created through `POST /api/simple/traces/`. Here's what one looks like:
+
+```json
+{
+    "trace": {
+        "data": {
+            "outputs": {
+                "score": 80,
+                "normalized_score": 0.8,
+                "reasoning": "The answer is mainly correct"
+            }
+        },
+        "references": {
+            "evaluator": {
+                "slug": "my_evaluator"
+            }
+        },
+        "links": {
+            "invocation": {
+                "trace_id": "47cb4a13b42a47bab2198509543ff14d",
+                "span_id": "1a9130f6ad398e55"
+            }
+        },
+        "meta": {
+            "someattr": "somevalue"
+        }
+    }
+}
+```
+
+An annotation has four main parts:
+
+1. **Data**: The actual evaluation content (scores, comments)
+2. **References**: Which evaluator the annotation belongs to, identified by slug
+3. **Links**: The `trace_id` and `span_id` of the instrumented span you're annotating
+4. **Meta** (optional): Any extra information you want to include
+
+### What You Can Include in Annotations
+
+Annotations are flexible - you can include whatever makes sense for your evaluation:
+
+```json
+// Just a simple score
+{"score": 3}
+
+// A score with explanation
+{"score": 3, "comment": "The response is not grounded"}
+
+// Multiple metrics with reference information
+{"score": 3, "normalized_score": 0.5, "comment": "The response is not grounded", "expected_answer": "The capital of France is Paris"}
+```
+
+You can use numbers, text, booleans, or categorical values.
+
+### Connecting Annotations to Traces
+
+Each annotation links to a specific span in your trace using a `trace_id` and `span_id`. These IDs follow the OpenTelemetry format.
+
+:::warning
+Agenta doesn't check if the trace and span IDs exist. Make sure they're valid before sending.
+:::
+
+### Working with Evaluators
+
+Every annotation references an `Evaluator` by slug. The evaluator:
+- Defines what your annotation should contain
+- Provides context for interpreting the annotation
+
+Annotations accept any slug in `references.evaluator.slug`. The first time Agenta sees a new slug, it creates the evaluator for you and infers its output schema from the annotation data. The evaluator then shows up in the UI with its aggregated stats. If you want an explicit schema (fixed labels, required fields, or value ranges), create the evaluator first through `POST /api/simple/evaluators/` or from the UI before you send annotations.
+
+You can add multiple annotations from the same evaluator to a single span, which is useful for collecting feedback from different sources.
+
+### Using Meta
+
+The `meta` field lets you add extra information to your annotation. Use it to store things like user IDs, session information, or other context.
+
+## Creating Annotations
+
+<Tabs>
+<TabItem value="python" label="Python">
+
+```python
+import requests
+
+base_url = "https://cloud.agenta.ai"
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": "ApiKey YOUR_API_KEY"
+}
+
+# Annotation payload
+trace_payload = {
+    "trace": {
+        "data": {
+            "outputs": {
+                "score": 40,
+                "reasoning": "Response contains some inaccuracies",
+                "labels": ["Partially Correct", "Needs Improvement"]
+            }
+        },
+        "references": {
+            "evaluator": {
+                "slug": "content_quality"
+            }
+        },
+        "links": {
+            "invocation": {
+                "trace_id": "47cb4a13b42a47bab2198509543ff14d",
+                "span_id": "1a9130f6ad398e55"
+            }
+        }
+    }
+}
+
+# Make the API request
+response = requests.post(
+    f"{base_url}/api/simple/traces/",
+    headers=headers,
+    json=trace_payload
+)
+
+# Process the response
+if response.status_code in (200, 202):
+    print("Annotation created successfully")
+    print(response.json())
+else:
+    print(f"Error: {response.status_code}")
+    print(response.text)
+```
+
+</TabItem>
+<TabItem value="javascript" label="JS/TS">
+
+```javascript
+async function createAnnotation() {
+  const baseUrl = 'https://cloud.agenta.ai';
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'ApiKey YOUR_API_KEY'
+  };
+
+  const tracePayload = {
+    trace: {
+      data: {
+        outputs: {
+          score: 40,
+          reasoning: "Response contains some inaccuracies",
+          labels: ["Partially Correct", "Needs Improvement"]
+        }
+      },
+      references: {
+        evaluator: {
+          slug: "content_quality"
+        }
+      },
+      links: {
+        invocation: {
+          trace_id: "47cb4a13b42a47bab2198509543ff14d",
+          span_id: "1a9130f6ad398e55"
+        }
+      }
+    }
+  };
+
+  try {
+    const response = await fetch(`${baseUrl}/api/simple/traces/`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(tracePayload)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Annotation created successfully");
+      console.log(data);
+    } else {
+      console.error(`Error: ${response.status}`);
+      console.error(await response.text());
+    }
+  } catch (error) {
+    console.error("Request failed:", error);
+  }
+}
+
+createAnnotation();
+```
+
+</TabItem>
+</Tabs>
+
+:::info
+Annotations accept any evaluator slug. Agenta auto-creates the evaluator on the first annotation and infers its output schema from your data. To control the schema (fixed labels, required fields, or value ranges), create the evaluator first via `POST /api/simple/evaluators/` or from the Agenta UI.
+:::
+
+## Understanding the Response
+
+When you create an annotation, you receive back the stored trace with its own `trace_id` and `span_id`:
+
+```json
+{
+  "count": 1,
+  "trace": {
+    "created_at": "2025-05-13T16:54:52.245664Z",
+    "created_by_id": "019315dc-a332-7ba5-a426-d079c43ab776",
+    "span_id": "a1713ea8f59291f6",
+    "trace_id": "bb39070937f74f169b60dfc420729ad3",
+    "origin": "custom",
+    "kind": "adhoc",
+    "channel": "api",
+    "data": {
+      "outputs": {
+        "score": 0,
+        "reasoning": "The answer is totally false.",
+        "expected_answer": "The capital of France is Paris",
+        "normalized_score": 0
+      }
+    },
+    "meta": {
+      "user_id": "miamia"
+    },
+    "references": {
+      "evaluator": {
+        "id": "0196ca64-9cbf-7ee3-b507-2b559dd13090",
+        "slug": "main-scorer"
+      }
+    },
+    "links": {
+      "invocation": {
+        "span_id": "09383e1124b264d0",
+        "trace_id": "5d52a529b48135fd58790f8aa3e33fb8"
+      }
+    }
+  }
+}
+```
+
+:::info
+The annotation's own `trace_id` and `span_id` are different from the invocation it's linked to. Use the annotation's `trace_id` to fetch, update, or delete it later.
+:::
+
+## Viewing Annotations in the UI
+
+You can see all annotations for a trace in the Agenta UI. Open any trace and check the Annotations tab to see detailed information. The right sidebar shows average metrics for each evaluator.
+
+<Image
+  style={{ display: "block", margin: "10px auto", marginBottom: "20px" }}
+  img={require("/images/evaluation/viewing-annotations.png")}
+  alt="Screenshot showing how annotations appear in the Agenta UI"
+  loading="lazy"
+/>
+
+## Querying Annotations
+
+Fetch a single annotation by its own `trace_id` with `GET /api/simple/traces/{trace_id}`. Find all annotations linked to an instrumented span by calling `POST /api/simple/traces/query` with a `links` filter.
+
+<Tabs>
+<TabItem value="python" label="Python">
+
+**1. Fetch a specific annotation by its trace_id:**
+
+```python
+import requests
+
+base_url = "https://cloud.agenta.ai"
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": "ApiKey YOUR_API_KEY"
+}
+
+annotation_trace_id = "bb39070937f74f169b60dfc420729ad3"
+
+response = requests.get(
+    f"{base_url}/api/simple/traces/{annotation_trace_id}",
+    headers=headers
+)
+
+if response.status_code == 200:
+    print("Query successful")
+    print(response.json())
+else:
+    print(f"Error: {response.status_code}")
+    print(response.text)
+```
+
+**2. Query all annotations for an invocation:**
+
+```python
+# Filter by the invocation trace/span the annotations are linked to
+query_data = {
+    "trace": {
+        "links": {
+            "invocation": {
+                "trace_id": "5d52a529b48135fd58790f8aa3e33fb8",
+                "span_id": "09383e1124b264d0"
+            }
+        }
+    },
+    "windowing": {"limit": 50}
+}
+
+response = requests.post(
+    f"{base_url}/api/simple/traces/query",
+    headers=headers,
+    json=query_data
+)
+```
+
+**3. Query all annotations produced by an evaluator:**
+
+```python
+query_data = {
+    "trace": {
+        "references": {
+            "evaluator": {"slug": "content_quality"}
+        }
+    },
+    "windowing": {"limit": 50}
+}
+
+response = requests.post(
+    f"{base_url}/api/simple/traces/query",
+    headers=headers,
+    json=query_data
+)
+```
+
+</TabItem>
+<TabItem value="javascript" label="JS/TS">
+
+**1. Fetch a specific annotation by its trace_id:**
+
+```javascript
+async function fetchAnnotation() {
+  const baseUrl = 'https://cloud.agenta.ai';
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'ApiKey YOUR_API_KEY'
+  };
+
+  const annotationTraceId = "bb39070937f74f169b60dfc420729ad3";
+
+  try {
+    const response = await fetch(`${baseUrl}/api/simple/traces/${annotationTraceId}`, {
+      method: 'GET',
+      headers: headers
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Query successful");
+      console.log(data);
+    } else {
+      console.error(`Error: ${response.status}`);
+      console.error(await response.text());
+    }
+  } catch (error) {
+    console.error("Request failed:", error);
+  }
+}
+
+fetchAnnotation();
+```
+
+**2. Query all annotations for an invocation:**
+
+```javascript
+async function queryAnnotationsForInvocation() {
+  const baseUrl = 'https://cloud.agenta.ai';
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'ApiKey YOUR_API_KEY'
+  };
+
+  const queryData = {
+    trace: {
+      links: {
+        invocation: {
+          trace_id: "5d52a529b48135fd58790f8aa3e33fb8",
+          span_id: "09383e1124b264d0"
+        }
+      }
+    },
+    windowing: { limit: 50 }
+  };
+
+  try {
+    const response = await fetch(`${baseUrl}/api/simple/traces/query`, {
+      method: 'POST',
+      headers: headers,
+      body: JSON.stringify(queryData)
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Query successful");
+      console.log(data);
+    } else {
+      console.error(`Error: ${response.status}`);
+      console.error(await response.text());
+    }
+  } catch (error) {
+    console.error("Request failed:", error);
+  }
+}
+
+queryAnnotationsForInvocation();
+```
+
+</TabItem>
+</Tabs>
+
+## Removing Annotations
+
+Call `DELETE /api/simple/traces/{trace_id}` with the annotation's own `trace_id` (returned when the annotation was created), not the invocation trace.
+
+<Tabs>
+<TabItem value="python" label="Python">
+
+```python
+import requests
+
+base_url = "https://cloud.agenta.ai"
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": "ApiKey YOUR_API_KEY"
+}
+
+# The annotation's own trace_id (not the invocation it's linked to)
+annotation_trace_id = "bb39070937f74f169b60dfc420729ad3"
+
+response = requests.delete(
+    f"{base_url}/api/simple/traces/{annotation_trace_id}",
+    headers=headers
+)
+
+if response.status_code in (200, 204):
+    print("Annotation deleted successfully")
+else:
+    print(f"Error: {response.status_code}")
+    print(response.text)
+```
+
+</TabItem>
+<TabItem value="javascript" label="JS/TS">
+
+```javascript
+async function deleteAnnotation() {
+  const baseUrl = 'https://cloud.agenta.ai';
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'ApiKey YOUR_API_KEY'
+  };
+
+  // The annotation's own trace_id (not the invocation it's linked to)
+  const annotationTraceId = "bb39070937f74f169b60dfc420729ad3";
+
+  try {
+    const response = await fetch(`${baseUrl}/api/simple/traces/${annotationTraceId}`, {
+      method: 'DELETE',
+      headers: headers
+    });
+
+    if (response.ok) {
+      console.log("Annotation deleted successfully");
+    } else {
+      console.error(`Error: ${response.status}`);
+      console.error(await response.text());
+    }
+  } catch (error) {
+    console.error("Request failed:", error);
+  }
+}
+
+deleteAnnotation();
+```
+
+</TabItem>
+</Tabs>

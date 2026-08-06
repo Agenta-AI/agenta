@@ -1,0 +1,29 @@
+---
+name: Question
+description: Ask for help with setup, usage, or repository topics
+title: "[Question]: "
+labels: ["Question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Describe the setup or usage question clearly.
+      placeholder: What are you trying to do, and where are you blocked?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Share the paths, docs, commands, or screenshots that are relevant.
+      placeholder: Repository paths, environment details, logs, or screenshots
+    validations:
+      required: false
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What have you tried?
+      placeholder: List the docs or commands you already used
+    validations:
+      required: false

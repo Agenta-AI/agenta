@@ -1,0 +1,52 @@
+---
+// InlineCTA — the one in-article CTA card every post drops in via a literal
+// `<InlineCTA />` (auto-inserted after the first H2 during migration). Wired into
+// MDX rendering by passing `components={{ InlineCTA }}` to <Content /> in the post
+// page, so posts resolve it without importing.
+//
+// Layout ported from the post DC (Agenta Blog Post (Dark).dc.html): outline
+// "Star on Github" + yellow "Get started". Copy is inlined here (not read from
+// the untracked design-handoff folder) so the site builds from the repo alone.
+const site = {
+  inlineCta: {
+    title: "Ship reliable AI apps faster",
+    body: "Agenta is the open-source LLMOps platform: prompt management, evals, and LLM observability all in one place.",
+    primary: { label: "Star on Github", href: "https://github.com/Agenta-AI/agenta" },
+    secondary: { label: "Get started", href: "https://cloud.agenta.ai" },
+  },
+};
+
+// Gate: the in-article CTA is hidden on every post for now — the current copy's
+// positioning is outdated and the card can't be dismissed. Every post still
+// embeds `<InlineCTA />` in its MDX body; guarding here renders nothing across
+// all posts without touching 37 MDX files. Flip back to true (with fresh copy)
+// to re-enable. Mirrors the SHOW_HERO_VIDEO / SHOW_COMMUNITY_STRIP pattern.
+const SHOW_INLINE_CTA = false;
+
+const { title, body, primary, secondary } = site.inlineCta;
+---
+
+{SHOW_INLINE_CTA && (
+<div
+  style="border-radius:14px;background:linear-gradient(150deg,#15151A,#100F12);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08);padding:26px 28px;display:flex;flex-direction:column;gap:14px;margin:6px 0;"
+>
+  <span style="font:400 21px/1.3 var(--font-display);color:#F7F6F4;">{title}</span>
+  <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.6);">{body}</span>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+    <a
+      href={primary.href}
+      target="_blank"
+      rel="noopener"
+      style="display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:8px;background:rgba(255,255,255,0.05);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.14);color:#fff;font:var(--text-label);text-decoration:none;cursor:pointer;"
+      >{primary.label}</a
+    >
+    <a
+      href={secondary.href}
+      target="_blank"
+      rel="noopener"
+      style="display:inline-flex;align-items:center;height:38px;padding:0 16px;border-radius:8px;background:var(--grad-btn-primary);box-shadow:var(--shadow-btn-primary);color:var(--ink-900);font:var(--text-label);text-decoration:none;cursor:pointer;"
+      >{secondary.label}</a
+    >
+  </div>
+</div>
+)}

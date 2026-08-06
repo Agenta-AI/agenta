@@ -1,0 +1,73 @@
+---
+id: archive-workflow-variant
+title: "Archive Workflow Variant"
+description: "Archive a workflow variant."
+sidebar_label: "Archive Workflow Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdWE1v2zgQ/SvEnFpAsdNiTwIWWG/SotnuboM6zR4cIxmLY4stRan8SOoa+u8LUpQiW85H0+xlT0nE4ZuZN49DTjZgcWUgncE/pf6ylOWNgXkCnEymRWVFqSCFic5ycU0M2U00YteoBSo7ulAXalou7QEnSZYMszm1iwwVZ8IapulaGFEqM2IRirc2hqGmC5ULzkmxpS4L9tWRFmSYU5KMYVdCZdJxusS49VerHV2N2JToQs3OSXtooVbzF2NNS9KkMhpjJQ5WTnAaX3cGL0eQQFmRRp/XCYcUIuZlm9dlDAsSqFBjQZa0Z2cDCguCFHYNLwWHBIRnqUKbQwKavjqhiUPq40zAZDkVCOkG7LryEMZqoVaQwLLUBVpIwbmAYoWV3qCtBDuPPJ5wqOu5hzZVqQwZj/b68ND/2K7U1GUZGbN0kn2MxpBAVipLynpzrCopskDA+LPxeza9CCvt6bGi8ZCVrtkUAxfK0op0L9KjYLErl6tXV+wmJ8WwU4LwIrBOK+IJuzqM66pUxAq0WU58FGCW6KSF9LBOBkyH6NX6wzKUYzvSztZIt9o23Ca9TrovykkJntUB7VMPUieA2oolZvanUCcRpEPtYhX8PsxdeTwqci+UXtzP56HLovGwlKFp3F0QYS57SutpaFGWklD1NHRi2KRn2lPBEqWhOvFgdI3SoS31Q1BvOsP9QEaJqiL7EMw0mg1A6qTdVy4+U2b3HNt4at8GjoakeoQBe8i58OmjPN3icVC7Ntoebk+E+2EgEzpzEvWLP3FB8g9TqoMPzlbOvoTddPpF37WGQfL3SeasSR8KsvjEZIfHq21BW46LxfaXPkcPMfLWyQcISTYgLBWP3IVa4/peXnb2/hipf3ky6yTeRk/rSH/7vfVO034a1HEPok4g04SW+CXaR/YdjpYOrAjx3O3lqIFlk0CWq/h/4eRTAxudNK+ZZ3dy3MBGJy1di/UzduqWrN/XsVe3fD2rl5atzktL2LN6aenqvPzMRdzev88XXniWPfo+2Au1/XA6y2n4wv4RH92br679rl9evx4+Ec9RCh7uWvZG63BRPvF9yMmikOG6bxrkroEss63VH2nw83qnp/bupTK+FfztYlb7nta3/dIYXNFtk73bNJDBzvyqV4nyvdmbt8VWsVln9lsPZlCRI8/lN7u3arejwSxw04Qf7XrCui1RU6G7qThuSnCfRN6dnZ0OABt9FGTz0o9BVWmakcfmkMK41aAZt1PaeLNn8KnHcXyCBAzp63ZUclp6FKxEqGzzZ25tZdLxmNwok6XjI1yRsjhC0RjOPUbmtLDrADI5PXlP63eEnDSks3nfYOoF2Uhs26wrC1biPXmi4tg2cTYvtfjevjHDwJY3u+pQ7mXZr/YkBMcmpyeD6WZryZ8czIJQWk9hGZKdtG+zhQSoCOcGLGHxW7fiyxyHVUjhcPRqdOg/+doUqPou4ji+Oyfuhrq5Pdj/qxE+1tgfs3ElUYRGEOjeRAnPuinLQAJtnJBAun9+b3U8TyD3RyGdwWazQEOftKxr/9ln5IU5j3ALL5PZBrgw/nce54N7KvDiYzz9L9ldObTiVesQtXT+L0jgC63v+NdDaJN5e0g20XKSZVTZHsagq/vT1J3+0w/TM6jrfwEUij3a
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Workflow Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/workflows/variants/{workflow_variant_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Archive a workflow variant.
+
+Soft-deletes the variant and its revisions. Archived variants are
+hidden from queries unless `include_archived=true`. See
+[Versioning](/reference/api-guide/versioning).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./archive-workflow-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./archive-workflow-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./archive-workflow-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

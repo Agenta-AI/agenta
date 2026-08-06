@@ -1,0 +1,73 @@
+---
+id: fetch-testset-variant
+title: "Fetch Testset Variant"
+description: "Fetch a variant by ID."
+sidebar_label: "Fetch Testset Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNWFFz2zYM/is8PDV3ipP29qSneU27Zt2WXOv2JfEltAhbbGlSI8Gknk//fQdKcmTZSds0vdtTZAn8AH74ABJZA8lFgPwCJhgoIAWYZqAwFF5XpJ2FHF4jFaWQ4kZ6LS2J2Uqcnowu7aV9hxS9DYJK3Hz17lY8m3lpi1IskaSSJA9G4kPAS3t9RK2XI483Omhn+Ym8xhu8FuTEAimhGcmWorMSzgoqdbi0rZsRZOAq9JJjPFWQw5yjvGrxr1ozyKCSXi6R0PMu12DlEiGHgd2VVpCB5t1WkkrIwOM/UXtUkJOPmEEoSlxKyNdAq4oRAnltF5DB3PmlJMghxoRCmgwbtISKjy0xpwrqesrIoXI2YGCwF8fH/Geb8PexKDCEeTTiXWsMGRTOElpic1lVRhdp70efAq9Z9wKsPDNDuvFQuNgsauPWlnCBvhfoy2QxzPpzoee9pN/KIHxKN6pMHAtHJfpbHXCUVs5lNAT5cZ0NqU3x2tXZPNG/HVtnGkxcbNttk1xnmzc2GgNM45Dm94xRZyA96bksfgx03IJsULtItXoIciiGb4mbZdGL+ukcbPbQeJibVOj3JoM32SC52ScsaFfJrxPCUCfnRhZYOqPQi7nzomXq0OANGpG8pl4xKXUQS6fQCB2ETlrWzkpjVgKXFa3ELJL4jBUJGYQUChVLHJXgsERwgkpJ+aU9FPhFB9J2ITzO0aMtMHDvuE7OcnFWNcAX/bin18LjUmorbqTRKhPSKsYK5GNB0aNqYhWFtGKGQiqFSpToUWibWtI8spm41VS6SGLmUX7mIKjESytEiN67aBW/OpmchdGe5DDHO1mQSukm4POt4tjRwMw5g9L2cXtS3g8DhfZFNNI/+1PO0PwRnD08i1RFOoBhwvviGVrDjjwe1DZvss6A+/8jN7tbpF3j2nK8nG2/6XP0NUZeR/MVQrI1aMLlN66S3svVg7wM1n4fqX8xmXXWnmCP62t/89p6UMKPgzrpQdQZFB65WK8kfWP/UpLwkHSK534vLxtYMU5kxUr9DCcfGtjWiUKDP8HJSQPbOunomq2esON3ZP22ant+x9eTeunY2njpCHtSLx1dGy8/cpx3p/jThZcuc189Mdur316k7VN0UmJ3cm6uXO0t+mD0Ha4298W65kW/vHixe738yAdgujyKV947//i7pUKS2vBT2yaHBsYVW1+/p81P60Fn7Z1OrgkwnTFhse9Wftc1Q5ALvGu195smMsSEv7JWLHdoNu9SbtuWXdCXHsxOQl4yl19ob9LupoqLxE0TfmvXk9ddipoM3U/FSZOChxTyZjI53wFs9LFEKh1PTwtsZiUqIYe7Ka2VYjha7w5MNWQQ0N90k1X0htfKSqd0Nj9LoirkR0cYR4VxUY3kAi3JkdSN4ZQxiug1rRLI+Pz0La7eoFToIb+Y9g3eswobXW2bbXIhK/0WmZ12yhtHKp3X/zZiaQe8sllVpxzPXT/F4xScGJ+f7lxztz5xucgiqaPzlD5DNtj23W4hA75+mjR7yuWvmy+cW+awcXM8ej465leVC7SUtueiGcMHU+UwzvVdKf9v5/Y2WVwkR5WROpVx4m3dKvCim7d43Og0CBnke8b2aQalC8SL1uuZDPjBm7rm1/9E9KyqaYsx4xxfrEHpwM8K8rk0AR9g8Nm7tl4PxH1xd8qzqxSqifwLMviMq/3/Zkh9rewEvm4Nx0WBFfUgdtowV8KmXH9/NYG6/g8KsSBu
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Testset Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/testsets/variants/{testset_variant_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch a variant by ID.
+
+Returns the variant row (branch metadata). Use
+`/testsets/revisions/retrieve` to get the latest revision on this
+variant.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-testset-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-testset-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-testset-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

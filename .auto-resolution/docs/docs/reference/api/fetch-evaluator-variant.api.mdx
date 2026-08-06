@@ -1,0 +1,73 @@
+---
+id: fetch-evaluator-variant
+title: "Fetch Evaluator Variant"
+description: "Fetch an evaluator variant by id."
+sidebar_label: "Fetch Evaluator Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdWE1z2zYQ/SuYvTSZQSQn05NOVROncdM2HttJD7bGgcCViAQEGGBhR9Hwv3cAfogS5Y84zqUnW+Tu28XbhwWWayCx9DA5h8MroYMg6zzMOGTopVMlKWtgAq+RZM6EYdgasSvhlDDE5iumstGFuTAnSMEZzyjH7q1DaV3GnngdlpwttFh6zrRaoFxJjU/ZtaLcBoo+F0baolBEmDGHV8ora/yIvffIPo67uH7cvRs7JKfwCj8yshfGocj6sX/xTAbnMGVRu7BSrLQV2Qg42BKdiMs7ymACi7jAyy7KZYMBHErhRIGELpK0BiMKhAkMLC9VBhxUJKsUlAMHh1+CcpjBhFxADl7mWAiYrIFWZcTw5JRZAoeFdYUgmEAICYUU6WjQVYR9aOg8yqCqZhHbl9Z49BHuxcFB/LNdsdMgJXq/CJqdNMbAQVpDaCiai7LUSiYGxp989Fn3Uixd5IdUHUHaUDs1mStDuETXS/VlstiVzXN2naNhopOD8swllWDG2QGzlKO7Vh5HyXUhgiaYHFR8yG9K2azeLVIVttPbGEeZbVtuc13x7okJWkPkcsj2aUSpOFxb93mh7fUPwf7bgHSom2xVdhvori7ul3tUSC/zxwvRraOOIByphZD0Q9xMG5COmw718fLuYtR5pxZ0m5iUv+xtjZ7o59ZqFKYn+iPPpj3TnoQXQnuseATryn0XVFfDG4C8UWWJdBfMaWM2AKl462fnn1DSvkbT9JnXiaQhqxFiQJ/IMhXXL/TxFpGD4rXp9nB7GtkPA1I5GbRwT/4Sc9R/emuevQtUBnoKu+vpV33XGgarv00zZ/XyoUASD1zsUP1t09wKXMy3n/Q5uouR10HfQQhfgyIs7uklnBOrW3nZ8f0+Uv+OZFa8OUEf1jD+ib7VzjHzMKhXPYiKg3QoCLNLQfdsPJkgfEYq5XNzlJc1LJsmskKZ/Ywg72vYJkiGGn9CkFc1bBOkpWu+esRW3ZL1+6pp1i1fjxqlZauL0hL2qFFaurooP3JOtsfj46WXLpL3PxD2Ym3f9c5yHE4HnFnHokN9ETTWICsEyRyz0Xcl0LvDboc9NFeobYlsYR0TzCuz1HsSidFivF9fvBjelT8IrbJ0hrND59IB/MCLcoYklE7XiLrv7hpoK7fefs+5Mat2WnXvuLPNHSQeWn65b8jYtGHvxRI3vftm00QGO4tvo/hMbPnRvNWQac4ASV97MINavoxcfqW99d4MSeeJmzr9xq6n102J6grdTMWrugS3ievN2dnxALDWR4GU2zgQLrEe/iiHCfTHz0ZQfrzeNwNWwMGju2rHxeB09BelSiWtf+ZEpZ+MxxhGUtuQjcQSDYmRULXhLGLI4BStEsj0+Ogtrt6gyNDB5HzWNziNSqy1tW3W1UOU6i1GhprRdRoot059ay+taWbNa68q1Xlh+2WepuTY9PhosPm2XsUtI2RSSBspvQa+s+zNaoEDFmnDAKEofuvexPpGDuswB6Pno4P4qLSeCmF6IeoPE4NBeTfT9WZD/x+/ZTSVjrtsXGqhUh9IpK8bCZ9vxk4PHFoRA4fJ3k8ZMw659RQd1+u58Pje6aqKj78EdFGWswZlHkVyvoZM+fh/1owbtxTgyUmz6Z+ym3JvpWtWKVkd4i/g8BlXN318Se0xb/fIujGdSokl9UAG3Txupm7X/3F4BlX1HyCfmXs=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Evaluator Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluators/variants/{evaluator_variant_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch an evaluator variant by id.
+
+Returns the variant record (slug, flags, lifecycle) without the
+committed revisions. Use `/evaluators/revisions/retrieve` to
+read the variant's current revision payload.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-evaluator-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-evaluator-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-evaluator-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

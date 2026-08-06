@@ -1,0 +1,73 @@
+---
+id: fetch-evaluator
+title: "Fetch Evaluator"
+description: "Fetch an evaluator artifact by id."
+sidebar_label: "Fetch Evaluator"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdV0tzGzcM/iscnJIZRnYyPelUNbEbN23jiZ1ebI2H2oW0TClyQ4JKFM3+9w64D+1KsuJ4nEtPtpbAB+DDg+AGSC0CjG/gbKVMVOR8gKmEHEPmdUnaWRjDOVJWCGUFtkJCedJzlZGYrYXOR7f21n5Ait4GQQV2xy8MrtAIj5nzuXgWTFxIYdUSpZgbtQhSGD3HbJ0ZfH5rv2gqXCSxUl4rS8J54XGlg3ZW5IrUSHwMmPBbCWXzTuTWos1Lpy0FQU54JK9xxfIuoDBqjT6MQIIr0SuO7CKHMcw5trsuMJBQKq+WSOiZlw2wtzCGTuJO5yBBMy+logIkePwctcccxuQjSghZgUsF4w3QumTdQF7bBUiYO79UBGOIMaGQJsMCHfniIoeqmjJmKJ0NGBjm1ekp/xkm5SpmGYYwj0Z8aIRBQuYsoSUWV2VpdJYiPfkUWGfTc630zAPp2kLmYq3UeKwt4QJ9z8XXSWK3Ml6KLwXaYWnowNxHbzGX4lQ4KtB/0QFHSXuuoiEYn1ZyS2ny1q7fzxPhQ8/mzuSYSB8IHWe2kp2EjcYAM9oGcp4AE9ESUhEeM6/DXY/HHkMz5wwq22PoIohJT7QX7FyZgJVksEHMx6DOehV5CChYXZZI34O5asT2QCrZ6rnZJ8zoUDVOmi4+Tyztk8oYe/ypPNdMgDKXAyb3ctf628Nt0slfDsNApn0WjfLP/lQzNH8EZ1+8j1RGeg67AfWTvisNe+EfK5nrOnxYIqlHBtuLbKfFBoaXs+GXPkffY+Q8mu8QIjegCZcP1FLeq/XxVhrq/hipfzGZlWzm64Mo28P4m3WrnaH0OKg3PYhKQuZREeZ3ih44d3JF+IJ08ud+K69rWDFJZMUy/xlGPtawjZEcDf4EI29q2MZIS9ds/YSTuiXrt3UzrVu+ntRKy1ZnpSXsSa20dHVWeBV6bK1esS5fA0/mXlo7HnAjHAQZrgTXBR7YEyUvc6xRLwzWWRRLRVmB+ehhpntLztDgmV2hcSWKOdsTQduF6bvQrlJshy398urV/jb1jzI6Txe3OPM+3bqPXKVyJKVN2h3qWbsrYFw2OP2Ru2Ja7Yzn3hXnmsWDL6qwOLR+bkdvCGqB23l9v2giQ1zzKRec5THP4m3d2GbuZ/S1B7OXxdfM5Vc6mOnt+nyTuKndb+R6NbpNUZ2h+6l4U6fgWFm9vb6+3AOs62OJVDh+GizS3pSW/DGcdAUVTjb9x0AFEgL6VfteiN6wuCp1ymD9syAqw/jkBOMoMy7mI7VAS2qkdC04ZYwsek3rBDK5vHiH67eocvQwvpn2Ba648OpSGop19KtSv0MmpHm7TCIVzutv7WKaHi9FrVWltM5dP6uT5JyYXF7sNdvgiDtEZakgWkvpGORO2NtoQQIuU38AoVr+2p1wOpnD2szp6OXolD+VLtBS2Z6J+jE6XI8Ht3/Xt/+zd2uTXO6jk9IonTo98bxpivRm+6QKIGE8eLNOJRQuEEttNjMV8KM3VcWfP0f0XHZTCcm/GRfBzQZyHfj/vHkyHCH62Yemh5+L+xxtS9NyXbJf/Ask/Ivr3dd1mnJFW/ubRmSSZVhST3lvKHOTdM37+9k1VNV/1rXP9Q==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Evaluator"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluators/{evaluator_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch an evaluator artifact by id.
+
+Returns the artifact-level record (slug, name, flags, lifecycle)
+without variant or revision data. Use the variant and revision
+endpoints to retrieve those layers.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-evaluator.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-evaluator.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-evaluator.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

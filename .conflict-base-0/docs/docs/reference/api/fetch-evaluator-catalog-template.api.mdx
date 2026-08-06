@@ -1,0 +1,73 @@
+---
+id: fetch-evaluator-catalog-template
+title: "Fetch Evaluator Catalog Template"
+description: "Fetch one evaluator template by key."
+sidebar_label: "Fetch Evaluator Catalog Template"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtvGzcQ/ivEnGKAlZSgJ51qOE7ipm0MWUkPtmDTuyMtYy65IblKFGH/ezHctx7rxkkPBXKyxZ35OPzmQc5swYuVg+k1nK+FyoU31sGCQ4wusjLz0miYwiv0UcKMRoa1FPOYZkp4ZPcb9oCb0Y2+0TP0udWOCc0wzfyGoV6jMhmyZ3eRybWfssndCfucoGbatBCp8FGC7kb7BAMYm9efHnDjWGRSZEtr0ht99/p8zsaR8EKZ1bhGcOO7EXAwGVpBNl/EMIUlWX3bWHxbKd3WSsAhE1ak6NESBVvQIkWYQi1w+4Ab4CCJgkz4BDhY/JRLizFMvc2Rg4sSTAVMt+A3Gek6b6VeAQcvvaKF5iRvcQNFsSAMlxnt0JHai8mE/vT5vsqjCJ1b5orNKmHgEBntUXsSF1mmZBSOOv7oSGfbMSWzRISX5Q6B+I6FUntcoe2YeBYkdp3+vPSTaN0kHbPBwxhzNmHGJ2g/S4ejoLsUufIwnRS8ITCYqjfvloHdvlkl193vfQYL3qzoXCkg5mqD/yLdYsfgp0G97EAUHMjjA84MPuTgVL566oZXpFtwiITHlbEVGy2S9Ji6fRuI1XJBWCs2g1uctdAFh6UKGX7cE9LdduKps/W9MQqF7pz/wrHTjmjH7UuhHBacwJqMewyqKTlHgJyWWYb+MZirSuwwiLBRIteUsY+cq5Y7DGMxMmmKOn4cadYR3QNr/WjuP2LkO6p/G/uwVObzWVmnXgW/7fuZ4l54MeTR3Mqnhud7KylocquejqAIIUERh7raRRFxLClyhLrsGTy0T/9oa7TuO9L9Q6X+g5JYxkMIHJbGpsLDFPJcxoOIFzEMxcYMl2hRR1gGQF9sCPdN5YaCg821l8NFlwPqPKXnQLbxSchwEihLJHD4KNai+rEY2nVWbUU0l+JPJbrULuqbdrCQdW/z7426ncuyZ2N631+pqwAtHd4LImmjXAn77FWu1O/O6F/e5T7L/QkccmZ1B/wbrcdvgx1d+KbwuWwppXDXWe5/kvujyL0o6Sw4mKD9k9kfxey7is+hkkrgV1VROXjL/iwn/2k5KfiR04WH0uPPpBmuJd3lL+kxdMCBB1zfdm/X4aXfsax5i1avr7ptO3icfqM0T5BVvWXTK3FmLCP5utnVdZcbjwaj8pgdnT6wv/t53WIvjWWCOalXat8e2pS2/fXFi/1284NQMg4venZubXiOP7HXjNELGV6OTRvTF1Am6n39lpxZ7PZALWt/mKojKTikbjXUwv2JzokVtnF7XDSQweb0tb78gni3fIdWzn/pwOy59Iy4/OIPur0bkcRNaX4l1323Ni4qPXScipelC4Zi7M18frkHWMZHij4xNDxZhYYqTD2mMG5aOndg9LLtzksK4ODQruuRSmgkYCwyGXxa/ky8z9x0PMZ8FCmTxyOxQu3FSMhScEEYUW6l3wSQ08uLt7gpn7IwvV50BUIJL4OrL9Y4RGTybRjkVOOd09wnxsqvdQ8b5jtluxJok3ppun4+Dcax08uLveTrfaKcEZFvhxvVZ+A7x25PSw/uNGQMeBTpb80XcnDT6sBk9Hw0oaXMOJ8K3dmiHM01VYNVZaMZoO2avG1T+38z1qv8SEk0zpSQutOhlhF6DW2EQpitEA60kyhanfbmegsOiXGedLfbe+HwvVVFQcufcrQUdwsOa2GluKcouN5CLB39Hzc31FFin82qtD5hx8yvY1NTYJLt9AuqAVR/AhkKX1IH/7YSOY0iDD1ZrbxXpylLmnx+fT6HovgHLgCXTQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Evaluator Catalog Template"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/evaluators/catalog/templates/{template_key}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch one evaluator template by key.
+
+Returns an empty envelope (`count: 0`) when no template matches
+the key. Template keys come from
+`GET /catalog/templates/`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-evaluator-catalog-template.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-evaluator-catalog-template.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-evaluator-catalog-template.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

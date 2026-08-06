@@ -1,0 +1,83 @@
+---
+title: "Development Mode in Agenta"
+description: "How to run Agenta locally in development mode"
+sidebar_position: 1
+---
+
+This guide explains how to run Agenta locally in development mode while you work on the codebase.
+
+## Start Agenta In Development Mode
+
+Development mode builds the services from your local source code and mounts that code into the containers, so most changes reload without a rebuild.
+
+### 1. Clone The Repository
+
+```bash
+git clone https://github.com/Agenta-AI/agenta.git
+cd agenta
+```
+
+### 2. Configure The Environment
+
+Copy the example env file:
+
+```bash
+cp hosting/docker-compose/oss/env.oss.dev.example hosting/docker-compose/oss/.env.oss.dev
+```
+
+The dev stack reads this file. If you are running locally, the defaults are fine. If you are running on a remote server, open `.env.oss.dev` and replace `localhost` with your server's address in the three URL variables (`AGENTA_WEB_URL`, `AGENTA_API_URL`, and `AGENTA_SERVICES_URL`).
+
+### 3. Launch The Stack
+
+From the repository root:
+
+```bash
+./hosting/docker-compose/run.sh --oss --dev
+```
+
+The first run builds the Docker images, so it takes a few minutes.
+
+If you want to run the Next.js web app on your machine instead of inside Docker, use:
+
+```bash
+./hosting/docker-compose/run.sh --oss --dev --web-local
+```
+
+This starts the stack without the web container, installs the web dependencies, and runs `pnpm dev` for you. The web app is then at [http://localhost:3000](http://localhost:3000). If you only want to skip the web container and manage the web app yourself, use `--no-web` instead.
+
+### 4. Verify The Installation
+
+Open your browser and go to [http://localhost](http://localhost). If you see the Agenta web interface, the setup is working.
+
+## Reload, Recreate, Or Rebuild
+
+Development mode mounts the source code into the containers, so most changes apply on their own:
+
+- The API container runs uvicorn with `--reload`. Saving a file under `api/` or the Python SDK under `sdks/python/` restarts the server automatically.
+- The web container runs `next dev`. Saving a file under `web/` hot-reloads in the browser.
+
+Two kinds of changes need more than a save:
+
+- A changed environment variable needs a recreate, because containers read the env file only when they are created:
+
+  ```bash
+  ./hosting/docker-compose/run.sh --oss --dev --recreate api
+  ```
+
+- A new dependency (a Python package or an npm package) or a Dockerfile change needs a rebuild of that service's image:
+
+  ```bash
+  ./hosting/docker-compose/run.sh --oss --dev --rebuild api
+  ```
+
+  Use `--rebuild web` for the web container. To rebuild everything, add `--build` to the launch command.
+
+## Debugging The Backend
+
+The easiest way to debug the backend is to read the API container's logs. The dev stack's Docker Compose project is named `agenta-oss-dev`, so:
+
+```bash
+docker logs -f agenta-oss-dev-api-1
+```
+
+If you prefer a UI, open the container in Docker Desktop or in the Docker tab of Visual Studio Code and click Logs.

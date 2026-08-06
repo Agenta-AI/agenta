@@ -1,0 +1,344 @@
+---
+slug: "how-to-evaluate-rag-metrics-evals-and-best-practices"
+title: "How to Evaluate RAG: Metrics, Evals, and Best Practices"
+description: "A practical guide to RAG evaluation, evaluation metrics, RAGAS, and LLM evaluation. Learn how to measure and improve your RAG systems."
+category: Article
+date: 2025-07-01
+readingTime: "15 min read"
+heroImage: /blog/how-to-evaluate-rag-metrics-evals-and-best-practices/hero.webp
+ogImage: /blog/how-to-evaluate-rag-metrics-evals-and-best-practices/hero.webp
+author: mahmoud-mabrouk
+coAuthors: [nizar-karkar]
+featured: false
+tags: ["Article"]
+---
+
+Engineers have 100 ways to build a RAG application. Choose your embedding model, tune your prompts, decide how many chunks to retrieve, design your retrieval workflow, experiment with query rewriting. Teams spend months in proof-of-concept limbo, testing endless combinations.
+
+But here's the problem: How do you know if any of it actually works?
+
+We've watched teams obsess over vector database choices while their users struggle with basic queries. They'll spend weeks optimizing chunk sizes but can't tell you whether their latest changes help or hurt performance. The missing piece? Systematic evaluation.
+
+This post shows you how to evaluate RAG applications properly. We'll cover the available metrics, how to choose the right ones, and what data each requires (warning: some need extensive human annotation). By the end, you'll know how to build an evaluation system that lets you move faster to production, avoid breaking things, and understand which changes actually improve your system.
+
+## What RAG Actually Does
+
+<InlineCTA />
+
+Retrieval Augmented Generation (RAG) enhances a large language model's output by integrating information retrieval. Instead of relying only on pre-trained knowledge, RAG fetches relevant external data at query time, resulting in more accurate and current responses.
+
+RAG allows you to dynamically provide context for your application. If you're building any app that requires context for the LLM to answer (which is basically all of them), you're looking at RAG.
+
+Context stuffing works if your context is small. But in most cases, you need to find the relevant context and include just that. RAG has become so important that people say prompt engineering should be called context engineering—finding and providing the right context matters that much.
+
+## How RAG Systems Work
+
+RAG systems rely on two interconnected components: the **retriever** selects relevant external information, and the **generator** uses it to craft responses. Both are crucial. Poor retrieval yields irrelevant data, while weak generation results in incoherent output.
+
+![How RAG Systems Work](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-1.webp)
+
+Here's how it works: The user poses a question (query) which gets converted into a vector using an embedding model. The retriever fetches the most relevant documents from a vector database built from a larger knowledge base. The query and retrieved documents are then passed to the LLM (the generator), which generates a response grounded in both the input and the retrieved content.
+
+## Why RAG Evaluation Is Challenging
+
+Evaluating RAG systems presents unique challenges:
+
+**RAG systems consist of many components.** RAG pipelines often grow beyond basic retrieval and generation to include steps like query rewriting and re-ranking. Each added component impacts performance, cost, and latency, requiring careful evaluation both individually and as part of the full system.
+
+**Evaluation metrics fail to fully capture human preferences.** While automatic metrics are improving, they often miss subjective aspects like tone, which are crucial for user experience. Human feedback remains essential to ensure RAG systems align with brand expectations and user needs.
+
+**Human evaluation is expensive and time-consuming.** Human feedback is valuable but costly and slow, especially since RAG pipelines require frequent re-evaluation after small changes.
+
+## Evaluation Metrics for RAG
+
+To assess RAG system performance, you need to evaluate both core components: the retriever and the generator. Each plays a distinct role in response quality and requires different evaluation approaches. We'll start with retriever-focused metrics like context precision, recall, and noise sensitivity, then cover generator-focused metrics such as faithfulness and response relevancy. Together, these metrics offer a complete view of your RAG system's effectiveness.
+
+### Retriever Evaluation Metrics
+
+In RAG systems, evaluating retriever quality ensures that the most relevant documents support accurate responses from the language model. Retriever metrics like Context Precision, Context Recall, Noise Sensitivity, and Context Entity Recall help quantify how well retrieved information aligns with the user's query and provides necessary grounding for the generator. Without high-quality retrieval, even the best language models produce misleading or irrelevant outputs.
+
+#### Context Precision and Context Recall
+
+Context precision and recall are fundamental metrics for evaluating retrieval performance:
+
+**Context precision** measures how many retrieved chunks are actually relevant. It's computed by averaging the precision@k across all chunks, where precision@k is the ratio of relevant chunks within the top-k retrieved results. K is the total number of chunks in retrieved context and Vk∈\{0,1\} is the relevance indicator at rank K.
+
+![Context Precision and Context Recall](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-2.webp)
+
+Here is a visual illustration:
+
+![Context Precision and Context Recall](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-3.webp)
+
+To use context precision for RAG, we use the RAGAS library, a tool designed for evaluating RAG systems:
+
+```python
+from ragas import SingleTurnSample
+from ragas.metrics import LLMContextPrecisionWithoutReference
+
+context_precision = LLMContextPrecisionWithoutReference(llm=evaluator_llm)
+
+sample = SingleTurnSample(
+    user_input="Where is the Eiffel Tower located?",
+    response="The Eiffel Tower is located in Paris.",
+    retrieved_contexts=["The Eiffel Tower is located in Paris."],
+)
+
+await context_precision.single_turn_ascore(sample)
+```
+
+Output: `0.9999999999`
+
+**Context Recall** measures the proportion of relevant documents that were successfully retrieved, emphasizing completeness. Higher recall indicates fewer missed relevant pieces. Because it assesses what was *not* left out, calculating context recall always requires a reference set for comparison.
+
+![Context Precision and Context Recall](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-4.webp)
+
+Here is a visual illustration of this:
+
+![Context Precision and Context Recall](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-5.webp)
+
+```python
+from ragas.dataset_schema import SingleTurnSample
+from ragas.metrics import LLMContextRecall
+
+sample = SingleTurnSample(
+    user_input="Where is the Eiffel Tower located?",
+    response="The Eiffel Tower is located in Paris.",
+    reference="The Eiffel Tower is located in Paris.",
+    retrieved_contexts=["Paris is the capital of France."],
+)
+
+context_recall = LLMContextRecall(llm=evaluator_llm)
+await context_recall.single_turn_ascore(sample)
+```
+
+Output: `1.0`
+
+High precision means the system successfully returns mostly relevant results and minimizes false positives, while high recall means the system finds a substantial percentage of relevant documents, reducing false negatives or missed significant documents.
+
+The importance of precision versus recall depends heavily on application context:
+
+In high-risk domains like **healthcare, law, or finance**, precision takes priority. It's crucial that only the most relevant and trustworthy documents are retrieved to avoid misleading or harmful outputs. Even a single irrelevant document can negatively influence the LLM's response.
+
+In **exploratory or research-oriented tasks**, recall is often more valuable. The goal is retrieving as much potentially relevant information as possible. Missing key context could lead to incomplete or biased results, so it's better to include more, even if some items are slightly less relevant.
+
+Balancing both metrics is ideal, but in practice, trade-offs are often required based on real-world application needs.
+
+#### Context Entity Recall
+
+**ContextEntityRecall** measures how many entities from the reference are correctly retrieved in the context. It reflects the fraction of reference entities present in the retrieved content. This differs from traditional textual recall, which considers overlapping words or sentences, as ContextEntityRecall focuses specifically on named entities (people, places, dates, organizations).
+
+For practitioners, this means you need labeled data where entities are explicitly annotated in both the reference and retrieved contexts. This metric is particularly relevant in use cases like customer support or historical Q&A, where recalling key facts or entities matters more than retrieving semantically similar text.
+
+The formula for Context Entity Recall:
+
+![Context Entity Recall](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-6.webp)
+
+```python
+from ragas import SingleTurnSample
+from ragas.metrics import ContextEntityRecall
+
+sample = SingleTurnSample(
+    reference="The Eiffel Tower is located in Paris.",
+    retrieved_contexts=["The Eiffel Tower is located in Paris."],
+)
+
+scorer = ContextEntityRecall(llm=evaluator_llm)
+await scorer.single_turn_ascore(sample)
+```
+
+Output: `0.999999995`
+
+#### Noise Sensitivity
+
+**NoiseSensitivity** measures how often a system makes unsupported or incorrect claims based on retrieved documents, whether relevant or not. It ranges from 0 to 1, with lower scores indicating better reliability. The metric checks if each response claim aligns with the ground truth and is supported by the retrieved context.
+
+To use this metric, you need to label two types of data:
+
+1. **Ground truth answers** for each input (to verify response correctness)
+2. **Entity-level or claim-level annotations**: For each claim in the system's response, you need to label its correctness and indicate whether it's supported by relevant or irrelevant parts of the retrieved context
+
+This helps evaluate not just accuracy, but whether the system relies on appropriate information sources.
+
+The formula for Noise Sensitivity:
+
+![Noise Sensitivity](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-7.webp)
+
+```python
+from typing import List, Dict
+
+def compute_noise_sensitivity(claims_data: List[Dict]) -> float:
+    """
+    claims_data: A list of dictionaries, each containing:
+      - 'is_correct': bool — whether the claim is factually correct
+      - 'support_source': str — either 'relevant', 'irrelevant', or 'none'
+      - 'has_relevant_doc': bool — whether relevant documents were available
+    """
+    noise_errors = 0
+    total_eligible_errors = 0
+
+    for claim in claims_data:
+        if not claim['is_correct'] and claim['has_relevant_doc']:
+            total_eligible_errors += 1
+            if claim['support_source'] == 'irrelevant':
+                noise_errors += 1
+
+    if total_eligible_errors == 0:
+        return 0.0
+
+    return noise_errors / total_eligible_errors
+
+example_claims = [
+    {'is_correct': False, 'support_source': 'irrelevant', 'has_relevant_doc': True},
+    {'is_correct': False, 'support_source': 'relevant', 'has_relevant_doc': True},
+    {'is_correct': False, 'support_source': 'irrelevant', 'has_relevant_doc': True},
+    {'is_correct': True,  'support_source': 'relevant',  'has_relevant_doc': True},
+    {'is_correct': False, 'support_source': 'irrelevant', 'has_relevant_doc': False},  # Not counted
+]
+
+score = compute_noise_sensitivity(example_claims)
+print(f"Noise Sensitivity: {score:.2f}")
+```
+
+Output: `0.67`
+
+To calculate noise sensitivity of irrelevant context, you can set the mode parameter to irrelevant:
+
+```python
+scorer = NoiseSensitivity(mode="irrelevant")
+await scorer.single_turn_ascore(sample)
+```
+
+#### Context Entity Recall vs. Noise Sensitivity: Understanding the Trade-offs
+
+**ContextEntityRecall** evaluates how well a system retrieves key named entities (people, places, dates) from reference content. It's especially useful in tasks like customer support or historical Q&A, where factual recall matters more than semantic similarity. However, it requires annotated data with labeled entities in both reference and retrieved texts, often using LLMs or NER tools, making it costly and less effective for abstract or entity-free content.
+
+**NoiseSensitivity** measures how often a system makes incorrect claims based on irrelevant sources. It's valuable for detecting hallucinations and assessing whether answers are grounded in proper evidence—crucial in domains like medicine or law. While it doesn't always need an LLM, it requires detailed annotations of claim correctness and source relevance, which can be labor-intensive. It may also be less insightful when claims are trivially correct or relevant content is missing.
+
+ContextEntityRecall measures factual completeness via entities but needs LLMs and structured annotations, while NoiseSensitivity evaluates grounding and misinformation risk, demanding detailed claim-level labeling.
+
+### Generator Evaluation Metrics
+
+Large Language Models (LLMs) are subject to hallucinations and may generate fictional facts that don't exist or aren't related to the provided context. It's crucial to evaluate the quality of what was generated. This is where generator evaluation metrics come into play—they help assess not only whether the response is factually accurate (faithfulness) but also how well it aligns with the user's original input or intent (response relevancy). These metrics are essential for ensuring that LLM output is both trustworthy and useful, especially in high-stakes or production-grade applications.
+
+#### Faithfulness and Response Relevancy
+
+Faithfulness and response relevancy are the most well-known metrics to evaluate the generator component in RAG systems:
+
+**Faithfulness** evaluates how factually accurate a response is in relation to the retrieved context. It's scored between 0 and 1, where a higher score means greater factual consistency. A response is considered faithful if every claim it makes can be supported by the provided context. To calculate this metric, first identify all claims in the response. Then, for each claim, verify whether it can be inferred from the retrieved context. The final faithfulness score is computed based on how many claims are supported.
+
+![Faithfulness and Response Relevancy](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-8.webp)
+
+Here is a visual illustration of this:
+
+![Faithfulness and Response Relevancy](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-9.webp)
+
+```python
+from ragas.dataset_schema import SingleTurnSample
+from ragas.metrics import Faithfulness
+
+sample = SingleTurnSample(
+    user_input="When was the first super bowl?",
+    response="The first superbowl was held on Jan 15, 1967",
+    retrieved_contexts=[
+        "The First AFL–NFL World Championship Game was an American football game played on January 15, 1967, at the Los Angeles Memorial Coliseum in Los Angeles."
+    ]
+)
+
+scorer = Faithfulness(llm=evaluator_llm)
+await scorer.single_turn_ascore(sample)
+```
+
+Output: `1.0`
+
+**Response Relevancy** evaluates how well a system's response aligns with the user's input. A higher score means the response directly addresses the user's question, while a lower score suggests the response may be incomplete or contain unnecessary information. To calculate this metric, a few artificial questions (typically three) are generated based on the response to capture its content. Then, the cosine similarity is computed between the user input and each of these questions using their embeddings. The average of these similarity scores gives the final ResponseRelevancy score.
+
+![Faithfulness and Response Relevancy](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-10.webp)
+
+Here is visual illustration of this :
+
+![Faithfulness and Response Relevancy](/blog/how-to-evaluate-rag-metrics-evals-and-best-practices/img-11.webp)
+
+```python
+from ragas import SingleTurnSample
+from ragas.metrics import ResponseRelevancy
+
+sample = SingleTurnSample(
+    user_input="When was the first super bowl?",
+    response="The first superbowl was held on Jan 15, 1967",
+    retrieved_contexts=[
+        "The First AFL–NFL World Championship Game was an American football game played on January 15, 1967, at the Los Angeles Memorial Coliseum in Los Angeles."
+    ]
+)
+
+scorer = ResponseRelevancy(llm=evaluator_llm, embeddings=evaluator_embeddings)
+await scorer.single_turn_ascore(sample)
+```
+
+Output: `0.9165088378587264`
+
+**Faithfulness** and **Response Relevancy** are two distinct metrics used to evaluate the quality of responses generated by systems like chatbots or question-answering models.
+
+For practitioners, the key difference lies in the type of data that needs to be labeled: evaluating faithfulness requires identifying each claim in the response and labeling whether it's supported or contradicted by the retrieved documents, while evaluating response relevancy involves comparing the response to the user's input to judge whether it directly and appropriately answers the question. Therefore, faithfulness focuses on alignment with the **retrieved context**, while response relevancy focuses on alignment with the **user query**. Both require carefully designed annotation schemes, but they target different aspects of response quality.
+
+### End-to-End Evaluation of RAG
+
+In an ideal world, we'd summarize RAG pipeline effectiveness with a single, reliable metric that fully reflects how well all components work together. If that metric crossed a certain threshold, we'd know the system was production-ready.
+
+This is feasible, but it depends on the system.
+
+For instance, if you're building a Q&A system, you can label the correct answers for each question and then use either an LLM as a judge or human labeler to compare the correct answer to the actual answer.
+
+You can also use an LLM rubric, and instead of annotating the expected correct answer (ground truth), specify the requirements for the correct answer (e.g., the answer should mention how long reimbursement takes) and use an LLM rubric to check whether these requirements are in the answer.
+
+End-to-end metrics are the final test for LLM applications. They can tell you whether a test scenario passes or fails.
+
+The best end-to-end metric is human evaluation. Having a human evaluate the results and go through the traces to see what went wrong is the fundamental thing to do.
+
+#### Why End-to-End Isn't Enough
+
+End-to-end metrics tell you whether test scenarios pass or fail, but they don't tell you where to improve or which components are breaking. RAG pipelines are complex, multi-stage systems where each stage introduces variability.
+
+The performance of a downstream component depends on the quality of upstream components. No matter how good your generator prompt is, it will perform poorly if the retriever fails to identify relevant documents—and if there are no relevant documents in the knowledge base, optimizing the retriever won't help.
+
+### Aligning Automatic Evaluators to Human Evaluators
+
+To ensure reliable evaluation, it's not enough to assess only the system's outputs—we must also **evaluate the evaluators** themselves. This means comparing the outputs of automatic or model-based evaluation metrics against a **ground truth established by human evaluators**, to validate that these metrics truly reflect human judgment in the context of RAG systems.
+
+## Building RAG Systems That Actually Work
+
+### Key Takeaways
+
+**Start with the Right Metrics**
+
+- Use precision for high-risk domains where accuracy matters most
+- Prioritize recall for exploratory tasks where completeness is key
+- Combine retriever and generator metrics for complete system understanding
+
+**Design Your Data Strategy**
+
+- Context precision/recall need relevance annotations
+- Entity recall requires named entity labeling
+- Noise sensitivity demands claim-level correctness marking
+- Human evaluation provides your ground truth baseline
+
+**Build Iteratively**
+
+- Begin with simple metrics and expand systematically
+- Test individual components before evaluating end-to-end
+- Create feedback loops between metrics and real user behavior
+
+## TL;DR
+
+There's no single metric that guarantees everything works perfectly. Success comes from combining evaluation metrics with user feedback and iterating component by component. Build something that's not just functional, but reliable and genuinely useful.
+
+Creating well-structured test sets from real production data uncovers edge cases, monitors regressions, and drives performance improvements over time.
+
+Tools like **Agenta**, an [open-source](https://github.com/agenta-ai/agenta) LLMOps platform, streamline the most challenging parts of building an eval system:
+
+- [Test set creation](https://docs.agenta.ai/evaluation/create-test-sets) (from production data) and management
+- [Setting up evaluations](https://docs.agenta.ai/evaluation/no-code-evaluation) that enable product teams to run evals and collaborate with developers
+- [Annotating data](https://docs.agenta.ai/evaluation/human_evaluation) and simplifying human evaluation processes
+- [Versioning prompts](https://docs.agenta.ai/prompt-engineering/prompt-management/prompt-management-sdk) and configurations while connecting everything to evaluation results
+- [Tracing all operations](https://docs.agenta.ai/observability/quickstart) and enabling application debugging (compatible with most frameworks including LlamaIndex, LangChain, LangGraph...)
+
+[Get started with Agenta](https://cloud.agenta.ai) or check our [evaluation docs](https://docs.agenta.ai/evaluation/overview)

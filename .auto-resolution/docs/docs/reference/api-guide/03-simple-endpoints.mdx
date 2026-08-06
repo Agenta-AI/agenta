@@ -1,0 +1,168 @@
+---
+title: "Simple Endpoints"
+description: "What the /simple/ prefix means, when to use it, and how it differs from the structured endpoints."
+sidebar_position: 3
+---
+
+Several domains expose two flavors of their endpoints: a **structured** set that operates on each entity individually (`application`, `variant`, `revision`) and a **simple** set under the `/simple/` prefix that collapses all three layers into one call.
+
+The choice is about the level of abstraction you want when interacting with the API, not about response size or endpoint count.
+
+## When to use each
+
+Use the **structured** endpoints when you need to manage the artifact, variant, and revision layers independently. For example, committing a new revision on an existing variant, or deploying a specific revision to an environment.
+
+Use the **simple** endpoints when you only need a single entity and do not want to track its lineage. A `POST /simple/applications/query` call returns one row per application with the currently resolved variant and revision already merged, including the invocation URL and JSON schemas.
+
+## Applications
+
+```bash
+curl -X POST "$AGENTA_HOST/api/simple/applications/query" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"include_archived": false, "windowing": {"limit": 50}}'
+```
+
+Response:
+
+```json
+{
+  "count": 2,
+  "applications": [
+    {
+      "id": "019d952f-5945-71b1-b8cb-d6d8e675c18d",
+      "slug": "support-bot",
+      "name": "support-bot",
+      "variant_id": "019d9530-1a88-7c3a-b8cb-d6d8e675c18d",
+      "revision_id": "019d9531-2e44-7c3a-b8cb-d6d8e675c18d",
+      "flags": {
+        "is_application": true,
+        "is_chat": true,
+        "is_managed": true,
+        "has_url": true
+      },
+      "data": {
+        "uri": "agenta:builtin:chat:v0",
+        "url": "https://cloud.agenta.ai/services/chat/v0",
+        "schemas": { "parameters": {}, "inputs": {}, "outputs": {} }
+      }
+    }
+  ]
+}
+```
+
+The same query against `/applications/query` returns only the artifact row without `variant_id`, `revision_id`, or `data`.
+
+## Traces
+
+`POST /simple/traces/` accepts a trace payload over plain HTTP JSON. Clients do not need to link against the OpenTelemetry SDK or emit OTLP. The same record can also be delivered via OTLP for integrations that already emit OpenTelemetry.
+
+### Create a trace
+
+```bash
+curl -X POST "$AGENTA_HOST/api/simple/traces/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "trace": {
+      "data": {"outputs": {"score": 5, "comment": "Good response"}},
+      "references": {"evaluator": {"slug": "user-feedback"}},
+      "links": {"invocation": {"trace_id": "0af7651916cd43dd8448eb211c80319c", "span_id": "b7ad6b7169203331"}}
+    }
+  }'
+```
+
+The response returns the created trace with its own `trace_id` and `span_id`. Use those IDs to fetch, update, or delete the trace later.
+
+### Query traces
+
+`POST /simple/traces/query` supports four common patterns. Each matches on a different part of the trace record.
+
+**1. Find all annotations attached to an instrumented span.**
+
+Filter on inbound links. This is the most common query when building feedback UIs.
+
+```json
+{
+  "trace": {
+    "links": {"invocation": {"trace_id": "0af7651916cd43dd8448eb211c80319c", "span_id": "b7ad6b7169203331"}}
+  }
+}
+```
+
+**2. Find all traces produced by a given evaluator.**
+
+Filter on the evaluator reference.
+
+```json
+{
+  "trace": {"references": {"evaluator": {"slug": "user-feedback"}}}
+}
+```
+
+**3. Bulk-fetch traces by their own IDs.**
+
+The top-level `links` field is a multi-ID lookup. Each entry matches a trace whose own `trace_id` and `span_id` equal the values passed.
+
+```json
+{
+  "links": [
+    {"trace_id": "bdda8fb878cb49088c8191bc2850a058", "span_id": "acacdf9134bcb7ea"},
+    {"trace_id": "8e8078739e634a0f98f52b8078d58c67", "span_id": "b3b2860f68eb3a54"}
+  ]
+}
+```
+
+**4. Combine filters.**
+
+All filters are AND-ed. The example below returns annotations from `user-feedback` that link to a specific invocation.
+
+```json
+{
+  "trace": {
+    "references": {"evaluator": {"slug": "user-feedback"}},
+    "links": {"invocation": {"trace_id": "0af7651916cd43dd8448eb211c80319c", "span_id": "b7ad6b7169203331"}}
+  }
+}
+```
+
+:::note
+The request body has two `links` fields that look similar but mean different things.
+
+- `trace.links` filters on the trace's inbound links. For annotations, `trace.links.invocation` is the link to the instrumented span.
+- Top-level `links` looks up traces by their own `trace_id` and `span_id`. It is effectively a batch GET.
+:::
+
+### Fetch, update, and delete
+
+```bash
+# Fetch one trace by its own trace_id
+curl -X GET "$AGENTA_HOST/api/simple/traces/$TRACE_ID" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+
+# Update the trace payload
+curl -X PATCH "$AGENTA_HOST/api/simple/traces/$TRACE_ID" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{"trace": {"data": {"outputs": {"score": 4, "comment": "revised"}}}}'
+
+# Soft-delete the trace
+curl -X DELETE "$AGENTA_HOST/api/simple/traces/$TRACE_ID" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+```
+
+## Evaluators
+
+`POST /simple/evaluators/` and `POST /simple/evaluators/query` expose evaluator artifacts with their active variant and revision merged. Calls to `POST /simple/evaluations/` create an evaluation run and dispatch workers in a single request, without requiring a separate workflow-dispatch call.
+
+## Structured endpoints for the same domain
+
+Every `/simple/` endpoint has structured counterparts. Use them when the simple layer hides information you need:
+
+| Simple | Structured |
+|--------|------------|
+| `POST /simple/applications/query` | `POST /applications/query`, `POST /applications/variants/query`, `POST /applications/revisions/query` |
+| `POST /simple/traces/` | `POST /preview/traces/` (OTLP ingestion, fine-grained span control) |
+| `POST /simple/evaluators/query` | `POST /evaluators/query`, `POST /evaluators/revisions/query` |
+
+Refer to the [API Reference](/reference/api/category) for the full list of endpoints in each domain.

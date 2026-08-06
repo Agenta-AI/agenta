@@ -1,0 +1,81 @@
+---
+id: delete-trace-tracing
+title: "Delete Trace"
+description: "Delete a trace and all its spans."
+sidebar_label: "Delete Trace"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV81u20YQfpXB9mIDlOSqPQk91IgdxI2bBLHTiyVEK3IkbrzcZXaGdlRBQB+iT9gnKWaXsijJdtMceurFFrnzP983s1wp1gtSoxt1hnXAXDMWapKpAikPpmbjnRqpM7TICBo46BxBuwK0tWCYgGrtqD92Y/ceK3+HBHiHYRnfA5eagUodkIBLQzCNBj6aYgr3hksjIgh18J8w577Y4CY4gunwZAineY41YysbJa1xtwRzH+JT9J2c3GPAsat0uMUinhcSsvGu3/VZNcQwk0R+GPbyUgco8Qt8+HBxFjM4a3XAEDjPECQVMjOLfXjpA5Cfcy9ImtoCYaUdm5zAO9BjR8YtLPZShchUtZVCOc9aTGZQB5xjGLvp2fnl+fU5DJLMICrQYLWJcj3tq0z5GkNUvCjUSMVk8GMSkb/GLZQ06aFlIw4NZqrWQVfIGKSlK+V0hWqkNqZVpoy0s9ZcqkwF/NyYsFWmvMRKq9FK8bIWPeKQHLFhKy+uY3IXhVqvJ6JPtXeEJCrDk6H828XNVZPnSDRvLLxvhVWmcu8YHYu4rmtr8pjo4BOJzqoTRh2kDGySh9w3SamNzjjGBYZOeC+ixD543zTVDAP4+T5eQLcAi4Cum5k1VGIB7CO6jFsgMRAH1FUfXviq1qK00MYRRxG3Z3rpGyB0LCYKZMwZah3YaAtzbWwTkPoxvrluLKvRyTpTEdKxFm75dh7bZhgrOiyA+JAu7sjutmqdPbxxjbVK2rSpzpUwUnqXbQHxjaa2OMiUZg5m1jDuJaGLwkgHtH23k8VX+Nt0dicEqXT3zcx7i9rFV4/7UrkJeWN1OHrZWPsLedd723Dd8LFgJlnxM5k80Uhb9a/R0iHo5bMV2tONRT/w+JTy6bak6wPFrdjba7SXxt12jP9zYJcRbvscuTTEAuPp0QYaGbRwO55CrU3YTt0H1kTMZ2AcUDOrDJGMTh8KDP2vips6M2E3nM0BzIOv0ipJbJSBLpN6GofBFALOLeZMUPp7qLRbtkSM9KaH6WOXwkPaZ/rYPU71i3lismTFkumb1qxoEyIk9/ATvJlmY0e+2uwiYblUBsMdhh6ZAuFOW1PECRfVY2SyXGpZLSTWj/IS89uxS1pg/YLaFcbaWDruwxUi3FynuQ9//fEnnNLS5XAfDOPYyTwNOufJ0SDuGHQ5DnRteovGFGnBGLf4TotOL+r0Niq94cnwWJyNndRBStVdbPNYnb1lvBn70mRp84/DRyb/b9usz0Pw4dvHfqqC/HpiLFqf75z+mwEz2adOhyg+BSjsqmjx3Fr8FYn0Arc8fFo0FgOu5XQt21hmg4i3xxeuHRY5f+mYOaDQC6nlF36UZtu1fhNrk8Jv5TqTYNui1KGnS3GWWvAcp19dX787MJjwUSGXfnuLUVm6f4zUBpmHVyCVqUSGdI1pghVxXZvYxPRYMtc0Ggyw6efWN0VfL9Cx7muTBCdiI2+C4WU0cvru4jUuX6EuMKjRzaQrcCXYS2jaFXvogK7Na5SatFeq04ZLH8zvCSLtvapMWuvY2bnvNvY0Bgen7y4Oht3OkZBE5xETG0/xWGV7aW+zVZnCKlJEMerq54cT6Wi8wEY3J/3v+yfyqvbElXYdF+31Pm71/fBWW97+/xnwn38GtOgTrg9qq02cRhEIq5ZFN2r7PZBsqEwu9O0Fb5Kp0hOL3Go104Qfgl2v5fXnBoMwY5KpOx2MnglOb1aqMCS/CzWaa0v4DByO3reT5hieCnXDHifUudO2kSeVqVtcdr9L4hwuN9Rctcep8R3Fg7UhHH4YL6mgar3+G3z5Lb8=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Trace"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/tracing/traces/{trace_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+:::caution[deprecated]
+
+This endpoint has been deprecated and may be replaced or removed in future versions of the API.
+
+:::
+
+Delete a trace and all its spans.
+
+Removes every span that shares this `trace_id` within the project.
+Returns `202 Accepted` with the links for the spans that were
+marked for deletion. `trace_id` must be a 32-char hex UUID.
+
+Deletion is not reversible. For soft-removal semantics on a
+single-trace simple annotation, prefer
+`DELETE /simple/traces/{trace_id}`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./delete-trace-tracing.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./delete-trace-tracing.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./delete-trace-tracing.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

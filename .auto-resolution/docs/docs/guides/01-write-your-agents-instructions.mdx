@@ -1,0 +1,80 @@
+---
+title: "Write your agent's instructions"
+sidebar_label: "Write instructions"
+description: "Edit an agent's AGENTS.md instructions, write a first version, and update them as you work."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+An agent's instructions live in `AGENTS.md`. Agenta sends this file to the agent at the start of every session. This guide shows you how to edit it, write a first version, and add corrections. To learn what belongs in instructions rather than a file or skill, see [Instructions](/concepts/instructions).
+
+## Open the editor
+
+1. Go to `Agents` in the sidebar and pick your agent.
+2. In the playground, set **Playground mode** to `Build`.
+3. In the **Configuration** column, open **Instructions** and click the `AGENTS.md` row.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/instructions-agents-md-editor.png")}
+  alt="The AGENTS.md editor dialog, with the Edit and Preview control, the formatting toolbar, and the tips rail on the right"
+  loading="lazy"
+/>
+
+## Write a first version
+
+A first version for a marketing coworker:
+
+```markdown
+# Role
+
+You are the marketing coworker at Northwind, which sells scheduling software to
+independent dental practices. You draft copy, review drafts I write, and answer
+questions about what we have shipped.
+
+## Audience
+
+Practice owners and office managers. Busy, not technical. They buy to save the front
+desk time.
+
+## How to talk to me
+
+Answer in under 150 words unless I ask for a draft. No preamble and no restating my
+question.
+
+## Hard limits
+
+Never publish or send anything. Show me the draft and wait.
+```
+
+Then:
+
+1. Click `Save`. The dialog closes and the playground header state reads `Draft`.
+2. Click `Commit` in the **Configuration** header.
+3. Pick `New version`, keep or edit the commit message, and click `Commit`.
+
+## Add a correction
+
+Improve the instructions as you work with the agent. When it gets something wrong, add the rule that would have prevented the mistake.
+
+For example, the agent drafts a LinkedIn post that opens with "In today's fast-paced world" and includes three emoji. Reopen `AGENTS.md` and add the correction to the existing tone section:
+
+```markdown
+## How to talk to me
+
+Answer in under 150 words unless I ask for a draft. No preamble and no restating my
+question. In social copy: no emoji, and never open with a scene-setting sentence.
+Open with the claim.
+```
+
+Save and commit again. Each commit creates a version. You can review what changed and when on the **Registry** page.
+
+## Ask the agent to edit the instructions
+
+You can also describe the change in chat. When `Playground build kit` is on in the **Advanced** dialog, the agent can update its own configuration, including its instructions. This setting is on by default.
+
+## Next
+
+- [Control what an agent can do](/guides/control-what-an-agent-can-do) covers the limits that are settings rather than sentences.

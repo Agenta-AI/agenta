@@ -1,0 +1,553 @@
+name: "12 - check unit tests"
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'sdks/python/**'
+      - 'api/**'
+      - 'services/**'
+      - 'hosting/kubernetes/helm/**'
+      - '.github/workflows/12-check-unit-tests.yml'
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Packages to test"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - web-only
+          - sdk-only
+          - api-only
+          - services-only
+          - none
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-unit-tests-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.14"
+
+jobs:
+
+  run-web-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes web
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web
+        run: pnpm install
+
+      - name: Cache Playwright binaries
+        id: restore-playwright-cache
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-browsers-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-browsers-
+
+      # System deps for chromium only (not the full webkit/firefox apt set,
+      # which pulls in the gstreamer/audio/video stack and takes ~14m). Runs
+      # every time since apt packages aren't covered by the browser cache.
+      - name: Install Playwright system deps
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web/tests
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Playwright browser
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web/tests
+        run: |
+          for attempt in 1 2 3; do
+            echo "::group::playwright install chromium (attempt ${attempt}/3)"
+            if timeout 180 pnpm exec playwright install chromium; then
+              echo "::endgroup::"
+              echo "browser install succeeded on attempt ${attempt}"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "attempt ${attempt} stalled or failed; retrying after 5s..."
+            sleep 5
+          done
+          echo "playwright browser install failed after 3 attempts" >&2
+          exit 1
+
+      - name: Run web unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web/tests
+        run: pnpm tsx playwright/scripts/run-tests.ts --layer unit
+
+      - name: Publish web unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          # Playwright layer report + per-package vitest unit reports
+          # (run-tests.ts runs both vitest and playwright for the layer).
+          files: |
+            web/tests/results/oss/junit.xml
+            web/oss/test-results/junit.xml
+            web/packages/*/test-results/junit.xml
+          check_name: Application Web Unit Test Results
+          comment_mode: off
+
+  run-sdk-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes SDK
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-sdk-unit-uv-${{ hashFiles('sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-sdk-unit-uv-
+
+      - name: Install SDK dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
+        working-directory: sdks/python
+        run: |
+          uv sync --locked --python 3.13
+
+      - name: Run SDK unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages)
+        working-directory: sdks/python
+        run: uv run python run-tests.py --layer unit
+
+      - name: Publish SDK unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","sdk-only","api-only","services-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: sdks/python/oss/tests/results/junit.xml
+          check_name: Application SDK Unit Test Results
+          comment_mode: off
+
+  run-api-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes API
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-api-unit-uv-
+
+      - name: Install API dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: |
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
+
+      - name: Run API unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: uv run --no-sync python run-tests.py --layer unit
+
+      - name: Publish API unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: api/oss/tests/results/junit.xml
+          check_name: Application API Unit Test Results
+          comment_mode: off
+
+  run-services-unit-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Check for services unit tests
+        id: services-unit-tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: |
+          if ! find services/oss/tests/pytest/unit -type f ! -name '.gitkeep' | grep -q .; then
+            echo "No services unit tests found; skipping."
+            echo "has_tests=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "has_tests=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Cache Python dependencies
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-services-unit-uv-${{ hashFiles('services/pyproject.toml', 'services/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-services-unit-uv-
+
+      - name: Install services dependencies
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        working-directory: services
+        run: |
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
+
+      - name: Run services unit tests
+        if: (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        working-directory: services
+        run: uv run --no-sync python run-tests.py --layer unit
+
+      - name: Publish services unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)) && steps.services-unit-tests.outputs.has_tests == 'true'
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/oss/tests/results/junit.xml
+          check_name: Application services Unit Test Results
+          comment_mode: off
+
+  run-runner-tests:
+    # The agent runner (services/runner) is a standalone Node/pnpm package, not part of the
+    # Python services suite above. It runs its own vitest unit tests plus a tsc typecheck gate.
+    # No "has_tests" guard on purpose: this suite is established, so a missing/empty suite must
+    # FAIL the job (vitest exits non-zero on no test files), not silently skip it.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-runner-pnpm-${{ hashFiles('services/runner/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-runner-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (tsc --noEmit, src + tests + config)
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run typecheck
+
+      # The code-tool unit test spawns python3 and node end-to-end; both are preinstalled on
+      # ubuntu runners (node is also set up above), so no setup-python step is needed.
+      - name: Run agent runner unit tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run test:unit
+
+      - name: Publish agent runner unit test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/runner/tests/results/junit-unit.xml
+          check_name: Agent Runner Unit Test Results
+          comment_mode: off
+
+  run-helm-render-tests:
+    # Rendered-chart regression guard: the agent runner Deployment must render with a narrow
+    # environment (no platform DB/auth/crypt/license/Redis/store secrets, no unrelated provider
+    # keys, no static AGENTA_API_KEY). A self-hosted local harness shares the runner container, so
+    # a widened env is a credential-exposure regression. Renders with `helm template` and asserts.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Helm
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.18.4
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Lint the Helm chart
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: helm lint hosting/kubernetes/helm
+
+      - name: Assert the runner Deployment renders a narrow environment
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: uv run hosting/kubernetes/helm/tests/test_runner_secret_absence.py
+
+  run-runner-integration-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-runner-pnpm-${{ hashFiles('services/runner/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-runner-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Run agent runner integration tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run test:integration
+
+      - name: Publish agent runner integration test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/runner/tests/results/junit-integration.xml
+          check_name: Agent Runner Integration Test Results
+          comment_mode: off
+
+  run-runner-acceptance-tests:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    env:
+      AGENTA_LICENSE: oss
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Skip when package selection excludes services
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-runner-pnpm-${{ hashFiles('services/runner/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-runner-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm install --frozen-lockfile
+
+      - name: Run agent runner acceptance tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        working-directory: services/runner
+        run: pnpm run test:acceptance
+
+      - name: Publish agent runner acceptance test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: services/runner/tests/results/junit-acceptance.xml
+          check_name: Agent Runner Acceptance Test Results
+          comment_mode: off

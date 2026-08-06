@@ -1,0 +1,19 @@
+{{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agenta.fullname" . }}-seaweedfs
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: seaweedfs
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ include "agenta.seaweedfs.port" . }}
+      targetPort: s3
+      protocol: TCP
+      name: s3
+  selector:
+    {{- include "agenta.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: seaweedfs
+{{- end }}

@@ -1,0 +1,72 @@
+---
+id: unarchive-workflow-variant
+title: "Unarchive Workflow Variant"
+description: "Restore a previously archived workflow variant."
+sidebar_label: "Unarchive Workflow Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNWE1z2zYQ/SuYPTkzjORkeuKpqp1M3LS1J1bSg6KxV+RKRAIBDD6UqBr+9w5AkKJE+TPqTE82ycXb3bcPC6w2YHFhIJ3A30p/nQv13cA0gZxMpnlpuZKQwgcyVmliyEpNK66cEWuGOiv4inL2PS5kK9QcpR18lp/lmSDUht3mJMhSfoP2linJbEGNGUOZM24N85CGK2kG7Jros5x8Iu2fuVxMT4aa5qRJZjTEkr9cOJ7TcNUavBhAAqokjT7UixxScDJGdtMEdhM9QgIlalySJe1T3oDEJUEK+4Y3PIcEuE+9RFtAApq+Oa4ph9RqRwmYrKAlQroBuy49hLGaywUkMFd6idbH4QKK5VZ4g4Ze9immf5FDVU09tCmVNGQ82uvTU/9nl/5rl2VkzNwJ9iEaQwKZkpak9eZYloJngYLhF+PXbDoRltoTZHntIVOuXhQD59LSgnQn0rNgsa+B21e37HtBkmFbQO5rZ52WlCfs9jR+l0oSW6LNCsoHAWaOTlhIT6ukx3SIXq4v56Ecu5G2tka4xa7hLulV0r6RTgjwrPZov/YgVQKoLZ9jZn8KdRRBWtQ2Vp7fh7kvj0dF7oXSift4Htosag9zETrB3QXh5qajtI6GZkoJQtnR0IVho45pRwVzFIaqxIPRCoVDq/RDUG9aw8NARvKyJPsQzHU064FUSbNOzb5QZg9s27hr3waO+qR6hB57mOfcp4/iaofHXu2aaDu4HREehoGM68wJ1Cd/4IzE70bJl5fOls6+gP10ukXft4Ze8vdJZlynD0uy+Mxk+9uraUE7jpez3Tddjh5i5K0TDxCSbIBbWj5yFWqN63t52Vv7NFL/9GRWSTyNnteR/vJrq72m/Tyo8w5ElUCmCesT/JF9J0dLLy0P8dzt5ayGZaNAlivz/8LJxxo2OtneRY7q5LyGjU4aumbrI3bqhqzf1rFXN3wd1UvDVuulIeyoXhq6Wi8/cxA35+/xwgvXskefBwehdi9O44L6V+Sn+GjvfFXlV/3y+nX/ivgJBc/DWcveaB0OymfeD3OyyEU47usGuW8gVLbz9SkNflrt9dTOuaTiXcGfLmZx6Gq97ZfG4IK2TfZu00AGG/uvXiXS92Zv3hRbxmad2R8dmF5FzjyXP+zBqm1Hg0ngpg4/2nWEtS1RXaG7qTivS3CfRN6Nx1c9wFofS7KF8oNQqUw98tgCUhg2GjTDKEIz3BwYfKphO0BBAob0qhmWnBYeB0seals/FtaWJh0OyQ0yoVw+wAVJiwPkteHUY2ROc7sOIKOri/e0fkeYk4Z0Mu0aXHtJ1iLbNWsLgyV/T56qOLiNnC2U5v80t8wwshX1qioUfK669R6F4Njo6qI33+x88nsHsyCVxlP4DMle2ttsIQFahp0DlnD5a/vFFzoOrJDC6eDV4NS/8tVZouy4+NjwzvZnxf1gN9vN/X+fzWPh/O4ZlgJ52N+Bw01U5qQdngwk0GgTEkgPj+VbeU4TKLzG0wlsNjM09FGLqvKvvznSXm/TCDjz1Z9sIOfG/5/Hi/89tJ58iNv6Bbsri0aTch3iFs4/QQJfaX3Hbwqh/xWN9jfRcpRlVNoORq9d+03Sbuury+sxVNW/UFMfaA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Unarchive Workflow Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/workflows/variants/{workflow_variant_id}/unarchive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Restore a previously archived workflow variant.
+
+Clears `deleted_at` on the variant and its revisions. See
+[Versioning](/reference/api-guide/versioning).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./unarchive-workflow-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./unarchive-workflow-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./unarchive-workflow-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

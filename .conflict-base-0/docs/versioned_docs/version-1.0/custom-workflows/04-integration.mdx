@@ -1,0 +1,59 @@
+---
+title: "Integration of Custom Workflows"
+sidebar_label: "Integration"
+description: "How Agenta Custom Workflows integrates with your service in development and production"
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+
+```
+
+Agenta integrates with your service differently in development and production.
+
+## Development
+
+In development, Agenta is in the request path. When you click "Run" in the playground, Agenta sends the current configuration to your service along with the inputs.
+
+<Image
+  style={{ display: "block", margin: "10 auto", marginBottom: "20px" }}
+  img={require("/images/custom-workflows/architecture-dev.png")}
+  alt="Development Architecture"
+  loading="lazy"
+/>
+
+Your service uses `ag.ConfigManager.get_from_route()` to read the configuration from the request. This lets you iterate on prompts and parameters without restarting your server.
+
+When you save a variant in the UI, Agenta stores the configuration in the registry. The registry is the source of truth for all saved configurations.
+
+## Production
+
+In production, Agenta is not in the request path. Your service fetches configuration from the registry at deploy time, then runs independently.
+
+You have two options for how to get configuration to your production service.
+
+### Option 1: Fetch from registry at startup
+
+Your service fetches configuration directly from the Agenta registry when it starts.
+
+<Image
+  style={{ display: "block", margin: "10 auto", marginBottom: "20px" }}
+  img={require("/images/custom-workflows/architecture-prod-live.png")}
+  alt="Production Architecture: Registry Fetch"
+  loading="lazy"
+/>
+
+The service calls the registry once at startup. After that, your business logic runs independently.
+
+### Option 2: CI/CD sync to config file
+
+A GitHub Action (or similar) fetches configuration from Agenta and commits it to your repository. Your service reads from the config file.
+
+<Image
+  style={{ display: "block", margin: "10 auto", marginBottom: "20px" }}
+  img={require("/images/custom-workflows/architecture-prod-ci.png")}
+  alt="Production Architecture: CI/CD Sync"
+  loading="lazy"
+/>
+
+Configuration is versioned in Git. No runtime dependency on Agenta.

@@ -1,0 +1,216 @@
+# Plan: G13 — Route Isolation (Per-Workflow Namespace)
+
+> Status: draft
+> Date: 2026-03-17
+> Gap: [gap-analysis.md § G13](./gap-analysis.md#g13-route-isolation--each-workflow-must-be-its-own-namespace)
+> Parent plan: [plan.md § 1e](./plan.md#1e-route-isolation-g13)
+
+---
+
+## Goal
+
+Each `@ag.route()` call produces an isolated pair:
+
+```
+{path}/invoke       — POST, execute this workflow
+{path}/inspect      — POST, discover this workflow's interface/schemas/flags
+```
+
+Multiple routes on the same codebase are isolated namespaces.
+The root route `"/"` is a valid route: its pair lives at `/invoke`, `/inspect`.
+
+---
+
+## Current State
+
+`sdk/agenta/sdk/decorators/routing.py`:
+
+```python
+class route:
+    def __init__(self, path="/", app=None, router=None, flags=None):
+        self.root = app or router or default_app  # shared FastAPI app
+
+    def __call__(self, foo):
+        self.root.add_api_route(self.path + "/invoke", ...)
+        self.root.add_api_route(self.path + "/inspect", ...)
+```
+
+All routes share `default_app`. The `create_app()` factory exists but is only called once to create `default_app`.
+
+---
+
+## Approach: Sub-App Mounting
+
+FastAPI supports ASGI sub-app mounting: `parent_app.mount("/path", sub_app)`. When mounted:
+- The sub-app receives path-stripped requests (`/summarize/invoke` → `/invoke` inside sub-app)
+- The sub-app does not appear in the parent's OpenAPI schema → isolation by construction
+
+For the root route `"/"`: mount last (see S1c below).
+
+---
+
+## Steps
+
+### S1. Modify `route.__call__()` to mount a sub-app per route
+
+**File:** `sdk/agenta/sdk/decorators/routing.py`
+
+#### S1a. Reserved path validation
+
+Before registering anything, validate that the path is not a reserved name. Raise at import/decoration time (not at request time):
+
+```python
+_RESERVED_PATHS = {"invoke", "inspect"}
+
+def _validate_path(path: str) -> None:
+    segments = path.strip("/").split("/")
+    for segment in segments:
+        if segment in _RESERVED_PATHS:
+            raise ValueError(
+                f"Route path '{path}' contains reserved segment '{segment}'. "
+                f"Paths may not use: {_RESERVED_PATHS}"
+            )
+```
+
+#### S1b. Sub-app mounting
+
+Change `route.__call__()` to:
+1. Create `sub_app = create_app()` per decorated function
+2. Register `/invoke` and `/inspect` on `sub_app` (no prefix — sub-app is already at the path)
+4. Mount `sub_app` on `mount_root` at `self.path`
+
+```python
+class route:
+    def __init__(
+        self,
+        path: str = "/",
+        app: Optional[FastAPI] = None,
+        router: Optional[APIRouter] = None,
+        flags: Optional[dict] = None,
+    ):
+        path = path.rstrip("/")
+        path = path if path else "/"
+        path = path if path.startswith("/") else "/" + path
+        _validate_path(path)
+        self.path = path
+        self.mount_root = app or default_app
+        self.router_fallback = router   # deprecated — see S2
+        self.flags = flags
+
+    def __call__(self, foo):
+        workflow = auto_workflow(foo, flags=self.flags)
+
+        # ... build invoke_endpoint and inspect_endpoint as today ...
+
+        if self.router_fallback is not None:
+            # Deprecated path: APIRouter can't mount sub-apps
+            warnings.warn(
+                "Passing router= to route() is deprecated and will be removed. "
+                "Use app= or omit to use the default app.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.router_fallback.add_api_route(self.path + "/invoke", invoke_endpoint, ...)
+            self.router_fallback.add_api_route(self.path + "/inspect", inspect_endpoint, ...)
+            return foo
+
+        sub_app = create_app()
+        sub_app.add_api_route("/invoke", invoke_endpoint, methods=["POST"], ...)
+        sub_app.add_api_route("/inspect", inspect_endpoint, methods=["POST"], ...)
+
+        self.mount_root.mount(self.path, sub_app)
+        return foo
+```
+
+#### S1c. Mount ordering for the root route `"/"`
+
+Starlette mounts are matched in registration order. `mount("/")` is a catch-all that will absorb any path. If mounted first, it would intercept requests meant for later mounts (e.g. `/summarize`).
+
+Rule: **the `"/"` route, if any, must be mounted last.** Implement this by deferring the root mount to a startup hook on `mount_root`:
+
+```python
+if self.path == "/":
+    # Defer to after all other routes are registered
+    @mount_root.on_event("startup")
+    async def _mount_root_last():
+        mount_root.mount("/", sub_app)
+else:
+    mount_root.mount(self.path, sub_app)
+```
+
+Or, simpler: sort mounts in a post-decoration step that `default_app` exposes. The key invariant is: specific paths before `"/"`.
+
+### S2. Deprecate `router=` parameter
+
+Log a `DeprecationWarning` (see S1b above). Document migration:
+```python
+# Before (deprecated)
+router = APIRouter()
+@ag.route("/foo", router=router)
+async def foo(): ...
+
+# After
+@ag.route("/foo")
+async def foo(): ...
+# or, to target a non-default app:
+my_app = ag.create_app()
+@ag.route("/foo", app=my_app)
+async def foo(): ...
+```
+
+Do not remove yet — the fallback path continues to work during the expand phase.
+
+### S3. API layer — no changes required
+
+The API's `_invoke_workflow` and `_inspect_workflow` use the full URL from the revision. As long as:
+- `{service_url}/invoke` → works (single root route)
+- `{service_url}/summarize/invoke` → works (named route)
+
+No API change needed.
+
+### S4. Validate middleware fires per-request on sub-apps
+
+Each sub-app from `create_app()` has its own CORS, Vault, Auth, and OTel middleware. Verify:
+- [ ] Auth middleware processes `Authorization` header on sub-app requests
+- [ ] OTel middleware creates spans for sub-app requests
+- [ ] Vault middleware resolves secrets on sub-app requests
+- [ ] CORS headers returned on sub-app OPTIONS requests
+
+One concern: ASGI middleware stacking on sub-apps can be different from middleware on the parent. The parent's middleware does not run for sub-app requests. Confirm all four middleware layers run correctly when accessed through the sub-app mount path.
+
+### S5. Tests
+
+Write/update SDK tests:
+```python
+@ag.route("/summarize")
+async def summarize(text: str) -> str: ...
+
+@ag.route("/embed")
+async def embed(text: str) -> list[float]: ...
+
+# POST /summarize/invoke → executes summarize workflow
+# POST /summarize/inspect → returns WorkflowServiceRequest
+# POST /embed/invoke → executes embed workflow
+# POST /embed/inspect → returns WorkflowServiceRequest
+```
+
+Also test:
+- Decoration with reserved path raises `ValueError` at import time
+- Root `"/"` route: `POST /invoke`, `POST /inspect` all resolve correctly
+- Root `"/"` + named routes: `/summarize/invoke` does not fall through to root sub-app
+
+---
+
+## File Map
+
+| File | Change |
+|------|--------|
+| `sdk/agenta/sdk/decorators/routing.py` | Core: sub-app mounting, reserved path validation, `router=` deprecation warning, mount ordering for `"/"` |
+| `sdk/tests/pytest/unit/test_routing.py` | New: unit tests — path validation, route isolation, root ordering, router= deprecation |
+
+---
+
+## Constraints and Compatibility
+
+- **`router=` fallback**: continues to work (no isolation) until removed in Checkpoint 2
+- **`default_app` root spec**: empty (no routes, only mounts); expected and intentional

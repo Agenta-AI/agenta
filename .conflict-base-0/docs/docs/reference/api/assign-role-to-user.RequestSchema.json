@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"email":{"type":"string","title":"Email"},"role":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Role"},"organization_id":{"type":"string","title":"Organization Id"}},"type":"object","required":["email","organization_id"],"title":"UserRole"}}}}}

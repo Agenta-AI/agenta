@@ -1,0 +1,1 @@
+{"parameters":[{"name":"delivery_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Delivery Id"}}]}

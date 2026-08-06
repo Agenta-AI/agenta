@@ -1,0 +1,126 @@
+---
+title: "Evaluators"
+description: "What an evaluator is, how it runs, and how the catalog and presets work."
+sidebar_position: 7
+---
+
+An **evaluator** is a runnable workflow that scores the outputs of other workflows or traces. Evaluators are versioned: each commit produces an immutable revision, and an evaluation pins the revision it ran so later commits do not retroactively change past results.
+
+Evaluators are a kind of workflow. An evaluator artifact shares its UUID with a workflow artifact (the same value serves as both `evaluator_id` and `workflow_id`). The workflow aliases let the generic workflow endpoints operate on evaluators when that's convenient.
+
+An evaluator can run in four places:
+
+- In the playground, against any sample input you provide.
+- In an offline evaluation, against a testset.
+- In online evaluation, against incoming traces.
+- Called directly by an API client.
+
+Each run produces an **annotation-type trace**. The annotation links to the trace being evaluated through `ag.references.*` and records the evaluator's inputs, parameters, and outputs.
+
+For commit semantics, `include_archived`, and how revision IDs stay stable, see [Versioning](/reference/api-guide/versioning). The rest of this page covers what is specific to evaluators.
+
+## Body
+
+An evaluator's `data` payload is what each revision commits. It has three fields.
+
+| Field | What it describes |
+|-------|------------------|
+| `data.uri` | Locates the handler that contains the scoring logic. Can be a built-in identifier (for example, `agenta:builtin:auto_exact_match:v0`) or an HTTPS URL for a custom handler. |
+| `data.schemas` | JSON Schemas for `parameters` (configuration), `inputs` (what the evaluator reads), and `outputs` (what it returns). |
+| `data.parameters` | Configured values for the parameters (the shape is described in `data.schemas.parameters`). |
+
+## How it runs
+
+To invoke an evaluator, the system POSTs an invocation payload to the handler at `data.uri`. The payload carries the `inputs` (sourced from a testcase or trace), the pinned `parameters`, and any `settings` and `credentials` the handler needs.
+
+The handler returns a dictionary of feedback. Values can be a numeric score, a boolean, a string, or an array. The built-in `auto_exact_match` evaluator, for example, returns `{"success": true}` or `{"success": false}`. A custom LLM-as-judge can return multiple fields.
+
+The system writes the result to the annotation trace described above. The trace records what the evaluator saw, what it returned, and a reference to the evaluator revision that produced the score.
+
+## Catalog and presets
+
+The catalog ships the list of built-in evaluators. Each one is described as a **template** with these fields:
+
+- `key`: the template's stable identifier.
+- `uri`: the built-in handler URI.
+- `schemas`: JSON Schemas for `parameters`, `inputs`, and `outputs`.
+- `presets`: named sets of pinned parameter values for that template (for example, the "Quality Rating" preset for the `feedback` template).
+
+A preset is not a separate entity. Creating an evaluator "from a preset" produces a new artifact, variant, and first revision whose `data` comes from the template URI plus the preset's pinned parameter values. After that the evaluator is an ordinary instance you can fork, commit, and archive.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /evaluators/catalog/types/` | List the JSON Schema types the catalog understands. |
+| `GET /evaluators/catalog/templates/` | List evaluator templates. |
+| `GET /evaluators/catalog/templates/{key}` | Fetch one template by key. |
+| `GET /evaluators/catalog/templates/{key}/presets/` | List presets defined for a template. |
+| `GET /evaluators/catalog/templates/{key}/presets/{preset_key}` | Fetch one preset. |
+
+## Simple endpoints
+
+The `/simple/evaluators/` surface collapses the artifact, variant, and latest revision into one flat record:
+
+```bash
+curl "$AGENTA_HOST/api/simple/evaluators/019d952f-0000-0000-0000-000000000000" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+```
+
+Use it when you want the "current evaluator" without tracking lineage. For commits, forks, or specific-revision retrieval, use `/evaluators/`, `/evaluators/variants/`, and `/evaluators/revisions/`. See [Simple Endpoints](/reference/api-guide/simple-endpoints) for the general pattern.
+
+## Relationship to evaluations
+
+**Evaluations** are configured with one or more evaluators that run against a testset. Each evaluation pins specific `evaluator_revision_id`s when the run is configured. Committing a new revision on the variant does not retroactively change a pinned run.
+
+## Example
+
+Create an evaluator that uses the built-in exact-match handler, commit a new revision, and retrieve it.
+
+```bash
+# 1. Create the evaluator (and its first variant + revision).
+curl -X POST "$AGENTA_HOST/api/simple/evaluators/" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "evaluator": {
+      "slug": "exact-match-evaluator",
+      "name": "Exact Match Evaluator",
+      "data": {
+        "uri": "agenta:builtin:auto_exact_match:v0",
+        "parameters": { "correct_answer_key": "correct_answer" }
+      }
+    }
+  }'
+```
+
+The response returns the evaluator with its merged `data` (handler URL, JSON schemas, parameters) and its `id`, `variant_id`, and `revision_id`.
+
+```bash
+# 2. Commit a new revision on the evaluator's variant.
+curl -X POST "$AGENTA_HOST/api/evaluators/revisions/commit" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "evaluator_revision_commit": {
+      "evaluator_variant_id": "019d952f-0000-0000-0000-000000000000",
+      "message": "Match on answer_text instead",
+      "data": {
+        "uri": "agenta:builtin:auto_exact_match:v0",
+        "parameters": { "correct_answer_key": "answer_text" }
+      }
+    }
+  }'
+```
+
+```bash
+# 3. Retrieve the latest revision for the variant.
+curl -X POST "$AGENTA_HOST/api/evaluators/revisions/retrieve" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -d '{
+    "evaluator_variant_ref": { "id": "019d952f-0000-0000-0000-000000000000" }
+  }'
+```
+
+## Lifecycle
+
+Evaluators, variants, and revisions are soft-deleted. Use `POST /evaluators/{id}/archive` and `POST /evaluators/{id}/unarchive` to flip `deleted_at`. The same pattern applies at the variant and revision level. Archiving an evaluator hides it from `/query` responses unless the request sets `include_archived: true`. See [Versioning](/reference/api-guide/versioning#archive-and-unarchive).

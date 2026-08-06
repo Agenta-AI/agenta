@@ -1,0 +1,294 @@
+@host = http://localhost
+@base_url = {{host}}/api/variants/configs
+
+###
+
+# @name fetch_config_by_variant_ref_1
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a460-3292-7fd1-80ce-fb1a9c3e2456"
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_1_with_environment
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-5ba1-757e-a983-787a66a4e78d"
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_2
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "test",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_2_with_environment
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "default",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_3
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "test",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": "test",
+        "version": null,
+        "id": null
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_3_with_environment
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "default",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": "test",
+        "version": null,
+        "id": null
+    }
+}
+
+###
+
+# @name fetch_config_by_variant_ref_4
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "test",
+        "version": null,
+        "id": null
+    },
+    "application_ref": {
+        "slug": "test",
+        "version": null,
+        "id": null
+    }
+}
+
+###
+
+# @name fetch_config_by_environment_ref_1
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "environment_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-5bb0-75a6-ac31-ffd14a864a2a"
+    }
+}
+
+###
+
+# @name fetch_config_by_environment_ref_2
+GET {{base_url}}/fetch
+Content-Type: application/json
+
+{
+    "environment_ref": {
+        "slug": "production",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name fork_config_by_variant_ref_1
+POST {{base_url}}/fork
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a8fd-139e-7b06-9901-aba21003f4e6"
+    }
+}
+
+###
+
+# @name fork_config_by_variant_ref_2
+POST {{base_url}}/fork
+Content-Type: application/json
+
+{
+    "variant_ref": {
+        "slug": "test",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name fork_config_by_environment_ref_1
+POST {{base_url}}/fork
+Content-Type: application/json
+
+{
+    "environment_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-5bb0-75a6-ac31-ffd14a864a2a"
+    }
+}
+
+###
+
+# @name fork_config_by_environment_ref_2
+POST {{base_url}}/fork
+Content-Type: application/json
+
+{
+    "environment_ref": {
+        "slug": "production",
+        "version": 1,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name commit_config
+POST {{base_url}}/commit
+Content-Type: application/json
+
+{ 
+    "params": {},
+    "url": "http://localhost/0192a45c-4630-7130-8d59-7036ec84002f/test/app",
+    "application_ref": {
+        "slug": "test",
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    },
+    "service_ref": {
+        "slug": "0192a45d547076f2bce744348f5890b9",
+        "version": null,
+        "id": "0192a45c-4630-7130-8d59-7036ec84002f"
+    },
+    "variant_ref": {
+        "slug": "default",
+        "version": 1,
+        "id": "0192a45d-5ba1-757e-a983-787a66a4e78d"
+    },
+    "environment_ref": null
+}
+
+###
+
+# @name deploy_config_by_environment_ref_1
+POST {{base_url}}/deploy
+Content-Type: application/json
+
+{ 
+    "variant_ref": {
+        "slug": "default",
+        "version": 3,
+        "id": "0192a45d-5ba1-757e-a983-787a66a4e78d"
+    },
+    "environment_ref": {
+        "slug": "production",
+        "version": null,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}
+
+###
+
+# @name add_config
+POST {{base_url}}/add
+Content-Type: application/json
+
+{ 
+    "variant_ref": {
+        "slug": "my-var",
+        "version": null,
+        "id": null
+    },
+    "application_ref": {
+        "slug": null,
+        "version": null,
+        "id": "0192a45d-511e-7d1a-aaca-20280c963b1f"
+    }
+}

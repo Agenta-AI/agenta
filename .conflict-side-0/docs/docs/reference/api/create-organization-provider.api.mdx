@@ -1,0 +1,71 @@
+---
+id: create-organization-provider
+title: "Create Provider"
+description: "Create a new SSO provider configuration."
+sidebar_label: "Create Provider"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVl99v2zYQx/8V4bCHDpN/LNiTnuYlHWq0XYw43YvjBox0ttlRJEtSSVxD//twpGRRduJ0AYZhebFFHu9Od5/vmdmBY2sL2QIuzZpJ/o05rqSFZQoF2txwTc+QwblB5jBhicSHZD6/TLRR97xAk+RKrvi6Mv7k8EbeyHmltTIOi87IbTXa7EYOEsWLPEsuNcrpRXKupMTc0bplpciS+eTjh+RsOE7e5Krkcp1YpeSPkILSGCJMC8gg99ncqijn2zYWpGDwa4XW/aaKLWQ7yJV0KB19ZVoLnvsDoy+W3mwHNt9gyeibNhTGcbR+XVRr+qTcIQPrDJdrSEEz59BQUT4v2ODbYPnTD5CC406Q2ZxO1SlIVqKPKLeXK8gWh37qdL8iKyGgXnY+/qCz9UELXufqInJRp7ASvt2xL1YUnLaZmEWv70yFaetV3X3B3J2M87t3XKdg0TkumyDf7TqqX3u+ro+NqLHcYEHA+vZE8aJkYpZnDRYBYDjk+iqgkpSqQJGslEk8W4Qekz3Qh1BTSl0K9B5+wWolbWDmbDymj36MeZXnaO2qEslVYwzpa6nkxVNMrpQpmYMMqooXUTWnhe/JMyT/35h9BU7/ApdpM36KW+ZO9qJgDgeOlxi5CRgWyYTkBJUuIkfP1epJl6cK+Cm4bYL0puQ/wycWUkIsvaBJf7gRpoepz0Pby6gbvWL2CnKc+AsKj7R1qPGwEYn8KW3XKfxydnYs3z+Z4EUowVtjlHm9dgt0jAuvYoelPTYQKu/tfod6uHS4RgP1susNM4ZtozZ+UCFBoqG0J0fBR7SWrb2Sg8nzpr4YyTXt1ilwqasgh3b0+AVSi3uM3BwJ65xq+eheZItqE9Jv7CIcuhaFDj1fiovQgqeCtSbvrq9nRw4DHyW6jaILiFbWhavABjIYxaTaUUuVHXnSzT0a65tYGUHWTHPfwfC4cU7bbDTCapgLVRVDtkbp2JDxYLgkH3lluNt6J5PZ9D1u3yGju062WMYGcwIvoNQ325efaf4et608M5hUbqNMkzpQGymlcIremJC+6q5Tbx9ZqQV216MOi8bh/rkvom7UNNO8P5JrT9BKxQBNfB2SyWx65K23RWJkuWevfSm/TeOkV+GusJACll6K4JCVv+53iBxqVwgzHv48HNMStbtkMgrR3Idn3aXz4IdvPyL+86tz03kS2UgLxv0Y8JXZNQAveqOWhvIeYUiBhLYh3rMF7HZ3zOInI+qalr9WaIjKZQr3zHB2R41b0CTatHzu4C/ctjKXbuDnBZmLKvB4MD5JGOHEJM9Ru5O2y0iSs8v5NaRw11z6adZDBoY90BxhD5CB/zcivGG2C2s7EEyuK5p4GQSf9Pc3YSJ/2w==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Provider"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/providers/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a new SSO provider configuration.
+
+Supported provider types:
+- oidc: OpenID Connect
+- saml: SAML 2.0 (coming soon)
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./create-organization-provider.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./create-organization-provider.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

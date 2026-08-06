@@ -1,0 +1,33 @@
+{
+  "name": "website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agenta marketing website (agenta.ai) — Astro, static-first, deployed on Cloudflare Workers.",
+  "packageManager": "pnpm@10.30.0",
+  "scripts": {
+    "fetch-fonts": "node scripts/fetch-fonts.mjs",
+    "predev": "node scripts/fetch-fonts.mjs",
+    "dev": "astro dev",
+    "start": "astro dev",
+    "prebuild": "node scripts/fetch-fonts.mjs",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy:preview": "PUBLIC_NOINDEX=true astro build && wrangler deploy",
+    "astro": "astro",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^5.0.6",
+    "@astrojs/react": "^5.0.7",
+    "@astrojs/sitemap": "^3.7.3",
+    "astro": "^6.4.8",
+    "posthog-js": "^1.406.2",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
+  }
+}

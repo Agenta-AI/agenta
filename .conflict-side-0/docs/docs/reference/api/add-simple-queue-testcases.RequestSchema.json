@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"testcase_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Testcase Ids"}},"type":"object","required":["testcase_ids"],"title":"SimpleQueueTestcasesCreateRequest"}}}}}

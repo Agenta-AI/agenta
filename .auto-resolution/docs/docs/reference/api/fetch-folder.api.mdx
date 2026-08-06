@@ -1,0 +1,72 @@
+---
+id: fetch-folder
+title: "Fetch Folder"
+description: "Fetch one folder by id."
+sidebar_label: "Fetch Folder"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlWN9v2zYQ/lcIvjQBFCUt9uS9LGuaNevWBGm6lzSoafFksaVIlTwmVQ3978ORki3bSZoGKTBgT5bF4/347iPvTguOYu755JIfWy3BeX6VcQm+cKpBZQ2f8GPAomLWACujCJu1TMn8g/lgzgGDM54J5pWZa2DTJDJlYK5B2wZydlIyrJZ7pQXPjEUGX5VHpswHQ6uF0BrcM88aZz9BgRmbFjYYnDLl2fRgyoSRK+XKM1srRJA5z7htwAny9UTyCS/J249Jkme8EU7UgBTY5HLBjaiBhOLyRyV5xhXF2AiseMYdfAnKgeQTdAEy7osKasEnC45tQxs9OmXmPOOldbVAPuEhRC2oUJNAQpGdSN51V6TQN9Z48KTjxcEB/ayj+y4UBXhfBs3Oe2Ge8cIaBIMkLppGqyIGuP/J057FyK/GUfiokoWI2chdZRDmEYfBv5dRYjPFb0M9A8ds2afJMxczC5LtEPrWsenz6W4eN5YiaOSTgy7rcYxemva0jBCve1TqSK+xgJBSkV2hz9ZEVxK99zNrNQjDu2wTf3pzuxpeKFcELdzOX2IG+k9vzd5pwCbgLqGQtNgZcYxTggZcNqV5tyW98sIErdd2H8coacv/IdqLPtgaUDwy2FFkG1RdM0ysHL8ZY/Q9RI6D/g4g2YIrhPqBu4Rzor2fBet7fwzUvwnMLutvqAdBtqXjLe3tNg7341QdjVR0GS8cCAT5UeB9CkfXohQIe6iiP3dbeZnUssMIVmjkzzDyPqntjUjQ8BOMHCW1vZEBrllLNeZhdmIheQhYv7exvKzwelIrA1pLKwNgT2plgGtpxeswfyxX39HeLuNP517y6bMy39EIJtTUO41qdGyg1ruBN6TnNnPrRfgcvA2uAFaKWumWYaX80DZZNxdGfQOfs1OjWzYdW4wNkYRSUb1GK0WbxX5JIRPaW1bYayrpN9Z9LrW98RmDa6GDQOt8kkTw6AE928EKWuYr4SB2bcKhKkWBDMVMw25OsMRe6ZGpOkt91nrgRxb3PFCnRpSoBYJTQqtvIBnZYrOgNLLS2XrUST7zjDjTB+qZMAV4iuhZfO9zdg5C7lmj21+ZBKeuQVLnSho8uGtwfTAODD4hs8+iQmL1Zpgnkhossp+M9oFksbsiPVNWWscEc9YOiznvtqrIJr0eQK2LJWwZu6nAsNIGI3N2mrro9G69436I5WXD2nUk/MuLF9v97T9CKxl5yl45Z93jm1sJKJSmp75qbwpoW6yt/kjXcdVtFPpRs2STg7Hl8fPbpoFVEfdezGFV+e8WjWCwC1qlq8tQw0Diww1k+g6iwK8jNVuJeElYfsVbk7WaZi4jNsn9Xm5E2VWKUobuhuIopeA+Zry+uDjbUpj4UQNWlma0OSAf7hG+348c+4vlVNbxjKczmqa24DQJikbF3KW/FWLjJ/v7EPJC2yBzMQeDIhcqCV6RjiI4hW1Ucnh28gba1yDixHJ5NRZ4R5RLJFoXWwIvGvUGCIp+gjwMWFmnviVm9FNklXZ1MaGlHefzMDrHDs9Otu6FtSU6G6KIVBgsxWWebYS9ipbqUB1PBkcQ9W/LFUokYZjMHOTP84N45VmPtTAjE2nCPx5m5o32cXlc//NfAvpc0YHYb7RQ8chG2BY92y77kdXzjE9WXwGuMl5Zj7S+WMyEh/dOdx29/hLAEX+uMn4tnKIqGNkkladnySel0B7uAW3nvD+Gu+wuFweOGSIYlWb6xzP+Gdq1jxXxlqoGBi/69cOigAZHO7cuVaL68vD98eqCd92/RVYo0Q==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Folder"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/folders/{folder_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch one folder by id.
+
+Returns a single `folder` envelope. If the folder does not exist in
+the caller's project, `count` is `0` and `folder` is omitted.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-folder.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-folder.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-folder.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,40 @@
+.custom-resize-handle {
+    position: absolute;
+    right: -9px;
+    top: 50%;
+    width: 18px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 2;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.custom-resize-handle:after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 3px;
+    height: 28px;
+    background: var(--ag-colorBorder); /* AntD table border color */
+    border-radius: 2px;
+}
+
+th:hover .custom-resize-handle,
+th:focus .custom-resize-handle {
+    opacity: 1;
+}
+
+/*
+ * Fixed-right columns (e.g. a sticky Actions column) anchor the handle inside
+ * the cell so the default 9px overhang doesn't bleed into the scrollbar gutter
+ * and create a phantom column slot on the right edge of the table.
+ */
+.ant-table-cell-fix-right .custom-resize-handle {
+    right: 0;
+    width: 9px;
+}

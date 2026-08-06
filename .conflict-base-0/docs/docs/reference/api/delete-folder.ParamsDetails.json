@@ -1,0 +1,1 @@
+{"parameters":[{"name":"folder_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Folder Id"}}]}

@@ -1,0 +1,77 @@
+---
+id: resend-invitation
+title: "Resend User Invitation To Organization"
+description: "Resend an invitation to a user to an Organization."
+sidebar_label: "Resend User Invitation To Organization"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVlFv2zYQ/ivEPW2AZntB96K9zO0C1Ou2BI67oXAM4yxdLLYSqZJUYlfQfx+OlCzZTrwN2PY0P5nk8bvj3XffqQaHWwvxEm7MFpX8gk5qZWEVQUo2MbLkNcQwJ0sqFaiEVI/SeTPhtEBRWTL+nxJDjNG9uldzlJZsfK+EEOLtYnF7vUvIQ8ZiPXCw/l5Yh66y60SnFIvvJpNn78x630o78aArlQptRIZW0K6UhtITpFcvIH3QlcDcEKZ7saFcqy2/wWXSCj14xXNo92pOrjKqe9dPdze/zsmWWlmKhU+UO8kS5+gE6moygQh0ScZbzVKIwfgkr/u7EEGJBgtyZLhKNSgsCGIYxriWKUQguUolugwiMPS54lxA7ExFEdgkowIhrsHtS75unZFqCxE46XLeGFZOzFJomujg60mbT7bEhP4JR793YMHLKmCQda91uueLp5CJVo6U4yMsy1wmPsbxR8u0rAceS8PJdJIsr6hAmV8K5NobNE3UWejNR0rc0aOWLcyqvxb6wPOQ5iFyaBqGMS0FvHuublyf9NBdlSRk7UOVi44v8NcfGLy8uro6B/4Nc5mG2l0bo83fQD1JW0quzZt0VNhzg1wnR6eo9jcPnpnHiWb+tDtSOdqSgWbVJxuNwf2gGj/rECA0ERR2e6lwv5C1uCU4gF2oMSdDLPi0YeKWlU9IdzzzG00EidsNYA5E6OzecC537k/JwrkJ4bd2A970JQoVejkVP4YSPOesM2EtOwMM/CjIZZq1pNTWeflwGcQwHgqGHdcn+tGMD01ux/Ww4ZuxVyMaB22CCCyZx06NKpMzOJbSFzwsM+dKG4/HVI2SXFfpCLekHI5QBsMVYySVkW7vQaa3s3e0f0uYkoF4uRoa3DFPA/OOzQ7VwlK+I85fq1bTymXatE/r5CoLtzhB3AHzXnKud1iUOQ0ko2cwSPWgh4SZ+oeI6e0MTufj0RE3Hyaea11U/hiikxT1mYHo4N8RFj8cTjgOzndwMxl9O5rwFpe3QDVw0U7o9zyOB3NyoY/G8mngda8U/8/4f2fGt0RlCRmXOUovcp4Hdduey6N5biGC+HzA9x3K52dDmZvU65Fv01UEGQtAvIS63qCl9yZvGt7+XJHhvltF8IhG4oaZvawhlZb/pxA/YG7pAk2+mrea97V46XVdbypuzEfMK15BBJ9o/8zHC0vHf+j+KHV+KGWd9tStyZvg7Rs/OnqIs0nKkYcb04Rpd9F2NVDn25u7BUSwaT96Cp3yHYNPXEJ8CuHqMtCBv4p4r4Yc1bbi4RdDwOTfHz24ER4=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Resend User Invitation To Organization"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/{organization_id}/workspaces/{workspace_id}/invite/resend"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Resend an invitation to a user to an Organization.
+
+Raises:
+    HTTPException: _description_; status_code: 500
+    HTTPException: Invitation not found or has expired; status_code: 400
+    HTTPException: You already belong to this organization; status_code: 400
+
+Returns:
+    JSONResponse: Resent invitation to user; status_code: 200
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./resend-invitation.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./resend-invitation.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./resend-invitation.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,73 @@
+---
+id: archive-application-variant
+title: "Archive Application Variant"
+description: "Soft-delete a variant."
+sidebar_label: "Archive Application Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVWE1z2zYQ/SuYPSUztORketKpqp1M3LSNJ3bSg62xIHIlIoEABh9yVA3/e2dBUIIoyY4d9dCTTXLxdvftwwKrFTg+szC4gWFVSZFzJ7SyMMqgQJsbUdEzDOBKT91JgRIdMs4W3AiuXO9W3arrEttnxlXBhLPM4EJYAmLcICtFUaBiU6Pn7JtHI9AyryRae6vGQuXSF3jHTV6KBRYD5ozHMROWWVSuxz5GLHZxTsBzLhQzaLVc8IlEZvWtKoV12oicS+YMz7FxWxm0aBZY9CADXaEJuV0UMIDo7I5vcr6LOUAGFTd8jg4N8bICxedIa3Zt70QBGQjip+KuhAwMfvPCYAEDyiIDm5c45zBYgVtWhGKdEWoGGUy1mXMHA/A+oDjhJBkkZWCfI60XBdT1iNBtpZVFS4CvT0/pT6dMPs/R2qmX7GM0hgxyrRwqR+ZJFv0vltaskiArQzw50XjItW8WxdiFcjhDkwR7Fiy6Whm/GrP7EtVGKOyeWzbVXhUZG5+OmXYlmnthsRcWT7mXDgandbaP5RC2Wn6Yhmpsh5iaW+ln27bbnNfZ+o3yUgIxuo/1K8KpM7jX5utU6vufAv47gqxR04hF8RBsVyM/Gj+pJYn+eE7WuTQeuHFiynP3c8RHkA0/LeoRyWl9NHFPZeh4h0UlbNoYkg0w0VoiV8kGuLAsoT4V85RLi3VGYLjg0nOnzWNQb9aG+4GsElWF7jGYq2i2A1Jn7To9+YK52992Ytd5G2ja5ZVAdgjkRSFoLZeX2/uzW7424AQ3Ucl+GMiFyb3k5sUffILyd6vVyQfvKu9eQjejtO5da9jJ/yHVXDfpwxwdf2ayu/pvW+iW4/lk+03K0WOMvPXyEUKyFQiH8x9cxY3hywd56ax9Gql/Epl1Fs/U57WMv2ht3Tl0ngd1nkDUGeQGucPijrsfbD0Fd3jiRIjnsJezBpYNA1m+Kv4LJ58a2Oikuakd3cl5AxudtHRNlkds1i1Zvy1ju275OqqXlq21l5awo3pp6Vp7+ZmTsj0gjxdeuFY+5UjYi7Z996NpIDk82wtgxrRhY1oz7j3RaXKP7dx1hZpJPGmvmO3lmKFaoNQVkiNy9cvr17sX5c9ciqIJ8Y0x4cR95i25QMeFDPeGps12DaTOt74+5ZgY1Z3OnJxuOl466Iyys30zxqbrWstnuGnVh00DGeyavpLWFHV4Mm8lo2LLz933BGanjGfE5Xe3t9SbGekmcNOEH+0SeW5K1FToMBXnTQke0tW76+vLHcBGH3N0paapsNK2Gf9cCQPoJyKw/agy21/tnwPrfpwpIYMwdcbh0RvZYIlQ3+axdK6yg34ffS+X2hc9PkPleI+LxnBEGLk3wi0DyPDy4j0u3yEv0MDgZpQaXJEsG6Ftm62LwyvxHomuOMgOvSu1Ef+0V9Ywv5bNqjoUfarTmg9DcGx4ebGzBbc+0f7heZBL6yl8hqyT9iZbyIAGevrokM9/XX+hYhOHjZvT3qveKb2iCs25Sl00rLM9Y3M32tVmh//vf86IpaU91q8kF6ELBJZXUb83aROzkEGrYMhgcPC3jFbEowxK2g2DG1itJtziJyPrml5TxqTKUUSckEZuVlAIS/8XcdZ4gPsXH2MDeMkOZdIqVy1D4NLTE2TwFZeHf4kJzbJsN8kqGg/zHCuXwOz0dtpN6x5w+eHqGur6XyM6mvA=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Application Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/applications/variants/{application_variant_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-delete a variant.
+
+The variant and its revisions are hidden from queries unless
+`include_archived: true` is sent. Revision IDs remain resolvable so
+historical traces are preserved.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./archive-application-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./archive-application-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./archive-application-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

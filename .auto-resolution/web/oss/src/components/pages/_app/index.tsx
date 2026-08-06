@@ -1,0 +1,107 @@
+import {useEffect} from "react"
+
+import {configureAgentaSdk} from "@agenta/sdk/config"
+import {schedulePersistedQueryGc} from "@agenta/shared/api/persist"
+import {default as AppContextComponent} from "@agenta/ui/app-message"
+import {QueryClientProvider} from "@tanstack/react-query"
+import {App as AppComponent} from "antd"
+import {enableMapSet} from "immer"
+import {useAtomValue} from "jotai"
+import type {AppProps} from "next/app"
+import dynamic from "next/dynamic"
+import {Inter} from "next/font/google"
+
+import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
+import {OnboardingProvider} from "@/oss/components/Onboarding"
+import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
+import {queryClient} from "@/oss/lib/api/queryClient"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {useUser} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
+import GlobalStateProvider from "@/oss/state/Providers"
+import ThemeContextBridge from "@/oss/ThemeContextBridge"
+
+import AppGlobalWrappers from "../../AppGlobalWrappers"
+
+enableMapSet()
+
+// Pin the workspace Fern clients to the host this deployment actually talks to.
+// Without this the SDK defaults to `https://cloud.agenta.ai` (its built-in
+// fallback) because `AGENTA_HOST` is only set server-side — staging/preview
+// deployments would otherwise issue tools/secrets requests against the
+// production origin. Uses the config-only entry so `_app` does not pull the
+// monolithic AgentaApiClient (all 27 resource clients) into the shared bundle.
+configureAgentaSdk({host: getAgentaApiUrl()})
+
+const NoMobilePageWrapper = dynamic(
+    () => import("@/oss/components/Placeholders/NoMobilePageWrapper/NoMobilePageWrapper"),
+    {
+        ssr: false,
+    },
+)
+const CustomPosthogProvider = dynamic(() => import("@/oss/lib/helpers/analytics/AgPosthogProvider"))
+const loadLayout = () => import("@/oss/components/Layout/Layout")
+// Warm the Layout chunk during hydration — it otherwise downloads only after the
+// SuperTokens init gate releases, adding a serial round-trip before any chrome paints.
+if (typeof window !== "undefined") void loadLayout()
+const Layout = dynamic(loadLayout, {
+    ssr: false,
+})
+
+const inter = Inter({
+    subsets: ["latin"],
+    variable: "--font-inter",
+})
+
+const PreloadQueries = () => {
+    useAtomValue(selectedOrgIdAtom)
+    useUser()
+    useProjectData()
+
+    // One idle-time sweep of expired/stale-version persisted query entries.
+    useEffect(() => {
+        schedulePersistedQueryGc()
+    }, [])
+
+    return null
+}
+
+export default function App({Component, pageProps, ...rest}: AppProps) {
+    return (
+        <>
+            <GlobalScripts />
+
+            <main className={`${inter.variable} font-sans`}>
+                <QueryClientProvider client={queryClient}>
+                    <AuthProvider pageProps={pageProps}>
+                        <GlobalStateProvider>
+                            <OnboardingProvider>
+                                <CustomPosthogProvider
+                                    config={{
+                                        persistence: "localStorage+cookie",
+                                    }}
+                                >
+                                    <ThemeContextProvider>
+                                        <AppComponent>
+                                            <ThemeContextBridge>
+                                                <PreloadQueries />
+                                                <Layout>
+                                                    <AppContextComponent />
+                                                    <Component {...pageProps} />
+                                                    <NoMobilePageWrapper />
+                                                </Layout>
+                                                <AppGlobalWrappers />
+                                            </ThemeContextBridge>
+                                        </AppComponent>
+                                    </ThemeContextProvider>
+                                </CustomPosthogProvider>
+                            </OnboardingProvider>
+                        </GlobalStateProvider>
+                    </AuthProvider>
+                </QueryClientProvider>
+            </main>
+        </>
+    )
+}

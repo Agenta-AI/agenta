@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"step_keys":{"items":{"type":"string"},"type":"array","title":"Step Keys"}},"type":"object","required":["step_keys"],"title":"RemoveStepsRequest"}}}}}

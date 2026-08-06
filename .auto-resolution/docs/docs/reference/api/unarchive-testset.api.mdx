@@ -1,0 +1,71 @@
+---
+id: unarchive-testset
+title: "Unarchive Testset"
+description: "Restore a previously archived testset artifact."
+sidebar_label: "Unarchive Testset"
+hide_title: true
+hide_table_of_contents: true
+api: eJzFV0tz2zYQ/isYnJIZWnIyPfFU124mbtraE8u9yJp4RaxEJBDAAAs5iob/vbMgKVGSH4nHnZ4sE/vCt98udteSYB5kPpYjDBSQgpxkUmEovK5IOytz+REDOY8CROVxqV0MZiXAF6VeohLU6AnwpGdQ0ODG3thTg+CDuFVokFB9AroVzgoqcSMfnNAkQunugoiV0FZ8jeg1BgFz0HYgM+kq9MBBnCuZy2hbn59aEzKTFXhYIKHnK6ylhQXKXLbnn7SSmdR8hQqolJn0+DVqj0rm5CNmMhQlLkDma0mrijUDeW3nMpMz5xdA7DUmK6TJsECLkjhXsq4nbDFUzgYMbOTt8TH/2UXvKhYFhjCLRnxshWUmC2cJLbE4VJXRRbrn8HNgnXUvsMozCqQbD4WLjVIbr7aEc/S9AE+TxH4K3wg9E7DB/g6C8EjRW1SZOBaOSvR3OuAgac4gGpL5cZ11UKY47epilmDejWnmjELPYO8IPY5onW0kbDRGMpbdFd4lgwniTM5M4ueD7jnGxo6bfsaCDnP1LlnYR+TSQIFl42nmfAfNkcElGpG8JiaPSh3Ewik0QgehU9a0s2DMSuCiopWYRhJfsCIBQYBQqDiZXBirCpnlVALlN/ZI4DcdSNu58DhDj7bAIMiJ2+QsFxdVY3jcj3tyKzwuQFuxBKNVJsAqthXIx4KiR9XEKgqwYooClEIlSvTIFcX1NossJu40lS6SmHqELxwElXhjhQjRexet4k9no4swuCc1jPFBFkAp3QR8uUOHAwZMnTMItm+3JQV/ud+MLLQvogH/6k+YovkjOHt0EamK9FruJ7xPnX1peUCPx4g34kvWmVwgwTMv27vZXonuOF5Md7/0MXoKkXfRPAFItpaacPGDWuA9rB4vyF3dnwP1Lwazztre/EOQHdj4m3XrvRJ+nqmznok6k4VHaB6oH+xeCgiPSKd4HvZy2pgVJwmsWKn/wsl1Y7Z1sn1qX9TJWWO2ddLBNV29YL/vwPpt1fb8Dq8X9dKhtfHSAfaiXjq4Nl6CifPncvWKdetMvlx4aWx58sW818Tu8znqTXKbyU+cOQzCOhLaFiaqRqSAgPysPO13Mx/VNUv/8vbt4Tj1Dz+DaVgSv3vv/PNnKYUE2vCvtlnuCxhX7Jz+TLOf1Hv9tfdGuSbA9NKE+X3T57Z3hgBz3Dbch0UTGGLEp8wYy32axbvE27ZxF/StZ+YgE6eM5Te6N1vb6XmcsGnCb+V6JNumqMnQw1CcNSl4jBrvR6PLA4MNPxZIpePNoHKhWQaolLkctrwMw/V2EaiHm/VBZjKgX3Y7Q/SGlaDSKZHNvyVRFfLhEOOgMC6qAczREgxAN4ITtlFEr2mVjJxcnn/A1XsEhV7m40lf4Ir51zBqV2yTBaj0B2Rc2v3lJFLpvP7e0KRdYcpGq07Znbl+ck9ScOLk8vxgzN054kKBIvGi85SOZbZ37e1tZSZ5/DRpq4LFr5sTzipj2Lg5HrwZHPMnTsUCbM/FdYe7GG3Wtr13fFPA/9+q2WaCuT+sDOhUnQmUdcurcbcL8S6R76yYW2pNMlkyGfOxXK+nEPDam7rmz+yRuTLJ5BK8hilnbryWSgf+rWQ+AxPwEWxefWzr77V4KOCOT5bJtAQT+T+ZyS+42l2LU38qO7quW4GTosCKeqoH7ZR5vSm7y4urkazrfwHRPZrl
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Unarchive Testset"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/testsets/{testset_id}/unarchive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Restore a previously archived testset artifact.
+
+Clears `deleted_at` on the testset so it shows up in queries again.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./unarchive-testset.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./unarchive-testset.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./unarchive-testset.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

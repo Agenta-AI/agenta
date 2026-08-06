@@ -1,0 +1,75 @@
+---
+id: delete-folder
+title: "Delete Folder"
+description: "Delete a folder and every descendant."
+sidebar_label: "Delete Folder"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1v3DYQ/SvEnFqA0G6MntRLjdhBFkkRw3F78S7isTgrMZVIhRyts13ovxdDSfvhjX0o0FtPK3KGwzfvzQx3B4xlhPwe3vnaUIiw0mAoFsG2bL2DHK6oJiaFap08FDqjaENhq8SPnEHH2dIt3S01fkNRcUWTrzXk2K4tGfW4VQ/D7hdrHhT7kriioJ4sV0O8pRtPPZIj5EpZ1so6hSpaV9akOKCLWAiuTCVY1jtl49J1rvDOWFlj/asgCKRsVM4rDEVlN6R8UJ2bFpGpzdQtRd+FguLScYWsnuQUxmhLR0axV+i2yq9TQiElZ8bEoiq8Y+s6UuyXjr7byIkYDCSX1t6VFFQgLCp8FOhV8F1ZpVAmETqFykCDbymggF8YyGGwfxnMoKHFgA2xiJPf78BhQ5DDnkvQYEWnFrkCDYG+dTaQgZxDRxpiUVGDkO+At60cjBysK0HD2ocGGXLouhSFLdfiMFSCWhjo+5UEjK13kaLEuJjP5ee0Qj53RUExrrtaKE3OoEEYIsfijm1b2yJlOPsa5czuCFcbJH+2ww2F74ZDI1zrmMrEw4TvbfJ4XqYPbx6UXR/K9AnjxLRWD/NkdH6yNshFRSZLYdbY1Qz5vNdgTcLrtp/WiezXOev13sN1dQ1C14RyYc4gLsxUTc9KQH1qLMv6qSKnnOfKuvI4gwz6Xk9X+cevVPCZYAuzJ7/vxf2Xi4tzrf7E2pqkhLoOwYd/L5QhRlvLl2Vq4rlD7YsT60usHrE4id2vDuliCLg9yvajHwBCr6GJ5Y8qe3L9nWLEkmAf7GXXRIa6E6uUgWu7oQgnNdNGr6Hg70dhzqR4K1x+5x/KdejM+8TNAH/0O6qcg0SDQi9TcTVI8FptvL+7uzkLONRHQ1z5w8BJk4YryGE2DrnZbj9ketAQKWymIdSFWhyxtUm+YVkxtzGfzajLitp3JsOSHGOGdnBcSYyiC5a3KcjlzeIDbd8TypzL71fHDp+l6oY6OnXbc4+t/UDCxjgQLzuufLB/D8UxDsVqONUnTdf+WNLLBE5d3izOGvXEJO2BRaqG6aZkBv0s7UO2oIGa1BzAhM1ve4toKRwO18yzN9lctlofuUF3dMX46L6b3oATfLtDy/7/Ov/3r/NYb9LXs7ZGmyZPkn43dsz9+BpH0JAfHuaVhspHFvtu94iR/gh138v2t46C9MBKwwaDFRCpI4yN8m0gX2Md6RXdf7odp8nP6iWIU584aZIN1p2sQMNftD35/5CGbTV14W60XxYFtXx08uxtkHbdz5Cr64/Xd9fQ9/8AqQuVJA==
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Folder"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/folders/{folder_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete a folder and every descendant.
+
+Removes the folder identified by `folder_id` together with every
+folder beneath it, in a single transaction. Deletion is
+unconditional; there is no archive or unarchive step. Resources
+that were assigned to any of the removed folders continue to
+exist and are no longer reachable through the deleted folder.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./delete-folder.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./delete-folder.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./delete-folder.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

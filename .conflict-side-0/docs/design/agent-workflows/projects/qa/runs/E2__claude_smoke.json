@@ -1,0 +1,50 @@
+{
+  "id": "claude_smoke",
+  "group": "claude",
+  "capability": "claude chat (cheap model)",
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "claude",
+  "model": "gpt-4o-mini",
+  "ts": "2026-06-20T13:34:28.640757+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Reply with exactly: CLAUDE-HAIKU-OK"
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "claude",
+          "sandbox": "local",
+          "model": "haiku",
+          "agents_md": "Reply with exactly the requested token, nothing else."
+        }
+      }
+    }
+  },
+  "http_status": 200,
+  "response": {
+    "span_id": "b2a2b90206cf6ca1",
+    "trace_id": "d61eeb0d89804bc4116dce00bbf48628",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "CLAUDE-HAIKU-OK"
+      }
+    }
+  },
+  "reply": "CLAUDE-HAIKU-OK",
+  "status_message": "Success",
+  "passed": true,
+  "expect": "CLAUDE-HAIKU-OK on model haiku"
+}

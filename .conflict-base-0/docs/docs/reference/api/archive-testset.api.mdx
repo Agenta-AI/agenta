@@ -1,0 +1,73 @@
+---
+id: archive-testset
+title: "Archive Testset"
+description: "Soft-delete a testset artifact."
+sidebar_label: "Archive Testset"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdV0tz2zYQ/is7ODUztOxkeuKpatxM3LS1J1Z6sTUWRCxFJBDAAAvHqob/vbMgKVGSH4nHvfQkCtgXvv12gV0Lkosg8isxwUABKYhpJhSGwuuatLMiF5eupCOFBglBArVyID3pUhY0urbX9hIpwKyVUTeSZuAsUIW99AjGvqj0Lap+JYD0CHhXmKhQXdvSuyXMjvvd468R/WoG0RoMAWbaJsEb2ZmZgQ5APuIIPgW8tgPNdfd1o1VzHG2nMQNy4DGQ8zgSmXA1eskHPFMiF53QTacqMlFLL5dI6BmctbByiSIXW9MiE5rBqSVVIhMev0btUYmcg8pEKCpcSpGvBa1q1gzktV2ITJTOLyWJXMSYrJAmwwId/nCmRNNM2WKonQ0Y2MibkxP+2ctLLAoMoYwGPnbCIhOFs4SWWFzWtdFFOuXx58A660FgtWcMSLceChdbpS5ebQkX6AcBvk0S++R4DbocsOKbDOCRoreoMjgBRxX6bzokzBWWMhoS+UmT9VCmOO3qvEww78ZUOqPQM9g7Qo8j2mQbCRuNEYxlf4R3yWCCOBOlScx/0D3H2Npx889Y0GGu3iUL+4hcGFlg1Xoqne+hOTJ4iwaS11Qzk0oHWDqFhrmsU9a0s9KYFeCyphXMI8EXrAlkAAkKFSeTS2hVIwQHVEnKr+0R4J0OpO0CPJbo0RYYmO6z5CyH87o1fDWMezoDj0upLdxKo1UG0iq2FcjHgqJH1cYKhbQwR5BKoYIKPYJua7uMLAbfNFUuEsw9yi8cBFV4bQFC9N5Fq3jpdHIeRvekhjE+yIJUSrcBX+zQ4YABc+cMSju025GCV+43Iwrti2ik/+kPOUfze3D26DxSHemV2E/4kDr70uKAHo8Rb8KHbDKxRJLPPOzgZHsluuN4Od9dGWL0FCLvonkCkGwtNOHyO7Wk93L1eEHu6v4YqH8ymE3W9ebvguzAxl+s2+yV8PNMnQ5MNJkoPMr2MvzO7qUk4RHpFM/DXt62ZmGcwIq1+i+cfGrNdk621/qLOjltzXZOerjmqxfs9z1Yv666nt/j9aJeerQ2XnrAXtRLD9fGSzBx8VyuXrJuk4mXCy89W568Me81sXt9Travxu0bE04dBrCOoHsIJpFCBuRr5Wm/m/dR07D0z2/eHD6n/uZrMD2W4DfvnX/+W0ohSW34q2uW+wLGFTu7P9Lsp81efx3cUa4NMN00YXHf63PbO0OQC9w23IdFExgw4V1mjOU+zeJ94m3XuAu6G5g5yMRbxvKO7s3W9vV8lbBpw+/kBiTbpqjN0MNQnLYpeIwa7yeTiwODLT+WSJXjuaB2oR0GqBK5eGDG6IYHkYmA/rafGKI3rCJrndLY/q2I6pAfH2McFcZFNZILtCRHUreCU7ZRRK9plYyML84+4Oo9SoVe5FfTocAls6/l067YJgey1h+QUemml3Gkynn9T0uSboCpWq0m5bZ0w9SOU3Awvjg7eOTubHGZyCKxoveUtkW2d+ztaUUm+PFp0kwll79sdjinjGHr5mT0enTCS5yIpbRDFy3qMNmMbHt3+KZ4/58DbJdjrqnj2kidqj7Bve74etXPWDyj5Duja0/ZaSYqpnh+JdbruQz4yZum4eUUPlMuE7fSazlnRlythdKBv5XIS2kCPoL6Tx+7qn4FD4Xb89QySW+lifxPZOILrnaH7dT1qr4M1p3AuCiwpoHqQZPmetkU88X55UQ0zb9XU96V
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Testset"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/testsets/{testset_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-delete a testset artifact.
+
+Sets `deleted_at` on the testset. Archived testsets are excluded
+from `/testsets/query` unless `include_archived` is true. Use
+`/testsets/{testset_id}/unarchive` to restore.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./archive-testset.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./archive-testset.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./archive-testset.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

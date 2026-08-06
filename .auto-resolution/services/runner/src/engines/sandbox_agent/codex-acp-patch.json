@@ -1,0 +1,7 @@
+{
+  "_comment": "Single source of truth for the codex-acp approval-decoupling anchor (D-008 amendment, 2026-07-31). Consumed by codex-acp-patch.ts (the runner image, via scripts/patch-codex-acp-approvals.ts) AND by services/runner/images/sandbox/daytona/build_snapshot.py (the Daytona snapshot image). Both surfaces MUST patch identically, or a Daytona run silently keeps cold approvals while a local run is warm. Keep the anchor here and nowhere else.",
+  "pattern": "(AgentFullAccess\\s*=\\s*new\\s+\\w+\\(\\s*\"agent-full-access\",[\\s\\S]{0,600}?)\"(never|on-request)\"(\\s*,\\s*\\{\\s*\"?type\"?\\s*:\\s*\"dangerFullAccess\"\\s*\\})",
+  "stock": "never",
+  "patched": "on-request",
+  "bundlePath": "bin/agent_processes/codex/node_modules/@agentclientprotocol/codex-acp/dist/index.js"
+}

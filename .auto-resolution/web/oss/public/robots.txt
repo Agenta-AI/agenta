@@ -1,0 +1,4 @@
+# Disallow all crawlers from indexing the Agenta application
+# This is an application interface, not a public content site
+User-agent: *
+Disallow: /
