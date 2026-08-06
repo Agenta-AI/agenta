@@ -241,3 +241,17 @@ reader can act on it cold.
   dropping it alone would have left the router planning `refresh-workspace`
   (outcome `reuse`) against a coordinator that rebuilds, adding a fifth permanent
   false positive to that count.
+
+## The Codex gate waits on a timer for arguments it should be handed
+
+- Found by: the closing review of PR #5760, 6 August 2026.
+- On Codex the permission request can arrive before the `tool_call` update that
+  carries the arguments, so `awaitRecordedToolCallArgs` polls the recorded call
+  for up to `RECORDED_TOOL_CALL_WAIT_MS` (750ms) before the gate reads them. It
+  is a timing workaround: it costs latency on every Codex approval, and a stack
+  slow enough to miss the window degrades to a gate that mints nothing, which is
+  the `authorization_missing` failure the unwrap fix was chasing. Measured at
+  28ms in practice, so the margin is wide today and invisible when it is not.
+- The ask: take the arguments from the event that already carries them rather
+  than racing for them, or make the wait a hard requirement that fails loudly
+  instead of falling through with `undefined`.
