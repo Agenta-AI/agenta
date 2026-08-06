@@ -408,6 +408,15 @@ services:
         # login (mounted below), the OTLP export fallback, and the Daytona credentials
         # the runner reads for the `daytona` sandbox provider.
         environment:
+            # `tsx watch` watches per FILE, and on Linux each watched file costs one inotify
+            # INSTANCE, capped per-UID by fs.inotify.max_user_instances (128 on the preview
+            # host, ~65 already held by the other stacks). The watch scope is ~123 files, so
+            # tsx crash-looped on `EMFILE: too many open files, watch` the moment it started.
+            # The ~500k figure in the watch rationale is max_user_WATCHES, a different limit
+            # that never binds here. Polling uses no inotify at all and costs nothing
+            # measurable at this file count, so the dev reload works without a host sysctl.
+            CHOKIDAR_USEPOLLING: "1"
+            CHOKIDAR_INTERVAL: "300"
             AGENTA_RUNNER_PORT: "8765"
             # Bind on all interfaces: the co-located Python `services` container reaches the
             # sidecar over the compose network at `runner:8765`, so the trust-model
