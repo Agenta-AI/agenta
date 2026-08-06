@@ -758,6 +758,32 @@ async function awaitRecordedToolCallArgs(
   );
 }
 
+/**
+ * Unwrap a Codex MCP `tool_call` input to the tool's OWN arguments.
+ *
+ * Codex records an MCP call's input as the JSON-RPC envelope `{tool, server, arguments}`, where
+ * Claude records the arguments directly. Everything downstream of the gate reads the Claude
+ * shape: `findAllMarkers` looks for `workflow_revision.delta.operations` at the TOP level, so on
+ * an envelope it finds no `@ag.file` markers, `mintForGate` mints nothing, and the commit the
+ * human just approved dies with `authorization_missing`. `substitute` and the execution-time
+ * digest match on the same top-level shape, so minting the envelope would not have worked
+ * either — the gate has to see what the tool will actually be called with.
+ *
+ * Anything that is not exactly that envelope passes through untouched, so a tool whose own
+ * arguments happen to include a `tool` field is not mistaken for one.
+ */
+function unwrapMcpEnvelope(args: unknown): unknown {
+  if (!isPlainObject(args)) return args;
+  if (typeof args.tool !== "string" || typeof args.server !== "string") {
+    return args;
+  }
+  return isPlainObject(args.arguments) ? args.arguments : args;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function recordedToolCall(
   run: { events?: () => AgentEvent[] },
   toolCallId: unknown,
@@ -817,11 +843,12 @@ export function buildGateDescriptor(
   const toolName = spec?.name ?? displayName;
   const specPermission = toolPermission(spec?.permission);
   // Codex MCP approval frames omit rawInput, so the matching tool_call event is the only source
-  // for both the approval card and the stored-decision key.
+  // for both the approval card and the stored-decision key. That event records the JSON-RPC
+  // ENVELOPE, so it has to be unwrapped before anyone downstream reads it.
   const args =
     toolCall?.rawInput ??
     toolCall?.input ??
-    (codexMcpApproval ? recorded?.args : undefined);
+    (codexMcpApproval ? unwrapMcpEnvelope(recorded?.args) : undefined);
   const gate: GateDescriptor = {
     executor: spec?.kind === "client" ? "client" : spec ? "relay" : "harness",
     toolName,

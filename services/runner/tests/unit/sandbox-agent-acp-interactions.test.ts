@@ -1212,7 +1212,7 @@ describe("attachPermissionResponder: Codex ACP gates", () => {
 
     assert.deepEqual(
       seen.permission?.[0].gate.args,
-      recordedInput,
+      recordedInput.arguments,
       "the gate must carry the arguments the model actually wrote",
     );
   });
@@ -1308,10 +1308,117 @@ describe("attachPermissionResponder: Codex ACP gates", () => {
     assert.deepEqual(replies, []);
     assert.equal(gates[0].gateType, "codex-acp-permission");
     assert.equal(gates[0].toolName, "commit_revision");
-    assert.deepEqual(gates[0].args, recordedInput);
+    assert.deepEqual(gates[0].args, recordedInput.arguments);
     const parkedToolCall = (events[0] as any).payload.toolCall;
     assert.equal(parkedToolCall.resolvedName, "commit_revision");
-    assert.deepEqual(parkedToolCall.rawInput, recordedInput);
+    assert.deepEqual(parkedToolCall.rawInput, recordedInput.arguments);
+  });
+
+  it("unwraps the Codex MCP envelope so the gate can see @ag.file markers", async () => {
+    // The bug Mahmoud hit three times. Codex records an MCP tool_call's input as the JSON-RPC
+    // envelope `{tool, server, arguments}`; Claude records the arguments directly. Everything
+    // downstream reads the Claude shape -- `findAllMarkers` looks for
+    // `workflow_revision.delta.operations` at the TOP level. Handed the envelope it finds no
+    // markers, mints no authorization, and the commit the human just approved dies with
+    // `authorization_missing` while the model reports plain success.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+    const modelArgs = {
+      description: "Add the saved gstack-autoplan skill.",
+      workflow_revision: {
+        base_revision_id: "rev-1",
+        delta: {
+          operations: [
+            {
+              operation: "add_item",
+              target: ["parameters", "agent", "skills"],
+              value: {
+                name: "gstack-autoplan",
+                body: { "@ag.file": ".agenta-imports/gstack-autoplan/SKILL.md" },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: () => {},
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-envelope-1",
+            name: "mcp.agenta-tools.commit_revision",
+            input: {
+              server: "agenta-tools",
+              tool: "commit_revision",
+              arguments: modelArgs,
+            },
+          } as AgentEvent,
+        ],
+      },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+
+    emit({
+      id: "perm-envelope",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "exec-envelope-1", kind: "execute" },
+    });
+
+    await waitUntil(() => (seen.permission?.length ?? 0) > 0);
+
+    const args = seen.permission?.[0].gate.args as Record<string, unknown>;
+    assert.deepEqual(args, modelArgs);
+    assert.ok(
+      (args as any).workflow_revision?.delta?.operations,
+      "the marker scan reads workflow_revision at the TOP level, so the envelope must be gone",
+    );
+  });
+
+  it("leaves a non-envelope argument object alone", async () => {
+    // The unwrap keys off the exact `{tool, server, arguments}` shape. A tool whose OWN
+    // arguments happen to include a `tool` field must not be mistaken for an envelope.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+    const modelArgs = { tool: "hammer", server: "warehouse", quantity: 2 };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: () => {},
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-lookalike-1",
+            name: "mcp.agenta-tools.commit_revision",
+            input: modelArgs,
+          } as AgentEvent,
+        ],
+      },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+
+    emit({
+      id: "perm-lookalike",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "exec-lookalike-1", kind: "execute" },
+    });
+
+    await waitUntil(() => (seen.permission?.length ?? 0) > 0);
+    assert.deepEqual(seen.permission?.[0].gate.args, modelArgs);
   });
 
   it("recovers a Codex MCP gate and auto-allows an allow spec once", async () => {
@@ -1420,7 +1527,11 @@ describe("attachPermissionResponder: Codex ACP gates", () => {
     await flushPromises();
 
     assert.deepEqual(order, ["grant", "reply"]);
-    assert.deepEqual(granted, [{ toolName: "read_revision", args: mcpArgs }]);
+    // The grant carries the tool's OWN arguments, not the MCP envelope: the relay guard matches
+    // this against what the tool is actually called with.
+    assert.deepEqual(granted, [
+      { toolName: "read_revision", args: mcpArgs.arguments },
+    ]);
   });
 
   it("does not grant an execution for a harness builtin, which never reaches the seam", async () => {

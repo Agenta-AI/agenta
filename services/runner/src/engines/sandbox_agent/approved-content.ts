@@ -57,14 +57,26 @@ function workspaceReaderFor(input: {
   isDaytona: boolean;
   cwd: string;
   sandbox: any;
+  log?: (msg: string) => void;
 }): WorkspaceReader {
   if (!input.isDaytona) return new LocalWorkspaceReader(input.cwd);
   return new DaytonaWorkspaceReader(input.cwd, async (argv) => {
-    const result = await input.sandbox.runProcess({
-      command: argv[0],
-      args: argv.slice(1),
-      timeoutMs: 30_000,
-    });
+    let result: any;
+    try {
+      result = await input.sandbox.runProcess({
+        command: argv[0],
+        args: argv.slice(1),
+        timeoutMs: 30_000,
+      });
+    } catch (error) {
+      // The sandbox transport failing is not the same as the command saying no, and a bare
+      // `Stream Error` on the deny path told nobody which command died. Name it, then rethrow.
+      input.log?.(
+        `[commit-auth] workspace read failed argv=${JSON.stringify(argv)}: ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
     const stdout = result?.stdout ?? "";
     return {
       stdout: Buffer.isBuffer(stdout) ? stdout : Buffer.from(String(stdout)),
@@ -117,6 +129,7 @@ export function buildApprovedContentWiring(input: {
   const authorizerCore = new CommitAuthorizer({
     reader: workspaceReaderFor({
       isDaytona: input.isDaytona,
+      log: input.log,
       cwd: input.workspaceCwd,
       sandbox: input.sandbox,
     }),
