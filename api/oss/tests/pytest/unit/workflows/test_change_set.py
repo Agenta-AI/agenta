@@ -892,12 +892,18 @@ class TestAddItem:
         assert error.reason == Reason.ITEM_KEY_UNDEFINED
 
     def test_an_embed_entry_has_no_key(self):
+        # A REAL embed: this cell is about an entry whose key cannot be derived, so the
+        # embed itself has to be well formed or it earns the marker refusal first.
         error = failure(
             ops(
                 {
                     "operation": "add_item",
                     "target": AGENT + ["skills"],
-                    "value": {"@ag.embed": {"@ag.references": {"skill": "x"}}},
+                    "value": {
+                        "@ag.embed": {
+                            "@ag.references": {"workflow_revision": {"id": "abc"}}
+                        }
+                    },
                 }
             )
         )
@@ -2435,3 +2441,236 @@ class TestAgentCommitScopeThroughAnAncestor:
             self.base(),
         )
         assert result["parameters"]["agent"]["harness"]["kind"] == "codex"
+
+
+# --------------------------------------------------------------------------------------
+# Markers the platform does not define (storage integrity)
+# --------------------------------------------------------------------------------------
+
+
+class TestInventedMarkers:
+    """A marker the engine does not understand must never be stored as a value.
+
+    The engine is the last thing that sees a value before it is written. An `@ag.embed`
+    whose references are not references resolves to nothing, so the literal marker dict was
+    stored as the configuration and the agent was told the commit succeeded. Every read
+    after that returned a marker where the text should have been.
+    """
+
+    # Exactly what a live session sent, trying to import a file it had written.
+    HAIKU_PAYLOAD = {
+        "@ag.embed": {
+            "@ag.references": {"file": "/tmp/agenta-workspace/skills/qa/body.md"}
+        }
+    }
+
+    def test_the_invented_embed_is_refused(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": self.HAIKU_PAYLOAD,
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_EMBED
+
+    def test_the_refusal_names_the_file_marker_as_the_way_to_import_a_file(self):
+        # The model was reaching for a file import. Telling it the shape is wrong teaches
+        # nothing; naming the marker that does the job is what recovers the turn.
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": self.HAIKU_PAYLOAD,
+                }
+            ),
+            base_config(),
+        )
+
+        assert "@ag.file" in error.message
+        assert "@ag.embed" in error.message
+
+    def test_the_invented_embed_is_refused_on_the_legacy_arm_too(self):
+        # The arm that merges its patch in whole is the one an invented marker reaches.
+        error = failure(
+            {"set": {"parameters": {"agent": {"instructions": self.HAIKU_PAYLOAD}}}},
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_EMBED
+
+    def test_an_unknown_marker_is_refused(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": {"@ag.include": "some/path.md"},
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.UNKNOWN_MARKER
+        assert "@ag.include" in error.message
+
+    def test_an_unknown_marker_nested_deep_is_still_refused(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["skills"],
+                    "value": {
+                        "name": "new-skill",
+                        "body": {"nested": [{"@ag.import": "x"}]},
+                    },
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.UNKNOWN_MARKER
+
+    def test_a_reference_that_is_a_bare_string_is_refused(self):
+        # The shape a model reaches for when it means a path. The resolver skips it, so it
+        # resolved to nothing and stored the marker.
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": {
+                        "@ag.embed": {"@ag.references": {"workflow_revision": "v1"}}
+                    },
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_EMBED
+
+    def test_an_embed_with_no_references_is_refused(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": {"@ag.embed": {"@ag.selector": {"path": "params.prompt"}}},
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_EMBED
+
+    def test_an_embed_carrying_an_unknown_key_is_refused(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": {
+                        "@ag.embed": {
+                            "@ag.references": {"workflow_revision": {"id": "abc"}},
+                            "@ag.path": "/tmp/x",
+                        }
+                    },
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_EMBED
+
+    def test_every_marker_refusal_is_non_retryable(self):
+        # The same bytes never succeed, so telling the agent to retry would burn its turns.
+        for value in (
+            {"@ag.include": "x"},
+            {"@ag.embed": {"@ag.references": {"file": "/tmp/x"}}},
+        ):
+            error = failure(
+                ops(
+                    {
+                        "operation": "set",
+                        "target": AGENT + ["instructions"],
+                        "value": value,
+                    }
+                ),
+                base_config(),
+            )
+            assert error.retryable is False
+
+    # --- what must keep working ---
+
+    def test_a_real_embed_still_commits(self):
+        value = {
+            "@ag.embed": {
+                "@ag.references": {"workflow_revision": {"id": "019c-abc"}},
+                "@ag.selector": {"path": "parameters.agent.instructions"},
+            }
+        }
+
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": value,
+                }
+            ),
+            base_config(),
+        ).data
+
+        assert result["parameters"]["agent"]["instructions"] == value
+
+    def test_a_real_embed_with_references_only_still_commits(self):
+        value = {"@ag.embed": {"@ag.references": {"workflow_revision": {"slug": "s"}}}}
+
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": value,
+                }
+            ),
+            base_config(),
+        ).data
+
+        assert result["parameters"]["agent"]["instructions"] == value
+
+    def test_the_file_marker_still_earns_its_own_refusal(self):
+        # `@ag.file` is a known marker with its own rule: the runner resolves it before the
+        # API sees the call, so one that arrives means the runner did not run. The new
+        # check must not swallow that more specific answer.
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": {"@ag.file": "notes.md"},
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.UNRESOLVED_FILE_MARKER
+
+    def test_an_ordinary_value_is_untouched(self):
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": {"agents_md": "plain text", "at": "an @ in prose"},
+                }
+            ),
+            base_config(),
+        ).data
+
+        assert result["parameters"]["agent"]["instructions"]["at"] == "an @ in prose"

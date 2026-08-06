@@ -73,6 +73,8 @@ class Reason:
     INVALID_DELTA = "invalid_delta"
     UNKNOWN_OPERATION = "unknown_operation"
     UNRESOLVED_FILE_MARKER = "unresolved_file_marker"
+    INVALID_EMBED = "invalid_embed"
+    UNKNOWN_MARKER = "unknown_marker"
     TEXT_TOO_LARGE = "text_too_large"
     SOURCE_TOO_LARGE = "source_too_large"
 
@@ -83,6 +85,8 @@ _NOT_RETRYABLE = frozenset(
         Reason.INVALID_DELTA,
         Reason.UNKNOWN_OPERATION,
         Reason.UNRESOLVED_FILE_MARKER,
+        Reason.INVALID_EMBED,
+        Reason.UNKNOWN_MARKER,
         Reason.TEXT_TOO_LARGE,
         Reason.SOURCE_TOO_LARGE,
     }
@@ -529,6 +533,100 @@ def _escape(token: str) -> str:
     return token.replace("~", "~0").replace("/", "~1")
 
 
+# Contract 6. Every marker the platform defines. `@ag.references` and `@ag.selector` are
+# only meaningful INSIDE an embed, and are checked there.
+_REFERENCES_KEY = "@ag.references"
+_SELECTOR_KEY = "@ag.selector"
+_MARKER_PREFIX = "@ag."
+_EMBED_KEYS = frozenset({_REFERENCES_KEY, _SELECTOR_KEY})
+_KNOWN_MARKERS = frozenset({_EMBED_KEY, FILE_MARKER, _REFERENCES_KEY, _SELECTOR_KEY})
+
+# Named in every refusal below, because a model that invents a marker has to be shown the
+# two real ones rather than told that its guess was wrong.
+_VALID_FORMS = (
+    "An embed points at another stored artifact: "
+    '{"@ag.embed": {"@ag.references": {"workflow_revision": {"id": "..."}}}}, '
+    'with an optional {"@ag.selector": {"path": "..."}}. '
+    'To pull in the contents of a file from your workspace, use {"@ag.file": "<path>"} '
+    "instead, and the runner replaces it with the text before the commit is sent."
+)
+
+
+def _reject_bad_markers(value: Any, pointer: str = "") -> None:
+    """Refuse a marker the platform does not define, or an embed that is not one.
+
+    A live session invented ``{"@ag.embed": {"@ag.references": {"file": "/abs/path"}}}`` to
+    import a file. Nothing rejected it: the embed resolver skips a reference whose value is
+    not an object, so the invented marker resolved to nothing and the literal dict was
+    STORED as the configuration value. The agent was told the commit succeeded, and the
+    field held a marker instead of the file's text from then on.
+
+    Refusing it here is a storage-integrity rule, not a courtesy: the engine is the last
+    place that sees the value before it is written, and a marker it does not understand is
+    a value nobody can read back.
+    """
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            _reject_bad_markers(child, f"{pointer}/{index}")
+        return
+    if not isinstance(value, dict):
+        return
+
+    for key, child in value.items():
+        if isinstance(key, str) and key.startswith(_MARKER_PREFIX):
+            if key not in _KNOWN_MARKERS:
+                raise _Fail(
+                    Reason.UNKNOWN_MARKER,
+                    f"'{key}' at {pointer or '/'} is not a marker this platform defines. "
+                    + _VALID_FORMS,
+                    pointer=pointer or "/",
+                    marker=key,
+                )
+            if key == _EMBED_KEY:
+                _check_embed(child, f"{pointer}/{_escape(key)}")
+        _reject_bad_markers(child, f"{pointer}/{_escape(str(key))}")
+
+
+def _check_embed(embed: Any, pointer: str) -> None:
+    """The canonical embed shape, as the resolver in ``core/embeds`` reads it."""
+    if not isinstance(embed, dict) or not embed:
+        raise _Fail(
+            Reason.INVALID_EMBED,
+            f"the embed at {pointer} is not an embed. " + _VALID_FORMS,
+            pointer=pointer,
+        )
+
+    unknown = sorted(key for key in embed if key not in _EMBED_KEYS)
+    if unknown:
+        raise _Fail(
+            Reason.INVALID_EMBED,
+            f"the embed at {pointer} carries {', '.join(unknown)}, which an embed does "
+            "not hold. " + _VALID_FORMS,
+            pointer=pointer,
+        )
+
+    references = embed.get(_REFERENCES_KEY)
+    if not isinstance(references, dict) or not references:
+        raise _Fail(
+            Reason.INVALID_EMBED,
+            f"the embed at {pointer} has no '{_REFERENCES_KEY}' naming what it points at. "
+            + _VALID_FORMS,
+            pointer=pointer,
+        )
+
+    # A reference is an object identifying a stored artifact. A bare string here is the
+    # shape a model reaches for when it means a file path, and it resolves to nothing.
+    for kind, reference in references.items():
+        if not isinstance(reference, dict) or not reference:
+            raise _Fail(
+                Reason.INVALID_EMBED,
+                f"the reference '{kind}' at {pointer} is not an object identifying a "
+                "stored artifact. " + _VALID_FORMS,
+                pointer=pointer,
+                reference=kind,
+            )
+
+
 def _reject_file_markers(value: Any) -> None:
     markers = find_file_markers(value)
     if not markers:
@@ -895,6 +993,7 @@ def _operation_value(operation: Dict[str, Any]) -> Any:
         raise _Fail(Reason.MISSING_OPERATION_VALUE, "the operation needs a 'value'")
     value = operation["value"]
     _reject_file_markers(value)
+    _reject_bad_markers(value)
     return value
 
 
@@ -1500,6 +1599,7 @@ def apply_change_set(
         # place, and the engine's promise that it touches nothing it was given is false.
         patch = deepcopy(delta.get("set") or {})
         _reject_delta_markers(patch)
+        _reject_legacy_bad_markers(patch)
         for name in ("tools", "skills", "mcps"):
             nested = _legacy_list_write(patch, name)
             if nested is not None:
@@ -1583,6 +1683,20 @@ def _legacy_list_write(patch: Any, name: str) -> Optional[List[Any]]:
             if found is not None:
                 return found
     return None
+
+
+def _reject_legacy_bad_markers(patch: Any) -> None:
+    """The same marker rules on the legacy arm, which merges its patch in whole.
+
+    The legacy arm has always been the one that stores a value verbatim, so it is the arm
+    an invented marker actually reaches.
+    """
+    try:
+        _reject_bad_markers(patch)
+    except _Fail as failure:
+        raise ChangeSetError(
+            failure.reason, failure.message, **failure.context
+        ) from failure
 
 
 def _reject_delta_markers(patch: Any) -> None:
