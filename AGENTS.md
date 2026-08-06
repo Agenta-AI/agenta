@@ -185,6 +185,12 @@ lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in 
   token silently rubs the wrong thing. Commit cliIds also rotate after every
   background sync, so re-read them in the same breath as the command that uses
   them.
+- **Remote-tracking refs go stale under `but push` and lie convincingly.**
+  `git show <remote>/<branch>:<file>` can show old content long after the push
+  landed (observed: the tracking ref pointing at neither the local ref nor the
+  real remote head). Verify pushes ONLY with `git ls-remote` against
+  `git rev-parse <branch>`, and inspect remote content via the commit object,
+  never via the remote-tracking shortcut.
 
 ## Before committing
 
