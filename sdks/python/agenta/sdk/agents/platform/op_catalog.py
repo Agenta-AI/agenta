@@ -889,7 +889,12 @@ Put the file under `.agenta-imports/` first.
               "body":{"@ag.file":".agenta-imports/pdf-tools/SKILL.md"}}}
 
 Your `tools` list must not contain the playground's own tools (commit_revision,
-test_run, read_config). They are not part of your configuration."""
+test_run, read_config). They are not part of your configuration.
+
+If a commit is refused, read `next_step`: it says what to do, and it is there whether or not
+the error is retryable. `retryable` only tells you whether sending the SAME call again could
+work; it is false for most refusals, and that means correct the call rather than repeat
+it."""
 
 _COMMIT_REVISION_DESCRIPTION = (
     _COMMIT_REVISION_DESCRIPTION_ORDERED
