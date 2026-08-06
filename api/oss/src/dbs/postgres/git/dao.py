@@ -1763,7 +1763,19 @@ class GitDAO(GitDAOInterface):
                     version=revision.version,
                 )
 
-                if revision.version == "0":
+                # Version 0 is the empty placeholder a variant is seeded with, and its
+                # fields are nulled so a reader can tell "not configured yet" from
+                # "configured empty".
+                #
+                # A first commit that CARRIES content is not that placeholder. Nulling it
+                # discarded what the caller sent: the endpoint answered 200, the stored row
+                # held NULL, and the next read reported no revision at all. Every flow that
+                # commits twice hid this, because the second commit is version 1.
+                carries_content = any(
+                    getattr(revision_commit, field, None) is not None
+                    for field in ("data", "flags", "tags", "meta")
+                )
+                if revision.version == "0" and not carries_content:
                     await self._null_revision_fields(
                         project_id=project_id,
                         revision_id=revision.id,  # type: ignore

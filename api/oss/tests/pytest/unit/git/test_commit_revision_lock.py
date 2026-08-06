@@ -160,6 +160,15 @@ def dao_factory(monkeypatch):
     return _build
 
 
+async def _none(**kwargs):
+    return None
+
+
+async def _version_zero(**kwargs):
+    """Force the first-revision case: `_get_version` counts rows and returns "0"."""
+    return "0"
+
+
 def _commit(variant_id=None, **kwargs):
     from oss.src.core.git.dtos import RevisionCommit
 
@@ -409,6 +418,46 @@ class TestBoundedWait:
             initial=True,
         )
         assert revision is None
+
+
+class TestTheVersionZeroSeed:
+    """Version 0 is the empty placeholder, not a licence to drop a payload.
+
+    The DAO nulls a version-0 revision's fields so a reader can tell "not configured yet"
+    from "configured empty". It used to do that for ANY first revision, so the first
+    commit on a fresh variant answered 200 and stored NULL. The live database is the only
+    place that showed it; `test_commit_stores_data.py` is the test that reads the row.
+    """
+
+    async def test_an_empty_first_commit_is_still_nulled(self, dao_factory):
+        session = _FakeSession()
+        dao = dao_factory(session)
+        nulled = []
+        dao._null_revision_fields = lambda **kwargs: nulled.append(kwargs) or _none()
+        dao._get_version = _version_zero
+
+        revision = await dao.commit_revision(
+            project_id=uuid4(), user_id=uuid4(), revision_commit=_commit()
+        )
+
+        assert nulled, "the empty seed must still be stored empty"
+        assert revision.data is None
+
+    async def test_a_first_commit_that_carries_data_is_left_alone(self, dao_factory):
+        session = _FakeSession()
+        dao = dao_factory(session)
+        nulled = []
+        dao._null_revision_fields = lambda **kwargs: nulled.append(kwargs) or _none()
+        dao._get_version = _version_zero
+
+        revision = await dao.commit_revision(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            revision_commit=_commit(data={"parameters": {"agent": {"llm": {}}}}),
+        )
+
+        assert not nulled, "the commit carried data and the DAO discarded it"
+        assert revision.data == {"parameters": {"agent": {"llm": {}}}}
 
 
 class TestLockedRow:
