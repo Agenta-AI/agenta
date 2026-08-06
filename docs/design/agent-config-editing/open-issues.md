@@ -576,3 +576,76 @@ reader can act on it cold.
      audit exists to catch. It deserves a decision, not an initiative.
 - Option 3 remains available. Nothing in the fail-loud build fights it, and it
   can be layered on later as its own change.
+
+## A pool eviction can kill the endpoint an in-flight ACP write is using
+
+- Found by: the migration's G1 certification run, 6-7 August 2026, when pi went 0 of 3
+  with "Retrying (attempt 1/3, waiting 2s)..." as each turn's final text. Diagnosed the
+  same night; not fixed.
+- **Symptom.** Under concurrent load a turn ends mid-flight, and the last thing the user
+  sees is a retry message rather than an answer. Gates are never raised and tools never
+  run, so from the outside the agent simply stops talking. Under light load the same
+  operation retries and recovers, which is why it reads as flakiness rather than as a
+  bug.
+- **Mechanism.** The keepalive pool expires an idle session on its 60 second TTL and
+  evicts it, which tears down the local harness process and the HTTP listener the runner
+  writes ACP frames to. A write that is in flight, or issued moments later, then fails
+  with `TypeError: fetch failed` on a `local/127.0.0.1:PORT` endpoint.
+- **The evidence that makes it a race rather than a guess.** Over one runner log: 132
+  evictions, 63 ACP write retries, and 55 of the 63 (87%) immediately follow an
+  `expire` + `evict` pair, while only about 42% of evictions produce a retry at all. The
+  high adjacency rules out coincidence; the partial hit rate is what a timing race looks
+  like. Observed at `poolSize=7`.
+- **The load pattern that exposes it.** Two concurrent pi workloads sharing the pool,
+  which happened for the first time on the night of 6 August (a certification cell and a
+  benchmark baseline running together). One workload at a time stays in the regime where
+  the retry succeeds.
+- **Two candidate fixes, both runner-side.** Either hold the endpoint open until
+  in-flight writes settle (evict on quiesce rather than on the timer alone), or
+  liveness-check the endpoint immediately before writing and treat a dead one as a
+  session that must be re-acquired rather than as a transport error to retry. The first
+  is more correct and more invasive; the second is cheaper and leaves a smaller window.
+- **Cost of NOT fixing.** Bounded today and sharply load-dependent: single-workload runs
+  recover, so ordinary product use is unlikely to hit it. It becomes a real user-facing
+  failure exactly when the system is busiest, which is the worst time, and it is
+  invisible in any test that runs one session at a time. Every gate cell we have runs
+  serially.
+- **Acceptance test.** Two concurrent pi workloads against one runner, asserting zero
+  turns whose final text is a retry message. It must be concurrent by construction: a
+  serial version of this test passes against the broken code.
+- **Onset is UNDATABLE, and the reason is worth keeping.** The first investigation read a
+  runner log that began at 22:14 as evidence that the error started at 22:16, when in
+  fact the container had been recreated at 22:14 and the previous container's logs were
+  destroyed with it. A log that starts at T cannot testify about T minus one. Whether
+  this race predates that night is unknown and probably unknowable now.
+
+## The dev runner image is only accidentally reproducible
+
+- Found alongside the eviction race above, while trying to determine whether a rebuild
+  had changed anything other than the intended line.
+- **Symptom.** None directly. This is a diagnosis hazard: when something breaks after a
+  rebuild, nobody can say what else changed, so an unrelated one-line fix becomes a
+  suspect that cannot be cleared by inspection.
+- **Mechanism.** `services/runner/docker/Dockerfile.{gh,dev}` declare `FROM node:24-slim`,
+  a floating tag. A rebuild takes whatever that tag resolves to at build time, so the
+  base image, its Node patch release, and everything vendored inside it (undici, OpenSSL)
+  are silent variables in every build.
+- **What actually happened on 6 August, since the correction matters.** The rebuild that
+  night did NOT change the base. `run.sh` defaults to no-pull for the dev image mode (its
+  comment says so explicitly), and the machine's cached `node:24-slim` dates from 14 July
+  with digest `sha256:6f7b03f7...`, while the tag's current published digest is
+  `sha256:3638d9a6...` from 5 August. So that build used a three-week-old cached base and
+  the only change was the intended one. The first report of this hazard overstated it as
+  "the rebuild was a multi-variable experiment"; on that machine it was not.
+- **Why it is still worth fixing.** The reproducibility is an accident of the cache. It
+  ends the moment anyone passes `--pull`, prunes images, or builds on a fresh machine or
+  in CI, and it ends silently. The gh image, which is the one that ships, has no such
+  cache protection in a clean CI environment.
+- **Cost to fix.** One line per Dockerfile: pin `FROM node:24-slim@sha256:...` and treat
+  base bumps as deliberate commits. The cost is that somebody must bump it, which is the
+  point.
+- **Deliberately NOT done on the night it was found**, because it would have meant a
+  second image change during a certification window. Recorded for Mahmoud as a follow-up
+  rather than an overnight change.
+- **Acceptance test.** Two builds of the same commit, on machines with different image
+  caches, produce the same base layer digest.
