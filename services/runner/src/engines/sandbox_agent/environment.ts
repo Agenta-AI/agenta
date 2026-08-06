@@ -96,11 +96,13 @@ import {
   agentMountUnavailableAppendix,
 } from "./agent-mount-guidance.ts";
 import {
+  appendPlatformGuidance,
   appendToSystemPrompt,
   claudeSystemPromptMeta,
   composeSystemPromptAppendix,
   type ClaudeSystemPromptMeta,
 } from "./system-prompt-appendix.ts";
+import { platformGuidanceAppendix } from "./platform-guidance.ts";
 import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
   describeCodexSubscriptionAuthFault,
@@ -756,11 +758,34 @@ export async function acquireEnvironment(
     }
 
     const prepareWorkspaceStartedAt = Date.now();
+    // The instructions file is the fourth guidance channel, and the only one every harness reads.
+    // It is composed HERE rather than in `run-plan.ts` because the mount arm needs mount state:
+    // both agent-mount paths above run before this point (local at `mountLocalAgentCwd`, Daytona
+    // in the block just above), so `agentMountedPath` and `agentMountSkipped` are settled and the
+    // file can state what is true instead of what was hoped for.
+    //
+    // The guidance rides a COPY of the plan. `plan.prompt.agentsMd` is the author's text, and the
+    // rest of the run should keep seeing it that way; only the write wants the rendered form.
+    const guidance = platformGuidanceAppendix({
+      acpAgent: plan.acpAgent,
+      isPi: plan.isPi,
+      agentMountedPath: environment.agentMountedPath,
+      agentMountSkipped: !!agentMountSkipped,
+    });
+    const guidedPlan = guidance
+      ? {
+          ...plan,
+          prompt: {
+            ...plan.prompt,
+            agentsMd: appendPlatformGuidance(plan.prompt.agentsMd, guidance),
+          },
+        }
+      : plan;
     // WorkspaceManager owns the write; the retry stays here because it re-signs a MOUNT, which is
     // the mount unit's concern, not the workspace's.
     const workspaceInput = {
       sandbox: environment.sandbox,
-      plan,
+      plan: guidedPlan,
       piSkillSnapshot,
       log: logger,
     };

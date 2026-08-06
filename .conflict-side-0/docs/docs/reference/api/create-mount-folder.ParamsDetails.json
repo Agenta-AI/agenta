@@ -1,1 +1,0 @@
-{"parameters":[{"name":"mount_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Mount Id"}},{"name":"path","in":"query","required":true,"schema":{"type":"string","title":"Path"}}]}

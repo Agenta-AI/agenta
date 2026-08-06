@@ -1,1 +1,0 @@
-{"parameters":[{"name":"full_details","in":"query","required":false,"schema":{"type":"boolean","default":false,"title":"Full Details"}}]}

@@ -1,1 +1,0 @@
-{"parameters":[{"name":"template_key","in":"path","required":true,"schema":{"type":"string","title":"Template Key"}},{"name":"preset_key","in":"path","required":true,"schema":{"type":"string","title":"Preset Key"}}]}

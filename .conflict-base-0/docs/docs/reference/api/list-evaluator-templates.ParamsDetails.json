@@ -1,1 +1,0 @@
-{"parameters":[{"name":"include_archived","in":"query","required":false,"schema":{"anyOf":[{"type":"boolean"},{"type":"null"}],"default":false,"title":"Include Archived"}}]}

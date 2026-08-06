@@ -19,10 +19,16 @@
  *  - Pi: the composed text lands on `plan.prompt.appendSystemPrompt` and rides the existing
  *    `APPEND_SYSTEM.md` file channel.
  *  - Claude: it rides the ACP session's `_meta.systemPrompt.append`.
- *  - Codex: THERE IS NO CHANNEL TODAY. `run-plan.ts` gates the append prompt on `isPi`, and Codex
- *    has no ACP equivalent, so a Codex run receives no appendix at all. That is a real gap and it
- *    is recorded here rather than hidden behind an abstraction that implies three harnesses are
- *    served equally.
+ *  - Codex: NO SYSTEM-PROMPT CHANNEL. `run-plan.ts` gates the append prompt on `isPi`, and Codex
+ *    has no ACP equivalent. Codex is served instead by the INSTRUCTIONS FILE channel below.
+ *
+ * THE INSTRUCTIONS FILE IS THE FOURTH CHANNEL, AND THE ONLY ONE ALL THREE HARNESSES READ. Every
+ * harness reads a rendered instructions file from its working directory (`CLAUDE.md` for Claude,
+ * `AGENTS.md` for the rest), so a fenced block appended to that file reaches Codex too. It is not
+ * a system prompt, and the difference is the reason for the fence: the file is the AUTHOR'S file,
+ * the model can read it, and a model that copies it back into `commit_revision` would otherwise
+ * store our guidance as the user's own configuration. The engine strips the fenced block from any
+ * committed value, so the block must be exactly reproducible. See `PLATFORM_GUIDANCE_START`.
  *
  * ORDER IS A DECISION, NOT AN ACCIDENT. Contributors compose in the order the caller lists them,
  * and the caller lists them in one place. A model reads a long system prompt with the usual
@@ -67,6 +73,54 @@ export function appendToSystemPrompt(
   appendix: string,
 ): string {
   return existing ? `${existing}\n\n${appendix}` : appendix;
+}
+
+/**
+ * The fence around platform guidance rendered into the author's instructions file.
+ *
+ * THESE TWO LITERALS ARE A CROSS-LANGUAGE CONTRACT. The engine's
+ * `api/oss/src/core/workflows/change_set.py` defines `PLATFORM_GUIDANCE_START` and
+ * `PLATFORM_GUIDANCE_END` with the same values and strips every fenced block out of any committed
+ * configuration value. Neither side may change a fence alone, so `system-prompt-appendix.test.ts`
+ * reads the Python file and asserts the four strings agree.
+ *
+ * WHY A STRIP RATHER THAN A REFUSAL. A model asked to edit its instructions naturally reads the
+ * rendered file and writes it back. That is not a mistake it can be taught out of, and refusing
+ * the commit would cost a turn to teach it something it cannot act on. So the engine removes the
+ * block silently and warns. Our half of that bargain is to render the block so it is recognizable:
+ * the exact fences, and the exact spacing below.
+ */
+export const PLATFORM_GUIDANCE_START = "<!-- agenta:platform-guidance:start -->";
+export const PLATFORM_GUIDANCE_END = "<!-- agenta:platform-guidance:end -->";
+
+/** The fenced block on its own: opener, the composed appendix, closer. No trailing newline. */
+export function platformGuidanceBlock(appendix: string): string {
+  return `${PLATFORM_GUIDANCE_START}\n${appendix}\n${PLATFORM_GUIDANCE_END}`;
+}
+
+/**
+ * Put the platform guidance after the author's own instructions.
+ *
+ * SPACING IS LOAD-BEARING, and this is the one place that decides it: exactly `\n\n` between the
+ * author's text and the block, and NO trailing newline after the closer. With that spacing a model
+ * that copies the rendered file back produces, after the engine's strip, a value byte-identical to
+ * what was stored — so the commit is a clean no-change instead of a revision whose only content is
+ * a moved blank line. Any other spacing still strips safely; it just commits noise.
+ *
+ * Author text first, for the same reason as `appendToSystemPrompt`: ours is platform guidance about
+ * the environment and should read as an addition to what the author said.
+ *
+ * Returns the instructions unchanged when there is no guidance, and the bare block when there are
+ * no authored instructions — a run with an empty configuration still needs to be told how its
+ * environment works.
+ */
+export function appendPlatformGuidance(
+  instructions: string | undefined,
+  appendix: string | undefined,
+): string | undefined {
+  if (!appendix) return instructions;
+  const block = platformGuidanceBlock(appendix);
+  return instructions ? `${instructions}\n\n${block}` : block;
 }
 
 /** The `_meta.systemPrompt` shape `claude-agent-acp` forwards into the Claude SDK's preset. */

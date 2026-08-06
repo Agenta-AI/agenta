@@ -1,1 +1,0 @@
-{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"session_id":{"type":"string","title":"Session Id"}},"type":"object","required":["session_id"],"title":"SessionRecordQueryRequest"}}},"required":true}}
