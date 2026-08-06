@@ -68,6 +68,7 @@ class Reason:
     PLATFORM_TOOL_NOT_COMMITTABLE = "platform_tool_not_committable"
     NON_EMBEDDABLE_REFERENCE = "non_embeddable_reference"
     FINAL_VALIDATION_FAILED = "final_validation_failed"
+    INVALID_MATCH_MODE = "invalid_match_mode"
 
     # --- non-retryable refusals: the same payload never succeeds (12.2) ---
     OUT_OF_SCOPE = "out_of_scope"
@@ -76,6 +77,7 @@ class Reason:
     UNRESOLVED_FILE_MARKER = "unresolved_file_marker"
     INVALID_EMBED = "invalid_embed"
     UNKNOWN_MARKER = "unknown_marker"
+    VALUE_TOO_DEEP = "value_too_deep"
     TEXT_TOO_LARGE = "text_too_large"
     SOURCE_TOO_LARGE = "source_too_large"
 
@@ -88,6 +90,7 @@ _NOT_RETRYABLE = frozenset(
         Reason.UNRESOLVED_FILE_MARKER,
         Reason.INVALID_EMBED,
         Reason.UNKNOWN_MARKER,
+        Reason.VALUE_TOO_DEEP,
         Reason.TEXT_TOO_LARGE,
         Reason.SOURCE_TOO_LARGE,
     }
@@ -163,6 +166,12 @@ NEXT_STEPS: Dict[str, str] = {
     Reason.FINAL_VALIDATION_FAILED: (
         "Correct the fields listed in `issues` and send the commit again."
     ),
+    Reason.INVALID_MATCH_MODE: (
+        "Set match_mode to 'auto' or 'exact', or leave it out to get 'auto'."
+    ),
+    Reason.VALUE_TOO_DEEP: (
+        "Flatten the value: the configuration nests a few levels deep, not hundreds."
+    ),
 }
 
 
@@ -204,6 +213,9 @@ MATCH_MODES = ("auto", "exact")
 
 # Contract 5.6.3.
 MAX_TEXT_LENGTH = 200_000  # matches SkillFile.content max_length
+# Bounds on the near-miss search, which runs on the way to an error (see `nearest_lines`).
+MAX_SCANNED_LINES = 5_000
+MAX_SCANNED_LINE_LENGTH = 2_000
 MAX_OLD_TEXT_LENGTH = 20_000
 MAX_EDITS_PER_OPERATION = 32
 MAX_OPERATIONS = 64
@@ -339,14 +351,15 @@ class _Fail(Exception):
 
 
 # --------------------------------------------------------------------------------------
-# Legacy primitives (must stay identical to service.py)
+# Legacy primitives (the engine is the only implementation)
 # --------------------------------------------------------------------------------------
 
 
 def deep_merge(base: dict, patch: dict) -> dict:
     """Today's dict-only recursion. Nested dicts merge; scalars and lists replace.
 
-    ``service.py`` must import this one so the two can never drift.
+    The wrapper used to keep its own copy and the two could drift. This is now the only
+    implementation in the codebase, so there is nothing left to drift from.
     """
     merged = dict(base)
     for key, value in patch.items():
@@ -551,6 +564,41 @@ _VALID_FORMS = (
     'To pull in the contents of a file from your workspace, use {"@ag.file": "<path>"} '
     "instead, and the runner replaces it with the text before the commit is sent."
 )
+
+
+# A configuration nests a handful of levels: parameters.agent.skills[].files[].content is
+# six. The limit is generous against real data and far below Python's recursion limit, so
+# every recursive walk below it has stack to spare.
+MAX_VALUE_DEPTH = 64
+
+
+def _reject_deep_values(value: Any) -> None:
+    """Refuse a value nested deeper than anything the engine can walk safely.
+
+    ``deep_merge``, the marker walks and the scope walk all recurse over the value, so a
+    deeply nested one raised ``RecursionError`` from inside the engine. That is a 500: the
+    caller was told the server broke, when what happened is that it sent something the
+    server will not accept. It is also the wrong answer to hand an agent, which can correct
+    a refusal and cannot correct a crash.
+
+    Measured ITERATIVELY. A recursive depth check is the same stack overflow it exists to
+    prevent, one frame earlier.
+    """
+    stack = [(value, 1)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > MAX_VALUE_DEPTH:
+            raise _Fail(
+                Reason.VALUE_TOO_DEEP,
+                f"the value nests more than {MAX_VALUE_DEPTH} levels deep.",
+                max_depth=MAX_VALUE_DEPTH,
+            )
+        if isinstance(node, dict):
+            for child in node.values():
+                stack.append((child, depth + 1))
+        elif isinstance(node, list):
+            for child in node:
+                stack.append((child, depth + 1))
 
 
 def _reject_bad_markers(value: Any, pointer: str = "") -> None:
@@ -873,10 +921,22 @@ def nearest_lines(text: str, old_text: str, limit: int = 3) -> List[Dict[str, An
     """
     if not text or not old_text:
         return []
+    lines = text.splitlines()
+    # This runs on a REFUSAL, so its cost is paid by a call that produces nothing. A field
+    # may hold 200_000 characters, and scoring every line of one is a similarity pass per
+    # line on the way to an error. The cap keeps a failed anchor cheap; the near miss an
+    # agent needs is in the first screens of a field, not at the end of a hundred thousand
+    # lines.
+    if len(lines) > MAX_SCANNED_LINES:
+        return []
     needle = old_text.strip().splitlines()[0] if old_text.strip() else old_text
+    # Comparing against a very long line is quadratic in its length, and a minified or
+    # single-line file is one such line. Clipping bounds the comparison without moving the
+    # answer: the anchor's own first line is what is being matched.
+    needle = needle[:MAX_SCANNED_LINE_LENGTH]
     scored: List[Tuple[float, int, str]] = []
-    for number, line in enumerate(text.splitlines(), start=1):
-        ratio = SequenceMatcher(None, needle, line).ratio()
+    for number, line in enumerate(lines, start=1):
+        ratio = SequenceMatcher(None, needle, line[:MAX_SCANNED_LINE_LENGTH]).ratio()
         scored.append((ratio, number, line))
     scored.sort(key=lambda row: (-row[0], row[1]))
     return [
@@ -1154,9 +1214,14 @@ def _apply_operation(
         _require_field_tail(segments, "edit_text")
         mode = operation.get("match_mode", "auto")
         if mode not in MATCH_MODES:
+            # Not UNKNOWN_OPERATION: the operation is `edit_text` and it exists. Reporting
+            # an unknown OPERATION for a bad modifier told the agent its verb was wrong,
+            # and non-retryably, so a one-word fix looked like a dead end.
             raise _Fail(
-                Reason.UNKNOWN_OPERATION,
-                f"unknown match_mode {mode!r} (known: {', '.join(MATCH_MODES)})",
+                Reason.INVALID_MATCH_MODE,
+                f"{mode!r} is not a match_mode. The modes are "
+                f"{', '.join(repr(m) for m in MATCH_MODES)}.",
+                match_mode=mode,
             )
         edits = operation.get("edits")
         if not isinstance(edits, list):
@@ -1221,6 +1286,7 @@ def _apply_operation(
         _require_selector_tail(segments, "replace_item")
         selector = segments[-1]
         list_name, key = selector["list"], selector["key"]
+        _require_keyed_list(list_name)
         parent = _parent_of(root, segments, create=False)
         collection, position = _find_item(
             parent, list_name, key, where=f"target segment {len(segments) - 1}"
@@ -1237,6 +1303,7 @@ def _apply_operation(
 
     _require_selector_tail(segments, "remove_item")
     selector = segments[-1]
+    _require_keyed_list(selector["list"])
     parent = _parent_of(root, segments, create=False)
     collection, position = _find_item(
         parent,
@@ -1246,6 +1313,22 @@ def _apply_operation(
     )
     del collection[position]
     touched.item(segments[:-1] + [selector["list"]])
+
+
+def _require_keyed_list(list_name: Any) -> None:
+    """Only the four keyed lists are addressed by name. Contract 4.1.
+
+    `add_item` has always said this precisely. Its two siblings went straight to the lookup,
+    so selecting an entry of an unkeyed list reported that the list did not exist, or that
+    no entry matched. Both are true and neither is the reason, and an agent reading them
+    retries the same shape against a list that can never take it.
+    """
+    if list_name not in KEY_FIELDS:
+        raise _Fail(
+            Reason.UNKEYED_COLLECTION,
+            f"'{list_name}' is not a name-addressed list "
+            f"(known: {', '.join(sorted(KEY_FIELDS))})",
+        )
 
 
 def _warn_wholesale(
@@ -1431,12 +1514,49 @@ _LEGACY_FIELDS = ("set", "remove")
 def _classify(delta: Dict[str, Any]) -> str:
     if not isinstance(delta, dict):
         raise ChangeSetError(Reason.INVALID_DELTA, "the delta must be an object")
+    # FIRST, before anything walks or copies the delta. `deepcopy` and the scope walk are
+    # themselves recursive passes over the value, so a guard placed after either of them is
+    # a guard the overflow reaches first. One check here covers the legacy `set` and every
+    # operation's `value`.
+    try:
+        _reject_deep_values(delta)
+    except _Fail as failure:
+        raise ChangeSetError(
+            failure.reason, failure.message, **failure.context
+        ) from failure
+
     unknown = set(delta) - {"set", "remove", "operations"}
     if unknown:
         raise ChangeSetError(
             Reason.INVALID_DELTA,
             f"unknown delta fields: {', '.join(sorted(unknown))}",
         )
+    # Typed HERE, before either arm touches them. A non-dict `set` reached `deep_merge`,
+    # and a `remove` sent as a string was iterated character by character, so each letter
+    # became a path to delete. Both produced a crash or a silent nonsense edit where the
+    # caller should have been told what shape the field takes.
+    patch = delta.get("set")
+    if patch is not None and not isinstance(patch, dict):
+        raise ChangeSetError(
+            Reason.INVALID_DELTA,
+            f"'set' must be an object holding the fields to change, not "
+            f"{_type_name(patch)}.",
+        )
+    removals = delta.get("remove")
+    if removals is not None:
+        if not isinstance(removals, list):
+            raise ChangeSetError(
+                Reason.INVALID_DELTA,
+                f"'remove' must be a list of dotted field paths, not "
+                f"{_type_name(removals)}.",
+            )
+        offenders = [item for item in removals if not isinstance(item, str)]
+        if offenders:
+            raise ChangeSetError(
+                Reason.INVALID_DELTA,
+                "every entry in 'remove' must be a dotted field path string.",
+            )
+
     has_legacy = any(delta.get(name) is not None for name in _LEGACY_FIELDS)
     has_ordered = delta.get("operations") is not None
     if has_legacy and has_ordered:
