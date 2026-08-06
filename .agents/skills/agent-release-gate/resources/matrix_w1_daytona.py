@@ -25,6 +25,7 @@ connections for provider '<provider>'" (more than one candidate, ambiguous with 
 
   uv run matrix_w1_daytona.py
 """
+
 import json
 import pathlib
 import sys
@@ -92,7 +93,11 @@ def w1_daytona():
         session_id = str(uuid.uuid4())
         t1 = invoke(session_id, [user_msg(prompt)], {"agent": live_cfg}, references)
         if t1.errors:
-            return {"status": "FAIL", "why": f"turn1 wire errors: {t1.errors}", "turn1_frames": t1.frames}
+            return {
+                "status": "FAIL",
+                "why": f"turn1 wire errors: {t1.errors}",
+                "turn1_frames": t1.frames,
+            }
         if not t1.approval:
             return {
                 "status": "FAIL",
@@ -103,7 +108,11 @@ def w1_daytona():
         msgs = [user_msg(prompt), approval_reply(t1, approved=True)]
         t2 = invoke(session_id, msgs, {"agent": live_cfg}, references)
         if t2.errors:
-            return {"status": "FAIL", "why": f"turn2 wire errors: {t2.errors}", "turn2_frames": t2.frames}
+            return {
+                "status": "FAIL",
+                "why": f"turn2 wire errors: {t2.errors}",
+                "turn2_frames": t2.frames,
+            }
         outcome = t2.tool_outcomes.get(t1.approval["toolCallId"])
         if outcome != "available":
             payload = t2.tool_payloads.get(t1.approval["toolCallId"], {})
@@ -117,12 +126,17 @@ def w1_daytona():
         time.sleep(1.0)
         newest = latest_revision(wf)
         new_token = (
-            (newest.get("data") or {}).get("parameters", {}).get("agent", {})
-            .get("instructions", {}).get("agents_md")
+            (newest.get("data") or {})
+            .get("parameters", {})
+            .get("agent", {})
+            .get("instructions", {})
+            .get("agents_md")
             if newest
             else None
         )
-        version_bumped = newest is not None and int(newest.get("version") or -1) > int(ver or -1)
+        version_bumped = newest is not None and int(newest.get("version") or -1) > int(
+            ver or -1
+        )
         token_match = new_token == token
         ok = version_bumped and token_match
         return {

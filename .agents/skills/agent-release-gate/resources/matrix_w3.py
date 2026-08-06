@@ -31,6 +31,7 @@ engine's structured error detail through to the model instead of a bare HTTP sta
 
   uv run matrix_w3.py
 """
+
 import json
 import pathlib
 import sys
@@ -57,9 +58,15 @@ BASELINE = "Be terse. Do exactly what is asked."
 
 def _edits_present(wf, token_a, skill_name):
     final = latest_revision(wf)
-    final_agent = (final.get("data") or {}).get("parameters", {}).get("agent", {}) if final else {}
+    final_agent = (
+        (final.get("data") or {}).get("parameters", {}).get("agent", {})
+        if final
+        else {}
+    )
     a_present = final_agent.get("instructions", {}).get("agents_md") == token_a
-    b_skill = next((s for s in final_agent.get("skills", []) if s.get("name") == skill_name), None)
+    b_skill = next(
+        (s for s in final_agent.get("skills", []) if s.get("name") == skill_name), None
+    )
     b_present = b_skill is not None
     return a_present, b_present, final
 
@@ -85,7 +92,9 @@ def w3():
             "ahead and make the two tool calls."
         )
         session_a = str(uuid.uuid4())
-        turns_a, status_a = run_until_settled(session_a, [user_msg(prompt_a)], live_params, references)
+        turns_a, status_a = run_until_settled(
+            session_a, [user_msg(prompt_a)], live_params, references
+        )
         if not status_a["settled"]:
             return {"status": "FAIL", "why": f"session A never settled: {status_a}"}
         time.sleep(1.0)
@@ -115,7 +124,10 @@ def w3():
 
         conflict_seen = any(
             outcome == "error"
-            and ("409" in json.dumps(t.tool_payloads.get(tcid, {})) or "conflict" in json.dumps(t.tool_payloads.get(tcid, {})).lower())
+            and (
+                "409" in json.dumps(t.tool_payloads.get(tcid, {}))
+                or "conflict" in json.dumps(t.tool_payloads.get(tcid, {})).lower()
+            )
             for t in turns_b
             for tcid, outcome in t.tool_outcomes.items()
         )
@@ -143,7 +155,8 @@ def w3():
         # nudge -- no mechanics, no mention of read_config -- and see if it completes.
         last_reply = turns_b[-1].reply if turns_b else ""
         diagnosed = any(
-            kw in last_reply.lower() for kw in ("conflict", "stale", "409", "base_revision")
+            kw in last_reply.lower()
+            for kw in ("conflict", "stale", "409", "base_revision")
         )
         if not diagnosed:
             return {
@@ -156,7 +169,9 @@ def w3():
                 "turns_b_frames": [t.frames for t in turns_b],
             }
 
-        t_nudge = invoke(session_b, [user_msg("Yes, please retry.")], live_params, references)
+        t_nudge = invoke(
+            session_b, [user_msg("Yes, please retry.")], live_params, references
+        )
         cur_msgs = [user_msg("Yes, please retry.")]
         cur_t = t_nudge
         nudge_turns = [t_nudge]

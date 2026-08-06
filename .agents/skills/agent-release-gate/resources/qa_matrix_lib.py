@@ -1,6 +1,7 @@
 """Shared helpers for the W1-W12 adversarial config-editing matrix (matrix_w3/w4/w5/w7.py).
 Import-only, no CLI. Uses the smallest workable model (Claude haiku, subscription auth) to keep
 these cheap to run repeatedly."""
+
 from __future__ import annotations
 
 import json
@@ -29,7 +30,9 @@ def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.R
     )
 
 
-def agent_config(tools: list[dict] | None = None, instructions: str = "Be terse.") -> dict:
+def agent_config(
+    tools: list[dict] | None = None, instructions: str = "Be terse."
+) -> dict:
     return {
         "instructions": {"agents_md": instructions},
         "llm": {
@@ -53,7 +56,11 @@ LIVE_TOOLS = [
 
 
 def user_msg(text: str) -> dict:
-    return {"id": str(uuid.uuid4()), "role": "user", "parts": [{"type": "text", "text": text}]}
+    return {
+        "id": str(uuid.uuid4()),
+        "role": "user",
+        "parts": [{"type": "text", "text": text}],
+    }
 
 
 def create_workflow(hexid: str, slug_prefix: str = "qa-matrix") -> tuple[str, str]:
@@ -64,7 +71,11 @@ def create_workflow(hexid: str, slug_prefix: str = "qa-matrix") -> tuple[str, st
             "workflow": {
                 "slug": f"{slug_prefix}-{hexid}",
                 "name": f"QA matrix {hexid}",
-                "flags": {"is_custom": True, "is_evaluator": False, "is_feedback": False},
+                "flags": {
+                    "is_custom": True,
+                    "is_evaluator": False,
+                    "is_feedback": False,
+                },
             }
         },
     )
@@ -115,10 +126,14 @@ def seed_and_baseline(
 ) -> tuple[str, str]:
     """v0 seed (nulled by the DAO) then v1 baseline. Returns (baseline_revision_id, version)."""
     params = {"agent": agent_cfg}
-    r = commit_direct(workflow_id, variant_id, params, "seed", f"qa-matrix-seed-{hexid}")
+    r = commit_direct(
+        workflow_id, variant_id, params, "seed", f"qa-matrix-seed-{hexid}"
+    )
     if r.status_code != 200:
         raise RuntimeError(f"seed commit HTTP {r.status_code}: {r.text[:300]}")
-    r = commit_direct(workflow_id, variant_id, params, "baseline", f"qa-matrix-baseline-{hexid}")
+    r = commit_direct(
+        workflow_id, variant_id, params, "baseline", f"qa-matrix-baseline-{hexid}"
+    )
     if r.status_code != 200:
         raise RuntimeError(f"baseline commit HTTP {r.status_code}: {r.text[:300]}")
     rev = r.json()["workflow_revision"]
@@ -218,12 +233,14 @@ class Turn:
                 outcome = self.tool_outcomes.get(call["toolCallId"])
                 if outcome == "available":
                     part["state"] = "output-available"
-                    part["output"] = self.tool_payloads.get(call["toolCallId"], {}).get("output")
+                    part["output"] = self.tool_payloads.get(call["toolCallId"], {}).get(
+                        "output"
+                    )
                 elif outcome == "error":
                     part["state"] = "output-error"
-                    part["errorText"] = self.tool_payloads.get(call["toolCallId"], {}).get(
-                        "errorText"
-                    )
+                    part["errorText"] = self.tool_payloads.get(
+                        call["toolCallId"], {}
+                    ).get("errorText")
                 if self.approval and self.approval["toolCallId"] == call["toolCallId"]:
                     part["state"] = "approval-requested"
                     part["approval"] = {"id": self.approval["approvalId"]}
@@ -257,7 +274,10 @@ def invoke(
         with client.stream(
             "POST",
             url,
-            params={"project_id": PROJECT, "application_id": references["application"]["id"]},
+            params={
+                "project_id": PROJECT,
+                "application_id": references["application"]["id"],
+            },
             json=body,
             headers=headers,
         ) as r:
@@ -293,7 +313,9 @@ def invoke(
                         "toolName": f.get("toolName"),
                         "input": f.get("input"),
                     }
-                    is_new = not any(c["toolCallId"] == call["toolCallId"] for c in t.tool_calls)
+                    is_new = not any(
+                        c["toolCallId"] == call["toolCallId"] for c in t.tool_calls
+                    )
                     t.tool_calls = [
                         c for c in t.tool_calls if c["toolCallId"] != call["toolCallId"]
                     ] + [call]
@@ -305,8 +327,15 @@ def invoke(
                         "toolCallId": f.get("toolCallId"),
                     }
                     if log:
-                        print(f"  !! approval-request: {json.dumps(f)[:400]}", file=sys.stderr)
-                elif ftype in ("tool-output-available", "tool-output-error", "tool-output-denied"):
+                        print(
+                            f"  !! approval-request: {json.dumps(f)[:400]}",
+                            file=sys.stderr,
+                        )
+                elif ftype in (
+                    "tool-output-available",
+                    "tool-output-error",
+                    "tool-output-denied",
+                ):
                     tcid = f.get("toolCallId")
                     if tcid:
                         t.tool_outcomes[tcid] = ftype.replace("tool-output-", "")
@@ -321,11 +350,17 @@ def invoke(
                         else:
                             t.tool_payloads[tcid] = {"errorText": f.get("errorText")}
                             if log:
-                                print(f"  !! {ftype}: {json.dumps(f)[:400]}", file=sys.stderr)
+                                print(
+                                    f"  !! {ftype}: {json.dumps(f)[:400]}",
+                                    file=sys.stderr,
+                                )
                 elif ftype == "data-committed-revision":
                     t.committed_revision = f.get("data")
                     if log:
-                        print(f"  !! data-committed-revision: {json.dumps(f)[:400]}", file=sys.stderr)
+                        print(
+                            f"  !! data-committed-revision: {json.dumps(f)[:400]}",
+                            file=sys.stderr,
+                        )
                 elif ftype == "error":
                     t.errors.append(json.dumps(f)[:500])
                     if log:
@@ -373,8 +408,16 @@ def run_until_settled(
         t = invoke(session_id, msgs, parameters, references)
         turns.append(t)
         if t.errors:
-            return turns, {"settled": False, "rounds": i + 1, "why": f"wire errors: {t.errors}"}
+            return turns, {
+                "settled": False,
+                "rounds": i + 1,
+                "why": f"wire errors: {t.errors}",
+            }
         if not t.approval:
             return turns, {"settled": True, "rounds": i + 1}
         msgs = msgs + [approval_reply(t, approved=approve)]
-    return turns, {"settled": False, "rounds": max_rounds, "why": "max_rounds exhausted, still gated"}
+    return turns, {
+        "settled": False,
+        "rounds": max_rounds,
+        "why": "max_rounds exhausted, still gated",
+    }
