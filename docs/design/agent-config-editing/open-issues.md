@@ -481,10 +481,13 @@ reader can act on it cold.
   (1) The skill files are LITERALS INSIDE the codex binary (`strings` shows
   `skill-creator/SKILL.md`, `skill-creator/agents`, `skill-installer/...`) and are
   written out by codex itself under a version-hash marker
-  (`skills/.system/.codex-system-skills.marker`, currently `6fac8acc0c6abb7b`).
-  Suppressing them means pre-writing that marker, which fights an undocumented internal
-  mechanism and fails OPEN on any codex upgrade that changes the hash: the skills come
-  back silently and the benchmark regresses with no code change.
+  (`skills/.system/.codex-system-skills.marker`, currently `6fac8acc0c6abb7b`). The
+  marker LOOKS like the suppression mechanism, but pre-writing it is UNTESTED: a fresh
+  `CODEX_HOME` stays empty through `codex --version`, so materialization happens at
+  session start, and nothing verified says a pre-written marker suppresses it. Even if
+  it did, it is an undocumented internal value that fails OPEN on any codex upgrade
+  that changes the hash: the skills come back silently and the benchmark regresses
+  with no code change.
   (2) `plugin-creator`, a sibling bundled skill, invokes
   `python3 ../skill-creator/scripts/quick_validate.py` by RELATIVE path. Removing
   skill-creator breaks a different bundled asset.
