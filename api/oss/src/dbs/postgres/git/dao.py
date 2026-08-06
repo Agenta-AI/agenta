@@ -1,4 +1,4 @@
-from typing import Optional, List, TypeVar, Type
+from typing import Callable, Optional, List, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -14,6 +14,7 @@ from oss.src.core.git.types import (
     CommitLockTimeout,
     InitialRevisionConflict,
     RevisionConflict,
+    RevisionUnchanged,
     VariantNotFound,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
@@ -1598,6 +1599,7 @@ class GitDAO(GitDAOInterface):
         exclude=[
             InitialRevisionConflict,
             RevisionConflict,
+            RevisionUnchanged,
             CommitLockTimeout,
             VariantNotFound,
         ]
@@ -1613,7 +1615,17 @@ class GitDAO(GitDAOInterface):
         initial: bool = False,
         #
         expected_head_revision_id: Optional[UUID] = None,
+        #
+        no_change_check: Optional[Callable[[Optional[Revision]], bool]] = None,
     ) -> Optional[Revision]:
+        """Append a revision to a variant's history.
+
+        ``no_change_check`` decides, against the head as it stands UNDER the lock, whether
+        this commit would store what is already stored. It is a callback rather than a
+        comparison the caller makes first, because a decision made before the lock is a
+        decision about a head another writer can still move. It runs after the
+        expected-head check, so a moved head is a conflict and never a no-change answer.
+        """
         now = datetime.now(timezone.utc)
         revision = Revision(
             project_id=project_id,
@@ -1648,7 +1660,11 @@ class GitDAO(GitDAOInterface):
         # Both guards need the same serialization, so they share one lock condition. A
         # caller that passes neither takes no lock and behaves exactly as before.
         needs_lock = bool(
-            (initial or expected_head_revision_id is not None)
+            (
+                initial
+                or expected_head_revision_id is not None
+                or no_change_check is not None
+            )
             and revision_commit.variant_id
         )
 
@@ -1726,6 +1742,37 @@ class GitDAO(GitDAOInterface):
                             current_head_revision_id=(
                                 str(current_head) if current_head is not None else None
                             ),
+                        )
+
+                if no_change_check is not None:
+                    # AFTER the expected-head check on purpose: a caller whose base has
+                    # moved is stale, and a stale caller can produce a result that happens
+                    # to equal the new head. It gets the conflict, never `no_change`.
+                    head_row_stmt = (
+                        select(self.RevisionDBE)  # type: ignore
+                        .where(
+                            self.RevisionDBE.project_id == project_id,  # type: ignore
+                            self.RevisionDBE.variant_id == revision_commit.variant_id,  # type: ignore
+                            self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                        )
+                        .order_by(
+                            self.RevisionDBE.created_at.desc(),  # type: ignore
+                            self.RevisionDBE.id.desc(),  # type: ignore
+                        )
+                        .limit(1)
+                    )
+                    head_row_result = await session.execute(head_row_stmt)
+                    head_row = head_row_result.scalar_one_or_none()
+                    stored_head = (
+                        map_dbe_to_dto(DTO=Revision, dbe=head_row)  # type: ignore
+                        if head_row is not None
+                        else None
+                    )
+                    if no_change_check(stored_head):
+                        raise RevisionUnchanged(
+                            head_revision_id=(
+                                stored_head.id if stored_head is not None else None
+                            )
                         )
 
                 session.add(revision_dbe)
