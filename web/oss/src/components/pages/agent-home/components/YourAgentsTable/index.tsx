@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
@@ -21,7 +22,6 @@ import {
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
-import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 

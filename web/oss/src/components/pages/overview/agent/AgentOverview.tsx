@@ -1,12 +1,12 @@
 import {useCallback, useEffect} from "react"
 
+import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import NextTriggersSection from "@/oss/components/NextTriggers"
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
-import {PanelScroll, PanelSurface} from "@/oss/components/PanelSection"
 import {
     SeedAttachButton,
     SeedAttachmentChips,

@@ -1,6 +1,7 @@
 import {useMemo, useState, type ButtonHTMLAttributes, type ReactNode} from "react"
 
 import {HeightCollapse} from "@agenta/ui"
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {CaretDown, DotsThree, EyeSlash} from "@phosphor-icons/react"
 import {Dropdown} from "antd"
 import {useAtom} from "jotai"
@@ -12,7 +13,6 @@ import {
     templateCategories,
     type AgentTemplate,
 } from "@/oss/components/pages/agent-home/assets/templates"
-import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 
 import {STRIP_COPY} from "./assets/constants"
 import {PAGE_SIZE} from "./assets/pagerMath"

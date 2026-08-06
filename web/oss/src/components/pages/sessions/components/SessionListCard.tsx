@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {type SessionStream} from "@agenta/entities/session"
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {ArrowRightIcon, ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
 import {Dropdown, Skeleton, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -12,7 +13,6 @@ import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionO
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
 import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
-import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 import useURL from "@/oss/hooks/useURL"
 import {projectIdAtom} from "@/oss/state/project"
 

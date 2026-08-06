@@ -7,13 +7,13 @@ import {
     useTriggerSchedules,
     useTriggerSubscriptions,
 } from "@agenta/entities/gatewayTrigger"
+import {PanelSection} from "@agenta/ui/components/presentational"
 import {LightningIcon} from "@phosphor-icons/react"
 import {Skeleton, Tooltip} from "antd"
 import dayjs from "dayjs"
 import {useAtomValue} from "jotai"
 
 import {agentsWorkflowsAtom} from "@/oss/components/pages/agents/store"
-import {PanelSection} from "@/oss/components/PanelSection"
 
 const LIST_SIZE = 5
 

@@ -2,13 +2,13 @@ import {useMemo, useState} from "react"
 
 import {formatNumber} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {CaretDown, CaretUp, ChartLineIcon} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import Sort from "@/oss/components/Filters/Sort"
-import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 import {useObservabilityDashboard} from "@/oss/state/observability"
 import {observabilityDashboardTimeRangeAtom} from "@/oss/state/observability/dashboard"
 

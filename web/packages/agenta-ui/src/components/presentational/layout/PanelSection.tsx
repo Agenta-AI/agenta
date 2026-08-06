@@ -1,17 +1,16 @@
 import type {ReactNode} from "react"
 
 /**
- * THROWAWAY — a local trial of the section language for `/apps` and `/overview`, so it can be
- * judged before anything is extracted into `@agenta/ui`. Do not import this from a package.
+ * The section language for rail/page surfaces (`/apps`, `/overview`, `/agents`, `/sessions`).
  *
- * Modelled on Claude's project page rather than on our playground panel. Two rules carry most of
+ * Modelled on a project-page idiom rather than on the playground panel. Two rules carry most of
  * it: the rail is ONE bordered container holding hairline-separated sections, and the main column
  * has no container at all — bare rows under a muted label. That contrast is what keeps the page
  * from reading as uniform; when both columns were sheets with filled header bands, every region
  * looked equally important and the density read as clutter.
  *
  * There are no filled bands here. Section headers are distinguished by weight and size, which is
- * also why the type scale on these two pages runs wider than the app's 12px default.
+ * also why the type scale on these pages runs wider than the app's 12px default.
  */
 
 /** The rail column's frame. Transparent now — the sections are the cards, and a card inside a
@@ -31,6 +30,9 @@ export const PanelSurface = ({children, className}: {children: ReactNode; classN
  *
  * The frame is capped (`max-h-full`), not stretched: a stretched frame is full of empty bordered
  * container whenever the sections don't reach the bottom, which is most of the time.
+ *
+ * A scroll container with `padding-top` cannot host a `top-0` sticky child; the sticky element
+ * supplies its own top spacing.
  */
 export const PanelScroll = ({children}: {children: ReactNode}) => (
     <div className="flex min-h-0 shrink flex-col gap-3 overflow-y-auto pr-1">{children}</div>
@@ -46,16 +48,7 @@ export const PanelScroll = ({children}: {children: ReactNode}) => (
 export const PANEL_ACTION_CLASS =
     "inline-flex shrink-0 cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs !text-colorTextSecondary transition-colors hover:!text-colorText"
 
-export const PanelSection = ({
-    title,
-    titleExtra,
-    extra,
-    sticky = false,
-    variant = "rail",
-    bodyClassName,
-    minHeightClassName,
-    children,
-}: {
+export interface PanelSectionProps {
     title: ReactNode
     /** Rendered beside the title, e.g. a count or a "2 waiting" badge. */
     titleExtra?: ReactNode
@@ -72,7 +65,18 @@ export const PanelSection = ({
     bodyClassName?: string
     minHeightClassName?: string
     children: ReactNode
-}) => {
+}
+
+export const PanelSection = ({
+    title,
+    titleExtra,
+    extra,
+    sticky = false,
+    variant = "rail",
+    bodyClassName,
+    minHeightClassName,
+    children,
+}: PanelSectionProps) => {
     const isRail = variant === "rail"
     return (
         <section

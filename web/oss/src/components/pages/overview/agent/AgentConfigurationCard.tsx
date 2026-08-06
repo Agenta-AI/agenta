@@ -2,6 +2,7 @@ import {type ReactNode, useMemo} from "react"
 
 import {InstructionsFileRow} from "@agenta/entity-ui"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {
     CpuIcon,
     FileTextIcon,
@@ -13,7 +14,6 @@ import {
 import {Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
-import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 
 import {agentConfigSummary} from "./agentConfigSummary"

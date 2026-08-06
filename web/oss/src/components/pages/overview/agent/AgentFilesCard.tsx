@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {latestMountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
+import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {FileIcon, FolderIcon} from "@phosphor-icons/react"
 import {Skeleton, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
@@ -9,7 +10,6 @@ import dynamic from "next/dynamic"
 import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import {agentMountQueryFamily} from "@/oss/components/Drives/agentDrive"
 import {AGENT_FILES_DIR, useSessionDrive} from "@/oss/components/Drives/useSessionDrive"
-import {PANEL_ACTION_CLASS, PanelSection} from "@/oss/components/PanelSection"
 
 // The whole drive explorer, pulled in only once the drawer is actually opened.
 const FilesDrawer = dynamic(
