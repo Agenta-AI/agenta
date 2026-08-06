@@ -417,3 +417,90 @@ reader can act on it cold.
   fulfilled state is named) rather than `cancelled`. `matrix_l4_client_tool_lifecycle.py`
   already drives the round trip and asserts the row is stored, so it is the natural
   home for the extra assertion.
+
+## The rendered instructions file follows the request, not the stored revision
+
+- Found by: the benchmark's three-harness slice, 6 August 2026 (`fm-02-stale-recitation`,
+  9 of 9 trials across claude, pi and codex). Adjudicated the same day and recorded
+  as a DECISION rather than a defect, because it is one.
+- **Symptom.** A configuration value changes out of band during a live session. The
+  agent is asked to re-check it, re-reads its instructions file, and reports the OLD
+  value while honestly stating that it checked. One model went further and told the
+  user their information was mistaken. Nothing in the transcript reveals that the
+  agent read a copy.
+- **Mechanism.** The runner renders the workspace instructions file from the REQUEST's
+  parameters (`run-plan.ts`: `agentsMd: request.agentsMd`), so the file is a faithful
+  render of the configuration this run was given. A commit made elsewhere does not
+  reach the file, because the open session keeps sending the parameters it was opened
+  with.
+- **THE DECISION: this is correct, and re-rendering from stored state would be a
+  regression.** Three reasons, in increasing order of weight.
+  (1) The runner already re-renders when the REQUEST carries a change:
+  `matrix_l5_live_route_observed.py` passes live, so this is not "the file never
+  refreshes", it is "the file follows the request".
+  (2) Request sovereignty. A run is defined by the parameters it was invoked with;
+  a runner that silently substituted stored state would make a run's behaviour depend
+  on edits nobody in that run made.
+  (3) The decisive one: the playground's central interaction is running an UNSAVED
+  draft. Rendering from the stored revision would hand a user testing a draft their
+  SAVED configuration instead, silently, which is a far worse failure than a stale
+  re-read.
+- **Cost to fix (if ever reversed).** Whoever revisits this must keep draft runs
+  working, which means the render source becomes conditional on whether the run is a
+  draft, and `run_is_draft` already exists to express that. The cost is not the render;
+  it is that the file's meaning stops being "what this run was given" and becomes
+  something a reader has to derive.
+- **Cost of NOT fixing.** Carried by the guidance instead: the always-on block now
+  tells the model the file is a copy that can be out of date and to use `read_config`
+  for current values. That is a mitigation, not a guarantee, and it depends on the
+  model reading and obeying a sentence. If the benchmark shows `fm-02` still failing
+  with the sentence in place, this decision is the thing to revisit, and the number
+  to beat is 0 of 9.
+- **Acceptance test.** `fm-02-stale-recitation` in the benchmark, which is what
+  measures whether the sentence closed it. There is no unit test for this: the
+  question is whether a model trusts a file, and only a live trial answers that.
+
+## Codex ships skills that document the wrong place to put skills
+
+- Found by: the benchmark's three-harness slice, 6 August 2026. Investigated and
+  adjudicated the same day: the deletion was REFUSED as unsafe and a guidance sentence
+  shipped instead.
+- **Symptom.** On codex, an agent asked to save a skill announces it is "using the
+  skill-installer workflow to install it into the configured skills location", runs
+  `init_skill.py`, and reports success. Nothing is stored. Codex skill scenarios sit at
+  6 of 21 with 13 `wrong_surface`, while claude and pi produce ZERO on the same
+  scenarios with the same guidance.
+- **Mechanism.** Codex materializes its own system skills into `CODEX_HOME` at startup,
+  among them `skill-creator` and `skill-installer`, whose `SKILL.md` files document a
+  procedural workflow for installing skills into `.codex/skills`. That is the exact
+  folder our guidance says does not count, so the model is choosing between a
+  documented tool with scripts and a sentence of our prose, and it picks the tool.
+- **THE DELETION WAS REFUSED, and this is the part to re-read before anyone tries
+  again.** The runner does NOT assemble that part of the codex home, so "just do not
+  render them" is not available. Three findings, each independently disqualifying:
+  (1) The skill files are LITERALS INSIDE the codex binary (`strings` shows
+  `skill-creator/SKILL.md`, `skill-creator/agents`, `skill-installer/...`) and are
+  written out by codex itself under a version-hash marker
+  (`skills/.system/.codex-system-skills.marker`, currently `6fac8acc0c6abb7b`).
+  Suppressing them means pre-writing that marker, which fights an undocumented internal
+  mechanism and fails OPEN on any codex upgrade that changes the hash: the skills come
+  back silently and the benchmark regresses with no code change.
+  (2) `plugin-creator`, a sibling bundled skill, invokes
+  `python3 ../skill-creator/scripts/quick_validate.py` by RELATIVE path. Removing
+  skill-creator breaks a different bundled asset.
+  (3) Codex's own built-in prompt references `.system` skill paths as instructions to
+  the model (for example the imagegen helper at
+  `$CODEX_HOME/skills/.system/imagegen/scripts/remove_chroma_key.py`), so the `.system`
+  tree is load-bearing for codex behaviour we do not own.
+- **What shipped instead.** A codex-only sentence in the platform-guidance block naming
+  both skills and saying they install somewhere that is not the configuration. It costs
+  codex ~315 characters that claude and pi do not pay, which is why the block's length
+  ceiling is now harness-dependent.
+- **Cost of the sentence not working.** Real, and expected to be a coin flip. This is
+  prose arguing against a documented tool with scripts, which is the matchup the data
+  says we lose. If it does not move the number, the next lever is upstream (ask OpenAI
+  for a supported way to omit system skills, in the same repo as the
+  `tools/list_changed` issue) rather than more prose.
+- **Acceptance test.** The benchmark's codex skill scenarios: 6 of 21 with 13
+  `wrong_surface` today, and claude and pi's ZERO is the target. Measured immediately on
+  landing.

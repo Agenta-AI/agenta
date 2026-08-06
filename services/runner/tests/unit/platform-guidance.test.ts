@@ -11,6 +11,8 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  codexBundledSkillsAppendix,
+  instructionsSourceAppendix,
   platformGuidanceAppendix,
   skillLocationAppendix,
   type PlatformGuidanceInput,
@@ -60,14 +62,19 @@ describe("what every harness is told", () => {
     assert.equal(skillLocationAppendix().id, "skill-location");
   });
 
-  it("opens with the skill sentence, not with the mount paragraph", () => {
-    // Order is a decision. The skill sentence is short and tells the model what to DO; the mount
+  it("opens with a config sentence, not with the mount paragraph", () => {
+    // Order is a decision. The config sentences are short and tell the model what to DO; the mount
     // paragraph is long and describes where things go. A reader who stops early must have read the
     // one that changes an action.
+    //
+    // DELIBERATE EDIT: this asserted the SKILL sentence opened the block. The instructions
+    // sentence now leads (see the ordering comment on `platformGuidanceAppendix`), so the property
+    // worth keeping is that a config sentence comes first and the mount paragraph comes last.
     const guidance = platformGuidanceAppendix(
       run({ agentMountedPath: MOUNT }),
     );
-    assert.ok(guidance?.startsWith(skillLocationAppendix().text));
+    assert.ok(guidance?.startsWith(instructionsSourceAppendix().text));
+    assert.ok(guidance?.endsWith(agentMountGuidance(MOUNT)));
   });
 });
 
@@ -116,8 +123,14 @@ describe("the mount paragraph is delivered exactly once", () => {
   it("says nothing about durable storage when none was configured", () => {
     // The third state. A stack with no durable storage at all would otherwise carry the "not
     // available" caveat in every prompt forever, which is how a real warning becomes noise.
+    // Asserted as the ABSENCE of mount text rather than as equality with a fixed pair: the block's
+    // composition is harness-dependent now (codex gets the bundled-skills rebuttal), and pinning
+    // the exact string here would fail for a reason that has nothing to do with mounts.
     const guidance = platformGuidanceAppendix(run());
-    assert.equal(guidance, skillLocationAppendix().text);
+    assert.ok(guidance);
+    assert.ok(!guidance.includes("durable agent folder"));
+    assert.ok(!guidance.includes(agentMountUnavailableGuidance()));
+    assert.ok(guidance.startsWith(instructionsSourceAppendix().text));
   });
 
   it("prefers the live path over the skipped sentence when both are set", () => {
@@ -140,14 +153,47 @@ describe("the mount paragraph is delivered exactly once", () => {
 });
 
 describe("the context budget", () => {
-  it("keeps the always-on part short", () => {
+  it("keeps each always-on sentence short", () => {
     // This block is in the context of every turn, for every agent, on every harness, and it draws
     // on the same attention the author's own instructions need. The number is a tripwire, not a
     // law: if a contributor genuinely needs the room, raise it deliberately and say why here.
-    assert.ok(
-      skillLocationAppendix().text.length < 600,
-      `the always-on guidance is ${skillLocationAppendix().text.length} chars`,
+    for (const c of [skillLocationAppendix(), instructionsSourceAppendix()]) {
+      assert.ok(c.text.length < 600, `${c.id} is ${c.text.length} chars`);
+    }
+  });
+
+  it("keeps the whole always-on block within a raised, justified ceiling", () => {
+    // RAISED DELIBERATELY, from one sentence to two. The instructions sentence roughly doubles the
+    // always-on block, and the justification is measured rather than argued: editing the rendered
+    // instructions file was the DOMINANT failure shape across all three harnesses, ahead of the
+    // skill mistake this block already addresses. The budget is being spent on the biggest
+    // observed failure.
+    //
+    // If a third sentence wants in, it needs its own numbers. The block is charged to the author's
+    // attention on every turn, and "it reads well" is not a reason.
+    const alwaysOn = platformGuidanceAppendix(
+      run({ acpAgent: "claude", toolNames: ["commit_revision"] }),
     );
+    assert.ok(alwaysOn);
+    assert.ok(
+      alwaysOn.length < 900,
+      `the always-on block is ${alwaysOn.length} chars`,
+    );
+  });
+
+  it("lets CODEX pay more, because codex alone has the problem it answers", () => {
+    // A SECOND, HIGHER CEILING, RAISED DELIBERATELY AND ONLY FOR CODEX. The rebuttal sentence is
+    // not general guidance: it answers codex's own bundled skill-creator and skill-installer,
+    // which document installing into `.codex/skills`. Claude and pi ship no such skills and pay
+    // nothing for it, which is why the budget is harness-dependent rather than uniform.
+    //
+    // The justification is measured: codex skill scenarios sit at 6 of 21 with 13 wrong_surface,
+    // against ZERO on claude and pi. If that gap closes and the sentence stays, delete it.
+    const codex = platformGuidanceAppendix(
+      run({ acpAgent: "codex", toolNames: ["commit_revision"] }),
+    );
+    assert.ok(codex);
+    assert.ok(codex.length < 1200, `the codex block is ${codex.length} chars`);
   });
 });
 
@@ -188,5 +234,133 @@ describe("the skill sentence follows the TOOL, not the flag", () => {
     // agent that simply has no config tools.
     assert.ok(platformGuidanceAppendix(run({ toolNames: ["commit_revision"] })));
     assert.equal(platformGuidanceAppendix(run({ toolNames: ["read_config"] })), undefined);
+  });
+});
+
+describe("the instructions-location sentence", () => {
+  it("covers BOTH directions of the same wrong mental model", () => {
+    // The revision that matters. The first draft covered writing only, and the read direction is
+    // the same confusion inverted: models re-read the rendered file and report a stale value while
+    // honestly stating they checked (9 of 9 trials, all three harnesses). One sentence names the
+    // file as a copy once and closes both directions.
+    const text = instructionsSourceAppendix().text;
+    assert.ok(text.includes("`parameters.agent.instructions.agents_md`"));
+    assert.match(text, /is a copy of your configuration/, "names it a copy");
+    assert.match(text, /does NOT change your instructions/, "closes the WRITE direction");
+    assert.match(text, /may not appear here/, "closes the READ direction");
+    assert.equal(instructionsSourceAppendix().id, "instructions-source");
+  });
+
+  it("ends on the positive instruction, naming both tools", () => {
+    // A model told only what not to do invents what to do instead. Both tools are named because
+    // the two directions need different ones: read_config to look, commit_revision to change.
+    const text = instructionsSourceAppendix().text;
+    assert.ok(text.includes("read_config"));
+    assert.ok(text.includes("commit_revision"));
+    assert.ok(
+      text.indexOf("read_config") > text.indexOf("out of date"),
+      "the instruction comes after the warning it answers",
+    );
+  });
+
+  it("hedges the staleness claim, because a re-render really can happen", () => {
+    // ACCURACY IN THE ALWAYS-ON BLOCK. The proposal said re-reading "will not" show a change made
+    // since the run started. That overstates it: when a request carries changed instructions the
+    // file IS re-rendered (matrix_l5 proves it live), so the honest word is "may not". The
+    // actionable half, use read_config, is true either way.
+    assert.doesNotMatch(instructionsSourceAppendix().text, /will not show/);
+  });
+
+  it("is self-referential, so it is accurate on every harness", () => {
+    // It says "This file" rather than naming CLAUDE.md or AGENTS.md, because the block is rendered
+    // INSIDE the file it describes. A per-harness path would be one more thing to keep in sync and
+    // one more thing to get wrong.
+    assert.match(instructionsSourceAppendix().text, /^This file is a copy of your configuration/);
+    for (const name of ["CLAUDE.md", "AGENTS.md"]) {
+      assert.ok(!instructionsSourceAppendix().text.includes(name));
+    }
+  });
+
+  it("comes FIRST, ahead of the skill sentence", () => {
+    // The ordering decision, pinned so it cannot drift silently: by measured failure rate the
+    // instructions mistake dominates, and the sentence describes the document being read, so it
+    // belongs at the top of that document. Swapping this is a deliberate experiment, not a tidy-up.
+    const guidance = platformGuidanceAppendix(run({ toolNames: ["commit_revision"] }));
+    assert.ok(guidance);
+    const iAt = guidance.indexOf(instructionsSourceAppendix().text);
+    const sAt = guidance.indexOf(skillLocationAppendix().text);
+    assert.ok(iAt >= 0 && sAt >= 0, "both sentences are present");
+    assert.ok(iAt < sAt, "instructions must precede skills");
+  });
+
+  it("rides the SAME tool gate as the skill sentence, in both arms", () => {
+    // One gate for both, so they can never disagree about whether this run can commit.
+    const withTool = platformGuidanceAppendix(run({ toolNames: ["commit_revision"] }));
+    assert.ok(withTool?.includes("agents_md"));
+    assert.ok(withTool?.includes("parameters.agent.skills"));
+
+    const withoutTool = platformGuidanceAppendix(run({ toolNames: ["bash"] }));
+    assert.equal(withoutTool, undefined, "neither sentence applies without the tool");
+  });
+
+  it("still yields the mount paragraph alone when there is no config tool", () => {
+    // The independence check, restated for the new sentence: gating the config pair must not
+    // silence the mount paragraph, which has no tool dependency.
+    const guidance = platformGuidanceAppendix(
+      run({ toolNames: [], agentMountedPath: MOUNT }),
+    );
+    assert.ok(guidance?.includes(agentMountGuidance(MOUNT)));
+    assert.ok(!guidance?.includes("agents_md"));
+  });
+});
+
+describe("the codex bundled-skills rebuttal", () => {
+  it("reaches codex and NOBODY else", () => {
+    // The other harnesses do not ship skill-creator or skill-installer, so the sentence would be
+    // an instruction about tools that do not exist. Naming absent tools is the same confusion this
+    // block exists to remove.
+    const codex = platformGuidanceAppendix(
+      run({ acpAgent: "codex", toolNames: ["commit_revision"] }),
+    );
+    assert.ok(codex?.includes("skill-installer"));
+
+    for (const other of [
+      run({ acpAgent: "claude", toolNames: ["commit_revision"] }),
+      run({ acpAgent: "pi", isPi: true, toolNames: ["commit_revision"] }),
+    ]) {
+      const g = platformGuidanceAppendix(other);
+      assert.ok(g, other.acpAgent);
+      assert.ok(!g.includes("skill-installer"), `${other.acpAgent} must not see it`);
+    }
+  });
+
+  it("names both skills and the folder they install into", () => {
+    // It has to name them. The failure is that models follow those two by name, so guidance that
+    // gestured at "other tools" would not connect to what they are actually reading.
+    const text = codexBundledSkillsAppendix().text;
+    assert.ok(text.includes("skill-creator"));
+    assert.ok(text.includes("skill-installer"));
+    assert.ok(text.includes(".codex/skills"));
+    assert.equal(codexBundledSkillsAppendix().id, "codex-bundled-skills");
+  });
+
+  it("rides the config-tool gate too, so a codex run without commit_revision stays silent", () => {
+    const guidance = platformGuidanceAppendix(
+      run({ acpAgent: "codex", toolNames: ["bash"] }),
+    );
+    assert.ok(!guidance?.includes("skill-installer"));
+  });
+
+  it("sits immediately after the skill sentence it defends", () => {
+    // Placement is the argument: it is a rebuttal to a specific tool, not standalone guidance, so
+    // it reads as an exception to the sentence above it rather than as a new topic.
+    const g = platformGuidanceAppendix(
+      run({ acpAgent: "codex", toolNames: ["commit_revision"] }),
+    );
+    assert.ok(g);
+    assert.ok(
+      g.indexOf(skillLocationAppendix().text) <
+        g.indexOf(codexBundledSkillsAppendix().text),
+    );
   });
 });
