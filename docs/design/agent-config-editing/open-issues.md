@@ -532,6 +532,11 @@ reader can act on it cold.
   frozen by ruling for this release ("don't touch tool structure unless very
   minimally"), and a shape change mid-migration would also invalidate the benchmark's
   baselines. The failure costs a retry, not a wrong result.
+- **The cheapest test of the hypothesis, when someone wants it.** Not a code change:
+  advertise a second harmless visible property on `target` in a throwaway catalog
+  build and run one benchmark cell. If the XML leak stops, the single-visible-property
+  hypothesis is confirmed; if not, it is dead, for the cost of one run. Nothing
+  shipped changes either way.
 - **Acceptance test.** The benchmark's claude cells report the InputValidationError
   rate per run. A shape fix is proven when that rate is zero across a full run and the
   corrected and raw one-shot numbers converge.
