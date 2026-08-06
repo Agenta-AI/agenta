@@ -268,7 +268,7 @@ export default function GatewaySubscriptionsSection() {
                     emptyMinHeight={250}
                     title={
                         <div className="flex flex-col gap-1">
-                            <h3 className="m-0 font-medium text-colorText">Event triggers</h3>
+                            <p className="m-0 font-medium text-colorText">Event triggers</p>
                             <p className="m-0 font-normal text-colorTextSecondary">
                                 Run a workflow whenever a connected app sends an event.
                             </p>
@@ -315,7 +315,7 @@ export default function GatewaySubscriptionsSection() {
                                         image="simple"
                                         description={
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-sm font-medium text-colorText">
+                                                <span className="text-xs font-medium text-colorText">
                                                     Connect an app first
                                                 </span>
                                                 <span>
@@ -330,7 +330,7 @@ export default function GatewaySubscriptionsSection() {
                                         image="simple"
                                         description={
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-sm font-medium text-colorText">
+                                                <span className="text-xs font-medium text-colorText">
                                                     No event triggers yet
                                                 </span>
                                                 <span>

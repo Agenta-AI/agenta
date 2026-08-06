@@ -197,9 +197,9 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     rowHeight={40}
                     title={
                         <div className="flex flex-col gap-1">
-                            <h3 className="m-0 font-medium text-colorText">
+                            <p className="m-0 font-medium text-colorText">
                                 {isCustom ? "OpenAI-compatible endpoints" : "Standard providers"}
-                            </h3>
+                            </p>
                             {isCustom ? (
                                 <p className="m-0 font-normal text-colorTextSecondary">
                                     Self-hosted or proxied models that speak the OpenAI API.
@@ -240,7 +240,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-sm font-medium text-colorText">
+                                            <span className="text-xs font-medium text-colorText">
                                                 No custom endpoints
                                             </span>
                                             <span>
@@ -262,7 +262,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-sm font-medium text-colorText">
+                                            <span className="text-xs font-medium text-colorText">
                                                 No providers to show
                                             </span>
                                             <span>

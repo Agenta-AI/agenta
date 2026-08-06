@@ -235,7 +235,7 @@ export default function GatewaySchedulesSection() {
                     emptyMinHeight={250}
                     title={
                         <div className="flex flex-col gap-1">
-                            <h3 className="m-0 font-medium text-colorText">Scheduled runs</h3>
+                            <p className="m-0 font-medium text-colorText">Scheduled runs</p>
                             <p className="m-0 font-normal text-colorTextSecondary">
                                 Run a workflow automatically on a schedule you define.
                             </p>
@@ -275,7 +275,7 @@ export default function GatewaySchedulesSection() {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-sm font-medium text-colorText">
+                                            <span className="text-xs font-medium text-colorText">
                                                 No scheduled runs yet
                                             </span>
                                             <span>

@@ -231,7 +231,7 @@ export default function GatewayTriggersSection() {
                     emptyMinHeight={250}
                     title={
                         <div className="flex flex-col gap-1">
-                            <h3 className="m-0 font-medium text-colorText">Connections</h3>
+                            <p className="m-0 font-medium text-colorText">Connections</p>
                             <p className="m-0 font-normal text-colorTextSecondary">
                                 Link an app like GitHub or Slack so its events can trigger your
                                 workflows.
@@ -272,7 +272,7 @@ export default function GatewayTriggersSection() {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-sm font-medium text-colorText">
+                                            <span className="text-xs font-medium text-colorText">
                                                 No connections yet
                                             </span>
                                             <span>

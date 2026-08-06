@@ -357,7 +357,7 @@ export default function GatewayToolsSection() {
                                     image="simple"
                                     description={
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-sm font-medium text-colorText">
+                                            <span className="text-xs font-medium text-colorText">
                                                 No tools connected yet
                                             </span>
                                             <span>Connect a tool to let your agents call it.</span>

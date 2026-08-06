@@ -279,7 +279,7 @@ const ProjectsSettings = () => {
                                 image="simple"
                                 description={
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-sm font-medium text-colorText">
+                                        <span className="text-xs font-medium text-colorText">
                                             No projects in this workspace yet
                                         </span>
                                         <span>
