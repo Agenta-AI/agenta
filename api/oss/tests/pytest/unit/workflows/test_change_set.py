@@ -1766,8 +1766,10 @@ class TestMatchTolerance:
         )
         # The operation is `edit_text` and it exists; only the modifier is wrong. Reporting
         # an unknown OPERATION, non-retryably, told the agent its verb was wrong and that
-        # there was no way forward, when the fix is one word.
-        assert error.reason == Reason.INVALID_MATCH_MODE
+        # there was no way forward, when the fix is one word. It reuses the existing
+        # retryable code rather than adding one: the specific guidance rides on `next_step`,
+        # which is what that field is for.
+        assert error.reason == Reason.INVALID_OPERATION_SHAPE
         assert error.retryable is True
         assert "'auto'" in error.next_step and "'exact'" in error.next_step
         # The rejected value is named, so the agent can see what it sent.
