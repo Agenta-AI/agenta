@@ -21,7 +21,11 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import text
 
-from oss.src.core.git.types import CommitLockTimeout, RevisionConflict
+from oss.src.core.git.types import (
+    CommitLockTimeout,
+    RevisionConflict,
+    RevisionUnchanged,
+)
 from oss.src.dbs.postgres.shared.engine import TransactionsEngine
 from oss.src.utils.env import env
 
@@ -351,3 +355,172 @@ class TestSequentialStaleBase:
         assert status == "conflict"
         assert error.current_head_revision_id is None
         assert await _revision_count(engine, variant) == 0
+
+
+# --------------------------------------------------------------------------------------
+# The no-change decision, under the same lock as the insert
+# --------------------------------------------------------------------------------------
+
+
+def _commit_with_data(variant, data):
+    from oss.src.core.git.dtos import RevisionCommit
+
+    return RevisionCommit(
+        slug=uuid4().hex[-12:],
+        variant_id=variant["id"],
+        artifact_id=variant["artifact_id"],
+        data=data,
+    )
+
+
+async def _insert_revision(engine, variant, data):
+    """Another writer's commit, through the DAO, so the row is shaped like a real one."""
+    return await _dao(engine).commit_revision(
+        project_id=variant["project_id"],
+        user_id=uuid4(),
+        revision_commit=_commit_with_data(variant, data),
+    )
+
+
+def _unchanged_when(data):
+    """The comparison a caller hands down: does the head already hold this?"""
+
+    def check(stored_head):
+        return stored_head is not None and stored_head.data == data
+
+    return check
+
+
+class TestTheNoChangeDecisionIsTakenUnderTheLock:
+    """A no-change answer decided BEFORE the lock is an answer about a head that can move.
+
+    The wrapper used to compare in its own transaction and return early, which skipped the
+    locked region entirely. Two writers could both pass that comparison, and a caller whose
+    base had already moved was told `no_change` instead of being told to re-read. These
+    cells pin the decision to the same transaction as the insert.
+    """
+
+    async def test_the_comparison_sees_a_write_that_landed_while_it_waited(
+        self, engine, variant
+    ):
+        # The decisive one. Another connection holds the variant lock and inserts a
+        # revision while this commit waits for it. The candidate equals what the OTHER
+        # writer stored, and differs from the head this caller could have read before
+        # blocking. A comparison made before the lock would not see that row and would
+        # insert a duplicate; one made after it answers `unchanged`.
+        import asyncpg
+
+        await _insert_revision(engine, variant, {"stage": "old"})
+        before = await _revision_count(engine, variant)
+
+        dsn = env.postgres.uri_core.replace("postgresql+asyncpg://", "postgresql://")
+        blocker = await asyncpg.connect(dsn)
+        transaction = blocker.transaction()
+        await transaction.start()
+        await blocker.execute(
+            f"SELECT id FROM {VARIANTS} WHERE id = $1 FOR UPDATE", variant["id"]
+        )
+
+        async def commit_while_blocked():
+            return await _dao(engine).commit_revision(
+                project_id=variant["project_id"],
+                user_id=uuid4(),
+                revision_commit=_commit_with_data(variant, {"stage": "new"}),
+                no_change_check=_unchanged_when({"stage": "new"}),
+            )
+
+        waiter = asyncio.create_task(commit_while_blocked())
+        # Long enough that the waiter is parked on the lock, not merely scheduled.
+        await asyncio.sleep(0.3)
+        assert not waiter.done(), "the commit did not wait for the variant lock"
+
+        # The other writer's row lands, then the lock is released.
+        new_id = uuid4()
+        await blocker.execute(
+            f"INSERT INTO {REVISIONS} "
+            "(id, project_id, artifact_id, variant_id, slug, created_at, author, date, data) "
+            "VALUES ($1, $2, $3, $4, $5, now(), $6, now(), $7)",
+            new_id,
+            variant["project_id"],
+            variant["artifact_id"],
+            variant["id"],
+            f"r-{new_id.hex}",
+            uuid4(),
+            '{"stage": "new"}',
+        )
+        await transaction.commit()
+        await blocker.close()
+
+        with pytest.raises(RevisionUnchanged) as caught:
+            await waiter
+
+        assert caught.value.head_revision_id == new_id
+        # One row landed, and it is the other writer's. A pre-lock comparison would have
+        # added a second one holding the identical configuration.
+        assert await _revision_count(engine, variant) == before + 1
+
+    async def test_a_moved_head_beats_a_no_change_answer(self, engine, variant):
+        # The precedence rule (commit-transaction.md 6, rule 2 over rule 6). This caller is
+        # stale AND its result happens to equal the new head, which is the case that makes
+        # the ordering matter: answering `no_change` would confirm a base that had moved.
+        head = await _insert_revision(engine, variant, {"stage": "old"})
+        await _insert_revision(engine, variant, {"stage": "new"})
+        before = await _revision_count(engine, variant)
+
+        with pytest.raises(RevisionConflict):
+            await _dao(engine).commit_revision(
+                project_id=variant["project_id"],
+                user_id=uuid4(),
+                revision_commit=_commit_with_data(variant, {"stage": "new"}),
+                expected_head_revision_id=head.id,
+                no_change_check=_unchanged_when({"stage": "new"}),
+            )
+
+        assert await _revision_count(engine, variant) == before
+
+    async def test_an_unchanged_commit_on_a_current_base_writes_nothing(
+        self, engine, variant
+    ):
+        head = await _insert_revision(engine, variant, {"stage": "same"})
+        before = await _revision_count(engine, variant)
+
+        with pytest.raises(RevisionUnchanged) as caught:
+            await _dao(engine).commit_revision(
+                project_id=variant["project_id"],
+                user_id=uuid4(),
+                revision_commit=_commit_with_data(variant, {"stage": "same"}),
+                expected_head_revision_id=head.id,
+                no_change_check=_unchanged_when({"stage": "same"}),
+            )
+
+        assert caught.value.head_revision_id == head.id
+        assert await _revision_count(engine, variant) == before
+
+    async def test_a_real_change_still_commits_under_the_same_check(
+        self, engine, variant
+    ):
+        head = await _insert_revision(engine, variant, {"stage": "old"})
+        before = await _revision_count(engine, variant)
+
+        revision = await _dao(engine).commit_revision(
+            project_id=variant["project_id"],
+            user_id=uuid4(),
+            revision_commit=_commit_with_data(variant, {"stage": "new"}),
+            expected_head_revision_id=head.id,
+            no_change_check=_unchanged_when({"stage": "new"}),
+        )
+
+        assert revision is not None
+        assert await _revision_count(engine, variant) == before + 1
+
+    async def test_a_variant_with_no_head_is_never_unchanged(self, engine, variant):
+        # Nothing stored cannot equal what is being stored. The first commit must land.
+        revision = await _dao(engine).commit_revision(
+            project_id=variant["project_id"],
+            user_id=uuid4(),
+            revision_commit=_commit_with_data(variant, {"stage": "first"}),
+            no_change_check=_unchanged_when({"stage": "first"}),
+        )
+
+        assert revision is not None
+        assert await _revision_count(engine, variant) == 1

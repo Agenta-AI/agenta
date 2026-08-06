@@ -185,6 +185,25 @@ class VariantNotFound(GitError):
         self.variant_id = variant_id
 
 
+class RevisionUnchanged(GitError):
+    """Raised when a checked commit would store what the locked head already holds.
+
+    The comparison has to run inside the locked region, beside the expected-head check.
+    Deciding it before the call reads a head that another writer can move afterwards, and
+    the caller is then told `no_change` about a revision that is no longer the head. It
+    carries the head that was current UNDER the lock, so the answer describes the state the
+    decision was actually made against.
+    """
+
+    def __init__(
+        self,
+        *,
+        head_revision_id,
+    ) -> None:
+        super().__init__("The commit would store the configuration already stored.")
+        self.head_revision_id = head_revision_id
+
+
 class InlineResolveInvalid(GitError):
     """Raised when an inline resolve payload carries no `data` to resolve.
 
