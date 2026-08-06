@@ -86,7 +86,17 @@ def w7():
         bytes_present = bool(manifest_evidence) and "bytes" in json.dumps(manifest_evidence)
 
         any_errors = any(t.errors for t in turns)
-        any_tool_error = any("error" in t.tool_outcomes.values() for t in turns)
+        # DEFERRED_NOT_EXECUTED is benign: it fires when the model queues a second tool call
+        # behind an already-pending gate (only one gate is active at a time) and just means
+        # "retry me once the other one resolves" -- not a real failure. Distinguish it from a
+        # genuine tool error so a healthy multi-gate sequence doesn't read as broken.
+        real_tool_errors = [
+            t.tool_payloads.get(tcid, {}).get("errorText", "")
+            for t in turns
+            for tcid, outcome in t.tool_outcomes.items()
+            if outcome == "error"
+        ]
+        any_tool_error = any("DEFERRED_NOT_EXECUTED" not in e for e in real_tool_errors)
 
         time.sleep(1.0)
         newest = latest_revision(wf)
