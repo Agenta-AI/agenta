@@ -230,9 +230,18 @@ describe("a handler-mode domain failure on the way to the model", () => {
   });
 
   it("a STATUS_CODE_ERROR whose content is NOT an envelope still fails, and keeps its text", async () => {
-    // The tolerance case, and it is the common one rather than an edge: a gateway tool's failure
-    // content is the upstream's own error text, and `test_run`'s infrastructure arm puts a TestRun
-    // response there. Neither is the canonical envelope, and both must still read as failures.
+    // The tolerance case, and it is the common one rather than an edge. Two arms of the tools
+    // router still answer a failure with `STATUS_CODE_ERROR` and a content that is NOT the
+    // canonical envelope, and both must read as failures anyway:
+    //
+    //   - the gateway/Composio arm, which sends `ToolExecutionResponse` ({data, error,
+    //     successful}) with the upstream reason in `status.message`;
+    //   - the workflow-tool arm, which sends the workflow's own `outputs`.
+    //
+    // `test_run` USED to be a third. It was converted to the envelope in the API's milestone 2,
+    // so it is no longer an example here; the other two are unchanged at the time of writing.
+    // If they are ever converted too, this test keeps its value as the guard on an unhandled
+    // path rather than on our own inconsistency.
     //
     // A CORRECTION TO WHAT I FIRST TOLD VERIFY-API. I said the runner would redact a content that
     // did not parse as an envelope, reasoning by analogy with `agentaErrorDetail` in
