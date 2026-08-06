@@ -942,3 +942,142 @@ class TestTheFlagDecidesWhetherTheCommitTakesTheLock:
         self, service, ordered_on
     ):
         assert await self._comparison_handed_down(service) is not None
+
+
+class TestTheEmptyAuthorRoundTrip:
+    """An agent with no stored instructions must not commit a revision by reading its file.
+
+    The runner renders the platform-guidance block into the workspace even when the author
+    wrote nothing, so the file holds only the block. A model that copies it back sends a
+    value that strips to `""`, where the stored value was absent. That is not a change any
+    reader can see, and answering `committed` for it evicts the warm sandbox and grows the
+    revision list for nothing.
+
+    The fix is in the comparison, not in the write: absent, null and empty are the same
+    field, so the pair compares equal. Nothing normalizes the stored tree, which is why the
+    second class below still commits.
+    """
+
+    @staticmethod
+    def _canonical(service, data):
+        return service._canonical_revision_record(data=data, flags=None)
+
+    def test_an_empty_string_equals_an_absent_field(self, service):
+        assert self._canonical(
+            service, {"parameters": {"agent": {"instructions": {"agents_md": ""}}}}
+        ) == self._canonical(service, {"parameters": {"agent": {"instructions": {}}}})
+
+    def test_a_whitespace_only_string_equals_an_absent_field(self, service):
+        # What a stripped block leaves behind when the renderer's separator survives it.
+        assert self._canonical(
+            service, {"parameters": {"agent": {"instructions": {"agents_md": "\n\n"}}}}
+        ) == self._canonical(service, {"parameters": {"agent": {"instructions": {}}}})
+
+    def test_a_null_field_equals_an_absent_field(self, service):
+        assert self._canonical(service, {"parameters": {"agent": None}}) == (
+            self._canonical(service, {"parameters": {}})
+        )
+
+    def test_an_object_left_holding_nothing_equals_an_absent_object(self, service):
+        # The step the round trip actually needs. Emptying `agents_md` removes the field,
+        # which leaves `instructions` as `{}` where the head had no `instructions` at all.
+        assert self._canonical(
+            service, {"parameters": {"agent": {"instructions": {"agents_md": ""}}}}
+        ) == self._canonical(service, {"parameters": {"agent": {}}})
+
+    def test_an_empty_list_is_not_dropped(self, service):
+        # A list is positional and an explicitly empty one is a value a caller chose, so the
+        # rule stops at objects. This is the boundary, pinned so nobody widens it by feel.
+        assert self._canonical(service, {"parameters": {"agent": {"tools": []}}}) != (
+            self._canonical(service, {"parameters": {"agent": {}}})
+        )
+
+    async def test_the_empty_author_round_trip_writes_nothing(
+        self, service, ordered_on
+    ):
+        # End to end: the head has no instructions, the agent commits the stripped file.
+        from oss.src.core.workflows.change_set import (
+            PLATFORM_GUIDANCE_END,
+            PLATFORM_GUIDANCE_START,
+        )
+
+        data = {"parameters": {"agent": {"llm": {"model": "x"}}}}
+        stored = _stored(
+            data=data,
+            flags=service._build_revision_commit(
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    workflow_variant_id=VARIANT_ID,
+                    data=data,
+                )
+            ).flags,
+        )
+        rendered = f"{PLATFORM_GUIDANCE_START}\nguidance\n{PLATFORM_GUIDANCE_END}\n"
+        service.fetch_workflow_revision = AsyncMock(
+            return_value=_head(stored.id, data=data)
+        )
+        service.workflows_dao.fetch_revision.return_value = stored
+        _locked_commit(service, stored=stored)
+
+        outcome = await service.commit_workflow_revision_checked(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=_commit_on(
+                stored.id,
+                set={
+                    "parameters": {"agent": {"instructions": {"agents_md": rendered}}}
+                },
+            ),
+        )
+
+        assert outcome.status == "no_change"
+
+
+class TestAnIntentionalEmptyStillCommits:
+    """Clearing a field on purpose is a real change and must be stored.
+
+    This is the line the comparison rule must not cross. Absent and empty compare equal, so
+    a commit that only ADDS an empty field writes nothing. Emptying a field that held text
+    is a different pair entirely, and it commits.
+    """
+
+    async def test_clearing_a_non_empty_field_commits(self, service, ordered_on):
+        stored_data = {
+            "parameters": {"agent": {"instructions": {"agents_md": "Be concise."}}}
+        }
+        stored = _stored(
+            data=stored_data,
+            flags=service._build_revision_commit(
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    workflow_variant_id=VARIANT_ID,
+                    data=stored_data,
+                )
+            ).flags,
+        )
+        committed = _head(uuid4())
+        service.fetch_workflow_revision = AsyncMock(
+            return_value=_head(stored.id, data=stored_data)
+        )
+        service.workflows_dao.fetch_revision.return_value = stored
+        _locked_commit(service, stored=stored, committed=committed)
+
+        outcome = await service.commit_workflow_revision_checked(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=_commit_on(
+                stored.id,
+                set={"parameters": {"agent": {"instructions": {"agents_md": ""}}}},
+            ),
+        )
+
+        assert outcome.status == "committed"
+
+    def test_the_stored_tree_is_never_rewritten(self, service):
+        # The comparison sees through the distinction; the write does not. A caller that
+        # sets a field to empty on purpose gets exactly that stored.
+        resolved, _, _ = _apply(
+            service,
+            {"parameters": {"agent": {"instructions": {"agents_md": "Be concise."}}}},
+            _commit(set={"parameters": {"agent": {"instructions": {"agents_md": ""}}}}),
+        )
+
+        assert resolved["parameters"]["agent"]["instructions"]["agents_md"] == ""

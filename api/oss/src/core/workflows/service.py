@@ -2178,8 +2178,50 @@ class WorkflowsService:
         does change behavior, and the new flags would never reach the database. The
         contract's recursive key sort needs no step here: python compares dicts by content,
         not by key order.
+
+        A field that is absent, null, or an empty string is the same field: not set. The
+        distinction has no meaning anywhere in a configuration, and keeping it produced a
+        pointless revision. An agent with no stored instructions gets a workspace file
+        holding only the platform-guidance block; copying it back strips to `""`, which
+        differed from absent and wrote a revision that changed nothing a reader can see.
+
+        Only the EQUALITY question changes. Nothing rewrites the stored tree, because a
+        commit that quietly normalized what it was given would be the worse bug: a caller
+        that sets a field to empty on purpose must still see exactly that stored.
         """
-        return {"data": data or None, "flags": flags or None}
+        return {
+            "data": WorkflowsService._without_unset_fields(data) or None,
+            "flags": flags or None,
+        }
+
+    @staticmethod
+    def _without_unset_fields(node: Any) -> Any:
+        """Drop object fields that are absent in every way a caller can express it.
+
+        An object left holding nothing is dropped too, and that is what the round trip
+        actually needs: a copied-back file sets `instructions.agents_md` to empty, so the
+        field goes and `instructions` is left as `{}` where the head had no `instructions`
+        at all.
+
+        Applied to dict KEYS only. A list keeps its elements and its length, because an
+        empty string inside a list is a positional value and dropping it would silently
+        renumber the entries around it.
+        """
+        if isinstance(node, dict):
+            cleaned = {}
+            for key, value in node.items():
+                if value is None:
+                    continue
+                if isinstance(value, str) and not value.strip():
+                    continue
+                value = WorkflowsService._without_unset_fields(value)
+                if isinstance(value, dict) and not value:
+                    continue
+                cleaned[key] = value
+            return cleaned
+        if isinstance(node, list):
+            return [WorkflowsService._without_unset_fields(entry) for entry in node]
+        return node
 
     async def commit_workflow_revision(
         self,
