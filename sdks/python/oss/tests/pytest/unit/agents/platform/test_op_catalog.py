@@ -36,11 +36,11 @@ def _ordered_operations_enabled() -> bool:
 
     Calling the catalog's own helper would derive the expectation from the thing being
     asserted: a helper that always returned True would move both sides together and the
-    test would still pass.
+    test would still pass. The spellings are spelled out here for the same reason.
     """
     return (
         os.getenv("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED") or ""
-    ).strip().lower() in {"true", "1", "yes", "on"}
+    ).strip().lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 
 
 def _resolver(connection):
