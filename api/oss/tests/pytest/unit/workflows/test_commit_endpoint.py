@@ -141,13 +141,14 @@ class TestVariantNotFound:
 
     The DAO raises `VariantNotFound` when the locking select matches no row. That covers a
     variant id that does not exist and one that belongs to another project. The mapping to
-    404 lives in `handle_git_exceptions`, so both routes must install that decorator.
-    Without it the refusal reaches `intercept_exceptions` and becomes a generic 500.
+    404 lives in `handle_git_exceptions`, so the route must install that decorator. Without
+    it the refusal reaches `intercept_exceptions` and becomes a generic 500.
+
+    One route now, not two: the agent's commit is a handler, and it maps the same refusal
+    to `workflow_variant_not_found` in the envelope rather than to an HTTP status.
     """
 
-    @pytest.fixture(
-        params=["commit_workflow_revision", "commit_agent_workflow_revision"]
-    )
+    @pytest.fixture(params=["commit_workflow_revision"])
     def route(self, request, router):
         return getattr(router, request.param), request.param
 
@@ -254,146 +255,9 @@ class TestDomainRefusals:
         assert caught.value.detail["code"] == Reason.INVALID_DELTA
 
 
-class TestTheScopedAgentRoute:
-    """The agent's write scope is a property of the ROUTE it is given.
-
-    The model never holds the run's credential and never chooses the URL: the path comes
-    from the server-side op catalog and the runner makes the call from outside the sandbox.
-    So an agent cannot reach the unscoped route, and it cannot express a commit outside
-    `parameters.agent`. The unscoped route keeps its behavior for humans and the SDK.
-    """
-
-    async def test_it_passes_the_agent_scope_to_the_service(self, router, allow_access):
-        from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
-
-        router.workflows_service.commit_workflow_revision_checked.return_value = (
-            CommitOutcome(revision=_revision(), status="committed")
-        )
-
-        with patch(
-            "oss.src.apis.fastapi.workflows.router.invalidate_cache", AsyncMock()
-        ):
-            await router.commit_agent_workflow_revision(
-                _request(),
-                workflow_revision_commit_request=_delta_request(
-                    set={"parameters": {"agent": {"instructions": "hi"}}}
-                ),
-            )
-
-        call = router.workflows_service.commit_workflow_revision_checked.await_args
-        assert call.kwargs["scope_policy"] is AGENT_COMMIT_SCOPE
-
-    async def test_it_never_stores_a_description_the_agent_sent(
-        self, router, allow_access
-    ):
-        # `description` on this route is the ephemeral per-call note, which shares its name
-        # with the persisted revision field and must not reach the audit trail
-        # (read-config.md 12.3). The runner strips it before dispatch, so one arriving here
-        # means the runner did not, and the persisted field would silently take it.
-        router.workflows_service.commit_workflow_revision_checked.return_value = (
-            CommitOutcome(revision=_revision(), status="committed")
-        )
-        commit_request = _delta_request(
-            set={"parameters": {"agent": {"instructions": "hi"}}}
-        )
-        commit_request.workflow_revision.description = "I made it friendlier"
-
-        with patch(
-            "oss.src.apis.fastapi.workflows.router.invalidate_cache", AsyncMock()
-        ):
-            await router.commit_agent_workflow_revision(
-                _request(),
-                workflow_revision_commit_request=commit_request,
-            )
-
-        call = router.workflows_service.commit_workflow_revision_checked.await_args
-        assert call.kwargs["workflow_revision_commit"].description is None
-
-    async def test_the_unscoped_route_keeps_a_description(self, router, allow_access):
-        # A human or the SDK setting the revision description is using the real field for
-        # what it is for. Only the agent route drops it.
-        router.workflows_service.commit_workflow_revision_checked.return_value = (
-            CommitOutcome(revision=_revision(), status="committed")
-        )
-        commit_request = _commit_request()
-        commit_request.workflow_revision.description = "release candidate"
-
-        with patch(
-            "oss.src.apis.fastapi.workflows.router.invalidate_cache", AsyncMock()
-        ):
-            await router.commit_workflow_revision(
-                _request(),
-                workflow_revision_commit_request=commit_request,
-            )
-
-        call = router.workflows_service.commit_workflow_revision_checked.await_args
-        assert (
-            call.kwargs["workflow_revision_commit"].description == "release candidate"
-        )
-
-    async def test_the_unscoped_route_passes_no_scope(self, router, allow_access):
-        router.workflows_service.commit_workflow_revision_checked.return_value = (
-            CommitOutcome(revision=_revision(), status="committed")
-        )
-
-        with patch(
-            "oss.src.apis.fastapi.workflows.router.invalidate_cache", AsyncMock()
-        ):
-            await _commit(router)
-
-        call = router.workflows_service.commit_workflow_revision_checked.await_args
-        assert call.kwargs["scope_policy"] is None
-
-    async def test_it_refuses_a_full_data_commit(self, router, allow_access):
-        # A whole configuration carries every field the scope exists to protect, so the
-        # scoped route refuses the shape instead of filtering it. The agent's tool only
-        # ever sends a delta.
-        with pytest.raises(HTTPException) as caught:
-            await router.commit_agent_workflow_revision(
-                _request(),
-                workflow_revision_commit_request=_commit_request(),
-            )
-
-        assert caught.value.status_code == 422
-        assert caught.value.detail["code"] == "full_data_not_committable"
-        assert caught.value.detail["next_step"]
-        router.workflows_service.commit_workflow_revision_checked.assert_not_awaited()
-
-    async def test_the_unscoped_route_still_accepts_a_full_data_commit(
-        self, router, allow_access
-    ):
-        router.workflows_service.commit_workflow_revision_checked.return_value = (
-            CommitOutcome(revision=_revision(), status="committed")
-        )
-
-        with patch(
-            "oss.src.apis.fastapi.workflows.router.invalidate_cache", AsyncMock()
-        ):
-            response = await _commit(router)
-
-        assert response.status == "committed"
-
-    async def test_the_scoped_route_keeps_the_committed_side_effects(
-        self, router, allow_access
-    ):
-        # Same flow as the open route: the agent's commit must still evict the warm
-        # session and refresh the playground, or the run would keep the stale config.
-        router.workflows_service.commit_workflow_revision_checked.return_value = (
-            CommitOutcome(revision=_revision(), status="committed")
-        )
-
-        with patch(
-            "oss.src.apis.fastapi.workflows.router.invalidate_cache", AsyncMock()
-        ) as invalidate:
-            response = await router.commit_agent_workflow_revision(
-                _request(),
-                workflow_revision_commit_request=_delta_request(
-                    set={"parameters": {"agent": {"instructions": "hi"}}}
-                ),
-            )
-
-        assert response.count == 1
-        invalidate.assert_awaited_once()
+# The scoped agent route is deleted. Everything it guaranteed (the agent scope, the
+# full-data refusal, the dropped description, the commit side effects) is tested at the
+# handler boundary that replaced it, in `unit/tools/test_config_handlers.py`.
 
 
 class TestSideEffects:
