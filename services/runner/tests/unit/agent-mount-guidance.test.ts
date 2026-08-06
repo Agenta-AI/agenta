@@ -12,11 +12,16 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  agentMountAppendix,
   agentMountGuidance,
+  agentMountUnavailableAppendix,
   agentMountUnavailableGuidance,
-  claudeMountSystemPromptMeta,
-  combineAppendSystemPrompt,
 } from "../../src/engines/sandbox_agent/agent-mount-guidance.ts";
+import {
+  appendToSystemPrompt,
+  claudeSystemPromptMeta,
+  composeSystemPromptAppendix,
+} from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
 
 const MOUNT = "/home/sandbox/agenta/mounts/proj-1/sandbox-1-agent";
 
@@ -72,14 +77,14 @@ describe("the guidance for a mount that was ATTEMPTED and SKIPPED", () => {
 
 describe("the delivery channels carry either statement unchanged", () => {
   it("Claude takes it through the session-init meta", () => {
-    assert.deepEqual(claudeMountSystemPromptMeta(agentMountUnavailableGuidance()), {
+    assert.deepEqual(claudeSystemPromptMeta(agentMountUnavailableGuidance()), {
       systemPrompt: { append: agentMountUnavailableGuidance() },
     });
   });
 
   it("Pi appends it after the author's own prompt", () => {
     assert.equal(
-      combineAppendSystemPrompt("author text", agentMountUnavailableGuidance()),
+      appendToSystemPrompt("author text", agentMountUnavailableGuidance()),
       `author text\n\n${agentMountUnavailableGuidance()}`,
     );
   });

@@ -47,9 +47,10 @@ import {
   seedAgentReadme,
 } from "../engines/sandbox_agent/agent-mount.ts";
 import {
-  agentMountGuidance,
-  agentMountUnavailableGuidance,
+  agentMountAppendix,
+  agentMountUnavailableAppendix,
 } from "../engines/sandbox_agent/agent-mount-guidance.ts";
+import { composeSystemPromptAppendix } from "../engines/sandbox_agent/system-prompt-appendix.ts";
 import {
   isSubscriptionCodexRun,
   symlinkCodexSubscriptionAuthFile,
@@ -98,7 +99,9 @@ export async function activateAgentMountUnavailableGuidance(
   const plan = ctx.plan;
   if (!plan.isPi) return;
 
-  ctx.appendAgentMountGuidance(agentMountUnavailableGuidance());
+  ctx.appendAgentMountGuidance(
+    composeSystemPromptAppendix([agentMountUnavailableAppendix()]) ?? "",
+  );
 
   if (plan.isDaytona) {
     await uploadSystemPromptToSandbox(
@@ -150,7 +153,9 @@ export async function activateAgentMountGuidance(
   }
   if (!plan.isPi) return;
 
-  ctx.appendAgentMountGuidance(agentMountGuidance(mountedPath));
+  ctx.appendAgentMountGuidance(
+    composeSystemPromptAppendix([agentMountAppendix(mountedPath)]) ?? "",
+  );
 
   if (plan.isDaytona) {
     await uploadSystemPromptToSandbox(

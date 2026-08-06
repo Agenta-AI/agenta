@@ -92,12 +92,15 @@ import {
   seedAgentReadmeRemote,
 } from "./agent-mount.ts";
 import {
-  agentMountGuidance,
-  agentMountUnavailableGuidance,
-  claudeMountSystemPromptMeta,
-  combineAppendSystemPrompt,
-  type ClaudeSystemPromptMeta,
+  agentMountAppendix,
+  agentMountUnavailableAppendix,
 } from "./agent-mount-guidance.ts";
+import {
+  appendToSystemPrompt,
+  claudeSystemPromptMeta,
+  composeSystemPromptAppendix,
+  type ClaudeSystemPromptMeta,
+} from "./system-prompt-appendix.ts";
 import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
   describeCodexSubscriptionAuthFault,
@@ -334,7 +337,7 @@ export async function acquireEnvironment(
     log: logger,
     timingLog,
     remountLimit: LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT,
-    combineAppendSystemPrompt,
+    combineAppendSystemPrompt: appendToSystemPrompt,
     // Needs the raw daemon env map, which units must not see, so it is injected here.
     reprepareLocalPiAssets: () =>
       prepareLocalPiAssets({ plan, env, log: logger }).dir,
@@ -879,16 +882,22 @@ export async function acquireEnvironment(
     // session where the folder worked and only a statement in this turn can contradict it; a run
     // with no durable storage configured says nothing, so a permanently tunnel-less stack does not
     // carry the caveat as eternal noise.
-    const claudeSystemPromptMeta: ClaudeSystemPromptMeta | undefined =
-      plan.acpAgent !== "claude"
-        ? undefined
-        : environment.agentMountedPath
-          ? claudeMountSystemPromptMeta(
-              agentMountGuidance(environment.agentMountedPath),
-            )
-          : agentMountSkipped
-            ? claudeMountSystemPromptMeta(agentMountUnavailableGuidance())
-            : undefined;
+    // One ordered composition, so a contributor added later is placed here deliberately rather
+    // than appended by whichever call site happens to run last. The mount is the only contributor
+    // today; the delivery below is unchanged.
+    const claudeAppendix =
+      plan.acpAgent === "claude"
+        ? composeSystemPromptAppendix([
+            environment.agentMountedPath
+              ? agentMountAppendix(environment.agentMountedPath)
+              : agentMountSkipped
+                ? agentMountUnavailableAppendix()
+                : undefined,
+          ])
+        : undefined;
+    const claudeAppendixMeta: ClaudeSystemPromptMeta | undefined = claudeAppendix
+      ? claudeSystemPromptMeta(claudeAppendix)
+      : undefined;
     // Claude-only: request visible ("summarized") extended-thinking display so the model's
     // reasoning reaches the runner (and the playground). Without it, recent Claude models
     // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.
@@ -897,8 +906,8 @@ export async function acquireEnvironment(
     // Disjoint `_meta` keys (`systemPrompt` vs `claudeCode`), so a shallow merge keeps both.
     // A future second `claudeCode` producer would need a deep merge here.
     const claudeMeta =
-      claudeSystemPromptMeta || claudeThinking
-        ? { ...(claudeSystemPromptMeta ?? {}), ...(claudeThinking ?? {}) }
+      claudeAppendixMeta || claudeThinking
+        ? { ...(claudeAppendixMeta ?? {}), ...(claudeThinking ?? {}) }
         : undefined;
     const sessionInit = {
       cwd: plan.workspace.cwd,

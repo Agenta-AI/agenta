@@ -1,5 +1,9 @@
 /**
- * Platform system-prompt segment steering an agent to its durable agent mount.
+ * The durable-agent-mount contributor to the system-prompt appendix.
+ *
+ * This module owns ONE appendix paragraph and its wording. Composition, ordering and the Claude
+ * delivery shape live in `system-prompt-appendix.ts`, because they are not about mounts: other
+ * contributors are coming and the mount must not be their owner.
  *
  * Discovery problem: on a natural "remember this for next time" prompt, an agent has no way
  * to know its cwd is throwaway and `agent-files/` (the agent mount linked into the cwd by
@@ -29,6 +33,8 @@
  *    `{ type: "preset", preset: "claude_code", append }` system-prompt option — additive to
  *    the default Claude Code system prompt, so `CLAUDE.md` loading is unaffected.
  */
+
+import type { SystemPromptAppendix } from "./system-prompt-appendix.ts";
 
 export function agentMountGuidance(mountPath: string): string {
   return (
@@ -85,21 +91,15 @@ export function agentMountUnavailableGuidance(): string {
   );
 }
 
-/** Combine a request-supplied append-system-prompt with the platform segment (Pi). */
-export function combineAppendSystemPrompt(
-  existing: string | undefined,
-  segment: string,
-): string {
-  return existing ? `${existing}\n\n${segment}` : segment;
+/** The mount contributor for a run whose durable folder is live. */
+export function agentMountAppendix(mountPath: string): SystemPromptAppendix {
+  return { id: "agent-mount", text: agentMountGuidance(mountPath) };
 }
 
-/** The `_meta.systemPrompt` shape `claude-agent-acp` forwards into the Claude SDK's preset. */
-export interface ClaudeSystemPromptMeta {
-  systemPrompt: { append: string };
-}
-
-export function claudeMountSystemPromptMeta(
-  segment: string,
-): ClaudeSystemPromptMeta {
-  return { systemPrompt: { append: segment } };
+/** The mount contributor for a run whose durable folder was attempted and refused. */
+export function agentMountUnavailableAppendix(): SystemPromptAppendix {
+  return {
+    id: "agent-mount-unavailable",
+    text: agentMountUnavailableGuidance(),
+  };
 }
