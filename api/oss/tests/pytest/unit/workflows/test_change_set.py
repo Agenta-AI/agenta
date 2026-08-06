@@ -28,6 +28,9 @@ from oss.src.core.workflows.change_set import (
     item_key,
     nearest_lines,
     subtree_scope,
+    PLATFORM_GUIDANCE_START,
+    PLATFORM_GUIDANCE_END,
+    strip_platform_guidance,
 )
 
 
@@ -2988,3 +2991,183 @@ class TestTheNearMissSearchIsBounded:
         nearest_lines(text, "y" * 10_000)
 
         assert time.monotonic() - started < 2.0
+
+
+# --------------------------------------------------------------------------------------
+# The platform-guidance block (stripped, never refused)
+# --------------------------------------------------------------------------------------
+
+
+class TestThePlatformGuidanceBlock:
+    """The runner appends a fenced guidance block to the instructions file it renders.
+
+    The stored configuration never contains it. A model that copies the rendered file back
+    into a commit would store our own guidance as the user's configuration, so the engine
+    removes it. Removal is SILENT to the model on purpose: it did nothing wrong, and an
+    error it has to recover from costs a turn to teach it something it cannot act on.
+    """
+
+    BLOCK = (
+        f"{PLATFORM_GUIDANCE_START}\n"
+        "Commit configuration changes with the commit tool. Files you write in the\n"
+        "workspace are not your configuration.\n"
+        f"{PLATFORM_GUIDANCE_END}"
+    )
+
+    def test_the_fence_literals_match_the_runner(self):
+        # The runner writes these in
+        # `services/runner/src/engines/sandbox_agent/system-prompt-appendix.ts`. If either
+        # side changes the fence alone, the block stops being recognized and starts being
+        # stored as configuration. Pinning the literal here is what makes that a test
+        # failure instead of a silent regression.
+        assert PLATFORM_GUIDANCE_START == "<!-- agenta:platform-guidance:start -->"
+        assert PLATFORM_GUIDANCE_END == "<!-- agenta:platform-guidance:end -->"
+
+    def test_a_copied_back_file_stores_only_the_user_text(self):
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "value": f"Be concise.\n\n{self.BLOCK}\n",
+                }
+            ),
+            base_config(),
+        )
+
+        stored = result.data["parameters"]["agent"]["instructions"]["agents_md"]
+        assert stored == "Be concise."
+        assert PLATFORM_GUIDANCE_START not in stored
+
+    def test_the_strip_is_a_warning_and_never_a_refusal(self):
+        # The whole point: the commit succeeds. A refusal would make the model recover from
+        # something it could not have known about.
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "value": f"Be concise.\n\n{self.BLOCK}\n",
+                }
+            ),
+            base_config(),
+        )
+
+        codes = [w.code for w in result.warnings]
+        assert WarningCode.PLATFORM_GUIDANCE_STRIPPED in codes
+
+    def test_the_warning_names_the_field_it_was_stripped_from(self):
+        result = run(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["skills"],
+                    "value": {
+                        "name": "new-skill",
+                        "body": f"Do the thing.\n\n{self.BLOCK}",
+                    },
+                }
+            ),
+            base_config(),
+        )
+
+        warning = next(
+            w
+            for w in result.warnings
+            if w.code == WarningCode.PLATFORM_GUIDANCE_STRIPPED
+        )
+        assert "body" in warning.message
+
+    def test_it_is_stripped_from_a_value_nested_anywhere(self):
+        result = run(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["skills"],
+                    "value": {
+                        "name": "deep",
+                        "body": "clean",
+                        "files": [{"path": "a.md", "content": f"text\n\n{self.BLOCK}"}],
+                    },
+                }
+            ),
+            base_config(),
+        )
+
+        added = result.data["parameters"]["agent"]["skills"][-1]
+        assert added["files"][0]["content"] == "text"
+
+    def test_the_legacy_arm_strips_it_too(self):
+        # The arm a wholesale copy-back actually uses: the model sends the whole
+        # instructions object under `set`.
+        result = run(
+            {
+                "set": {
+                    "parameters": {
+                        "agent": {
+                            "instructions": {
+                                "agents_md": f"Be concise.\n\n{self.BLOCK}\n"
+                            }
+                        }
+                    }
+                }
+            },
+            base_config(),
+        )
+
+        stored = result.data["parameters"]["agent"]["instructions"]["agents_md"]
+        assert stored == "Be concise."
+        assert WarningCode.PLATFORM_GUIDANCE_STRIPPED in [
+            w.code for w in result.warnings
+        ]
+
+    # --- the delimiter edge cases ---
+
+    def test_an_unmatched_opening_fence_strips_to_the_end(self):
+        # Whatever follows an opener is guidance whose closer was lost, so keeping it would
+        # store the thing this rule exists to remove.
+        assert (
+            strip_platform_guidance(f"Keep me.\n\n{PLATFORM_GUIDANCE_START}\nlost")
+            == "Keep me."
+        )
+
+    def test_a_lone_closing_fence_is_left_as_plain_text(self):
+        # Inert without its opener. Deleting on the strength of it would let one stray line
+        # remove a user's own content.
+        text = f"Keep me.\n{PLATFORM_GUIDANCE_END}\nAnd me."
+        assert strip_platform_guidance(text) == text
+
+    def test_a_value_with_no_fence_is_returned_untouched(self):
+        # A no-op has to be a true no-op, trailing newline included, or every commit that
+        # never saw a block would still rewrite its own text.
+        assert strip_platform_guidance("Be concise.\n") == "Be concise.\n"
+
+    def test_two_blocks_are_both_removed(self):
+        text = f"A\n{self.BLOCK}\nB\n{self.BLOCK}\nC"
+        assert strip_platform_guidance(text) == "A\n\nB\n\nC"
+
+    def test_stripping_is_idempotent(self):
+        once = strip_platform_guidance(f"Be concise.\n\n{self.BLOCK}\n")
+        assert strip_platform_guidance(once) == once
+
+    def test_an_anchor_inside_a_stripped_region_simply_misses(self):
+        # No special case. The block is not in the stored text, so an `old_text` copied out
+        # of it fails the ordinary text_not_found path, which already tells the agent to
+        # copy the anchor from the configuration it read.
+        error = failure(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + [skill("release-qa"), "body"],
+                    "edits": [
+                        {
+                            "old_text": "Commit configuration changes with the commit tool.",
+                            "new_text": "x",
+                        }
+                    ],
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.TEXT_NOT_FOUND

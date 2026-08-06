@@ -35,6 +35,10 @@ __all__ = [
     "AGENT_COMMIT_SCOPE",
     "KEY_FIELDS",
     "FILE_MARKER",
+    "PLATFORM_GUIDANCE_START",
+    "PLATFORM_GUIDANCE_END",
+    "strip_platform_guidance",
+    "strip_guidance_from_data",
 ]
 
 
@@ -267,6 +271,7 @@ class WarningCode:
     LEGACY_DUPLICATE_KEY = "legacy_duplicate_key"
     LEGACY_DELTA_FORM = "legacy_delta_form"
     UNADDRESSABLE_EMBED = "unaddressable_embed"
+    PLATFORM_GUIDANCE_STRIPPED = "platform_guidance_stripped"
 
 
 # --------------------------------------------------------------------------------------
@@ -514,6 +519,127 @@ def _format_segment(segment: Segment) -> str:
     if isinstance(segment, dict):
         return f"{segment.get('list')}[{segment.get('key')!r}]"
     return repr(segment)
+
+
+# --------------------------------------------------------------------------------------
+# The platform-guidance block
+# --------------------------------------------------------------------------------------
+
+# The runner appends a fenced block of platform guidance to the instructions file it renders
+# into the agent's workspace. The stored configuration never contains it: it is injected at
+# render time, on every harness. These two literals are the contract with the runner's
+# `services/runner/src/engines/sandbox_agent/system-prompt-appendix.ts`, and a test pins them
+# so neither side can change the fence alone.
+PLATFORM_GUIDANCE_START = "<!-- agenta:platform-guidance:start -->"
+PLATFORM_GUIDANCE_END = "<!-- agenta:platform-guidance:end -->"
+
+
+def strip_platform_guidance(text: str) -> str:
+    """Remove every platform-guidance block from one string.
+
+    A model that copies the rendered instructions file back into a commit would otherwise
+    store our own guidance as the user's configuration. Removing it is deliberately SILENT
+    rather than a refusal: the model did nothing wrong, and an error it has to recover from
+    costs a turn to teach it something it cannot act on.
+
+    An unmatched opening fence strips to the end of the string, because whatever follows an
+    opener is guidance whose closer was lost. An unmatched CLOSING fence is left alone: it is
+    an inert comment without its opener, and deleting text on the strength of it would let a
+    stray line remove a user's own content.
+
+    The result is normalized so a stripped value does not carry the hole the block left: the
+    whitespace run at each junction collapses to one blank line, and trailing whitespace goes.
+    That makes the strip idempotent, so a value that has been through it once is stable.
+    """
+    if PLATFORM_GUIDANCE_START not in text:
+        return text
+
+    kept: List[str] = []
+    rest = text
+    while True:
+        head, opened, tail = rest.partition(PLATFORM_GUIDANCE_START)
+        kept.append(head)
+        if not opened:
+            break
+        _, closed, after = tail.partition(PLATFORM_GUIDANCE_END)
+        if not closed:
+            break
+        rest = after
+
+    result = ""
+    for piece in kept:
+        if not result:
+            result = piece
+            continue
+        left, right = result.rstrip(), piece.lstrip()
+        result = f"{left}\n\n{right}" if left and right else (left or right)
+    return result.rstrip()
+
+
+def strip_guidance_from_data(data: Any) -> Tuple[Any, List[Warning]]:
+    """Strip the guidance block from a whole configuration tree, outside the delta arms.
+
+    A full-data commit never reaches the engine, and a copied-back instructions file can
+    arrive that way as easily as through a delta. Same rule, same warnings, one entry point
+    for the wrapper.
+    """
+    warnings: List[Warning] = []
+    return _strip_guidance(data, warnings=warnings, path=[]), warnings
+
+
+def _strip_guidance(
+    value: Any,
+    *,
+    warnings: List[Warning],
+    path: List[str],
+    target: Optional[List[Segment]] = None,
+    operation_index: Optional[int] = None,
+) -> Any:
+    """Strip every string in ``value``, warning once per field that carried a block.
+
+    The warning names the field so the removal is visible in the response. Silent to the
+    MODEL is the point; silent to the human reading the result is not.
+    """
+    if isinstance(value, str):
+        stripped = strip_platform_guidance(value)
+        if stripped != value:
+            where = ".".join(path) if path else "the value"
+            warnings.append(
+                Warning(
+                    code=WarningCode.PLATFORM_GUIDANCE_STRIPPED,
+                    message=(
+                        f"Removed the platform guidance block from {where}. That block is "
+                        "added to your instructions file when it is rendered and is never "
+                        "part of your stored configuration."
+                    ),
+                    target=list(target) if target is not None else None,
+                    operation_index=operation_index,
+                )
+            )
+        return stripped
+    if isinstance(value, dict):
+        return {
+            key: _strip_guidance(
+                child,
+                warnings=warnings,
+                path=path + [str(key)],
+                target=target,
+                operation_index=operation_index,
+            )
+            for key, child in value.items()
+        }
+    if isinstance(value, list):
+        return [
+            _strip_guidance(
+                child,
+                warnings=warnings,
+                path=path + [str(index)],
+                target=target,
+                operation_index=operation_index,
+            )
+            for index, child in enumerate(value)
+        ]
+    return value
 
 
 # --------------------------------------------------------------------------------------
@@ -1158,7 +1284,13 @@ def _apply_operation(
         _validate_segment(segment, position)
 
     if verb in VALUE_BEARING:
-        value = _operation_value(operation)
+        value = _strip_guidance(
+            _operation_value(operation),
+            warnings=warnings,
+            path=[],
+            target=segments,
+            operation_index=index,
+        )
     elif "value" in operation:
         raise _Fail(Reason.INVALID_OPERATION_SHAPE, f"'{verb}' does not take a value")
     else:
@@ -1745,7 +1877,11 @@ def apply_change_set(
         # A copy, because `remove_path` mutates the result and `deep_merge` grafts the
         # patch's own sub-dicts into it. Without this the caller's delta is edited in
         # place, and the engine's promise that it touches nothing it was given is false.
-        patch = deepcopy(delta.get("set") or {})
+        patch = _strip_guidance(
+            deepcopy(delta.get("set") or {}),
+            warnings=warnings,
+            path=[],
+        )
         _reject_delta_markers(patch)
         _reject_legacy_bad_markers(patch)
         for name in ("tools", "skills", "mcps"):
