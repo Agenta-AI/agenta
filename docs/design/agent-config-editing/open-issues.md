@@ -255,3 +255,27 @@ reader can act on it cold.
 - The ask: take the arguments from the event that already carries them rather
   than racing for them, or make the wait a hard requirement that fails loudly
   instead of falling through with `undefined`.
+
+## Gateway and workflow tool failures carry no `next_step`
+
+- Found by: verify-runner's precision check on the envelope guarantee, 6 August
+  2026. Deferred out of the API migration by ruling, not by oversight.
+- The canonical agent-actionable envelope covers failures the platform authors.
+  Two arms of the tools router answer with an upstream's own shape instead: the
+  gateway/Composio arm (`api/oss/src/apis/fastapi/tools/router.py` around
+  1228-1241, content is `ToolExecutionResponse`) and the workflow-tool arm (same
+  file around 1428-1438, content is the workflow's `outputs`). Both now reach the
+  model as errors, since the runner's transport fix, and both carry the
+  upstream's reason. Neither carries `code`, `retryable` or `next_step`.
+- Why it was NOT converted in the migration: the content is a third-party shape,
+  and `next_step` semantics cannot be assigned to it generically without
+  inventing recovery advice the platform does not actually have. The migration
+  scoped ten steps and this is not one of them. The model already receives the
+  full failure reason, which is the thing that lets it correct a bad argument.
+- The open question is worth measuring rather than arguing: would a small model
+  recover from a Composio failure more reliably with a `next_step` than with the
+  upstream's raw reason? The v2 benchmark's Composio-failure recovery numbers
+  make or break the case. Convert only if they do.
+- Do not "simplify" a consumer's non-envelope error path away on the assumption
+  that every `STATUS_CODE_ERROR` carries an envelope. It does not, deliberately,
+  and that path is what delivers the upstream reason to the model.

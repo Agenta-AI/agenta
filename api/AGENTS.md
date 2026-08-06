@@ -240,6 +240,14 @@ handler-mode domain failures return HTTP 200 with `STATUS_CODE_ERROR` and the sa
 envelope in `ToolResult.content`. Core code raises typed exceptions; API and tool-handler
 boundaries select the transport.
 
+**Scope:** the envelope covers failures the PLATFORM authors. Third-party tool output
+passes through as-is, symmetrically on success and failure, so a gateway tool's own failure
+reason still reaches the model: that reason is what lets it correct a bad argument. On the
+`/tools/call` seam this means every platform HANDLER emits the envelope, while the gateway
+and workflow-tool arms carry their upstream's shape. Both arrive as errors. Do not read the
+rule as "every `STATUS_CODE_ERROR` carries an envelope", and do not delete a consumer's
+non-envelope path on that assumption.
+
 The distinction that is easy to get wrong: `retryable` is about replaying the SAME request
 unchanged, not about whether the caller has a way forward. A payload the caller must
 correct is `retryable: false` WITH a `next_step`. Marking it retryable tells a small model
