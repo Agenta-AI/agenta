@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, Optional, List
+from typing import Any, Literal, Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -414,7 +414,7 @@ class ReadConfigResponse(BaseModel):
     path: List[Any] = Field(default_factory=list)
     value: Any = None
     bytes: int = 0
-    warnings: Optional[List[Dict[str, Any]]] = None
+    warnings: Optional[List[CommitWarning]] = None
 
 
 class WorkflowRevisionResponse(BaseModel):
