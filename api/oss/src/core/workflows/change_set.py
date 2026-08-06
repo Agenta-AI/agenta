@@ -38,7 +38,6 @@ __all__ = [
     "PLATFORM_GUIDANCE_START",
     "PLATFORM_GUIDANCE_END",
     "strip_platform_guidance",
-    "strip_guidance_from_data",
 ]
 
 
@@ -613,17 +612,6 @@ def strip_platform_guidance(text: str) -> str:
         left, right = result.rstrip(), piece.lstrip()
         result = f"{left}\n\n{right}" if left and right else (left or right)
     return result.rstrip()
-
-
-def strip_guidance_from_data(data: Any) -> Tuple[Any, List[Warning]]:
-    """Strip the guidance block from a whole configuration tree, outside the delta arms.
-
-    A full-data commit never reaches the engine, and a copied-back instructions file can
-    arrive that way as easily as through a delta. Same rule, same warnings, one entry point
-    for the wrapper.
-    """
-    warnings: List[Warning] = []
-    return _strip_guidance(data, warnings=warnings, path=[]), warnings
 
 
 def _strip_guidance(

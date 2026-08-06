@@ -673,7 +673,7 @@ async def handle_read_config(
         ReadConfigResponse,
         ReadConfigRevision,
     )
-    from oss.src.core.workflows.read_config import ReadConfigError
+    from oss.src.core.workflows.read_config import ReadConfigError, draft_warning
 
     if workflows_service is None:
         raise PlatformToolHandlerRefused("read_config is unavailable.")
@@ -688,12 +688,20 @@ async def handle_read_config(
             workflow_variant_id=variant_id,
             path=target.get("path"),
             max_bytes=parsed.get("max_bytes"),
-            run_is_draft=target.get("run_is_draft"),
         )
     except ReadConfigError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
 
+    # Whether the RUN is a draft belongs to the run, not to the configuration, and not to
+    # the request either: it is bound server-side from run context, so an agent cannot
+    # assert it about itself. The read always answers from the stored head; on a draft run
+    # that is not what is executing, and the warning says so, which is what keeps the read
+    # and the commit agreeing (the commit applies to the head too).
+    run_is_draft = bool(target.get("run_is_draft"))
     revision = outcome.revision
+    warnings = list(outcome.warnings)
+    if run_is_draft:
+        warnings.append(draft_warning(getattr(revision, "version", None)))
     return PlatformHandlerResult(
         content=ReadConfigResponse(
             revision=ReadConfigRevision(
@@ -704,11 +712,11 @@ async def handle_read_config(
                 created_at=str(getattr(revision, "created_at", "") or "") or None,
             ),
             base_revision_id=str(revision.id),
-            is_draft=outcome.is_draft,
+            is_draft=run_is_draft,
             path=outcome.path,
             value=outcome.value,
             bytes=outcome.bytes,
-            warnings=outcome.warnings or None,
+            warnings=warnings or None,
         )
     )
 
