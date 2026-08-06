@@ -159,6 +159,14 @@ proves nothing about the durable working directory (LESSONS #16).
   (every other cell runs local). Needs a funded provider vault key (see the file's own docstring
   for the exact vault-secret shape and the `provider_key` slug gotcha). PASS confirms
   `DaytonaWorkspaceReader` and the placeholder-secrets flow live.
+- `resources/matrix_t8_saved_files.py` — **[coached]** T8: the Daytona remote agent mount (the
+  durable `agent-files/` folder the playground file drawer writes into), which needs the ngrok
+  tunnel the runner discovers at sandbox-acquire time. Writes a marker file into the mount via
+  the mounts API (`POST /mounts/agents/sign` + `PUT /mounts/{id}/files`) before the run, then
+  asserts the runner log line `remote agent mount active for artifact=<id>` appears, a tool
+  output actually carries the real marker content (not hallucinated), and the commit lands with
+  it. Verified PASS 3/3 runs after the tunnel-seat fix (2026-08-06); this line was absent on
+  every attempt before that fix landed.
 
 **Known verification gap, recorded rather than pretended away:** the cold-resume
 stale-approval-regate path (`shouldRegateStaleApproval`, acp-interactions.ts — a stored `allow`
