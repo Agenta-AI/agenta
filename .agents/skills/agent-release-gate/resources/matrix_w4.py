@@ -2,7 +2,12 @@
 # requires-python = ">=3.10"
 # dependencies = ["httpx>=0.27"]
 # ///
-"""W4: guards against the base-staleness check running only at gate time instead of execute
+"""TIER: coached (backend-path test). Both prompts name the exact tool, operation, and target
+path -- this proves the execute-time base check works, not that a model finds commit_revision
+from a plain-language ask. Do not cite for model one-shot-discovery claims; use a Tier B
+(mechanism-blind) cell for that.
+
+W4: guards against the base-staleness check running only at gate time instead of execute
 time -- session A raises its approval gate while holding base X, session B commits before A is
 approved (head moves past X), THEN A is approved. The EXECUTE-TIME check must catch the
 staleness and 409; a gate-time-only check would miss it and silently overwrite B's commit.
