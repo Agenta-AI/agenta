@@ -274,6 +274,54 @@ class TestTheScopedAgentRoute:
         call = router.workflows_service.commit_workflow_revision_checked.await_args
         assert call.kwargs["scope_policy"] is AGENT_COMMIT_SCOPE
 
+    async def test_it_never_stores_a_description_the_agent_sent(
+        self, router, allow_access
+    ):
+        # `description` on this route is the ephemeral per-call note, which shares its name
+        # with the persisted revision field and must not reach the audit trail
+        # (read-config.md 12.3). The runner strips it before dispatch, so one arriving here
+        # means the runner did not, and the persisted field would silently take it.
+        router.workflows_service.commit_workflow_revision_checked.return_value = (
+            CommitOutcome(revision=_revision(), status="committed")
+        )
+        commit_request = _delta_request(
+            set={"parameters": {"agent": {"instructions": "hi"}}}
+        )
+        commit_request.workflow_revision.description = "I made it friendlier"
+
+        with patch(
+            "oss.src.apis.fastapi.workflows.router.invalidate_cache", AsyncMock()
+        ):
+            await router.commit_agent_workflow_revision(
+                _request(),
+                workflow_revision_commit_request=commit_request,
+            )
+
+        call = router.workflows_service.commit_workflow_revision_checked.await_args
+        assert call.kwargs["workflow_revision_commit"].description is None
+
+    async def test_the_unscoped_route_keeps_a_description(self, router, allow_access):
+        # A human or the SDK setting the revision description is using the real field for
+        # what it is for. Only the agent route drops it.
+        router.workflows_service.commit_workflow_revision_checked.return_value = (
+            CommitOutcome(revision=_revision(), status="committed")
+        )
+        commit_request = _commit_request()
+        commit_request.workflow_revision.description = "release candidate"
+
+        with patch(
+            "oss.src.apis.fastapi.workflows.router.invalidate_cache", AsyncMock()
+        ):
+            await router.commit_workflow_revision(
+                _request(),
+                workflow_revision_commit_request=commit_request,
+            )
+
+        call = router.workflows_service.commit_workflow_revision_checked.await_args
+        assert (
+            call.kwargs["workflow_revision_commit"].description == "release candidate"
+        )
+
     async def test_the_unscoped_route_passes_no_scope(self, router, allow_access):
         router.workflows_service.commit_workflow_revision_checked.return_value = (
             CommitOutcome(revision=_revision(), status="committed")
