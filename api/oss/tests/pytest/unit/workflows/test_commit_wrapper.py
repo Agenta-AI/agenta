@@ -49,6 +49,23 @@ def ordered_on():
         yield
 
 
+@pytest.fixture
+def ordered_off():
+    """The flag pinned off, whatever the suite is run with.
+
+    Both flag states are run in CI, so a test about flag-off behavior has to say so rather
+    than inherit whichever value the run happens to carry.
+    """
+    from oss.src.core.workflows import service as service_module
+
+    with patch.object(
+        service_module.env.agenta.api.workflows,
+        "ordered_operations_enabled",
+        False,
+    ):
+        yield
+
+
 def _commit(**delta):
     """A commit as the request model would hand it over, `delta` keys included as sent."""
     from oss.src.apis.fastapi.workflows.models import WorkflowRevisionCommitRequest
@@ -58,6 +75,22 @@ def _commit(**delta):
             "workflow_revision": {
                 "workflow_variant_id": str(VARIANT_ID),
                 "base_revision_id": str(uuid4()),
+                "delta": delta,
+            }
+        }
+    )
+    return request.workflow_revision
+
+
+def _commit_on(base_revision_id, **delta):
+    """The same, with the base pinned to a known head so the base check passes."""
+    from oss.src.apis.fastapi.workflows.models import WorkflowRevisionCommitRequest
+
+    request = WorkflowRevisionCommitRequest.model_validate(
+        {
+            "workflow_revision": {
+                "workflow_variant_id": str(VARIANT_ID),
+                "base_revision_id": str(base_revision_id),
                 "delta": delta,
             }
         }
@@ -100,13 +133,37 @@ class TestDeltaForms:
 
         assert caught.value.reason == Reason.INVALID_DELTA
 
-    def test_an_unknown_delta_field_never_reaches_the_engine(self):
-        # The envelope is closed at the boundary now: a stray key used to be dropped by
-        # pydantic, so the caller believed the server had seen it.
+    def test_an_unknown_field_beside_operations_never_reaches_the_engine(
+        self, ordered_on
+    ):
+        # The ordered envelope is closed: a stray key there is a modifier the caller
+        # believes it sent and the server would never see.
         from pydantic import ValidationError
 
         with pytest.raises(ValidationError):
-            _commit(sett={"parameters": {}})
+            _commit(
+                operations=[
+                    {
+                        "operation": "set",
+                        "target": AGENT + ["instructions"],
+                        "value": "x",
+                    }
+                ],
+                match_mode="exact",
+            )
+
+    def test_a_legacy_delta_still_tolerates_an_unknown_field(self, service):
+        # Closing the envelope closed it for the legacy arm too, which rejected payloads
+        # that shipped playbooks send and that the server has always ignored. The stray key
+        # is dropped, and the `set` beside it applies exactly as before.
+        commit = _commit(
+            set={"parameters": {"agent": {"instructions": "new"}}},
+            sett={"parameters": {"agent": {"instructions": "typo"}}},
+        )
+
+        resolved, _, _ = _apply(service, {}, commit)
+
+        assert resolved["parameters"]["agent"]["instructions"] == "new"
 
     def test_the_legacy_form_still_deep_merges(self, service):
         base = {"parameters": {"agent": {"instructions": "old", "llm": {"model": "x"}}}}
@@ -130,6 +187,39 @@ class TestDeltaForms:
         )
 
         assert "llm" not in resolved["parameters"]["agent"]
+
+    def test_a_persisted_description_stays_out_of_the_derived_message(
+        self, service, ordered_on
+    ):
+        # `RevisionCommit.description` is a revision field a direct HTTP caller may set.
+        # The service used to feed it to the message derivation as if it were the agent's
+        # ephemeral per-call note, which copied the caller's description verbatim into the
+        # message beside itself. Live on the preview stack, that stored
+        # `set instructions (I renamed the tone to be friendlier)`.
+        from oss.src.apis.fastapi.workflows.models import WorkflowRevisionCommitRequest
+
+        commit = WorkflowRevisionCommitRequest.model_validate(
+            {
+                "workflow_revision": {
+                    "workflow_variant_id": str(VARIANT_ID),
+                    "base_revision_id": str(uuid4()),
+                    "description": "I renamed the tone to be friendlier",
+                    "delta": {
+                        "operations": [
+                            {
+                                "operation": "set",
+                                "target": AGENT + ["instructions"],
+                                "value": "be friendly",
+                            }
+                        ]
+                    },
+                }
+            }
+        ).workflow_revision
+
+        _, message, _ = _apply(service, {}, commit)
+
+        assert message == "set instructions"
 
     def test_the_legacy_form_keeps_the_caller_message(self, service):
         from oss.src.apis.fastapi.workflows.models import WorkflowRevisionCommitRequest
@@ -516,7 +606,7 @@ class TestNoChange:
             candidate=service._build_revision_commit(workflow_revision_commit=commit),
         )
 
-    async def test_a_full_data_commit_is_compared_too(self, service):
+    async def test_a_full_data_commit_is_compared_too(self, service, ordered_on):
         # It used to skip the comparison outright: the check was reached only through the
         # delta branch, so an identical full-data commit always created a revision.
         data = {"parameters": {"agent": {"instructions": "hi"}}}
@@ -560,7 +650,9 @@ class TestNoChange:
         assert outcome.status == "committed"
         assert outcome.revision is committed
 
-    async def test_a_delta_that_rewrites_the_same_value_writes_nothing(self, service):
+    async def test_a_delta_that_rewrites_the_same_value_writes_nothing(
+        self, service, ordered_on
+    ):
         # The end-to-end shape of the same rule: a `set` to the value already stored
         # produces the head's tree, so the commit is answered without a revision. This is
         # what a cornered model does to manufacture a success.
@@ -646,7 +738,7 @@ class TestNoChange:
         service.commit_workflow_revision.assert_not_awaited()
 
     async def test_a_current_base_on_a_full_data_commit_still_answers_no_change(
-        self, service
+        self, service, ordered_on
     ):
         # The check must not refuse a caller whose base IS the head. That caller is
         # correct, and its commit changes nothing.
@@ -695,3 +787,87 @@ class TestNoChange:
             stored=_stored(data=data, flags=flags),
             commit=commit,
         )
+
+
+class TestTheFlagOffCommitPath:
+    """With the flag off, a commit behaves exactly as it did before this project.
+
+    The no-change answer is part of the ordered-operations surface. Shipping it to every
+    caller would be a silent behavior change on the legacy arm: a caller that commits an
+    identical tree today gets a new revision back, reads its id, and points a deployment at
+    it. Answering `no_change` instead hands it the OLD revision, which is a different
+    revision than the one it just asked to create.
+    """
+
+    @staticmethod
+    def _identical(service, data):
+        stored = _stored(
+            data=data,
+            flags=service._build_revision_commit(
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    workflow_variant_id=VARIANT_ID,
+                    data=data,
+                )
+            ).flags,
+        )
+        committed = _head(uuid4(), data=data)
+        service.fetch_workflow_revision = AsyncMock(
+            return_value=_head(stored.id, data=data)
+        )
+        service.workflows_dao.fetch_revision.return_value = stored
+        service.commit_workflow_revision = AsyncMock(return_value=committed)
+        return stored, committed
+
+    async def test_a_legacy_no_op_set_still_creates_a_revision(
+        self, service, ordered_off
+    ):
+        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        stored, committed = self._identical(service, data)
+
+        outcome = await service.commit_workflow_revision_checked(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=_commit_on(stored.id, set=data),
+        )
+
+        assert outcome.status == "committed"
+        assert outcome.revision is committed
+        assert "no_change" not in [w.code for w in outcome.warnings]
+        service.commit_workflow_revision.assert_awaited_once()
+
+    async def test_an_identical_full_data_commit_still_creates_a_revision(
+        self, service, ordered_off
+    ):
+        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        stored, committed = self._identical(service, data)
+
+        outcome = await service.commit_workflow_revision_checked(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=WorkflowRevisionCommit(
+                workflow_variant_id=VARIANT_ID,
+                data=data,
+                base_revision_id=stored.id,
+            ),
+        )
+
+        assert outcome.status == "committed"
+        assert outcome.revision is committed
+        service.commit_workflow_revision.assert_awaited_once()
+
+    async def test_the_same_legacy_no_op_writes_nothing_once_the_flag_is_on(
+        self, service, ordered_on
+    ):
+        # The other side of the gate, on the identical payload: the flag is the only
+        # difference between this test and the first one in this class.
+        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        stored, _ = self._identical(service, data)
+
+        outcome = await service.commit_workflow_revision_checked(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflow_revision_commit=_commit_on(stored.id, set=data),
+        )
+
+        assert outcome.status == "no_change"
+        service.commit_workflow_revision.assert_not_awaited()

@@ -1992,6 +1992,11 @@ class WorkflowsService:
 
         warnings: List[CommitWarning] = []
         head: Optional[WorkflowRevision] = None
+        # Read before the delta arm rebinds the commit, which clears `delta`.
+        is_ordered = (
+            workflow_revision_commit.delta is not None
+            and workflow_revision_commit.delta.operations is not None
+        )
         if workflow_revision_commit.delta is not None:
             resolution = await self._resolve_revision_delta(
                 project_id=project_id,
@@ -2028,7 +2033,15 @@ class WorkflowsService:
             workflow_revision_commit=workflow_revision_commit,
         )
 
-        if await self._is_no_change(
+        # The no-change answer belongs to the ordered-operations surface. With the flag off
+        # the commit path stays exactly today's: a legacy delta or a full-data commit that
+        # produces the stored configuration still creates a revision, because callers in
+        # the field read that new revision back and count on it existing.
+        answers_no_change = (
+            is_ordered or env.agenta.api.workflows.ordered_operations_enabled
+        )
+
+        if answers_no_change and await self._is_no_change(
             project_id=project_id,
             head=head,
             candidate=candidate,
@@ -2416,10 +2429,7 @@ class WorkflowsService:
             )
 
         message = (
-            derive_commit_message(
-                operations,
-                description=workflow_revision_commit.description,
-            )
+            derive_commit_message(operations)
             if is_ordered
             else workflow_revision_commit.message
         )
