@@ -276,7 +276,10 @@ ever reaches the stream. An empty ledger FAILS a cell; missing evidence is not e
   a control, so a failure isolates the runner rather than blaming the model; when the control also
   fails it reports INCONCLUSIVE instead of a confident wrong verdict. It asserts the edit, never
   the route, so it stays meaningful if the facet is ever made live again. **Failed 2026-08-06
-  (claude/local) and now passes** — see the finding note below.
+  (claude/local) and now passes** — see the finding note below. Extended 2026-08-06 (overnight
+  gate run) to all three harnesses in one invocation (`--only <harness>` for a single leg) —
+  this MANDATORY blocker cell had only ever run on claude; codex and pi_core were a named gap.
+  Verified PASS on all three the same night the harness matrix landed.
 - `resources/matrix_l4_client_tool_lifecycle.py` — **nice-to-have. [coached]** the client-tool
   round trip, and the only cell that covers client tools at all. Asserts the browser's result
   reaches the model and the `client_tool` interaction is stored. It RECORDS rather than asserts

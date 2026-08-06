@@ -48,9 +48,17 @@ problem, and saying so is more useful than a confident wrong verdict.
 The probe never mentions the passphrase before the edit, so a stale answer cannot be conversational
 stickiness -- the continued session has no reason to know the word at all.
 
-  uv run matrix_l5_live_route_observed.py
+PER-HARNESS (added 2026-08-06): this cell originally ran on Claude only -- the same
+scenario-coverage gap that let the Codex approve-then-fail P0 ship (see
+matrix_w7_per_harness.py). This blocker cell now runs on all three harnesses in one invocation.
+claude uses subscription auth; codex and pi_core need a funded OpenAI `provider_key` vault
+secret and SKIP with the exact reason when it's missing or ambiguous.
+
+  uv run matrix_l5_live_route_observed.py           # all three harnesses
+  uv run matrix_l5_live_route_observed.py --only codex
 """
 
+import argparse
 import json
 import pathlib
 import sys
@@ -58,7 +66,6 @@ import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from qa_matrix_lib import (  # noqa: E402
-    agent_config,
     archive,
     create_workflow,
     invoke,
@@ -68,15 +75,63 @@ from qa_matrix_lib import (  # noqa: E402
     user_msg,
 )
 
+HARNESSES = {
+    "claude": {
+        "kind": "claude",
+        "model": "haiku",
+        "provider": "anthropic",
+        "connection": {"mode": "self_managed", "slug": None},
+    },
+    "codex": {
+        "kind": "codex",
+        "model": "gpt-5.6-luna",
+        "provider": "openai",
+        "connection": {"mode": "agenta", "slug": None},
+    },
+    "pi_core": {
+        "kind": "pi_core",
+        "model": "gpt-5.6-luna",
+        "provider": "openai",
+        "connection": {"mode": "agenta", "slug": None},
+    },
+}
 
-def l5():
+MISSING_CREDENTIAL_MARKERS = (
+    "connection",
+    "not found for provider",
+    "no connections",
+    "multiple connections",
+    "requires a mounted subscription",
+    "credential",
+)
+
+
+def harness_agent_config(spec: dict, instructions: str) -> dict:
+    return {
+        "instructions": {"agents_md": instructions},
+        "llm": {
+            "model": spec["model"],
+            "provider": spec["provider"],
+            "connection": spec["connection"],
+            "extras": {},
+        },
+        "tools": [],
+        "mcps": [],
+        "skills": [],
+        "harness": {"kind": spec["kind"]},
+        "sandbox": {"kind": "local"},
+    }
+
+
+def l5_for(harness_name: str) -> dict:
+    spec = HARNESSES[harness_name]
     hexid = uuid.uuid4().hex[:8]
-    wf, var = create_workflow(hexid, "qa-l5")
+    wf, var = create_workflow(hexid, f"qa-l5-{harness_name}")
     try:
         secret = f"ZEBRA{uuid.uuid4().hex[:6].upper()}"
         # The baseline says NOTHING about a passphrase, so the warm session cannot know the word
         # from anywhere except the refreshed instructions.
-        cfg = agent_config(instructions="Be terse.")
+        cfg = harness_agent_config(spec, "Be terse.")
         rev_id, _ = seed_and_baseline(wf, var, cfg, hexid)
         base_params = {"agent": cfg}
         references = refs(wf, var, rev_id)
@@ -85,9 +140,15 @@ def l5():
         msgs = [user_msg("Reply with exactly: ONE")]
         t1 = invoke(session_id, msgs, base_params, references, log=False)
         if t1.errors:
+            why = "; ".join(t1.errors[:1])
+            if any(m in why.lower() for m in MISSING_CREDENTIAL_MARKERS):
+                return {
+                    "status": "SKIP",
+                    "why": f"missing credential for harness={harness_name}: {why}",
+                }
             return {
                 "status": "FAIL",
-                "why": f"turn 1 errored: {t1.errors[:1]}",
+                "why": f"turn 1 errored: {why}",
                 "workflow_id": wf,
             }
 
@@ -166,12 +227,47 @@ def l5():
                 "that makes the edit take effect"
             ),
         }
+    except Exception as e:  # noqa: BLE001 -- classify infra errors as SKIP, never crash the matrix
+        msg = str(e)
+        if any(m in msg.lower() for m in MISSING_CREDENTIAL_MARKERS):
+            return {
+                "status": "SKIP",
+                "why": f"missing credential for harness={harness_name}: {msg}",
+            }
+        return {
+            "status": "FAIL",
+            "why": f"unhandled exception: {type(e).__name__}: {msg}",
+        }
     finally:
         archive(wf)
 
 
+def main() -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "--only",
+        choices=list(HARNESSES),
+        help="run a single harness instead of the full matrix",
+    )
+    args = p.parse_args()
+    harness_names = [args.only] if args.only else list(HARNESSES)
+
+    results = {}
+    for harness_name in harness_names:
+        print(f"\n=== L5 x {harness_name} ===", file=sys.stderr)
+        results[harness_name] = l5_for(harness_name)
+
+    print("\n=== L5-PER-HARNESS RESULTS ===")
+    print(json.dumps(results, indent=2, default=str))
+
+    any_fail = any(r["status"] == "FAIL" for r in results.values())
+    skipped = [h for h, r in results.items() if r["status"] == "SKIP"]
+    if skipped:
+        print(
+            f"\nSKIPPED (untested, not passed): {', '.join(skipped)}", file=sys.stderr
+        )
+    return 1 if any_fail else 0
+
+
 if __name__ == "__main__":
-    r = l5()
-    print("\n=== L5 RESULT ===")
-    print(json.dumps(r, indent=2, default=str))
-    sys.exit(0 if r["status"] == "PASS" else 1)
+    raise SystemExit(main())
