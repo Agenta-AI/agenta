@@ -445,7 +445,12 @@ class WorkflowsService:
                     }
                 )
 
-        if revision.version == "0":
+        # The empty placeholder a variant is seeded with has nothing to merge onto, and
+        # merging would give it flags it was never configured with. A first revision that
+        # CARRIES content is a configured revision that happens to be version 0, so it
+        # reads like any other: without the merge it would lose the artifact-owned flags
+        # and drop out of every flag-filtered listing.
+        if revision.version == "0" and revision.data is None and revision.flags is None:
             return revision
 
         # Callers fanning out over many revisions pass the workflow already

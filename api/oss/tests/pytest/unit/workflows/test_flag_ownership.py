@@ -523,3 +523,63 @@ async def test_edit_workflow_refreshes_artifact_cache(monkeypatch):
     assert set_cache.await_args.kwargs["project_id"] == str(project_id)
     assert set_cache.await_args.kwargs["key"] == str(workflow_id)
     assert set_cache.await_args.kwargs["value"] == workflow
+
+
+class TestTheVersionZeroReadPath:
+    """Version 0 is the empty placeholder, and only the empty one skips the merge.
+
+    A first commit that carries content now STORES that content (the DAO's version-0 rule
+    used to null it). Such a revision is version 0 and configured, so it has to read like
+    any other: skipping the merge would strip the artifact-owned flags and drop the
+    variant out of every flag-filtered listing.
+    """
+
+    @staticmethod
+    def _service(revision):
+        workflows_dao = AsyncMock()
+        workflows_dao.fetch_revision.return_value = revision
+        workflows_dao.fetch_artifact.return_value = Workflow(
+            id=revision.workflow_id,
+            slug="wf",
+            flags=WorkflowArtifactFlags(is_application=True),
+        )
+        return WorkflowsService(workflows_dao=workflows_dao)
+
+    @staticmethod
+    def _revision(**kwargs):
+        return WorkflowRevision(
+            id=uuid4(),
+            workflow_id=uuid4(),
+            workflow_variant_id=uuid4(),
+            slug="rev",
+            version="0",
+            **kwargs,
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_first_revision_with_data_keeps_the_artifact_flags(self):
+        revision = self._revision(
+            data=WorkflowRevisionData(uri="agenta:builtin:completion:v0"),
+            flags=WorkflowRevisionFlags(is_custom=True),
+        )
+
+        read = await self._service(revision).fetch_workflow_revision(
+            project_id=uuid4(),
+            workflow_variant_ref=Reference(id=revision.workflow_variant_id),
+        )
+
+        assert read.flags.is_application is True, (
+            "a configured version-0 revision lost its artifact flags"
+        )
+        assert read.flags.is_custom is True
+
+    @pytest.mark.asyncio
+    async def test_the_empty_placeholder_is_left_unmerged(self):
+        revision = self._revision()
+
+        read = await self._service(revision).fetch_workflow_revision(
+            project_id=uuid4(),
+            workflow_variant_ref=Reference(id=revision.workflow_variant_id),
+        )
+
+        assert read.flags is None, "the seed is not configured and carries no flags"
