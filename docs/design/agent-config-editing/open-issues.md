@@ -279,3 +279,32 @@ reader can act on it cold.
 - Do not "simplify" a consumer's non-envelope error path away on the assumption
   that every `STATUS_CODE_ERROR` carries an envelope. It does not, deliberately,
   and that path is what delivers the upstream reason to the model.
+
+## The marker caps are removed; the approval card collapses instead
+
+- Ruled by Mahmoud, 6 August 2026, on US-3. Recorded here so the removal is a
+  decision rather than a surprise when it lands.
+- What the code actually has, because the two numbers are different mechanisms
+  and only one of them is a marker cap. `MAX_MARKERS_PER_CALL = 8` in
+  `services/runner/src/tools/commit-authorization.ts` is the cap the ruling is
+  about: it refuses a commit referencing more than eight files. The "32 per turn"
+  is `DEFAULT_MAX_TURN_ENTRIES = 32` in
+  `services/runner/src/tools/frozen-value-store.ts`, which bounds how many frozen
+  values a turn may hold. That is a store capacity, protecting memory and value
+  lifetime, not approval-card readability.
+- The readability cap exists to keep an approval card legible, not to bound work:
+  the byte bounds are what protect the server.
+- The ruling: the 8-per-call CAP GOES. A legitimate change can touch more than eight files,
+  and a refusal that says "the limit is 8" asks the agent to split a coherent
+  change into arbitrary pieces, each needing its own approval. The readability
+  problem belongs to the card, so the card collapses a many-file change (a
+  summary line the human expands) instead of the server refusing it.
+- Byte bounds STAY. They are the real resource protection and are unaffected.
+- The frozen-value store's 32-entry turn capacity is NOT obviously in scope and
+  should be decided separately: removing it trades memory rather than
+  readability, and a turn that freezes unbounded values is a different risk from
+  a card that lists too many rows.
+- Sequencing: this is flag-on surface, so it is queued POST-RELEASE. Do not
+  remove the caps while the approval card still renders one row per file, or the
+  first large commit produces a card no human can read, which is the failure the
+  caps were standing in for.
