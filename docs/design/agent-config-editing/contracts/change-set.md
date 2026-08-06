@@ -834,6 +834,11 @@ agent still needs to be told to flatten the value.
 `api/AGENTS.md` states the rule for the whole API, and handler-mode failures carry this
 same object in `ToolResult.content` with `STATUS_CODE_ERROR` over HTTP 200.
 
+The scope is failures the platform authors. A gateway or workflow tool's failure carries
+its upstream's own shape instead, which is deliberate: that shape holds the reason the
+model needs to fix its call, and it is the same shape the model already receives when the
+call succeeds. So an error status on that seam does not imply an envelope.
+
 ### 12.3 Every retryable error names the next action
 
 `next_step` is one sentence in the imperative. It is not optional, and it is not a
