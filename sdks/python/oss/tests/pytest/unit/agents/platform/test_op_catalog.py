@@ -393,7 +393,10 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
         [PlatformToolConfig(op="commit_revision")]
     )
     spec = resolution.tool_specs[0]
-    assert spec.call.path == "/api/workflows/revisions/commit"
+    # The SCOPED sibling route, never the open one. The confinement to `parameters.agent`
+    # lives on that route, and this path is where the agent's write scope is decided: the
+    # model cannot ask for a different one, because the path comes from this catalog.
+    assert spec.call.path == "/api/workflows/revisions/commit/agent"
     # The context binding rides as call.context — the runner fills it from runContext at dispatch.
     assert spec.call.context == {
         "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
