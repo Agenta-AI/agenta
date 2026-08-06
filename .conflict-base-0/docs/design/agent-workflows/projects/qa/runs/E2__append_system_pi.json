@@ -1,0 +1,55 @@
+{
+  "id": "append_system_pi",
+  "group": "f001",
+  "capability": "pi append_system override",
+  "env_label": "E2",
+  "sandbox": "local",
+  "harness": "pi",
+  "model": "gpt-4o-mini",
+  "ts": "2026-06-20T11:01:10.888123+00:00",
+  "request": {
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": "Say hello in one short sentence."
+          }
+        ]
+      },
+      "parameters": {
+        "agent": {
+          "harness": "pi",
+          "sandbox": "local",
+          "model": "gpt-4o-mini",
+          "agents_md": "Be brief.",
+          "harness_options": {
+            "pi": {
+              "append_system": "Always end every reply with the exact token ZK-9-END."
+            }
+          }
+        }
+      }
+    }
+  },
+  "http_status": 200,
+  "response": {
+    "span_id": "d48a949cd48ef3b3",
+    "trace_id": "adbd5d07a4ed4e0b2da2f6076ae5e512",
+    "version": "2025.07.14",
+    "status": {
+      "code": 200,
+      "message": "Success"
+    },
+    "data": {
+      "outputs": {
+        "role": "assistant",
+        "content": "Hello! How can I assist you today?"
+      }
+    }
+  },
+  "reply": "Hello! How can I assist you today?",
+  "status_message": "Success",
+  "passed": false,
+  "expect": "reply contains ZK-9-END (F-001: dropped on sandbox-agent, works in-process)"
+}

@@ -1,0 +1,265 @@
+---
+title: Error Reference
+sidebar_label: "Error Reference"
+description: Reference for all workflow and SDK error codes returned by Agenta, with descriptions and troubleshooting steps.
+---
+
+# Error Reference
+
+When running workflows (completions, chat, evaluators, or custom workflows), Agenta returns structured errors with a `type` URL, a `code`, and a human-readable `message`. This page documents all error types.
+
+## Error response format
+
+Error responses include:
+
+```json
+{
+  "status": {
+    "code": 400,
+    "message": "Human-readable description of the error.",
+    "type": "https://agenta.ai/docs/misc/errors#v0:schemas:invalid-secrets"
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `code` | HTTP status code (e.g., 400, 500) |
+| `message` | A human-readable description of what went wrong |
+| `type` | A URL pointing to the relevant section on this page |
+
+---
+
+## Schema errors
+
+These errors occur when the request payload doesn't match expected schemas — wrong types, missing fields, or invalid values.
+
+### Invalid secrets {#v0:schemas:invalid-secrets}
+
+**Code:** `400`
+
+The API key or provider credentials needed to call the LLM are missing or invalid.
+
+**Common causes:**
+- No API key configured for the model you're trying to use.
+- The secrets/credentials provided are the wrong type.
+
+**How to fix:**
+- Go to **Settings > Providers & Models** and add the API key for your provider (OpenAI, Anthropic, etc.).
+- If using the SDK programmatically, ensure secrets are correctly passed via the vault or environment variables.
+
+---
+
+### Missing secret {#v0:schemas:missing-secret}
+
+**Code:** `400`
+
+A specific secret path that was expected is not present.
+
+**How to fix:**
+- Verify the required secret exists in your vault configuration.
+
+---
+
+### Invalid parameters {#v0:schemas:invalid-parameters}
+
+**Code:** `400`
+
+The `parameters` object in the request body is invalid (e.g., wrong type).
+
+**How to fix:**
+- Ensure `parameters` is a JSON object (dict) containing at least a `prompt` key.
+
+---
+
+### Missing parameter {#v0:schemas:missing-parameter}
+
+**Code:** `400`
+
+A required configuration parameter is missing from the request.
+
+**How to fix:**
+- Check the error message for which parameter is missing (e.g., `prompt`) and include it in your request.
+
+---
+
+### Invalid parameter {#v0:schemas:invalid-parameter}
+
+**Code:** `400`
+
+A specific configuration parameter has an invalid type or value.
+
+**How to fix:**
+- Check the error message for the parameter path, expected type, and the value you provided.
+
+---
+
+### Invalid inputs {#v0:schemas:invalid-inputs}
+
+**Code:** `400`
+
+The set of input keys provided doesn't match the set of input keys expected by the prompt template.
+
+**How to fix:**
+- Check your prompt template for `{{variable}}` placeholders and ensure the `inputs` object contains exactly those keys.
+
+---
+
+### Missing input {#v0:schemas:missing-input}
+
+**Code:** `400`
+
+A specific input key required by the prompt template is missing.
+
+**How to fix:**
+- Add the missing key to your `inputs` object.
+
+---
+
+### Invalid input {#v0:schemas:invalid-input}
+
+**Code:** `400`
+
+A specific input value has an invalid type.
+
+**How to fix:**
+- Ensure all input values are strings.
+
+---
+
+### Invalid outputs {#v0:schemas:invalid-outputs}
+
+**Code:** `400`
+
+The outputs provided (for evaluators) are of an unexpected type.
+
+**How to fix:**
+- Ensure outputs are either a string or a dict.
+
+---
+
+### Missing output {#v0:schemas:missing-output}
+
+**Code:** `400`
+
+A required output field is missing.
+
+---
+
+## Interface errors
+
+### Invalid URI {#v0:interface:invalid-uri}
+
+**Code:** `400`
+
+The workflow interface URI is not recognized.
+
+**How to fix:**
+- Ensure you're using a valid interface URI from the registry.
+
+---
+
+## Workflow errors
+
+These errors occur during the execution of built-in or custom workflows.
+
+### Prompt formatting error {#v0:workflows:prompt-formatting-error}
+
+**Code:** `400`
+
+The prompt template could not be formatted with the provided inputs.
+
+**Common causes:**
+- Template syntax errors (mismatched braces, invalid Jinja2).
+- Input values that cause formatting failures.
+
+---
+
+### Regex pattern error {#v0:workflows:regex-pattern-error}
+
+**Code:** `400`
+
+An invalid regular expression pattern was provided to a regex-based evaluator.
+
+**How to fix:**
+- Verify your regex pattern is valid.
+
+---
+
+### Prompt completion error {#v0:workflows:prompt-completion-error}
+
+**Code:** `500`
+
+The LLM call failed during prompt completion.
+
+**Common causes:**
+- The LLM provider returned an error (rate limit, server error, invalid request).
+- Network connectivity issues to the provider.
+
+---
+
+### JSON diff error {#v0:workflows:json-diff-error}
+
+**Code:** `500`
+
+The JSON diff evaluator encountered an error while comparing outputs.
+
+---
+
+### Levenshtein distance error {#v0:workflows:levenshtein-distance-error}
+
+**Code:** `500`
+
+The Levenshtein distance evaluator encountered an error.
+
+---
+
+### Syntactic similarity error {#v0:workflows:syntactic-similarity-error}
+
+**Code:** `500`
+
+The syntactic similarity evaluator encountered an error.
+
+---
+
+### Semantic similarity error {#v0:workflows:semantic-similarity-error}
+
+**Code:** `500`
+
+The semantic similarity evaluator encountered an error.
+
+---
+
+### Custom webhook server error {#v0:workflows:custom-hook-server-error}
+
+**Code:** `500`
+
+The external webhook server returned an error when called by a custom evaluator.
+
+**How to fix:**
+- Check the logs of your webhook server.
+- Verify the webhook URL is correct and reachable.
+
+---
+
+### Custom webhook client error {#v0:workflows:custom-hook-client-error}
+
+**Code:** `500`
+
+The SDK failed to reach the external webhook server.
+
+**Common causes:**
+- Network connectivity issues.
+- Invalid webhook URL.
+- Webhook server is down.
+
+---
+
+### Custom code server error {#v0:workflows:custom-code-server-error}
+
+**Code:** `500`
+
+A custom code evaluator raised an exception during execution.
+
+**How to fix:**
+- Check the error message and stacktrace for details about the failure in your custom code.

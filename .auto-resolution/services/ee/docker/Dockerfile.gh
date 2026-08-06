@@ -1,0 +1,78 @@
+ARG UV_VERSION=0.11.14
+FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
+
+FROM python:3.13-slim-trixie AS builder
+
+ARG UV_VERSION
+
+WORKDIR /app
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=0 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy
+
+COPY --from=uv /uv /uvx /bin/
+
+# Build context is `application/` so `uv sync` can resolve the local-path source
+# `agenta = { path = "../sdks/python", editable = true }` declared in services/pyproject.toml.
+COPY ./services/pyproject.toml ./services/uv.lock* /app/
+COPY ./sdks/python /sdks/python/
+COPY ./clients/python /clients/python/
+
+# Install full deps (including the editable local SDK + client) in one pass,
+# then strip heavy unused transitives.
+# Merged into one layer so stripped files don't persist in a previous layer.
+# Stripped:
+# - hf_xet: transitive, never imported
+# - shapely: transitive from google-cloud-aiplatform, never used
+# Kept: litellm + provider SDKs (google-cloud-aiplatform, boto3, openai) — litellm
+#   dynamically imports these at runtime to route calls to different LLM providers
+# Kept: newrelic — used for observability
+RUN --mount=type=cache,id=pip-services,target=/root/.cache/pip \
+    --mount=type=cache,id=uv-services,target=/root/.cache/uv \
+    UV_HTTP_TIMEOUT=300 uv sync --locked --no-dev \
+    && SITE=$(/opt/venv/bin/python -c 'import site; print(site.getsitepackages()[0])') \
+    && rm -rf \
+        ${SITE}/hf_xet* \
+        ${SITE}/shapely* \
+    && find /opt/venv -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true
+
+# Copy app code last (changes more frequently)
+COPY ./services/oss /app/oss/
+COPY ./services/entrypoints /app/entrypoints/
+
+
+FROM python:3.13-slim-trixie AS runner
+
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION=0.0.0
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/sdks/python:/clients/python \
+    PATH="/opt/venv/bin:${PATH}"
+
+RUN groupadd --gid 10001 agenta && \
+    useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta
+
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=agenta:agenta --from=builder /app/oss /app/oss
+COPY --chown=agenta:agenta --from=builder /app/entrypoints /app/entrypoints
+COPY --chown=agenta:agenta --from=builder /sdks/python /sdks/python
+COPY --chown=agenta:agenta --from=builder /clients/python /clients/python
+
+USER 10001
+
+LABEL org.opencontainers.image.title="agenta-services-ee" \
+    org.opencontainers.image.description="Agenta Services EE GH runtime image" \
+    org.opencontainers.image.version="${VERSION}" \
+    org.opencontainers.image.revision="${VCS_REF}" \
+    org.opencontainers.image.created="${BUILD_DATE}"
+
+EXPOSE 8080

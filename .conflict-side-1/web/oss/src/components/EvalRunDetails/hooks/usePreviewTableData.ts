@@ -1,0 +1,38 @@
+import {useMemo} from "react"
+
+import {useAtomValue} from "jotai"
+
+import {
+    evaluationEvaluatorsByRunQueryAtomFamily,
+    evaluationRunQueryAtomFamily,
+    tableColumnsAtomFamily,
+} from "../atoms/table"
+import type {EvaluationTableColumnsResult} from "../atoms/table"
+
+export interface PreviewTableData {
+    // Non-optional: tableColumnsAtomFamily always yields a result (buildDefaultResult fallback).
+    columnResult: EvaluationTableColumnsResult
+    // The expression below short-circuits to `undefined` when `runQuery.data` is absent, so
+    // the runtime value is `boolean | undefined` (used only in boolean position by consumers).
+    // Typed to match actual behavior rather than coercing the value.
+    columnsPending: boolean | undefined
+}
+
+export const usePreviewTableData = ({runId}: {runId: string}): PreviewTableData => {
+    const columnsAtom = useMemo(() => tableColumnsAtomFamily(runId), [runId])
+
+    const columnsResult = useAtomValue(columnsAtom)
+    const runQuery = useAtomValue(useMemo(() => evaluationRunQueryAtomFamily(runId), [runId]))
+    const evaluatorQuery = useAtomValue(
+        useMemo(() => evaluationEvaluatorsByRunQueryAtomFamily(runId), [runId]),
+    )
+
+    return {
+        columnResult: columnsResult,
+        columnsPending:
+            (runQuery.isPending && !runQuery.data) ||
+            (runQuery.data && evaluatorQuery.isPending && !evaluatorQuery.data),
+    }
+}
+
+export default usePreviewTableData

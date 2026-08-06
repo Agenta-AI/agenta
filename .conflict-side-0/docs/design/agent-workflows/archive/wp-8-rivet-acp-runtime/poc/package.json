@@ -1,0 +1,14 @@
+{
+  "name": "wp8-rivet-spike",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.79.4",
+    "pi-acp": "0.0.29",
+    "sandbox-agent": "0.4.2"
+  },
+  "devDependencies": {
+    "tsx": "4.19.2"
+  }
+}

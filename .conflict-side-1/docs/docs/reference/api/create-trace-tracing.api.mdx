@@ -1,0 +1,84 @@
+---
+id: create-trace-tracing
+title: "Create Trace"
+description: "Create a trace from one or more spans."
+sidebar_label: "Create Trace"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Trace"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/tracing/traces/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+:::caution[deprecated]
+
+This endpoint has been deprecated and may be replaced or removed in future versions of the API.
+
+:::
+
+Create a trace from one or more spans.
+
+This is the single-trace counterpart to `POST /tracing/spans/ingest`.
+Accepts the same `OTelTracingRequest` body (either `spans` flat list
+or `traces` nested tree) but requires all spans to share a single
+`trace_id`.
+
+Returns `202 Accepted` with the links for the spans that entered
+the ingest stream. See [Tracing — Async write
+contract](/reference/api-guide/tracing#async-write-contract-202).
+
+Most callers should prefer `POST /tracing/spans/ingest` (no
+single-trace restriction) or `POST /simple/traces/` (helper for a
+one-span payload).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./create-trace-tracing.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./create-trace-tracing.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

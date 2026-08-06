@@ -1,0 +1,73 @@
+
+@host = http://localhost
+@base_url = {{host}}/api/human-evaluators
+@api_key = xxxxxx.xxxxxxxxxxxxxxxx
+###
+
+# @name add_human_evaluator
+POST {{base_url}}/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "slug": "my-human-evaluator",
+    "header": {"name": "a/b accuracy", "description": "this is a description"},
+    "revision": {
+        "kind": "HUMAN_EVALUATOR",
+        "body": {
+            "data": {"metrics": ["accuracy"], "notes": "Evaluator for accuracy"},
+            "tags": ["human", "evaluation"]
+        },
+        "commit": {
+            "parent_id": null,
+            "message": "Initial commit",
+            "author": "01964312-ad5a-7bb1-b21e-4f055c9f988b",
+            "date": "2025-04-18T12:25:59.609Z"
+        }
+    }
+}
+
+###
+
+# @name fetch_human_evaluator
+POST {{base_url}}/{{add_human_evaluator.response.body.variant_ref.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name edit_human_evaluator
+PUT {{base_url}}/{{add_human_evaluator.response.body.variant_ref.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+{
+    "slug": "my-human-evaluator-updated-another-another",
+    "body": {
+        "data": {"metrics": ["accuracy"], "notes": "Evaluator for accuracy"},
+        "tags": ["human", "evaluation"]
+    },
+    "commit": {
+        "parent_id": null,
+        "message": "Second commit",
+        "author": "01964312-ad5a-7bb1-b21e-4f055c9f988b",
+        "date": "2025-04-18T13:10:55.658Z"
+    }
+}
+
+###
+
+# @name query_human_evaluators
+GET {{base_url}}/query?revision_id={{add_human_evaluator.response.body.id}}&depth=1
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name delete_human_evaluator
+DELETE {{base_url}}/{{add_human_evaluator.response.body.variant_ref.id}}
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+

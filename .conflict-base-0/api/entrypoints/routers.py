@@ -1,0 +1,1621 @@
+from contextlib import asynccontextmanager
+import asyncio
+import time
+
+import agenta as ag
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+
+from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
+from supertokens_python.framework.fastapi import (
+    get_middleware as get_supertokens_middleware,
+)
+
+from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
+
+# Engines
+from oss.src.dbs.postgres.shared.engine import (
+    get_transactions_engine,
+    get_analytics_engine,
+)
+from oss.src.dbs.redis.shared.engine import (
+    get_cache_engine,
+    get_streams_engine,
+)
+
+from oss.databases.postgres.migrations.core.utils import (
+    check_for_new_migrations as check_for_new_core_migrations,
+)
+from oss.databases.postgres.migrations.tracing.utils import (
+    check_for_new_migrations as check_for_new_tracing_migrations,
+)
+
+from oss.src.middlewares.auth import auth_middleware
+from oss.src.middlewares.analytics import analytics_middleware
+from oss.src.middlewares.prefix import ApiPrefixStripMiddleware
+
+from oss.src.core.auth.supertokens.config import init_supertokens
+
+# DBEs
+from oss.src.dbs.postgres.queries.dbes import (
+    QueryArtifactDBE,
+    QueryVariantDBE,
+    QueryRevisionDBE,
+)
+from oss.src.dbs.postgres.testcases.dbes import (
+    TestcaseBlobDBE,
+)
+from oss.src.dbs.postgres.testsets.dbes import (
+    TestsetArtifactDBE,
+    TestsetVariantDBE,
+    TestsetRevisionDBE,
+)
+from oss.src.dbs.postgres.workflows.dbes import (
+    WorkflowArtifactDBE,
+    WorkflowVariantDBE,
+    WorkflowRevisionDBE,
+)
+from oss.src.dbs.postgres.environments.dbes import (
+    EnvironmentArtifactDBE,
+    EnvironmentVariantDBE,
+    EnvironmentRevisionDBE,
+)
+
+# DAOs
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
+from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.postgres.events.dao import EventsDAO
+from oss.src.dbs.postgres.blobs.dao import BlobsDAO
+from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
+from oss.src.dbs.postgres.folders.dao import FoldersDAO
+
+# Services
+from oss.src.core.secrets.services import VaultService
+from oss.src.core.webhooks.service import WebhooksService
+from oss.src.core.tracing.service import TracingService
+from oss.src.core.events.service import EventsService
+from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.testcases.service import TestcasesService
+from oss.src.core.testsets.service import TestsetsService
+from oss.src.core.testsets.service import SimpleTestsetsService
+from oss.src.core.queries.service import QueriesService
+from oss.src.core.queries.service import SimpleQueriesService
+from oss.src.core.applications.service import ApplicationsService
+from oss.src.core.applications.service import SimpleApplicationsService
+from oss.src.core.folders.service import FoldersService
+from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import SimpleWorkflowsService
+from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
+from oss.src.core.evaluators.service import EvaluatorsService
+from oss.src.core.evaluators.service import SimpleEvaluatorsService
+from oss.src.core.environments.service import EnvironmentsService
+from oss.src.core.environments.service import SimpleEnvironmentsService
+from oss.src.core.evaluations.service import EvaluationsService
+from oss.src.core.evaluations.service import SimpleEvaluationsService
+from oss.src.core.embeds.service import EmbedsService
+from oss.src.core.evaluations.service import SimpleQueuesService
+from oss.src.core.tracing.service import SimpleTracesService
+
+# Routers
+from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
+from oss.src.apis.fastapi.auth.router import auth_router
+from oss.src.apis.fastapi.otlp.router import OTLPRouter
+from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.tracing.router import TracesRouter
+from oss.src.apis.fastapi.tracing.router import SpansRouter
+from oss.src.apis.fastapi.testcases.router import TestcasesRouter
+from oss.src.apis.fastapi.testsets.router import TestsetsRouter
+from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
+from oss.src.apis.fastapi.queries.router import QueriesRouter
+from oss.src.apis.fastapi.queries.router import SimpleQueriesRouter
+from oss.src.apis.fastapi.applications.router import ApplicationsRouter
+from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
+from oss.src.apis.fastapi.folders.router import FoldersRouter
+from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
+from oss.src.apis.fastapi.workflows.router import SimpleWorkflowsRouter
+from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
+from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
+from oss.src.apis.fastapi.environments.router import EnvironmentsRouter
+from oss.src.apis.fastapi.environments.router import SimpleEnvironmentsRouter
+from oss.src.apis.fastapi.legacy_variants.router import LegacyVariantsRouter
+from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
+from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
+from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
+from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
+from oss.src.apis.fastapi.sessions.router import SessionsRouter
+from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
+from oss.src.apis.fastapi.invocations.router import InvocationsRouter
+from oss.src.core.annotations.service import AnnotationsService
+from oss.src.core.invocations.service import InvocationsService
+
+from oss.src.core.ai_services.service import AIServicesService
+from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
+
+from oss.src.core.accounts.service import PlatformAdminAccountsService
+from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
+from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
+from oss.src.core.gateway.connections.providers.composio import (
+    ComposioConnectionsAdapter,
+)
+from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.gateway.catalog.providers.composio import ComposioCatalogAdapter
+from oss.src.core.gateway.catalog.registry import CatalogGatewayRegistry
+from oss.src.core.gateway.catalog.service import CatalogService
+from oss.src.core.tools.providers.composio import ComposioToolsAdapter
+from oss.src.core.tools.registry import ToolsGatewayRegistry
+from oss.src.core.tools.service import ToolsService
+from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.dbs.postgres.triggers.dao import TriggersDAO
+from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
+from oss.src.core.triggers.registry import TriggersGatewayRegistry
+from oss.src.core.triggers.service import TriggersService
+from oss.src.apis.fastapi.triggers.router import TriggersRouter
+from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
+from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
+from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
+from oss.src.dbs.postgres.mounts.dao import MountsDAO
+from oss.src.core.mounts.service import MountsService
+from oss.src.core.store.storage import ObjectStore
+from oss.src.core.sessions.mounts.service import SessionMountsService
+from oss.src.core.sessions.attachments.dtos import AttachmentLimits
+from oss.src.core.sessions.attachments.service import SessionAttachmentsService
+from oss.src.dbs.postgres.sessions.attachments.dao import SessionAttachmentsDAO
+from oss.src.tasks.asyncio.sessions.attachment_sweep import attachment_sweep_loop
+from oss.src.apis.fastapi.mounts.router import MountsRouter
+
+# Session streams
+from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
+from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
+from oss.src.dbs.redis.shared.engine import get_lock_engine
+
+from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+from oss.src.core.sessions.turns.service import SessionTurnsService
+
+# Interactions
+from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE  # noqa: F401
+from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.service import SessionsService
+from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
+    InteractionsDispatcher,
+)
+from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
+
+# Records DAO (analytics DB)
+from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+
+
+from oss.src.routers import (
+    user_profile,
+    projects_router,
+    api_key_router,
+    organization_router,
+    workspace_router,
+)
+from oss.src.apis.fastapi.access.router import AccessRouter
+
+from oss.src.utils.env import env
+from oss.src.core.evaluations.runtime.broker import (
+    build_evaluations_broker,
+    build_evaluations_worker,
+)
+import oss.src.core.evaluations.tasks.run  # noqa: F401
+import oss.src.core.evaluations.tasks.processor  # noqa: F401
+
+print("[STARTUP] About to import agenta SDK")
+_t_ag_import = time.perf_counter()
+# ag already imported at top
+print(f"[STARTUP] agenta SDK imported (+{time.perf_counter() - _t_ag_import:.3f}s)")
+
+_startup_t0 = time.perf_counter()
+print("[STARTUP] imports completed, beginning initialization")
+
+print("[STARTUP] ag.init() starting")
+_t_ag_init = time.perf_counter()
+ag.init(
+    api_url=env.agenta.api_url,
+)
+print(f"[STARTUP] ag.init() completed (+{time.perf_counter() - _t_ag_init:.3f}s)")
+
+ee = None
+_t_before_ee = time.perf_counter()
+if is_ee():
+    print("[STARTUP] EE module import starting (Stripe init happens here)")
+    import ee.src.main as ee  # type: ignore
+
+    _ee_elapsed = time.perf_counter() - _t_before_ee
+    print(f"[STARTUP] EE module import completed (+{_ee_elapsed:.3f}s)")
+
+
+log = get_module_logger(__name__)
+
+init_supertokens()
+_st_elapsed = time.perf_counter() - _startup_t0
+print(f"[STARTUP] init_supertokens completed (+{_st_elapsed:.3f}s)")
+
+
+@asynccontextmanager
+async def lifespan(*args, **kwargs):
+    """
+    Lifespan initializes the database engine and load the default llm services.
+
+    Args:
+        application: FastAPI application.
+        cache: A boolean value that indicates whether to use the cached data or not.
+    """
+
+    await check_for_new_core_migrations()
+    await check_for_new_tracing_migrations()
+
+    warn_deprecated_env_vars()
+    validate_required_env_vars()
+
+    await _triggers_broker.startup()
+
+    # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
+    # so a store outage doesn't block API startup (mounts degrade, the rest runs).
+    if env.store.bucket:
+        try:
+            await store.ensure_bucket(bucket=env.store.bucket)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Store bucket ensure failed at startup: %s", e)
+
+    _orphan_sweep_task = asyncio.create_task(
+        orphan_sweep_loop(_transactions_engine, _lock_engine)
+    )
+
+    _attachment_sweep_task = asyncio.create_task(
+        attachment_sweep_loop(
+            attachments_dao=session_attachments_dao,
+            original_store=mounts_service,
+            lock_engine=_lock_engine,
+            pending_ttl_seconds=env.agenta.sessions.attachments.pending_ttl_seconds,
+            unreferenced_ttl_seconds=env.agenta.sessions.attachments.unreferenced_ttl_seconds,
+            sweep_interval_seconds=env.agenta.sessions.attachments.sweep_interval_seconds,
+        )
+    )
+    # Best-effort: ingestion re-resolves on demand if this fails.
+    if env.composio.enabled:
+        try:
+            await triggers_service.ensure_webhook_registered()
+        except Exception as e:  # noqa: BLE001
+            log.warning(
+                "Composio trigger webhook registration failed at startup: %s", e
+            )
+
+    yield
+
+    for task in (
+        _orphan_sweep_task,
+        _attachment_sweep_task,
+    ):
+        task.cancel()
+    await asyncio.gather(
+        _orphan_sweep_task,
+        _attachment_sweep_task,
+        return_exceptions=True,
+    )
+
+    await _triggers_broker.shutdown()
+
+    for adapter in _composio_adapters.values():
+        await adapter.close()
+
+    for adapter in _composio_connections_adapters.values():
+        await adapter.close()
+
+    for adapter in _composio_triggers_adapters.values():
+        await adapter.close()
+
+    await _transactions_engine.close()
+    await _analytics_engine.close()
+    await _streams_engine.close()
+
+
+_OPENAPI_TAGS = [
+    {
+        "name": "Status",
+        "description": "API server liveness and readiness status.",
+    },
+    # --
+    {
+        "name": "Organizations",
+        "description": "Manage organizations, workspaces, SSO domains, and identity providers.",
+    },
+    {
+        "name": "Workspaces",
+        "description": "Manage workspaces within an organization and their members.",
+    },
+    {
+        "name": "Projects",
+        "description": "Manage projects within a workspace.",
+    },
+    # --
+    {
+        "name": "Users",
+        "description": "User profile and account management — view profile, update username, reset password.",
+    },
+    # --
+    {
+        "name": "Keys",
+        "description": "Create and revoke API keys used to authenticate programmatic requests.",
+    },
+    # --
+    {
+        "name": "Workflows",
+        "description": "Workflow definitions — the runnable pipelines that back an application.",
+    },
+    {
+        "name": "Applications",
+        "description": "LLM applications — create, update, list, and delete apps.",
+    },
+    {
+        "name": "Evaluators",
+        "description": "Evaluator definitions — the metrics and judges used in evaluation runs.",
+    },
+    # --
+    {
+        "name": "Testsets",
+        "description": "Test datasets — collections of input/output pairs used in evaluations.",
+    },
+    {
+        "name": "Testcases",
+        "description": "Individual test cases within a testset.",
+    },
+    # --
+    {
+        "name": "Queries",
+        "description": "Saved query definitions used to filter and retrieve trace data.",
+    },
+    {
+        "name": "Traces",
+        "description": "Ingest and query traces, spans, and metrics from running applications.",
+    },
+    {
+        "name": "Invocations",
+        "description": "Run an application against a payload and capture the resulting trace.",
+    },
+    {
+        "name": "Annotations",
+        "description": "Attach evaluator-style feedback to existing traces and spans.",
+    },
+    # --
+    {
+        "name": "Evaluations",
+        "description": "Evaluation runs — execute evaluators against variants and testsets.",
+    },
+    # --
+    {
+        "name": "Environments",
+        "description": "Deployment environments (e.g. production, staging) and their active variants.",
+    },
+    # --
+    {
+        "name": "Secrets",
+        "description": "Manage provider credentials and secret values stored in the vault.",
+    },
+    # --
+    {
+        "name": "Tools",
+        "description": "External tool connections and OAuth integrations available to applications.",
+    },
+    # --
+    {
+        "name": "Triggers",
+        "description": "Inbound provider event triggers and their watchable event catalog.",
+    },
+    # --
+    {
+        "name": "Sessions",
+        "description": "Agent sessions — runner coordination (invoke/cancel/steer/attach/detach/heartbeat/liveness), state persistence (durable SDK state and sandbox resume pointer), records, and streams.",
+    },
+    {
+        "name": "Interactions",
+        "description": "Human-in-the-loop interaction requests raised by running agents — approvals, inputs, and tool confirmations.",
+    },
+    # --
+    {
+        "name": "Folders",
+        "description": "Organize applications and other resources into folder hierarchies.",
+    },
+    # --
+    {
+        "name": "Mounts",
+        "description": "Durable object-store mounts for agent working directories.",
+    },
+    # --
+    # {
+    #     "name": "Events",
+    #     "description": "Structured event ingestion for analytics and audit purposes.",
+    # },
+    {
+        "name": "Webhooks",
+        "description": "Register and manage webhooks that fire on platform events.",
+    },
+    # --
+    {
+        "name": "OpenTelemetry",
+        "description": "OTLP-compatible endpoints for ingesting traces directly from OpenTelemetry-instrumented services.",
+    },
+    # --
+    # Billing inserted here by EE (extend_app_schema)
+    # --
+    # --
+    {
+        "name": "Admin",
+        "description": "Internal administration endpoints — restricted to platform operators.",
+    },
+    # --
+    {
+        "name": "Legacy",
+        "description": "Stable legacy endpoints retained for existing integrations — not deprecated, but new integrations should prefer the canonical surface.",
+    },
+    # --
+    {
+        "name": "Deprecated",
+        "description": "Deprecated endpoints kept for backwards compatibility — avoid in new integrations.",
+    },
+]
+
+app = FastAPI(
+    lifespan=lifespan,
+    openapi_tags=_OPENAPI_TAGS,
+    root_path="/api",
+)
+# MIDDLEWARE -------------------------------------------------------------------
+
+
+# Register SupportHeadersMiddleware first so it ends up *innermost* —
+# closest to the route handler, beneath all BaseHTTPMiddleware-style
+# middlewares (auth, analytics, throttling). BaseHTTPMiddleware runs
+# the downstream app in a child anyio task and does not propagate
+# ContextVar mutations back to the outer task, so a support middleware
+# placed above them would never see the handler's `support_ctx.set(...)`.
+app.add_middleware(SupportHeadersMiddleware)
+
+if is_ee():
+    from ee.src.middlewares.throttling import throttling_middleware
+
+    app.middleware("http")(throttling_middleware)
+
+app.middleware("http")(auth_middleware)
+app.middleware("http")(analytics_middleware)
+
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
+
+app.add_middleware(get_supertokens_middleware())
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://0.0.0.0:3000",
+        "http://0.0.0.0:3001",
+        "https://docs.agenta.ai",
+        "https://agenta.ai",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["Content-Type"] + get_all_supertokens_cors_headers(),
+)
+
+
+# The middleware resolves trailing slashes against the route table instead, so no redirect
+# is emitted: Starlette's would be built from the post-strip path and lose the /api prefix.
+app.router.redirect_slashes = False
+
+# Added last => outermost: normalizes the path before auth/routing see it.
+_ROUTED_APP = app
+app.add_middleware(ApiPrefixStripMiddleware, routes=lambda: _ROUTED_APP.routes)
+
+if ee and is_ee():
+    app = ee.extend_main(app)
+
+# DAOS -------------------------------------------------------------------------
+
+_t_daos = time.perf_counter()
+print("[STARTUP] DAO initialization starting")
+
+# Instantiate engines at startup (lazy — they don't connect until first use)
+_transactions_engine = get_transactions_engine()
+_analytics_engine = get_analytics_engine()
+_streams_engine = get_streams_engine()
+_cache_engine = get_cache_engine()
+
+secrets_dao = SecretsDAO(engine=_transactions_engine)
+webhooks_dao = WebhooksDAO(engine=_transactions_engine)
+
+tracing_dao = TracingDAO(engine=_analytics_engine)
+events_dao = EventsDAO(engine=_analytics_engine)
+records_dao = RecordsDAO(engine=_analytics_engine)  # analytics DB
+
+testcases_dao = BlobsDAO(
+    engine=_transactions_engine,
+    BlobDBE=TestcaseBlobDBE,
+)
+
+testsets_dao = GitDAO(
+    engine=_transactions_engine,
+    ArtifactDBE=TestsetArtifactDBE,
+    VariantDBE=TestsetVariantDBE,
+    RevisionDBE=TestsetRevisionDBE,
+)
+
+queries_dao = GitDAO(
+    engine=_transactions_engine,
+    ArtifactDBE=QueryArtifactDBE,
+    VariantDBE=QueryVariantDBE,
+    RevisionDBE=QueryRevisionDBE,
+)
+
+workflows_dao = GitDAO(
+    engine=_transactions_engine,
+    ArtifactDBE=WorkflowArtifactDBE,
+    VariantDBE=WorkflowVariantDBE,
+    RevisionDBE=WorkflowRevisionDBE,
+)
+
+environments_dao = GitDAO(
+    engine=_transactions_engine,
+    ArtifactDBE=EnvironmentArtifactDBE,
+    VariantDBE=EnvironmentVariantDBE,
+    RevisionDBE=EnvironmentRevisionDBE,
+)
+
+evaluations_dao = EvaluationsDAO(engine=_transactions_engine)
+folders_dao = FoldersDAO(engine=_transactions_engine)
+session_streams_dao = SessionStreamsDAO(engine=_transactions_engine)
+session_turns_dao = SessionTurnsDAO(engine=_transactions_engine)
+
+connections_dao = ConnectionsDAO(engine=_transactions_engine)
+mounts_dao = MountsDAO(engine=_transactions_engine)
+session_attachments_dao = SessionAttachmentsDAO(engine=_transactions_engine)
+
+# SERVICES ---------------------------------------------------------------------
+
+_t_daos_done = time.perf_counter() - _t_daos
+print(f"[STARTUP] DAO initialization completed (+{_t_daos_done:.3f}s)")
+_t_services = time.perf_counter()
+
+vault_service = VaultService(
+    secrets_dao=secrets_dao,
+)
+
+
+webhooks_service = WebhooksService(
+    webhooks_dao=webhooks_dao,
+    vault_service=vault_service,
+)
+
+
+tracing_service = TracingService(
+    tracing_dao=tracing_dao,
+)
+
+events_service = EventsService(
+    events_dao=events_dao,
+)
+
+records_service = RecordsService(
+    records_dao=records_dao,
+)
+
+
+testcases_service = TestcasesService(
+    testcases_dao=testcases_dao,
+)
+
+testsets_service = TestsetsService(
+    testsets_dao=testsets_dao,
+    testcases_service=testcases_service,
+)
+
+simple_testsets_service = SimpleTestsetsService(
+    testsets_service=testsets_service,
+)
+
+queries_service = QueriesService(
+    queries_dao=queries_dao,
+    tracing_service=tracing_service,
+)
+
+simple_queries_service = SimpleQueriesService(
+    queries_service=queries_service,
+)
+
+folders_service = FoldersService(
+    folders_dao=folders_dao,
+)
+
+_lock_engine = get_lock_engine()
+
+session_streams_service = SessionStreamsService(
+    streams_dao=session_streams_dao,
+    lock_engine=_lock_engine,
+)
+
+session_turns_service = SessionTurnsService(
+    turns_dao=session_turns_dao,
+)
+
+workflows_service = WorkflowsService(
+    workflows_dao=workflows_dao,
+    static_catalog=StaticWorkflowCatalog(),
+)
+
+environments_service = EnvironmentsService(
+    environments_dao=environments_dao,
+)
+
+applications_service = ApplicationsService(
+    workflows_service=workflows_service,
+)
+
+simple_applications_service = SimpleApplicationsService(
+    applications_service=applications_service,
+)
+
+evaluators_service = EvaluatorsService(
+    workflows_service=workflows_service,
+)
+
+embeds_service = EmbedsService(
+    workflows_service=workflows_service,
+    environments_service=environments_service,
+    applications_service=applications_service,
+    evaluators_service=evaluators_service,
+)
+
+# Inject cross-service dependencies
+workflows_service.environments_service = environments_service
+workflows_service.embeds_service = embeds_service
+environments_service.embeds_service = embeds_service
+applications_service.embeds_service = embeds_service
+evaluators_service.embeds_service = embeds_service
+
+simple_evaluators_service = SimpleEvaluatorsService(
+    evaluators_service=evaluators_service,
+)
+
+simple_traces_service = SimpleTracesService(
+    tracing_service=tracing_service,
+    evaluators_service=evaluators_service,
+    simple_evaluators_service=simple_evaluators_service,
+)
+
+simple_workflows_service = SimpleWorkflowsService(
+    workflows_service=workflows_service,
+)
+
+simple_environments_service = SimpleEnvironmentsService(
+    environments_service=environments_service,
+)
+
+evaluations_service = EvaluationsService(
+    evaluations_dao=evaluations_dao,
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+    testsets_service=testsets_service,
+    evaluators_service=evaluators_service,
+    # Sub-services the run slice processor needs; passing them lets the
+    # service build its own RunSliceOperations (probe/populate/process).
+    testcases_service=testcases_service,
+    workflows_service=workflows_service,
+    applications_service=applications_service,
+)
+
+# Producer side of the evaluations pipeline: enqueues onto queues:evaluations;
+# entrypoints/worker_queues.py consumes them.
+evaluations_worker = build_evaluations_worker(
+    broker=build_evaluations_broker(
+        consumer_group_name="api-evaluations-producer",
+        producer_only=True,
+    ),
+    tracing_service=tracing_service,
+    simple_evaluators_service=simple_evaluators_service,
+    testsets_service=testsets_service,
+    testcases_service=testcases_service,
+    queries_service=queries_service,
+    workflows_service=workflows_service,
+    evaluations_service=evaluations_service,
+)
+
+simple_evaluations_service = SimpleEvaluationsService(
+    testsets_service=testsets_service,
+    queries_service=queries_service,
+    applications_service=applications_service,
+    evaluators_service=evaluators_service,
+    evaluations_service=evaluations_service,
+    evaluations_worker=evaluations_worker,
+)
+
+simple_queues_service = SimpleQueuesService(
+    evaluators_service=evaluators_service,
+    evaluations_service=evaluations_service,
+    simple_evaluations_service=simple_evaluations_service,
+)
+
+# Connections adapter + service (owns gateway_connections; consumed by tools)
+_composio_connections_adapters = {}
+if env.composio.enabled:
+    _composio_connections_adapters["composio"] = ComposioConnectionsAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+connections_adapter_registry = ConnectionsGatewayRegistry(
+    adapters=_composio_connections_adapters,
+)
+
+connections_service = ConnectionsService(
+    connections_dao=connections_dao,
+    adapter_registry=connections_adapter_registry,
+)
+
+# Shared catalog adapter + service (providers + integrations; tools AND triggers)
+_composio_catalog_adapters = {}
+if env.composio.enabled:
+    _composio_catalog_adapters["composio"] = ComposioCatalogAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+catalog_adapter_registry = CatalogGatewayRegistry(
+    adapters=_composio_catalog_adapters,
+)
+
+catalog_service = CatalogService(
+    adapter_registry=catalog_adapter_registry,
+)
+
+# Tools adapter + service
+_composio_adapters = {}
+if env.composio.enabled:
+    _composio_adapters["composio"] = ComposioToolsAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+else:
+    log.warning("Composio not enabled — set COMPOSIO_API_KEY to activate gateway tools")
+
+tools_adapter_registry = ToolsGatewayRegistry(
+    adapters=_composio_adapters,
+)
+
+tools_service = ToolsService(
+    connections_service=connections_service,
+    catalog_service=catalog_service,
+    adapter_registry=tools_adapter_registry,
+)
+
+# Triggers adapter + service
+_composio_triggers_adapters = {}
+if env.composio.enabled:
+    _composio_triggers_adapters["composio"] = ComposioTriggersAdapter(
+        api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
+        api_url=env.composio.api_url,
+    )
+
+triggers_adapter_registry = TriggersGatewayRegistry(
+    adapters=_composio_triggers_adapters,
+)
+
+triggers_dao = TriggersDAO(engine=_transactions_engine)
+
+interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
+
+interactions_service = SessionInteractionsService(
+    interactions_dao=interactions_dao,
+)
+
+triggers_service = TriggersService(
+    adapter_registry=triggers_adapter_registry,
+    catalog_service=catalog_service,
+    triggers_dao=triggers_dao,
+    connections_service=connections_service,
+    workflows_service=workflows_service,
+)
+
+
+# Detached workflow start: hand the run to the runner and return on the started handshake
+# (no awaiting the run). Shared by both detached consumers (triggers + interactions respond).
+async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+    result = await workflows_service.invoke_workflow_detached(
+        project_id=project_id,
+        user_id=user_id,
+        request=request,
+    )
+    return result.run_id
+
+
+# Producer side of the interactions pipeline: the respond route enqueues
+# `interactions.respond` tasks here; entrypoints/worker_queues.py consumes them.
+_interactions_broker = ProducerOnlyRedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:interactions",
+    consumer_group_name="api-interactions-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_interactions_dispatcher = InteractionsDispatcher(
+    workflows_service=workflows_service,
+    interactions_service=interactions_service,
+    dispatch_fn=_dispatch_detached_run,
+)
+
+_interactions_worker = InteractionsWorker(
+    broker=_interactions_broker,
+    dispatcher=_interactions_dispatcher,
+)
+
+# Producer side of the inbound dispatch pipeline: the ingress route enqueues
+# `triggers.dispatch` tasks here; entrypoints/worker_queues.py consumes them.
+_triggers_broker = ProducerOnlyRedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:triggers",
+    consumer_group_name="api-triggers-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_triggers_dispatcher = TriggersDispatcher(
+    triggers_dao=triggers_dao,
+    workflows_service=workflows_service,
+    dispatch_fn=_dispatch_detached_run,
+)
+
+_triggers_worker = TriggersWorker(
+    broker=_triggers_broker,
+    dispatcher=_triggers_dispatcher,
+    triggers_dao=triggers_dao,
+)
+
+triggers_service.schedule_dispatch_task = _triggers_worker.dispatch_schedule
+
+store = ObjectStore(
+    endpoint_url=env.store.endpoint_url,
+    access_key=env.store.access_key,
+    secret_key=env.store.secret_key,
+    region=env.store.region,
+    sts_endpoint_url=env.store.sts_endpoint_url,
+    signing_key=env.store.signing_key,
+)
+
+mounts_service = MountsService(
+    mounts_dao=mounts_dao,
+    mounts_store=store,
+    bucket=env.store.bucket,
+    namespace=env.store.namespace,
+    workflows_service=workflows_service,
+)
+
+session_mounts_service = SessionMountsService(
+    mounts_service=mounts_service,
+)
+
+session_attachments_service = SessionAttachmentsService(
+    attachments_dao=session_attachments_dao,
+    original_store=mounts_service,
+    limits=AttachmentLimits(
+        max_image_bytes=env.agenta.sessions.attachments.max_image_bytes,
+        max_audio_bytes=env.agenta.sessions.attachments.max_audio_bytes,
+        max_document_bytes=env.agenta.sessions.attachments.max_document_bytes,
+        max_other_bytes=env.agenta.sessions.attachments.max_other_bytes,
+        max_per_session_count=env.agenta.sessions.attachments.max_per_session_count,
+        max_per_session_bytes=env.agenta.sessions.attachments.max_per_session_bytes,
+        max_pending_per_session=env.agenta.sessions.attachments.max_pending_per_session,
+        pending_ttl_seconds=env.agenta.sessions.attachments.pending_ttl_seconds,
+    ),
+)
+
+_t_services_done = time.perf_counter() - _t_services
+print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
+_t_routers = time.perf_counter()
+
+# ROUTERS ----------------------------------------------------------------------
+
+secrets = VaultRouter(
+    vault_service=vault_service,
+)
+
+webhooks = WebhooksRouter(
+    webhooks_service=webhooks_service,
+)
+
+otlp = OTLPRouter(
+    tracing_service=tracing_service,
+)
+
+tracing = TracingRouter(
+    tracing_service=tracing_service,
+)
+
+traces = TracesRouter(
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+)
+
+spans = SpansRouter(
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+)
+
+testcases = TestcasesRouter(
+    testcases_service=testcases_service,
+    testsets_service=testsets_service,
+)
+
+testsets = TestsetsRouter(
+    testsets_service=testsets_service,
+)
+
+simple_testsets = SimpleTestsetsRouter(
+    simple_testsets_service=simple_testsets_service,
+)
+
+queries = QueriesRouter(
+    queries_service=queries_service,
+)
+
+simple_queries = SimpleQueriesRouter(
+    simple_queries_service=simple_queries_service,
+)
+
+applications = ApplicationsRouter(
+    applications_service=applications_service,
+    environments_service=environments_service,
+)
+
+simple_applications = SimpleApplicationsRouter(
+    simple_applications_service=simple_applications_service,
+)
+
+folders = FoldersRouter(
+    folders_service=folders_service,
+)
+
+workflows = WorkflowsRouter(
+    workflows_service=workflows_service,
+    environments_service=environments_service,
+)
+
+simple_workflows = SimpleWorkflowsRouter(
+    simple_workflows_service=simple_workflows_service,
+)
+
+evaluators = EvaluatorsRouter(
+    evaluators_service=evaluators_service,
+    environments_service=environments_service,
+)
+
+simple_evaluators = SimpleEvaluatorsRouter(
+    simple_evaluators_service=simple_evaluators_service,
+)
+
+environments = EnvironmentsRouter(
+    environments_service=environments_service,
+)
+
+simple_environments = SimpleEnvironmentsRouter(
+    simple_environments_service=simple_environments_service,
+)
+
+legacy_variants = LegacyVariantsRouter(
+    applications_service=applications_service,
+    environments_service=environments_service,
+)
+
+evaluations = EvaluationsRouter(
+    evaluations_service=evaluations_service,
+    queries_service=queries_service,
+)
+
+simple_evaluations = SimpleEvaluationsRouter(
+    simple_evaluations_service=simple_evaluations_service,
+)
+
+simple_queues = SimpleQueuesRouter(
+    simple_queues_service=simple_queues_service,
+)
+
+tools = ToolsRouter(
+    tools_service=tools_service,
+    workflows_service=workflows_service,
+    tracing_service=tracing_service,
+)
+
+triggers = TriggersRouter(
+    triggers_service=triggers_service,
+    dispatch_task=_triggers_worker.dispatch_trigger,
+)
+
+simple_traces = SimpleTracesRouter(
+    simple_traces_service=simple_traces_service,
+)
+
+annotations_service = AnnotationsService(
+    evaluators_service=evaluators_service,
+    simple_evaluators_service=simple_evaluators_service,
+    tracing_service=tracing_service,
+)
+annotations = AnnotationsRouter(
+    annotations_service=annotations_service,
+)
+
+invocations_service = InvocationsService(
+    applications_service=applications_service,
+    simple_applications_service=simple_applications_service,
+    tracing_service=tracing_service,
+)
+invocations = InvocationsRouter(
+    invocations_service=invocations_service,
+)
+
+mounts = MountsRouter(
+    mounts_service=mounts_service,
+)
+
+# AI SERVICES ------------------------------------------------------------------
+
+ai_services_service = AIServicesService.from_env()
+ai_services = AIServicesRouter(
+    ai_services_service=ai_services_service,
+)
+
+# SESSIONS ---------------------------------------------------------------------
+# Session header rename (name/description) lives on the streams router
+# (PUT /sessions/streams/header) via streams_service.set_header.
+
+sessions_service = SessionsService(
+    streams_service=session_streams_service,
+    turns_service=session_turns_service,
+    interactions_service=interactions_service,
+    mounts_service=mounts_service,
+)
+
+sessions = SessionsRouter(
+    streams_service=session_streams_service,
+    records_service=records_service,
+    interactions_service=interactions_service,
+    workflows_service=workflows_service,
+    attachments_service=session_attachments_service,
+    session_mounts_service=session_mounts_service,
+    mounts_service=mounts_service,
+    turns_service=session_turns_service,
+    sessions_service=sessions_service,
+    respond_task=_interactions_worker.respond_interaction,
+)
+
+# PLATFORM ADMIN ---------------------------------------------------------------
+
+platform_admin_accounts_service = PlatformAdminAccountsService()
+platform_admin_accounts = PlatformAdminAccountsRouter(
+    accounts_service=platform_admin_accounts_service,
+)
+
+# MOUNTING ROUTERS TO APP ROUTES -----------------------------------------------
+
+_t_mount_routers = time.perf_counter()
+
+app.include_router(
+    router=secrets.router,
+    tags=["Secrets"],
+)
+
+## DEPRECATED
+app.include_router(
+    router=secrets.router,
+    prefix="/vault/v1",
+    include_in_schema=False,
+)
+## DEPRECATED
+
+app.include_router(
+    router=webhooks.router,
+    prefix="/webhooks",
+    tags=["Webhooks"],
+)
+
+app.include_router(
+    router=otlp.router,
+    prefix="/otlp/v1",
+    tags=["OpenTelemetry"],
+)
+
+app.include_router(
+    router=auth_router,
+    prefix="/auth",
+    tags=["Access"],
+)
+
+## DEPRECATED
+app.include_router(
+    router=tracing.router,
+    prefix="/preview/tracing",
+    tags=["Deprecated"],
+    deprecated=True,
+    include_in_schema=False,
+)
+## DEPRECATED
+
+app.include_router(
+    router=tracing.router,
+    prefix="/tracing",
+    tags=["Deprecated"],
+    deprecated=True,
+)
+
+app.include_router(
+    router=tracing.legacy_router,
+    prefix="/tracing",
+    tags=["Legacy"],
+)
+
+app.include_router(
+    router=traces.router,
+    prefix="/traces",
+    tags=["Traces"],
+)
+
+app.include_router(
+    router=traces.deprecated_router,
+    prefix="/traces",
+    tags=["Deprecated"],
+)
+
+app.include_router(
+    router=traces.router,
+    prefix="/preview/traces",
+    tags=["Deprecated"],
+    deprecated=True,
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=spans.router,
+    prefix="/spans",
+    tags=["Traces"],
+)
+
+app.include_router(
+    router=spans.router,
+    prefix="/preview/spans",
+    tags=["Deprecated"],
+    deprecated=True,
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_traces.router,
+    prefix="/simple/traces",
+    tags=["Traces"],
+)
+
+app.include_router(
+    router=simple_traces.router,
+    prefix="/preview/simple/traces",
+    tags=["Traces"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=invocations.router,
+    prefix="/invocations",
+    tags=["Invocations"],
+)
+
+app.include_router(
+    router=invocations.router,
+    prefix="/preview/invocations",
+    tags=["Invocations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=annotations.router,
+    prefix="/annotations",
+    tags=["Annotations"],
+)
+
+app.include_router(
+    router=annotations.router,
+    prefix="/preview/annotations",
+    tags=["Annotations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=testcases.router,
+    prefix="/testcases",
+    tags=["Testcases"],
+)
+
+app.include_router(
+    router=testcases.router,
+    prefix="/preview/testcases",
+    tags=["Testcases"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=testsets.router,
+    prefix="/testsets",
+    tags=["Testsets"],
+)
+
+app.include_router(
+    router=testsets.router,
+    prefix="/preview/testsets",
+    tags=["Testsets"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_testsets.router,
+    prefix="/simple/testsets",
+    tags=["Testsets"],
+)
+
+app.include_router(
+    router=simple_testsets.router,
+    prefix="/preview/simple/testsets",
+    tags=["Testsets"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=queries.router,
+    prefix="/queries",
+    tags=["Queries"],
+)
+
+app.include_router(
+    router=queries.router,
+    prefix="/preview/queries",
+    tags=["Queries"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_queries.router,
+    prefix="/simple/queries",
+    tags=["Queries"],
+)
+
+app.include_router(
+    router=simple_queries.router,
+    prefix="/preview/simple/queries",
+    tags=["Queries"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=folders.router,
+    prefix="/folders",
+    tags=["Folders"],
+)
+
+app.include_router(
+    router=sessions.streams.router,
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=applications.router,
+    prefix="/applications",
+    tags=["Applications"],
+)
+
+app.include_router(
+    router=applications.router,
+    prefix="/preview/applications",
+    tags=["Applications"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_applications.router,
+    prefix="/simple/applications",
+    tags=["Applications"],
+)
+
+app.include_router(
+    router=simple_applications.router,
+    prefix="/preview/simple/applications",
+    tags=["Applications"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=workflows.router,
+    prefix="/workflows",
+    tags=["Workflows"],
+)
+
+app.include_router(
+    router=workflows.router,
+    prefix="/preview/workflows",
+    tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_workflows.router,
+    prefix="/simple/workflows",
+    tags=["Workflows"],
+)
+
+app.include_router(
+    router=simple_workflows.router,
+    prefix="/preview/simple/workflows",
+    tags=["Workflows"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=ai_services.router,
+    prefix="/ai/services",
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=evaluators.router,
+    prefix="/evaluators",
+    tags=["Evaluators"],
+)
+
+app.include_router(
+    router=evaluators.router,
+    prefix="/preview/evaluators",
+    tags=["Evaluators"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_evaluators.router,
+    prefix="/simple/evaluators",
+    tags=["Evaluators"],
+)
+
+app.include_router(
+    router=simple_evaluators.router,
+    prefix="/preview/simple/evaluators",
+    tags=["Evaluators"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=environments.router,
+    prefix="/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
+    router=environments.router,
+    prefix="/preview/environments",
+    tags=["Environments"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_environments.router,
+    prefix="/simple/environments",
+    tags=["Environments"],
+)
+
+app.include_router(
+    router=simple_environments.router,
+    prefix="/preview/simple/environments",
+    tags=["Environments"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=legacy_variants.router,
+    prefix="/variants",
+    tags=["Deprecated"],
+)
+
+app.include_router(
+    router=tools.router,
+    prefix="/tools",
+    tags=["Tools"],
+)
+
+app.include_router(
+    router=tools.router,
+    prefix="/preview/tools",
+    tags=["Tools"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=triggers.router,
+    prefix="/triggers",
+    tags=["Triggers"],
+)
+
+app.include_router(
+    router=triggers.router,
+    prefix="/preview/triggers",
+    tags=["Triggers"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=triggers.admin_router,
+    prefix="/admin/triggers",
+    tags=["Triggers", "Admin"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=sessions.interactions.router,
+    prefix="/sessions/interactions",
+    tags=["Sessions"],
+)
+
+
+app.include_router(
+    router=evaluations.admin_router,
+    prefix="/admin/evaluations",
+    tags=["Evaluations", "Admin"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=evaluations.router,
+    prefix="/evaluations",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    router=evaluations.router,
+    prefix="/preview/evaluations",
+    tags=["Evaluations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_evaluations.router,
+    prefix="/simple/evaluations",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    router=simple_evaluations.router,
+    prefix="/preview/simple/evaluations",
+    tags=["Evaluations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=simple_queues.router,
+    prefix="/simple/queues",
+    tags=["Evaluations"],
+)
+
+app.include_router(
+    router=simple_queues.router,
+    prefix="/preview/simple/queues",
+    tags=["Evaluations"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=mounts.router,
+    prefix="/mounts",
+    tags=["Mounts"],
+)
+
+app.include_router(
+    router=sessions.attachments.router,
+    prefix="/sessions",
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=sessions.mounts.router,
+    prefix="/sessions",
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=sessions.records.router,
+    prefix="/sessions/records",
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=sessions.turns.router,
+    prefix="/sessions/turns",
+    tags=["Sessions"],
+)
+
+app.include_router(
+    router=platform_admin_accounts.router,
+    prefix="/admin",
+    tags=["Admin"],
+)
+
+app.include_router(
+    router=sessions.root.router,
+    tags=["Sessions"],
+)
+
+
+@app.get("/health", operation_id="health_check", tags=["Status"])
+async def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/.well-known/jwks.json", operation_id="store_jwks", tags=["Status"])
+async def store_jwks():
+    """Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens."""
+    from oss.src.core.store import webidentity
+
+    return webidentity.jwks()
+
+
+access_router = AccessRouter()
+app.include_router(
+    access_router.router,
+    prefix="/access",
+    tags=["Access"],
+)
+
+app.include_router(
+    projects_router.router,
+    prefix="/projects",
+    tags=["Projects"],
+)
+
+app.include_router(
+    user_profile.router,
+    prefix="/profile",
+    tags=["Users"],
+)
+
+app.include_router(
+    api_key_router.router,
+    tags=["Keys"],
+)
+
+app.include_router(
+    organization_router.router,
+    prefix="/organizations",
+    tags=["Organizations"],
+)
+
+app.include_router(
+    workspace_router.router,
+    prefix="/workspaces",
+    tags=["Workspaces"],
+)
+
+# ------------------------------------------------------------------------------
+_t_routers_done = time.perf_counter() - _t_routers
+print(f"[STARTUP] Router initialization completed (+{_t_routers_done:.3f}s)")
+
+_t_mount_routers_done = time.perf_counter() - _t_mount_routers
+print(f"[STARTUP] Router mounting completed (+{_t_mount_routers_done:.3f}s)")
+
+if ee and is_ee():
+    app = ee.extend_app_schema(app)
+
+_total_startup = time.perf_counter() - _startup_t0
+print(f"[STARTUP] module initialization completed in {_total_startup:.3f}s")

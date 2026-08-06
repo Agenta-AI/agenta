@@ -1,0 +1,21 @@
+{
+    "accept": {
+        "action": "accept",
+        "content": {
+            "frequency": "weekdays",
+            "time_of_day": "2026-07-06T09:00:00+02:00",
+            "timezone": "Europe/Berlin",
+            "delivery_message": "Summarize new #support threads and route by urgency.",
+            "active": true
+        },
+        "humanFriendlyMessage": "Schedule set — weekdays at 09:00 (Europe/Berlin)."
+    },
+    "decline": {
+        "action": "decline",
+        "humanFriendlyMessage": "Schedule declined — no schedule was created."
+    },
+    "cancel": {
+        "action": "cancel"
+    },
+    "degradation_error_text": "elicitation: unsupported payload — property \"config\" is nested — flat dialect only"
+}

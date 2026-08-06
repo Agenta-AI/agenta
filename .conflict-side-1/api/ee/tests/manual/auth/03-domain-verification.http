@@ -1,0 +1,291 @@
+###
+# Domain Verification Testing
+# Tests for organization type restrictions and domain exclusivity
+#
+# Prerequisites:
+# - Run 00-setup-verification.http first
+# - EE mode enabled (AGENTA_LICENSE=ee)
+# - Test organizations created (collaborative + personal)
+###
+
+@baseUrl = http://localhost
+@apiUrl = {{baseUrl}}/api
+@testOrgId = <replace-with-collaborative-org-id>
+@testPersonalOrgId = <replace-with-personal-org-id>
+@secondOrgId = <replace-with-second-org-id>
+@personalOrgDomainId = <replace-with-personal-domain-id>
+@conflictingDomainId = <replace-with-conflicting-domain-id>
+
+
+###
+# Test 1: Verify Domain on Collaborative Organization (Should Succeed)
+###
+
+# This should succeed - collaborative orgs can verify domains
+POST {{apiUrl}}/organizations/{{testOrgId}}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "<domain-id-from-setup>"
+}
+
+# Expected: 200 OK
+# {
+#   "id": "...",
+#   "organization_id": "{{testOrgId}}",
+#   "slug": "acme.com",
+#   "flags": {"is_verified": true}
+# }
+
+
+###
+# Test 2: Attempt to Verify Domain on Personal Organization (Should Fail)
+###
+
+# This should fail - personal orgs cannot verify domains
+POST {{apiUrl}}/organizations/{{testPersonalOrgId}}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "{{personalOrgDomainId}}"
+}
+
+# Expected: 400 Bad Request
+# {
+#   "error": "Personal organizations cannot verify domains. Domain verification is only available for collaborative organizations."
+# }
+
+
+###
+# Test 3: Attempt to Verify Already-Verified Domain (Should Fail)
+###
+
+# This should fail - domain already verified by another org
+POST {{apiUrl}}/organizations/{{secondOrgId}}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "{{conflictingDomainId}}"
+}
+
+# Expected: 400 Bad Request
+# {
+#   "error": "Domain 'acme.com' is already verified by another organization. Each domain can only be verified by one organization at a time."
+# }
+
+
+###
+# Test 4: Add Domain to Collaborative Organization (Should Succeed)
+###
+
+POST {{apiUrl}}/organizations/{{testOrgId}}/domains
+Content-Type: application/json
+
+{
+  "slug": "newdomain.com",
+  "name": "New Domain"
+}
+
+# Expected: 201 Created
+# {
+#   "id": "...",
+#   "organization_id": "{{testOrgId}}",
+#   "slug": "newdomain.com",
+#   "flags": {"is_verified": false},
+#   "token": "..."
+# }
+
+
+###
+# Test 5: List Domains for Collaborative Organization
+###
+
+GET {{apiUrl}}/organizations/{{testOrgId}}/domains
+
+# Expected: 200 OK
+# [
+#   {
+#     "id": "...",
+#     "slug": "acme.com",
+#     "flags": {"is_verified": true}
+#   },
+#   {
+#     "id": "...",
+#     "slug": "newdomain.com",
+#     "flags": {"is_verified": false}
+#   }
+# ]
+
+
+###
+# Test 6: List Domains for Personal Organization
+###
+
+GET {{apiUrl}}/organizations/{{testPersonalOrgId}}/domains
+
+# Expected: 200 OK
+# [
+#   {
+#     "id": "...",
+#     "slug": "personal-test.com",
+#     "flags": {"is_verified": false}
+#   }
+# ]
+# NOTE: Personal org can have domains, but cannot verify them
+
+
+###
+# Test 7: Unverify Domain (Transfer Ownership)
+###
+
+# First, unverify the domain from the first org
+DELETE {{apiUrl}}/organizations/{{testOrgId}}/domains/<domain-id>/verification
+
+# Expected: 200 OK
+# {
+#   "id": "...",
+#   "flags": {"is_verified": false}
+# }
+
+# Now verify it with the second org (should succeed now)
+POST {{apiUrl}}/organizations/{{secondOrgId}}/domains/verify
+Content-Type: application/json
+
+{
+  "domain_id": "{{conflictingDomainId}}"
+}
+
+# Expected: 200 OK
+# {
+#   "flags": {"is_verified": true}
+# }
+
+
+###
+# Test 8: Check Organization Type (via flags)
+###
+
+GET {{apiUrl}}/organizations/{{testOrgId}}
+
+# Expected: 200 OK
+# {
+#   "id": "{{testOrgId}}",
+#   "name": "ACME Corporation",
+#   "slug": "acme",
+#   "flags": {"is_personal": false, "allow_email": true, ...}
+# }
+
+GET {{apiUrl}}/organizations/{{testPersonalOrgId}}
+
+# Expected: 200 OK
+# {
+#   "id": "{{testPersonalOrgId}}",
+#   "name": "Personal",
+#   "slug": null,
+#   "flags": {"is_personal": true}
+# }
+
+
+###
+# Test 9: Verify Auto-Join Flag with Verified Domain
+###
+
+# Get organization to check flags
+GET {{apiUrl}}/organizations/{{testOrgId}}
+
+# Expected: 200 OK
+# {
+#   "id": "{{testOrgId}}",
+#   "flags": {
+#     "is_personal": false,
+#     "allow_email": false,
+#     "allow_social": false,
+#     "allow_sso": true,
+#     "domains_only": true,
+#     "auto_join": true,
+#     "allow_root": true
+#   }
+# }
+
+# When a user authenticates with email from verified domain (e.g., user@acme.com),
+# and auto_join=true, they should automatically be added to the organization as a member
+# This is tested in the SSO flow tests
+
+
+###
+# Test 10: Update Auto-Join Flag
+###
+
+PATCH {{apiUrl}}/organizations/{{testOrgId}}
+Content-Type: application/json
+
+{
+  "flags": {
+    "auto_join": false
+  }
+}
+
+# Expected: 200 OK
+# {
+#   "flags": {"auto_join": false, ...}
+# }
+
+# Now users with verified domain emails will NOT be auto-added
+# They must be explicitly invited
+
+
+###
+# Test 11: Test domains_only Enforcement
+###
+
+# When domains_only=true, only users with verified domain emails can access the org
+
+# Step 1: Set domains_only flag
+PATCH {{apiUrl}}/organizations/{{testOrgId}}
+Content-Type: application/json
+
+{
+  "flags": {
+    "domains_only": true
+  }
+}
+
+# Expected: 200 OK
+
+# Step 2: User with non-verified domain tries to access
+# Expected: 403 AUTH_DOMAIN_DENIED
+# {
+#   "error": "AUTH_DOMAIN_DENIED",
+#   "message": "Your email domain 'gmail.com' is not allowed for this organization"
+# }
+
+# Step 3: User with verified domain (acme.com) accesses
+# Expected: 200 OK (access granted)
+
+
+###
+# Test 12: Invitation Validation with domains_only
+###
+
+# When domains_only=true, invitations to non-verified domains should be blocked
+
+POST {{apiUrl}}/organizations/{{testOrgId}}/invitations
+Content-Type: application/json
+
+{
+  "email": "user@gmail.com"
+}
+
+# Expected: 400 Bad Request
+# {
+#   "error": "Cannot invite user@gmail.com: domain 'gmail.com' is not a verified domain for this organization"
+# }
+
+POST {{apiUrl}}/organizations/{{testOrgId}}/invitations
+Content-Type: application/json
+
+{
+  "email": "user@acme.com"
+}
+
+# Expected: 201 Created (invitation sent)

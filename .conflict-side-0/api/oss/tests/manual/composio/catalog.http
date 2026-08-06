@@ -1,0 +1,51 @@
+@composio_url = https://backend.composio.dev/api/v3
+@composio_api_key = {{$dotenv COMPOSIO_API_KEY}}
+@composio_user_id = {{$dotenv COMPOSIO_USER_ID}}
+
+###
+# @name list_toolkits
+# List all available toolkits (providers)
+GET {{composio_url}}/toolkits?limit=20
+x-api-key: {{composio_api_key}}
+
+###
+# @name list_toolkits_search
+# Search toolkits by name
+GET {{composio_url}}/toolkits?limit=10&search=gmail
+x-api-key: {{composio_api_key}}
+
+###
+# @name list_tools_gmail
+# List tools for a specific toolkit
+GET {{composio_url}}/tools?toolkit_slug=gmail&limit=20
+x-api-key: {{composio_api_key}}
+
+###
+# @name list_tools_gmail_important
+# List only important/featured tools for a toolkit
+GET {{composio_url}}/tools?toolkit_slug=gmail&important=true&limit=20
+x-api-key: {{composio_api_key}}
+
+###
+# @name list_tools_github
+# List tools for GitHub
+GET {{composio_url}}/tools?toolkit_slug=github&important=true&limit=20
+x-api-key: {{composio_api_key}}
+
+###
+# @name list_tools_slack
+# List tools for Slack
+GET {{composio_url}}/tools?toolkit_slug=slack&important=true&limit=20
+x-api-key: {{composio_api_key}}
+
+###
+# @name get_tool_detail
+# Get full schema for a specific tool
+GET {{composio_url}}/tools/GMAIL_SEND_EMAIL
+x-api-key: {{composio_api_key}}
+
+###
+# @name get_tool_detail_github
+# Get full schema for GitHub create issue
+GET {{composio_url}}/tools/GITHUB_CREATE_ISSUE
+x-api-key: {{composio_api_key}}

@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"email":{"type":"string","format":"email","title":"Email"}},"type":"object","required":["email"],"title":"DiscoverRequest"}}},"required":true}}

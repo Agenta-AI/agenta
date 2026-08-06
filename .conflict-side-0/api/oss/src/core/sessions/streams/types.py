@@ -1,0 +1,47 @@
+"""Domain exceptions for session streams."""
+
+
+class SessionStreamError(Exception):
+    """Base exception for session stream errors."""
+
+
+class SessionIdInvalid(SessionStreamError):
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.message = f"Session id '{session_id}' is invalid."
+        super().__init__(self.message)
+
+
+class SessionStreamNotFound(SessionStreamError):
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.message = f"No stream found for session '{session_id}'."
+        super().__init__(self.message)
+
+
+class SessionStreamAlreadyExists(SessionStreamError):
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.message = f"A stream already exists for session '{session_id}'."
+        super().__init__(self.message)
+
+
+class SessionTurnInUse(SessionStreamError):
+    """Raised when a session is already alive and force=False (a turn is in use)."""
+
+    def __init__(self, session_id: str, liveness: dict):
+        self.session_id = session_id
+        self.liveness = liveness
+        self.message = f"Session '{session_id}' already has an active turn."
+        super().__init__(self.message)
+
+
+class ConcurrencyLimitExceeded(SessionStreamError):
+    """Raised when the per-project concurrent-run limit is exceeded."""
+
+    def __init__(self, limit: int):
+        self.limit = limit
+        self.message = (
+            f"Concurrency limit of {limit} concurrent runs reached for this project."
+        )
+        super().__init__(self.message)

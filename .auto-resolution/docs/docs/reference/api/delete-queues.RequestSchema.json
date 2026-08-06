@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"queue_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Queue Ids"}},"type":"object","required":["queue_ids"],"title":"EvaluationQueueIdsRequest"}}},"required":true}}

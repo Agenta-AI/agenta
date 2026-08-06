@@ -1,0 +1,1 @@
+{"parameters":[{"name":"provider_key","in":"path","required":true,"schema":{"type":"string","title":"Provider Key"}},{"name":"integration_key","in":"path","required":true,"schema":{"type":"string","title":"Integration Key"}},{"name":"event_key","in":"path","required":true,"schema":{"type":"string","title":"Event Key"}}]}

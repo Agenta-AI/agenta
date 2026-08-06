@@ -1,0 +1,14 @@
+name: 10 ---------- Checks
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    name: Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checks
+        run: echo "checks"

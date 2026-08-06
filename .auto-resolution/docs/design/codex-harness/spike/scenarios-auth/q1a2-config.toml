@@ -1,0 +1,7 @@
+model = "gpt-5.6-luna"
+model_provider = "agenta-openai"
+approval_policy = "never"
+
+[model_providers.agenta-openai]
+name = "Agenta OpenAI"
+env_key = "OPENAI_API_KEY"

@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"username":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Username"},"email":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Email"},"updated_at":{"type":"string","title":"Updated At"}},"type":"object","title":"UserUpdate"}}},"required":true}}

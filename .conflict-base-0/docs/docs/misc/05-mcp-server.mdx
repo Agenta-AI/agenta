@@ -1,0 +1,164 @@
+---
+title: "Agenta MCP Server"
+description: "Connect AI coding agents like Cursor, Claude Code, and VS Code Copilot to Agenta documentation using the Agenta MCP server."
+sidebar_label: "MCP Server"
+---
+
+The Agenta MCP server gives AI coding agents direct access to Agenta documentation. When you connect your IDE to this server, your AI assistant can look up Agenta features, APIs, and code examples on demand.
+
+This helps you integrate Agenta into your projects faster. Instead of switching between your editor and documentation, you can ask your AI agent questions and get accurate answers grounded in official docs.
+
+## Installation
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
+<Tabs>
+<TabItem value="cursor" label="Cursor">
+
+Add the following to your `mcp.json` file:
+
+```json
+{
+  "mcpServers": {
+    "agenta": {
+      "url": "https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+</TabItem>
+
+<TabItem value="vscode" label="VS Code Copilot">
+
+1. Open the Command Palette (⌘+Shift+P on Mac, Ctrl+Shift+P on Windows)
+2. Select "MCP: Add Server..."
+3. Choose `HTTP` as the transport type
+4. Paste this URL:
+   ```
+   https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp
+   ```
+5. Name the server `agenta` and choose whether to save it in user or workspace settings
+
+The MCP server is now available in Agent mode.
+
+</TabItem>
+
+<TabItem value="claude" label="Claude Code">
+
+Run this command in your terminal:
+
+```bash
+claude mcp add \
+  --transport http \
+  agenta \
+  https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp \
+  --scope user
+```
+
+To verify the connection, start a Claude Code session and type `/mcp`.
+
+<details>
+<summary>Manual configuration</summary>
+
+You can also add the server by editing a settings file directly. Choose the appropriate file based on your desired scope:
+
+- **User scope**: `~/.claude/settings.json`
+- **Project scope**: `your-repo/.claude/settings.json`
+- **Local scope**: `your-repo/.claude/settings.local.json`
+
+Add this configuration:
+
+```json
+{
+  "mcpServers": {
+    "agenta": {
+      "transportType": "http",
+      "url": "https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp",
+      "verifySsl": true
+    }
+  }
+}
+```
+
+</details>
+
+</TabItem>
+
+<TabItem value="windsurf" label="Windsurf">
+
+1. Open the Command Palette (⌘+Shift+P)
+2. Select "MCP Configuration Panel"
+3. Click "Add custom server"
+4. Add this configuration:
+
+```json
+{
+  "mcpServers": {
+    "agenta": {
+      "serverUrl": "https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp"
+    }
+  }
+}
+```
+
+Alternatively, you can edit the configuration file directly at `~/.codeium/windsurf/mcp_config.json` (macOS/Linux) or `%USERPROFILE%\.codeium\windsurf\mcp_config.json` (Windows).
+
+
+</TabItem>
+
+<TabItem value="other" label="Other Clients">
+
+Most MCP clients support SSE (Server-Sent Events) transport. Use this configuration:
+
+```json
+{
+  "mcpServers": {
+    "agenta": {
+      "url": "https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+</TabItem>
+
+</Tabs>
+
+## What you can do
+
+Once connected, your AI agent can:
+
+- Help you set up prompt management, instrumentation and evaluation workflows
+- Search Agenta documentation to answer your questions
+- Find code examples for SDK integration and observability
+
+:::info
+It is advised to let the AI agent know to use the MCP server when asking questions.
+
+```
+Set up LLM instrumentation with Agenta. Use the Agenta MCP to get the information needed.
+```
+:::
+
+## Technical details
+
+| Property | Value |
+|----------|-------|
+| Endpoint | `https://mcp.eu.algolia.com/1/M_CIMvH38zVydbZOtDAzTjI3szBOMUq0tDA0NTJOMjO3TEtLtUwxNDUxNrfOrdRNyU8u1s1NLMpOyS_PszY0NzMyNDA1sDQFAA/mcp` |
+| Transport | SSE (Server-Sent Events) |
+| Authentication | None required |
+
+### Available Tools
+
+The Agenta MCP server provides the following tools:
+
+- **`algolia_search_index_my-docs-markdown`**: Search the Agenta documentation index. Returns raw Algolia search results with full content, allowing AI agents to find relevant documentation, code examples, and API references. Supports filtering by language, version, and Docusaurus tags.
+
+- **`algolia_search_for_facet_values`**: Explore available facet values (e.g., languages, versions, tags) in the documentation index. Useful for discovering what filtering options are available.
+
+- **`algolia_recommendations`**: Retrieve AI-powered recommendations for related documentation content based on the current context.
+

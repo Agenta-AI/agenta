@@ -1,0 +1,382 @@
+/**
+ * Infinite Dataset Store
+ *
+ * Wraps createInfiniteTableStore with dataset-specific features including
+ * selection, client rows, and row exclusion.
+ *
+ * Copied from @agenta/ui to avoid dependency.
+ */
+
+import type {Key} from "react"
+
+import type {Atom, PrimitiveAtom} from "jotai"
+import {atom, useAtom, useAtomValue} from "jotai"
+
+// Use the instrumented wrapper so each store can be `dispose()`-d.
+import {instrumentedAtomFamily} from "../molecule/instrumentedAtomFamily"
+import type {InfiniteTableFetchResult, InfiniteTableRowBase, WindowingState} from "../tableTypes"
+
+import {createInfiniteTableStore} from "./createInfiniteTableStore"
+import type {InfiniteTableStore} from "./createInfiniteTableStore"
+import useInfiniteTablePagination from "./useInfiniteTablePagination"
+
+interface ScopeParams {
+    scopeId: string | null
+}
+
+interface TablePagesParams {
+    scopeId: string | null
+    pageSize: number
+}
+
+export interface InfiniteDatasetStoreConfig<Row extends InfiniteTableRowBase, ApiRow, Meta> {
+    key: string
+    metaAtom: Atom<Meta>
+    createSkeletonRow: (params: {
+        scopeId: string | null
+        offset: number
+        index: number
+        windowing: WindowingState | null
+        rowKey: string
+    }) => Row
+    mergeRow: (params: {skeleton: Row; apiRow?: ApiRow}) => Row
+    fetchPage: (params: {
+        meta: Meta
+        limit: number
+        offset: number
+        cursor: string | null
+        windowing: WindowingState | null
+    }) => Promise<InfiniteTableFetchResult<ApiRow>>
+    isEnabled?: (meta: Meta | undefined) => boolean
+    /**
+     * Optional atom that provides client-side rows (e.g., unsaved drafts)
+     * These rows will be prepended to server rows
+     */
+    clientRowsAtom?: Atom<Row[]>
+    /**
+     * Optional atom providing IDs of rows to exclude from display
+     * Useful for filtering out soft-deleted rows before save
+     */
+    excludeRowIdsAtom?: Atom<Set<string>>
+}
+
+export interface InfiniteDatasetStore<Row extends InfiniteTableRowBase, ApiRow, Meta> {
+    store: InfiniteTableStore<Row, ApiRow>
+    config: InfiniteDatasetStoreConfig<Row, ApiRow, Meta>
+    atoms: {
+        rowsAtom: (params: TablePagesParams) => Atom<Row[]>
+        paginationAtom: (params: TablePagesParams) => Atom<{
+            hasMore: boolean
+            nextCursor: string | null
+            nextOffset: number | null
+            isFetching: boolean
+            totalCount: number | null
+            nextWindowing: WindowingState | null
+        }>
+        selectionAtom: (params: ScopeParams) => PrimitiveAtom<Key[]>
+    }
+    hooks: {
+        usePagination: (params: {
+            scopeId: string | null
+            pageSize: number
+            resetOnScopeChange?: boolean
+        }) => ReturnType<typeof useInfiniteTablePagination<Row>>
+        useRowSelection: (
+            params: ScopeParams,
+        ) => [Key[], (next: Key[] | ((prev: Key[]) => Key[])) => void]
+    }
+    /**
+     * Release every atomFamily entry this store owns and cascade into the
+     * inner table store. Returns the total number of entries removed.
+     */
+    dispose: () => number
+    /** Diagnostic — names + sizes for every owned family (and inner store). */
+    familySizes: () => {name: string; size: number}[]
+}
+
+export const createInfiniteDatasetStore = <Row extends InfiniteTableRowBase, ApiRow, Meta>(
+    config: InfiniteDatasetStoreConfig<Row, ApiRow, Meta>,
+): InfiniteDatasetStore<Row, ApiRow, Meta> => {
+    // Per-store family registry for dispose() / familySizes(). See
+    // createInfiniteTableStore.ts for the same pattern.
+    interface ManagedFamily {
+        clear: () => void
+        size: () => number
+        readonly name: string
+    }
+    const ownedFamilies: ManagedFamily[] = []
+    // Constrain `A extends Atom<unknown>` to match `instrumentedAtomFamily`'s
+    // signature so the atom-type generic survives the wrapper. Returning the
+    // erased `…<P, never>` shape (as the earlier version did) collapsed every
+    // `get(family(params))` call to `unknown` — that's the leak the `as never`
+    // casts were papering over.
+    const trackFamily = <P, A extends Atom<unknown>>(
+        create: (p: P) => A,
+        name: string,
+        areEqual?: (a: P, b: P) => boolean,
+    ) => {
+        const fam = instrumentedAtomFamily<P, A>(create, {
+            name,
+            skipRegistry: true,
+            areEqual,
+        })
+        ownedFamilies.push(fam as unknown as ManagedFamily)
+        return fam
+    }
+
+    const selectionAtomFamily = trackFamily(
+        ({scopeId}: ScopeParams) => atom<Key[]>([]),
+        "infiniteDataset.selectionAtomFamily",
+        (a, b) => a.scopeId === b.scopeId,
+    )
+
+    const tableStore = createInfiniteTableStore<Row, ApiRow, Meta>({
+        key: config.key,
+        createSkeletonRow: config.createSkeletonRow,
+        mergeRow: config.mergeRow,
+        getQueryMeta: ({get}) => get(config.metaAtom) as Meta,
+        isEnabled: ({meta}) => {
+            if (config.isEnabled) {
+                return config.isEnabled(meta)
+            }
+            return Boolean(meta)
+        },
+        fetchPage: async ({limit, offset, cursor, windowing, meta}) => {
+            if (!meta) {
+                return {
+                    rows: [],
+                    totalCount: 0,
+                    hasMore: false,
+                    nextOffset: null,
+                    nextCursor: null,
+                    nextWindowing: null,
+                }
+            }
+
+            return config.fetchPage({
+                meta,
+                limit,
+                offset,
+                cursor,
+                windowing,
+            })
+        },
+    })
+
+    // Create custom pagination hook that uses wrapped atoms (with client rows)
+    const usePaginationWithClientRows = ({
+        scopeId,
+        pageSize,
+        resetOnScopeChange,
+    }: {
+        scopeId: string | null
+        pageSize: number
+        resetOnScopeChange?: boolean
+    }) => {
+        // Get the base pagination result from tableStore
+        const basePagination = useInfiniteTablePagination<Row>({
+            store: tableStore,
+            scopeId,
+            pageSize,
+            resetOnScopeChange,
+        })
+
+        const wrappedRowsAtom = rowsWithClientAtomFamily({scopeId, pageSize})
+        const wrappedPaginationAtom = paginationWithClientAtomFamily({scopeId, pageSize})
+
+        const wrappedRows = useAtomValue(wrappedRowsAtom) as Row[]
+        const wrappedPaginationInfo = useAtomValue(wrappedPaginationAtom)
+
+        // Override with wrapped data
+        return {
+            ...basePagination,
+            rows: wrappedRows,
+            rowsAtom: wrappedRowsAtom,
+            totalRows: wrappedPaginationInfo.totalCount || 0,
+            paginationInfo: wrappedPaginationInfo,
+        }
+    }
+
+    // When no clientRowsAtom/excludeRowIdsAtom, use the base hook directly
+    // to avoid duplicate subscriptions to the same underlying query atoms.
+    const usePaginationBase = ({
+        scopeId,
+        pageSize,
+        resetOnScopeChange,
+    }: {
+        scopeId: string | null
+        pageSize: number
+        resetOnScopeChange?: boolean
+    }) => {
+        return useInfiniteTablePagination<Row>({
+            store: tableStore,
+            scopeId,
+            pageSize,
+            resetOnScopeChange,
+        })
+    }
+
+    // Select the appropriate hook at store creation time (not per-render)
+    const usePagination =
+        config.clientRowsAtom || config.excludeRowIdsAtom
+            ? usePaginationWithClientRows
+            : usePaginationBase
+
+    const useRowSelection = ({scopeId}: ScopeParams) => useAtom(selectionAtomFamily({scopeId}))
+
+    // Create wrapper atoms that merge client rows if clientRowsAtom is provided
+    // Use atomFamily to cache derived atoms by params
+    const rowsWithClientAtomFamily = trackFamily(
+        (params: TablePagesParams) => {
+            const baseRowsAtom = tableStore.atoms.combinedRowsAtomFamily(params)
+
+            // Cache previous result to avoid unnecessary array creation
+            let prevBaseRows: Row[] | null = null
+            let prevClientRows: Row[] | null = null
+            let prevExcludeIds: Set<string> | null = null
+            let cachedResult: Row[] | null = null
+
+            return atom((get) => {
+                let baseRows = get(baseRowsAtom)
+                const excludeIds = config.excludeRowIdsAtom ? get(config.excludeRowIdsAtom) : null
+                const clientRows = config.clientRowsAtom ? get(config.clientRowsAtom) : null
+
+                // Check if inputs have changed
+                const baseRowsChanged = baseRows !== prevBaseRows
+                const clientRowsChanged = clientRows !== prevClientRows
+                const excludeIdsChanged = excludeIds !== prevExcludeIds
+
+                // Return cached result if nothing changed
+                if (
+                    cachedResult !== null &&
+                    !baseRowsChanged &&
+                    !clientRowsChanged &&
+                    !excludeIdsChanged
+                ) {
+                    return cachedResult
+                }
+
+                // Update cached inputs
+                prevBaseRows = baseRows
+                prevClientRows = clientRows
+                prevExcludeIds = excludeIds
+
+                // Apply exclusion filter if provided (e.g., filter out soft-deleted rows)
+                if (excludeIds && excludeIds.size > 0) {
+                    baseRows = baseRows.filter((row) => {
+                        const rowId =
+                            (typeof row.id === "string" || typeof row.id === "number"
+                                ? String(row.id)
+                                : null) ?? String(row.key)
+                        return !excludeIds.has(rowId)
+                    })
+                }
+
+                // If no client rows, return base rows directly (no spread needed)
+                if (!clientRows || clientRows.length === 0) {
+                    cachedResult = baseRows
+                    return cachedResult
+                }
+
+                // Prepend client rows to server rows
+                cachedResult = [...clientRows, ...baseRows]
+                return cachedResult
+            })
+        },
+        "infiniteDataset.rowsWithClientAtomFamily",
+        (a, b) => a.scopeId === b.scopeId && a.pageSize === b.pageSize,
+    )
+
+    const paginationWithClientAtomFamily = trackFamily(
+        (params: TablePagesParams) => {
+            const basePaginationAtom = tableStore.atoms.paginationInfoAtomFamily(params)
+            const baseRowsAtom = tableStore.atoms.combinedRowsAtomFamily(params)
+
+            return atom((get) => {
+                const basePagination = get(basePaginationAtom)
+
+                // Calculate actual count after filtering excluded rows
+                let serverRowCount = basePagination.totalCount || 0
+                if (config.excludeRowIdsAtom) {
+                    const excludeIds = get(config.excludeRowIdsAtom)
+                    const baseRows = get(baseRowsAtom)
+                    serverRowCount = baseRows.filter((row) => {
+                        const rowId =
+                            (typeof row.id === "string" || typeof row.id === "number"
+                                ? String(row.id)
+                                : null) ?? String(row.key)
+                        return !excludeIds.has(rowId)
+                    }).length
+                }
+
+                // Guard: only read from clientRowsAtom if it exists
+                if (!config.clientRowsAtom) {
+                    return {
+                        ...basePagination,
+                        totalCount: serverRowCount,
+                    }
+                }
+
+                const clientRows = get(config.clientRowsAtom)
+
+                return {
+                    ...basePagination,
+                    totalCount: serverRowCount + clientRows.length,
+                }
+            })
+        },
+        "infiniteDataset.paginationWithClientAtomFamily",
+        (a, b) => a.scopeId === b.scopeId && a.pageSize === b.pageSize,
+    )
+
+    const rowsAtomGetter = (params: TablePagesParams) => {
+        if (!config.clientRowsAtom) {
+            return tableStore.atoms.combinedRowsAtomFamily(params)
+        }
+        return rowsWithClientAtomFamily(params)
+    }
+
+    const paginationAtomGetter = (params: TablePagesParams) => {
+        if (!config.clientRowsAtom) {
+            return tableStore.atoms.paginationInfoAtomFamily(params)
+        }
+        return paginationWithClientAtomFamily(params)
+    }
+
+    return {
+        store: tableStore,
+        config,
+        atoms: {
+            rowsAtom: rowsAtomGetter,
+            paginationAtom: paginationAtomGetter,
+            selectionAtom: (params) => selectionAtomFamily(params),
+        },
+        hooks: {
+            usePagination,
+            useRowSelection,
+        },
+        // Release every atomFamily entry this store owns AND cascade into
+        // the inner table store. Returns total count removed.
+        dispose() {
+            let total = 0
+            for (const f of ownedFamilies) {
+                total += f.size()
+                f.clear()
+            }
+            if (typeof (tableStore as {dispose?: () => number}).dispose === "function") {
+                total += (tableStore as unknown as {dispose: () => number}).dispose()
+            }
+            return total
+        },
+        // Diagnostic — own + inner table store
+        familySizes() {
+            const own = ownedFamilies.map((f) => ({name: f.name, size: f.size()}))
+            const innerFn = (
+                tableStore as unknown as {
+                    familySizes?: () => {name: string; size: number}[]
+                }
+            ).familySizes
+            return typeof innerFn === "function" ? [...own, ...innerFn.call(tableStore)] : own
+        },
+    }
+}

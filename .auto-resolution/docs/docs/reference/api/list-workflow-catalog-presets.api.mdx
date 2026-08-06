@@ -1,0 +1,75 @@
+---
+id: list-workflow-catalog-presets
+title: "List Workflow Catalog Presets"
+description: "List presets defined against a template."
+sidebar_label: "List Workflow Catalog Presets"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWEtz2zYQ/iuYPSUzjORmeuKpGidp3KSJR3bSg63xQORKQgICDB5yVQ3/e2dBkKIkim6c9OaTRsS+99sFdrfg+NJCegN/afN1IfW9hVkCOdrMiNIJrSCF98I6Vhq06CzLcSEU5owvuVDWMc4cFqXkDke36lZdRjJukCleYM5KbniBDg0LB27FHcu4YnNkmS4K4RxJowNkC2Gsu1UG18IKrZheMM4U3rM1N4IrN2JTdN4oy7hiWJRuwyQZd79C1bGErbi9VUqTHrI12h4MvEJM2U3r7ezZ2OACDaoMx7wUL5Ze5Di+b86fjyABXaLhFIyLHFIgjXcNwV3GHZd6eRd1QAKtwxTXLVAUIIXGtruvuIEEBAW25G4FCRj85oXBHFJnPCZgsxUWHNItuE1JvNYZoZaQgBNO0ofrxtF3uIGqSlotQmXS53jHTbYSa8wbTd88ms2eqgWXdk8XV5uPi2Bx1DrXWiJXQOLjJ+WlhGq2M+Si1scmjb6KTg3aUiuLluS+PDujn31IXfksQ2sXXrJpJIYEMq0cKhesKUspshD08RdLPNuOraWhlDhRa8i0r5milUI5XKLpxOs8UBzi+oMv5mgIZA24TUAX5qNAu+BeOkjPqgSa7KZbEA4Le2xEnYCeMMbkDUXxA/FWB+Y9TtSrjogqAQLbAI4CfBLIuMOlNtGTndrW1UP9zQduDN8M2nO+E10lsJCh23R17EdR2LtO5juqGzB2oGfZpEPaSViAdpWQMFxz6bnT5iFRr1vCfkFWibJE95CYq0jWL6Styof82lVvnxiD1DhR5Q9LmnZIj4Tt8qjnXzBzHdamP57X3e1NyNtxngmz3PGhjHojHovlT0YQaLyRj5cgScIKeR7acVcKz3NByOHycs/gIT37rq3R2B8o1c+RvUrASr98rJgr4iVg5EMSElhoU3AHKXgv8uGmTm38NDamzX1ZA2CfbEju25iGKgHjlRPDDTMBVL6gp0m5catQ4URQtzdI4Atf8/hnNqR1GlVRmGvyxwa65q6aS3OwkXUfAT+KuoNrbc9GusG6X7qXdr8uyITJvOTm2Rsv5R9WqxcfvSu9ew59yYx3wH/hevg2OOCF74LP5S6kBHdVevcU3J8V3Is6nFUCOnA/RfZnRfZjjOdQSyXhV7Gp9N6yT+3kf20nVXLCuzglPfRMmsaB9RU9hnoS2JP63SR2E17ps5OPr3qkPnp1dzxpR8+D+aZv/h6Y3wch2muUbYe3qiLmX1++PJ71PnMp8vBIZ6+NCS/sRw56OTou5MAQJnW2d/o9ZTA7HeD3Og4ZVQKFXQ5NVH+itXyJu2ydJg3BYNd02txngbzbkcN05v7uiDlKzDnF8m/Xm7wuyCg2tfmRrvsUbVNUZ+h0KF7VKRhCytvr68sjgTU+CnQrTTuUZZiRwv4jhd22ZRy3KeMGk3a87S5OqnEcxMeQgEWzbpYsYUYAWuCE3NZ/V86VNh2P0Y8yqX0+4ktUjo+4qAlnJCPzRrhNEDK5vHiHm/qVCunNrEsQunMNsn2yNjG8FO/CaieuYiberbQR/zTjadjD1JNICJ9QC93N9yQYxyaXF0eFvHdEtcMzt9s5xGNIDtzeeUtv6SJUDjjkxW/tCSW6nWLgbPTL6Iw+ldq6gquOirACbFoAiz2AnWg82119P+0OIzqoRMel5EJ1Rtoa/zfQckDYxVBsibOpAUggPVgf7raNVMYrbR3J2W7n3OInI6uKPtdLP0J2Liyfy87aL+yF+raFtAYhe0N1hMjNCZ19Mk7m/Nk0tp3n7FQAmppRm67Oxq49Z0NjXjVFuY0kkyzDMAY2zEf3CDnQ9pvfX19DVf0L5r31mQ==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List Workflow Catalog Presets"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/workflows/catalog/templates/{template_key}/presets/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+List presets defined against a template.
+
+Presets are named parameter sets that can be committed as the first
+revision of a new variant. Returns an empty list when a template has
+no canned presets.
+
+See: [Workflows](/reference/api-guide/workflows).
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./list-workflow-catalog-presets.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./list-workflow-catalog-presets.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./list-workflow-catalog-presets.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

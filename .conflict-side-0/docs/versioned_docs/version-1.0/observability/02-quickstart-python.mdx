@@ -1,0 +1,97 @@
+---
+title: Quick Start Guide - Python LLM Observability 
+sidebar_label: Quick Start (Python)
+description: Implement LLM observability in Python with Agenta SDK. Learn to set up distributed tracing, monitor requests, and debug your applications step-by-step.
+sidebar_position: 2
+---
+
+```mdx-code-block
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+import Image from "@theme/IdealImage";
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
+
+```
+
+Agenta captures all inputs, outputs, and metadata from your LLM applications. You can use it whether your applications run inside Agenta or in your own environment.
+
+This guide shows you how to set up observability for an OpenAI application running locally.
+
+
+<GoogleColabButton notebookPath="examples/jupyter/observability/quickstart.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
+
+## Step-by-Step Guide
+
+### 1. Install Required Packages
+
+Install the Agenta SDK, OpenAI, and the OpenTelemetry instrumentor for OpenAI:
+
+```bash
+pip install -U agenta openai opentelemetry-instrumentation-openai
+```
+
+### 2. Configure Environment Variables
+
+You need an API key to start tracing your application. Visit the Agenta API Keys page under settings. Click on Create New API Key and follow the prompts.
+
+```python
+import os
+
+os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # Change for self-hosted
+```
+
+### 3. Instrument Your Application
+
+Here is a sample script that instruments an OpenAI application:
+
+```python
+# highlight-start
+import agenta as ag
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+import openai
+# highlight-end
+
+# highlight-start
+ag.init()
+# highlight-end
+
+# highlight-start
+OpenAIInstrumentor().instrument()
+# highlight-end
+
+# highlight-start
+@ag.instrument()
+# highlight-end
+def generate():
+    response = openai.chat.completions.create(
+      model="gpt-3.5-turbo",
+      messages=[
+          {"role": "system", "content": "You are a helpful assistant."},
+          {"role": "user", "content": "Write a short story about AI Engineering."},
+      ],
+  )
+  return response.choices[0].message.content
+
+if __name__ == "__main__":
+    print(generate())
+```
+
+The script uses two mechanisms to trace your application.
+
+First, `OpenAIInstrumentor().instrument()` automatically traces all OpenAI calls. It monkey patches the OpenAI library to capture each request.
+
+Second, the `@ag.instrument()` decorator traces the decorated function. It creates a span for the function and records its inputs and outputs.
+
+### 4. View Traces in the Agenta UI
+
+After you run your application, you can view the captured traces in Agenta. Log in to your Agenta dashboard and navigate to the Observability section. You will see a list of traces that correspond to your application's requests.
+
+<Image
+  style={{ display: "block", margin: "10 auto" }}
+  img={require("/images/observability/observability_quickstart.png")}
+  alt="Illustration of observability"
+  loading="lazy"
+/>

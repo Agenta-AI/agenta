@@ -1,0 +1,58 @@
+{
+    "name": "@agenta/sdk",
+    "version": "0.1.0",
+    "private": true,
+    "sideEffects": false,
+    "description": "Agenta TypeScript SDK — core API client for prompt management, evaluation, and observability",
+    "main": "./src/index.ts",
+    "types": "./src/index.ts",
+    "scripts": {
+        "build": "tsc --noEmit",
+        "build:dist": "tsc -p tsconfig.build.json",
+        "types:check": "tsc --noEmit",
+        "types:check:examples": "tsc --noEmit -p tsconfig.examples.json",
+        "generate:schemas": "bash scripts/generate-schemas.sh",
+        "test": "vitest run",
+        "test:coverage": "vitest run --coverage",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "test:watch": "vitest",
+        "lint": "eslint --config ../eslint.config.mjs src/"
+    },
+    "exports": {
+        ".": "./src/index.ts",
+        "./ai-services": "./src/ai-services.ts",
+        "./api-keys": "./src/api-keys.ts",
+        "./prompts": "./src/prompts.ts",
+        "./types": "./src/types.ts",
+        "./optimization": "./src/optimization/index.ts",
+        "./tools": "./src/tools.ts",
+        "./vault": "./src/vault.ts",
+        "./profile": "./src/profile.ts",
+        "./projects": "./src/projects.ts",
+        "./folders": "./src/folders.ts",
+        "./organizations": "./src/organizations.ts",
+        "./queries": "./src/queries.ts",
+        "./workspaces": "./src/workspaces.ts",
+        "./schemas": "./src/.generated/schemas.ts"
+    },
+    "peerDependencies": {
+        "ai": ">=4.0.0",
+        "yaml": ">=2.0.0",
+        "zod": ">=3.0.0"
+    },
+    "peerDependenciesMeta": {
+        "ai": {
+            "optional": true
+        },
+        "yaml": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/node": "^25.6.0",
+        "@vitest/coverage-v8": "^4.1.4",
+        "typescript": "6.0.2",
+        "vitest": "^4.1.4",
+        "yaml": "^2.8.3"
+    }
+}

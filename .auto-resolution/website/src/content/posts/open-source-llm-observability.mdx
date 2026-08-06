@@ -1,0 +1,118 @@
+---
+slug: "open-source-llm-observability"
+title: "Introducing Open-Source LLM Observability with Agenta"
+description: "Agenta introduces open-source LLM observability and LLM monitoring for LLM applications. It allows you to trace inputs, outputs, and meta-data with two-lines of code. It is OpenTelemetry compliant and comes with many integrations out of the box (OpenAI, LiteLLM, LangChain, Instructor and more)."
+category: Article
+date: 2024-11-13
+readingTime: "4 min read"
+heroImage: /blog/open-source-llm-observability/hero.webp
+ogImage: /blog/open-source-llm-observability/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Update"]
+---
+
+**TL;DR:** Agenta is introducing open-source observability for LLM applications. [Integrate it with a few lines of code](https://docs.agenta.ai/observability/quickstart) to capture inputs, outputs, and app performance. This feature helps with debugging, cost monitoring, and identifying edge cases. Built on the native [OpenTelemetry SDK](https://opentelemetry.io/) and compatible with [Gen AI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/), it includes out-of-the-box integrations such as OpenAI, LiteLLM, LangChain, and Instructor.
+
+## What is LLM Observability? Why It Matters and How It Improves Your LLM Applications
+
+<InlineCTA />
+
+LLMs are not like traditional software. They are complex, probabilistic, and sometimes unpredictable. To build reliable applications, you need a deep understanding of what happens under the hood. LLM observability lets engineers track information flow and the internal states of all components, providing insights into how the system produces its results.
+
+With LLM observability, AI engineers can determine root causes of issues, understand system behavior, and make informed decisions to optimize architecture and parameters. For example, they can monitor which raw prompts were sent to the LLM and the context retrieved in a RAG application.
+
+Additionally, LLM observability helps bootstrap test sets and streamline the LLM evaluation process. By monitoring real-world usage, teams can identify edge cases and use this data to improve system robustness.
+
+Finally, LLM observability enables teams to track key metrics such as latency, costs, and performance over time. This data is essential for optimizing resource usage, identifying drifts in model behavior, and comparing versions of the application in production environments.
+
+## Agenta's Open-Source LLM Observability
+
+We've launched an [open-source observability feature](https://docs.agenta.ai/observability/overview) for LLM apps. It hooks into your application with just a few lines of code and gives you a window into your app's behavior.
+
+**Key Features:**
+
+- **Monitor Inputs, Outputs, and Metadata**: Track inputs, outputs, and metadata like response times, model cost, or environment details. This helps you debug your application and understand what happens under the hood.
+- **Easy Integration**: Get started by adding a two lines of code to your project—it's as simple as installing the auto-instrumentation SDK and Agenta SDK.
+- **Out-of-the-Box Integrations**: Agenta comes with many integration out of the box (OpenAI, Litellm, Langchain, instructor) with many in the pipeline. These libraries and frameworks are auto-instrumented for seamless integration. For you custom workflow steps, you can easily instrument them by adding a decorator to your functions.
+
+**Benefits:**
+
+- **Debugging**: Trace specific inputs through your model. Understand what’s happening and spot unexpected behaviors.
+- **Bootstrap Test sets**: Collect data to build better test sets—make sure your app behaves consistently and identify potential edge cases.
+- **Performance & Cost Tracking**: Observe latency and costs to manage the performance and resource consumption of your LLM.
+- **Compare Versions**: Track metrics across versions of your model and see if updates are genuinely improving the performance.
+
+## Using OpenTelemetry For LLM Observability:
+
+We've based our solution on [OpenTelemetry](https://opentelemetry.io/), the open standard for observability. OpenTelemetry is an open protocol for sending logs, metrics, and traces from production systems. It supports various exporters and backends, making it flexible and adaptable to different environments.
+
+**Why OpenTelemetry Matters:**
+
+- **Vendor Neutrality**: Avoid vendor lock-in with an open solution that works well with different monitoring stacks, ensuring interoperability.
+- **Proven Reliability**: Leverage the OpenTelemetry SDK, which is reliable in heavy production environments and backed by a strong open-source community.
+- **Wide Compatibility**: Compatibility with OpenTelemetry semantic conventions means we work seamlessly with instrumentation libraries such as [**OpenLLMmetry**](https://github.com/traceloop/openllmetry), providing broad support for various models, frameworks, and languages.
+
+## Getting Started with Agenta's Open-Source LLM Observability
+
+Let's look at how to instrument OpenAI calls in Agenta:
+
+First, install the Agenta SDK, OpenAI, and the [OpenTelemetry instrumentor for OpenAI](https://pypi.org/project/opentelemetry-instrumentation-openai/):
+
+```bash
+pip install -U agenta openai opentelemetry-instrumentation-openai
+```
+
+Adding the instrumentation is as simple as initializing Agenta with `ag.init()` and calling the OpenTelemetry instrumentation library (thanks to [Traceloop](https://www.traceloop.com/) for maintaining the library) using `OpenAIInstrumentor().instrument()`:
+
+```python
+import agenta as ag
+from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+import openai
+
+os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"
+
+ag.init()
+
+OpenAIInstrumentor().instrument()
+
+response = openai.ChatCompletion.create(
+    model="gpt-3.5-turbo",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Write a short story about AI Engineering."},
+    ],
+)
+
+print(response.choices[0].message.content)
+```
+
+You can then see the trace directly in Agenta.
+
+![Getting Started with Agenta's Open-Source LLM Observability](/blog/open-source-llm-observability/img-1.webp)
+
+For more information on getting started with Agenta, [check our documentation](https://docs.agenta.ai/observability/quickstart).
+
+## Future Plans
+
+We're already working on several exciting improvements:
+
+- **More integrations and tutorials:** We'll regularly add new integrations and cookbooks to broaden our support and help you get the most out of Agenta.
+- **Playground integration:** Viewing traces directly after working with your app in the playground will streamline your workflow from exploration to optimization.
+- **Human Feedback**: We're developing new API endpoints to enable the addition of human feedback to traces, facilitating better analysis and improvements.
+- **Evaluation Integration**: We'll integrate our tracing capabilities with our evaluation feature, allowing you to see evaluation information within traces and vice versa, enhancing debugging capabilities.
+
+## Get Involved
+
+We'd love for you to try it out, give feedback, and help us improve it. To get started:
+
+- [**Create a Free Account**](https://cloud.agenta.ai): Sign up for a free account on Agenta or self-host our open-source solution.
+- [**Join Our GitHub Community**](https://github.com/agenta-ai/agenta): Contribute or report issues.
+- [**Connect on Slack**](https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA): Engage with our team and other developers.
+
+## Conclusion
+
+Agenta's LLM Observability gives you transparency into what your models are doing, helping you build better AI applications. Whether you want to debug issues, track performance, or just understand how your LLM is behaving, Agenta's platform provides the right insights and streamlines your workflow.
+
+Ready to get started? [Check out our documentation](https://docs.agenta.ai/observability/overview) or [reach out to us](https://agenta-hq.slack.com/join/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA). We're excited to see what you build.

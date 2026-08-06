@@ -1,0 +1,835 @@
+{
+    "sessions": [
+        {
+            "session_id": "sess_web_server_tutorial",
+            "title": "MDN web server explainer",
+            "application": {
+                "id": "019ae8af-6fdf-7292-8af7-6e2807df2134",
+                "slug": "customapp"
+            },
+            "environment": "production",
+            "agent": {
+                "name": "content-helper",
+                "version": "2025.12.04",
+                "deployed_at": "2025-12-01T08:00:00Z"
+            },
+            "created_at": "2025-12-04T09:37:59.177500Z",
+            "ended_at": "2025-12-04T09:48:21.542100Z",
+            "summary": {
+                "duration": 622364,
+                "latency": 69150,
+                "tokens": 720,
+                "cost": 0.0026
+            },
+            "participants": {
+                "user": {
+                    "id": "019ac50c-0b68-7ec1-af85-604e04af12d6",
+                    "email": "ashraf.chowdury.external+8@example.com"
+                },
+                "organization": {
+                    "id": "019aa1c0-aaaa-bbbb-cccc-604e04af12d6",
+                    "name": "Example Org",
+                    "workspace": "default"
+                }
+            },
+            "turns": [
+                {
+                    "turn_index": 1,
+                    "user_message": {
+                        "content": "Summarize the MDN article on what a web server is.",
+                        "timestamp": "2025-12-04T09:37:59.180Z"
+                    },
+                    "assistant_message": {
+                        "content": "Web server 101: hardware + HTTP software serving the web. Flow: URL \u2192 DNS \u2192 HTTP(S) request \u2192 response (status, headers, body). Serves static files or dynamic via app+DB. Prod adds reverse proxies, caching/CDNs, TLS, logs. Dev: use a local server, not file://.",
+                        "timestamp": "2025-12-04T09:38:46.300Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 47165,
+                    "cost_usd": 0.0236,
+                    "usage": {
+                        "prompt_tokens": 585,
+                        "completion_tokens": 2287,
+                        "total_tokens": 2872
+                    },
+                    "trace": {
+                        "trace_id": "74290e61766284b92819f752db7e8b01",
+                        "span_id": "35509c9817cbe2f6",
+                        "span_name": "generate",
+                        "span_type": "workflow",
+                        "span_kind": "SPAN_KIND_SERVER",
+                        "status_code": "STATUS_CODE_OK",
+                        "start_time": "2025-12-04T09:37:59.177500Z",
+                        "end_time": "2025-12-04T09:38:46.342537Z",
+                        "attributes": {
+                            "ag": {
+                                "data": {
+                                    "inputs": {
+                                        "blog_post": "https://developer.mozilla.org/en-US/docs/Learn_web_development/Howto/Web_mechanics/What_is_a_web_server"
+                                    },
+                                    "outputs": "Web server 101: hardware + HTTP software serving the web. Flow: URL \u2192 DNS \u2192 HTTP(S) request \u2192 response (status, headers, body). Serves static files or dynamic via app+DB. Prod adds reverse proxies, caching/CDNs, TLS, logs. Dev: use a local server, not file://. #webdev #HTTP",
+                                    "parameters": {
+                                        "prompt1": "Summarize the following blog post: {blog_post}",
+                                        "prompt2": "Write a tweet based on this: {output_1}"
+                                    }
+                                },
+                                "type": {
+                                    "span": "workflow",
+                                    "trace": "invocation"
+                                },
+                                "metrics": {
+                                    "costs": {
+                                        "cumulative": {
+                                            "total": 0.02360125,
+                                            "prompt": 0.00073125,
+                                            "completion": 0.02287
+                                        }
+                                    },
+                                    "tokens": {
+                                        "cumulative": {
+                                            "total": 2872,
+                                            "prompt": 585,
+                                            "completion": 2287
+                                        }
+                                    },
+                                    "duration": {
+                                        "cumulative": 47165.037
+                                    }
+                                },
+                                "references": {
+                                    "application": {
+                                        "id": "019ae8af-6fdf-7292-8af7-6e2807df2134",
+                                        "slug": "customapp"
+                                    }
+                                }
+                            }
+                        },
+                        "children": [
+                            {
+                                "span_id": "7c8694269d3d55ca",
+                                "span_name": "llm.tweet-writer",
+                                "span_type": "chat",
+                                "span_kind": "SPAN_KIND_CLIENT",
+                                "status_code": "STATUS_CODE_OK",
+                                "start_time": "2025-12-04T09:38:20.000Z",
+                                "end_time": "2025-12-04T09:38:46.200Z",
+                                "attributes": {
+                                    "model": "gpt-5",
+                                    "temperature": 0.3,
+                                    "response_type": "json_schema",
+                                    "prompt_template": [
+                                        {
+                                            "role": "system",
+                                            "content": "You are an expert evaluator grading model outputs..."
+                                        },
+                                        {
+                                            "role": "user",
+                                            "content": "## Model inputs\n{{inputs}} \n## Model outputs\n{{outputs}} "
+                                        }
+                                    ]
+                                },
+                                "metrics": {
+                                    "latency_ms": 26200,
+                                    "tokens": {
+                                        "prompt": 410,
+                                        "completion": 1100,
+                                        "total": 1510
+                                    },
+                                    "cost_usd": 0.0115
+                                }
+                            },
+                            {
+                                "span_id": "4f2be200819dc885",
+                                "span_name": "evaluator.similarity",
+                                "span_type": "task",
+                                "span_kind": "SPAN_KIND_SERVER",
+                                "status_code": "STATUS_CODE_OK",
+                                "start_time": "2025-12-04T09:38:42.000Z",
+                                "end_time": "2025-12-04T09:38:45.900Z",
+                                "attributes": {
+                                    "evaluator": "similarity-match",
+                                    "correct_answer_key": "correct_answer",
+                                    "similarity_threshold": 0.5
+                                },
+                                "metrics": {
+                                    "latency_ms": 3900,
+                                    "tokens": {
+                                        "prompt": 90,
+                                        "completion": 0,
+                                        "total": 90
+                                    },
+                                    "cost_usd": 0.00021
+                                }
+                            }
+                        ],
+                        "annotations": [
+                            {
+                                "annotation_id": "ann_001",
+                                "span_id": "7c8694269d3d55ca",
+                                "trace_id": "74290e61766284b92819f752db7e8b01",
+                                "origin": "auto",
+                                "kind": "adhoc",
+                                "channel": "api",
+                                "created_at": "2025-12-04T09:39:31.147509Z",
+                                "created_by": "ashraf.chowdury.external+8",
+                                "data": {
+                                    "metrics": {
+                                        "score": 8
+                                    },
+                                    "notes": {
+                                        "comment": "Accurate, concise summary; production hints slightly beyond source."
+                                    }
+                                },
+                                "links": {
+                                    "query-033287b4d079": {
+                                        "trace_id": "74290e61766284b92819f752db7e8b01",
+                                        "span_id": "35509c9817cbe2f6"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    "evaluations": [
+                        {
+                            "evaluator": "llm-as-a-judge-a9d8ca746aeb",
+                            "variant": "12ef32ecafd1",
+                            "revision": "19c8555507c5",
+                            "score": 8,
+                            "success": true,
+                            "comment": "Accurate, concise summary of key points.",
+                            "created_at": "2025-12-04T09:39:31.147509Z"
+                        },
+                        {
+                            "evaluator": "similarity-match-502066aa5de7",
+                            "variant": "341afde42754",
+                            "revision": "b3980a2f1a00",
+                            "score": 0.21,
+                            "success": false,
+                            "comment": "Semantic match below threshold because output is tweet-style.",
+                            "created_at": "2025-12-04T09:38:48.193433Z"
+                        }
+                    ]
+                },
+                {
+                    "turn_index": 2,
+                    "user_message": {
+                        "content": "Explain the DNS lookup part in more detail.",
+                        "timestamp": "2025-12-04T09:40:02.100Z"
+                    },
+                    "assistant_message": {
+                        "content": "DNS resolves the human-friendly URL to the server's IP. Browser checks cache \u2192 OS resolver \u2192 recursive resolver \u2192 authoritative nameserver. The A/AAAA record points to your web server; TTL controls cache freshness.",
+                        "timestamp": "2025-12-04T09:40:47.400Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 45300,
+                    "cost_usd": 0.0041,
+                    "usage": {
+                        "prompt_tokens": 190,
+                        "completion_tokens": 520,
+                        "total_tokens": 710
+                    },
+                    "trace": {
+                        "trace_id": "74290e61766284b92819f752db7e8b01",
+                        "span_id": "dns-clarify-001",
+                        "span_name": "dns-lookup-explainer",
+                        "span_type": "chat",
+                        "span_kind": "SPAN_KIND_CLIENT",
+                        "status_code": "STATUS_CODE_OK",
+                        "start_time": "2025-12-04T09:40:02.100Z",
+                        "end_time": "2025-12-04T09:40:47.400Z",
+                        "attributes": {
+                            "model": "gpt-4.1-mini",
+                            "temperature": 0.4,
+                            "inputs": {
+                                "prompt": "Explain the DNS lookup part in more detail."
+                            },
+                            "outputs": "DNS resolves the human-friendly URL to the server's IP..."
+                        },
+                        "metrics": {
+                            "latency_ms": 45300,
+                            "cost_usd": 0.0041,
+                            "tokens": {
+                                "prompt": 190,
+                                "completion": 520,
+                                "total": 710
+                            }
+                        }
+                    },
+                    "evaluations": [
+                        {
+                            "evaluator": "llm-as-a-judge-a9d8ca746aeb",
+                            "variant": "12ef32ecafd1",
+                            "revision": "19c8555507c5",
+                            "score": 7.5,
+                            "success": true,
+                            "comment": "Good depth on resolver flow and TTL mention.",
+                            "created_at": "2025-12-04T09:40:48.100Z"
+                        }
+                    ]
+                },
+                {
+                    "turn_index": 3,
+                    "user_message": {
+                        "content": "Give me a 5-item security checklist for hosting.",
+                        "timestamp": "2025-12-04T09:41:10.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "Security checklist: 1) TLS with HSTS, 2) patched web server + OS, 3) WAF/reverse proxy with rate limits, 4) least-privilege for app + DB, 5) central logs + alerts.",
+                        "timestamp": "2025-12-04T09:41:38.000Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 28000,
+                    "cost_usd": 0.0021,
+                    "usage": {
+                        "prompt_tokens": 160,
+                        "completion_tokens": 360,
+                        "total_tokens": 520
+                    },
+                    "trace": {
+                        "trace_id": "74290e61766284b92819f752db7e8b01",
+                        "span_id": "security-checklist-001",
+                        "span_name": "security-checklist",
+                        "span_type": "chat",
+                        "span_kind": "SPAN_KIND_CLIENT",
+                        "status_code": "STATUS_CODE_OK",
+                        "start_time": "2025-12-04T09:41:10.000Z",
+                        "end_time": "2025-12-04T09:41:38.000Z",
+                        "attributes": {
+                            "model": "gpt-4.1-mini",
+                            "inputs": {
+                                "prompt": "Give me a 5-item security checklist for hosting."
+                            },
+                            "outputs": "Security checklist: 1) TLS with HSTS..."
+                        },
+                        "metrics": {
+                            "latency_ms": 28000,
+                            "cost_usd": 0.0021,
+                            "tokens": {
+                                "prompt": 160,
+                                "completion": 360,
+                                "total": 520
+                            }
+                        }
+                    }
+                },
+                {
+                    "turn_index": 4,
+                    "user_message": {
+                        "content": "Find common log lines for 404s in the nginx access log.",
+                        "timestamp": "2025-12-04T09:42:01.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "Searched recent logs: 24 entries matching 404 across /wp-login.php, /phpmyadmin/, /robots.txt. Peak at 09:41:55 UTC from 203.0.113.42.",
+                        "timestamp": "2025-12-04T09:42:37.000Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 36000,
+                    "cost_usd": 0.0032,
+                    "usage": {
+                        "prompt_tokens": 210,
+                        "completion_tokens": 430,
+                        "total_tokens": 640
+                    },
+                    "trace": {
+                        "trace_id": "74290e61766284b92819f752db7e8b01",
+                        "span_id": "log-search-001",
+                        "span_name": "log-search",
+                        "span_type": "workflow",
+                        "span_kind": "SPAN_KIND_SERVER",
+                        "status_code": "STATUS_CODE_OK",
+                        "start_time": "2025-12-04T09:42:01.000Z",
+                        "end_time": "2025-12-04T09:42:37.000Z",
+                        "attributes": {
+                            "steps": ["run.log.search", "llm.summarize"]
+                        },
+                        "metrics": {
+                            "latency_ms": 36000,
+                            "cost_usd": 0.0032,
+                            "tokens": {
+                                "prompt": 210,
+                                "completion": 430,
+                                "total": 640
+                            }
+                        },
+                        "children": [
+                            {
+                                "span_id": "tool-logscan-01",
+                                "span_name": "tool.log.search",
+                                "span_type": "tool",
+                                "span_kind": "SPAN_KIND_SERVER",
+                                "status_code": "STATUS_CODE_OK",
+                                "attributes": {
+                                    "query": "status:404",
+                                    "limit": 25
+                                },
+                                "metrics": {
+                                    "latency_ms": 4100
+                                }
+                            },
+                            {
+                                "span_id": "llm-log-summarize-01",
+                                "span_name": "llm.log.summarize",
+                                "span_type": "chat",
+                                "span_kind": "SPAN_KIND_CLIENT",
+                                "status_code": "STATUS_CODE_OK",
+                                "attributes": {
+                                    "model": "gpt-4.1-mini",
+                                    "inputs": {
+                                        "prompt": "Summarize the log search results."
+                                    }
+                                },
+                                "metrics": {
+                                    "latency_ms": 25000,
+                                    "tokens": {
+                                        "prompt": 150,
+                                        "completion": 250,
+                                        "total": 400
+                                    },
+                                    "cost_usd": 0.0018
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "turn_index": 5,
+                    "user_message": {
+                        "content": "Give me final takeaways in bullet points.",
+                        "timestamp": "2025-12-04T09:43:02.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "- Web server = hardware + HTTP stack; serves static or dynamic content\n- DNS resolution maps URL to IP; use TLS + HSTS and a reverse proxy\n- Cache via CDN, rate-limit, log centrally; keep configs patched",
+                        "timestamp": "2025-12-04T09:43:23.000Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 21000,
+                    "cost_usd": 0.0018,
+                    "usage": {
+                        "prompt_tokens": 140,
+                        "completion_tokens": 240,
+                        "total_tokens": 380
+                    },
+                    "trace": {
+                        "trace_id": "74290e61766284b92819f752db7e8b01",
+                        "span_id": "wrap-up-001",
+                        "span_name": "wrap-up",
+                        "span_type": "chat",
+                        "span_kind": "SPAN_KIND_CLIENT",
+                        "status_code": "STATUS_CODE_OK",
+                        "start_time": "2025-12-04T09:43:02.000Z",
+                        "end_time": "2025-12-04T09:43:23.000Z",
+                        "attributes": {
+                            "model": "gpt-4.1-mini",
+                            "inputs": {
+                                "prompt": "Give me final takeaways in bullet points."
+                            }
+                        },
+                        "metrics": {
+                            "latency_ms": 21000,
+                            "cost_usd": 0.0018,
+                            "tokens": {
+                                "prompt": 140,
+                                "completion": 240,
+                                "total": 380
+                            }
+                        }
+                    }
+                }
+            ],
+            "aggregated_evaluator_metrics": {
+                "llm-as-a-judge-a9d8ca746aeb": {
+                    "score": {
+                        "average": 7.8,
+                        "annotations": [
+                            {
+                                "value": 8,
+                                "user": "ashraf.chowdury.external+8"
+                            },
+                            {
+                                "value": 7.5,
+                                "user": "ashraf.chowdury.external+8"
+                            }
+                        ]
+                    }
+                },
+                "similarity-match-502066aa5de7": {
+                    "score": {
+                        "average": 0.21,
+                        "annotations": [
+                            {
+                                "value": 0.21,
+                                "user": "ashraf.chowdury.external+8"
+                            }
+                        ]
+                    },
+                    "success": {
+                        "average": 0,
+                        "annotations": [
+                            {
+                                "value": false,
+                                "user": "ashraf.chowdury.external+8"
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "session_id": "sess_support_triage",
+            "title": "Support triage - billing error",
+            "application": {
+                "id": "019ae8af-6fdf-7292-8af7-6e2807df2134",
+                "slug": "customapp"
+            },
+            "environment": "staging",
+            "agent": {
+                "name": "support-copilot",
+                "version": "2025.12.02",
+                "deployed_at": "2025-12-02T15:00:00Z"
+            },
+            "created_at": "2025-12-05T15:10:11.000Z",
+            "ended_at": "2025-12-05T15:18:10.000Z",
+            "summary": {
+                "duration": 479000,
+                "latency": 79833,
+                "tokens": 640,
+                "cost": 0.0024
+            },
+            "participants": {
+                "user": {
+                    "id": "019ac50c-0b68-7ec1-af85-604e04af12d6",
+                    "email": "qa.user@example.com"
+                },
+                "organization": {
+                    "id": "019aa1c0-aaaa-bbbb-cccc-604e04af12d6",
+                    "name": "Example Org",
+                    "workspace": "staging"
+                }
+            },
+            "turns": [
+                {
+                    "turn_index": 1,
+                    "user_message": {
+                        "content": "Customer says they were charged twice for November.",
+                        "timestamp": "2025-12-05T15:10:11.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "Checking billing events for November on that account\u2026",
+                        "timestamp": "2025-12-05T15:11:05.000Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 54000,
+                    "cost_usd": 0.0029,
+                    "usage": {
+                        "prompt_tokens": 210,
+                        "completion_tokens": 410,
+                        "total_tokens": 620
+                    },
+                    "trace": {
+                        "trace_id": "trace-support-001",
+                        "span_id": "billing-root-01",
+                        "span_name": "triage",
+                        "span_type": "workflow",
+                        "span_kind": "SPAN_KIND_SERVER",
+                        "status_code": "STATUS_CODE_OK",
+                        "attributes": {
+                            "steps": ["llm.plan", "tool.billing.search"]
+                        },
+                        "metrics": {
+                            "latency_ms": 54000,
+                            "cost_usd": 0.0029,
+                            "tokens": {
+                                "prompt": 210,
+                                "completion": 410,
+                                "total": 620
+                            }
+                        },
+                        "children": [
+                            {
+                                "span_id": "billing-tool-01",
+                                "span_name": "tool.billing.search",
+                                "span_type": "tool",
+                                "span_kind": "SPAN_KIND_SERVER",
+                                "status_code": "STATUS_CODE_OK",
+                                "attributes": {
+                                    "query": "charges for account 23489 in 2025-11"
+                                },
+                                "metrics": {
+                                    "latency_ms": 7200
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "turn_index": 2,
+                    "user_message": {
+                        "content": "Were there duplicate invoices?",
+                        "timestamp": "2025-12-05T15:12:00.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "Yes\u2014two invoices generated within 2 minutes. One was voided; remaining amount $249.00 paid via Visa.",
+                        "timestamp": "2025-12-05T15:12:58.000Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 58000,
+                    "cost_usd": 0.0025,
+                    "usage": {
+                        "prompt_tokens": 170,
+                        "completion_tokens": 430,
+                        "total_tokens": 600
+                    },
+                    "trace": {
+                        "trace_id": "trace-support-001",
+                        "span_id": "billing-summary-02",
+                        "span_name": "billing-summary",
+                        "span_type": "chat",
+                        "span_kind": "SPAN_KIND_CLIENT",
+                        "status_code": "STATUS_CODE_OK",
+                        "metrics": {
+                            "latency_ms": 58000,
+                            "cost_usd": 0.0025,
+                            "tokens": {
+                                "prompt": 170,
+                                "completion": 430,
+                                "total": 600
+                            }
+                        }
+                    }
+                },
+                {
+                    "turn_index": 3,
+                    "user_message": {
+                        "content": "Draft a response to the customer with a refund note.",
+                        "timestamp": "2025-12-05T15:13:30.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "Hi Sarah, we saw two invoices. The duplicate was voided and the extra $249.00 charge is being refunded to your Visa ending 4141. You\u2019ll see it in 5-7 business days.",
+                        "timestamp": "2025-12-05T15:14:10.000Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 40000,
+                    "cost_usd": 0.0022,
+                    "usage": {
+                        "prompt_tokens": 200,
+                        "completion_tokens": 300,
+                        "total_tokens": 500
+                    },
+                    "trace": {
+                        "trace_id": "trace-support-001",
+                        "span_id": "compose-reply-03",
+                        "span_name": "compose-customer-reply",
+                        "span_type": "chat",
+                        "span_kind": "SPAN_KIND_CLIENT",
+                        "status_code": "STATUS_CODE_OK",
+                        "metrics": {
+                            "latency_ms": 40000,
+                            "cost_usd": 0.0022,
+                            "tokens": {
+                                "prompt": 200,
+                                "completion": 300,
+                                "total": 500
+                            }
+                        },
+                        "annotations": [
+                            {
+                                "annotation_id": "ann_100",
+                                "span_id": "compose-reply-03",
+                                "trace_id": "trace-support-001",
+                                "origin": "human",
+                                "kind": "review",
+                                "channel": "ui",
+                                "created_at": "2025-12-05T15:14:30.000Z",
+                                "created_by": "qa.user@example.com",
+                                "data": {
+                                    "notes": {
+                                        "comment": "Tone is friendly; approved to send."
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "turn_index": 4,
+                    "user_message": {
+                        "content": "Generate a Zendesk macro for similar cases.",
+                        "timestamp": "2025-12-05T15:15:05.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "Created macro: subject 'Duplicate charge detected', body includes apology, voided invoice reference, refund timeline, and a button to attach logs.",
+                        "timestamp": "2025-12-05T15:16:02.000Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 57000,
+                    "cost_usd": 0.003,
+                    "usage": {
+                        "prompt_tokens": 250,
+                        "completion_tokens": 420,
+                        "total_tokens": 670
+                    },
+                    "trace": {
+                        "trace_id": "trace-support-001",
+                        "span_id": "macro-gen-04",
+                        "span_name": "macro-generator",
+                        "span_type": "workflow",
+                        "span_kind": "SPAN_KIND_SERVER",
+                        "status_code": "STATUS_CODE_OK",
+                        "children": [
+                            {
+                                "span_id": "macro-llm-04",
+                                "span_name": "llm.macro",
+                                "span_type": "chat",
+                                "span_kind": "SPAN_KIND_CLIENT",
+                                "status_code": "STATUS_CODE_OK",
+                                "metrics": {
+                                    "latency_ms": 41000,
+                                    "tokens": {
+                                        "prompt": 230,
+                                        "completion": 300,
+                                        "total": 530
+                                    },
+                                    "cost_usd": 0.0026
+                                }
+                            }
+                        ],
+                        "metrics": {
+                            "latency_ms": 57000,
+                            "cost_usd": 0.003,
+                            "tokens": {
+                                "prompt": 250,
+                                "completion": 420,
+                                "total": 670
+                            }
+                        }
+                    },
+                    "evaluations": [
+                        {
+                            "evaluator": "llm-as-a-judge-a9d8ca746aeb",
+                            "variant": "12ef32ecafd1",
+                            "revision": "19c8555507c5",
+                            "score": 6.5,
+                            "success": true,
+                            "comment": "Accurate but could shorten refund timeline blurb.",
+                            "created_at": "2025-12-05T15:16:10.000Z"
+                        }
+                    ]
+                },
+                {
+                    "turn_index": 5,
+                    "user_message": {
+                        "content": "List evidence you used.",
+                        "timestamp": "2025-12-05T15:16:45.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "Evidence: billing events search (charge IDs ch_3412, ch_3413), invoice inv_8891 voided, payment method Visa ending 4141, log sample from 15:10:44Z.",
+                        "timestamp": "2025-12-05T15:17:05.000Z",
+                        "finish_reason": "stop"
+                    },
+                    "status": "success",
+                    "latency_ms": 20000,
+                    "cost_usd": 0.0015,
+                    "usage": {
+                        "prompt_tokens": 120,
+                        "completion_tokens": 260,
+                        "total_tokens": 380
+                    },
+                    "trace": {
+                        "trace_id": "trace-support-001",
+                        "span_id": "evidence-05",
+                        "span_name": "evidence-summary",
+                        "span_type": "chat",
+                        "span_kind": "SPAN_KIND_CLIENT",
+                        "status_code": "STATUS_CODE_OK",
+                        "metrics": {
+                            "latency_ms": 20000,
+                            "cost_usd": 0.0015,
+                            "tokens": {
+                                "prompt": 120,
+                                "completion": 260,
+                                "total": 380
+                            }
+                        }
+                    }
+                },
+                {
+                    "turn_index": 6,
+                    "user_message": {
+                        "content": "Send apology email draft.",
+                        "timestamp": "2025-12-05T15:17:20.000Z"
+                    },
+                    "assistant_message": {
+                        "content": "Failed to send: email service returned 503. Try again later.",
+                        "timestamp": "2025-12-05T15:18:10.000Z",
+                        "finish_reason": "error"
+                    },
+                    "status": "error",
+                    "latency_ms": 50000,
+                    "cost_usd": 0.0023,
+                    "usage": {
+                        "prompt_tokens": 150,
+                        "completion_tokens": 320,
+                        "total_tokens": 470
+                    },
+                    "trace": {
+                        "trace_id": "trace-support-001",
+                        "span_id": "email-send-06",
+                        "span_name": "send-email",
+                        "span_type": "workflow",
+                        "span_kind": "SPAN_KIND_SERVER",
+                        "status_code": "STATUS_CODE_ERROR",
+                        "status_message": "Upstream 503",
+                        "attributes": {
+                            "provider": "sendgrid",
+                            "template": "apology_v2"
+                        },
+                        "metrics": {
+                            "latency_ms": 50000,
+                            "cost_usd": 0.0023,
+                            "tokens": {
+                                "prompt": 150,
+                                "completion": 320,
+                                "total": 470
+                            }
+                        },
+                        "events": [
+                            {
+                                "name": "http.error",
+                                "timestamp": "2025-12-05T15:18:08.000Z",
+                                "attributes": {
+                                    "status": 503,
+                                    "endpoint": "/v3/mail/send"
+                                }
+                            }
+                        ]
+                    }
+                }
+            ],
+            "aggregated_evaluator_metrics": {
+                "llm-as-a-judge-a9d8ca746aeb": {
+                    "score": {
+                        "average": 6.8,
+                        "annotations": [
+                            {
+                                "value": 6.5,
+                                "user": "qa.user@example.com"
+                            },
+                            {
+                                "value": 7.1,
+                                "user": "qa.user@example.com"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    ]
+}

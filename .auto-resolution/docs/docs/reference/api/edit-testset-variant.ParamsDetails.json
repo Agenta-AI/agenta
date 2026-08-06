@@ -1,0 +1,1 @@
+{"parameters":[{"name":"testset_variant_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Testset Variant Id"}}]}

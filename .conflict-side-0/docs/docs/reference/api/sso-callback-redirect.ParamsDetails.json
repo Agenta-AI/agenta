@@ -1,0 +1,1 @@
+{"parameters":[{"name":"organization_slug","in":"path","required":true,"schema":{"type":"string","title":"Organization Slug"}},{"name":"provider_slug","in":"path","required":true,"schema":{"type":"string","title":"Provider Slug"}}]}

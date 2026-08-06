@@ -1,0 +1,73 @@
+---
+id: archive-evaluator-variant
+title: "Archive Evaluator Variant"
+description: "Soft-delete an evaluator variant."
+sidebar_label: "Archive Evaluator Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVWNty2zYQ/RXMPiUztOR4+sROZ6omzsRNW3tiJ32wPfaKXIlIQIDBRQ6r4b93AF5EiZKv6kOfbJGLs4uzZxdYLsHi3EB8CccLFA6t0gauI0jJJJoXlisJMZyrmT1ISZAlhpJRa8oWqDlKO7qSV/KcrGG3tVV6g/aWKclsRp0RO7GGaVpww5U0zFgsmSajxAKngq7ktGQ8/dkvKRlqYhlPU5JsplXObsffHenyljkpyJiAm6AQpJkha67kLZeJcCndoE4yvqD0F6sd3Y4gAlWQRr+TkxRiaN7fdJu4aeKDCArUmJMl7RlZgsScIIaB5Q1PIQLumSnQZhCBpu+Oa0oh9l4jMElGOUK8BFsWHsNYzeUcIpgpnaOFGJwLKJZb4Q06+tmX2gk7SaGqrj22KZQ0ZDzc0eGh/7ORHpckZMzMCfapMYYIEiUtSevNsSgETwIH46/Gr1n2Qiy0Z8jy2kOiXL2oiZxLS3PSvVDfBotNjbxhdxlJhm26GffJtk5LSiN2yJTNSN9xQ6OwdIZOWIgPq2jIbwhZlqezkIX18FbGRrj5uuU611XUPZFOCPBcDtk+9yhVBHdKf5sJdfci2L8bkA51FS1P7wPd1MXjYvcK6UW+PxfdPmoPqC2fYWJfxM2kAem46VD3F3fno457JkJv2y0mbm56pdET/VQpQSh7oj8xbNIz7Ul4hsJQFXmwLt0PQXU53AFkJC8Ksg/BnDdmA5Aqatep6VdK7LZG0/SZ94GkIaseYkAfpin3+0dxtkbkIHltuD3cnka2w0DCdeIE6ld/4JTE70bJg1NnC2dfw+Z++lnftIbB7u/TzEW9fcjJ4jM3O1R/2zTXHOfT9Sd9jh5i5L0TDxASLYFbyh+5CrXG8l5eNtY+jdQ/PZlV1Jygz2sYf/m11cYx8zyodz2IKoJEE9Z3lEc2nhQtHVge4tnt5W0NyyaBLFek/4WTzzVs42R129qrk3c1bOOkpWta7rFVt2T9VjbNuuVrr15atjovLWF79dLS1Xl5yTnZHo/7Cy9cJB9/IGzFWr/rXWQ0HAIipjTzC+qLoFSSWI42ySgdPSmA3h123e2xXJBQBbGZ0gyZ4XIutgTivXl/Px0dDe/KX1DwNJzh7FjrcAA/86KckkUuwjWi7rubBkIla2+fcm5cVxutunfcqeYO4g8tM982ZKzasDE4p1Xv3m0ayGAX/q0Xn/Qt35u3GpLNGZDYHz2YQS7fei5/2K35Xg1Jl4GbOvzGrqfXVYrqDO2m4l2dgvvE9eHi4mwAWOsjJ5spPxIWytTTn80ghnEnKDNuFGXGy21DYDVuhkmIwJBetHOj08LjYMFDbuufmbWFicdjcqNEKJeOcE7S4gh5bXjtMRKnuS0DyOTs5COVHwhT0hBfXvcNzr0ka5Gtm3WJwYJ/JE9VM8NOnM2U5v+0t9cwvGb1qiokfKb6+Z6E4Njk7GRQhWuvfO1gEqTSegqvIdrY9mq3EAHloXLAEua/dm98oj2HtZvD0ZvRoX/ks5Oj7LuoWWeDmXkz1uWqtv/n3zCatPraGhcCeaj+wPCy0e3latg0EEGrXIgg3vEBoxXvdQSZr4D4EpbLKRr6rEVV+cchXi++Bm/qtXG5hJQb/3/ajBv3sP7qU1P0r9muXbSKlWUIWzj/CyL4RuWujy+hPWZtaSwb00mSUGF7IINu7muoq/qz0/MLqKp/AXrGknQ=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Archive Evaluator Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/evaluators/variants/{evaluator_variant_id}/archive"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Soft-delete an evaluator variant.
+
+Sets `deleted_at` on the variant. Its revisions stay resolvable
+by id; they are hidden from `/query` unless the caller sets
+`include_archived=true`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./archive-evaluator-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./archive-evaluator-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./archive-evaluator-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

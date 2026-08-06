@@ -1,0 +1,1660 @@
+/**
+ * Workflow Molecule
+ *
+ * Unified API for workflow entity state management.
+ * Follows the molecule pattern for consistency with other entities
+ * (appRevision, evaluator, testset, etc.).
+ *
+ * Exposes:
+ * - **Raw flag selectors** — mirrors all backend `WorkflowFlags` fields
+ *   (URI-derived, interface-derived, user-defined role)
+ * - **Derived capability selectors** — semantic questions like `canRun`,
+ *   `canDeploy`, `needsUrl`, `workflowType`
+ * - **Runnable selectors** — execution mode, invocation URL, request payload
+ *
+ * @example
+ * ```typescript
+ * import { workflowMolecule } from '@agenta/entities/workflow'
+ *
+ * // Raw flags
+ * const isChat = useAtomValue(workflowMolecule.selectors.isChat(id))
+ * const isLlm = useAtomValue(workflowMolecule.selectors.isLlm(id))
+ *
+ * // Derived capabilities
+ * const canRun = useAtomValue(workflowMolecule.selectors.canRun(id))
+ * const type = useAtomValue(workflowMolecule.selectors.workflowType(id))
+ *
+ * // Imperative API (outside React)
+ * const canDeploy = workflowMolecule.get.canDeploy(id)
+ * workflowMolecule.set.update(id, { data: { parameters: newParams } })
+ * ```
+ *
+ * @packageDocumentation
+ */
+
+import {atom} from "jotai"
+import {getDefaultStore} from "jotai/vanilla"
+import {atomFamily} from "jotai-family"
+
+import {
+    nestEvaluatorConfiguration,
+    flattenEvaluatorConfiguration,
+} from "../../runnable/evaluatorTransforms"
+import {
+    extractInputPortsFromSchema,
+    extractLastPathSegment,
+    extractOutputPortsFromSchema,
+    extractSystemFieldNames,
+    formatKeyAsName,
+    groupTemplateVariables,
+} from "../../runnable/portHelpers"
+import {normalizeWorkflowResponse} from "../../runnable/responseHelpers"
+import {
+    extractMustacheSectionOpeners,
+    extractSectionOpenersFromConfig,
+    extractTemplateVariables,
+    extractVariablesFromConfig,
+    resolveTemplateFormat,
+} from "../../runnable/utils"
+import type {RunnablePort, StoreOptions} from "../../shared"
+import {isLocalDraftId, isPlaceholderId} from "../../shared"
+import {archiveWorkflow, unarchiveWorkflow} from "../api"
+import type {Workflow} from "../core"
+import {
+    toEvaluatorDefinitionFromWorkflow,
+    type EvaluatorDefinition,
+} from "../core/evaluatorResolution"
+import {
+    parseWorkflowKeyFromUri,
+    resolveInputSchema,
+    resolveOutputSchema,
+    resolveParameters,
+    resolveParametersSchema,
+} from "../core/schema"
+
+import {workflowsListDataAtom, nonArchivedWorkflowsAtom} from "./allWorkflows"
+import {evaluatorTemplatesDataAtom, invalidateEvaluatorsListCache} from "./evaluatorUtils"
+import {
+    executionModeAtomFamily as runnableExecutionModeAtomFamily,
+    invocationUrlAtomFamily as runnableInvocationUrlAtomFamily,
+    deploymentUrlAtomFamily as runnableDeploymentUrlAtomFamily,
+    requestPayloadAtomFamily as runnableRequestPayloadAtomFamily,
+} from "./runnableSetup"
+import {
+    workflowProjectIdAtom,
+    appWorkflowsListQueryAtom,
+    workflowQueryAtomFamily,
+    workflowInspectAtomFamily,
+    workflowAppSchemaAtomFamily,
+    workflowInterfaceSchemasAtomFamily,
+    workflowDraftAtomFamily,
+    workflowArtifactQueryAtomFamily,
+    workflowVariantsQueryAtomFamily,
+    workflowBaseEntityAtomFamily,
+    workflowEntityAtomFamily,
+    workflowLocalServerDataAtomFamily,
+    workflowIsDirtyAtomFamily,
+    getFlatSourceData,
+    workflowIsEphemeralAtomFamily,
+    workflowServerDataSelectorFamily,
+    updateWorkflowDraftAtom,
+    discardWorkflowDraftAtom,
+    invalidateWorkflowsListCache,
+    invalidateWorkflowCache,
+    invalidateWorkflowVariantsCache,
+    invalidateWorkflowRevisionsByWorkflowCache,
+    agTypeSchemaAtomFamily,
+} from "./store"
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+function getStore(options?: StoreOptions) {
+    return options?.store ?? getDefaultStore()
+}
+
+type WorkflowLifecycleOptions = StoreOptions & {
+    projectId?: string | null
+}
+
+function getLifecycleProjectId(options?: WorkflowLifecycleOptions) {
+    return options?.projectId ?? getStore(options).get(workflowProjectIdAtom)
+}
+
+function invalidateWorkflowLifecycleCaches(workflowId: string, options?: StoreOptions) {
+    invalidateWorkflowsListCache(options)
+    invalidateEvaluatorsListCache()
+    invalidateWorkflowCache(workflowId, options)
+    invalidateWorkflowVariantsCache(workflowId, options)
+    invalidateWorkflowRevisionsByWorkflowCache(workflowId, options)
+}
+
+// ============================================================================
+// DERIVED SELECTORS
+// ============================================================================
+
+/**
+ * Workflow data selector (returns merged server + draft data).
+ */
+const dataAtomFamily = atomFamily((workflowId: string) =>
+    atom<Workflow | null>((get) => get(workflowBaseEntityAtomFamily(workflowId))),
+)
+
+/**
+ * Resolved workflow data selector (returns merged server + draft + schema-resolved data).
+ * Unlike `dataAtomFamily` which reads from the base entity (no inspect/OpenAPI),
+ * this reads from the full `workflowEntityAtomFamily` which includes schema resolution.
+ * Use this when you need schemas to be resolved (e.g., for UI rendering of schema-dependent content).
+ */
+const resolvedDataAtomFamily = atomFamily((workflowId: string) =>
+    atom<Workflow | null>((get) => get(workflowEntityAtomFamily(workflowId))),
+)
+
+/**
+ * Workflow query state selector (loading, error states).
+ *
+ * Local draft IDs and hydration placeholders are client-only entities whose
+ * server query is disabled. For those, surface locally-seeded data with
+ * isPending: false so downstream consumers (e.g. config section) don't show
+ * infinite loading skeletons.
+ */
+const queryAtomFamily = atomFamily((workflowId: string) =>
+    atom((get) => {
+        if (isLocalDraftId(workflowId) || isPlaceholderId(workflowId)) {
+            const localData = get(workflowLocalServerDataAtomFamily(workflowId))
+            return {
+                data: localData ?? null,
+                isPending: false,
+                isError: false,
+                error: null,
+            }
+        }
+        const query = get(workflowQueryAtomFamily(workflowId))
+        return {
+            data: query.data ?? null,
+            isPending: query.isPending,
+            isError: query.isError,
+            error: query.error ?? null,
+        }
+    }),
+)
+
+/**
+ * Workflow URI selector.
+ * Extracts URI from workflow data (e.g., "agenta:builtin:auto_exact_match:v0").
+ */
+const uriAtomFamily = atomFamily((workflowId: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return entity?.data?.uri ?? null
+    }),
+)
+
+const workflowIdAtomFamily = atomFamily((workflowId: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return entity?.workflow_id ?? null
+    }),
+)
+
+/**
+ * Workflow key selector.
+ * Parses the key segment from the URI (e.g., "auto_exact_match").
+ */
+const workflowKeyAtomFamily = atomFamily((workflowId: string) =>
+    atom<string | null>((get) => {
+        const uri = get(uriAtomFamily(workflowId))
+        return parseWorkflowKeyFromUri(uri)
+    }),
+)
+
+/**
+ * Workflow parameters selector.
+ * Returns the configuration parameters.
+ */
+const parametersAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return resolveParameters(entity?.data) ?? null
+    }),
+)
+
+/**
+ * Workflow schemas selector.
+ * Returns the JSON schemas for parameters, inputs, and outputs.
+ */
+const schemasAtomFamily = atomFamily((workflowId: string) =>
+    atom((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        return entity?.data?.schemas ?? null
+    }),
+)
+
+/**
+ * Input schema selector (from data.schemas.inputs).
+ */
+const inputSchemaAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        return resolveInputSchema(get(workflowEntityAtomFamily(workflowId))?.data) ?? null
+    }),
+)
+
+/**
+ * Output schema selector (from data.schemas.outputs).
+ */
+const outputSchemaAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        return resolveOutputSchema(get(workflowEntityAtomFamily(workflowId))?.data) ?? null
+    }),
+)
+
+// ============================================================================
+// FLAG SELECTORS — Raw flags
+// ============================================================================
+
+/**
+ * All workflow flags (raw object from backend).
+ */
+const flagsAtomFamily = atomFamily((workflowId: string) =>
+    atom((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return entity?.flags ?? null
+    }),
+)
+
+// -- URI-derived flags --
+
+/** Is managed (provider is "agenta"). */
+const isManagedAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_managed ?? false),
+)
+
+/** Is custom (kind is "custom" — user-deployed code on agenta platform). */
+const isCustomAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_custom ?? false),
+)
+
+/** Is LLM handler (key is "llm"). */
+const isLlmAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_llm ?? false),
+)
+
+/** Is hook/webhook handler (key is "hook"). */
+const isHookAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_hook ?? false),
+)
+
+/** Is code/script handler (key is "code"). */
+const isCodeAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_code ?? false),
+)
+
+/** Is matcher evaluator (key is "match"). */
+const isMatchAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_match ?? false),
+)
+
+/** Is human annotation workflow (key is "trace"). */
+const isHumanAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_feedback ?? false),
+)
+
+// -- Interface-derived flags --
+
+/** Has chat/message semantics (from schema). */
+const isChatAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_chat ?? false),
+)
+
+/** Is an agent workflow (WP-6, backend-owned). */
+const isAgentAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_agent ?? false),
+)
+
+/** Has a webhook/service URL. */
+const hasUrlAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.has_url ?? false),
+)
+
+/** Has embedded script content. */
+const hasScriptAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.has_script ?? false),
+)
+
+/** Has an in-process handler (SDK only). */
+const hasHandlerAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.has_handler ?? false),
+)
+
+// -- User-defined role flags --
+
+/** Can be used as an application. */
+const isApplicationAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_application ?? false),
+)
+
+/** Can be used as an evaluator. */
+const isEvaluatorAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_evaluator ?? false),
+)
+
+/** Is a reusable snippet. */
+const isSnippetAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_snippet ?? false),
+)
+
+// -- Local-only flags --
+
+/** Is ephemeral (created from trace data, local-only). */
+const isBaseAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => get(flagsAtomFamily(workflowId))?.is_base ?? false),
+)
+
+// ============================================================================
+// DERIVED CAPABILITY SELECTORS
+// ============================================================================
+
+/**
+ * Workflow type discriminant for UI rendering.
+ *
+ * Derives a single category string from flags, checked in priority order.
+ * Use this to switch UI rendering modes instead of checking multiple flags.
+ */
+export type WorkflowType =
+    | "human"
+    | "llm"
+    | "code"
+    | "hook"
+    | "match"
+    | "custom"
+    | "agent"
+    | "chat"
+    | "completion"
+
+const workflowTypeAtomFamily = atomFamily((workflowId: string) =>
+    atom<WorkflowType>((get) => {
+        const flags = get(flagsAtomFamily(workflowId))
+        if (flags?.is_feedback) return "human"
+        if (flags?.is_llm) return "llm"
+        if (flags?.is_code) return "code"
+        if (flags?.is_hook) return "hook"
+        if (flags?.is_match) return "match"
+        // Agent wins over `is_custom`/`is_chat`: an agent may also carry is_chat
+        // (messages-in), so is_agent takes precedence to pick the agent lane.
+        if (flags?.is_agent) return "agent"
+        if (flags?.is_custom) return "custom"
+        if (flags?.is_chat) return "chat"
+        return "completion"
+    }),
+)
+
+/**
+ * Can this workflow be invoked/executed?
+ *
+ * True when the workflow has a URI (resolvable handler), URL (webhook),
+ * handler (SDK in-process), or script (code execution).
+ */
+const canRunAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => {
+        const flags = get(flagsAtomFamily(workflowId))
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return !!(flags?.has_url || flags?.has_handler || flags?.has_script) || !!entity?.data?.uri
+    }),
+)
+
+/**
+ * Can this workflow be deployed to an endpoint?
+ *
+ * True for application-role workflows that have some execution target
+ * and are not snippets.
+ */
+const canDeployAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => {
+        const flags = get(flagsAtomFamily(workflowId))
+        if (!flags?.is_application) return false
+        if (flags.is_snippet) return false
+        return !!(
+            flags.has_url ||
+            flags.has_handler ||
+            get(workflowBaseEntityAtomFamily(workflowId))?.data?.uri
+        )
+    }),
+)
+
+/**
+ * Does the workflow require an external URL to run?
+ *
+ * True for hooks and custom workflows that don't have an in-process handler.
+ */
+const needsUrlAtomFamily = atomFamily((workflowId: string) =>
+    atom<boolean>((get) => {
+        const flags = get(flagsAtomFamily(workflowId))
+        if (flags?.has_handler) return false
+        return !!(flags?.is_hook || flags?.is_custom)
+    }),
+)
+
+// ============================================================================
+// IDENTITY SELECTORS
+// ============================================================================
+
+/**
+ * Workflow name selector.
+ */
+const nameAtomFamily = atomFamily((workflowId: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return entity?.name ?? null
+    }),
+)
+
+/**
+ * Entity display name resolved from the workflow ARTIFACT.
+ *
+ * Revision `name` carries the variant name ("default"), not the entity name,
+ * so surfaces that label the entity (evaluator tables, annotation cells, page
+ * headers) must read the artifact's name. Accepts a revision id or a workflow
+ * id; falls back to the entity's own name for local drafts without an artifact.
+ */
+const artifactNameAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        const entity = get(workflowBaseEntityAtomFamily(entityId))
+        const artifactId = entity?.workflow_id ?? entityId
+        const artifactQuery = get(workflowArtifactQueryAtomFamily(artifactId))
+        return artifactQuery.data?.name ?? entity?.name ?? null
+    }),
+)
+
+/**
+ * Variant label resolved from the VARIANT entity.
+ *
+ * The label is `variant.name`, then `variant.slug` (SDK-created variants
+ * carry no name; their slug is "default"). Never labels from revision
+ * fields: a revision's `name` is unreliable and its slug is an opaque hex.
+ * Accepts a revision id or a workflow id; for a workflow id the latest
+ * revision's variant label is returned.
+ */
+const variantLabelAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        const entity = get(workflowBaseEntityAtomFamily(entityId))
+        const workflowId = entity?.workflow_id ?? null
+        const variantId = entity?.workflow_variant_id ?? entity?.variant_id ?? null
+        if (!workflowId || !variantId) return null
+        const variantsQuery = get(workflowVariantsQueryAtomFamily(workflowId))
+        const variant = (variantsQuery.data?.workflow_variants ?? []).find(
+            (v) => v.id === variantId,
+        )
+        return variant?.name ?? variant?.slug ?? null
+    }),
+)
+
+/**
+ * Workflow slug selector.
+ */
+const slugAtomFamily = atomFamily((workflowId: string) =>
+    atom<string | null>((get) => {
+        const entity = get(workflowBaseEntityAtomFamily(workflowId))
+        return entity?.slug ?? null
+    }),
+)
+
+// ============================================================================
+// RUNNABLE SELECTORS (absorbed from bridge + runnableSetup)
+// ============================================================================
+
+/**
+ * Configuration selector.
+ *
+ * Reads parameters from the fully merged entity (`workflowEntityAtomFamily`)
+ * so that values seeded from inspect/openapi schema defaults are visible to
+ * the form. The base atom skips schema resolution and therefore never sees
+ * those seeded values, which causes custom URL workflows with no stored
+ * parameters to render an empty form even when their openapi schema defines
+ * defaults. Evaluator nesting is already applied in the merge layer.
+ */
+const configurationSelectorAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        return resolveParameters(entity?.data) ?? null
+    }),
+)
+
+/**
+ * Parameters schema selector.
+ *
+ * For evaluator workflows with incomplete stored schemas (e.g., only
+ * `correct_answer_key`), enriches the schema from the catalog template.
+ * The catalog template provides the full `settings_template` metadata
+ * (prompt_template, model, response_type, json_schema, etc.) which is
+ * converted to JSON Schema and merged with the stored schema.
+ *
+ * Evaluator nesting is already applied in `workflowEntityAtomFamily`.
+ */
+const parametersSchemaAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        const storedSchema = resolveParametersSchema(entity?.data) ?? null
+
+        const enrichSchemaRefs = (schema: unknown): unknown => {
+            if (!schema || typeof schema !== "object" || Array.isArray(schema)) return schema
+
+            const node = schema as Record<string, unknown>
+            const agTypeRef = node["x-ag-type-ref"] as string | undefined
+            let merged: Record<string, unknown> = node
+
+            if (agTypeRef) {
+                const agTypeQuery = get(agTypeSchemaAtomFamily(agTypeRef))
+                const agTypeSchema = agTypeQuery.data
+                if (agTypeSchema && typeof agTypeSchema === "object") {
+                    merged = {
+                        ...agTypeSchema,
+                        ...node,
+                        "x-ag-type-ref": agTypeRef,
+                        ...(node.title ? {title: node.title} : {}),
+                        ...(node.description ? {description: node.description} : {}),
+                        ...(node.default !== undefined ? {default: node.default} : {}),
+                    }
+                }
+            }
+
+            const properties = merged.properties as Record<string, unknown> | undefined
+            const items = merged.items
+
+            return {
+                ...merged,
+                ...(properties
+                    ? {
+                          properties: Object.fromEntries(
+                              Object.entries(properties).map(([key, value]) => [
+                                  key,
+                                  enrichSchemaRefs(value),
+                              ]),
+                          ),
+                      }
+                    : {}),
+                ...(items ? {items: enrichSchemaRefs(items)} : {}),
+            }
+        }
+
+        // For non-evaluators, enrich any opaque x-ag-type-ref properties with
+        // full sub-property schemas fetched from the ag-types endpoint
+        if (!entity?.flags?.is_evaluator) {
+            if (!storedSchema?.properties) return storedSchema
+
+            const properties = storedSchema.properties as Record<string, Record<string, unknown>>
+            let enriched = false
+            const enrichedProperties: Record<string, unknown> = {}
+
+            for (const [key, prop] of Object.entries(properties)) {
+                const enrichedProp = enrichSchemaRefs(prop)
+                if (enrichedProp !== prop) {
+                    enrichedProperties[key] = enrichedProp
+                    enriched = true
+                    continue
+                }
+                enrichedProperties[key] = prop
+            }
+
+            if (!enriched) return storedSchema
+            return {...storedSchema, properties: enrichedProperties}
+        }
+
+        // If stored schema is valid JSON Schema (has type + properties), return as-is.
+        // Settings_template format has properties but no type — needs enrichment.
+        if (storedSchema?.properties && storedSchema?.type) {
+            return enrichSchemaRefs(storedSchema) as Record<string, unknown>
+        }
+
+        // Evaluator with no/incomplete schema — try to enrich from catalog template
+        const uri = entity?.data?.uri as string | undefined
+        const evaluatorKey = parseWorkflowKeyFromUri(uri)
+
+        if (!evaluatorKey) return storedSchema
+
+        const templates = get(evaluatorTemplatesDataAtom)
+
+        const template = templates.find((t) => t.key === evaluatorKey)
+        if (!template) return storedSchema
+
+        // Catalog template schemas.parameters may be settings_template format
+        const templateParams = template.data?.schemas?.parameters as
+            | Record<string, unknown>
+            | undefined
+
+        if (!templateParams) return storedSchema
+
+        // If the template schema has properties, merge with stored schema
+        if (templateParams.properties) {
+            // Template already in JSON Schema format — merge (stored takes precedence)
+            const mergedTemplateSchema = {
+                ...templateParams,
+                properties: {
+                    ...(templateParams.properties as Record<string, unknown>),
+                    ...((storedSchema?.properties as Record<string, unknown>) ?? {}),
+                },
+            }
+            return enrichSchemaRefs(mergedTemplateSchema) as Record<string, unknown>
+        }
+
+        // Template is in settings_template metadata format — convert to JSON Schema
+        // and merge. The template keys are field definitions like:
+        // { prompt_template: { type: "messages", label: "..." }, model: { type: "multiple_choice" } }
+        const schemaProperties: Record<string, Record<string, unknown>> = {}
+        const hiddenKeys = new Set<string>()
+        for (const [key, value] of Object.entries(templateParams)) {
+            if (!value || typeof value !== "object" || Array.isArray(value)) continue
+            const meta = value as Record<string, unknown>
+            const templateType = meta.type as string | undefined
+            if (templateType === "hidden") {
+                hiddenKeys.add(key)
+                continue
+            }
+
+            const prop: Record<string, unknown> = {
+                title: (meta.label as string) ?? key,
+            }
+            if (meta.description) prop.description = meta.description
+
+            switch (templateType) {
+                case "messages":
+                    prop.type = "array"
+                    prop["x-parameter"] = "messages"
+                    break
+                case "code":
+                    prop.type = "string"
+                    prop["x-parameters"] = {code: true}
+                    break
+                case "boolean":
+                    prop.type = "boolean"
+                    break
+                case "multiple_choice":
+                    prop.type = "string"
+                    if (Array.isArray(meta.options)) prop.enum = meta.options
+                    break
+                case "number":
+                case "integer":
+                case "float":
+                    prop.type = "number"
+                    if (meta.min !== undefined) prop.minimum = meta.min
+                    if (meta.max !== undefined) prop.maximum = meta.max
+                    break
+                case "object":
+                    prop.type = "object"
+                    break
+                case "fields_tags_editor":
+                    prop.type = "array"
+                    prop.items = {type: "string"}
+                    prop["x-parameter"] = "fields_tags_editor"
+                    break
+                case "llm_response_schema":
+                    prop.type = "object"
+                    prop["x-parameter"] = "feedback_config"
+                    break
+                default:
+                    prop.type = "string"
+                    break
+            }
+
+            if (meta["x-ag-ui-advanced"] === true || meta.advanced === true)
+                prop["x-advanced"] = true
+
+            schemaProperties[key] = prop
+        }
+
+        // Filter stored schema properties to exclude hidden fields from the template.
+        // The inspect endpoint may return hidden fields (e.g. version, requires_llm_api_keys)
+        // as visible properties — we must not let them override the template's filtering.
+        const storedProps = (storedSchema?.properties as Record<string, unknown>) ?? {}
+        const filteredStoredProps: Record<string, unknown> = {}
+        for (const [key, value] of Object.entries(storedProps)) {
+            if (!hiddenKeys.has(key)) {
+                filteredStoredProps[key] = value
+            }
+        }
+
+        const mergedSchema = {
+            type: "object",
+            properties: {
+                ...schemaProperties,
+                ...filteredStoredProps,
+            },
+        }
+
+        return enrichSchemaRefs(mergedSchema) as Record<string, unknown>
+    }),
+)
+
+/**
+ * Infer a lightweight JSON Schema from a sample value. Used to turn the
+ * observed envelope (e.g. `{country: "Azerbaijan", correct_answer: "..."}`)
+ * into a property list the drill-in renderer can expand. Returns an open-ended
+ * object schema when the sample is missing or not a plain object.
+ */
+function inferEnvelopeSchema(sample: unknown): Record<string, unknown> {
+    if (!sample || typeof sample !== "object" || Array.isArray(sample)) {
+        return {type: "object", additionalProperties: true}
+    }
+    const properties: Record<string, Record<string, unknown>> = {}
+    for (const [key, value] of Object.entries(sample as Record<string, unknown>)) {
+        const valueType = Array.isArray(value)
+            ? "array"
+            : value === null
+              ? "null"
+              : typeof value === "object"
+                ? "object"
+                : typeof value
+        properties[key] = {type: valueType}
+    }
+    return {
+        type: "object",
+        properties,
+        additionalProperties: true,
+    }
+}
+
+/**
+ * Build envelope ports for an evaluator workflow: `inputs` (graded testset
+ * row) and `outputs` (graded app output). When meta carries a sample envelope
+ * (e.g. span-opened ephemerals), the observed shape is surfaced as the
+ * sub-schema so drill-in shows the real fields.
+ *
+ * Port types:
+ * - `inputs` is always a structured testcase row → `object` (JSON editor).
+ * - `outputs` can be a string, number, or object depending on the upstream
+ *   app → `string` so the editor picks mode from the observed value
+ *   (auto-detects JSON, falls back to plain text). Forcing `object` here
+ *   would lock the editor into JSON mode even when the user wants to enter
+ *   a plain-text output (e.g. for Exact Match).
+ *
+ * Why both are always returned (don't gate on prompt template references):
+ * every evaluator handler signature reads at least one of `inputs`/`outputs`,
+ * and most (json_multi_field_match, exact_match, levenshtein, json_diff, …)
+ * raise `MissingInputV0Error` if `inputs[correct_answer_key]` is absent. The
+ * envelope ports are the only way for the user to populate those keys when
+ * the evaluator isn't chained downstream of an app. Gating on template
+ * variables only works for `auto_ai_critique_v0` and silently breaks the
+ * classifier handlers; per-handler variable extraction belongs in a follow-up.
+ */
+/**
+ * Set of envelope-slot names. Field ports keyed by these collide with the
+ * envelope ports themselves (or with cross-envelope slots) and can't be
+ * meaningfully filled as a `data.inputs.<key>` value. Used to filter out
+ * self-referential template-variable extractions like `{{$.inputs.inputs}}`
+ * or cross-envelope refs like `{{$.inputs.outputs}}` before building
+ * field ports.
+ */
+const RESERVED_FIELD_KEYS = new Set([
+    "inputs",
+    "outputs",
+    "parameters",
+    "testcase",
+    "trace",
+    "revision",
+])
+
+/**
+ * Extract template variables referenced in the evaluator's prompt and convert
+ * them into per-field ports under the `inputs` envelope. Only variables that
+ * resolve to a specific field (`$.inputs.<field>`, `{{language}}`, etc.) are
+ * surfaced — bare envelope refs like `{{inputs}}` or `{{outputs}}` are
+ * already covered by the envelope ports below.
+ *
+ * Returns deduped ports keyed by `<field>`. Keys colliding with envelope slot
+ * names (`inputs`, `outputs`, `parameters`, …) are filtered out — those are
+ * either self-referential (`{{$.inputs.inputs}}`) or cross-envelope
+ * (`{{$.inputs.outputs}}`) and don't represent actual fields the user fills.
+ */
+function buildEvaluatorFieldPortsFromTemplate(entity: Workflow | null | undefined): RunnablePort[] {
+    const params = (entity?.data?.parameters as Record<string, unknown> | undefined) ?? undefined
+    if (!params) return []
+
+    // The UI stores evaluator config in nested form
+    // (`parameters.prompt.messages`) while the wire format is flat
+    // (`parameters.prompt_template`). `nestEvaluatorConfiguration` /
+    // `flattenEvaluatorConfiguration` round-trip between the two — but
+    // during editing the draft sits in the nested form, so we read both
+    // shapes (nested first, flat fallback). `template_format` also moves
+    // into the prompt object once nested.
+    const prompt = params.prompt as Record<string, unknown> | undefined
+    const nestedMessages = prompt?.messages
+    const flatTemplate = params.prompt_template
+    const messages: Record<string, unknown>[] | null = Array.isArray(nestedMessages)
+        ? (nestedMessages as Record<string, unknown>[])
+        : Array.isArray(flatTemplate)
+          ? (flatTemplate as Record<string, unknown>[])
+          : null
+    if (!messages || messages.length === 0) return []
+
+    const rawFmt =
+        (prompt?.template_format as string | undefined) ??
+        (params.template_format as string | undefined)
+    // Reuse the shared resolver so ``mustache`` (and any future format) is
+    // preserved rather than silently coerced; fall back to ``curly`` only when
+    // the stored format is unrecognized.
+    const fmt = resolveTemplateFormat(rawFmt) ?? "curly"
+
+    const placeholders: string[] = []
+    const sectionOpeners = new Set<string>()
+    for (const message of messages) {
+        const content = message?.content
+        if (typeof content !== "string") continue
+        for (const v of extractTemplateVariables(content, fmt)) {
+            if (!placeholders.includes(v)) placeholders.push(v)
+        }
+        // Collect mustache `{{#name}}` / `{{^name}}` openers so iteration
+        // intent surfaces as `type: "array"` for ports with no sub-paths.
+        for (const opener of extractMustacheSectionOpeners(content, fmt)) {
+            sectionOpeners.add(opener)
+        }
+    }
+
+    const groups = groupTemplateVariables(placeholders, {sectionOpeners})
+    const ports: RunnablePort[] = []
+    const seen = new Set<string>()
+    for (const group of groups) {
+        // Only materialize inputs-envelope sub-fields. The `outputs` envelope
+        // is a scalar/string surfaced via its own envelope port; other slots
+        // (`parameters`, `trace`, `testcase`, `revision`) are runtime-resolved
+        // by the SDK and don't get UI controls.
+        if (group.envelope !== "inputs") continue
+        if (!group.key) continue
+        if (RESERVED_FIELD_KEYS.has(group.key)) continue
+        if (seen.has(group.key)) continue
+        seen.add(group.key)
+        const baseHelpText = `Field referenced in your prompt as \`{{$.inputs.${group.key}}}\`${
+            group.type === "string" ? ` or \`{{${group.key}}}\`` : ""
+        }${
+            group.type === "array"
+                ? ` (used as a mustache section: \`{{#${group.key}}}…{{/${group.key}}}\`)`
+                : ""
+        }. Note: this value is merged into the \`inputs\` envelope at runtime, so it also appears inside \`{{inputs}}\` if your prompt renders the whole envelope.`
+
+        // Emit an explicit `array` schema for section-opener ports so the
+        // empty-shape seed produces `[]` (instead of nothing) and the new
+        // playground inputs body can show a sensible JSON skeleton on
+        // drafts. Object ports already get a schema from `subPaths`.
+        const schema =
+            group.subPaths && group.subPaths.length > 0
+                ? {
+                      type: "object",
+                      properties: Object.fromEntries(
+                          group.subPaths.map((sp) => [sp, {type: "string"}]),
+                      ),
+                  }
+                : group.type === "array"
+                  ? {type: "array"}
+                  : undefined
+
+        ports.push({
+            key: group.key,
+            name: group.key,
+            type: group.type,
+            helpText: baseHelpText,
+            ...(schema ? {schema} : {}),
+        })
+    }
+    return ports
+}
+
+function buildEvaluatorEnvelopePorts(entity: Workflow | null | undefined): RunnablePort[] {
+    const meta = entity?.meta as Record<string, unknown> | null | undefined
+    const envelope = meta?.envelope as Record<string, unknown> | undefined
+    const envelopeInputs = envelope?.inputs as Record<string, unknown> | undefined
+    const envelopeOutputs = envelope?.outputs
+
+    // Extracted field ports for any `{{$.inputs.<field>}}` or `{{<field>}}`
+    // references in the prompt — surfaced individually so SMEs see a control
+    // for each variable their template uses. The envelope `inputs` port stays
+    // below as the catch-all for anything not extracted; field values override
+    // the envelope at request-build time.
+    const fieldPorts = buildEvaluatorFieldPortsFromTemplate(entity)
+
+    // Keep the variable header label as the runtime key (`inputs`/`outputs`)
+    // so it matches the config the user authors against. The distinction
+    // between an evaluator's envelope variables and an app's field
+    // variables is surfaced via the `helpText` tooltip and the one-time
+    // callout above the variables list — not by renaming.
+    return [
+        ...fieldPorts,
+        {
+            key: "inputs",
+            name: "inputs",
+            helpText:
+                "The full inputs received by the application being evaluated. Reference in your prompt as `{{inputs}}` to render the whole JSON — this includes any fields you filled individually above. Use `{{$.inputs.<field>}}` (e.g. `{{$.inputs.country}}`) to reference a single field without the rest of the bag.",
+            type: "object",
+            required: true,
+            schema: inferEnvelopeSchema(envelopeInputs),
+        },
+        {
+            key: "outputs",
+            name: "outputs",
+            helpText:
+                "What the application being evaluated returned. Reference in your prompt as `{{outputs}}` or `{{$.outputs}}`. This is the data being judged — not the evaluator's own output.",
+            type: "string",
+            required: true,
+            schema: inferEnvelopeSchema(envelopeOutputs),
+        },
+    ]
+}
+
+/**
+ * Input ports selector.
+ * Derives ports from schema, prompt template variables, or ephemeral trace metadata.
+ */
+const inputPortsAtomFamily = atomFamily((workflowId: string) =>
+    atom<RunnablePort[]>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        if (!entity) return []
+
+        // Evaluators always consume the {inputs, outputs} envelope at runtime.
+        // Their `schemas.inputs` is an open-ended object (no declared properties),
+        // so generic schema-driven port extraction yields nothing useful — we
+        // must surface the envelope structure explicitly. This applies to both
+        // ephemerals (span-opened) and server-backed revisions.
+        if (entity.flags?.is_evaluator) {
+            return buildEvaluatorEnvelopePorts(entity)
+        }
+
+        // Ephemeral workflow: derive from template variables, then trace inputs.
+        // Template placeholders addressing non-`inputs` envelopes (e.g.
+        // `{{$.outputs.score}}` in evaluator prompts) resolve from runtime-
+        // populated envelope slots at invocation time — they don't need a
+        // testcase column, so we filter them out here.
+        if (entity.flags?.is_base) {
+            const params = resolveParameters(entity.data)
+            if (params) {
+                const vars = extractVariablesFromConfig(params as Record<string, unknown>)
+                if (vars.length > 0) {
+                    const sectionOpeners = extractSectionOpenersFromConfig(
+                        params as Record<string, unknown>,
+                    )
+                    // Resolve the workflow-level template_format so the
+                    // grouper can apply format-aware parsing (curly →
+                    // literal-key dotted names; mustache/jinja2 → nested).
+                    // See parseTemplateExpression docstring + Slack QA on
+                    // 2026-05-28 ("did curly still behave as curly?").
+                    const promptObj = params.prompt as Record<string, unknown> | undefined
+                    const rawTf =
+                        (promptObj?.template_format as string | undefined) ??
+                        ((params as Record<string, unknown>).template_format as string | undefined)
+                    const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
+                    return groupTemplateVariables(vars, {sectionOpeners, templateFormat})
+                        .filter((group) => group.envelope === "inputs")
+                        .map((group) => ({
+                            key: group.key,
+                            name: group.name,
+                            type: group.type,
+                            required: true,
+                            ...(group.subPaths
+                                ? group.type === "array"
+                                    ? {
+                                          // Section opener with sub-paths →
+                                          // array of objects. Items schema
+                                          // describes each ROW; nested
+                                          // section openers inside the
+                                          // group surface as array-typed
+                                          // sub-properties via the
+                                          // `sectionSubPaths` hint.
+                                          schema: {
+                                              type: "array",
+                                              items: buildSubPathSchema(
+                                                  group.subPaths,
+                                                  group.sectionSubPaths,
+                                              ),
+                                          },
+                                      }
+                                    : {
+                                          schema: buildSubPathSchema(
+                                              group.subPaths,
+                                              group.sectionSubPaths,
+                                          ),
+                                      }
+                                : group.type === "array"
+                                  ? {schema: {type: "array"}}
+                                  : {}),
+                        }))
+                }
+            }
+            // Fallback: derive from trace inputs stored in meta
+            const meta = entity.meta as Record<string, unknown> | null | undefined
+            const inputs = meta?.inputs as Record<string, unknown> | undefined
+            if (inputs) {
+                const isChat = entity.flags?.is_chat ?? false
+                const inputKeys = Object.keys(inputs).filter(
+                    (key) => !(isChat && key === "messages"),
+                )
+                return inputKeys.map((key) => ({
+                    key,
+                    name: extractLastPathSegment(key),
+                    type: "string",
+                    required: false,
+                }))
+            }
+            return []
+        }
+
+        const inputsSchema = resolveInputSchema(entity.data)
+        const schemaPorts = extractInputPortsFromSchema(inputsSchema)
+        if (schemaPorts.length > 0) return schemaPorts
+
+        // Fallback: derive input variables from prompt templates in parameters.
+        // Filter out names that match system-level fields (x-ag-*) in the
+        // inputs schema — these are runtime-managed (e.g. context, consent)
+        // and should not appear as user-facing inputs.
+        const params = resolveParameters(entity.data)
+        if (params) {
+            const systemFields = extractSystemFieldNames(inputsSchema)
+            const vars = extractVariablesFromConfig(params as Record<string, unknown>).filter(
+                (key) => !systemFields.has(key),
+            )
+            if (vars.length > 0) {
+                const sectionOpeners = extractSectionOpenersFromConfig(
+                    params as Record<string, unknown>,
+                )
+                // Same format resolution as the `is_base` branch above —
+                // workflow-level template_format steers literal-vs-nested
+                // dot parsing for plain `{{foo.bar}}` placeholders.
+                const promptObj = params.prompt as Record<string, unknown> | undefined
+                const rawTf =
+                    (promptObj?.template_format as string | undefined) ??
+                    ((params as Record<string, unknown>).template_format as string | undefined)
+                const templateFormat = resolveTemplateFormat(rawTf) ?? undefined
+                return groupTemplateVariables(vars, {sectionOpeners, templateFormat})
+                    .filter((group) => group.envelope === "inputs")
+                    .map((group) => ({
+                        key: group.key,
+                        name: group.name,
+                        type: group.type,
+                        required: true,
+                        ...(group.subPaths
+                            ? group.type === "array"
+                                ? {
+                                      schema: {
+                                          type: "array",
+                                          items: buildSubPathSchema(
+                                              group.subPaths,
+                                              group.sectionSubPaths,
+                                          ),
+                                      },
+                                  }
+                                : {
+                                      schema: buildSubPathSchema(
+                                          group.subPaths,
+                                          group.sectionSubPaths,
+                                      ),
+                                  }
+                            : group.type === "array"
+                              ? {schema: {type: "array"}}
+                              : {}),
+                    }))
+            }
+        }
+        return []
+    }),
+)
+
+/**
+ * Build a synthetic JSON Schema describing the known sub-paths of a grouped
+ * object variable. Used only as a UI shape hint (seeds the JSON editor's
+ * default so users see which keys the template references).
+ *
+ * Recursive — groups paths by their first segment and descends. Sub-paths
+ * that match an entry in `sectionSubPaths` (mustache section openers
+ * inside the group, e.g. `repos.contributors` for `{{#repos}}{{#contributors}}
+ * …{{/contributors}}{{/repos}}`) emit `{type: "array", items: …}` at that
+ * depth; everything else stays as objects. Leaf paths become strings.
+ *
+ * At the ROOT level (when called from the schema producer above) the
+ * function also emits `_pathHints` — the original flat sub-path list —
+ * for backward compatibility with consumers that read hints directly.
+ * Hints are omitted when the properties carry any array-typed children,
+ * because the flat-hint format can't represent array nesting and would
+ * confuse downstream shape derivation if preferred over properties.
+ *
+ * Inner (non-root) levels never emit `_pathHints` — the recursive
+ * structure already captures the nesting precisely.
+ */
+function buildSubPathSchema(
+    subPaths: string[],
+    sectionSubPaths?: string[],
+    prefix = "",
+): {
+    type: "object"
+    properties: Record<string, unknown>
+    _pathHints?: string[]
+} {
+    const sectionSet = new Set(sectionSubPaths ?? [])
+
+    // Group remaining sub-paths under each first-segment child.
+    const childPaths: Record<string, string[]> = {}
+    for (const sp of subPaths) {
+        const segments = sp.split(/[.[\]/]/).filter(Boolean)
+        if (segments.length === 0) continue
+        const head = segments[0]
+        const tail = segments.slice(1).join(".")
+        if (!(head in childPaths)) childPaths[head] = []
+        if (tail) childPaths[head].push(tail)
+    }
+
+    const properties: Record<string, unknown> = {}
+    let hasArrayChild = false
+    for (const head of Object.keys(childPaths)) {
+        const childSubPaths = childPaths[head]
+        const fullPath = prefix ? `${prefix}.${head}` : head
+        const isSection = sectionSet.has(fullPath)
+
+        if (isSection && childSubPaths.length > 0) {
+            properties[head] = {
+                type: "array",
+                items: buildSubPathSchema(childSubPaths, sectionSubPaths, fullPath),
+            }
+            hasArrayChild = true
+        } else if (isSection) {
+            properties[head] = {type: "array"}
+            hasArrayChild = true
+        } else if (childSubPaths.length > 0) {
+            properties[head] = buildSubPathSchema(childSubPaths, sectionSubPaths, fullPath)
+        } else {
+            properties[head] = {type: "string"}
+        }
+    }
+
+    if (!prefix && !hasArrayChild) {
+        return {type: "object", properties, _pathHints: subPaths}
+    }
+    return {type: "object", properties}
+}
+
+/**
+ * Output ports selector.
+ * Derives ports from schema with evaluator-specific defaults.
+ * For ephemeral workflows, derives from trace outputs in meta.
+ */
+const outputPortsAtomFamily = atomFamily((workflowId: string) =>
+    atom<RunnablePort[]>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+
+        // Ephemeral workflow: derive from trace outputs stored in meta
+        if (entity?.flags?.is_base) {
+            const meta = entity.meta as Record<string, unknown> | null | undefined
+            const outputs = meta?.outputs
+            if (outputs && typeof outputs === "object") {
+                return Object.keys(outputs as Record<string, unknown>).map((key) => ({
+                    key,
+                    name: key,
+                    type: "string",
+                }))
+            }
+            return [{key: "output", name: "output", type: "string", isFallback: true}]
+        }
+
+        const schemaOutputs = extractOutputPortsFromSchema(entity?.data?.schemas?.outputs)
+
+        // For evaluators, the backend output schema (`schemas.outputs`) only reflects
+        // the last committed revision. The draft-merged parameters are more authoritative
+        // for the current (possibly uncommitted) field configuration.
+        //
+        // Priority order:
+        // 1. `fields` array in parameters — directly reflects draft edits from
+        //    FieldsTagsEditorControl (e.g., JSON Multi-Field Match). Each field
+        //    becomes a number port, plus an "aggregate_score" port.
+        // 2. feedback_config.json_schema.schema.properties — generated by the
+        //    backend on commit, may be stale if the user hasn't committed yet.
+        // 3. schemas.outputs — committed output schema from the backend.
+        // 4. Default: single "score" port.
+        if (entity?.flags?.is_evaluator) {
+            const config = resolveParameters(entity.data) as Record<string, unknown> | undefined
+
+            // Check for a `fields` array (e.g., from FieldsTagsEditorControl).
+            // This is the most current source when the user adds/removes fields.
+            const fieldsArray = config?.fields as string[] | undefined
+            if (Array.isArray(fieldsArray) && fieldsArray.length > 0) {
+                const ports: RunnablePort[] = [
+                    {key: "aggregate_score", name: "Aggregate score", type: "number"},
+                    ...fieldsArray.map((field) => ({
+                        key: field,
+                        name: formatKeyAsName(field),
+                        type: "number" as const,
+                    })),
+                ]
+                return ports
+            }
+
+            // Nested form: feedback_config.json_schema.schema.properties
+            const feedbackConfig = config?.feedback_config as Record<string, unknown> | undefined
+            const jsonSchema = feedbackConfig?.json_schema as
+                | {schema?: {properties?: Record<string, unknown>}}
+                | undefined
+            // Also check flat form (raw backend data): json_schema at top level
+            const flatJsonSchema = config?.json_schema as typeof jsonSchema | undefined
+            const fbProperties =
+                jsonSchema?.schema?.properties ?? flatJsonSchema?.schema?.properties
+            if (fbProperties && Object.keys(fbProperties).length > 0) {
+                return Object.entries(fbProperties).map(([key, prop]) => ({
+                    key,
+                    name: formatKeyAsName(key),
+                    type: ((prop as Record<string, unknown>)?.type as string) ?? "string",
+                    schema: prop,
+                }))
+            }
+            if (schemaOutputs.length > 0) return schemaOutputs
+            return [{key: "score", name: "Score", type: "number", isFallback: true}]
+        }
+
+        if (schemaOutputs.length > 0) return schemaOutputs
+        return [{key: "output", name: "output", type: "string", isFallback: true}]
+    }),
+)
+
+/**
+ * IO schemas selector. Returns `{inputSchema, outputSchema}` tuple.
+ */
+const ioSchemasAtomFamily = atomFamily((workflowId: string) =>
+    atom<{inputSchema?: unknown; outputSchema?: unknown}>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        if (!entity?.data?.schemas) return {}
+        return {
+            inputSchema: entity.data.schemas.inputs ?? undefined,
+            outputSchema: entity.data.schemas.outputs ?? undefined,
+        }
+    }),
+)
+
+/**
+ * Evaluator definition selector.
+ *
+ * Builds a full `EvaluatorDefinition` (id, name, slug, metrics) from the
+ * workflow entity data. Metrics are extracted from `data.schemas.outputs`.
+ *
+ * Use this when you need the evaluator definition with metrics resolved from
+ * the entity's output schema (e.g., for annotation panels, metric columns).
+ */
+const evaluatorDefinitionAtomFamily = atomFamily((workflowId: string) =>
+    atom<EvaluatorDefinition | null>((get) => {
+        const entity = get(workflowEntityAtomFamily(workflowId))
+        if (!entity) return null
+        return toEvaluatorDefinitionFromWorkflow(entity)
+    }),
+)
+
+/**
+ * Server data selector (pre-draft entity data for commit diff baselines).
+ */
+const serverDataAtomFamily = atomFamily((workflowId: string) =>
+    atom<Workflow | null>((get) => {
+        return get(workflowServerDataSelectorFamily(workflowId)) as Workflow | null
+    }),
+)
+
+/**
+ * Server configuration selector (params from server, before draft overlay).
+ * For evaluator workflows, applies the same nesting transform as `configurationSelectorAtomFamily`
+ * so that commit diffs compare like-for-like (both sides nested).
+ */
+const serverConfigurationAtomFamily = atomFamily((workflowId: string) =>
+    atom<Record<string, unknown> | null>((get) => {
+        const serverData = get(workflowServerDataSelectorFamily(workflowId))
+        const flatParams = (serverData?.data?.parameters as Record<string, unknown> | null) ?? null
+        if (!flatParams) return null
+
+        const isEvaluator = !!serverData?.flags?.is_evaluator
+        if (isEvaluator) {
+            const flatSchema =
+                (serverData?.data?.schemas?.parameters as Record<string, unknown> | null) ?? null
+            return nestEvaluatorConfiguration(flatParams, flatSchema)
+        }
+        return flatParams
+    }),
+)
+
+/**
+ * Update configuration action.
+ * Wraps parameters as `{data: {parameters}}` and applies evaluator flattening.
+ *
+ * Use this instead of `actions.update` when writing configuration changes from the UI,
+ * as it handles the evaluator flat/nested conversion automatically.
+ */
+const updateConfigurationAtom = atom(
+    null,
+    (get, set, workflowId: string, params: Record<string, unknown>) => {
+        // For evaluator workflows, flatten nested config back to flat format.
+        // Use flat source data (local-first, server fallback) as the baseline
+        // for hidden-field restoration — never use the display-transformed entity.
+        // NOTE: Use flatSource (local-first) for evaluator detection, not
+        // workflowServerDataSelectorFamily which returns null for ephemeral
+        // evaluators created from templates — causing flatten to be skipped
+        // and advanced_settings to vanish on re-nesting.
+        const flatSource = getFlatSourceData(get, workflowId)
+        const isEvaluator = flatSource?.flags?.is_evaluator ?? false
+        const flatParams = (flatSource?.data?.parameters as Record<string, unknown> | null) ?? null
+        const finalParams = isEvaluator ? flattenEvaluatorConfiguration(params, flatParams) : params
+
+        set(updateWorkflowDraftAtom, workflowId, {
+            data: {parameters: finalParams},
+        } as Partial<Workflow>)
+    },
+)
+
+// ============================================================================
+// MOLECULE DEFINITION
+// ============================================================================
+
+/**
+ * Workflow molecule — unified API for workflow entity state.
+ *
+ * Follows the same pattern as `evaluatorMolecule` and `appRevisionMolecule`.
+ */
+export const workflowMolecule = {
+    // ========================================================================
+    // SELECTORS (reactive atom families — use with useAtomValue)
+    // ========================================================================
+    selectors: {
+        /** Merged entity data (server + draft, no schema resolution) */
+        data: dataAtomFamily,
+        /** Resolved entity data (server + draft + schema resolution via inspect/OpenAPI) */
+        resolvedData: resolvedDataAtomFamily,
+        /** Query state (loading, error) */
+        query: queryAtomFamily,
+        /** Is dirty (has local edits) */
+        isDirty: workflowIsDirtyAtomFamily,
+        /** Is ephemeral (created from template, not yet committed) */
+        isEphemeral: workflowIsEphemeralAtomFamily,
+        /** Workflow URI (e.g., "agenta:builtin:auto_exact_match:v0") */
+        uri: uriAtomFamily,
+        /** Workflow artifact ID */
+        workflowId: workflowIdAtomFamily,
+        /** Workflow key parsed from URI (e.g., "auto_exact_match") */
+        workflowKey: workflowKeyAtomFamily,
+        /** Raw parameters from entity data */
+        parameters: parametersAtomFamily,
+        /** JSON schemas (parameters, inputs, outputs) */
+        schemas: schemasAtomFamily,
+        /** Input schema */
+        inputSchema: inputSchemaAtomFamily,
+        /** Output schema */
+        outputSchema: outputSchemaAtomFamily,
+        /** Workflow name */
+        name: nameAtomFamily,
+        /** Entity display name from the workflow artifact (revision names carry the variant name) */
+        artifactName: artifactNameAtomFamily,
+        /** Variant label from the variant entity (name, then slug) */
+        variantLabel: variantLabelAtomFamily,
+        /** Workflow slug */
+        slug: slugAtomFamily,
+
+        // -- Raw flags --
+
+        /** All workflow flags (raw object) */
+        flags: flagsAtomFamily,
+        // URI-derived
+        /** Is managed (provider is "agenta") */
+        isManaged: isManagedAtomFamily,
+        /** Is custom (kind is "custom") */
+        isCustom: isCustomAtomFamily,
+        /** Is LLM handler */
+        isLlm: isLlmAtomFamily,
+        /** Is hook/webhook handler */
+        isHook: isHookAtomFamily,
+        /** Is code/script handler */
+        isCode: isCodeAtomFamily,
+        /** Is matcher evaluator */
+        isMatch: isMatchAtomFamily,
+        /** Is human annotation workflow */
+        isHuman: isHumanAtomFamily,
+        // Interface-derived
+        /** Has chat/message semantics */
+        isChat: isChatAtomFamily,
+        /** Is an agent workflow (WP-6) */
+        isAgent: isAgentAtomFamily,
+        /** Has a webhook/service URL */
+        hasUrl: hasUrlAtomFamily,
+        /** Has embedded script content */
+        hasScript: hasScriptAtomFamily,
+        /** Has an in-process handler (SDK only) */
+        hasHandler: hasHandlerAtomFamily,
+        // User-defined role
+        /** Can be used as an application */
+        isApplication: isApplicationAtomFamily,
+        /** Can be used as an evaluator */
+        isEvaluator: isEvaluatorAtomFamily,
+        /** Is a reusable snippet */
+        isSnippet: isSnippetAtomFamily,
+        // Local-only
+        /** Is ephemeral trace-based workflow (local-only) */
+        isBase: isBaseAtomFamily,
+
+        // -- Derived capabilities --
+
+        /** Discriminated workflow type for UI rendering */
+        workflowType: workflowTypeAtomFamily,
+        /** Can the workflow be invoked/executed? */
+        canRun: canRunAtomFamily,
+        /** Can the workflow be deployed to an endpoint? */
+        canDeploy: canDeployAtomFamily,
+        /** Does the workflow require an external URL to run? */
+        needsUrl: needsUrlAtomFamily,
+
+        // -- Runnable selectors --
+
+        /** Configuration with evaluator nesting applied */
+        configuration: configurationSelectorAtomFamily,
+        /** Parameters schema with evaluator nesting applied */
+        parametersSchema: parametersSchemaAtomFamily,
+        /** Input ports derived from schema/params/meta */
+        inputPorts: inputPortsAtomFamily,
+        /** Output ports derived from schema/flags/meta */
+        outputPorts: outputPortsAtomFamily,
+        /** IO schemas as {inputSchema, outputSchema} tuple */
+        ioSchemas: ioSchemasAtomFamily,
+        /** Evaluator definition (id, name, slug, metrics from output schema) */
+        evaluatorDefinition: evaluatorDefinitionAtomFamily,
+        /** Server data before draft overlay (for commit diffs) */
+        serverData: serverDataAtomFamily,
+        /** Server configuration (flat params from server) */
+        serverConfiguration: serverConfigurationAtomFamily,
+        /** Execution mode: "chat" | "completion" from flags */
+        executionMode: runnableExecutionModeAtomFamily,
+        /** Resolved invocation URL (for playground execution via {serviceUrl}/invoke) */
+        invocationUrl: runnableInvocationUrlAtomFamily,
+        /** Deployment URL (for code snippets — user-facing /run endpoint) */
+        deploymentUrl: runnableDeploymentUrlAtomFamily,
+        /** Pre-built request payload for execution */
+        requestPayload: runnableRequestPayloadAtomFamily,
+    },
+
+    // ========================================================================
+    // ATOMS (raw store atoms — for advanced composition)
+    // ========================================================================
+    atoms: {
+        /** Project ID atom */
+        projectId: workflowProjectIdAtom,
+        /** App workflows list query atom */
+        listQuery: appWorkflowsListQueryAtom,
+        /** List data atom */
+        listData: workflowsListDataAtom,
+        /** Non-archived workflows */
+        nonArchived: nonArchivedWorkflowsAtom,
+        /** Per-entity query */
+        query: workflowQueryAtomFamily,
+        /** Per-entity inspect query (evaluator workflows — resolves full schema via URI) */
+        inspect: workflowInspectAtomFamily,
+        /** Per-entity app schema query (app workflows — resolves schema via OpenAPI) */
+        appSchema: workflowAppSchemaAtomFamily,
+        /** Per-entity interface schemas query (builtin workflows — resolves schema via URI) */
+        interfaceSchemas: workflowInterfaceSchemasAtomFamily,
+        /** Per-entity draft */
+        draft: workflowDraftAtomFamily,
+        /** Per-entity base data (no inspect/OpenAPI subscriptions) */
+        baseEntity: workflowBaseEntityAtomFamily,
+        /** Per-entity merged data (with schema resolution) */
+        entity: workflowEntityAtomFamily,
+        /** Per-entity dirty flag */
+        isDirty: workflowIsDirtyAtomFamily,
+        /** Per-entity ephemeral flag */
+        isEphemeral: workflowIsEphemeralAtomFamily,
+    },
+
+    // ========================================================================
+    // ACTIONS (write atoms — use with useSetAtom or set())
+    // ========================================================================
+    actions: {
+        /** Update workflow draft */
+        update: updateWorkflowDraftAtom,
+        /** Discard workflow draft */
+        discard: discardWorkflowDraftAtom,
+        /** Update configuration with evaluator flat/nested conversion */
+        updateConfiguration: updateConfigurationAtom,
+    },
+
+    // ========================================================================
+    // GET (imperative read API — for callbacks outside React)
+    // ========================================================================
+    get: {
+        data: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(workflowBaseEntityAtomFamily(workflowId)),
+        resolvedData: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(workflowEntityAtomFamily(workflowId)),
+        isDirty: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(workflowIsDirtyAtomFamily(workflowId)),
+        isEphemeral: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(workflowIsEphemeralAtomFamily(workflowId)),
+        uri: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(uriAtomFamily(workflowId)),
+        workflowKey: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(workflowKeyAtomFamily(workflowId)),
+        parameters: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(parametersAtomFamily(workflowId)),
+        name: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(nameAtomFamily(workflowId)),
+        artifactName: (entityId: string, options?: StoreOptions) =>
+            getStore(options).get(artifactNameAtomFamily(entityId)),
+        variantLabel: (entityId: string, options?: StoreOptions) =>
+            getStore(options).get(variantLabelAtomFamily(entityId)),
+        // Raw flags
+        flags: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(flagsAtomFamily(workflowId)),
+        isManaged: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isManagedAtomFamily(workflowId)),
+        isCustom: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isCustomAtomFamily(workflowId)),
+        isLlm: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isLlmAtomFamily(workflowId)),
+        isHook: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isHookAtomFamily(workflowId)),
+        isCode: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isCodeAtomFamily(workflowId)),
+        isMatch: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isMatchAtomFamily(workflowId)),
+        isHuman: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isHumanAtomFamily(workflowId)),
+        isChat: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isChatAtomFamily(workflowId)),
+        isAgent: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isAgentAtomFamily(workflowId)),
+        hasUrl: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(hasUrlAtomFamily(workflowId)),
+        hasScript: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(hasScriptAtomFamily(workflowId)),
+        hasHandler: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(hasHandlerAtomFamily(workflowId)),
+        isApplication: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isApplicationAtomFamily(workflowId)),
+        isEvaluator: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isEvaluatorAtomFamily(workflowId)),
+        isSnippet: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isSnippetAtomFamily(workflowId)),
+        isBase: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(isBaseAtomFamily(workflowId)),
+        // Derived capabilities
+        workflowType: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(workflowTypeAtomFamily(workflowId)),
+        canRun: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(canRunAtomFamily(workflowId)),
+        canDeploy: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(canDeployAtomFamily(workflowId)),
+        needsUrl: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(needsUrlAtomFamily(workflowId)),
+        // Runnable
+        configuration: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(configurationSelectorAtomFamily(workflowId)),
+        inputPorts: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(inputPortsAtomFamily(workflowId)),
+        outputPorts: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(outputPortsAtomFamily(workflowId)),
+        executionMode: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(runnableExecutionModeAtomFamily(workflowId)),
+        invocationUrl: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(runnableInvocationUrlAtomFamily(workflowId)),
+        deploymentUrl: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(runnableDeploymentUrlAtomFamily(workflowId)),
+        serverData: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).get(serverDataAtomFamily(workflowId)),
+    },
+
+    // ========================================================================
+    // SET (imperative write API — for callbacks outside React)
+    // ========================================================================
+    set: {
+        projectId: (projectId: string | null, options?: StoreOptions) =>
+            getStore(options).set(workflowProjectIdAtom, projectId),
+        update: (workflowId: string, updates: Partial<Workflow>, options?: StoreOptions) =>
+            getStore(options).set(updateWorkflowDraftAtom, workflowId, updates),
+        discard: (workflowId: string, options?: StoreOptions) =>
+            getStore(options).set(discardWorkflowDraftAtom, workflowId),
+        updateConfiguration: (
+            workflowId: string,
+            params: Record<string, unknown>,
+            options?: StoreOptions,
+        ) => getStore(options).set(updateConfigurationAtom, workflowId, params),
+        /**
+         * Seed a workflow entity into the local server data store without
+         * persisting it to the API. Use this to pre-load a server-fetched
+         * Workflow so that `workflowMolecule.selectors.*` can resolve it
+         * in the default store without a React context or query subscription.
+         */
+        seedEntity: (workflowId: string, workflow: Workflow, options?: StoreOptions) =>
+            getStore(options).set(workflowLocalServerDataAtomFamily(workflowId), workflow),
+    },
+
+    // ========================================================================
+    // CACHE (invalidation utilities)
+    // ========================================================================
+    cache: {
+        invalidateList: invalidateWorkflowsListCache,
+        invalidateDetail: invalidateWorkflowCache,
+    },
+
+    // ========================================================================
+    // LIFECYCLE (thin API mutation layer)
+    // ========================================================================
+    lifecycle: {
+        archive: async (workflowId: string, options?: WorkflowLifecycleOptions) => {
+            const projectId = getLifecycleProjectId(options)
+            if (!workflowId) throw new Error("workflowId is required")
+            if (!projectId) throw new Error("projectId is required to archive workflow")
+
+            await archiveWorkflow(projectId, workflowId)
+            invalidateWorkflowLifecycleCaches(workflowId, options)
+        },
+        unarchive: async (workflowId: string, options?: WorkflowLifecycleOptions) => {
+            const projectId = getLifecycleProjectId(options)
+            if (!workflowId) throw new Error("workflowId is required")
+            if (!projectId) throw new Error("projectId is required to unarchive workflow")
+
+            await unarchiveWorkflow(projectId, workflowId)
+            invalidateWorkflowLifecycleCaches(workflowId, options)
+        },
+    },
+
+    // ========================================================================
+    // STATIC UTILITIES
+    // ========================================================================
+
+    /** Normalize workflow execution response (v3 vs legacy format) */
+    normalizeResponse: normalizeWorkflowResponse,
+}
+
+export type WorkflowMolecule = typeof workflowMolecule

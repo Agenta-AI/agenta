@@ -1,0 +1,152 @@
+import {useMemo} from "react"
+
+import type {ToolConnection} from "@agenta/entities/gatewayTool"
+import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
+import {ArrowClockwise, GearSix, Trash} from "@phosphor-icons/react"
+import {Button, Table, Tag, Tooltip, Typography} from "antd"
+import type {ColumnsType} from "antd/es/table"
+
+import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+
+import {useToolsConnections} from "../hooks/useToolsConnections"
+
+interface Props {
+    integrationKey: string
+    connections: ToolConnection[]
+}
+
+const getRedirectUrl = (connection: ToolConnection | null | undefined): string | undefined => {
+    if (!connection) return undefined
+    const dataRedirect = connection.data?.redirect_url
+    return typeof dataRedirect === "string" && dataRedirect ? dataRedirect : undefined
+}
+
+const AUTH_SCHEME_LABELS: Record<string, string> = {
+    oauth: "OAuth",
+    api_key: "API Key",
+}
+
+export default function ConnectionsList({integrationKey, connections}: Props) {
+    const {handleDelete, handleRefresh, invalidate} = useToolsConnections(integrationKey)
+
+    const confirmDelete = (connection: ToolConnection) => {
+        if (!connection.id) return
+        AlertPopup({
+            title: "Delete Connection",
+            message:
+                "Are you sure you want to delete this connection? This action is irreversible.",
+            onOk: () => handleDelete(connection.id as string),
+        })
+    }
+
+    const onRefresh = async (connection: ToolConnection) => {
+        if (!connection.id) return
+
+        const result = await handleRefresh(connection.id)
+        const redirectUrl = getRedirectUrl(result.connection)
+
+        if (!redirectUrl) return
+
+        const popup = window.open(
+            redirectUrl,
+            "tools_oauth_refresh",
+            "width=600,height=700,popup=yes",
+        )
+
+        if (!popup) return
+
+        const pollTimer = setInterval(() => {
+            if (popup.closed) {
+                clearInterval(pollTimer)
+                window.focus()
+                invalidate()
+            }
+        }, 1000)
+    }
+
+    const columns: ColumnsType<ToolConnection> = useMemo(
+        () => [
+            {
+                title: "Name",
+                dataIndex: "slug",
+                key: "slug",
+                render: (slug: string, record) => (
+                    <Typography.Text>{record.name || slug}</Typography.Text>
+                ),
+            },
+            {
+                title: "Status",
+                key: "status",
+                width: 120,
+                render: (_, record) => <ConnectionStatusBadge connection={record} />,
+            },
+            {
+                title: "Auth",
+                key: "auth_scheme",
+                width: 100,
+                render: (_, record) => {
+                    const scheme =
+                        typeof record.data?.auth_scheme === "string"
+                            ? record.data.auth_scheme
+                            : undefined
+                    if (!scheme) return <Typography.Text type="secondary">—</Typography.Text>
+                    return <Tag>{AUTH_SCHEME_LABELS[scheme] ?? scheme}</Tag>
+                },
+            },
+            {
+                title: "Created",
+                dataIndex: "created_at",
+                key: "created_at",
+                width: 180,
+                render: (value: string) =>
+                    value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
+            },
+            {
+                title: <GearSix size={16} />,
+                key: "actions",
+                width: 80,
+                align: "center" as const,
+                render: (_, record) => (
+                    <div className="flex items-center gap-1">
+                        <Tooltip title="Refresh">
+                            <Button
+                                type="text"
+                                size="small"
+                                aria-label="Refresh connection"
+                                icon={<ArrowClockwise size={14} />}
+                                onClick={() => void onRefresh(record)}
+                                disabled={!record.id}
+                            />
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                            <Button
+                                type="text"
+                                size="small"
+                                color="danger"
+                                variant="text"
+                                aria-label="Delete connection"
+                                icon={<Trash size={14} />}
+                                onClick={() => confirmDelete(record)}
+                                disabled={!record.id}
+                            />
+                        </Tooltip>
+                    </div>
+                ),
+            },
+        ],
+        [handleDelete, handleRefresh],
+    )
+
+    return (
+        <Table<ToolConnection>
+            dataSource={connections}
+            columns={columns}
+            rowKey="slug"
+            pagination={false}
+            size="small"
+            bordered
+            locale={{emptyText: "No connections yet"}}
+        />
+    )
+}

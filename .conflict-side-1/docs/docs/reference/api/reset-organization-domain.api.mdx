@@ -1,0 +1,72 @@
+---
+id: reset-organization-domain
+title: "Reset Domain"
+description: "Reset a verified domain to unverified state for re-verification."
+sidebar_label: "Reset Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVVktv4zYQ/ivEnFpAa6dBTzrV2LTdYNvGSLy9OEYwEccWNxSpJansuoL+ezGk5Ehx4ra59WSL8+A8vm+GLQTcecjXcOV2aNRfGJQ1HjYZSPKFUzV/Qw7X5CkIFI/k1FaRFNJWqIwIVjTmcOgDBhJb64Sjd+m0iB5nt+bW/EqGHAbyAoWhryLYBzICjRQVugcvQkmDW/Qjt7NbsyqVF6i1/eqfuxZ2K1A7Qrl/Hp2fQQa25kuVNZcScnCcx50dJXuXdCGDGh1WFMhxQVowWBHkkMR3SkIGiktRYyghA0dfGuVIQh5cQxn4oqQKIW8h7Gs29MEps4MMggqaDy5SbpcSum7DDnxtjSfPNudnZ/wzLfpNUxTk/bbR4rpXhgwKawKZwOpY17ovw/yzZ5t2FEftOPeg0g1KvhTb1roKA+TQNDHDIVYOMgOvm92pjG5Y3mV9qVpAs7/axuJNLbrscGIarYHTH3z8wbbdM7y9zdXFyEWXwVZHbLeAUio+RL0clSS1rfdl7z9TEUap/RKNuwwiSt8a0SoadxkUjjCQvMNwsgsSA70LqqJRJO+TqVgEdtTUcuTotZhedHkq0E/JbX/JhB//DTjjOZKgflzjJ+qsIRpHnPUwmiJh6OLQh0klJ9U4jnrzclSJhiNCHU26KBCVlaTjMMN+nsyg6zifH8/Pj8n6J2olU9o/O2fd25kqKaDSkbOBKn+soG0xkf4LZCoTaEcOus1TP9A53I9a95tNATICKn+S+L+T97iLvE0qr6vGYogVSzueoHWTKDAMmnjADAnfRm6O+Piea/kt/COeuDYp/F5vhIKnFqUOvV6Ki9SCly4bVD6sVssjhwkfFYXS8raprQ9xsYQScpiPAern/Y6at4cN083jemJCkHsc9lDjNBtjrWJD02cZQu3z+ZyaWaFtI2e4IxNwhiopbthH0TgV9tHJYnn5kfYfCCU5yNebscIN4zAha6p26AbW6iPtB4bmsGhCaV2fybAXy2TVxS5v7bjJixicWCwvj+g2ETFhsIj4GG6KYmb6JO2nbCEDqiJdIBBWPx0k3F2uYbrmbPbD7IyPuCUVmtEV6WlzMbwCnu2hA4f/x0+gvovMn3mtOc2uL2jbY3M9GZ48bntzyCAfv4ASQDcZlAztfA1te4+ePjnddXz8pSHHiNtk8IhO4T33f92CVJ7/S8i3qD2dKPN31z2bvxevhT6g0jAkH1E3/AUZPNB+8mCLw64cMN/28kVRUB1Glkezmclx4PDy6mYFXfc3z2jX+w==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Reset Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/domains/{domain_id}/reset"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Reset a verified domain to unverified state for re-verification.
+
+Generates a new token and marks the domain as unverified.
+This allows re-verification of already verified domains.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./reset-organization-domain.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./reset-organization-domain.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./reset-organization-domain.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

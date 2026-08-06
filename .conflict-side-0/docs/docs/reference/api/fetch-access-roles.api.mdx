@@ -1,0 +1,61 @@
+---
+id: fetch-access-roles
+title: "Fetch Roles"
+description: "Return the effective role catalog per scope (organization,"
+sidebar_label: "Fetch Roles"
+hide_title: true
+hide_table_of_contents: true
+api: eJzdU0tv2zAM/isCTxsgJNmO3mXZsEfQw4pkPXVBy8h0rNaWNInOlhn+7wNlJ20K7A/MF0N8iPwe6oFxn6C4haUxlBJsNZSUTLSBrXdQwJq4i05xTYqqigzbA6noG1IGGRu/V4GiSsYHUq983KOzf1B69Q/3y8fHFNCQViH6BzL8eqbWH5YflU0Knfq22aiKkLtIWiWvuLZJUonigUplndp5rn84Kq3cmN7lNaroHZMrVSQsUw7dnyfdT6tUPuZMS+2OYlI3qxlo8IFiXm5VQgEVsanvMAO/E0gJNERKwbtECYoe3i4W8rtkZNPljqpr1HoqBg0mL8VSjiE01uQ584ckPT0kU1OLOVuOaLC5jrIP23GWZWrTvws4dqSBj4GgAL8TMmE4BzBGPD47TwUa2HJDWcZxU/VZQKtRbbXOoAf5NLTEtRde9iSdAbmGAuYjP/MTP1mbKJbpoYtNrggWBn061swhFfM5dTPT+K6c4Z4c4wztWLiVO0wXLR/zJcvr1RUdvxKWFKG43T4v2AhrIz2XZf0ZeLBXdAQNDls5LzuufZwsCBqsKFaPXQLSusrn9omXZV5OLa9X8NL5FymRF02W9zQpp0G/gP2EFjRQi1aSTNi+P2dEJ+FwHLOYvZktJBR84hbdsxGjVuuJ+Yvt+ifD/V9PdNKV6TfPQ4PWCTWZ4n6y5C2MlpTHmqnZaqh9Ysn0/Q4T3cRmGCT8s6MoLttqOGC0uBPNb7eDPllCDPhIR5HTGAri+wM23eisF69YjHl+I18+fYdh+AvyydDi
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Roles"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/access/roles"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return the effective role catalog per scope (organization,
+workspace, project). RBAC is an OSS feature, so this is served in both
+editions; the frontend reads the `workspace` scope for the members UI.
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-access-roles.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-access-roles.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

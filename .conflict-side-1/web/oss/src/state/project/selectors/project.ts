@@ -1,0 +1,248 @@
+import {catalogPersister} from "@agenta/shared/api/persist"
+import {logAtom, projectIdAtom} from "@agenta/shared/state"
+import type {QueryKey} from "@tanstack/react-query"
+import {atom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
+import {atomWithQuery} from "jotai-tanstack-query"
+
+import {queryClient} from "@/oss/lib/api/queryClient"
+import {fetchAllProjects} from "@/oss/services/project"
+import {ProjectsResponse} from "@/oss/services/project/types"
+import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
+import {selectedOrgAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {sessionExistsAtom} from "@/oss/state/session"
+import {jwtReadyAtom} from "@/oss/state/session/jwt"
+
+// Re-export the shared projectIdAtom so all OSS code uses the same atom as entity packages
+export {projectIdAtom}
+
+const LAST_USED_PROJECTS_KEY = "lastUsedProjectsByWorkspace"
+const LAST_NON_DEMO_PROJECT_KEY = "agenta:last-non-demo-project"
+const DEMO_RETURN_HINT_DISMISSED_KEY = "agenta:demo-return-hint-dismissed"
+const DEMO_RETURN_HINT_PENDING_KEY = "agenta:demo-return-hint-pending"
+
+export interface LastNonDemoProject {
+    workspaceId: string
+    projectId: string
+    organizationId: string | null
+}
+
+export const lastNonDemoProjectAtom = atomWithStorage<LastNonDemoProject | null>(
+    LAST_NON_DEMO_PROJECT_KEY,
+    null,
+)
+
+export const demoReturnHintDismissedAtom = atomWithStorage<boolean>(
+    DEMO_RETURN_HINT_DISMISSED_KEY,
+    false,
+)
+
+export const demoReturnHintPendingAtom = atomWithStorage<boolean>(
+    DEMO_RETURN_HINT_PENDING_KEY,
+    false,
+)
+
+const readLastUsedProjectId = (workspaceId: string | null): string | null => {
+    if (typeof window === "undefined" || !workspaceId) return null
+    try {
+        const raw = window.localStorage.getItem(LAST_USED_PROJECTS_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        if (!parsed || typeof parsed !== "object") return null
+        const value = parsed[workspaceId]
+        return typeof value === "string" && value.trim() ? value.trim() : null
+    } catch {
+        return null
+    }
+}
+
+export const getLastUsedProjectId = (workspaceId: string | null): string | null =>
+    readLastUsedProjectId(workspaceId)
+
+export const cacheLastUsedProjectId = (workspaceId: string | null, projectId: string | null) => {
+    if (typeof window === "undefined") return
+    if (!workspaceId || !projectId) return
+    try {
+        const raw = window.localStorage.getItem(LAST_USED_PROJECTS_KEY)
+        const parsed = raw ? JSON.parse(raw) : {}
+        const next = parsed && typeof parsed === "object" ? parsed : {}
+        next[workspaceId] = projectId
+        window.localStorage.setItem(LAST_USED_PROJECTS_KEY, JSON.stringify(next))
+    } catch {
+        // ignore storage errors
+    }
+}
+
+export const clearLastUsedProjectId = (workspaceId: string | null) => {
+    if (typeof window === "undefined") return
+    if (!workspaceId) return
+    try {
+        const raw = window.localStorage.getItem(LAST_USED_PROJECTS_KEY)
+        const parsed = raw ? JSON.parse(raw) : {}
+        const next = parsed && typeof parsed === "object" ? parsed : {}
+        if (next[workspaceId]) {
+            delete next[workspaceId]
+            if (Object.keys(next).length === 0) {
+                window.localStorage.removeItem(LAST_USED_PROJECTS_KEY)
+            } else {
+                window.localStorage.setItem(LAST_USED_PROJECTS_KEY, JSON.stringify(next))
+            }
+        }
+    } catch {
+        // ignore storage errors
+    }
+}
+
+export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
+    const orgId = get(selectedOrgIdAtom)
+    const {workspaceId} = get(appIdentifiersAtom)
+    const snapshot = get(appStateSnapshotAtom)
+    const jwtReady = Boolean((get(jwtReadyAtom) as any)?.data)
+    const isAcceptRoute = snapshot.pathname.startsWith("/workspaces/accept")
+    return {
+        queryKey: ["projects", orgId || ""],
+        queryFn: async () => fetchAllProjects(workspaceId ?? undefined),
+        experimental_prefetchInRender: true,
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+        // Gate on a usable JWT, not just the session cookie. On reload (or with a
+        // stale sessionExistsAtom) SuperTokens reports a session before the access
+        // token is readable; firing /projects/ then 401s. jwtReady resolves in
+        // parallel with /profile/, so this does not reintroduce the sequential
+        // profile-wait that 2ede5faa10 removed to fix the demo-banner cold-load race.
+        enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!orgId,
+        // Paint from disk + background revalidate; key includes orgId so no cross-org bleed.
+        persister: catalogPersister.persisterFn<ProjectsResponse[], QueryKey>,
+    }
+})
+
+const logProjects = process.env.NEXT_PUBLIC_LOG_PROJECT_ATOMS === "true"
+const _debugProjectSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true"
+logAtom(projectsQueryAtom, "projectsQueryAtom", logProjects)
+
+const EmptyProjects: ProjectsResponse[] = []
+
+/**
+ * Filters demo projects out of the list. Falls back to the full list when
+ * every project is a demo one, so the user is not left with an empty UI.
+ * Exported for unit-test access (projectsDemoFilter.test.ts).
+ */
+export const filterOutDemoProjects = (projects: ProjectsResponse[]): ProjectsResponse[] => {
+    const nonDemoProjects = projects.filter((project) => !project.is_demo)
+    return nonDemoProjects.length ? nonDemoProjects : projects
+}
+
+export const projectsAtom = atom((get) => {
+    const res = get(projectsQueryAtom)
+    const projects = ((res as any)?.data ?? EmptyProjects) as ProjectsResponse[]
+    // Hide demo projects from the UI unless they are the user's only projects
+    return filterOutDemoProjects(projects)
+})
+
+const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
+    if (project.workspace_id && project.workspace_id === workspaceId) return true
+    if (project.organization_id && project.organization_id === workspaceId) return true
+    return false
+}
+
+const projectMatchesWorkspace = (
+    project: ProjectsResponse,
+    workspaceId: string | null | undefined,
+) => {
+    if (!workspaceId) return false
+    if (project.workspace_id && project.workspace_id === workspaceId) return true
+    if (project.organization_id && project.organization_id === workspaceId) return true
+    return false
+}
+
+/**
+ * Exported for unit-test access (projectAtom.race.test.ts). Internal to this
+ * module otherwise — callers should go through projectAtom.
+ */
+export const pickPreferredProject = (
+    projects: ProjectsResponse[],
+    workspaceId: string | null,
+    lastUsedProjectId: string | null,
+) => {
+    if (!projects.length) return null
+
+    if (lastUsedProjectId) {
+        const lastUsed = projects.find((project) => project.project_id === lastUsedProjectId)
+        if (lastUsed && projectMatchesWorkspace(lastUsed, workspaceId ?? lastUsed.workspace_id)) {
+            return lastUsed
+        }
+    }
+
+    const workspaceProjects = workspaceId
+        ? projects.filter((project) => projectMatchesWorkspace(project, workspaceId))
+        : []
+
+    const workspaceDefault = workspaceProjects.find((project) => project.is_default_project)
+    if (workspaceDefault) return workspaceDefault
+
+    if (workspaceProjects.length) {
+        const workspaceNonDemo = workspaceProjects.find((project) => !project.is_demo)
+        if (workspaceNonDemo) return workspaceNonDemo
+        return workspaceProjects[0]
+    }
+
+    const globalDefault = projects.find((project) => project.is_default_project)
+    if (globalDefault) return globalDefault
+
+    const nonDemo = projects.filter((project) => !project.is_demo)
+    if (nonDemo.length) return nonDemo[0]
+
+    return projects[0]
+}
+
+export const projectAtom = atom((get) => {
+    const projects = get(projectsAtom) as ProjectsResponse[]
+    const organization = get(selectedOrgAtom)
+    // Fall back to selectedOrgIdAtom (URL-derived, immediate) so the
+    // null window between /projects/ and the slower /organizations/{id}
+    // fetch doesn't make pickPreferredProject do a cross-org
+    // is_default_project search, which can land on the Demo Workspace's
+    // default project for users whose membership has is_demo=true.
+    // projectMatchesWorkspace accepts either workspace_id or
+    // organization_id, so the URL-derived org UUID filters correctly.
+    const workspaceId = organization?.default_workspace?.id ?? get(selectedOrgIdAtom) ?? null
+    const projectId = get(projectIdAtom)
+
+    if (!projects.length) return null
+
+    if (projectId) {
+        const selectedProject = projects.find((project) => project.project_id === projectId)
+        if (selectedProject) return selectedProject
+    }
+
+    const lastUsedProjectId = readLastUsedProjectId(workspaceId)
+
+    const preferred = pickPreferredProject(projects, workspaceId, lastUsedProjectId)
+    if (preferred) return preferred
+
+    return projects[0] ?? null
+})
+
+export const projectNavigationAtom = atom(null, (get, set, next: string | null) => {
+    const {workspaceId, projectId} = get(appIdentifiersAtom)
+    const target = typeof next === "function" ? (next as any)(projectId) : next
+
+    if (!workspaceId) return
+
+    if (!target) {
+        const base = `/w/${encodeURIComponent(workspaceId)}`
+        set(requestNavigationAtom, {type: "href", href: base, method: "replace"})
+        return
+    }
+
+    if (target === projectId) return
+
+    const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(target)}/apps`
+    set(requestNavigationAtom, {type: "href", href, method: "push"})
+})
+
+export const resetProjectDataAtom = atom(null, async () => {
+    await queryClient.removeQueries({queryKey: ["projects"]})
+})

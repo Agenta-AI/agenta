@@ -1,0 +1,73 @@
+---
+id: fetch-application-variant
+title: "Fetch Application Variant"
+description: "Fetch one variant by ID."
+sidebar_label: "Fetch Application Variant"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVWEtz2zYQ/iuYvTSZgSUn05NOVeOkcdM2nlhJD7bGgsiliAQCWGAhR9Xwv3cAkhL0smPHOfQkkdj9dvHtAwuugMTMweAKhlWlZCZIGu1gzCFHl1lZhWcYwBukrGRGI1sIK4UmNl2y87Petb7WH5C81a5bOVG4QMUKiSp3PTYybIbEqFyr/uQYyYpZXEgnjWZC59dakmOTXJCYcJYJpdjk4v3liPVF4la/Uwn/yEpc4ITdSiqv9SSRu2nt3FgsJj3gYCq0ceU8hwEUYSs3B+SBQyWsmCOhDZSsQIs5wgAOYcscOMhATSWoBA4W//HSYg4Dsh45uKzEuYDBCmhZBRRHVuoZcCiMnQuCAXgfUUiSCgJJBNinluXzHOp6HNBdZbRDFwBfnp6Gn+0IXfosQ+cKr9iHVhg4ZEYTagriyS76n13QWSVOVjawRLKxkBnfKLW+S004Q5s4+ypK7KbJ5MWE3ZaomVjnya1wrDBe55xNTifMUIn2VjrsReVCeEUwOK35IZaj23r5vojR2HYxFXfKz7Zltzmv+fqN9kpBYPQQ65cBp+Zwa+yXQpnb7wL+uwVZo6Yey/wu2N0c+Vb/Q7Yk3j+dkfVeGgvCkixERt9HfAuy4adDfUJyOhuN34WKze54UkmXNoakAKbGKBQ6KYBzxxLq02QuhHJY8wCGC6G8IGPvg3q9FjwM5LSsKqT7YC5bsT2Qmnd6ZvoZMzrcdtqu8ybStM9rANkjUOS5DLpCXWzX5274OocT3CRLDsNAJm3mlbDP/hBTVL87o0/ee6o8PYfdHaVx35WGvf3flTWjZvswRxKP3Ox+/nctdMvwfLr9JuXoPkbeeHUPIXwFknD+jVrCWrG8k5cd3YeR+mcgs+btmfq4lvFX0K13Dp3HQZ0lEDWHzKIgzG8EfWPryQXhCcnoz3ErrxpYNoxk+Sr/EUY+NrCtkRwV/gAjZw1sa6Sja7p8wmbdkfXrsm3XHV9PaqVja22lI+xJrXR0ra18z0nZHZBP514cKx9yJBxE2579RiWy5PDsBkDOjGWToDPpPdBoMsfuzLpSzxSedCNmNxwz1AtUpsJgKJj6+eXL/UH5k1Ayb1x8bW08cR85JedIQqo4NzRtdldAmWxr9SHHxLje6czJ6WbaoSOcUW526I6x6brOiRluWvVx0UgGG4XVkGs6dPgg3qWMblt+Rl8TmL0wvgpcfqWDod7cka4iN437rVySnpsQNRE6TsVZE4K78urtaHSxB9jkxxypNOFOOMPm9kclDGD7ztkmmeuvDl8Da+Dg0C66O6O3qsGQMazNY0lUuUG/j76XKePznpihJtETshEcB4zMW0nLCDK8OH+Hy7cocrQwuBqnApchG5v82hZbx0RU8h0Gltr769BTaaz8t5tU47W1bLTqGOvCpKEeRufY8OJ8r/K2lkLZiCxmSWcpLgPf2fZmt8AB57FogFDMf1mvhBgHDhszp70XvdPwqjKO5kInJpovEQfuyru+rjZl/f/+fNFGNVRVv1JCxrqPBK/alL1K25YDDl3SAofBka8XYw6lcRSUV6upcPjRqroOr//xaEMajlucaUiKqxXk0oX/eXunuIPuZx/aQn/OjvnfpapeRneVD0/A4Qsuj39xiU2x7Kpi1QoPswwrSmD2engon3Wt//Z6BHX9HzUBjps=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Application Variant"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/applications/variants/{application_variant_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch one variant by ID.
+
+Returns variant-level fields. To get the variant's tip revision and
+its `data`, call `POST /applications/revisions/retrieve` with
+`application_variant_ref`.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-application-variant.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-application-variant.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-application-variant.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

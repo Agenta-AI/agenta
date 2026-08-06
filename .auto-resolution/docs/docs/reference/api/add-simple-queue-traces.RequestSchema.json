@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"trace_ids":{"items":{"type":"string"},"type":"array","title":"Trace Ids"}},"type":"object","required":["trace_ids"],"title":"SimpleQueueTracesCreateRequest"}}}}}

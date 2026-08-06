@@ -1,0 +1,165 @@
+{
+  "_comment": "Recorded COMPOSIO_SEARCH_TOOLS execute response, redacted + trimmed for offline replay. Shapes taken verbatim from the live 2026-06-27 capture documented in docs/design/agent-workflows/projects/tool-discovery/{research.md,use-case-walkthrough.md}. Queries: search github issues / create a github issue / post a slack reply / listen for slack messages (trigger).",
+  "successful": true,
+  "error": null,
+  "data": {
+    "results": [
+      {
+        "index": 0,
+        "use_case": "search github issues for a matching report",
+        "primary_tool_slugs": ["GITHUB_LIST_ISSUES_ASSIGNED_TO_THE_AUTHENTICATED_USER"],
+        "related_tool_slugs": [
+          "GITHUB_SEARCH_ISSUES",
+          "GITHUB_GET_AN_ISSUE",
+          "GITHUB_LIST_REPOSITORY_ISSUES"
+        ],
+        "toolkits": ["github"],
+        "recommended_plan_steps": [
+          "[Required] Search existing issues with GITHUB_SEARCH_ISSUES before creating a duplicate."
+        ],
+        "known_pitfalls": [
+          "[GITHUB_SEARCH_ISSUES] Search is rate-limited; cache results and avoid tight loops."
+        ],
+        "difficulty": "easy",
+        "execution_guidance": "Search first, then decide whether to create.",
+        "plan_id": "plan_redacted_0"
+      },
+      {
+        "index": 1,
+        "use_case": "create a github issue",
+        "primary_tool_slugs": ["GITHUB_CREATE_AN_ISSUE"],
+        "related_tool_slugs": [
+          "GITHUB_UPDATE_AN_ISSUE",
+          "GITHUB_ADD_LABELS_TO_AN_ISSUE",
+          "GITHUB_ADD_ASSIGNEES_TO_AN_ISSUE",
+          "GITHUB_LOCK_AN_ISSUE"
+        ],
+        "toolkits": ["github"],
+        "recommended_plan_steps": [
+          "[Required] Create the issue with GITHUB_CREATE_AN_ISSUE supplying owner, repo, title."
+        ],
+        "known_pitfalls": [
+          "[GITHUB_CREATE_AN_ISSUE] Requires the repository to already exist."
+        ],
+        "difficulty": "easy",
+        "execution_guidance": "Confirm the repo, then create.",
+        "plan_id": "plan_redacted_1"
+      },
+      {
+        "index": 2,
+        "use_case": "post a reply in a slack thread with a link",
+        "primary_tool_slugs": ["SLACK_SEND_MESSAGE"],
+        "related_tool_slugs": [
+          "SLACK_FIND_CHANNELS",
+          "SLACK_UPDATES_A_SLACK_MESSAGE",
+          "SLACKBOT_SEND_MESSAGE",
+          "SLACK_RETRIEVE_CONVERSATION_INFORMATION",
+          "SLACK_SCHEDULE_MESSAGE",
+          "SLACK_JOIN_AN_EXISTING_CONVERSATION"
+        ],
+        "toolkits": ["slack", "slackbot"],
+        "recommended_plan_steps": [
+          "[Optional] Resolve the destination conversation identifier using SLACK_FIND_CHANNELS.",
+          "[Required] Confirm final content and destination, then post using SLACK_SEND_MESSAGE."
+        ],
+        "known_pitfalls": [
+          "[SLACK_SEND_MESSAGE] Not idempotent; retries can create duplicate posts.",
+          "[SLACK_SEND_MESSAGE] Use exactly one of markdown text or blocks, not both."
+        ],
+        "difficulty": "easy",
+        "execution_guidance": "Find the channel, confirm, then send.",
+        "plan_id": "plan_redacted_2"
+      },
+      {
+        "index": 3,
+        "use_case": "listen for new messages in a slack support channel",
+        "primary_tool_slugs": ["SLACK_SEND_MESSAGE"],
+        "related_tool_slugs": ["SLACK_FETCH_CONVERSATION_HISTORY"],
+        "toolkits": ["slack"],
+        "recommended_plan_steps": [],
+        "known_pitfalls": [],
+        "difficulty": "medium",
+        "execution_guidance": "No trigger search available; polling tools returned.",
+        "plan_id": "plan_redacted_3"
+      }
+    ],
+    "tool_schemas": {
+      "GITHUB_LIST_ISSUES_ASSIGNED_TO_THE_AUTHENTICATED_USER": {
+        "toolkit": "GITHUB",
+        "tool_slug": "GITHUB_LIST_ISSUES_ASSIGNED_TO_THE_AUTHENTICATED_USER",
+        "description": "Lists issues assigned to the authenticated user across repositories.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "filter": { "type": "string" },
+            "state": { "type": "string" }
+          }
+        },
+        "hasFullSchema": true
+      },
+      "GITHUB_CREATE_AN_ISSUE": {
+        "toolkit": "GITHUB",
+        "tool_slug": "GITHUB_CREATE_AN_ISSUE",
+        "description": "Creates a new issue in a GitHub repository, requiring the repository to exist.",
+        "input_schema": {
+          "type": "object",
+          "required": ["owner", "repo", "title"],
+          "properties": {
+            "owner": { "type": "string", "description": "Repository owner." },
+            "repo": { "type": "string", "description": "Repository name." },
+            "title": { "type": "string", "description": "Issue title." },
+            "body": { "type": "string", "description": "Issue body." }
+          }
+        },
+        "hasFullSchema": true
+      },
+      "GITHUB_SEARCH_ISSUES": {
+        "toolkit": "GITHUB",
+        "tool_slug": "GITHUB_SEARCH_ISSUES",
+        "description": "Searches issues and pull requests across GitHub.",
+        "input_schema": {
+          "type": "object",
+          "required": ["q"],
+          "properties": { "q": { "type": "string" } }
+        },
+        "hasFullSchema": true
+      },
+      "SLACK_SEND_MESSAGE": {
+        "toolkit": "SLACK",
+        "tool_slug": "SLACK_SEND_MESSAGE",
+        "description": "Posts a message to a Slack channel or thread.",
+        "input_schema": {
+          "type": "object",
+          "required": ["channel"],
+          "properties": {
+            "channel": { "type": "string" },
+            "text": { "type": "string" },
+            "thread_ts": { "type": "string" }
+          }
+        },
+        "hasFullSchema": true
+      },
+      "SLACK_FIND_CHANNELS": {
+        "toolkit": "SLACK",
+        "tool_slug": "SLACK_FIND_CHANNELS",
+        "description": "Finds Slack channels by name or pattern.",
+        "input_schema": {
+          "type": "object",
+          "properties": { "query": { "type": "string" } }
+        },
+        "hasFullSchema": true
+      }
+    },
+    "toolkit_connection_statuses": [
+      { "toolkit": "github", "has_active_connection": true },
+      {
+        "toolkit": "slack",
+        "has_active_connection": false,
+        "status_message": "No Active connection for toolkit=slack. You MUST call COMPOSIO_MANAGE_CONNECTIONS (toolkit=\"slack\") to create a connection BEFORE executing any slack tools."
+      },
+      { "toolkit": "slackbot", "has_active_connection": false }
+    ],
+    "session": { "id": "body" },
+    "next_steps_guidance": ["Resolve missing connections, then execute the plan."]
+  }
+}

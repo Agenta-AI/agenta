@@ -1,0 +1,300 @@
+---
+slug: "top-llm-observability-platforms"
+title: "Top LLM Observability platforms 2025"
+description: "Explore the best LLM Observability platforms of 2025. Compare open-source and enterprise tools like Agenta, Langfuse, Langsmith and more. "
+category: Engineering
+date: 2025-09-29
+readingTime: "10 min read"
+heroImage: /blog/top-llm-observability-platforms/hero.webp
+ogImage: /blog/top-llm-observability-platforms/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Comparison"]
+---
+
+## What is LLM Observability? (Quick Primer)
+
+<InlineCTA />
+
+**LLM Observability** is the practice of tracing, monitoring, and evaluating large language model (LLM) applications in production.
+
+LLM apps, such as **RAG chatbots and AI agents,** are **non-deterministic**, meaning they don’t always behave the same way. This makes them hard to debug and optimize.
+
+Observability platforms solve this by providing visibility into the **runs of LLM apps through tracing**.
+
+- A **trace** shows the inner workings of your application.
+- Each **span** represents one operation (e.g. retrieval, embedding, LLM call).
+- Spans capture inputs, outputs, cost, latency, errors, and metadata.
+
+Example: In a RAG chatbot trace, the retrieval span shows:
+
+- The input query
+- Retrieved chunks & their scores
+- Duration and cost of the retrieval step
+
+This helps you debug failures, identify bottlenecks, and measure the impact of prompt or model changes.
+
+## Why do you need LLM Observability?
+
+**1. Monitor Costs and Usage**
+
+Track token usage, latency, and API costs across requests.
+
+- See which models are most expensive
+- Monitor requests per user or customer
+- Spot slow or failing queries
+
+**2. Filter requests**
+
+- Search and filter AI requests to find those that are failing or take too long.
+- Flag bad outputs for further analysis
+
+**3. Debug Requests**
+
+- Understand why you application fails.
+- Determine which step fails and needs improvement
+- Find spans that take too long ****
+
+**4. Improve Your LLM Application**
+
+Analyze production usage, and identify issues.
+
+- Add failing requests to [test sets](https://docs.agenta.ai/evaluation/create-test-sets#adding-data-from-traces)
+- Iterate on [prompts in the playground](https://docs.agenta.ai/prompt-engineering/playground/using-the-playground)
+
+**5. Automate valuation**
+
+Run online evaluations on requests to
+
+- Monitor response quality over time and after changes
+- Find traces with bad outputs, and use them to improve your application
+
+### Learn More
+
+- 📖 [Deep dive into LLM Observability and OpenTelemetry](https://www.notion.so/Top-LLM-Observability-platforms-2025-279dcb35ffd980a5a15bf214f7714d52?pvs=21)
+- 🎥 [Watch our short video](https://www.youtube.com/watch?v=crEyMDJ4Bp0) on why observability is critical for scaling AI apps
+
+## How We Chose These platforms
+
+Not all LLM observability platforms are created equal. To make this list, we focused on features that matter most to teams building and running LLM apps in production.
+
+We evaluated LLM observability platforms against the following criteria:
+
+**1. Integrations**
+
+How easy is it to get started? Does the platform offer auto-instrumentation for popular frameworks? Does it support multiple programming languages? Strong integrations are critical for adoption and long-term use.
+
+1. **Vendor Neutrality & OpenTelemetry Support** Is the platform vendor-locked with its own SDKs, or does it support open standards? Platforms that are **OTel-compatible** give you flexibility to move between vendors and integrate with existing observability stacks.
+2. **Token & Cost Monitoring** Can you track token usage and costs across requests and models? Does the platform calculate cumulative costs for complex traces (e.g. an agent making multiple LLM calls) and allow filtering by aggregated costs?
+3. **LLMOps Workflow Integration: Prompt Management** Does the platform connect observability with prompt management? For example: Linking traces back to specific prompts
+4. Adding failing traces to test sets
+5. Opening production prompts directly in a playground for debugging
+6. Comparing prompt versions side by side
+7. **LLMOps Workflow Integration: Evaluation** Can the platform run **online evaluations** on traces? Does it support LLM-as-a-judge for automatic scoring and filtering? Does it integrate with offline evaluation runs so you can analyze both datasets and production traces in one workflow?
+8. **Filtering Capabilities** How powerful is search? Can you filter by metadata, reference IDs, or prompt versions? Does it support both simple filters and complex queries for deep debugging?
+9. **Trace Annotation & Feedback** Can you annotate traces or capture user feedback? This includes explicit ratings (👍/👎) and implicit signals (e.g. whether generated code was used). Can teams leave comments, and can you later search by these annotations?
+10. **Enterprise Readiness** Does the platform meet compliance requirements (SOC 2, HIPAA)? Does it support **self-hosting** so sensitive data stays within your infrastructure?
+11. **Open-Source vs. Managed Options**Is the platform open-source, and under which license? Can you extend or modify it? Or is it only offered as a managed SaaS solution?
+12. **Collaboration & Cross-Functional Use**Can non-technical users (product managers, domain experts) use the UI? Does it support team workflows, shared dashboards, and role-based access?
+
+## Top LLM Observability platforms in 2025
+
+### Agenta
+
+![Agenta](/blog/top-llm-observability-platforms/img-1.webp)
+
+**Agenta** is a fast-growing [open-source LLMOps](https://github.com/agenta-ai/agenta) platform that combines [**LLM observability**](https://docs.agenta.ai/observability/overview) with essential AI engineering tools such as [prompt management](https://docs.agenta.ai/prompt-engineering/prompt-management/how-to-integrate-with-agenta), a [prompt playground](https://docs.agenta.ai/prompt-engineering/playground/using-the-playground), and [LLM evaluation](https://docs.agenta.ai/evaluation/overview).
+
+#### Key Differentiators
+
+**1. End-to-End LLMOps Workflow**
+
+Agenta integrates observability with the full LLMOps lifecycle. You can link prompt versions to traces, run both offline and online evaluations on production data, and build reliable LLM-powered applications faster.
+
+**2. OpenTelemetry-Native & Vendor Neutral**
+
+Agenta is fully [**OTel-compatible**](https://docs.agenta.ai/observability/otel-semconv), ensuring instrumentation is based on a battle-tested standard. It’s vendor-neutral, meaning you can switch providers easily or send traces to multiple backends simultaneously. Agenta works with major frameworks ([LangChain](https://docs.agenta.ai/observability/integrations/langchain), [LangGraph](https://docs.agenta.ai/observability/integrations/langgraph), [PydanticAI](https://docs.agenta.ai/observability/integrations/pydanticai), etc.) and model providers ([OpenAI](https://docs.agenta.ai/observability/integrations/openai), Anthropic, Cohere, and more).
+
+**3. Open Source & Self-Hostable**
+
+Agenta is open-source (MIT licensed) and can be [self-hosted](https://docs.agenta.ai/self-host/quick-start) for teams that need full control over their infrastructure.
+
+**4. Collaboration for Cross-Functional Teams**
+
+Designed for engineers, product managers, and subject matter experts alike. The UI is simple and accessible, making it easy for non-developers to search and filter traces, leave annotations, and participate in debugging and evaluation workflows.
+
+**5. Enterprise Ready**
+
+Agenta is **SOC 2 Type II compliant**, supports self-hosting, and offers the transparency of open-source code.
+
+#### Pricing
+
+- Open Source: Free and self-hosted
+- **Free Tier**: Up to 10k traces/month
+- **Pro Tier**: $50/month for 10k traces, plus $5 for each additional 10k traces
+
+#### When to Choose Agenta
+
+Choose Agenta if you want an **end-to-end LLMOps platform** where observability, prompt management, and evaluation are tightly integrated. It’s ideal for teams that need both technical depth and collaboration across engineering and product roles.
+
+### Langsmith
+
+![Langsmith](/blog/top-llm-observability-platforms/img-2.webp)
+
+[**Langsmith**](https://www.langchain.com/langsmith) is the observability platform from the team behind [**LangChain**](https://github.com/langchain-ai/langchain). It’s a managed SaaS offering with support for **evaluation** and a **prompt playground**. Langsmith uses its own SDK for instrumentation and is designed to work seamlessly within the LangChain ecosystem.
+
+#### Key Differentiators
+
+**1. Deep LangChain Integration**
+
+Langsmith is tightly integrated with [**LangChain**](https://github.com/langchain-ai/langchain) and [**LangGraph**](https://github.com/langchain-ai/langgraph). Adding Langsmith to a LangChain app often requires only a single line of code, and its tracing visualizations for LangGraph agents are particularly powerful.
+
+**2. Custom Dashboards**
+
+The platform allows teams to build flexible dashboards tailored to their needs, enabling detailed analysis of tracing data.
+
+#### Pricing
+
+- **Free Tier**: 1 seat, 5k traces
+- **Plus Tier**: $39/seat/month, includes 10k traces. Additional usage: $5 per 10k traces (14-day retention) or $45 per 10k traces (400-day retention).
+
+#### When to Choose Langsmith
+
+Langsmith is the best choice if you’re already invested in the **LangChain ecosystem**. Integration is extremely smooth, and its custom dashboards plus monitoring features make it a strong option for teams standardizing on LangChain tools.
+
+### Braintrust
+
+![Braintrust](/blog/top-llm-observability-platforms/img-3.webp)
+
+[Braintrust](https://www.braintrust.dev/) is a managed LLM **evaluation and observability** platform, with a strong focus on evaluation workflows. It provides its own SDKs for instrumentation, available in both **TypeScript** and **Python**.
+
+#### Key Differentiators
+
+**1. Proprietary Database (Brainstore)**
+
+Braintrust uses a custom-built database called **Brainstore**, designed to optimize performance for observability workloads. According to [internal benchmarks](https://www.braintrust.dev/blog/brainstore#benchmarks), Brainstore is up to **86× faster for full-text search** and delivers **double the read/write speed** for spans compared to unnamed competitors. While these results are not independently verified, the focus on performance sets Braintrust apart.
+
+#### Pricing
+
+- Free Tier: 1GB processed data on 14 day data retention
+- Pro Tier: $249/month, includes 5GB data (1 month retention), then 3$ for each additional month retention
+
+#### When to Choose Braintrust
+
+Braintrust may be a good fit if your workloads involve **large datasets** and require **frequent full-text search across traces**. Teams prioritizing raw performance in span search and retrieval could find its custom database especially compelling.
+
+### Langfuse
+
+![Langfuse](/blog/top-llm-observability-platforms/img-4.webp)
+
+[**Langfuse**](https://langfuse.com/) is an open-source LLM engineering platform with a strong focus on **observability**. It is developer-oriented and provides **OpenTelemetry-compliant SDKs** along with monitoring tools.
+
+#### Key Differentiators
+
+**1. Open Source & Self-Hostable**
+
+Langfuse is primarily open-source under the **MIT license**, with some enterprise features available under a commercial license. It can be fully self-hosted, making it attractive for teams that want control over their infrastructure.
+
+**2. Custom Dashboards**
+
+Teams can create dashboards to track metrics such as **cost, latency, and usage patterns** across LLM applications.
+
+**3. Wide Integrations**
+
+Langfuse offers integrations with many popular AI frameworks and model providers, enabling developers to instrument and monitor a broad range of LLM workflows.
+
+#### Pricing
+
+- Free Tier: 50k units (includes spans, evaluations), 2 users
+- Core Tier: $29/month
+
+#### When to Choose Langfuse
+
+Langfuse is a strong option if your team is **highly technical** and prefers an **open-source, self-hosted** observability solution. It’s especially well-suited for organizations that want flexibility and transparency in their LLM observability stack.
+
+### Lunary
+
+![Lunary](/blog/top-llm-observability-platforms/img-5.webp)
+
+[**Lunary**](https://lunary.ai/) is an [open-source](https://github.com/lunary-ai/lunary) LLM observability platform with a strong focus on **AI chatbots**. It provides tooling designed around understanding and improving conversational AI.
+
+#### Key Differentiators
+
+**1. Conversation Replay**
+
+Lunary enables teams to **replay user conversations**, making it easier to debug chatbot interactions and analyze how responses evolve.
+
+**2. Topic Classification**
+
+The platform can automatically **classify chatbot conversations by topic**, helping teams organize and evaluate large volumes of user interactions.
+
+#### Pricing
+
+- **Free Tier**: 10k events/month with 30-day retention
+- **Team Tier**: $20/user/month, includes 50k events/month with one-year retention
+
+#### When to Choose Lunary
+
+Lunary is a strong choice if your team is focused on **chatbots** and you value features such as **conversation replay** and **topic classification** for analyzing user interactions at scale.
+
+## Comparison table LLM Observability platforms
+
+<table><tbody><tr><th><strong>Platform</strong></th><th><strong>Open Source</strong></th><th><strong>OTel Support</strong></th><th><strong>Evaluation Features</strong></th><th><strong>Collaboration (Non-Tech Users)</strong></th><th><strong>Self-Hosting</strong></th><th><strong>Pricing (Entry Tier)</strong></th><th><strong>Best For</strong></th></tr><tr><td><strong>Agenta</strong></td><td>✅ MIT license</td><td>✅ Native OTel</td><td>✅ Online &amp; offline eval, LLM-as-a-judge</td><td>✅ Cross-functional UI, annotations</td><td>✅</td><td>Free: 10k traces/month. Pro: $50/month (10k traces + $5 per 10k extra)</td><td>Teams needing an end-to-end LLMOps workflow with observability + evaluation</td></tr><tr><td><strong>Langsmith</strong></td><td>❌ SaaS only</td><td>❌ (proprietary SDK)</td><td>✅ Built-in evaluation</td><td>⚠️ Primarily for developers</td><td>❌ Enterprise only</td><td>Free: 1 seat, 5k traces. Plus: $39/seat/month (10k traces + extras)</td><td>Teams deeply invested in LangChain ecosystem</td></tr><tr><td><strong>Langfuse</strong></td><td>✅ MIT license</td><td>✅ OTel-compliant</td><td>⚠️ Limited evaluation (developer focus)</td><td>❌ Developer-oriented</td><td>✅</td><td>Free/self-hosted open source</td><td>Technical teams preferring open-source &amp; self-hosting</td></tr><tr><td><strong>Braintrust</strong></td><td>❌ SaaS only</td><td>❌ (proprietary SDK)</td><td>✅ Evaluation-first platform</td><td>❌ Developer-focused</td><td>❌ Enterprise only</td><td>Pricing not public (managed SaaS)</td><td>Teams with large datasets needing fast full-text trace search</td></tr><tr><td><strong>Lunary</strong></td><td>✅ Apache License 2.0</td><td>❌ (proprietary SDK)</td><td>⚠️ Focused on chatbot eval (topic classification)</td><td>❌ Primarily developer UI</td><td>✅</td><td>Free: 10k events/month. Team: $20/user/month (50k events)</td><td>Teams building chatbots, needing replay + topic classification</td></tr></tbody></table>
+
+## Best By use case
+
+Each observability platform has different strengths. Here’s how they compare by use case:
+
+- **Best Open-Source & End-to-End LLMOps**: **Agenta** — combines observability, prompt management, and evaluation in a single open-source workflow.
+- **Best for LangChain Users**: **Langsmith** — seamless integration with LangChain and LangGraph.
+- **Best for Self-Hosted Developer Teams**: **Langfuse** — MIT-licensed, developer-focused, and easy to run on-premises.
+- **Best for High-Performance Trace Search**: **Braintrust** — optimized database for fast full-text search across large datasets.
+- **Best for Chatbot Teams**: **Lunary** — replay conversations and classify interactions by topic.
+
+## Emerging Trends in LLM Observability
+
+LLM observability is evolving quickly. Some of the key trends we see in 2025 include:
+
+- **Deeper Agent Tracing**: Support for multi-step agent workflows (LangGraph, AutoGen, custom frameworks) with nested spans.
+- **Structured Outputs & Tools**: Observability for not just text, but also structured responses, tool use, and multi-modal applications.
+- **Integration with Evaluation Loops**: Combining observability data with evaluation frameworks to automate “LLM-as-a-judge” scoring.
+- **Collaboration Features**: UIs that allow product managers, SMEs, and compliance teams to contribute feedback, not just engineers.
+- **Enterprise Requirements**: SOC 2, HIPAA, and self-hosting are becoming must-haves for healthcare, finance, and other regulated industries.
+
+## Conclusion
+
+LLM observability is no longer optional. It’s essential for debugging, cost monitoring, and improving the reliability of AI applications. The right platform depends on your team’s goals:
+
+- For **end-to-end LLMOps workflows**, Agenta offers the broadest feature set.
+- For **LangChain-native teams**, Langsmith is a natural choice.
+- For **open-source and self-hosting**, Langfuse provides flexibility.
+- For **high-performance search**, Braintrust stands out.
+- For **chatbot-specific use cases**, Lunary offers unique replay and classification features.
+
+As LLM applications scale in complexity and usage, observability will remain a critical part of delivering trustworthy, cost-efficient, and compliant AI systems.
+
+## FAQSection
+
+**Q1: What is LLM observability?**
+
+LLM observability is the practice of tracing, monitoring, and evaluating large language model applications in production. It provides visibility into requests, costs, latency, errors, and user interactions.
+
+**Q2: Why is LLM observability important?**
+
+LLM applications are non-deterministic and hard to debug. Observability platforms help teams identify failures, monitor costs, ensure compliance, and improve reliability.
+
+**Q3: What are the best LLM observability platforms in 2025?**
+
+The top platforms include Agenta, Langsmith, Langfuse, Braintrust, and Lunary. The best choice depends on your needs — from open-source flexibility to chatbot-specific features.
+
+**Q4: Which LLM observability platforms are open-source?**
+
+Agenta, Langfuse, and Lunary are open-source. Langsmith and Braintrust are managed SaaS platforms.
+
+**Q5: Can LLM observability platforms be self-hosted?**
+
+Yes. Agenta, Langfuse, and Lunary can be self-hosted. This is important for enterprises with strict data privacy and compliance requirements.
+
+**Q6: What features should I look for in an LLM observability platform?**
+
+Key features include: OpenTelemetry support, token and cost monitoring, prompt and evaluation integration, collaboration tools, filtering and search, and enterprise readiness.

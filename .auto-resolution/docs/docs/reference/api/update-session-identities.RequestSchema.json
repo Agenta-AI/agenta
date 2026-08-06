@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"session_identities":{"items":{"type":"string"},"type":"array","title":"Session Identities"}},"type":"object","required":["session_identities"],"title":"SessionIdentitiesUpdate"}}},"required":true}}

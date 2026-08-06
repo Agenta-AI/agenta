@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/syncpack@15.3.1/dist/schema.json",
+  "versionGroups": [
+    {
+      "label": "Leave peerDependencies ranges loose (compatibility contracts)",
+      "dependencies": ["**"],
+      "dependencyTypes": ["peer"],
+      "isIgnored": true
+    },
+    {
+      "label": "Never rewrite local workspace references",
+      "dependencies": ["@agenta/**"],
+      "isIgnored": true
+    }
+  ]
+}

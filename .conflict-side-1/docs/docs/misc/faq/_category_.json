@@ -1,0 +1,10 @@
+{
+  "label": "FAQ",
+  "position": 2,
+  "collapsed": false,
+  "collapsible": true,
+  "link": {
+    "type": "doc",
+    "id": "misc/faq/index"
+  }
+}

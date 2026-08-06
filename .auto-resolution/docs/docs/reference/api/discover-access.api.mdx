@@ -1,0 +1,74 @@
+---
+id: discover-access
+title: "Discover"
+description: "Discover authentication methods available for a given email."
+sidebar_label: "Discover"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1v4zYQ/SvEnFpAsbNBTzqt2wRYY7u1ETtFAccIaHFsc0uRWpJyohr678WQkiV/rAPseXOJRc4X33sz5B483zhIFzDKMnQOlgkIdJmVhZdGQwr30mVmh5bx0m9Re5lx2mE5+q0RjvEdl4qvFLK1sYyzjdyhZphzqQbP+lnPt9Ix1KIwUnsmDDr212TOLO6Qq/RZ37CJ3XAt/4thNc/R0eqTQ8vwTTqPOkP2iwkFcaUqdsOy0lrUXlUxIGV++udXcrtHz6VCwQqjZFYxqdfG5iE2VfOIvrTasVxqmXPV32YaUaCIxzg+61qZ1wEkYAq0YWUsIAXRIPPCI3QJWPxWovO/G1FBuofMaI/a009eFKqJNvzqCNg9uGyLOadfhaXIXqKjr4Ad/fBVgZCC81bqDSQQS4W0sUjAS6/I4iF813XSupjVV8x8U5G0KIjh6LXs3FpqH2PZUFOEzsPbEsOCK4x2sba721v6dyyRWRkAWJeKPTbGkPzw6Yly1zv+yhiFXPePG03qBBoRhhxCyKiQ6VE8rqvJGtLFWbw6OU1dWLOTAm34kB5zd16eFJeYaSsbC6rKqXJzzWpG+0TWVlrxUnDrq5frcedkyaZkySjHO0xLAU0VZ0l69M9mk2lz4rFeG+iCcmt51Us/PQDzXuYOwsuJHNTLCyFayy8Nn+9KOSqgE8BFVTdSrIOuf7u7O1fu31xJEXv8wVpjf1y2IsydK8JRJjvaPdNlQzrJslmR2uMG7RFkp9T8aWKBoRvcVdl9Qef4Bjuev28awGBz2q0TkLooAyAHmYeFOoHMv/XCnNH5B2H55t+lk7CJ5Td2PTo7iiJD34cijv6LyVqTT/P59Cxg1EdUEqRQGEcuBfdbSGFIV8GwHfXUVmh3YUQs9lBaFUwKGWiLn1vvC5cOh1gOMmVKMeAb1J4PuIyGS4qRlVb6KgQZTcefsfqEXKCFdLHsG8xIbVE/x2YHzHkhPyOhQBcnpDAq/dbY5jYF4o5Kil50TNLxY3dNPbzxvFDYu3agdGg/YlwfZCaPClibvgBG4UhsNB3D6XvhaIuaiWdBO219YRuSE7A6jCA5VOKR5x8PO1QHIR/T3A4+DG5piejKue6luO/IOiqtdyH/fNX0XjWNkqhTh4XiMsySQM++6YIFkCvh2UK7TGBLfZIuYL9fcYdPVtU1LX8r0ZKwlwnsuJWEYVB10qqQNP8vVu140P4mzBkyV2WU9MnYpd6KHvRILfxV22WvlaeT2RwSWDXvsdwI8rH8leYPf4UUwqOOvEOPhbU9KK43JU3KFGJM+vsf3STg0w==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Discover"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/auth/discover"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Discover authentication methods available for a given email.
+
+This endpoint does NOT reveal:
+- Organization names
+- User existence (optionally - currently does for UX)
+- Detailed policy information
+
+Returns minimal information needed for authentication flow.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./discover-access.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./discover-access.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

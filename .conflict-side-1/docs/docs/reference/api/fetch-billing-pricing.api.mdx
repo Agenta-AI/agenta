@@ -1,0 +1,62 @@
+---
+id: fetch-billing-pricing
+title: "Fetch Pricing"
+description: "Return the effective pricing map: plan slug -> normalized pricing."
+sidebar_label: "Fetch Pricing"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVU01v2zAM/SsCz66T7ejDsAzYR9BL0G6nNCgYmY7VypImUcFSw/99oO20TbA/MF8M8ZEi+d5TD4yHBNUWvhhrjTvAroCako4msPEOKrgjztEpbklR05BmcyQVotHGHVSHoVLBolPJ5oO6+aScjx1a80L1Oal8cA9u7bTNNSW1R/1Mrr6JlLw9Uq2aSLTgaNCqBq0VXHUYnykmlbzS1pDjpGr/4Jxn5YhqxV7VOVijkUntp8lVTQ1myypmS6mEAnygiLLFuoYKGmLdPs7Jj/NsUECkFLxLlKDq4eNyKb9LBu6z1pRSk626m5OhAO0dk2NJxzDNYrxbPCWp6SHpljoc0bo2AqHdRBmJzdTr33GOmQrgUyCowO+fSDMM14EC2LClUZ1pIPVN1lOzimozrzfIV0BH3Hoh4UBSHJBbqGAxk7F4IyNRPFIUQ/SQo5UkDAaG4nxsmUOqFgvKpbY+1yUeyDGWaKbEndyhczR8Gi9Zbda3dPpBWFOEart7n3AvFE1cXKb153UxmFs6QQEOOzmvMrc+mpeRaijAiDztVCV7Gtf4sXxmZzUOp1abNVzb+gISLVGPWp47jTAUV2u/bQsFUIdGQCbsPr8iopZwOLVZlh/KpYSCT9yhe9diUmzzyv3FfP2bv/7jFzjLyPSHF8GiccLEyGg/m3ALc7HYcqZiV0DrEwvY93tM9CvaYZDw70xRfLUr4IjR4F5U3u6G4mwCsdwznURArSmI2Y9o8+Slq0cqVnx9GN+//oRh+Atn5sR/
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Pricing"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/billing/pricing"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Return the effective pricing map: plan slug -&gt; normalized pricing.
+
+Includes backend-resolved free/trial fallback markers so clients do
+not need to duplicate billing default rules.
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-billing-pricing.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-billing-pricing.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,0 +1,94 @@
+{
+  "schema_version": "1",
+  "_curation": {
+    "harness": "claude",
+    "note": "Hand-curated. `id` is the stable Claude Code request value (model_selection = alias). Facts seeded from the pinned @earendil-works/pi-ai `anthropic` block; label/description/ratings written by a human from the current lineup. The live harness can add or remove context-hinted variants as account access changes, so the catalog uses the stable bare Fable id that the runner can widen to a `[1m]` option when available. The current Anthropic frontier is Fable 5, above Opus, so descriptions and ratings place Opus one tier below it. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
+    "sources": "@earendil-works/pi-ai@0.80.6 anthropic block; Anthropic model + pricing pages"
+  },
+  "models": [
+    {
+      "id": "default",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": null,
+      "pricing": null,
+      "context_window": null,
+      "modalities": ["text", "image"],
+      "label": "Default",
+      "description": "The harness's recommended default model. Resolves to whatever the Claude Code build selects.",
+      "ratings": null
+    },
+    {
+      "id": "sonnet",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": "Claude Sonnet 5",
+      "pricing": {
+        "input_per_mtok": 2.0,
+        "output_per_mtok": 10.0,
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5,
+        "currency": "USD"
+      },
+      "context_window": 1000000,
+      "modalities": ["text", "image"],
+      "label": "Sonnet",
+      "description": "Balanced speed and capability for everyday agentic work, cheaper than Opus.",
+      "ratings": {"cost": 4, "intelligence": 3, "speed": 4}
+    },
+    {
+      "id": "haiku",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": "Claude Haiku 4.5",
+      "pricing": {
+        "input_per_mtok": 1.0,
+        "output_per_mtok": 5.0,
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 1.25,
+        "currency": "USD"
+      },
+      "context_window": 200000,
+      "modalities": ["text", "image"],
+      "label": "Haiku",
+      "description": "The fastest, cheapest tier. Use for high-volume, latency-sensitive tasks.",
+      "ratings": {"cost": 5, "intelligence": 2, "speed": 5}
+    },
+    {
+      "id": "opus[1m]",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": "Claude Opus 4.8",
+      "pricing": {
+        "input_per_mtok": 5.0,
+        "output_per_mtok": 25.0,
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 6.25,
+        "currency": "USD"
+      },
+      "context_window": 1000000,
+      "modalities": ["text", "image"],
+      "label": "Opus (1M context)",
+      "description": "Strong reasoning below Fable, at a lower price, with the 1M-token context window.",
+      "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
+    },
+    {
+      "id": "claude-fable-5",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": "Claude Fable 5",
+      "pricing": {
+        "input_per_mtok": 10.0,
+        "output_per_mtok": 50.0,
+        "cache_read_per_mtok": 1.0,
+        "cache_write_per_mtok": 12.5,
+        "currency": "USD"
+      },
+      "context_window": 1000000,
+      "modalities": ["text", "image"],
+      "label": "Fable",
+      "description": "The current Anthropic frontier: the strongest reasoning tier, above Opus.",
+      "ratings": {"cost": 2, "intelligence": 5, "speed": 3}
+    }
+  ]
+}

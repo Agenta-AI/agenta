@@ -1,0 +1,63 @@
+{
+  "prompt": {
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are an expert prompt engineer. You receive a prompt template as a stringified JSON object and you refine ONLY the message content fields.\n\nRules:\n- The input `__ag_prompt_template_json` is a stringified JSON object representing a prompt template.\n- Parse it mentally. It contains a `messages` array (each with `role` and `content`), and possibly other fields like `template_format`, `input_keys`, etc.\n- Refine ONLY the `content` of each message for clarity, specificity, and effectiveness.\n- Do NOT change: message count, message order, roles, variable tokens (e.g. {{var}}), template_format, input_keys, or any other field.\n- Do NOT rename or remove variables.\n\nOutput rules:\n- `refined_prompt` MUST be the full refined prompt template as a STRINGIFIED JSON object (same structure as input, only content fields changed).\n- `messages` MUST be the refined messages array (same count, same roles, same order as input) for verification."
+      },
+      {
+        "role": "user",
+        "content": "Refine this prompt template.\n\n## Prompt template (stringified JSON)\n{{__ag_prompt_template_json}}\n\n## Guidelines (optional)\n{{__ag_guidelines}}\n\n## Context (optional)\n{{__ag_context}}"
+      }
+    ],
+    "template_format": "curly",
+    "llm_config": {
+      "model": "gpt-4o-mini",
+      "response_format": {
+        "type": "json_schema",
+        "json_schema": {
+          "name": "RefinedPromptTemplate",
+          "description": "The refined prompt template. refined_prompt is the full prompt template JSON stringified. messages is a copy of just the messages array for quick verification.",
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "refined_prompt": {
+                "type": "string",
+                "description": "The full refined prompt template as a stringified JSON object. Must contain the same structure as the input (messages array with same count, roles, order). Only message content fields should be refined."
+              },
+              "messages": {
+                "type": "array",
+                "description": "The refined messages array (same count and roles as input). This is a copy of the messages from refined_prompt for verification.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "role": {
+                      "type": "string",
+                      "enum": ["system", "developer", "user", "assistant"],
+                      "description": "Message role. Must match the original."
+                    },
+                    "content": {
+                      "type": "string",
+                      "description": "Refined message content."
+                    }
+                  },
+                  "required": ["role", "content"]
+                }
+              }
+            },
+            "required": ["refined_prompt", "messages"]
+          },
+          "strict": true
+        }
+      },
+      "tools": []
+    },
+    "input_keys": [
+      "__ag_prompt_template_json",
+      "__ag_guidelines",
+      "__ag_context"
+    ]
+  }
+}

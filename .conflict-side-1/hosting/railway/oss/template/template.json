@@ -1,0 +1,449 @@
+{
+  "version": 1,
+  "project": "agenta-oss-clone-spike",
+  "templateEnvironment": "pr-template",
+  "notes": {
+    "purpose": "Declarative definition of the Railway preview TEMPLATE environment (issue #5650). Per-PR previews are created by cloning this environment; apply.sh converges a live environment to this file and the drift workflow (47) alerts on hand-edits.",
+    "project-location": "The template lives in project 'agenta-oss-clone-spike', environment 'pr-template'. CI resolves the same location from the repo variables RAILWAY_TEMPLATE_PROJECT / RAILWAY_TEMPLATE_ENV (falling back to these values), and the preview scripts accept the same names as env vars. Moving the template = converge the new project's environment with apply.sh --project, then update 'project' here and the two repo variables.",
+    "variable-classes": "A variable value that contains a ${{...}} Railway reference is PER-ENVIRONMENT-UNIQUE: Railway re-resolves it inside every clone (proven, findings.md Q2). A literal string value is SHARED: byte-identical in the template and every clone. An object {\"secret\": NAME} is a SHARED SECRET: the value is never stored in this file; apply.sh resolves it at apply time from the process environment, from the value already live on a sibling service, or from the declared generator, in that order.",
+    "system-variables": "Railway injects RAILWAY_* variables (RAILWAY_ENVIRONMENT*, RAILWAY_PROJECT_*, RAILWAY_SERVICE_*, RAILWAY_PRIVATE_DOMAIN, ...) into every service. The diff ignores any RAILWAY_* name UNLESS it is declared here (declared ones, e.g. redis's RAILWAY_RUN_UID, are managed and diffed like any other).",
+    "start-command-policy": "Services whose image owns its entrypoint (Postgres, supertokens, and the three WP1 wrapper images gateway/redis/seaweedfs) MUST have startCommand empty/unset. The eight app services carry explicit startCommands because one image backs several services (agenta-api alone backs api, worker-streams, worker-queues, cron, and alembic). API fact: startCommand null in serviceInstanceUpdate is a NO-OP; \"\" clears the override (findings.md close-out addendum).",
+    "tag-policy": "Template image tags must NEVER equal a PR image tag (pr-<n>-<sha>) and must NEVER be 'latest': environmentPatchCommit silently no-ops when a patched tag equals the template's tag, which strands a clone on template images (findings.md, deploy-mode section). apply.sh enforces this.",
+    "healthchecks": "healthcheckPath is unset on all services, matching the live-proven template (10/10 green clone cycles). The standalone deployment path (scripts/configure.sh) sets healthchecks for gateway/api/services/runner; adding them to the template is a deliberate change to this file, not silent drift."
+  },
+  "parameters": {
+    "app_tag": {
+      "default": "v0.108.0",
+      "description": "Tag for the four Agenta app images (agenta-api, agenta-web, agenta-services, agenta-runner). Pinned to a release tag; per-PR clones patch these images to pr-<n>-<sha> tags via environmentPatchCommit. Never 'latest', never a pr-* tag (see notes.tag-policy)."
+    },
+    "gateway_tag": {
+      "default": "content-778baa45f18f",
+      "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-gateway, built by workflow 42 from hosting/railway/oss/images/gateway. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
+    },
+    "redis_tag": {
+      "default": "content-cdbfac207702",
+      "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-redis, built by workflow 42 from hosting/railway/oss/images/redis. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
+    },
+    "seaweedfs_tag": {
+      "default": "content-03d718eacd47",
+      "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-seaweedfs, built by workflow 42 from hosting/railway/oss/images/seaweedfs. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
+    }
+  },
+  "deployOrder": {
+    "description": "Constraint for anything that deploys a fresh clone of this environment (proven live, findings.md Q12 + close-out): infra first, then alembic (creates the three databases and runs migrations), then everything else. supertokens MUST NOT deploy before alembic (its database does not exist yet and it exhausts its restarts). A single Postgres first-deploy timeout in a fresh clone is retryable, not fatal.",
+    "stages": [
+      [
+        "Postgres",
+        "redis",
+        "seaweedfs"
+      ],
+      [
+        "alembic"
+      ],
+      [
+        "supertokens",
+        "api",
+        "web",
+        "services",
+        "runner",
+        "worker-streams",
+        "worker-queues",
+        "cron",
+        "gateway"
+      ]
+    ]
+  },
+  "secrets": {
+    "AGENTA_AUTH_KEY": {
+      "from_env": "AGENTA_AUTH_KEY",
+      "generate": "openssl-rand-hex-32"
+    },
+    "AGENTA_CRYPT_KEY": {
+      "from_env": "AGENTA_CRYPT_KEY",
+      "generate": "openssl-rand-hex-32"
+    },
+    "AGENTA_RUNNER_TOKEN": {
+      "from_env": "AGENTA_RUNNER_TOKEN",
+      "generate": "openssl-rand-hex-32"
+    },
+    "POSTGRES_PASSWORD": {
+      "from_env": "POSTGRES_PASSWORD",
+      "generate": "openssl-rand-hex-24"
+    },
+    "AGENTA_STORE_ACCESS_KEY": {
+      "from_env": "AGENTA_STORE_ACCESS_KEY",
+      "generate": "openssl-rand-hex-10"
+    },
+    "AGENTA_STORE_SECRET_KEY": {
+      "from_env": "AGENTA_STORE_SECRET_KEY",
+      "generate": "openssl-rand-hex-32"
+    },
+    "AGENTA_STORE_SIGNING_KEY": {
+      "from_env": "AGENTA_STORE_SIGNING_KEY",
+      "generate": "openssl-rand-base64-32"
+    },
+    "AGENTA_STORE_JWT_PRIVATE_KEY": {
+      "from_env": "AGENTA_STORE_JWT_PRIVATE_KEY",
+      "generate": "openssl-genpkey-rsa-2048"
+    }
+  },
+  "services": {
+    "gateway": {
+      "image": "ghcr.io/agenta-ai/agenta-preview-gateway:{gateway_tag}",
+      "startCommand": "",
+      "healthcheckPath": "/",
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "PORT": "8080"
+      }
+    },
+    "web": {
+      "image": "ghcr.io/agenta-ai/agenta-web:{app_tag}",
+      "startCommand": "sh -lc '/app/entrypoint.sh node /app/oss/server.js'",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_WEB_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}",
+        "AGENTA_API_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/api",
+        "AGENTA_SERVICES_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/services",
+        "AGENTA_AUTH_KEY": {
+          "secret": "AGENTA_AUTH_KEY"
+        },
+        "AGENTA_CRYPT_KEY": {
+          "secret": "AGENTA_CRYPT_KEY"
+        },
+        "AGENTA_LICENSE": "oss",
+        "HOSTNAME": "0.0.0.0"
+      },
+      "optionalVariables": [
+        "POSTHOG_API_KEY",
+        "SENDGRID_API_KEY"
+      ]
+    },
+    "api": {
+      "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
+      "startCommand": "gunicorn entrypoints.routers:app --bind 0.0.0.0:8000 --worker-class uvicorn.workers.UvicornWorker --workers 2 --max-requests 10000 --max-requests-jitter 1000 --timeout 60 --graceful-timeout 60 --log-level info --access-logfile - --error-logfile -",
+      "healthcheckPath": "/health",
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_WEB_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}",
+        "AGENTA_API_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/api",
+        "AGENTA_SERVICES_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/services",
+        "AGENTA_AUTH_KEY": {
+          "secret": "AGENTA_AUTH_KEY"
+        },
+        "AGENTA_CRYPT_KEY": {
+          "secret": "AGENTA_CRYPT_KEY"
+        },
+        "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
+        "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
+        "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
+        "AGENTA_STORE_ENDPOINT_URL": "http://${{seaweedfs.RAILWAY_PRIVATE_DOMAIN}}:8333",
+        "AGENTA_STORE_ACCESS_KEY": {
+          "secret": "AGENTA_STORE_ACCESS_KEY"
+        },
+        "AGENTA_STORE_SECRET_KEY": {
+          "secret": "AGENTA_STORE_SECRET_KEY"
+        },
+        "AGENTA_STORE_BUCKET": "agenta-store",
+        "AGENTA_STORE_SIGNING_KEY": {
+          "secret": "AGENTA_STORE_SIGNING_KEY"
+        },
+        "AGENTA_STORE_JWT_ISSUER": "http://api.railway.internal:8000/api",
+        "AGENTA_STORE_JWT_PRIVATE_KEY": {
+          "secret": "AGENTA_STORE_JWT_PRIVATE_KEY"
+        },
+        "AGENTA_LICENSE": "oss",
+        "PORT": "8000",
+        "SCRIPT_NAME": "/api",
+        "REDIS_URI": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_VOLATILE": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0",
+        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567"
+      },
+      "optionalVariables": [
+        "COMPOSIO_API_KEY",
+        "AGENTA_STORE_NAMESPACE"
+      ]
+    },
+    "services": {
+      "image": "ghcr.io/agenta-ai/agenta-services:{app_tag}",
+      "startCommand": "gunicorn entrypoints.main:app --bind 0.0.0.0:8080 --worker-class uvicorn.workers.UvicornWorker --workers 2 --max-requests 10000 --max-requests-jitter 1000 --timeout 60 --graceful-timeout 60 --log-level info --access-logfile - --error-logfile -",
+      "healthcheckPath": "/health",
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_WEB_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}",
+        "AGENTA_API_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/api",
+        "AGENTA_SERVICES_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/services",
+        "AGENTA_AUTH_KEY": {
+          "secret": "AGENTA_AUTH_KEY"
+        },
+        "AGENTA_CRYPT_KEY": {
+          "secret": "AGENTA_CRYPT_KEY"
+        },
+        "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
+        "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
+        "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
+        "AGENTA_RUNNER_INTERNAL_URL": "http://${{runner.RAILWAY_PRIVATE_DOMAIN}}:8765",
+        "AGENTA_RUNNER_TOKEN": {
+          "secret": "AGENTA_RUNNER_TOKEN"
+        },
+        "AGENTA_STORE_ENDPOINT_URL": "http://${{seaweedfs.RAILWAY_PRIVATE_DOMAIN}}:8333",
+        "AGENTA_STORE_ACCESS_KEY": {
+          "secret": "AGENTA_STORE_ACCESS_KEY"
+        },
+        "AGENTA_STORE_SECRET_KEY": {
+          "secret": "AGENTA_STORE_SECRET_KEY"
+        },
+        "AGENTA_STORE_BUCKET": "agenta-store",
+        "AGENTA_STORE_SIGNING_KEY": {
+          "secret": "AGENTA_STORE_SIGNING_KEY"
+        },
+        "AGENTA_LICENSE": "oss",
+        "PORT": "8080",
+        "SCRIPT_NAME": "/services",
+        "AGENTA_API_INTERNAL_URL": "http://api.railway.internal:8000/api",
+        "REDIS_URI": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_VOLATILE": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0"
+      },
+      "optionalVariables": [
+        "DAYTONA_API_KEY"
+      ]
+    },
+    "runner": {
+      "image": "ghcr.io/agenta-ai/agenta-runner:{app_tag}",
+      "startCommand": "node_modules/.bin/tsx src/server.ts",
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_RUNNER_HOST": "0.0.0.0",
+        "AGENTA_RUNNER_PORT": "8765",
+        "AGENTA_RUNNER_TOKEN": {
+          "secret": "AGENTA_RUNNER_TOKEN"
+        },
+        "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS": "local",
+        "AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER": "local",
+        "AGENTA_STORE_ENDPOINT_URL": "http://${{seaweedfs.RAILWAY_PRIVATE_DOMAIN}}:8333",
+        "AGENTA_STORE_ACCESS_KEY": {
+          "secret": "AGENTA_STORE_ACCESS_KEY"
+        },
+        "AGENTA_STORE_SECRET_KEY": {
+          "secret": "AGENTA_STORE_SECRET_KEY"
+        },
+        "AGENTA_STORE_BUCKET": "agenta-store",
+        "AGENTA_STORE_SIGNING_KEY": {
+          "secret": "AGENTA_STORE_SIGNING_KEY"
+        }
+      },
+      "optionalVariables": [
+        "AGENTA_API_URL",
+        "AGENTA_API_KEY",
+        "AGENTA_RUNNER_DAYTONA_API_KEY",
+        "AGENTA_RUNNER_DAYTONA_API_URL",
+        "AGENTA_RUNNER_DAYTONA_TARGET",
+        "AGENTA_RUNNER_DAYTONA_SNAPSHOT",
+        "AGENTA_RUNNER_DAYTONA_IMAGE"
+      ]
+    },
+    "worker-streams": {
+      "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
+      "startCommand": "python -m entrypoints.worker_streams",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_WEB_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}",
+        "AGENTA_SERVICES_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/services",
+        "AGENTA_AUTH_KEY": {
+          "secret": "AGENTA_AUTH_KEY"
+        },
+        "AGENTA_CRYPT_KEY": {
+          "secret": "AGENTA_CRYPT_KEY"
+        },
+        "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
+        "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
+        "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
+        "AGENTA_LICENSE": "oss",
+        "AGENTA_API_URL": "http://api.railway.internal:8000/api",
+        "AGENTA_API_INTERNAL_URL": "http://api.railway.internal:8000/api",
+        "REDIS_URI": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_VOLATILE": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0",
+        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567"
+      }
+    },
+    "worker-queues": {
+      "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
+      "startCommand": "python -m entrypoints.worker_queues",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_WEB_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}",
+        "AGENTA_SERVICES_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/services",
+        "AGENTA_AUTH_KEY": {
+          "secret": "AGENTA_AUTH_KEY"
+        },
+        "AGENTA_CRYPT_KEY": {
+          "secret": "AGENTA_CRYPT_KEY"
+        },
+        "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
+        "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
+        "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
+        "AGENTA_LICENSE": "oss",
+        "AGENTA_API_URL": "http://api.railway.internal:8000/api",
+        "AGENTA_API_INTERNAL_URL": "http://api.railway.internal:8000/api",
+        "REDIS_URI": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_VOLATILE": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0",
+        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567"
+      }
+    },
+    "cron": {
+      "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
+      "startCommand": "/usr/local/bin/supercronic /app/crontab",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_WEB_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}",
+        "AGENTA_SERVICES_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/services",
+        "AGENTA_AUTH_KEY": {
+          "secret": "AGENTA_AUTH_KEY"
+        },
+        "AGENTA_CRYPT_KEY": {
+          "secret": "AGENTA_CRYPT_KEY"
+        },
+        "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
+        "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
+        "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
+        "AGENTA_LICENSE": "oss",
+        "AGENTA_API_URL": "http://api.railway.internal:8000/api",
+        "AGENTA_API_INTERNAL_URL": "http://api.railway.internal:8000/api",
+        "REDIS_URI": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_VOLATILE": "redis://redis.railway.internal:6379/0",
+        "REDIS_URI_DURABLE": "redis://redis.railway.internal:6379/0",
+        "SUPERTOKENS_CONNECTION_URI": "http://supertokens.railway.internal:3567"
+      }
+    },
+    "alembic": {
+      "image": "ghcr.io/agenta-ai/agenta-api:{app_tag}",
+      "startCommand": "sh -c 'until psql -tAc \"SELECT 1\" >/dev/null 2>&1; do sleep 2; done; for db in agenta_oss_core agenta_oss_tracing agenta_oss_supertokens; do psql -tAc \"SELECT 1 FROM pg_database WHERE datname = '\\''$db'\\''\" | grep -q 1 || psql -c \"CREATE DATABASE \\\"$db\\\"\"; done; exec /opt/venv/bin/python -m oss.databases.postgres.migrations.runner'",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "AGENTA_WEB_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}",
+        "AGENTA_API_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/api",
+        "AGENTA_SERVICES_URL": "https://${{gateway.RAILWAY_PUBLIC_DOMAIN}}/services",
+        "AGENTA_AUTH_KEY": {
+          "secret": "AGENTA_AUTH_KEY"
+        },
+        "AGENTA_CRYPT_KEY": {
+          "secret": "AGENTA_CRYPT_KEY"
+        },
+        "POSTGRES_URI_CORE": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_core",
+        "POSTGRES_URI_TRACING": "postgresql+asyncpg://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_tracing",
+        "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
+        "AGENTA_LICENSE": "oss",
+        "ALEMBIC_CFG_PATH_CORE": "/app/oss/databases/postgres/migrations/core/alembic.ini",
+        "ALEMBIC_CFG_PATH_TRACING": "/app/oss/databases/postgres/migrations/tracing/alembic.ini",
+        "PGHOST": "${{Postgres.RAILWAY_PRIVATE_DOMAIN}}",
+        "PGPORT": "${{Postgres.PGPORT}}",
+        "PGUSER": "${{Postgres.POSTGRES_USER}}",
+        "PGPASSWORD": "${{Postgres.POSTGRES_PASSWORD}}",
+        "PGDATABASE": "postgres"
+      }
+    },
+    "supertokens": {
+      "image": "supertokens/supertokens-postgresql:11",
+      "startCommand": "",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [],
+      "variables": {
+        "POSTGRESQL_CONNECTION_URI": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens",
+        "POSTGRES_URI_SUPERTOKENS": "postgresql://${{Postgres.POSTGRES_USER}}:${{Postgres.POSTGRES_PASSWORD}}@${{Postgres.RAILWAY_PRIVATE_DOMAIN}}:${{Postgres.PGPORT}}/agenta_oss_supertokens"
+      }
+    },
+    "Postgres": {
+      "image": "postgres:17",
+      "startCommand": "",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [
+        "/var/lib/postgresql/data"
+      ],
+      "variables": {
+        "PGDATA": "/var/lib/postgresql/data/pgdata",
+        "PGHOST": "postgres.railway.internal",
+        "PGDATABASE": "railway",
+        "PGUSER": "postgres",
+        "PGPASSWORD": {
+          "secret": "POSTGRES_PASSWORD"
+        },
+        "PGPORT": "5432",
+        "POSTGRES_DB": "railway",
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_PASSWORD": {
+          "secret": "POSTGRES_PASSWORD"
+        },
+        "SSL_CERT_DAYS": "820",
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": "60"
+      }
+    },
+    "redis": {
+      "image": "ghcr.io/agenta-ai/agenta-preview-redis:{redis_tag}",
+      "startCommand": "",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [
+        "/data"
+      ],
+      "variables": {
+        "RAILWAY_RUN_UID": "0",
+        "RAILWAY_RUN_GID": "0"
+      }
+    },
+    "seaweedfs": {
+      "image": "ghcr.io/agenta-ai/agenta-preview-seaweedfs:{seaweedfs_tag}",
+      "startCommand": "",
+      "healthcheckPath": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "volumes": [
+        "/data"
+      ],
+      "variables": {
+        "AGENTA_STORE_ACCESS_KEY": {
+          "secret": "AGENTA_STORE_ACCESS_KEY"
+        },
+        "AGENTA_STORE_SECRET_KEY": {
+          "secret": "AGENTA_STORE_SECRET_KEY"
+        },
+        "AGENTA_STORE_BUCKET": "agenta-store",
+        "AGENTA_STORE_SIGNING_KEY": {
+          "secret": "AGENTA_STORE_SIGNING_KEY"
+        },
+        "AGENTA_STORE_JWT_ISSUER": "http://api.railway.internal:8000/api"
+      }
+    }
+  }
+}

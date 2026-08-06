@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"name":{"type":"string","title":"Name"},"make_default":{"type":"boolean","title":"Make Default","default":false}},"type":"object","required":["name"],"title":"CreateProjectRequest"}}},"required":true}}

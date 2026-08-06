@@ -1,0 +1,74 @@
+---
+id: create-organization-domain
+title: "Create Domain"
+description: "Create a new domain for verification."
+sidebar_label: "Create Domain"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1z2zYQ/SuYPTOU4/bEU9U4TTxpY4+tdDojazwwsZKQkACND9sqh/+9swApgZKtND71UF1EArtvF7vvLdGC4ysLxRwuzIor+Td3UisLiwwE2tLIht6hgHcGuUPGmcJHJnTNpWJLbdgDGrmUZXDLb9SNmq2lZahEo6VyTCrpJHdomVvj4Jf6sMboEq1ld5viRr3NWQgk1YrxwdxgqY24Uac5+4AKzbDtlbz3OEZz+huqG/VTzq7QeaPI8uzzNSu1WsqVN9FKKuuML8NRY87IvEXDam8d40IwHrxmf8366MzpGGjD9KNCY9eyySED3WDEPBdQQBmKdKuTUt7GQ0AGBu89WverFhsoWii1cqgcPfKmqfoDTL5aKncLtlxjzempMRTESbT0pniNwUdtLpZQzFtwmwahAOuMVCvosu2K8lUF3SIDJ11FC5/Jt9vr7OugzhIIQoyHLPYhEodo0XXZYKLvvmLp+sJIg4JY2AMlkVJeRpBIRdhn6FWsL6u1wCpws9ynUg4dJbAL6IzHsGAbrWys8OnJCf2Nwa99SSxd+opd9caQvbaHUjxXqaU2NXdQgPdSJJU7F1RhW/nVsfpe036X/Uf5sazClGmBCyFpkVeXSUmoDYe8GLB+C85EHBL3azOaBecu60Uqbrk72gXBHb5xssYkk8g8waaOgHwjEqCXcnoW8liiXyJsH2Q0S36MOKlyGLHoO9oLzoFnPY3GTBi6OPRhVMlRNQ6zPqrnRFD7io4biaRHSu4y+Pn09FCsf/JKinjs98Zo83qlCnRcVkGzDmt7aFDpcrT7L5gplcMVGugWu35wY/gmad3vOiZIDKjtUeH/gdbyVdBtNHnZNBSDzWi3y0CqxkcJDIMmLJBC3FMCc6DHd1TLJ/ddPlFtYvq9XcKCXYtih14uxVlswXPBBpOPs9nlAWDkR41urenT3GhLLg13ayhgkhLUTiKn7IT4j+YBjQ0t9KYiW97I0L/4unauscVkgj4vK+1FzleoHM+5jIYLwii9kW4TQKaX559w8xG5QAPFfJEaXBPtIpHGZtvi80Z+ws0gyAKm3q216RMHaiKlFL3ovEToq91F4/0Tr5sKdxeHHSnGktkt91/yHXFBqqVOeTINB2bTy/MDmNEWaY6XLgket2lYjEq5qyBkgHVQHDjk9S/bHcqD+hLDnORv8xNaoq7WXCUh+nvq2XDr2vuWbefA/xfa5y+0Pe9I4JOmCle2vl1tL575aLrbLWfoiSS+JqUVc2jbO27xi6m6jpbvPRpSxCKDB24kvyMuzWkGrgdttPANN8OAUe5NmFRkXvmohb3BTaKMHtOyxMYdtV0kw+Dy4noGGdz1V3H6vEABhj/SBOOPUEC42sfzFW1ca6HiauVp1hYQMen3D1TCllA=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Create Domain"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/organizations/domains/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Create a new domain for verification.
+
+This endpoint initiates the domain verification process by:
+1. Creating a domain record
+2. Generating a unique verification token
+3. Returning DNS configuration instructions
+
+The user must add a DNS TXT record to verify ownership.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./create-organization-domain.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./create-organization-domain.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

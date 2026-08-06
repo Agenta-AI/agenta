@@ -1,0 +1,1750 @@
+from typing import Any, Dict, Optional, List
+from uuid import UUID, uuid4
+
+from oss.src.core.events.utils import publish_revision_event
+from oss.src.core.workflows.dtos import (
+    WorkflowCreate,
+    WorkflowEdit,
+    WorkflowQuery,
+    WorkflowVariantFork,
+    #
+    WorkflowVariantCreate,
+    WorkflowVariantEdit,
+    WorkflowVariantQuery,
+    #
+    WorkflowRevisionCreate,
+    WorkflowRevisionEdit,
+    WorkflowRevisionCommit,
+    WorkflowRevisionQuery,
+    WorkflowRevisionsLog,
+    #
+)
+from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.git.dtos import RetrievalInfo
+from oss.src.core.git.utils import build_retrieval_info
+from oss.src.core.git.types import (
+    InlineResolveInvalid,
+    validate_revision_refs_sufficient,
+    validate_variant_refs_sufficient,
+    validate_retrieve_refs_consistent,
+)
+from oss.src.core.workflows.service import WorkflowsService
+
+# Resolution is now handled by EmbedsService
+from oss.src.core.embeds.dtos import ResolutionInfo, ErrorPolicy
+from oss.src.core.evaluators.dtos import (
+    SimpleEvaluatorData,
+    SimpleEvaluator,
+    SimpleEvaluatorCreate,
+    SimpleEvaluatorEdit,
+    SimpleEvaluatorQuery,
+    SimpleEvaluatorFlags,
+    SimpleEvaluatorQueryFlags,
+    EvaluatorArtifactQueryFlags,
+    EvaluatorFlags,
+    Evaluator,
+    EvaluatorQuery,
+    EvaluatorRevisionsLog,
+    EvaluatorCreate,
+    EvaluatorEdit,
+    EvaluatorVariantFork,
+    #
+    EvaluatorVariant,
+    EvaluatorVariantCreate,
+    EvaluatorVariantEdit,
+    EvaluatorVariantQuery,
+    #
+    EvaluatorRevision,
+    EvaluatorRevisionCreate,
+    EvaluatorRevisionEdit,
+    EvaluatorRevisionCommit,
+    EvaluatorRevisionQuery,
+    EvaluatorRevisionData,
+)
+from oss.src.core.evaluators.utils import (
+    build_evaluator_data,
+)
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
+
+
+def _dump_flags(flags: Optional[object]) -> dict:
+    return WorkflowsService._dump_flags(flags)
+
+
+class EvaluatorsService:
+    def __init__(
+        self,
+        workflows_service: WorkflowsService,
+    ):
+        self.embeds_service = None  # Will be set later
+        self.workflows_service = workflows_service
+
+    # evaluators ---------------------------------------------------------------
+
+    async def create_evaluator(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_create: EvaluatorCreate,
+        #
+        evaluator_id: Optional[UUID] = None,
+    ) -> Optional[Evaluator]:
+        workflow_create = WorkflowCreate(
+            **evaluator_create.model_dump(
+                mode="json",
+            ),
+        )
+
+        workflow = await self.workflows_service.create_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_create=workflow_create,
+            #
+            workflow_id=evaluator_id,
+        )
+
+        if not workflow:
+            return None
+
+        evaluator = Evaluator(
+            **workflow.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator
+
+    async def fetch_evaluator(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_ref: Reference,
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[Evaluator]:
+        workflow = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            #
+            workflow_ref=evaluator_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not workflow:
+            return None
+
+        evaluator = Evaluator(
+            **workflow.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator
+
+    async def edit_evaluator(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_edit: EvaluatorEdit,
+    ) -> Optional[Evaluator]:
+        workflow_edit = WorkflowEdit(
+            **evaluator_edit.model_dump(
+                mode="json",
+            ),
+        )
+
+        workflow = await self.workflows_service.edit_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_edit=workflow_edit,
+        )
+
+        if not workflow:
+            return None
+
+        evaluator = Evaluator(
+            **workflow.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator
+
+    async def archive_evaluator(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_id: UUID,
+    ) -> Optional[Evaluator]:
+        workflow = await self.workflows_service.archive_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_id=evaluator_id,
+        )
+
+        if not workflow:
+            return None
+
+        evaluator = Evaluator(
+            **workflow.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator
+
+    async def unarchive_evaluator(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_id: UUID,
+    ) -> Optional[Evaluator]:
+        workflow = await self.workflows_service.unarchive_workflow(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_id=evaluator_id,
+        )
+
+        if not workflow:
+            return None
+
+        evaluator = Evaluator(
+            **workflow.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator
+
+    async def query_evaluators(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_query: Optional[EvaluatorQuery] = None,
+        #
+        evaluator_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Evaluator]:
+        evaluator_query_flags = EvaluatorArtifactQueryFlags(
+            **_dump_flags(evaluator_query.flags if evaluator_query else None),
+        )
+
+        workflow_query = (
+            WorkflowQuery(
+                **evaluator_query.model_dump(
+                    mode="json",
+                    exclude={"flags"},
+                ),
+                flags=evaluator_query_flags,
+            )
+            if evaluator_query
+            else WorkflowQuery(flags=evaluator_query_flags)
+        )
+
+        workflows = await self.workflows_service.query_workflows(
+            project_id=project_id,
+            #
+            workflow_query=workflow_query,
+            #
+            workflow_refs=evaluator_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        evaluators = [
+            Evaluator(
+                **workflow.model_dump(
+                    mode="json",
+                ),
+            )
+            for workflow in workflows
+        ]
+
+        return evaluators
+
+    # evaluator variants -------------------------------------------------------
+
+    async def create_evaluator_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_variant_create: EvaluatorVariantCreate,
+    ) -> Optional[EvaluatorVariant]:
+        workflow_variant_create = WorkflowVariantCreate(
+            **evaluator_variant_create.model_dump(
+                mode="json",
+            ),
+        )
+
+        workflow_variant = await self.workflows_service.create_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_create=workflow_variant_create,
+        )
+
+        if not workflow_variant:
+            return None
+
+        evaluator_variant = EvaluatorVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_variant
+
+    async def fetch_evaluator_variant(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_ref: Optional[Reference] = None,
+        evaluator_variant_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[EvaluatorVariant]:
+        workflow_variant = await self.workflows_service.fetch_workflow_variant(
+            project_id=project_id,
+            #
+            workflow_ref=evaluator_ref,
+            workflow_variant_ref=evaluator_variant_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not workflow_variant:
+            return None
+
+        evaluator_variant = EvaluatorVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_variant
+
+    async def edit_evaluator_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_variant_edit: EvaluatorVariantEdit,
+    ) -> Optional[EvaluatorVariant]:
+        workflow_variant_edit = WorkflowVariantEdit(
+            **evaluator_variant_edit.model_dump(
+                mode="json",
+            )
+        )
+
+        evaluator_variant = await self.workflows_service.edit_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_edit=workflow_variant_edit,
+        )
+
+        if not evaluator_variant:
+            return None
+
+        evaluator_variant = EvaluatorVariant(
+            **evaluator_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_variant
+
+    async def archive_evaluator_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_variant_id: UUID,
+    ) -> Optional[EvaluatorVariant]:
+        workflow_variant = await self.workflows_service.archive_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_id=evaluator_variant_id,
+        )
+
+        if not workflow_variant:
+            return None
+
+        evaluator_variant = EvaluatorVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_variant
+
+    async def unarchive_evaluator_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_variant_id: UUID,
+    ) -> Optional[EvaluatorVariant]:
+        workflow_variant = await self.workflows_service.unarchive_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_id=evaluator_variant_id,
+        )
+
+        if not workflow_variant:
+            return None
+
+        evaluator_variant = EvaluatorVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_variant
+
+    async def query_evaluator_variants(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_variant_query: Optional[EvaluatorVariantQuery] = None,
+        #
+        evaluator_refs: Optional[List[Reference]] = None,
+        evaluator_variant_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[EvaluatorVariant]:
+        workflow_variant_query = (
+            WorkflowVariantQuery(
+                **evaluator_variant_query.model_dump(
+                    mode="json",
+                )
+            )
+            if evaluator_variant_query
+            else WorkflowVariantQuery()
+        )
+
+        workflow_variants = await self.workflows_service.query_workflow_variants(
+            project_id=project_id,
+            #
+            workflow_variant_query=workflow_variant_query,
+            #
+            workflow_refs=evaluator_refs,
+            workflow_variant_refs=evaluator_variant_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        if not workflow_variants:
+            return []
+
+        evaluator_variants = [
+            EvaluatorVariant(
+                **workflow_variant.model_dump(
+                    mode="json",
+                )
+            )
+            for workflow_variant in workflow_variants
+        ]
+
+        return evaluator_variants
+
+    async def fork_evaluator_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_variant_fork: EvaluatorVariantFork,
+        evaluator_variant_ref: Reference,
+        evaluator_revision_ref: Optional[Reference] = None,
+    ) -> Optional[EvaluatorVariant]:
+        workflow_variant_fork = WorkflowVariantFork(
+            **evaluator_variant_fork.model_dump(mode="json"),
+        )
+
+        workflow_variant = await self.workflows_service.fork_workflow_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_variant_fork=workflow_variant_fork,
+            workflow_variant_ref=evaluator_variant_ref,
+            workflow_revision_ref=evaluator_revision_ref,
+        )
+
+        if not workflow_variant:
+            return None
+
+        evaluator_variant = EvaluatorVariant(
+            **workflow_variant.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_variant
+
+    # evaluator revisions ------------------------------------------------------
+
+    async def create_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_revision_create: EvaluatorRevisionCreate,
+    ) -> Optional[EvaluatorRevision]:
+        workflow_revision_create = WorkflowRevisionCreate(
+            **evaluator_revision_create.model_dump(
+                mode="json",
+            )
+        )
+
+        workflow_revision = await self.workflows_service.create_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_create=workflow_revision_create,
+        )
+
+        if not workflow_revision:
+            return None
+
+        evaluator_revision = EvaluatorRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_revision
+
+    async def fetch_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_ref: Optional[Reference] = None,
+        evaluator_variant_ref: Optional[Reference] = None,
+        evaluator_revision_ref: Optional[Reference] = None,
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[EvaluatorRevision]:
+        validate_variant_refs_sufficient(
+            variant_ref=evaluator_variant_ref,
+            entity_type="evaluator",
+        )
+        validate_revision_refs_sufficient(
+            artifact_ref=evaluator_ref,
+            variant_ref=evaluator_variant_ref,
+            revision_ref=evaluator_revision_ref,
+            entity_type="evaluator",
+        )
+
+        workflow_revision = await self.workflows_service.fetch_workflow_revision(
+            project_id=project_id,
+            #
+            workflow_ref=evaluator_ref,
+            workflow_variant_ref=evaluator_variant_ref,
+            workflow_revision_ref=evaluator_revision_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not workflow_revision:
+            return None
+
+        evaluator_revision = EvaluatorRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_revision
+
+    async def retrieve_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        environment_ref: Optional[Reference] = None,
+        environment_variant_ref: Optional[Reference] = None,
+        environment_revision_ref: Optional[Reference] = None,
+        key: Optional[str] = None,
+        #
+        evaluator_ref: Optional[Reference] = None,
+        evaluator_variant_ref: Optional[Reference] = None,
+        evaluator_revision_ref: Optional[Reference] = None,
+        #
+        resolve: bool = False,
+    ) -> tuple[
+        Optional[EvaluatorRevision],
+        Optional[ResolutionInfo],
+        Optional[RetrievalInfo],
+    ]:
+        environment_retrieval_info: Optional[RetrievalInfo] = None
+        is_environment_backed = bool(
+            environment_ref or environment_variant_ref or environment_revision_ref
+        )
+
+        if is_environment_backed:
+            environments_service = self.workflows_service.environments_service
+            if not environments_service:
+                return None, None, None
+
+            (
+                environment_revision,
+                _,
+                environment_retrieval_info,
+            ) = await environments_service.retrieve_environment_revision(
+                project_id=project_id,
+                #
+                environment_ref=environment_ref,
+                environment_variant_ref=environment_variant_ref,
+                environment_revision_ref=environment_revision_ref,
+            )
+
+            references_by_key = (
+                environment_revision.data.references
+                if environment_revision and environment_revision.data
+                else None
+            )
+            evaluator_references = (
+                references_by_key.get(key) if references_by_key and key else None
+            )
+
+            if not evaluator_references:
+                return None, None, None
+
+            env_evaluator_ref = evaluator_references.get("evaluator")
+            env_evaluator_variant_ref = evaluator_references.get("evaluator_variant")
+            env_evaluator_revision_ref = evaluator_references.get("evaluator_revision")
+
+            validate_retrieve_refs_consistent(
+                artifact_ref=evaluator_ref,
+                variant_ref=evaluator_variant_ref,
+                revision_ref=evaluator_revision_ref,
+                resolved_artifact_ref=env_evaluator_ref,
+                resolved_variant_ref=env_evaluator_variant_ref,
+                resolved_revision_ref=env_evaluator_revision_ref,
+                entity_type="evaluator",
+            )
+
+            evaluator_ref = env_evaluator_ref
+            evaluator_variant_ref = env_evaluator_variant_ref
+            evaluator_revision_ref = env_evaluator_revision_ref
+
+        if resolve:
+            result = await self.resolve_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_ref=evaluator_ref,
+                evaluator_variant_ref=evaluator_variant_ref,
+                evaluator_revision_ref=evaluator_revision_ref,
+            )
+            evaluator_revision, resolution_info = result if result else (None, None)
+        else:
+            evaluator_revision = await self.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_ref=evaluator_ref,
+                evaluator_variant_ref=evaluator_variant_ref,
+                evaluator_revision_ref=evaluator_revision_ref,
+            )
+            resolution_info = None
+
+        if is_environment_backed:
+            environment_references = (
+                environment_retrieval_info.references
+                if environment_retrieval_info
+                else None
+            )
+            retrieval_info = build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+                environment_references=environment_references,
+                selector_key=key,
+            )
+        else:
+            retrieval_info = build_retrieval_info(
+                revision=evaluator_revision,
+                entity_type="evaluator",
+            )
+
+        return evaluator_revision, resolution_info, retrieval_info
+
+    async def edit_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_revision_edit: EvaluatorRevisionEdit,
+    ) -> Optional[EvaluatorRevision]:
+        workflow_revision_edit = WorkflowRevisionEdit(
+            **evaluator_revision_edit.model_dump(
+                mode="json",
+            )
+        )
+
+        workflow_revision = await self.workflows_service.edit_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_edit=workflow_revision_edit,
+        )
+
+        if not workflow_revision:
+            return None
+
+        evaluator_revision = EvaluatorRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_revision
+
+    async def archive_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_revision_id: UUID,
+    ) -> Optional[EvaluatorRevision]:
+        workflow_revision = await self.workflows_service.archive_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_id=evaluator_revision_id,
+        )
+
+        if not workflow_revision:
+            return None
+
+        evaluator_revision = EvaluatorRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_revision
+
+    async def unarchive_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_revision_id: UUID,
+    ) -> Optional[EvaluatorRevision]:
+        workflow_revision = await self.workflows_service.unarchive_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_id=evaluator_revision_id,
+        )
+
+        if not workflow_revision:
+            return None
+
+        evaluator_revision = EvaluatorRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        return evaluator_revision
+
+    async def query_evaluator_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_revision_query: Optional[EvaluatorRevisionQuery] = None,
+        #
+        evaluator_refs: Optional[List[Reference]] = None,
+        evaluator_variant_refs: Optional[List[Reference]] = None,
+        evaluator_revision_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[EvaluatorRevision]:
+        workflow_revision_query = (
+            WorkflowRevisionQuery(
+                **evaluator_revision_query.model_dump(
+                    mode="json",
+                )
+            )
+            if evaluator_revision_query
+            else WorkflowRevisionQuery()
+        )
+
+        workflow_revisions = await self.workflows_service.query_workflow_revisions(
+            project_id=project_id,
+            #
+            workflow_revision_query=workflow_revision_query,
+            #
+            workflow_refs=evaluator_refs,
+            workflow_variant_refs=evaluator_variant_refs,
+            workflow_revision_refs=evaluator_revision_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        if not workflow_revisions:
+            return []
+
+        evaluator_revisions = [
+            EvaluatorRevision(
+                **revision.model_dump(
+                    mode="json",
+                )
+            )
+            for revision in workflow_revisions
+        ]
+
+        return evaluator_revisions
+
+    async def commit_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_revision_commit: EvaluatorRevisionCommit,
+        #
+        initial: bool = False,
+    ) -> Optional[EvaluatorRevision]:
+        workflow_revision_commit = WorkflowRevisionCommit(
+            **evaluator_revision_commit.model_dump(
+                mode="json",
+            )
+        )
+
+        workflow_revision = await self.workflows_service.commit_workflow_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            workflow_revision_commit=workflow_revision_commit,
+            #
+            initial=initial,
+            #
+            emit=False,
+        )
+
+        if not workflow_revision:
+            return None
+
+        evaluator_revision = EvaluatorRevision(
+            **workflow_revision.model_dump(
+                mode="json",
+            )
+        )
+
+        # Write-action emission lives in the SERVICE layer (read actions live
+        # in the router). Every caller of commit_evaluator_revision — direct
+        # commit route, simple-service create/edit, etc. — therefore emits
+        # exactly one `workflows.revisions.committed` event. See
+        # core/events/utils.py for the read-vs-write split rationale.
+        await publish_revision_event(
+            domain="workflow",
+            action="commit",
+            project_id=project_id,
+            user_id=user_id,
+            revision=evaluator_revision,
+            message=evaluator_revision_commit.message,
+        )
+
+        return evaluator_revision
+
+    async def log_evaluator_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_revisions_log: EvaluatorRevisionsLog,
+        #
+        include_archived: Optional[bool] = False,
+    ) -> List[EvaluatorRevision]:
+        workflow_revisions_log = WorkflowRevisionsLog(
+            **evaluator_revisions_log.model_dump(
+                mode="json",
+            )
+        )
+
+        workflow_revisions = await self.workflows_service.log_workflow_revisions(
+            project_id=project_id,
+            #
+            workflow_revisions_log=workflow_revisions_log,
+            #
+            include_archived=include_archived,
+        )
+
+        if not workflow_revisions:
+            return []
+
+        evaluator_revisions = [
+            EvaluatorRevision(
+                **revision.model_dump(
+                    mode="json",
+                )
+            )
+            for revision in workflow_revisions
+        ]
+
+        return evaluator_revisions
+
+    async def resolve_evaluator_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_ref: Optional[Reference] = None,
+        evaluator_variant_ref: Optional[Reference] = None,
+        evaluator_revision_ref: Optional[Reference] = None,
+        #
+        evaluator_revision: Optional["EvaluatorRevision"] = None,
+        #
+        max_depth: int = 10,
+        max_embeds: int = 100,
+        error_policy: str = "exception",
+        #
+        include_archived: Optional[bool] = True,
+    ) -> Optional[tuple["EvaluatorRevision", "ResolutionInfo"]]:
+        """
+        Fetch and resolve an evaluator revision with embedded references.
+
+        When `evaluator_revision` is provided, resolves its data inline without
+        fetching from DB. Only `data` is used; id and metadata are ignored.
+        """
+        if not self.embeds_service:
+            raise RuntimeError("EmbedsService not initialized")
+
+        if evaluator_revision is not None:
+            if not evaluator_revision.data:
+                raise InlineResolveInvalid(
+                    field_name="evaluator_revision",
+                )
+            (
+                resolved_data,
+                resolution_info,
+            ) = await self.embeds_service.resolve_configuration(
+                project_id=project_id,
+                configuration=evaluator_revision.data.model_dump(mode="json"),
+                max_depth=max_depth,
+                max_embeds=max_embeds,
+                error_policy=ErrorPolicy(error_policy),
+                include_archived=include_archived,
+            )
+            evaluator_revision.data = EvaluatorRevisionData(**resolved_data)
+            return (evaluator_revision, resolution_info)
+
+        revision = await self.fetch_evaluator_revision(
+            project_id=project_id,
+            #
+            evaluator_ref=evaluator_ref,
+            evaluator_variant_ref=evaluator_variant_ref,
+            evaluator_revision_ref=evaluator_revision_ref,
+            #
+            include_archived=include_archived,
+        )
+
+        if not revision or not revision.data:
+            return None
+
+        (
+            revision_data,
+            resolution_info,
+        ) = await self.embeds_service.resolve_configuration(
+            project_id=project_id,
+            configuration=revision.data.model_dump(mode="json"),
+            max_depth=max_depth,
+            max_embeds=max_embeds,
+            error_policy=ErrorPolicy(error_policy),
+            include_archived=include_archived,
+        )
+
+        revision.data = EvaluatorRevisionData(**revision_data)
+
+        return (revision, resolution_info)
+
+    # --------------------------------------------------------------------------
+
+
+class SimpleEvaluatorsService:
+    def __init__(
+        self,
+        *,
+        evaluators_service: EvaluatorsService,
+    ):
+        self.evaluators_service = evaluators_service
+
+    @staticmethod
+    def _build_simple_evaluator_flags(
+        *,
+        evaluator_revision: Optional[EvaluatorRevision],
+    ) -> SimpleEvaluatorFlags:
+        return SimpleEvaluatorFlags(
+            **_dump_flags(evaluator_revision.flags if evaluator_revision else None)
+        )
+
+    @staticmethod
+    def _matches_requested_simple_evaluator_flags(
+        *,
+        simple_evaluator: SimpleEvaluator,
+        requested_flags: Optional[SimpleEvaluatorQueryFlags],
+    ) -> bool:
+        if not requested_flags:
+            return True
+
+        actual_flags = _dump_flags(simple_evaluator.flags)
+        requested_flag_values = _dump_flags(requested_flags)
+
+        return all(
+            actual_flags.get(flag_name) == expected_value
+            for flag_name, expected_value in requested_flag_values.items()
+        )
+
+    @staticmethod
+    def _extract_builtin_evaluator_key(
+        simple_evaluator_data: Optional[SimpleEvaluatorData],
+    ) -> Optional[str]:
+        uri = simple_evaluator_data.uri if simple_evaluator_data else None
+
+        if not uri:
+            return None
+
+        parts = uri.split(":")
+
+        if len(parts) < 4:
+            return None
+
+        if parts[0] != "agenta" or parts[1] != "builtin":
+            return None
+
+        return parts[2] or None
+
+    def _normalize_evaluator_data(
+        self,
+        simple_evaluator_data: Optional[SimpleEvaluatorData],
+    ) -> Optional[SimpleEvaluatorData]:
+        if not simple_evaluator_data:
+            return simple_evaluator_data
+
+        evaluator_key = self._extract_builtin_evaluator_key(simple_evaluator_data)
+
+        existing_data_dict: Dict[str, Any] = simple_evaluator_data.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_unset=True,
+        )
+
+        normalized_data_dict: Dict[str, Any] = {}
+
+        if evaluator_key:
+            settings_values = (
+                simple_evaluator_data.parameters
+                if isinstance(simple_evaluator_data.parameters, dict)
+                else None
+            )
+
+            hydrated_data = build_evaluator_data(
+                evaluator_key=evaluator_key,
+                settings_values=settings_values,
+            )
+
+            normalized_data_dict = hydrated_data.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+
+            existing_schemas = existing_data_dict.get("schemas") or {}
+            inferred_schemas = normalized_data_dict.get("schemas") or {}
+            if existing_schemas or inferred_schemas:
+                normalized_data_dict["schemas"] = {
+                    **existing_schemas,
+                    **inferred_schemas,
+                }
+
+            # Builtins have no meaningful stored URL —
+            # the URL is derived at invocation time from the URI via infer_url_from_uri.
+            # Explicitly clear any URL passed in the request to avoid persisting
+            # environment-specific values (e.g. http://localhost/services/...).
+            existing_data_dict.pop("url", None)
+
+        return SimpleEvaluatorData(
+            **{
+                **existing_data_dict,
+                **normalized_data_dict,
+            }
+        )
+
+    # public -------------------------------------------------------------------
+
+    async def create(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        simple_evaluator_create: SimpleEvaluatorCreate,
+        #
+        evaluator_id: Optional[UUID] = None,
+    ) -> Optional[SimpleEvaluator]:
+        simple_evaluator_flag_values = _dump_flags(simple_evaluator_create.flags)
+        simple_evaluator_flag_values.pop("is_evaluator", None)
+        simple_evaluator_flags = SimpleEvaluatorFlags(
+            **simple_evaluator_flag_values,
+            is_evaluator=True,
+        )
+
+        evaluator_flags = EvaluatorFlags(
+            **_dump_flags(simple_evaluator_flags),
+        )
+
+        evaluator_create = EvaluatorCreate(
+            slug=simple_evaluator_create.slug,
+            #
+            name=simple_evaluator_create.name,
+            description=simple_evaluator_create.description,
+            #
+            flags=evaluator_flags,
+            meta=simple_evaluator_create.meta,
+            tags=simple_evaluator_create.tags,
+        )
+
+        evaluator: Optional[Evaluator] = await self.evaluators_service.create_evaluator(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_create=evaluator_create,
+            #
+            evaluator_id=evaluator_id,
+        )
+
+        if evaluator is None:
+            return None
+
+        evaluator_variant_slug = uuid4().hex[-12:]
+
+        evaluator_variant_create = EvaluatorVariantCreate(
+            slug=evaluator_variant_slug,
+            #
+            name=evaluator_create.name,
+            description=evaluator_create.description,
+            #
+            flags=evaluator_flags,
+            tags=evaluator_create.tags,
+            meta=evaluator_create.meta,
+            #
+            evaluator_id=evaluator.id,
+        )
+
+        evaluator_variant: Optional[
+            EvaluatorVariant
+        ] = await self.evaluators_service.create_evaluator_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_variant_create=evaluator_variant_create,
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        evaluator_revision_slug = uuid4().hex[-12:]
+
+        hydrated_simple_evaluator_data = self._normalize_evaluator_data(
+            simple_evaluator_create.data,
+        )
+
+        evaluator_revision_commit = EvaluatorRevisionCommit(
+            slug=evaluator_revision_slug,
+            #
+            name=evaluator_create.name,
+            description=evaluator_create.description,
+            #
+            flags=evaluator_flags,
+            tags=evaluator_create.tags,
+            meta=evaluator_create.meta,
+            #
+            data=None,
+            #
+            message="Initial commit",
+            #
+            evaluator_id=evaluator.id,
+            evaluator_variant_id=evaluator_variant.id,
+        )
+
+        evaluator_revision: Optional[
+            EvaluatorRevision
+        ] = await self.evaluators_service.commit_evaluator_revision(
+            project_id=project_id,
+            user_id=user_id,
+            evaluator_revision_commit=evaluator_revision_commit,
+        )
+
+        if evaluator_revision is None:
+            return None
+
+        evaluator_revision_slug = uuid4().hex[-12:]
+
+        evaluator_revision_commit = EvaluatorRevisionCommit(
+            slug=evaluator_revision_slug,
+            #
+            name=evaluator_create.name,
+            description=evaluator_create.description,
+            #
+            flags=evaluator_flags,
+            tags=evaluator_create.tags,
+            meta=evaluator_create.meta,
+            #
+            data=hydrated_simple_evaluator_data,
+            #
+            evaluator_id=evaluator.id,
+            evaluator_variant_id=evaluator_variant.id,
+        )
+
+        evaluator_revision: Optional[
+            EvaluatorRevision
+        ] = await self.evaluators_service.commit_evaluator_revision(
+            project_id=project_id,
+            user_id=user_id,
+            evaluator_revision_commit=evaluator_revision_commit,
+        )
+
+        if evaluator_revision is None:
+            return None
+
+        simple_evaluator_data = SimpleEvaluatorData(
+            **(
+                evaluator_revision.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+                if evaluator_revision.data
+                else {}
+            ),
+        )
+
+        simple_evaluator = SimpleEvaluator(
+            id=evaluator.id,
+            slug=evaluator.slug,
+            #
+            created_at=evaluator.created_at,
+            updated_at=evaluator.updated_at,
+            deleted_at=evaluator.deleted_at,
+            created_by_id=evaluator.created_by_id,
+            updated_by_id=evaluator.updated_by_id,
+            deleted_by_id=evaluator.deleted_by_id,
+            #
+            name=evaluator.name,
+            description=evaluator.description,
+            #
+            flags=self._build_simple_evaluator_flags(
+                evaluator_revision=evaluator_revision,
+            ),
+            tags=evaluator.tags,
+            meta=evaluator.meta,
+            #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
+            #
+            data=simple_evaluator_data,
+        )
+
+        return simple_evaluator
+
+    async def fetch(
+        self,
+        *,
+        project_id: UUID,
+        #
+        evaluator_id: UUID,
+    ) -> Optional[SimpleEvaluator]:
+        evaluator_ref = Reference(
+            id=evaluator_id,
+        )
+
+        evaluator: Optional[Evaluator] = await self.evaluators_service.fetch_evaluator(
+            project_id=project_id,
+            #
+            evaluator_ref=evaluator_ref,
+        )
+
+        if evaluator is None:
+            return None
+
+        evaluator_variant: Optional[
+            EvaluatorVariant
+        ] = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=project_id,
+            #
+            evaluator_ref=evaluator_ref,
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        evaluator_variant_ref = Reference(
+            id=evaluator_variant.id,
+        )
+
+        evaluator_revision: Optional[
+            EvaluatorRevision
+        ] = await self.evaluators_service.fetch_evaluator_revision(
+            project_id=project_id,
+            #
+            evaluator_variant_ref=evaluator_variant_ref,
+        )
+
+        if evaluator_revision is None:
+            return None
+
+        simple_evaluator_data = SimpleEvaluatorData(
+            **(
+                evaluator_revision.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+                if evaluator_revision.data
+                else {}
+            ),
+        )
+
+        simple_evaluator = SimpleEvaluator(
+            id=evaluator.id,
+            slug=evaluator.slug,
+            #
+            created_at=evaluator.created_at,
+            updated_at=evaluator.updated_at,
+            deleted_at=evaluator.deleted_at,
+            created_by_id=evaluator.created_by_id,
+            updated_by_id=evaluator.updated_by_id,
+            deleted_by_id=evaluator.deleted_by_id,
+            #
+            name=evaluator.name,
+            description=evaluator.description,
+            #
+            flags=self._build_simple_evaluator_flags(
+                evaluator_revision=evaluator_revision,
+            ),
+            tags=evaluator.tags,
+            meta=evaluator.meta,
+            #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
+            #
+            data=simple_evaluator_data,
+        )
+        return simple_evaluator
+
+    async def edit(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        simple_evaluator_edit: SimpleEvaluatorEdit,
+    ) -> Optional[SimpleEvaluator]:
+        simple_evaluator_flags = (
+            SimpleEvaluatorFlags(
+                **{
+                    key: value
+                    for key, value in _dump_flags(simple_evaluator_edit.flags).items()
+                    if key != "is_evaluator"
+                },
+                is_evaluator=True,
+            )
+            if simple_evaluator_edit.flags
+            else SimpleEvaluatorFlags()
+        )
+
+        evaluator_flags = EvaluatorFlags(**_dump_flags(simple_evaluator_flags))
+
+        evaluator_ref = Reference(
+            id=simple_evaluator_edit.id,
+        )
+
+        evaluator: Optional[Evaluator] = await self.evaluators_service.fetch_evaluator(
+            project_id=project_id,
+            #
+            evaluator_ref=evaluator_ref,
+        )
+
+        if evaluator is None:
+            return None
+
+        evaluator_edit = EvaluatorEdit(
+            id=evaluator.id,
+            #
+            name=simple_evaluator_edit.name,
+            description=simple_evaluator_edit.description,
+            #
+            flags=evaluator_flags,
+            tags=simple_evaluator_edit.tags,
+            meta=simple_evaluator_edit.meta,
+        )
+
+        evaluator = await self.evaluators_service.edit_evaluator(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_edit=evaluator_edit,
+        )
+
+        if evaluator is None:
+            return None
+
+        evaluator_variant: Optional[
+            EvaluatorVariant
+        ] = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=project_id,
+            #
+            evaluator_ref=evaluator_ref,
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        evaluator_variant_edit = EvaluatorVariantEdit(
+            id=evaluator_variant.id,
+            #
+            name=evaluator_edit.name,
+            description=evaluator_edit.description,
+            #
+            flags=evaluator_flags,
+            tags=evaluator_edit.tags,
+            meta=evaluator_edit.meta,
+            #
+        )
+
+        evaluator_variant = await self.evaluators_service.edit_evaluator_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_variant_edit=evaluator_variant_edit,
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        evaluator_revision_slug = uuid4().hex[-12:]
+
+        hydrated_simple_evaluator_data = self._normalize_evaluator_data(
+            simple_evaluator_edit.data,
+        )
+
+        evaluator_revision_commit = EvaluatorRevisionCommit(
+            slug=evaluator_revision_slug,
+            #
+            name=evaluator_edit.name,
+            description=evaluator_edit.description,
+            #
+            flags=evaluator_flags,
+            tags=evaluator_edit.tags,
+            meta=evaluator_edit.meta,
+            #
+            data=hydrated_simple_evaluator_data,
+            #
+            evaluator_id=evaluator.id,
+            evaluator_variant_id=evaluator_variant.id,
+        )
+
+        evaluator_revision: Optional[
+            EvaluatorRevision
+        ] = await self.evaluators_service.commit_evaluator_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_revision_commit=evaluator_revision_commit,
+        )
+
+        if evaluator_revision is None:
+            return None
+
+        simple_evaluator_data = SimpleEvaluatorData(
+            **(
+                evaluator_revision.data.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                )
+                if evaluator_revision.data
+                else {}
+            ),
+        )
+
+        simple_evaluator = SimpleEvaluator(
+            id=evaluator.id,
+            slug=evaluator.slug,
+            #
+            created_at=evaluator.created_at,
+            updated_at=evaluator.updated_at,
+            deleted_at=evaluator.deleted_at,
+            created_by_id=evaluator.created_by_id,
+            updated_by_id=evaluator.updated_by_id,
+            deleted_by_id=evaluator.deleted_by_id,
+            #
+            name=evaluator.name,
+            description=evaluator.description,
+            #
+            flags=self._build_simple_evaluator_flags(
+                evaluator_revision=evaluator_revision,
+            ),
+            tags=evaluator.tags,
+            meta=evaluator.meta,
+            #
+            variant_id=evaluator_variant.id,
+            revision_id=evaluator_revision.id,
+            #
+            data=simple_evaluator_data,
+        )
+
+        return simple_evaluator
+
+    async def query(
+        self,
+        *,
+        project_id: UUID,
+        #
+        simple_evaluator_query: Optional[SimpleEvaluatorQuery] = None,
+        #
+        simple_evaluator_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[SimpleEvaluator]:
+        query_data = (
+            simple_evaluator_query.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude_unset=True,
+            )
+            if simple_evaluator_query
+            else {}
+        )
+        requested_flags = (
+            simple_evaluator_query.flags if simple_evaluator_query else None
+        )
+        query_data.pop("flags", None)
+        evaluator_query = EvaluatorQuery(
+            **query_data,
+            flags=EvaluatorArtifactQueryFlags(),
+        )
+
+        evaluator_queries = await self.evaluators_service.query_evaluators(
+            project_id=project_id,
+            #
+            evaluator_query=evaluator_query,
+            #
+            evaluator_refs=simple_evaluator_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        if not evaluator_queries:
+            return []
+
+        simple_evaluators: List[SimpleEvaluator] = []
+
+        for evaluator_query in evaluator_queries:
+            evaluator_ref = Reference(
+                id=evaluator_query.id,
+            )
+
+            evaluator_variant: Optional[
+                EvaluatorVariant
+            ] = await self.evaluators_service.fetch_evaluator_variant(
+                project_id=project_id,
+                #
+                evaluator_ref=evaluator_ref,
+            )
+
+            if not evaluator_variant:
+                continue
+
+            evaluator_variant_ref = Reference(
+                id=evaluator_variant.id,
+            )
+
+            evaluator_revision: Optional[
+                EvaluatorRevision
+            ] = await self.evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                #
+                evaluator_variant_ref=evaluator_variant_ref,
+            )
+
+            if not evaluator_revision:
+                continue
+
+            simple_evaluator_data = SimpleEvaluatorData(
+                **(
+                    evaluator_revision.data.model_dump(
+                        mode="json",
+                    )
+                    if evaluator_revision.data
+                    else {}
+                ),
+            )
+
+            evaluator_query = SimpleEvaluator(
+                id=evaluator_query.id,
+                slug=evaluator_query.slug,
+                #
+                created_at=evaluator_query.created_at,
+                updated_at=evaluator_query.updated_at,
+                deleted_at=evaluator_query.deleted_at,
+                created_by_id=evaluator_query.created_by_id,
+                updated_by_id=evaluator_query.updated_by_id,
+                deleted_by_id=evaluator_query.deleted_by_id,
+                #
+                name=evaluator_query.name,
+                description=evaluator_query.description,
+                #
+                flags=self._build_simple_evaluator_flags(
+                    evaluator_revision=evaluator_revision,
+                ),
+                tags=evaluator_query.tags,
+                meta=evaluator_query.meta,
+                #
+                data=simple_evaluator_data,
+            )
+
+            if not self._matches_requested_simple_evaluator_flags(
+                simple_evaluator=evaluator_query,
+                requested_flags=requested_flags,
+            ):
+                continue
+
+            simple_evaluators.append(evaluator_query)
+
+        return simple_evaluators
+
+    async def archive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_id: UUID,
+    ) -> Optional[SimpleEvaluator]:
+        evaluator = await self.evaluators_service.archive_evaluator(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_id=evaluator_id,
+        )
+
+        if evaluator is None:
+            return None
+
+        evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=project_id,
+            #
+            evaluator_ref=Reference(id=evaluator_id),
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        evaluator_variant = await self.evaluators_service.archive_evaluator_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_variant_id=evaluator_variant.id,
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        return await self.fetch(
+            project_id=project_id,
+            evaluator_id=evaluator_id,
+        )
+
+    async def unarchive(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        evaluator_id: UUID,
+    ) -> Optional[SimpleEvaluator]:
+        evaluator = await self.evaluators_service.unarchive_evaluator(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_id=evaluator_id,
+        )
+
+        if evaluator is None:
+            return None
+
+        evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+            project_id=project_id,
+            #
+            evaluator_ref=Reference(id=evaluator_id),
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        evaluator_variant = await self.evaluators_service.unarchive_evaluator_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            evaluator_variant_id=evaluator_variant.id,
+        )
+
+        if evaluator_variant is None:
+            return None
+
+        return await self.fetch(
+            project_id=project_id,
+            evaluator_id=evaluator_id,
+        )

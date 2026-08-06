@@ -1,0 +1,333 @@
+name: "42 - railway build"
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to deploy; leave empty to build from the current ref"
+        required: false
+        type: string
+        default: ""
+    outputs:
+      image_tag:
+        description: "Image tag produced by the build"
+        value: ${{ jobs.prepare.outputs.image_tag }}
+      pr_number:
+        description: "PR number"
+        value: ${{ jobs.prepare.outputs.pr_number }}
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to deploy; leave empty to build from the current ref"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: railway-preview-build-${{ inputs.pr_number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      pr_number: ${{ steps.meta.outputs.pr_number }}
+      cache_scope: ${{ steps.meta.outputs.cache_scope }}
+      build_images: ${{ steps.meta.outputs.build_images }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Determine build metadata
+        id: meta
+        run: |
+          PR="${{ inputs.pr_number }}"
+          INPUT_TAG="${{ inputs.image_tag }}"
+          SHA="$(git rev-parse --short HEAD)"
+
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+            BUILD_IMAGES=false
+          elif [ -n "$PR" ]; then
+            TAG="pr-${PR}-${SHA}"
+            BUILD_IMAGES=true
+          else
+            TAG="manual-${SHA}"
+            BUILD_IMAGES=true
+          fi
+
+          if [ -n "$PR" ]; then
+            CACHE_SCOPE="pr-${PR}"
+          else
+            REF="$(printf "%s" "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '-')"
+            REF="${REF#-}"
+            REF="${REF%-}"
+            CACHE_SCOPE="${REF:-manual}"
+          fi
+
+          CACHE_SCOPE="${CACHE_SCOPE:0:80}"
+
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${PR}" >> "$GITHUB_OUTPUT"
+          echo "cache_scope=${CACHE_SCOPE}" >> "$GITHUB_OUTPUT"
+          echo "build_images=${BUILD_IMAGES}" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Railway Preview Build"
+            echo
+            echo "| Item | Value |"
+            echo "| --- | --- |"
+            echo "| PR | \`${{ steps.meta.outputs.pr_number }}\` |"
+            echo "| Image tag | \`${{ steps.meta.outputs.image_tag }}\` |"
+            echo "| Build images | \`${{ steps.meta.outputs.build_images }}\` |"
+            echo "| Cache scope | \`${{ steps.meta.outputs.cache_scope }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-and-push:
+    name: build-image
+    needs: prepare
+    if: needs.prepare.outputs.build_images == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - agenta-api
+          - agenta-web
+          - agenta-services
+          - agenta-runner
+        arch:
+          - amd64
+          - arm64
+        include:
+          # Per-service config (build context, Dockerfile).
+          # api + services share the repo root as context so the editable local
+          # SDK source (`[tool.uv.sources] agenta = { path = "../sdks/python" }`
+          # in api/pyproject.toml and services/pyproject.toml) resolves inside
+          # the Docker build without a separate inject step.
+          - image_name: agenta-api
+            context: .
+            dockerfile: api/oss/docker/Dockerfile.gh
+          - image_name: agenta-web
+            context: web
+            dockerfile: web/oss/docker/Dockerfile.gh
+          - image_name: agenta-services
+            context: .
+            dockerfile: services/oss/docker/Dockerfile.gh
+          - image_name: agenta-runner
+            context: services/runner
+            dockerfile: services/runner/docker/Dockerfile.gh
+          # Per-arch config (runner + platform string)
+          - arch: amd64
+            runner: ubuntu-24.04
+            platform: linux/amd64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push per-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: ${{ matrix.platform }}
+          # Skip SLSA provenance + SBOM attestations. They produce extra
+          # `unknown/unknown` entries in the manifest list and we don't consume
+          # them for preview images. Re-enable if signed/verifiable releases
+          # become a requirement.
+          provenance: false
+          sbom: false
+          tags: ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}
+          # Per-arch cache refs so amd64 and arm64 don't clobber each other.
+          cache-from: |
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared-${{ matrix.arch }}
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }}-${{ matrix.arch }}
+          cache-to: |
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-shared-${{ matrix.arch }},mode=max
+            type=registry,ref=ghcr.io/agenta-ai/${{ matrix.image_name }}:buildcache-${{ needs.prepare.outputs.cache_scope }}-${{ matrix.arch }},mode=max
+
+      - name: Verify SDK source path in image
+        if: matrix.image_name == 'agenta-api' || matrix.image_name == 'agenta-services'
+        run: |
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
+          docker pull "$IMAGE"
+          # Redirect stderr and take only the last stdout line so that
+          # third-party import noise (e.g. litellm >=1.82 prints a
+          # "Provider List" banner) doesn't pollute the captured path.
+          docker run --rm --entrypoint python "$IMAGE" -c "import agenta; print(agenta.__file__)" >/tmp/sdk_stdout 2>/tmp/sdk_stderr || { cat /tmp/sdk_stderr >&2; exit 1; }
+          sdk_path="$(tail -1 /tmp/sdk_stdout)"
+          echo "Resolved SDK path: $sdk_path"
+          case "$sdk_path" in
+            /app/sdks/python/*|/sdks/python/*) ;;
+            *)
+              echo "Expected SDK to resolve from /sdks/python (or /app/sdks/python under WORKDIR=/app), got: $sdk_path"
+              exit 1
+              ;;
+          esac
+
+      - name: Verify image runs as non-root
+        run: |
+          IMAGE="ghcr.io/agenta-ai/${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
+          docker pull "$IMAGE"
+          USER=$(docker inspect --format='{{.Config.User}}' "$IMAGE")
+          if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
+            echo "::error::${{ matrix.image_name }} (${{ matrix.arch }}) runs as root (User='${USER}')"
+            exit 1
+          fi
+          echo "PASS: ${{ matrix.image_name }} (${{ matrix.arch }}) runs as User='${USER}'"
+
+      - name: Summary
+        run: |
+          echo "- Built \`${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # Prebuilt Railway wrapper images (gateway, redis, seaweedfs) for
+  # clone-based preview environments (issue #5650). Content-addressed tags
+  # only — `compute-tag.sh` hashes the image directory, so unchanged content
+  # reuses the manifest already in GHCR and nothing is rebuilt. Never `latest`:
+  # Railway's environmentPatchCommit no-ops when the patched tag equals the
+  # template's, so tags must stay unique and disjoint. Each run also aliases
+  # the content manifest with the run's image tag (`pr-<n>-<sha>` /
+  # `manual-<sha>`) to match the app-image tagging pattern.
+  wrapper-images:
+    name: wrapper-image
+    needs: prepare
+    # Wrapper pushes need registry write access; fork PRs run with a read-only
+    # GITHUB_TOKEN, so skip them cleanly there.
+    if: >-
+      needs.prepare.outputs.build_images == 'true' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - gateway
+          - redis
+          - seaweedfs
+    steps:
+      - uses: actions/checkout@v6
+
+      # Drift between the legacy deploy-time wrapper generation
+      # (deploy-from-images.sh / deploy-gateway.sh) and these image sources
+      # fails the build before anything is pushed.
+      - name: Verify wrapper sources match deploy-time generation
+        run: bash hosting/railway/oss/images/verify-wrappers.sh
+
+      - name: Compute content tag
+        id: tag
+        run: |
+          CONTENT_TAG="$(bash hosting/railway/oss/images/compute-tag.sh "hosting/railway/oss/images/${{ matrix.image_name }}")"
+          echo "content_tag=${CONTENT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Check whether the content tag already exists
+        id: existing
+        env:
+          IMAGE: ghcr.io/agenta-ai/agenta-preview-${{ matrix.image_name }}
+          TAG: ${{ steps.tag.outputs.content_tag }}
+        run: |
+          if docker manifest inspect "${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Manifest ${IMAGE}:${TAG} already exists; skipping build"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push wrapper image
+        if: steps.existing.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: hosting/railway/oss/images/${{ matrix.image_name }}
+          push: true
+          platforms: linux/amd64
+          # Same rationale as the app images: no provenance/SBOM attestations
+          # for preview images.
+          provenance: false
+          sbom: false
+          tags: ghcr.io/agenta-ai/agenta-preview-${{ matrix.image_name }}:${{ steps.tag.outputs.content_tag }}
+
+      - name: Tag per-build alias
+        env:
+          IMAGE: ghcr.io/agenta-ai/agenta-preview-${{ matrix.image_name }}
+          CONTENT_TAG: ${{ steps.tag.outputs.content_tag }}
+          ALIAS_TAG: ${{ needs.prepare.outputs.image_tag }}
+        run: |
+          docker buildx imagetools create -t "${IMAGE}:${ALIAS_TAG}" "${IMAGE}:${CONTENT_TAG}"
+
+      - name: Summary
+        run: |
+          echo "- Wrapper \`agenta-preview-${{ matrix.image_name }}:${{ steps.tag.outputs.content_tag }}\` (alias \`${{ needs.prepare.outputs.image_tag }}\`; already existed: \`${{ steps.existing.outputs.exists }}\`)" >> "$GITHUB_STEP_SUMMARY"
+
+  merge-manifests:
+    name: merge-manifest
+    needs: [prepare, build-and-push]
+    if: needs.prepare.outputs.build_images == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - agenta-api
+          - agenta-web
+          - agenta-services
+          - agenta-runner
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Stitch per-arch tags into manifest list
+        env:
+          IMAGE: ghcr.io/agenta-ai/${{ matrix.image_name }}
+          TAG: ${{ needs.prepare.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+          echo "🔹 Merging ${IMAGE}:${TAG}-{amd64,arm64} into ${IMAGE}:${TAG}"
+          docker buildx imagetools create \
+            -t "${IMAGE}:${TAG}" \
+            "${IMAGE}:${TAG}-amd64" \
+            "${IMAGE}:${TAG}-arm64"
+          echo "- Merged \`${{ matrix.image_name }}:${TAG}\` (linux/amd64 + linux/arm64)" >> "$GITHUB_STEP_SUMMARY"

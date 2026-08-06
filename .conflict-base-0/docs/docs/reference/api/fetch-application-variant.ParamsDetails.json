@@ -1,0 +1,1 @@
+{"parameters":[{"name":"application_variant_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Application Variant Id"}}]}

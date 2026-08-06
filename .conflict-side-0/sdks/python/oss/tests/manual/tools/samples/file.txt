@@ -1,0 +1,23 @@
+Sample Text Document for Testing
+
+This is a sample text file used for testing file search and document analysis capabilities across different LLM providers.
+
+Key Information:
+- Provider: Testing OpenAI, Anthropic, and Google
+- Purpose: File search and RAG testing
+- Date: 2025
+
+Content Topics:
+1. Artificial Intelligence and Machine Learning
+2. Natural Language Processing
+3. Large Language Models
+4. Tool Use and Function Calling
+5. Prompt Caching and Memory Management
+
+Sample Data:
+The quick brown fox jumps over the lazy dog. This pangram contains every letter of the English alphabet at least once.
+
+Testing Questions:
+- What is this document about?
+- List the key information mentioned
+- What are the content topics?

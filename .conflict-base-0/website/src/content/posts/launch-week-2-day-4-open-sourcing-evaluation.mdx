@@ -1,0 +1,56 @@
+---
+slug: "launch-week-2-day-4-open-sourcing-evaluation"
+title: "Launch Week #2 Day 4: Open Sourcing Evaluation"
+description: "We're open-sourcing all functional features of Agenta under the MIT license."
+category: Article
+date: 2025-11-13
+readingTime: "5 min read"
+heroImage: /blog/launch-week-2-day-4-open-sourcing-evaluation/hero.webp
+ogImage: /blog/launch-week-2-day-4-open-sourcing-evaluation/hero.webp
+author: mahmoud-mabrouk
+featured: false
+tags: ["Product Updates"]
+---
+
+Today we're open sourcing the core of our product: evaluation.
+
+All functional features of Agenta are now open source under the MIT license. This includes evaluation, prompt management, and observability. We're keeping only advanced enterprise collaboration features (RBAC, SSO, audit logs) under a separate license.
+
+We also moved our development back to the public repository. The open source repo is now our main codebase, not a release mirror.
+
+## What This Means
+
+<InlineCTA />
+
+You can now self-host the full Agenta platform with all the features you need to build reliable LLM applications.
+
+**What's open source:**
+
+- Complete evaluation system (LLM-as-a-judge, test sets, custom evaluators)
+- Prompt playground and management
+- Observability and traces
+- All core workflows
+
+**What stays closed:**
+
+- Enterprise collaboration features (RBAC, SSO/SAML/SCIM)
+- Audit logs and compliance features
+- Advanced org-level governance
+
+## Why We Did This
+
+We tried three different open core models over the past two years. Each one taught us something about what works and what doesn't.
+
+The short version: keeping evaluation closed meant we weren't building in public anymore. Contributors disappeared. Rich feedback became rare. Our open source project felt like a demo instead of a community.
+
+We'd rather maximize adoption and community around the core than protect it behind a wall.
+
+You can read the [full story of what we tried and why we changed course here](/blog/commercial-open-source-is-hard-our-journey).
+
+## Get Started
+
+The code is available now on GitHub: [https://github.com/agenta-ai/agenta](https://github.com/agenta-ai/agenta)
+
+Self-hosting guide: [https://docs.agenta.ai/self-host/quick-start](https://docs.agenta.ai/self-host/quick-start)
+
+This is day 4 of our launch week. One more day to go.

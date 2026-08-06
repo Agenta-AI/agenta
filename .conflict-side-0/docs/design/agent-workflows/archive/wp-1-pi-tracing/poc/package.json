@@ -1,0 +1,25 @@
+{
+  "name": "wp-1-pi-tracing-poc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WP-1 POC: trace the Pi agent harness into Agenta via an OTel extension.",
+  "scripts": {
+    "start": "tsx run.ts",
+    "login": "pi"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.79.4",
+    "@opentelemetry/api": "1.9.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "0.54.0",
+    "@opentelemetry/resources": "1.28.0",
+    "@opentelemetry/sdk-trace-base": "1.28.0",
+    "@opentelemetry/sdk-trace-node": "1.28.0",
+    "@opentelemetry/semantic-conventions": "1.28.0",
+    "dotenv": "17.2.3"
+  },
+  "devDependencies": {
+    "tsx": "4.19.2",
+    "@types/node": "22.10.2"
+  }
+}
