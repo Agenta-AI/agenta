@@ -20,6 +20,19 @@ KEY = os.environ["AGENTA_API_KEY"]
 MODEL = "haiku"
 PROVIDER = "anthropic"
 
+# Harness-kind and model-id gotchas, found live during the platform-guidance discovery
+# verification (2026-08-06). Bake these in so nobody re-derives them the hard way:
+#
+#   - The Pi harness's kind enum value is "pi_core" -- the short name "pi" 500s at the
+#     workflow-invoke layer (see matrix_w7_per_harness.py's HARNESSES dict, which already gets
+#     this right).
+#   - "pi_core" REJECTS a bare "haiku" model id; unlike codex (which accepts short curated
+#     aliases like "gpt-5.6-luna" bare), pi_core needs the fully qualified
+#     "claude-haiku-4-5". Passing bare "haiku" on pi_core is a silent footgun, not an obvious
+#     400 -- verify against a real run before assuming a short alias carries over from claude.
+PI_CORE_HARNESS_KIND = "pi_core"
+PI_CORE_HAIKU_MODEL = "claude-haiku-4-5"
+
 
 def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.Response:
     return httpx.request(
