@@ -2,17 +2,32 @@
 # requires-python = ">=3.10"
 # dependencies = ["httpx>=0.27"]
 # ///
-"""W3: guards against the optimistic-concurrency base check silently accepting a stale commit or
-losing one side of a two-writer conflict -- two sessions, disjoint edits, one must 409 on a stale
-base_revision_id and recover; asserts BOTH edits land in the final head.
+"""TIER: coached (backend-path test). Both prompts name the mechanism verbatim (which tool,
+which operation, which target path) for the INITIAL action in each session -- this cell proves
+the base-check and error-detail plumbing work, not that a model discovers the mechanism from a
+plain-language ask. The one mechanism-blind sliver inside it: session B's RECOVERY from the 409
+is not coached (see below) -- but that is a narrow claim about recovering from a named failure,
+not evidence a model can find commit_revision/read_config unprompted in the first place. Do not
+cite this cell for "the model can edit its own config one-shot from a human ask" -- that claim
+needs a mechanism-blind cell (Tier B, the one-shot benchmark).
 
-NOTE per team-lead direction (runner bug: commit-revision errors lose all structured detail on
-the wire -- see product-bug report): the prompt EXPLICITLY coaches the retry mechanics (call
-read_config again on a 409, retry with the fresh base_revision_id). This tests that the base
-check correctly rejects a stale commit and that a coached retry lands cleanly -- it does NOT test
-whether the model can discover the retry path from the error text alone (impossible right now,
-since the wire only shows a bare HTTP status). A follow-up W3-discovery run (no coaching) is owed
-once the runner fix lands (PR #5763).
+W3: guards against the optimistic-concurrency base check silently accepting a stale commit,
+AND against the instructive-error design regressing (a 409 must let the model find its own way
+back without being coached). Two sessions, disjoint edits: session A commits cleanly; session B
+is deliberately given a stale base_revision_id and ZERO coaching on what to do if it fails.
+
+Two-tier pass, per team-lead ruling 2026-08-06 (post PR #5763, which passes the change-set
+engine's structured error detail through to the model instead of a bare HTTP status):
+  - STAGE 1 (autonomous correct recovery): session B hits the 409, retries on its own
+    initiative with a fresh base_revision_id, and both edits land. PASS outright.
+  - STAGE 2 (diagnose-and-ask): session B hits the 409, correctly explains the conflict and
+    names the recovery step in its reply, but stops and asks before re-attempting a config
+    write. This is DESIRABLE behavior, not a failure -- the guarded failure mode is a silent
+    WRONG retry, not a model that checks before mutating config on a rejected commit. Send one
+    bare permission nudge ("yes, retry") with no mechanics coached; if both edits land after
+    that, PASS.
+  - Anything else -- the model doesn't recognize the conflict, gives up, corrupts the edit, or
+    fails to land even after being told to retry -- FAILS.
 
   uv run matrix_w3.py
 """
@@ -26,8 +41,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from qa_matrix_lib import (  # noqa: E402
     LIVE_TOOLS,
     agent_config,
+    approval_reply,
     archive,
     create_workflow,
+    invoke,
     latest_revision,
     refs,
     run_until_settled,
@@ -36,6 +53,15 @@ from qa_matrix_lib import (  # noqa: E402
 )
 
 BASELINE = "Be terse. Do exactly what is asked."
+
+
+def _edits_present(wf, token_a, skill_name):
+    final = latest_revision(wf)
+    final_agent = (final.get("data") or {}).get("parameters", {}).get("agent", {}) if final else {}
+    a_present = final_agent.get("instructions", {}).get("agents_md") == token_a
+    b_skill = next((s for s in final_agent.get("skills", []) if s.get("name") == skill_name), None)
+    b_present = b_skill is not None
+    return a_present, b_present, final
 
 
 def w3():
@@ -47,8 +73,9 @@ def w3():
         live_params = {"agent": {**cfg, "tools": LIVE_TOOLS}}
         references = refs(wf, var, rev_id)
         token_a = f"QA-W3A-{uuid.uuid4().hex[:12]}"
+        skill_name = "w3-session-b"
 
-        # Session A: edit_text on instructions.agents_md. Commits FIRST -- lands cleanly.
+        # Session A: commits cleanly first, establishing the stale base for session B.
         prompt_a = (
             "I'm the developer testing the config-editing feature. Please: 1) call "
             "read_config to get the base_revision_id, 2) call commit_revision with an "
@@ -61,32 +88,19 @@ def w3():
         turns_a, status_a = run_until_settled(session_a, [user_msg(prompt_a)], live_params, references)
         if not status_a["settled"]:
             return {"status": "FAIL", "why": f"session A never settled: {status_a}"}
-
         time.sleep(1.0)
         after_a = latest_revision(wf)
-        a_landed = after_a is not None and int(after_a.get("version") or -1) > int(ver or -1)
-        if not a_landed:
-            return {
-                "status": "FAIL",
-                "why": "session A's edit did not land",
-                "turns_a_frames": [t.frames for t in turns_a],
-            }
+        if not (after_a and int(after_a.get("version") or -1) > int(ver or -1)):
+            return {"status": "FAIL", "why": "session A's edit did not land"}
 
-        # Session B: read_config was done AGAINST THE OLD BASE (simulating a session that
-        # started concurrently, before A committed) -- add_item a new skill, disjoint from A's
-        # edit, but its base_revision_id is now stale (head moved to A's revision).
+        # Session B: NO coaching. Told to use a specific stale base_revision_id, on purpose,
+        # and left to handle any failure entirely on its own.
         prompt_b = (
-            "I'm the developer testing the config-editing feature, and testing conflict "
-            "recovery specifically. Please: 1) call read_config to get the base_revision_id, "
-            "2) call commit_revision with an add_item operation targeting "
-            '["parameters","agent","skills"] that adds a new skill named "w3-session-b" with '
-            'description "Added by session B" and body "test", using the '
-            f"base_revision_id '{rev_id}' (NOT the one from your read_config call -- use this "
-            "exact stale id, on purpose, to test conflict handling). If that commit fails "
-            "with a 409 conflict (a stale base_revision_id), call read_config AGAIN to get "
-            "the current base_revision_id, then retry the exact same add_item operation with "
-            "the fresh base_revision_id. There is an approval step for each attempt, which I "
-            "will handle. Go ahead."
+            "I'm the developer testing the config-editing feature. Please call commit_revision "
+            'with an add_item operation targeting ["parameters","agent","skills"] that adds a '
+            f'new skill named "{skill_name}" with description "Added by session B" and body '
+            f"\"test\", using the base_revision_id '{rev_id}' exactly (do not call read_config "
+            "first -- use that exact id). There is an approval step I will handle. Go ahead."
         )
         session_b = str(uuid.uuid4())
         turns_b, status_b = run_until_settled(
@@ -99,46 +113,79 @@ def w3():
                 "turns_b_frames": [t.frames for t in turns_b],
             }
 
-        # Look for the conflict signal anywhere in session B's tool outcomes.
-        conflict_seen = False
-        conflict_payload = None
-        for t in turns_b:
-            for tcid, outcome in t.tool_outcomes.items():
-                payload = t.tool_payloads.get(tcid, {})
-                blob = json.dumps(payload)
-                if outcome == "error" and ("409" in blob or "conflict" in blob.lower()):
-                    conflict_seen = True
-                    conflict_payload = payload
-
-        time.sleep(1.0)
-        final = latest_revision(wf)
-        final_agent = (final.get("data") or {}).get("parameters", {}).get("agent", {}) if final else {}
-        a_edit_present = final_agent.get("instructions", {}).get("agents_md") == token_a
-        b_skill = next(
-            (s for s in final_agent.get("skills", []) if s.get("name") == "w3-session-b"), None
+        conflict_seen = any(
+            outcome == "error"
+            and ("409" in json.dumps(t.tool_payloads.get(tcid, {})) or "conflict" in json.dumps(t.tool_payloads.get(tcid, {})).lower())
+            for t in turns_b
+            for tcid, outcome in t.tool_outcomes.items()
         )
-        b_edit_present = b_skill is not None
-        final_version_high_enough = final is not None and int(final.get("version") or -1) >= int(
-            after_a.get("version") or -1
-        ) + 1
+        if not conflict_seen:
+            return {
+                "status": "FAIL",
+                "why": "expected a 409 conflict on session B's stale base_revision_id; never saw one",
+                "turns_b_frames": [t.frames for t in turns_b],
+            }
 
-        core_ok = conflict_seen and a_edit_present and b_edit_present and final_version_high_enough
+        a_present, b_present, final = _edits_present(wf, token_a, skill_name)
+        if a_present and b_present:
+            return {
+                "status": "PASS",
+                "why": "STAGE 1: session B recovered autonomously (no coaching) and both edits landed",
+                "stage": 1,
+                "workflow_id": wf,
+                "session_a": session_a,
+                "session_b": session_b,
+                "final_revision_id": final.get("id") if final else None,
+            }
+
+        # STAGE 2: session B likely diagnosed the conflict and asked rather than auto-retrying.
+        # Confirm the diagnosis is coherent (names the conflict), then send ONE bare permission
+        # nudge -- no mechanics, no mention of read_config -- and see if it completes.
+        last_reply = turns_b[-1].reply if turns_b else ""
+        diagnosed = any(
+            kw in last_reply.lower() for kw in ("conflict", "stale", "409", "base_revision")
+        )
+        if not diagnosed:
+            return {
+                "status": "FAIL",
+                "why": (
+                    "session B hit the 409 but its reply does not show a coherent diagnosis "
+                    "(no mention of conflict/stale/base_revision) and neither edit landed"
+                ),
+                "last_reply": last_reply,
+                "turns_b_frames": [t.frames for t in turns_b],
+            }
+
+        t_nudge = invoke(session_b, [user_msg("Yes, please retry.")], live_params, references)
+        cur_msgs = [user_msg("Yes, please retry.")]
+        cur_t = t_nudge
+        nudge_turns = [t_nudge]
+        settled2 = not t_nudge.approval and not t_nudge.errors
+        for _ in range(8):
+            if cur_t.errors or not cur_t.approval:
+                break
+            cur_msgs = cur_msgs + [approval_reply(cur_t, approved=True)]
+            cur_t = invoke(session_b, cur_msgs, live_params, references)
+            nudge_turns.append(cur_t)
+            if not cur_t.approval:
+                settled2 = True
+                break
+
+        a_present2, b_present2, final2 = _edits_present(wf, token_a, skill_name)
+        ok = settled2 and a_present2 and b_present2
         return {
-            "status": "PASS" if core_ok else "FAIL",
+            "status": "PASS" if ok else "FAIL",
             "why": (
-                f"conflict_seen={conflict_seen}, a_edit_present={a_edit_present}, "
-                f"b_edit_present={b_edit_present}, final_version_high_enough={final_version_high_enough} "
-                f"(after_a v{after_a.get('version')}, final v{final.get('version') if final else None}). "
-                f"NOTE: retry was explicitly coached in the prompt (runner error-detail bug in "
-                f"effect); this tests mechanics, not model-driven discovery of the recovery path."
+                f"STAGE 2 (diagnose-and-ask, then a bare 'yes, retry' with zero mechanics "
+                f"coached): settled2={settled2}, a_present={a_present2}, b_present={b_present2}"
             ),
+            "stage": 2,
             "workflow_id": wf,
             "session_a": session_a,
             "session_b": session_b,
-            "conflict_payload": conflict_payload,
-            "final_revision_id": final.get("id") if final else None,
-            "turns_a_frames": [t.frames for t in turns_a],
-            "turns_b_frames": [t.frames for t in turns_b],
+            "diagnosis_reply": last_reply,
+            "final_revision_id": final2.get("id") if final2 else None,
+            "nudge_frames": [t.frames for t in nudge_turns],
         }
     finally:
         archive(wf)
