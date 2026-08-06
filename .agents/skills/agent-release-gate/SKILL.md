@@ -177,10 +177,12 @@ proves nothing about the durable working directory (LESSONS #16).
   (no vault dependency); codex and pi_core need a funded OpenAI `provider_key` vault secret
   (mirrors cells X1/C3 in `qa_product.py`) and correctly SKIP with the exact reason when it's
   missing or ambiguous — a SKIP here is an untested harness, not a pass, and must be named as such
-  in any release summary. Verified PASS on claude (2026-08-06); codex/pi SKIPPED on this shared
-  preview stack because its vault held zero — then, transiently, an ambiguous multiple — OpenAI
-  candidates (other concurrent agents' activity on the same shared project); provisioning a
-  dedicated, unambiguous OpenAI key for this project is an open follow-up.
+  in any release summary. `--only <harness>` runs a single leg without re-spending budget on the
+  others. Verified PASS on claude (2026-08-06). codex/pi initially SKIPPED on this shared preview
+  stack because its vault held zero — then, transiently, an ambiguous multiple — OpenAI candidates
+  (other concurrent agents' activity on the same shared project); resolved 2026-08-06 by stocking
+  one unambiguous OpenAI `provider_key` secret (no stale entries existed to remove). Re-verified
+  PASS on codex after stocking the key (session 58ce3a58-8d04-40ac-99e4-c44eaa5d7b06).
 - `resources/matrix_w7_daytona.py` — **[coached]** matrix_w7.py's exact scenario with
   `sandbox=daytona` instead of local. The local-only original W7 is exactly why this bug hid: the
   Daytona transport rejects NUL bytes in argv, which the `@ag.file` manifest walk was emitting, so
@@ -219,16 +221,27 @@ proves nothing about the durable working directory (LESSONS #16).
   id (needs `"claude-haiku-4-5"`); codex accepts its curated short alias (`"gpt-5.6-luna"`) bare.
   Both legs need `sandbox=daytona` + a vault key (codex: OpenAI; pi_core: the same Anthropic key
   `matrix_w1_daytona.py` documents) and SKIP with the exact reason when the credential is missing
-  or ambiguous. Verified 2026-08-06: codex SKIPPED (this project's vault held an ambiguous/missing
-  OpenAI credential — open item with Mahmoud, same blocker as `matrix_w7_per_harness.py`'s codex
-  leg); pi_core scored **2/3, not 4/4** — a real, reproducible finding, not noise: trial 2's model
-  ran `cp -r agent-files/gstack-autoplan .agenta-imports/` (copying the whole directory) then
-  referenced a marker path that didn't match where the file landed, and the engine correctly
-  denied it fail-closed (`approved-content resolution failed ...: gstack-autoplan/SKILL.md does
-  not exist under .agenta-imports/.; deny`). Not a product bug — the deny is doing its job — but
-  evidence that even with the guidance present, pi_core+haiku still fumbles the exact
-  copy-then-reference mechanics some of the time. Worth a call on whether the guidance text should
-  say "copy the FILE, not the directory" more explicitly, or whether 2/3 is an acceptable bar.
+  or ambiguous. `--only <leg>` runs a single leg without re-spending trial budget on the other.
+  Neither leg has yet scored a clean 4/4 live, and both failure modes are real, reproducible model
+  mechanics misses, not noise or infra flake — treat this cell's discovery rate as a genuine open
+  quality question, not a settled pass:
+  - **pi_core: 2/3** (2026-08-06). Trial 2's model ran `cp -r agent-files/gstack-autoplan
+    .agenta-imports/` (copying the whole directory) then referenced a marker path that didn't
+    match where the file landed; the engine correctly denied it fail-closed
+    (`approved-content resolution failed ...: gstack-autoplan/SKILL.md does not exist under
+    .agenta-imports/.; deny`). Not a product bug — the deny is doing its job — but evidence the
+    model fumbles the exact copy-then-reference mechanics some of the time.
+  - **codex: 2/3** (2026-08-06, re-verified after stocking a clean OpenAI vault key — the earlier
+    SKIP was purely the missing/ambiguous credential, now resolved). Trial 1 didn't attempt the
+    mechanism at all: zero gates approved, the model just replied "I can't add skills by simply
+    placing files in the skills folder; skills must be enabled through the agent configuration"
+    (session 4fa17164-3ada-4ef6-86b5-63bf1c64f10b) — it named the right concept but never called
+    read_config/commit_revision to act on it. Trials 2 and 3 passed cleanly (sessions
+    4c6a758b-39a3-4789-890e-06f3d68196b6, bf8a1283-667c-45c7-ab0d-b112e12106db).
+
+  Worth a call: whether the guidance text needs to be more directive (e.g. explicitly say "copy
+  the FILE, not the directory" and "always attempt the tool calls, don't just describe the
+  mechanism"), or whether ~2/3 is an acceptable bar for this feature's launch.
 
 ### The lifecycle cells (`matrix_l*.py`) — cold ↔ warm, and what survives each transition
 

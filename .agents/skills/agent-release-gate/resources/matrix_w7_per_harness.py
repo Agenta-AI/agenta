@@ -34,6 +34,7 @@ silently omitted -- per the standing rule that skips are untested claims, not pa
   uv run matrix_w7_per_harness.py
 """
 
+import argparse
 import json
 import pathlib
 import sys
@@ -233,8 +234,18 @@ def w7_for(harness_name: str) -> dict:
 
 
 def main() -> int:
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "--only",
+        choices=list(HARNESSES),
+        help="run a single harness instead of the full matrix (e.g. to re-verify one leg "
+        "without re-spending budget on the others)",
+    )
+    args = p.parse_args()
+    harness_names = [args.only] if args.only else list(HARNESSES)
+
     results = {}
-    for harness_name in HARNESSES:
+    for harness_name in harness_names:
         print(f"\n=== W7 x {harness_name} ===", file=sys.stderr)
         results[harness_name] = w7_for(harness_name)
 
