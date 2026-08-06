@@ -67,6 +67,34 @@ def test_the_description_sits_at_the_top_level(op_name):
             assert EPHEMERAL_DESCRIPTION_ARG not in nested["properties"]
 
 
+@pytest.mark.parametrize("op_name", BUILDER_OPS)
+def test_the_field_says_where_it_goes(op_name):
+    # The schema already shows the placement, and models nested the field inside the
+    # payload object anyway. The envelope is closed, so the call is rejected and the turn
+    # is spent recovering. Live QA lost a round trip to this twice in a row.
+    schema = PLATFORM_OPS[op_name].resolved_input_schema()
+    said = schema["properties"][EPHEMERAL_DESCRIPTION_ARG]["description"]
+    payload_keys = set(schema["properties"]) - {EPHEMERAL_DESCRIPTION_ARG}
+
+    assert "top level" in said
+    # Every sibling is named, so the advice is exact for this op and not a generic hint.
+    for key in payload_keys:
+        assert f"`{key}`" in said
+
+
+def test_the_placement_advice_follows_a_renamed_key():
+    # The sentence is generated from the op's own keys. A hard-coded key would keep
+    # pointing at a name that no longer exists, and the model would follow it.
+    from agenta.sdk.agents.platform.op_catalog import _ephemeral_description_schema
+
+    assert (
+        "`only_child`" in _ephemeral_description_schema(["only_child"])["description"]
+    )
+    both = _ephemeral_description_schema(["first", "second"])["description"]
+    assert "`first`" in both and "`second`" in both
+    assert "never inside them" in both
+
+
 def test_a_non_builder_op_does_not_offer_it():
     # Off by default: an op whose calls no human reads gains nothing from a note.
     schema = PLATFORM_OPS["discover_tools"].resolved_input_schema()

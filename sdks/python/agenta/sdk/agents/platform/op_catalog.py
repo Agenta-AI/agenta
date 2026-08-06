@@ -80,6 +80,27 @@ _EPHEMERAL_DESCRIPTION_SCHEMA: Dict[str, Any] = {
 }
 
 
+def _ephemeral_description_schema(siblings: List[str]) -> Dict[str, Any]:
+    """The ephemeral description field, told where it goes.
+
+    Models nest this field inside the payload object, and the envelope is closed, so the
+    call is rejected and the turn is spent recovering. Live QA hit that twice in a row.
+
+    The sentence names the op's OWN top-level keys rather than one hard-coded key, because
+    the two ops that take this field have different payloads. It is generated, so renaming
+    a payload key cannot leave the placement advice pointing at a key that is gone.
+    """
+    schema = deepcopy(_EPHEMERAL_DESCRIPTION_SCHEMA)
+    if siblings:
+        named = ", ".join(f"`{name}`" for name in siblings)
+        target = "them" if len(siblings) > 1 else "it"
+        schema["description"] = (
+            f"{schema['description']} Send it at the top level, beside {named}, "
+            f"never inside {target}."
+        )
+    return schema
+
+
 class PlatformOp(BaseModel):
     """One catalog entry: an existing Agenta endpoint exposed to the agent as a tool.
 
@@ -215,8 +236,10 @@ class PlatformOp(BaseModel):
             # that says nothing is quieter, not broken.
             properties = schema.setdefault("properties", {})
             if isinstance(properties, dict):
-                properties[EPHEMERAL_DESCRIPTION_ARG] = deepcopy(
-                    _EPHEMERAL_DESCRIPTION_SCHEMA
+                # The sibling names are read before the field is added, so the placement
+                # sentence lists the payload keys and not itself.
+                properties[EPHEMERAL_DESCRIPTION_ARG] = _ephemeral_description_schema(
+                    [name for name in properties if name != EPHEMERAL_DESCRIPTION_ARG]
                 )
         return schema
 
