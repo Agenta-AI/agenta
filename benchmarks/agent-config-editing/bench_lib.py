@@ -1304,6 +1304,83 @@ def commit_out_of_band(trial: dict, patch: dict, token: str, message: str) -> di
     return revision
 
 
+def preflight(cell: dict) -> dict:
+    """Prove the endpoints this benchmark measures are alive, BEFORE spending a single trial.
+
+    WHY THIS EXISTS. On the night of 6 August a migration removed a parameter from the core read's
+    signature while the legacy route still passed it; `read_config` returned HTTP 500 on every
+    call, on a stack whose test suite was green. This benchmark noticed only after spending 63
+    trials and half an hour, and every one of those results had to be quarantined. A pre-flight
+    would have refused to start and said why.
+
+    It is a DIRECT API probe with no model involved, which is the property that made the outage
+    diagnosable in minutes: a failure here is unambiguously the deployment, never the harness and
+    never the model. It costs one throwaway workflow and one read.
+
+    Returns {"ok": bool, "checks": [...]}; the runner refuses to run when `ok` is false."""
+    w = wire()
+    checks: list = []
+    workflow_id = None
+    try:
+        hexid = uuid.uuid4().hex[:8]
+        workflow_id, variant_id = create_workflow_named(hexid, "preflight")
+        agent = agent_config(cell, None, "QA-PREFLIGHT")
+        revision_id, _ = w.seed_and_baseline(workflow_id, variant_id, agent, hexid)
+        checks.append({"check": "create+seed a workflow", "ok": True})
+
+        r = w.read_config_direct(variant_id)
+        checks.append(
+            {
+                "check": "read_config (full)",
+                "ok": r.status_code == 200,
+                "status": r.status_code,
+                "detail": "" if r.status_code == 200 else r.text[:300],
+            }
+        )
+        r = w.read_config_direct(variant_id, ["parameters", "agent", "skills"])
+        checks.append(
+            {
+                "check": "read_config (scoped path)",
+                "ok": r.status_code == 200,
+                "status": r.status_code,
+                "detail": "" if r.status_code == 200 else r.text[:300],
+            }
+        )
+        # The scoped commit route, exercised with a delta that changes nothing real. A 200 or a
+        # well-formed refusal both prove the route is ALIVE; only a 5xx means the endpoint is down,
+        # which is the thing this is here to catch.
+        r = w.commit_agent_direct(
+            revision_id,
+            {
+                "operations": [
+                    {
+                        "operation": "set",
+                        "target": ["parameters", "agent", "llm", "extras"],
+                        "value": {},
+                    }
+                ]
+            },
+            variant_id,
+            "preflight",
+        )
+        checks.append(
+            {
+                "check": "commit_revision (scoped route reachable)",
+                "ok": r.status_code < 500,
+                "status": r.status_code,
+                "detail": "" if r.status_code < 500 else r.text[:300],
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        checks.append(
+            {"check": "preflight", "ok": False, "detail": f"{type(e).__name__}: {e}"}
+        )
+    finally:
+        if workflow_id:
+            w.archive(workflow_id)
+    return {"ok": all(c["ok"] for c in checks), "checks": checks}
+
+
 def stored_agent(workflow_id: str) -> tuple[dict, int | None]:
     """The newest stored revision's `parameters.agent`, and its version. THE VERDICT SOURCE."""
     newest = wire().latest_revision(workflow_id)
