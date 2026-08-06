@@ -19,6 +19,7 @@ class SessionTurn(UniversalBaseModel):
     id: typing.Optional[str] = None
     project_id: str
     session_id: str
+    turn_id: typing.Optional[str] = None
     stream_id: str
     turn_index: int
     harness_kind: HarnessKind

@@ -4,16 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
-from .reference import Reference
-from .selector import Selector
-from .session_interaction_request import SessionInteractionRequest
+from .session_interaction_resolution_verdict import SessionInteractionResolutionVerdict
 
 
-class SessionInteractionData(UniversalBaseModel):
-    request: typing.Optional[SessionInteractionRequest] = None
-    references: typing.Optional[typing.Dict[str, typing.Optional[Reference]]] = None
-    selector: typing.Optional[Selector] = None
-    resolution: typing.Optional[typing.Dict[str, typing.Any]] = None
+class SessionInteractionResolution(UniversalBaseModel):
+    verdict: SessionInteractionResolutionVerdict
+    tool_call_id: str
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

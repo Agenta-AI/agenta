@@ -6,6 +6,8 @@ import typing
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
 from ..types.error_policy import ErrorPolicy
+from ..types.read_config_response import ReadConfigResponse
+from ..types.read_config_target import ReadConfigTarget
 from ..types.reference import Reference
 from ..types.simple_workflow_create import SimpleWorkflowCreate
 from ..types.simple_workflow_edit import SimpleWorkflowEdit
@@ -1193,6 +1195,8 @@ class WorkflowsClient:
     
     def commit_workflow_revision(self, *, workflow_revision: WorkflowRevisionCommit, workflow_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionResponse:
         """
+        The human and SDK route: no write scope, the caller owns the whole revision.
+        
         Parameters
         ----------
         workflow_revision : WorkflowRevisionCommit
@@ -1220,6 +1224,74 @@ class WorkflowsClient:
         )
         """
         _response = self._raw_client.commit_workflow_revision(workflow_revision=workflow_revision, workflow_variant_id=workflow_variant_id, request_options=request_options)
+        return _response.data
+    
+    def commit_agent_workflow_revision(self, *, workflow_revision: WorkflowRevisionCommit, workflow_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionResponse:
+        """
+        The agent's own route: every write is confined to `parameters.agent`.
+        
+        The confinement is a property of the ROUTE, not of anything in the request, which
+        is what makes it unforgeable: the model never holds the credential, and the URL it
+        reaches comes from the server-side op catalog, so an agent cannot express an
+        unscoped commit (read-config.md 11.2).
+        
+        Parameters
+        ----------
+        workflow_revision : WorkflowRevisionCommit
+            Revision to append to a variant's history. Requires `workflow_variant_id` and optional `message`; `data` carries the new configuration.
+        
+        workflow_variant_id : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkflowRevisionResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi, WorkflowRevisionCommit
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.workflows.commit_agent_workflow_revision(
+            workflow_revision=WorkflowRevisionCommit(),
+        )
+        """
+        _response = self._raw_client.commit_agent_workflow_revision(workflow_revision=workflow_revision, workflow_variant_id=workflow_variant_id, request_options=request_options)
+        return _response.data
+    
+    def read_workflow_revision_config(self, *, target: ReadConfigTarget, max_bytes: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ReadConfigResponse:
+        """
+        Parameters
+        ----------
+        target : ReadConfigTarget
+        
+        max_bytes : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        ReadConfigResponse
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi, ReadConfigTarget
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.workflows.read_workflow_revision_config(
+            target=ReadConfigTarget(),
+        )
+        """
+        _response = self._raw_client.read_workflow_revision_config(target=target, max_bytes=max_bytes, request_options=request_options)
         return _response.data
     
     def log_workflow_revisions(self, *, workflow_revisions: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionsResponse:
@@ -2865,6 +2937,8 @@ class AsyncWorkflowsClient:
     
     async def commit_workflow_revision(self, *, workflow_revision: WorkflowRevisionCommit, workflow_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionResponse:
         """
+        The human and SDK route: no write scope, the caller owns the whole revision.
+        
         Parameters
         ----------
         workflow_revision : WorkflowRevisionCommit
@@ -2900,6 +2974,90 @@ class AsyncWorkflowsClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.commit_workflow_revision(workflow_revision=workflow_revision, workflow_variant_id=workflow_variant_id, request_options=request_options)
+        return _response.data
+    
+    async def commit_agent_workflow_revision(self, *, workflow_revision: WorkflowRevisionCommit, workflow_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionResponse:
+        """
+        The agent's own route: every write is confined to `parameters.agent`.
+        
+        The confinement is a property of the ROUTE, not of anything in the request, which
+        is what makes it unforgeable: the model never holds the credential, and the URL it
+        reaches comes from the server-side op catalog, so an agent cannot express an
+        unscoped commit (read-config.md 11.2).
+        
+        Parameters
+        ----------
+        workflow_revision : WorkflowRevisionCommit
+            Revision to append to a variant's history. Requires `workflow_variant_id` and optional `message`; `data` carries the new configuration.
+        
+        workflow_variant_id : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        WorkflowRevisionResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi, WorkflowRevisionCommit
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.workflows.commit_agent_workflow_revision(
+                workflow_revision=WorkflowRevisionCommit(),
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.commit_agent_workflow_revision(workflow_revision=workflow_revision, workflow_variant_id=workflow_variant_id, request_options=request_options)
+        return _response.data
+    
+    async def read_workflow_revision_config(self, *, target: ReadConfigTarget, max_bytes: typing.Optional[int] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> ReadConfigResponse:
+        """
+        Parameters
+        ----------
+        target : ReadConfigTarget
+        
+        max_bytes : typing.Optional[int]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        ReadConfigResponse
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi, ReadConfigTarget
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.workflows.read_workflow_revision_config(
+                target=ReadConfigTarget(),
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.read_workflow_revision_config(target=target, max_bytes=max_bytes, request_options=request_options)
         return _response.data
     
     async def log_workflow_revisions(self, *, workflow_revisions: WorkflowRevisionsLog, request_options: typing.Optional[RequestOptions] = None) -> WorkflowRevisionsResponse:
