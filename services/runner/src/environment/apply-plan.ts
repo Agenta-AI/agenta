@@ -64,6 +64,19 @@ export async function applyReconcilePlan(
         break;
 
       case "refresh-workspace": {
+        // NOT REACHED while `LIVE_ACTION_KINDS` excludes this kind, and the exclusion is the
+        // point: the write below lands on disk, but every harness reads its instruction file once
+        // at session start, so the running model never sees it while the commit at the bottom of
+        // this function reports the new configuration as applied. The machinery stays because a
+        // refresh-then-reopen route needs exactly this write; only the routing is off.
+        //
+        // WHOEVER REVIVES THIS ROUTE MUST RENDER THE PLATFORM GUIDANCE TOO. `instructions` below
+        // is the AUTHOR'S text; the acquire path appends the fenced guidance block to it before
+        // the file is written (`appendPlatformGuidance`, wired in `environment.ts`). A refresh
+        // that skipped that step would silently strip the guidance out of a running sandbox's
+        // instructions file, which is worse than never adding it: it would work on the first turn
+        // and stop working after any config edit.
+        //
         // The runner-owned instructions and skills, rewritten in place. Deletion of a skill that
         // left the request is decided from the inventory this environment recorded when it last
         // wrote the workspace — never from a directory listing, because a durable cwd holds the
