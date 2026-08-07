@@ -76,6 +76,15 @@ _PUBLIC_ENDPOINTS = (
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
+    # CHANNELS — inbound platform events arrive with no Agenta auth token
+    "/channels/slack/events/",
+    "/api/channels/slack/events/",
+    "/preview/channels/slack/events/",
+    "/api/preview/channels/slack/events/",
+    "/channels/bridge/events/",
+    "/api/channels/bridge/events/",
+    "/preview/channels/bridge/events/",
+    "/api/preview/channels/bridge/events/",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
