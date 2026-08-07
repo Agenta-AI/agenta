@@ -5,6 +5,7 @@ from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
 from oss.src.core.secrets.context import set_data_encryption_key
+from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
 
 
@@ -35,6 +36,30 @@ class VaultService:
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
+            # Standard provider keys are one-per-provider in the product UI.
+            # Upsert so duplicate rows cannot accumulate and make agent
+            # credential resolution ambiguous (#5255 / AGE-3945).
+            if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
+                existing = await self.secrets_dao.list(
+                    project_id=project_id,
+                    organization_id=organization_id,
+                )
+                provider_kind = create_secret_dto.secret.data.kind
+                for secret in existing:
+                    if secret.kind != SecretKind.PROVIDER_KEY:
+                        continue
+                    existing_kind = getattr(secret.data, "kind", None)
+                    if existing_kind == provider_kind and secret.id is not None:
+                        return await self.secrets_dao.update(
+                            secret_id=secret.id,
+                            update_secret_dto=UpdateSecretDTO(
+                                header=create_secret_dto.header,
+                                secret=create_secret_dto.secret,
+                            ),
+                            project_id=project_id,
+                            organization_id=organization_id,
+                        )
+
             secret_dto = await self.secrets_dao.create(
                 project_id=project_id,
                 organization_id=organization_id,
