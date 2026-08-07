@@ -6,206 +6,180 @@ the base branch.
 
 ## types (capability DTOs)
 
-- [ ] `core/channels/adapters/interface.py`: add
-      `ChannelCommandsCapability` (`supported: bool, in_conversation:
-      bool`) and `ChannelAddressingCapability` (`agent_sigil: str,
-      sigils, mention: bool, commands:
-      ChannelCommandsCapability`).
-- [ ] Add `ChannelSpacesCapability` (`private: bool, group: bool, topic:
-      bool`).
-- [ ] Add `ChannelConversationCapability` (`units: List[str], default:
-      str`).
-- [ ] Add `ChannelFillOperationCapability` (`supported: bool,
-      requires_permission: Optional[str] = None`) and `ChannelFillCapability`
-      (`backfill: ChannelFillOperationCapability, forwardfill:
-      ChannelFillOperationCapability`).
-- [ ] Add `ChannelButtonsCapability` (`supported: bool, max: int`),
-      `ChannelTextCapability` (`format: str, max_chars: int`),
-      `ChannelFilesCapability` (`receive: bool, send: bool, max_bytes: int`),
-      `ChannelRenderingCapability` (all four plus `controls.update: bool,
-      ephemeral: bool`).
-- [ ] Add `ChannelIdentityCapability` (`scope: str, stable: bool, keys:
-      Dict[str, List[str]]` — grain name to ordered locator field names,
-      e.g. `{"space": ["team", "channel"], "thread": ["team", "channel",
-      "thread_ts"]}`; an adapter with no threads declares `"thread": []`).
-- [ ] Add `ChannelCapabilities` (`channel: str, protocol:
-      List[str]`, one field per block above, `commands: List[str]`).
-- [ ] Unit test: construct a `ChannelCapabilities` instance from the exact
-      JSON in `capabilities.md` §2 (the Slack example) via
-      `ChannelCapabilities.model_validate(...)` and assert it round-trips
-      (`model_dump()` reproduces the same structure modulo key order).
-- [ ] Construct a second instance from the smaller `bridge.hello` example in
-      `contract.md` §4 (fewer fields, e.g. no `ephemeral`, `spaces.topic:
-      false`) and assert it validates — confirms optional/default fields are
-      actually optional where the two examples disagree.
+Already present at C0 in `core/channels/dtos.py` (not
+`adapters/interface.py` — the seed placed the capability DTOs alongside
+WP1's other DTOs; imported from there rather than duplicated, per the task
+brief). One shape bug found and fixed: see "C0 correction" below.
+
+- [x] `ChannelCommandsCapability` / `ChannelAddressingCapability` — present
+      as `ChannelNativeCommands` / `ChannelAddressing` (same fields, house
+      naming without the `Capability` suffix).
+- [x] `ChannelSpacesCapability` — present as `ChannelSpacesSupport`.
+- [x] `ChannelConversationCapability` (`units`, `default`) — present as
+      `ChannelConversation`. **C0 correction applied**: `units`/`default`
+      were typed `ChannelSessionScope` (`thread|message`, the policy-level
+      enum) instead of `ChannelKeyGrain` (`thread|space`, capabilities.md
+      §2's actual vocabulary — `"space"` degeneration, not `"message"`).
+      Fixed in `dtos.py`; matching fixture in `test_channels_seed.py`
+      corrected from `["thread", "message"]` to `["thread", "space"]`.
+- [x] `ChannelFillOperationCapability` / `ChannelFillCapability` — present as
+      `ChannelFillMode` / `ChannelFill`.
+- [x] `ChannelButtonsCapability`, `ChannelTextCapability`,
+      `ChannelFilesCapability`, `ChannelRenderingCapability` — present as
+      `ChannelButtons`, `ChannelText`, `ChannelFiles` (split `send`/`receive`
+      as `ChannelFileDirection`), `ChannelRendering`.
+- [x] `ChannelIdentityCapability` (`scope`, `stable`, `keys: Dict[grain,
+      List[str]]`) — present as `ChannelIdentity`, keyed by `ChannelKeyGrain`.
+- [x] `ChannelCapabilities` — present, one field per block, `commands:
+      List[str]`.
+- [x] Unit test: `ChannelCapabilities.model_validate(...)` against the exact
+      Slack JSON from `capabilities.md` §2, round-trips via `model_dump()`.
+      (`test_channel_normalise.py::test_slack_example_round_trips` +
+      `test_identity_keys_round_trip_unchanged_for_well_formed_declaration`;
+      `test_channels_seed.py::test_declaration_parses` also covers this.)
+- [x] Second instance from the smaller `bridge.hello` example
+      (`contract.md` §4): fewer fields, `spaces.topic: false`, no
+      `ephemeral` override — validates, confirms optional/default fields.
+      (`test_channel_normalise.py::test_bridge_hello_example_normalises_to_same_shape_as_in_process_dict`.)
 
 ## interface (adapter boundary types)
 
-- [ ] Add `ChannelInboundEvent` (the WP2-owned normalised-event shape,
-      distinct from WP1's `ChannelInboxEventCreate`): `external_locator:
-      Dict[str, Any], content: List[Dict[str, Any]], sender: Dict[str, Any],
-      addressed: bool, kind: str` (a string here, not WP1's
-      `ChannelEventKind`, since this type must not import WP1's persisted
-      DTOs — WP3 maps between them).
-- [ ] Add `ChannelSpaceCandidate`-compatible return shape for
-      `discover_spaces` — reuse WP1's `ChannelSpaceCandidate` if importable
-      without a layering violation, otherwise define a WP2-local mirror and
-      note the duplication for WP1/WP2 to reconcile at C1.
-- [ ] Define `ChannelAdapterInterface(ABC)` with `fetch_capabilities`,
-      keyword-only, no params beyond `self`, returning `ChannelCapabilities`.
-- [ ] Add `verify_signature(self, *, headers: Dict[str, str], body: bytes) ->
-      bool` — returns a bool, never raises on a bad signature.
-- [ ] Add `parse_event(self, *, body: bytes) -> ChannelInboundEvent`.
-- [ ] Add `discover_spaces(self, *, connection_id: UUID) ->
+Frozen at C0 in `core/channels/adapters/interface.py`, taken verbatim from
+`entities.md` §7.1 (not `specs-wp2.md`'s illustrative sketch, which predates
+some of the same churn `specs-wp2.md` itself flags — `entities.md` is the
+more specific source for exact signatures). Notably: `verify_signature`
+returns `str` (the installation id), not `bool` — confirmed against
+`specs-wp2.md`'s prose and `entities.md` §7.1, both of which agree; only
+this tasks file's own quick-reference below had drifted to `bool`, now
+corrected.
+
+- [x] `ChannelInboundEvent` — present in `dtos.py`, WP2-boundary shape
+      distinct from `ChannelInboxEventCreate`, `kind: ChannelEventKind` (the
+      house enum, not a bare string — no layering issue since both live in
+      the same `dtos.py`).
+- [x] `ChannelSpaceCandidate` — reused directly from `dtos.py`, no
+      duplication; no WP1/WP2 reconciliation needed at C1.
+- [x] `ChannelAdapterInterface(ABC)` with `fetch_capabilities`, keyword-only,
+      returning `ChannelCapabilities`.
+- [x] `verify_signature(self, *, headers: Dict[str, str], body: bytes) ->
+      str` — returns the platform's installation id; raises
+      `ChannelSignatureInvalid` on a bad signature (matches `entities.md`
+      §7.1 and `specs-wp2.md`, not this file's stale `-> bool` note).
+- [x] `parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]`.
+- [x] `discover_spaces(self, *, connection: ChannelConnection) ->
       List[ChannelSpaceCandidate]`.
-- [ ] Add `fetch_history(self, *, external_locator: Dict[str, Any], limit:
-      int) -> List[ChannelInboundEvent]`.
-- [ ] Add `post_message(self, *, external_locator: Dict[str, Any], content:
-      List[Dict[str, Any]], idempotency_key: str) -> Dict[str, Any]`.
-- [ ] Add `edit_message(self, *, external_locator: Dict[str, Any], content:
-      List[Dict[str, Any]], idempotency_key: str) -> Dict[str, Any]`.
-- [ ] Test: every method above is `@abstractmethod`; instantiating
-      `ChannelAdapterInterface()` directly raises `TypeError`; a subclass
-      implementing all but one method also raises `TypeError` on
-      instantiation.
-- [ ] Test: every method's parameters after `self` are keyword-only (grep-
-      based check: no positional parameter besides `self` in any method
-      signature in this file).
+- [x] `fetch_history(self, *, connection: ChannelConnection, locator:
+      Dict[str, Any], limit: int) -> List[ChannelInboundEvent]`.
+- [x] `post_message(self, *, connection: ChannelConnection, locator:
+      Dict[str, Any], content: List[Dict[str, Any]], idempotency_key: UUID)
+      -> Dict[str, Any]`.
+- [x] `edit_message(self, *, connection: ChannelConnection, external_locator:
+      Dict[str, Any], content: List[Dict[str, Any]], idempotency_key: UUID)
+      -> Dict[str, Any]`.
+- [x] Test: every method is `@abstractmethod`; instantiating
+      `ChannelAdapterInterface()` raises `TypeError`; a subclass missing one
+      method also raises `TypeError`.
+      (`test_channel_adapter_interface.py`,
+      `test_channels_seed.py::test_ports_are_abstract`.)
+- [x] Test: every method's parameters after `self` are keyword-only
+      (AST-based check, not a naive grep — see
+      `test_channel_adapter_interface.py::test_every_method_parameter_after_self_is_keyword_only`).
 
 ## registry
 
-- [ ] `core/channels/adapters/registry.py`: `ChannelAdapterRegistry.__init__(self,
-      *, adapters: Dict[str, ChannelAdapterInterface])`.
-- [ ] Implement `.get(channel: str) -> ChannelAdapterInterface`, raising
-      WP1's `ChannelNotSupported(channel=channel)` on miss — import it from
-      `core.channels.types`, do not redefine it.
-- [ ] Implement `.keys() -> List[str]` and `.items() ->
-      ItemsView[str, ChannelAdapterInterface]`, mirroring
-      `TriggersGatewayRegistry` exactly.
-- [ ] Test: `.get` on a registered key returns the same instance passed to
-      `__init__`; `.get` on an unregistered key raises `ChannelNotSupported`
-      (assert the exception type, not just that something raised).
+- [x] `core/channels/adapters/registry.py`:
+      `ChannelAdapterRegistry.__init__(self, *, adapters: Dict[str,
+      ChannelAdapterInterface])`.
+- [x] `.get(channel: str) -> ChannelAdapterInterface`, raising WP1's
+      `ChannelNotSupported(channel=channel)` on miss, imported from
+      `core.channels.types`.
+- [x] `.keys() -> List[str]` and `.items() -> ItemsView[str,
+      ChannelAdapterInterface]`, mirroring `TriggersGatewayRegistry`.
+- [x] Test: `.get` on a registered key returns the same instance; `.get` on
+      an unregistered key raises `ChannelNotSupported` (type asserted).
+      (`test_channel_adapter_registry.py`.)
 
 ## normalise
 
-- [ ] `core/channels/adapters/normalise.py`: implement
+- [x] `core/channels/adapters/normalise.py`:
       `normalise_capabilities(raw: Dict[str, Any]) -> ChannelCapabilities`.
-- [ ] Zero-clamping: `buttons.max == 0` (or any declared numeric ceiling at
-      `0`) is replaced with a sane non-zero default before validation.
-- [ ] Absurd-value clamping: pick and document a ceiling for `max_chars` and
-      `max_bytes` (e.g. cap at a fixed sane maximum); values above it are
-      clamped, not rejected.
-- [ ] Unknown-key dropping: strip any top-level or nested key not present in
-      the `ChannelCapabilities` schema before validating, rather than letting
-      `model_validate` raise on extras (configure the models with
-      `model_config = ConfigDict(extra="ignore")` or filter explicitly —
-      pick one approach and apply it consistently across every nested model).
-- [ ] Missing-block defaulting: a raw payload omitting an entire optional
-      block (e.g. no `identity` key) still normalises to a valid
-      `ChannelCapabilities` via each block's own field defaults.
-- [ ] `identity.keys` passes through unchanged — it is data the
-      declaration commits to, not a block normalisation may clamp, reorder,
-      or drop entries from; an adapter declaring `"thread": []` must survive
-      normalisation as `[]`, never defaulted to a non-empty list.
-- [ ] Test: `buttons.max: 0` in, non-zero default out.
-- [ ] Test: `max_chars: 999999999` in, clamped value out (assert the exact
-      ceiling chosen).
-- [ ] Test: an extra unrecognised key at the top level and one nested inside
-      `rendering` are both silently dropped; the resulting object has no
-      trace of them (`model_dump()` does not include them).
-- [ ] Test: a payload missing the entire `identity` block still validates.
-- [ ] Test: normalisation is called with the exact JSON from `contract.md`
-      §4's `bridge.hello` example and produces the same `ChannelCapabilities`
-      shape as normalising a hypothetical in-process adapter's raw dict with
-      equivalent content — same function, same output shape, regardless of
-      source.
-- [ ] Test: `identity.keys` with `"thread": []` normalises to `[]`
-      unchanged (not defaulted to a non-empty list by the missing-block or
-      zero-clamping paths above — `[]` is a meaningful declared value here,
-      not an absent one).
+- [x] Zero-clamping: `buttons.max`, `text.max_chars`, `files.*.max_bytes` at
+      `0` (or negative) become sane non-zero defaults before validation.
+- [x] Absurd-value clamping: ceilings chosen and documented in
+      `normalise.py` — `buttons.max` capped at 100, `text.max_chars` at
+      40000 (Slack's own documented total-message ceiling, `channels.md`
+      §Slack), `files.*.max_bytes` at 10 GiB.
+- [x] Unknown-key dropping: no explicit filter needed — every
+      `ChannelCapabilities` nested model already gets pydantic's default
+      `extra="ignore"` behaviour, verified directly rather than assumed
+      (`test_channel_normalise.py::test_unknown_top_level_and_nested_keys_are_dropped`).
+- [x] Missing-block defaulting: a payload omitting `identity` entirely still
+      normalises via field defaults.
+- [x] `identity.keys` passes through unchanged, including `"thread": []`.
+- [x] Test: `buttons.max: 0` in, non-zero default out.
+- [x] Test: `max_chars: 999999999` in, clamped value out (exact ceiling
+      asserted).
+- [x] Test: unrecognised top-level and nested (`rendering`) keys dropped,
+      absent from `model_dump()`.
+- [x] Test: payload missing `identity` block still validates.
+- [x] Test: `contract.md` §4's `bridge.hello` example produces the same
+      shape as an equivalent in-process raw dict.
+- [x] Test: `identity.keys["thread"] == []` normalises to `[]` unchanged.
 
 ## contract suite
 
-- [ ] `api/oss/tests/pytest/unit/channels/contract/fakes.py`: implement
-      `WellBehavedFakeAdapter(ChannelAdapterInterface)` — an in-memory
-      adapter that actually tracks posted/edited messages (a dict keyed by a
-      fake locator), actually enforces its own declared `buttons.max` by
-      truncating/rejecting extra buttons, and actually edits in place when
-      `edit_message` is called with a locator it already holds. Declares
-      `identity.keys = {"space": ["team", "channel"], "thread":
-      ["team", "channel", "thread_ts"]}` and ships at least two fixture
-      thread locators that share `team`/`channel` but differ in `thread_ts`,
-      plus one locator missing a declared field, for the identity suite
-      assertions below.
-- [ ] Implement `LyingFakeAdapter(ChannelAdapterInterface)` — declares
-      `rendering.controls.update: true` but `edit_message` always creates a
-      new locator instead of reusing the given one (the silent-no-op failure
-      mode named in `capabilities.md` §5).
-- [ ] Implement a second lying variant (or a constructor flag on the same
-      class) that declares `rendering.buttons.max: 5` but accepts and returns
-      success for a 6-button `post_message` call without truncating.
-- [ ] Implement a third lying variant that declares
-      `identity.keys["thread"] = ["team", "channel"]` (omitting
-      `thread_ts`) against fixture locators that actually vary only in
-      `thread_ts` — the too-small-field-set case (`capabilities.md` §3,
-      `entities.md` §2.2's "worse than a wrong key" failure).
-- [ ] `test_channel_adapter_contract.py`: write a pytest fixture/parametrize
-      hook that takes an adapter instance and runs the full suite below
-      against it — this is what WP6/WP11/WP12 later reuse, so keep the entry
-      point a plain function taking `adapter: ChannelAdapterInterface`, not a
-      fixture tied to this file's own test classes only.
-- [ ] Suite assertion: if `capabilities.rendering.controls.update is True`,
-      call `post_message` then `edit_message` with the returned locator, and
-      assert the second call's resulting locator equals the first's (same
-      message, edited — not a new one).
-- [ ] Suite assertion: if `capabilities.rendering.buttons.supported is True`,
-      construct content with `buttons.max + 1` buttons and assert the
-      adapter either rejects the call or truncates to `buttons.max` — never
-      silently accepts more.
-- [ ] Suite assertion: if `capabilities.fill.backfill.supported is True`,
-      call `fetch_history` and assert it returns a list (possibly empty) —
-      never raises `NotImplementedError`.
-- [ ] Suite assertion: if `capabilities.fill.backfill.supported is False`,
-      confirm the suite itself never calls `fetch_history` for this adapter
-      (documents D19's "declares unsupported, core never asks" as an
-      un-called path, not a passing call).
-- [ ] Suite assertion: `verify_signature` returns `False` (not raises) for a
-      body/headers pair with no valid signature.
-- [ ] Suite assertion: `parse_event` on a well-formed body returns a
-      `ChannelInboundEvent` with `addressed` set to a `bool` (never `None`).
-- [ ] Suite assertion (identity, distinctness): using the adapter's own two
-      thread fixture locators, call `compose_external_key(capabilities,
-      ChannelKeyGrain.THREAD, locator)` for each and assert the two resulting
-      keys are distinct. This is the flagship assertion —
-      `capabilities.md` §3: "Too few fields — two distinct threads composing
-      to one key... Worse than a wrong key, and the reason distinctness is
-      asserted rather than assumed."
-- [ ] Suite assertion (identity, canonicalisation): compose the same fixture
-      locator twice, once with its keys in declared order and once with them
-      shuffled, and assert the two `external_key`s are identical.
-- [ ] Suite assertion (identity, incompleteness): compose the adapter's
-      fixture locator that is missing a declared field and assert
-      `compose_external_key` raises `ChannelLocatorIncomplete` — never
-      returns a key computed over the remaining fields.
-- [ ] Suite assertion (identity, no-threads): if
-      `capabilities.identity.keys["thread"] == []`, assert
-      `compose_external_key(capabilities, ChannelKeyGrain.THREAD, locator)`
-      returns `None` for any locator, never raises.
-- [ ] Run the suite against `WellBehavedFakeAdapter`: every assertion passes.
-- [ ] Run the suite against `LyingFakeAdapter` (the edit-is-actually-a-new-post
-      variant): assert the suite raises an `AssertionError` whose message
-      names `controls.update` or `edit_message`.
-- [ ] Run the suite against the buttons-lying variant: assert the suite
-      raises an `AssertionError` whose message names `buttons.max`.
-- [ ] Run the suite against the too-small-`identity.keys`-lying variant: assert
-      the suite raises an `AssertionError` whose message names
-      `identity.keys`/`thread` and reports two locators colliding on one key —
-      this is the meta-proof that the suite catches the too-small-field-set
-      failure, not just the too-generous-declaration failures above.
-- [ ] These last three tests are themselves pytest tests that assert
-      `pytest.raises(AssertionError)` around invoking the suite — the meta-
-      test that proves the suite has teeth, per `plan.md`'s WP2 exit
-      condition.
+- [x] `fakes.py`: `WellBehavedFakeAdapter` — in-memory, tracks
+      posted/edited messages keyed by a fake locator, enforces its own
+      `buttons.max` (raises past the limit; the buttons-lying subclass is
+      what skips this check), edits in place given a known locator.
+      Declares `identity.keys = {"space": [...], "thread": ["team",
+      "channel", "thread_ts"]}`; ships `THREAD_LOCATOR_A`/`_B` (share
+      team/channel, differ in `thread_ts`) and
+      `THREAD_LOCATOR_INCOMPLETE` (missing `thread_ts`).
+- [x] `LyingEditAdapter` — declares `controls.update: true`,
+      `edit_message` always creates a new locator.
+- [x] `LyingButtonsAdapter` — declares `buttons.max: 5`
+      (inherited), accepts any number of buttons unchanged.
+- [x] `LyingIdentityKeysAdapter` — declares `identity.keys["thread"] =
+      ["team", "channel"]`, omitting `thread_ts`, against the same
+      `THREAD_LOCATOR_A`/`_B` fixtures that vary only in `thread_ts`.
+- [x] `test_channel_adapter_contract.py`: `run_contract_suite(adapter)` is a
+      plain async function, not a fixture — the entry point WP6/WP11/WP12
+      import and call directly against their own adapter instance.
+- [x] Suite assertion: `controls.update` → post then edit, assert the edited
+      locator equals the posted one.
+- [x] Suite assertion: `buttons.supported` → post `max + 1` buttons, assert
+      rejection or truncation. Truncation is checked via an explicit
+      optional test seam (`adapter.inspect_posted(locator)`) since the port
+      itself has no generic read-back of posted content — documented in
+      `_assert_buttons_max`'s comment; an adapter without the seam is held
+      only to "rejected or accepted", which is what the port can observe.
+- [x] Suite assertion: `fill.backfill.supported=True` → `fetch_history`
+      returns a list, never raises.
+- [x] Suite assertion: `fill.backfill.supported=False` → suite itself never
+      calls `fetch_history` (`test_suite_never_calls_fetch_history_when_backfill_unsupported`
+      proves the un-called path with a `fetch_history` that raises if hit).
+- [x] Suite assertion: `verify_signature` — corrected from this file's
+      stale `returns False` note to match `specs-wp2.md`/`entities.md`
+      §7.1: raises `ChannelSignatureInvalid` on a bad signature, returns a
+      non-empty `str` installation id on a good one. Both directions
+      asserted.
+- [x] Suite assertion: `parse_event` on a well-formed body returns
+      `ChannelInboundEvent` with `addressed: bool`, never `None`.
+- [x] Suite assertion (identity, distinctness) — the flagship assertion.
+- [x] Suite assertion (identity, canonicalisation).
+- [x] Suite assertion (identity, incompleteness).
+- [x] Suite assertion (identity, no-threads).
+- [x] Suite passes clean against `WellBehavedFakeAdapter`.
+- [x] Suite fails against `LyingEditAdapter`, message names `controls.update`
+      / `edit_message`.
+- [x] Suite fails against `LyingButtonsAdapter`, message names
+      `buttons.max`.
+- [x] Suite fails against `LyingIdentityKeysAdapter`, message names
+      `identity.keys`/`thread` and reports the collision.
+- [x] The three lying-adapter tests are themselves pytest tests wrapping
+      `run_contract_suite(...)` in `pytest.raises(AssertionError)` — the
+      meta-proof the suite has teeth.
 
 ## Definition of done
 
@@ -215,9 +189,17 @@ row and answers 202; an unsigned one is rejected; a redelivery of the same
 event writes no second row. Migration applies and downgrades. The contract
 suite fails a deliberately lying fake adapter."*
 
-WP2 is done when: a fake adapter can be registered in
-`ChannelAdapterRegistry`, its `fetch_capabilities` returns a validated
-`ChannelCapabilities`, and the contract suite in this package — run against a
-adapter that lies about one declared capability — fails with a message
-naming the lie, while the same suite run against a well-behaved fake passes
-cleanly.
+**WP2 is done.** A fake adapter registers in `ChannelAdapterRegistry`, its
+`fetch_capabilities` returns a validated `ChannelCapabilities`, and the
+contract suite — run against three differently-lying fakes — fails each
+with a message naming the lie, while the same suite run against the
+well-behaved fake passes cleanly. 34 tests green in
+`api/oss/tests/pytest/unit/channels/` (10 pre-existing seed tests +
+24 new), `ruff format`/`ruff check` clean across `api/`.
+
+One C0 shape correction was needed and is applied directly (not left as a
+flag-only note) per the task brief's instruction to propose and fix an
+unambiguous, doc-contradicting bug rather than silently reshape or ignore
+it: `ChannelConversation.units`/`default` used the wrong enum. See "C0
+correction" above and the report to the launching agent for the full
+rationale.
