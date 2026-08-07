@@ -24,13 +24,13 @@
  * Promoted from the design-mockups POC (`ProposalV2FormView.tsx`).
  */
 
-import {useCallback, useMemo, useState, type ReactNode} from "react"
+import {useCallback, useId, useMemo, useState, type ReactNode} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
+import {Button, Input, InputNumber, Switch} from "@agenta/ui/ui"
 import {MinusCircle, Plus} from "@phosphor-icons/react"
-import {Button as AntdButton, Input, InputNumber, Switch} from "antd"
 import {dump as yamlDump, load as yamlLoad} from "js-yaml"
 
 import {
@@ -186,6 +186,8 @@ interface FormFieldProps {
 
 function FormField({label, value, depth, editable, onChange, schema, headerRight}: FormFieldProps) {
     const kind = detectNestedKind(value)
+    // Names label-less leaf controls (the boolean Switch) from the field label (axe button-name).
+    const labelId = useId()
 
     // For string fields we manage a per-field view mode (Text / Markdown /
     // JSON / YAML). The view-type selector lives in the label row, on the
@@ -209,7 +211,9 @@ function FormField({label, value, depth, editable, onChange, schema, headerRight
                      *  Children must NOT visually outweigh their parent — the
                      *  parent's name + chip set the bar, the nested fields
                      *  use the same vocabulary. */}
-                    <label style={styles.fieldLabel}>{label}</label>
+                    <label id={labelId} style={styles.fieldLabel}>
+                        {label}
+                    </label>
                     <TypeChip variant={NESTED_KIND_CHIP[kind]} value={value} />
                 </div>
                 <div style={styles.labelRight}>
@@ -233,6 +237,7 @@ function FormField({label, value, depth, editable, onChange, schema, headerRight
                     onChange={onChange}
                     stringMode={stringMode}
                     schema={schema}
+                    labelId={labelId}
                 />
             </div>
         </div>
@@ -324,28 +329,24 @@ function ArrayBody({arr, depth, editable, onChange, schema}: ArrayBodyProps) {
                     // — not inset by the button. Arda QA 2026-06-02.
                     headerRight={
                         editable ? (
-                            <AntdButton
-                                type="text"
-                                size="small"
-                                icon={<MinusCircle size={14} />}
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
                                 aria-label={`Remove row ${idx}`}
                                 onClick={() => removeIndex(idx)}
                                 style={styles.arrayRowRemove}
-                            />
+                            >
+                                <MinusCircle size={14} />
+                            </Button>
                         ) : undefined
                     }
                 />
             ))}
             {editable ? (
-                <AntdButton
-                    type="dashed"
-                    size="small"
-                    icon={<Plus size={14} />}
-                    onClick={addRow}
-                    style={styles.arrayAddRow}
-                >
+                <Button variant="dashed" size="sm" onClick={addRow} style={styles.arrayAddRow}>
+                    <Plus size={14} />
                     Add row
-                </AntdButton>
+                </Button>
             ) : null}
         </div>
     )
@@ -360,6 +361,8 @@ interface FieldBodyProps {
     /** For strings only — the active view mode chosen via the labelRow dropdown. */
     stringMode?: ViewType
     schema?: unknown
+    /** Id of the field's label element — names label-less controls (the Switch). */
+    labelId?: string
 }
 
 function FieldBody({
@@ -370,6 +373,7 @@ function FieldBody({
     onChange,
     stringMode,
     schema,
+    labelId,
 }: FieldBodyProps): ReactNode {
     if (kind === "object") {
         return (
@@ -415,6 +419,9 @@ function FieldBody({
                 disabled={!editable}
                 onChange={(next) => onChange(next ?? 0)}
                 placeholder="Enter number value"
+                // Pre-migration the 13px rode root `fontSize` and the inner input inherited
+                // it; the @agenta/ui inner input pins its own ramp, so target it directly.
+                className="[&_input]:text-[13px]"
                 style={styles.numberInput}
             />
         )
@@ -424,14 +431,14 @@ function FieldBody({
             <Switch
                 checked={value as boolean}
                 disabled={!editable}
-                onChange={(next) => onChange(next)}
+                onCheckedChange={(next) => onChange(next)}
+                aria-labelledby={labelId}
             />
         )
     }
     if (kind === "null") {
         return (
             <Input
-                size="middle"
                 value=""
                 placeholder="null"
                 disabled={!editable}
@@ -659,7 +666,7 @@ const styles = {
         maxWidth: 480,
     },
     numberInput: {
-        fontSize: 13,
+        // 13px lives in the `[&_input]` className override; the wrapper only sizes.
         width: 240,
     },
     emptyHint: {

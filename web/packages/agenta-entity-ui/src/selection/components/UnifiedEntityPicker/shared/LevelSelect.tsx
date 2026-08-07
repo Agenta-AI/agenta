@@ -81,6 +81,10 @@ export function LevelSelect({
 }: LevelSelectProps) {
     const {config, items, query, effectiveId, isEnabled, setSelectedId, isAutoSelected} = level
 
+    // EntityPicker still speaks antd size names across its public API; HierarchyLevelSelect
+    // is on the shadcn scale. Map at this boundary rather than renaming the whole picker API.
+    const shadcnSize = ({small: "sm", middle: "default", large: "lg"} as const)[size]
+
     // Get label from config or capitalize type
     const label = config.label ?? config.type.charAt(0).toUpperCase() + config.type.slice(1)
 
@@ -137,7 +141,7 @@ export function LevelSelect({
             label={label}
             showLabel={showLabel}
             placeholder={placeholder}
-            size={size}
+            size={shadcnSize}
             disabled={disabled}
             isLoading={query.isPending}
             isError={query.isError}

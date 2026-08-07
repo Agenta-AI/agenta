@@ -8,16 +8,23 @@ import {
     type TriggerDeliveryRow,
 } from "@agenta/entities/gatewayTrigger"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {EnhancedModal, ModalContent} from "@agenta/ui"
+import {CopyButton, EnhancedModal, message, ModalContent} from "@agenta/ui"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     useTableManager,
 } from "@agenta/ui/table"
+import {
+    Badge,
+    EmptyState,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {Code, Play, TreeView} from "@phosphor-icons/react"
-import {Drawer, Empty, Tag, Tooltip, Typography, message} from "antd"
-import type {ColumnsType} from "antd/es/table"
 import {useAtom, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -31,7 +38,8 @@ import {getDefaultStore} from "jotai/vanilla"
 // delivery into the playground or inspect its full payload.
 // ---------------------------------------------------------------------------
 
-function statusColor(type?: string | null): string {
+// antd Tag `color` presets → Badge variants (same names).
+function statusColor(type?: string | null): "green" | "red" | "blue" | "default" {
     switch ((type ?? "").toLowerCase()) {
         case "success":
         case "delivered":
@@ -107,7 +115,7 @@ export default function TriggerDeliveriesDrawer() {
         }
     }, [playgroundEntityId, state?.name, setPendingRun, setState])
 
-    const columns = useMemo<ColumnsType<TriggerDeliveryRow>>(
+    const columns = useMemo(
         () =>
             createStandardColumns<TriggerDeliveryRow>([
                 {
@@ -118,12 +126,19 @@ export default function TriggerDeliveriesDrawer() {
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
                         const type = record.status?.type ?? record.status?.code
+                        const badge = (
+                            <Badge variant={statusColor(record.status?.type)}>
+                                {type ?? "unknown"}
+                            </Badge>
+                        )
+                        if (!record.status?.message) return badge
                         return (
-                            <Tooltip title={record.status?.message ?? undefined}>
-                                <Tag color={statusColor(record.status?.type)}>
-                                    {type ?? "unknown"}
-                                </Tag>
-                            </Tooltip>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                                    <TooltipContent>{record.status.message}</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         )
                     },
                 },
@@ -134,14 +149,20 @@ export default function TriggerDeliveriesDrawer() {
                     width: 220,
                     render: (_value, record) => {
                         if (record.__isSkeleton) return null
+                        // Was antd Typography.Text copyable+ellipsis: truncated id + copy icon.
                         return (
-                            <Typography.Text
-                                className="!text-xs"
-                                copyable={{text: record.event_id}}
-                                ellipsis
-                            >
-                                {record.event_id}
-                            </Typography.Text>
+                            <span className="flex min-w-0 items-center gap-1">
+                                <span className="min-w-0 truncate text-xs">{record.event_id}</span>
+                                <CopyButton
+                                    text={record.event_id}
+                                    icon
+                                    buttonText=""
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    successMessage="Event ID copied"
+                                    stopPropagation
+                                />
+                            </span>
                         )
                     },
                 },
@@ -154,22 +175,19 @@ export default function TriggerDeliveriesDrawer() {
                         if (record.__isSkeleton) return null
                         if (record.data?.error) {
                             return (
-                                <Typography.Text
-                                    type="danger"
-                                    className="!text-xs whitespace-normal break-words"
-                                >
+                                <span className="whitespace-normal break-words text-xs text-[var(--ag-colorErrorText)]">
                                     {record.data.error}
-                                </Typography.Text>
+                                </span>
                             )
                         }
                         const result = record.data?.result
                         if (!result || Object.keys(result).length === 0) {
-                            return <Typography.Text type="secondary">-</Typography.Text>
+                            return <span className="text-[var(--ag-colorTextDescription)]">-</span>
                         }
                         return (
-                            <Typography.Text className="!text-xs whitespace-normal break-words">
+                            <span className="whitespace-normal break-words text-xs">
                                 {JSON.stringify(result)}
-                            </Typography.Text>
+                            </span>
                         )
                     },
                 },
@@ -182,9 +200,9 @@ export default function TriggerDeliveriesDrawer() {
                         if (record.__isSkeleton) return null
                         const ts = record.status?.timestamp ?? record.created_at
                         return (
-                            <Typography.Text className="!text-xs">
+                            <span className="text-xs">
                                 {ts ? new Date(ts).toLocaleString() : "-"}
-                            </Typography.Text>
+                            </span>
                         )
                     },
                 },
@@ -242,13 +260,13 @@ export default function TriggerDeliveriesDrawer() {
             ...(table.shellProps.tableProps ?? {}),
             size: "small" as const,
             bordered: true,
-            locale: {emptyText: <Empty description="No deliveries yet" />},
+            locale: {emptyText: <EmptyState description="No deliveries yet" />},
         }),
         [table.shellProps.tableProps],
     )
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={open}
             onClose={() => {
                 // This drawer stays mounted (atom-driven), so the payload-modal state
@@ -257,7 +275,8 @@ export default function TriggerDeliveriesDrawer() {
                 setState(null)
             }}
             title={`Deliveries${state?.name ? ` · ${state.name}` : ""}`}
-            size={820}
+            // Was antd `size={820}` (antd v6 treats a numeric size as the width).
+            width={820}
             destroyOnClose
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
@@ -292,6 +311,6 @@ export default function TriggerDeliveriesDrawer() {
                     </pre>
                 </ModalContent>
             </EnhancedModal>
-        </Drawer>
+        </EnhancedDrawer>
     )
 }

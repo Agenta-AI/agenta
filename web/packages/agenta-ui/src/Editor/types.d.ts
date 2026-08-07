@@ -78,6 +78,8 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     skipScroll?: boolean
     /** Use Lexical built-in CodeNode flow instead of custom CodeBlock/CodeLine nodes */
     useNativeCodeNodes?: boolean
+    /** Accessible name for the contenteditable (role=textbox) */
+    ariaLabel?: string
 }
 
 export interface EditorPluginsProps {
@@ -111,4 +113,6 @@ export interface EditorPluginsProps {
     useNativeCodeNodes?: boolean
     /** When true, skip interactive code editor plugins (diff mode) */
     isDiffView?: boolean
+    /** Accessible name for the contenteditable (role=textbox) */
+    ariaLabel?: string
 }

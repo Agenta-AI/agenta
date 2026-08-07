@@ -17,7 +17,7 @@ import {
 } from "@agenta/ui/components/selection"
 import {LoadAllButton, LoadMoreButton} from "@agenta/ui/components/selection"
 import {cn} from "@agenta/ui/styles"
-import {Button, Empty, Spin} from "antd"
+import {Button, EmptyState, Spinner} from "@agenta/ui/ui"
 import {ArrowLeft} from "lucide-react"
 
 import {useBreadcrumbMode} from "../../../hooks"
@@ -192,8 +192,8 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                     </div>
                 )}
                 <div className="flex items-center justify-center py-8">
-                    <Spin size="default" />
-                    <span className="ml-2 text-zinc-500">{displayLoadingMessage}</span>
+                    <Spinner size="default" />
+                    <span className="ml-2 text-colorTextSecondary">{displayLoadingMessage}</span>
                 </div>
             </div>
         )
@@ -203,7 +203,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
     if (error) {
         return (
             <div className={cn("flex flex-col", className)}>
-                <div className="flex items-center justify-center py-8 text-red-500">
+                <div className="flex items-center justify-center py-8 text-colorError">
                     Error: {error.message}
                 </div>
             </div>
@@ -218,12 +218,14 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                     <div className="min-w-0 flex-1 flex items-center gap-2">
                         {showBackButton && !isAtRoot && (
                             <Button
-                                type="text"
-                                size="small"
-                                icon={<ArrowLeft size={16} />}
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={navigateUp}
                                 disabled={disabled}
-                            />
+                            >
+                                <ArrowLeft size={16} />
+                            </Button>
                         )}
                         <div className="min-w-0 flex-1">
                             <EntityBreadcrumb
@@ -252,7 +254,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
             {/* Items list */}
             {items.length === 0 ? (
                 <div className="py-8">
-                    <Empty description={displayEmptyMessage} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                    <EmptyState description={displayEmptyMessage} image="simple" />
                 </div>
             ) : infiniteScroll ? (
                 // Virtual list for infinite scroll
@@ -267,8 +269,10 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
                     isFetchingMore={isFetchingNextPage}
                 />
             ) : (
-                // Regular list
+                // Regular list — listbox parent for the rows' role=option (axe aria-required-parent).
                 <div
+                    role="listbox"
+                    aria-label={currentLevelLabel}
                     className="overflow-auto"
                     style={{maxHeight: typeof maxHeight === "number" ? maxHeight : undefined}}
                 >
@@ -278,7 +282,7 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
 
             {/* Load more / Load all buttons */}
             {infiniteScroll && hasNextPage && (
-                <div className="flex items-center justify-center gap-2 py-2 border-t border-zinc-200 dark:border-zinc-700">
+                <div className="box-border flex items-center justify-center gap-2 border-0 border-t border-solid border-colorBorderSecondary py-2">
                     {loadMoreButton && (
                         <LoadMoreButton
                             onClick={fetchNextPage}
@@ -299,8 +303,8 @@ export function BreadcrumbVariant<TSelection = EntitySelectionResult>({
             {/* Loading more indicator */}
             {isFetchingNextPage && !loadMoreButton && (
                 <div className="flex items-center justify-center py-2">
-                    <Spin size="small" />
-                    <span className="ml-2 text-xs text-zinc-500">Loading more...</span>
+                    <Spinner size="small" />
+                    <span className="ml-2 text-xs text-colorTextSecondary">Loading more...</span>
                 </div>
             )}
         </div>

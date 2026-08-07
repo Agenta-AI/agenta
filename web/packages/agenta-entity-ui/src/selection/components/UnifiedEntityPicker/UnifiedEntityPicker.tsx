@@ -34,7 +34,6 @@ import {
     CascadingVariant,
     ListPopoverVariant,
     PopoverCascaderVariant,
-    TreeSelectVariant,
 } from "./variants"
 
 // ============================================================================
@@ -99,9 +98,6 @@ export function EntityPicker<TSelection = EntitySelectionResult>(
 
         case "list-popover":
             return <ListPopoverVariant {...props} />
-
-        case "tree-select":
-            return <TreeSelectVariant {...props} />
 
         case "popover-cascader":
             return <PopoverCascaderVariant {...props} />
