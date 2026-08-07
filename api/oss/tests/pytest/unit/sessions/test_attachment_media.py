@@ -2,7 +2,6 @@ from io import BytesIO
 from zipfile import ZipFile
 
 import pytest
-
 from oss.src.core.sessions.attachments.dtos import AttachmentKind
 from oss.src.core.sessions.attachments.media import classify
 from oss.src.core.sessions.attachments.types import AttachmentInvalid
@@ -45,19 +44,76 @@ def test_empty_or_unrecognizable_non_utf8_bytes_are_invalid(data):
         classify(data=data, declared_media_type="application/octet-stream")
 
 
-def test_recognized_zip_is_accepted_as_other():
+def _zip_bytes(*, files):
     buffer = BytesIO()
     with ZipFile(buffer, "w") as archive:
-        archive.writestr("file.txt", "hello")
+        for path, content in files:
+            archive.writestr(path, content)
+    return buffer.getvalue()
+
+
+def test_plain_zip_is_classified_as_zip():
+    data = _zip_bytes(files=[("file.txt", "hello")])
 
     result = classify(
-        data=buffer.getvalue(),
+        data=data,
         declared_media_type="application/zip",
     )
 
-    assert result.media_type.startswith("application/")
+    assert result.media_type == "application/zip"
     assert result.kind == AttachmentKind.OTHER
     assert result.native_image is False
+
+
+def test_plain_zip_structure_overrides_declared_docx_type():
+    result = classify(
+        data=_zip_bytes(files=[("notes.txt", "hello")]),
+        declared_media_type=(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
+    )
+
+    assert result.media_type == "application/zip"
+    assert result.kind == AttachmentKind.OTHER
+
+
+@pytest.mark.parametrize(
+    "declared_media_type",
+    [
+        "application/zip",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ],
+)
+def test_docx_structure_is_classified_as_docx(declared_media_type):
+    result = classify(
+        data=_zip_bytes(
+            files=[
+                ("[Content_Types].xml", "<Types />"),
+                ("word/document.xml", "<document />"),
+            ]
+        ),
+        declared_media_type=declared_media_type,
+    )
+
+    assert result.media_type == (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    assert result.kind == AttachmentKind.OTHER
+
+
+def test_malformed_zip_signature_keeps_inspected_type(monkeypatch):
+    monkeypatch.setattr(
+        "oss.src.core.sessions.attachments.media.puremagic.from_string",
+        lambda *_args, **_kwargs: "application/zip",
+    )
+
+    result = classify(
+        data=b"PK\x03\x04not-a-valid-archive",
+        declared_media_type="application/zip",
+    )
+
+    assert result.media_type == "application/zip"
+    assert result.kind == AttachmentKind.OTHER
 
 
 def test_svg_is_a_workspace_document_not_a_native_image():
