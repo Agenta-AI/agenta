@@ -106,7 +106,8 @@ const ENTITIES: SidebarEntity[] = [
         icon: createElement(RobotIcon, {size: 14}),
         listAtom: agentWorkflowsListQueryStateAtom,
         getLabel: (workflow) => workflow.name || workflow.slug || "Untitled agent",
-        childPath: (workflow) => `/apps/${workflow.id}/playground`,
+        // Agents land on their overview — the agent page is the surface, not the playground.
+        childPath: (workflow) => `/apps/${workflow.id}/overview`,
         emptyLabel: "No agents",
         showAllPath: "/agents",
     }),

@@ -3,8 +3,11 @@ import {useCallback, useDeferredValue, useEffect, useMemo, useState} from "react
 import {type SectionRailItem} from "@agenta/entity-ui"
 import {PageLayout} from "@agenta/ui"
 import {App, Input, Typography} from "antd"
+import {useAtomValue} from "jotai"
 import {Search} from "lucide-react"
 import {useRouter} from "next/router"
+
+import {urlAtom} from "@/oss/state/url"
 
 import {TEMPLATES_GALLERY} from "../../assets/constants"
 import {
@@ -30,6 +33,7 @@ const matchesQuery = (template: AgentTemplate, query: string) => {
 const TemplatesGalleryPage = () => {
     const router = useRouter()
     const {message} = App.useApp()
+    const {baseAppURL} = useAtomValue(urlAtom)
 
     const categories = useMemo(() => templateCategories(), [])
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)

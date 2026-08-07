@@ -20,7 +20,7 @@ export const deriveWorkflowCategory = (
     return "app"
 }
 
-const currentWorkflowAppTypeAtom = atom((get) => {
+export const currentWorkflowAppTypeAtom = atom((get) => {
     const {workflowId} = get(currentWorkflowContextAtom)
     return workflowId ? get(workflowAppTypeAtomFamily(workflowId)) : null
 })

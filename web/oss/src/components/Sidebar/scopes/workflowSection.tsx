@@ -9,7 +9,11 @@ import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 import SidebarRowSkeleton from "../engine/SidebarRowSkeleton"
 import type {SidebarSection, SidebarSlotContext} from "../engine/types"
 
-import {useWorkflowSidebarItems} from "./workflowItems"
+import {
+    currentWorkflowAppTypeAtom,
+    deriveWorkflowCategory,
+    useWorkflowSidebarItems,
+} from "./workflowItems"
 
 // Static (non-navigating) workflow name heading the section's items sit under.
 const WorkflowSectionLabel = ({collapsed}: SidebarSlotContext) => {
@@ -42,18 +46,26 @@ const WorkflowSectionLabel = ({collapsed}: SidebarSlotContext) => {
 }
 
 /**
- * The workflow section shown inside the main sidebar while on a workflow route:
- * a static name label followed by the category-filtered workflow items.
+ * The workflow section shown inside the main sidebar while on a non-agent
+ * workflow route: a static name label followed by the category-filtered items.
+ * Agents navigate through their own pages, so they get no section.
  */
 export const useWorkflowSidebarSection = (): SidebarSection | null => {
     const routeLayer = useAtomValue(routeLayerAtom)
+    const {workflowKind} = useAtomValue(currentWorkflowContextAtom)
+    const appType = useAtomValue(currentWorkflowAppTypeAtom)
     const items = useWorkflowSidebarItems()
 
     // Explicit route gate — don't rely on items happening to self-hide off app routes.
     const isWorkflowRoute = routeLayer === "app"
+    // Hidden until the kind resolves, so an agent route never flashes the section.
+    const categoryResolved = workflowKind !== null || appType === "agent"
+    const isAgent = deriveWorkflowCategory(workflowKind, appType) === "agent"
+
+    const showSection = isWorkflowRoute && categoryResolved && !isAgent
 
     return useMemo(
-        () => (isWorkflowRoute ? {key: "workflow", items, before: WorkflowSectionLabel} : null),
-        [isWorkflowRoute, items],
+        () => (showSection ? {key: "workflow", items, before: WorkflowSectionLabel} : null),
+        [showSection, items],
     )
 }
