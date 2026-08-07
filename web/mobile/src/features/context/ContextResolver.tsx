@@ -81,7 +81,7 @@ export const ContextResolver = () => {
                 </p>
                 <button
                     type="button"
-                    className="border-border rounded-md border px-3 py-2 text-xs"
+                    className="border-border min-h-11 rounded-md border px-3 py-2 text-xs"
                     onClick={() => void query.refetch()}
                 >
                     Retry
@@ -95,7 +95,7 @@ export const ContextResolver = () => {
             {body}
             {/* WP5 gate escape hatch: plain <a> (next/link would prefix /m) to a
                 desktop URL; ?view=desktop sets the agenta-mobile-optout cookie. */}
-            <footer className="pb-8 text-center">
+            <footer className="pb-[calc(2rem+env(safe-area-inset-bottom))] text-center">
                 <a
                     href="/w?view=desktop"
                     className="text-muted-foreground text-xs underline underline-offset-4"

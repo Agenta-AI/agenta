@@ -854,6 +854,7 @@ _interactions_broker = ProducerOnlyRedisStreamBroker(
 _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
+    records_service=records_service,
     dispatch_fn=_dispatch_detached_run,
 )
 
@@ -1098,6 +1099,7 @@ sessions = SessionsRouter(
     turns_service=session_turns_service,
     sessions_service=sessions_service,
     respond_task=_interactions_worker.respond_interaction,
+    interactions_dispatcher=_interactions_dispatcher,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------

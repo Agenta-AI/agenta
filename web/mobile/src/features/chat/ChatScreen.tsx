@@ -1,11 +1,20 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
-import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
+import {
+    buildTurnViewModels,
+    createExecutedToolIdentityCache,
+    getPendingApprovals,
+} from "@agenta/chat/model"
+
+import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
 import {ChatHeader} from "./ChatHeader"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
+import {StopButton} from "./StopButton"
 import {TurnRow} from "./TurnRow"
+import {useApprovalActions} from "./useApprovalActions"
 import {useSessionTranscript} from "./useSessionTranscript"
+import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
 
 /** Read-only replay screen — mount it with `key={sessionId}` so per-session state resets. */
 export const ChatScreen = ({
@@ -17,7 +26,20 @@ export const ChatScreen = ({
     projectId: string
     workspaceId: string
 }) => {
-    const {messages, state} = useSessionTranscript(sessionId)
+    // Tightened records cadence only while this foregrounded screen shows a running or pending
+    // turn; derived from the previous render's messages, so it settles one render behind.
+    const [pollMs, setPollMs] = useState(0)
+    const {messages, state} = useSessionTranscript(sessionId, pollMs)
+    const liveness = useLivenessPoll(projectId)
+    const running = Boolean(
+        liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
+    )
+    const pendingCount = useMemo(() => getPendingApprovals(messages).length, [messages])
+    const approvals = useApprovalActions({sessionId, projectId, pendingCount})
+    // ~4s while a fired decision settles (fire-and-forget — records carry the resume).
+    const nextPollMs =
+        approvals.phase === "resuming" ? 4_000 : pendingCount > 0 || running ? 7_500 : 0
+    if (nextPollMs !== pollMs) setPollMs(nextPollMs)
     // One identity cache per session mount (the screen is keyed by sessionId).
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
@@ -25,6 +47,8 @@ export const ChatScreen = ({
         () => buildTurnViewModels(messages, {busy: false, executedFor}),
         [messages, executedFor],
     )
+    // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
+    const autoScroll = useTranscriptAutoScroll(turns)
 
     let body
     if (state === "loading") {
@@ -33,20 +57,37 @@ export const ChatScreen = ({
         body = <ChatEmpty />
     } else {
         body = (
-            <div className="flex grow flex-col gap-3 p-4">
+            <div className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {turns
                     .filter((turn) => !turn.hidden)
                     .map((turn) => (
-                        <TurnRow key={turn.message.id} turn={turn} />
+                        <TurnRow
+                            key={turn.message.id}
+                            turn={turn}
+                            approvalActions={approvals}
+                            pendingApprovals={pendingCount}
+                        />
                     ))}
             </div>
         )
     }
 
     return (
-        <div className="bg-background text-foreground flex min-h-dvh flex-col">
+        <div className="bg-background text-foreground flex h-dvh flex-col">
             <ChatHeader sessionId={sessionId} projectId={projectId} workspaceId={workspaceId} />
-            {body}
+            {running ? (
+                <div className="border-border flex shrink-0 items-center justify-between border-b px-4 py-2">
+                    <span className="text-primary text-xs">A turn is running</span>
+                    <StopButton sessionId={sessionId} projectId={projectId} />
+                </div>
+            ) : null}
+            <div
+                ref={autoScroll.ref}
+                onScroll={autoScroll.onScroll}
+                className="flex flex-1 flex-col overflow-y-auto overscroll-contain"
+            >
+                {body}
+            </div>
         </div>
     )
 }

@@ -18,11 +18,11 @@ export const ChatHeader = ({
         staleTime: 30_000,
     })
     return (
-        <header className="border-border flex flex-col gap-1 border-b p-4">
+        <header className="border-border flex shrink-0 flex-col gap-1 border-b p-4">
             <div className="flex items-center gap-2">
                 <Link
                     href={`/w/${workspaceId}/p/${projectId}/sessions`}
-                    className="text-muted-foreground shrink-0 text-xs underline underline-offset-4"
+                    className="text-muted-foreground -m-3 shrink-0 p-3 text-xs underline underline-offset-4"
                 >
                     Back
                 </Link>

@@ -163,3 +163,54 @@ async def test_losing_responder_never_enqueues_when_cas_loses_first():
 
     assert exc_info.value.status_code == 409
     respond_task.kiq.assert_not_awaited()
+
+
+async def test_no_worker_fallback_routes_through_the_dispatcher():
+    """Without a respond_task the route must reuse the dispatcher (the one
+    answer-composition implementation), not the raw inline invoke."""
+    project_id = uuid4()
+    user_id = uuid4()
+    interaction_id = uuid4()
+
+    interaction = SessionInteraction(
+        id=interaction_id,
+        project_id=project_id,
+        session_id="sess-1",
+        token="tok-1",
+        kind=SessionInteractionKind.user_approval,
+        status=SessionInteractionStatus.pending,
+    )
+
+    service = _RacyInteractionsService(interaction=interaction)
+    workflows_service = AsyncMock()
+    dispatcher = AsyncMock()
+
+    router = InteractionsRouter(
+        interactions_service=service,
+        workflows_service=workflows_service,
+        respond_task=None,
+        interactions_dispatcher=dispatcher,
+    )
+
+    app = FastAPI()
+    request = _make_authed_request(app, project_id, user_id)
+    body = SessionInteractionRespondRequest(answer={"approved": True})
+
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        await router.respond_interaction(
+            request=request,
+            interaction_id=interaction_id,
+            body=body,
+        )
+
+    dispatcher.respond.assert_awaited_once_with(
+        project_id=project_id,
+        user_id=user_id,
+        interaction_id=interaction_id,
+        answer={"approved": True},
+    )
+    workflows_service.invoke_workflow.assert_not_awaited()

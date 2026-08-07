@@ -181,13 +181,24 @@ describe("readKeepaliveConfig", () => {
     }
   });
 
-  it("defaults: on, 60s idle, 5m approval, cap 8", () => {
+  it("defaults: on, 60s idle, 30m approval, cap 8", () => {
+    // The approval window is the pending-interaction park: 30 minutes so a phone-latency
+    // answer warm-resumes instead of cold-replaying (mobile approvals plan §4b-4).
     assert.deepEqual(readKeepaliveConfig("local"), {
       enabled: true,
       ttlMs: 60_000,
-      approvalTtlMs: 300_000,
+      approvalTtlMs: 1_800_000,
       poolMax: 8,
     });
+  });
+
+  it("approval TTL stays env-overridable, with invalid values falling back", () => {
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "300000";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 300_000);
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "0";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 1_800_000);
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "nope";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 1_800_000);
   });
 
   it("reads truthy spellings for the flag and positive ints for the numbers", () => {

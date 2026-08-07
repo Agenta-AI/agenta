@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {clearLastContext} from "@/lib/context"
 
@@ -6,6 +6,9 @@ import {classifyPageFailure} from "./pageFailure"
 import {SessionRow} from "./SessionRow"
 import {SessionSearchBar} from "./SessionSearchBar"
 import {SessionListEmpty, SessionListError, SessionListLoading} from "./states/SessionListStates"
+import {pendingCountBySession, useActionableInteractions} from "./useActionableInteractions"
+import {livenessBySession, useLivenessPoll} from "./useLivenessPoll"
+import {useSessionListScrollRestore} from "./useSessionListScrollRestore"
 import {useSessionsInfinite} from "./useSessionsInfinite"
 
 /** Sessions list: server-side search, id+activity cursor paging, archived rows hidden. */
@@ -24,6 +27,15 @@ export const SessionListScreen = ({
     }, [input])
 
     const query = useSessionsInfinite(projectId, search)
+    const scroll = useSessionListScrollRestore(projectId, !query.isPending)
+    const liveness = useLivenessPoll(projectId)
+    const liveBadges = useMemo(() => livenessBySession(liveness.data), [liveness.data])
+    const interactions = useActionableInteractions(projectId)
+    const pendingBySession = useMemo(
+        () => pendingCountBySession(interactions.data),
+        [interactions.data],
+    )
+    const pendingTotal = interactions.data?.length ?? 0
     const pages = query.data?.pages ?? []
     const {failed, laterPageFailed} = classifyPageFailure(pages, query.isError)
 
@@ -51,6 +63,10 @@ export const SessionListScreen = ({
                         key={session.id}
                         session={session}
                         href={`/w/${workspaceId}/p/${projectId}/sessions/${session.session_id}`}
+                        liveness={
+                            liveBadges ? (liveBadges.get(session.session_id) ?? null) : undefined
+                        }
+                        pendingApprovals={pendingBySession?.get(session.session_id) ?? 0}
                     />
                 ))}
                 {laterPageFailed || query.hasNextPage ? (
@@ -72,11 +88,22 @@ export const SessionListScreen = ({
     }
 
     return (
-        <div className="bg-background text-foreground flex min-h-dvh flex-col">
-            <div className="border-border border-b p-4">
+        <div className="bg-background text-foreground flex h-dvh flex-col">
+            <div className="border-border flex shrink-0 flex-col gap-2 border-b p-4">
                 <SessionSearchBar value={input} onChange={setInput} />
+                {pendingTotal > 0 ? (
+                    <p className="text-primary text-xs">
+                        {pendingTotal} approval{pendingTotal === 1 ? "" : "s"} pending
+                    </p>
+                ) : null}
             </div>
-            {body}
+            <div
+                ref={scroll.ref}
+                onScroll={scroll.onScroll}
+                className="flex flex-1 flex-col overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]"
+            >
+                {body}
+            </div>
         </div>
     )
 }

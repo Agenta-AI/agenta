@@ -159,6 +159,9 @@ class SessionInteractionsResponse(BaseModel):
 
 
 class SessionInteractionRespondRequest(BaseModel):
+    # For a user_approval interaction the answer is {approved: bool, tool_call_id?: str,
+    # message?: str} — the dispatcher composes the full resume conversation server-side
+    # (interactions_dispatcher.compose_approval_messages). Other kinds pass through as-is.
     answer: Optional[Dict[str, Any]] = None
 
 
