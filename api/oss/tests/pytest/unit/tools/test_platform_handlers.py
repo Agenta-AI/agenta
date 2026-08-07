@@ -63,17 +63,21 @@ class FakeWorkflowsService:
         request.data.revision = {"data": self.revision_data}
 
     async def _resolve_revision_delta(
-        self, *, project_id, workflow_revision_commit, scope_policy=None
+        self, *, project_id, workflow_revision_commit, scope_policy=None, preview=False
     ):
         self.delta_calls.append(
-            {"project_id": project_id, "commit": workflow_revision_commit}
+            {
+                "project_id": project_id,
+                "commit": workflow_revision_commit,
+                "preview": preview,
+            }
         )
-        # `_resolve_revision_delta` returns a DeltaResolution: the resolved commit plus
-        # the warnings and the changed flag the commit response carries.
+        # `_resolve_revision_delta` returns a DeltaResolution: the resolved commit, the
+        # head it was built on, and the warnings the commit response carries.
         return SimpleNamespace(
             commit=SimpleNamespace(data=WorkflowRevisionData(**self.delta_data)),
+            head=None,
             warnings=[],
-            changed=True,
         )
 
     async def _prepare_invoke(self, *, project_id, user_id, request):
@@ -350,6 +354,11 @@ async def test_test_run_applies_delta_in_memory(monkeypatch):
     assert result.verdict == "unconfirmed"
     assert workflows.ensure_calls
     assert workflows.delta_calls
+    # A test run stores nothing, so it carries no base revision id. It has to resolve as a
+    # preview, or an ordered delta could never be previewed: the commit path requires that
+    # id, and it is the precondition on a write.
+    assert workflows.delta_calls[0]["preview"] is True
+    assert workflows.delta_calls[0]["commit"].base_revision_id is None
     revision = http.calls[0]["json"]["data"]["revision"]["data"]
     assert revision["parameters"]["agent"]["model"] == "changed"
 

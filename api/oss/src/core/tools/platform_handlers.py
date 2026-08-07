@@ -222,6 +222,10 @@ async def _build_test_workflow_request(
                 workflow_variant_id=request.target.workflow_variant_id,
                 delta=request.delta,
             ),
+            # A test run applies the delta in memory and stores nothing, so it carries no
+            # base revision id. Without this an ordered delta could never be previewed:
+            # the commit path requires that id, and it exists to protect a write.
+            preview=True,
         )
         resolved = resolution.commit
         if resolved.data is None:
