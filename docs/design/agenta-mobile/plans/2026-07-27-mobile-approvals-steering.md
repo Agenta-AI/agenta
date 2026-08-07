@@ -335,3 +335,32 @@ Execution scope now: M0 + M1 (minus M1.5 steer) + TTL bump + M2.
 - **Records-poll cost:** the records query is the heavy one (~200KB on long sessions, backend
   noted slow). The M0.3/M1.3 tightened cadence must be foreground-only + only while
   running/pending; back off on `visibilitychange`.
+
+## 6. Tracked residual: parked-session lock ambiguity (found 2026-07-28)
+
+Live QA of approvals surfaced a dead liveness mirror in `SessionStreamsService.heartbeat`
+(fixed: b0281c5788, 6761727847, 2174162d80, 5d2ed61e9f, 076dc41b7e — see the memory entry
+for the full chain, incl. 1181 phantom `is_running` rows and a project sitting at 984/1000
+`CONCURRENCY_LIMIT`). Two defects the review chain caught before they could bite are fixed;
+ONE residual correctness gap remains and is **deliberately not hotfixed** because closing it
+needs a lock-contract change mirrored on the runner side:
+
+**The gap.** `alive` outlives its turn (`release_alive` has no callers) and a parked turn
+clears `running`, so the state "`alive` held by another turn + no `running`" is genuinely
+ambiguous between (a) a lapsed previous turn — the common case, which MUST be treated as a
+legitimate handover or every follow-up turn aborts — and (b) a live-but-parked or
+just-starting turn. We resolve it as (a). Consequence: a zombie beat from an older turn can
+take the nest of a session parked awaiting approval, and the user's approval resume then
+reports `is_current_turn=False` and aborts. Narrow today (`_start_turn` is off the product
+path; cross-container zombies are blocked by the non-stealing `claim_owner` affinity key),
+but real.
+
+**Fix options (pick when the send/steer path gets wired):** store `alive` as
+`{turn_id, state}` or add a sibling `parked:` key so a parked/starting holder is
+distinguishable from a lapsed one; or give `release_alive` an actual caller so `alive` stops
+outliving its turn (the root cause). Either way the runner's `startAliveWatchdog` must be
+updated in lockstep.
+
+**Also worth knowing:** `updated_at` is bumped by non-heartbeat writers (attach/detach,
+rename), so watcher churn can hold an orphan's sweep clock open — now a 30-minute window for
+alive-but-idle rows rather than 5.

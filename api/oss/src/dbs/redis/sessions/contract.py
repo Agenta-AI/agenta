@@ -10,6 +10,7 @@ Key namespace — every key is project-scoped:
   attached:<project_id>:session:<session_id>   — attach lock (client watching live view)
   owner:<project_id>:session:<session_id>      — which replica currently owns this session
   displaced:<project_id>:session:<session_id>  — pub/sub for attach-steal notifications
+  watch:<project_id>:session:<session_id>      — pub/sub for the live relay (SSE watch)
 
 `session_id` is caller-supplied and Postgres uniqueness is (project_id, session_id), so two
 projects may legitimately hold the same one. The `project_id` segment is the tenant boundary:
@@ -71,6 +72,44 @@ DISPLACEMENT_REASON_STOLEN = "stolen"
 
 def make_displacement_payload(*, by: str) -> dict:
     return {"reason": DISPLACEMENT_REASON_STOLEN, "by": by}
+
+
+# ---------------------------------------------------------------------------
+# Watch channel (M3 live relay) — change notifications, never record payloads.
+# Published on the DURABLE Redis plane (the SSE endpoint subscribes there via
+# get_streams_engine(); publisher and subscriber must share one plane — the
+# displaced channel above lives on the volatile plane instead).
+# Payload shapes:
+#   {"type": "records-changed", "session_id": s}
+#   {"type": "lifecycle",       "session_id": s, "state": "running"|"ended"}
+#   {"type": "interaction",     "session_id": s, "status": "pending"|"resolved"}
+# ---------------------------------------------------------------------------
+
+WATCH_EVENT_RECORDS_CHANGED = "records-changed"
+WATCH_EVENT_LIFECYCLE = "lifecycle"
+WATCH_EVENT_INTERACTION = "interaction"
+
+WATCH_LIFECYCLE_RUNNING = "running"
+WATCH_LIFECYCLE_ENDED = "ended"
+
+WATCH_INTERACTION_PENDING = "pending"
+WATCH_INTERACTION_RESOLVED = "resolved"
+
+
+def watch_channel(project_id: str, session_id: str) -> str:
+    return f"watch:{project_id}:session:{session_id}"
+
+
+def make_watch_records_changed_payload(*, session_id: str) -> dict:
+    return {"type": WATCH_EVENT_RECORDS_CHANGED, "session_id": session_id}
+
+
+def make_watch_lifecycle_payload(*, session_id: str, state: str) -> dict:
+    return {"type": WATCH_EVENT_LIFECYCLE, "session_id": session_id, "state": state}
+
+
+def make_watch_interaction_payload(*, session_id: str, status: str) -> dict:
+    return {"type": WATCH_EVENT_INTERACTION, "session_id": session_id, "status": status}
 
 
 # ---------------------------------------------------------------------------

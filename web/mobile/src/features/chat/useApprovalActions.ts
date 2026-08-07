@@ -9,6 +9,8 @@ import {
 } from "@agenta/chat/transport"
 import {queryInteractions} from "@agenta/entities/session"
 
+import {getAuthorizationHeader} from "@/lib/auth"
+
 import {stampApprovalResponses} from "./approvalStamp"
 
 export type ResumePhase = "idle" | "resuming" | "error"
@@ -133,18 +135,36 @@ export const useApprovalActions = ({
                     projectId,
                     applicationId: references.application?.id ?? undefined,
                 })
+                const authHeader = await getAuthorizationHeader()
                 const response = await fetch(request.invocationUrl, {
                     method: "POST",
-                    headers: {...request.headers, "Content-Type": "application/json"},
+                    headers: {
+                        ...request.headers,
+                        ...authHeader,
+                        "Content-Type": "application/json",
+                    },
                     body: JSON.stringify(request.requestBody),
                     credentials: "include",
                 })
                 if (!response.ok) {
                     throw new Error(`Resume failed (HTTP ${response.status}).`)
                 }
-                // Fire-and-forget: release the stream immediately — session runs survive
-                // client disconnect, and holding the SSE open for the whole turn is waste.
-                void response.body?.cancel().catch(() => undefined)
+                // Fire-and-forget, but NEVER cancel: cancelling the body aborts the request,
+                // and the agent service treats that disconnect as "stop" — the resumed run
+                // dies ~200ms in and the gate stays pending (observed live). Drain instead.
+                void (async () => {
+                    const reader = response.body?.getReader()
+                    if (!reader) return
+                    try {
+                        for (;;) {
+                            const {done} = await reader.read()
+                            if (done) return
+                        }
+                    } catch {
+                        // Connection dropped (screen locked, network change) — the run
+                        // continues server-side; records polling picks the result up.
+                    }
+                })()
             } catch (err) {
                 setPhase("error")
                 setErrorText(err instanceof Error ? err.message : "Resume failed.")

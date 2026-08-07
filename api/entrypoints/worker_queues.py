@@ -69,6 +69,7 @@ from oss.src.dbs.postgres.queries.dbes import (
 )
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
     get_transactions_engine,
@@ -218,7 +219,12 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
     workflows_service.embeds_service = embeds_service
     environments_service.embeds_service = embeds_service
 
-    interactions_service = SessionInteractionsService(interactions_dao=interactions_dao)
+    interactions_service = SessionInteractionsService(
+        interactions_dao=interactions_dao,
+        # M3 live relay: approval resolutions land here (worker process), so this
+        # composition publishes watch notifications too.
+        watch_publisher=SessionsWatchPublisher(),
+    )
     # Approval answers replay the session's durable records into the resume conversation;
     # records live on the analytics engine (same as the API composition in routers.py).
     records_service = RecordsService(

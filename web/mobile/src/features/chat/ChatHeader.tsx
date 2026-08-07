@@ -1,4 +1,4 @@
-import {fetchSessionStream} from "@agenta/entities/session"
+import {querySessionStreams} from "@agenta/entities/session"
 import {useQuery} from "@tanstack/react-query"
 import Link from "next/link"
 
@@ -11,9 +11,11 @@ export const ChatHeader = ({
     projectId: string
     workspaceId: string
 }) => {
+    // The singular GET /sessions/streams redirects with a root-path-less Location
+    // behind the /api prefix and lands on the web app — use the proven query POST.
     const query = useQuery({
         queryKey: ["mobile", "session-stream", projectId, sessionId],
-        queryFn: () => fetchSessionStream({sessionId, projectId}),
+        queryFn: async () => (await querySessionStreams({sessionId, projectId}))?.[0] ?? null,
         enabled: Boolean(projectId && sessionId),
         staleTime: 30_000,
     })

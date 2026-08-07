@@ -28,15 +28,20 @@ from fastapi import (
     Response,
     status,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 # FastAPI route params need fastapi.UploadFile; request.form() yields starlette's base class.
 from fastapi import UploadFile as FastAPIUploadFile
 from starlette.datastructures import UploadFile
 from typing import Any, Optional, Union
 
+from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
+
+from oss.src.dbs.redis.sessions.contract import watch_channel
+from oss.src.dbs.redis.shared.engine import get_streams_engine
+from oss.src.apis.fastapi.sessions.watch import watch_event_stream
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -335,6 +340,15 @@ class SessionStreamsRouter:
             tags=["Sessions"],
         )
 
+        self.router.add_api_route(
+            "/sessions/streams/watch",
+            self.watch_session_stream,
+            methods=["GET"],
+            operation_id="watch_session_stream",
+            tags=["Sessions"],
+            response_model=None,
+        )
+
     @intercept_exceptions()
     @_handle_session_exceptions()
     async def set_session_stream(
@@ -519,6 +533,65 @@ class SessionStreamsRouter:
             header=header,
         )
         return SessionStreamResponse(stream=stream)
+
+    @intercept_exceptions()
+    @_handle_session_exceptions()
+    async def watch_session_stream(
+        self,
+        request: Request,
+        session_id: str = Query(...),
+    ) -> StreamingResponse:
+        """Server-sent events relay for one session (M3 live relay).
+
+        Emits change notifications only — never record payloads; clients
+        revalidate through the regular query endpoints on each event:
+
+        - ``event: records-changed`` — ``{"session_id"}``; new/updated rows
+          landed in the record log (published post-DB-commit).
+        - ``event: lifecycle`` — ``{"session_id", "state": "running"|"ended"}``.
+        - ``event: interaction`` — ``{"session_id", "status": "pending"|"resolved"}``.
+        - ``: heartbeat`` comment frames while idle (keep-alive).
+
+        Auth is the standard middleware (cookie ``sAccessToken``, ApiKey, or
+        Bearer) evaluated once at connect; scope is the credential's project.
+        The stream has no replay/cursor semantics — ``EventSource`` reconnects
+        and clients revalidate once on every ``open``, which covers any missed
+        notifications.
+
+        NOTE (spec surface): this route appears in OpenAPI for documentation,
+        but Fern does not model SSE — consume it with a native ``EventSource``
+        (same-origin ``/api`` + cookie auth needs no custom headers), not the
+        generated client.
+        """
+        _validate_session_id_http(session_id)
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        stream = watch_event_stream(
+            channel=watch_channel(str(project_id), session_id),
+            # One pubsub connection per SSE connection (v1 — simplest correct
+            # teardown story; revisit with a shared listener if counts grow).
+            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                # Disable proxy buffering so frames flush immediately.
+                "X-Accel-Buffering": "no",
+            },
+        )
 
 
 class RecordsRouter:

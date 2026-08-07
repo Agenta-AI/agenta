@@ -33,8 +33,9 @@ export const SessionRow = ({
 }) => {
     const agentLabel = session.references?.[0]?.slug ?? session.references?.[0]?.id ?? "—"
     const activity = timeAgo(session.updated_at ?? session.created_at)
-    const badge =
-        liveness === undefined ? (session.flags?.is_alive ? "alive" : null) : (liveness ?? null)
+    // Row flags are a lagging mirror of the Redis nest and go stale (rows sit at
+    // is_running=true for days after a crashed run) — only the live poll may badge.
+    const badge = liveness ?? null
     return (
         <Link href={href} className="border-border flex flex-col gap-0.5 border-b px-4 py-3">
             <span className="text-xs font-medium">

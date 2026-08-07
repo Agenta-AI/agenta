@@ -5,6 +5,7 @@ from redis.asyncio import Redis
 
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.streaming import deserialize_record
+from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
@@ -45,6 +46,7 @@ class RecordsWorker(StreamConsumer):
         max_block_ms: int = 5000,
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
+        watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -57,6 +59,7 @@ class RecordsWorker(StreamConsumer):
             max_batch_mb=max_batch_mb,
         )
         self.service = service
+        self.watch_publisher = watch_publisher
 
     async def process_batch(
         self,
@@ -156,5 +159,27 @@ class RecordsWorker(StreamConsumer):
                     project_id=str(project_batch["project_id"]),
                     exc_info=True,
                 )
+                continue
+
+            # Relay tee (M3): strictly post-append so a notified client that
+            # revalidates always sees the new rows. One publish per distinct
+            # session in the project batch; failures never re-drive the append.
+            if self.watch_publisher is not None:
+                project_id = str(project_batch["project_id"])
+                session_ids = {
+                    msg.record_event.session_id for msg in project_batch["events"]
+                }
+                for session_id in sorted(session_ids):
+                    try:
+                        await self.watch_publisher.records_changed(
+                            project_id=project_id,
+                            session_id=session_id,
+                        )
+                    except Exception:
+                        log.warning(
+                            "[RECORDS] Watch publish failed",
+                            project_id=project_id,
+                            session_id=session_id,
+                        )
 
         return total_appended, processed_ids

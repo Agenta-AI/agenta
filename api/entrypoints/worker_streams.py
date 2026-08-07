@@ -32,6 +32,7 @@ from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
+from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.tasks.asyncio.events.worker import EventsWorker
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
@@ -83,6 +84,9 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
         redis_client=redis_client,
         stream_name="streams:records",
         consumer_group="worker-records",
+        # M3 live relay: post-append change notifications on the durable plane,
+        # reusing this process's durable connection.
+        watch_publisher=SessionsWatchPublisher(redis_client=redis_client),
     )
 
 
