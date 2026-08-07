@@ -82,6 +82,41 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
+    web-mobile:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-web
+        # === IMAGE ================================================ #
+        image: agenta-ee-dev-web:latest
+        # === EXECUTION ============================================ #
+        command: sh -c "pnpm dev-mobile"
+        # === STORAGE ============================================== #
+        volumes:
+            - ../../../web/mobile/src:/app/mobile/src
+            - ../../../web/mobile/public:/app/mobile/public
+            - nextjs-mobile-cache:/app/mobile/.next/cache
+            - turbo-mobile-cache:/app/.turbo
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        environment:
+            DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            WATCHPACK_POLLING: "true"
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # === LABELS =============================================== #
+        # Path(`/m`) || PathPrefix(`/m/`), not PathPrefix(`/m`): the bare prefix is
+        # greedy and would also swallow /mfoo from the web catch-all PathPrefix(`/`).
+        # Still auto-wins over that catch-all by rule length; no stripprefix — the app
+        # is built with basePath /m.
+        labels:
+            - "traefik.http.routers.agenta-web-mobile.rule=Path(`/m`) || PathPrefix(`/m/`)"
+            - "traefik.http.routers.agenta-web-mobile.entrypoints=web"
+            - "traefik.http.services.agenta-web-mobile.loadbalancer.server.port=3000"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
     api:
         # === IMAGE ================================================ #
         image: agenta-ee-dev-api:latest
@@ -793,3 +828,5 @@ volumes:
     nextjs-ee-cache:
     nextjs-oss-cache:
     turbo-ee-cache:
+    nextjs-mobile-cache:
+    turbo-mobile-cache:
