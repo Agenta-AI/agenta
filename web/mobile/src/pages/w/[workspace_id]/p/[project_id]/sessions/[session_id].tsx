@@ -1,4 +1,3 @@
-import Head from "next/head"
 import {useRouter} from "next/router"
 
 import {ChatScreen} from "@/features/chat/ChatScreen"
@@ -14,16 +13,11 @@ export default function SessionPage() {
         return null
     }
     return (
-        <>
-            <Head>
-                <title>Session</title>
-            </Head>
-            <ChatScreen
-                key={sessionId}
-                sessionId={sessionId}
-                projectId={projectId}
-                workspaceId={workspaceId}
-            />
-        </>
+        <ChatScreen
+            key={sessionId}
+            sessionId={sessionId}
+            projectId={projectId}
+            workspaceId={workspaceId}
+        />
     )
 }

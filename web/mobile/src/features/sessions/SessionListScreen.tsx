@@ -1,13 +1,27 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {FilterChip} from "@/components/FilterChip"
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {clearLastContext} from "@/lib/context"
 
+import {ProjectSwitcher} from "../context/ProjectSwitcher"
+import {useCurrentProject} from "../context/useCurrentProject"
+
+import {mergeSessionRows} from "./mergeSessionRows"
 import {classifyPageFailure} from "./pageFailure"
+import {filterPendingRows} from "./pendingFilter"
 import {SessionRow} from "./SessionRow"
 import {SessionSearchBar} from "./SessionSearchBar"
-import {SessionListEmpty, SessionListError, SessionListLoading} from "./states/SessionListStates"
+import {
+    SessionListEmpty,
+    SessionListError,
+    SessionListLoading,
+    SessionListPendingEmpty,
+} from "./states/SessionListStates"
 import {pendingCountBySession, useActionableInteractions} from "./useActionableInteractions"
 import {livenessBySession, useLivenessPoll} from "./useLivenessPoll"
+import {useSessionListHead} from "./useSessionListHead"
 import {useSessionListScrollRestore} from "./useSessionListScrollRestore"
 import {useSessionsInfinite} from "./useSessionsInfinite"
 
@@ -19,6 +33,7 @@ export const SessionListScreen = ({
     workspaceId: string
     projectId: string
 }) => {
+    const [onlyPending, setOnlyPending] = useState(false)
     const [input, setInput] = useState("")
     const [search, setSearch] = useState("")
     useEffect(() => {
@@ -26,7 +41,11 @@ export const SessionListScreen = ({
         return () => clearTimeout(handle)
     }, [input])
 
+    const project = useCurrentProject(workspaceId, projectId)
     const query = useSessionsInfinite(projectId, search)
+    // Bounded liveness for the list itself: newest page only, so a session created elsewhere
+    // shows up without a manual refresh (see useSessionListHead).
+    const head = useSessionListHead(projectId, search)
     const scroll = useSessionListScrollRestore(projectId, !query.isPending)
     const liveness = useLivenessPoll(projectId)
     const liveBadges = useMemo(() => livenessBySession(liveness.data), [liveness.data])
@@ -35,7 +54,8 @@ export const SessionListScreen = ({
         () => pendingCountBySession(interactions.data),
         [interactions.data],
     )
-    const pendingTotal = interactions.data?.length ?? 0
+    // Sessions, not interactions: the filter shows rows, and one session can hold several gates.
+    const waitingSessions = pendingBySession?.size ?? 0
     const pages = query.data?.pages ?? []
     const {failed, laterPageFailed} = classifyPageFailure(pages, query.isError)
 
@@ -46,7 +66,24 @@ export const SessionListScreen = ({
     useEffect(() => {
         if (failed) clearLastContext()
     }, [failed])
-    const rows = pages.flatMap((page) => page ?? []).filter((session) => !session.archived_at)
+    const merged = useMemo(
+        () =>
+            mergeSessionRows(
+                head.data ?? [],
+                (query.data?.pages ?? []).flatMap((page) => page ?? []),
+            ),
+        [head.data, query.data],
+    )
+    const pending = useMemo(
+        () => filterPendingRows(merged, pendingBySession, Boolean(search)),
+        [merged, pendingBySession, search],
+    )
+    const rows = onlyPending ? pending.rows : merged
+
+    // Answering the last gate must not strand the user on an empty filtered list.
+    useEffect(() => {
+        if (onlyPending && waitingSessions === 0) setOnlyPending(false)
+    }, [onlyPending, waitingSessions])
 
     let body
     if (query.isPending) {
@@ -54,10 +91,27 @@ export const SessionListScreen = ({
     } else if (failed) {
         body = <SessionListError onRetry={() => void query.refetch()} />
     } else if (rows.length === 0) {
-        body = <SessionListEmpty />
+        // Filtered-empty is not the same as project-empty: the waiting sessions are real, just
+        // deeper than the pages fetched so far.
+        body = onlyPending ? (
+            <SessionListPendingEmpty
+                unloaded={pending.unloaded}
+                searching={Boolean(search)}
+                canLoadMore={Boolean(query.hasNextPage)}
+                loading={query.isFetchingNextPage}
+                onLoadMore={() => void query.fetchNextPage()}
+            />
+        ) : (
+            <SessionListEmpty />
+        )
     } else {
         body = (
             <div className="flex flex-col">
+                {onlyPending && pending.unloaded > 0 ? (
+                    <p className="text-muted-foreground border-border border-b px-4 py-2 text-xs">
+                        {pending.unloaded} more further down the list, not loaded yet.
+                    </p>
+                ) : null}
                 {rows.map((session) => (
                     <SessionRow
                         key={session.id}
@@ -88,22 +142,37 @@ export const SessionListScreen = ({
     }
 
     return (
-        <div className="bg-background text-foreground flex h-dvh flex-col">
-            <div className="border-border flex shrink-0 flex-col gap-2 border-b p-4">
-                <SessionSearchBar value={input} onChange={setInput} />
-                {pendingTotal > 0 ? (
-                    <p className="text-primary text-xs">
-                        {pendingTotal} approval{pendingTotal === 1 ? "" : "s"} pending
-                    </p>
-                ) : null}
-            </div>
-            <div
-                ref={scroll.ref}
+        <>
+            <PageTitle parts={["Sessions", project?.project_name]} />
+            <ScreenScaffold
+                scrollRef={scroll.ref}
                 onScroll={scroll.onScroll}
-                className="flex flex-1 flex-col overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]"
+                header={
+                    <div className="border-border flex shrink-0 flex-col gap-2 border-b px-4 pt-2 pb-3">
+                        <ProjectSwitcher workspaceId={workspaceId} projectId={projectId} />
+                        {/* Search and filter share a row: both narrow the same list, and three
+                        stacked full-width rows cost most of a phone's first screen. */}
+                        <div className="flex items-center gap-2">
+                            <SessionSearchBar value={input} onChange={setInput} />
+                            {waitingSessions > 0 ? (
+                                <FilterChip
+                                    active={onlyPending}
+                                    onToggle={() => setOnlyPending((on) => !on)}
+                                    label={
+                                        onlyPending
+                                            ? "Show all sessions"
+                                            : `Show only the ${waitingSessions} session${waitingSessions === 1 ? "" : "s"} waiting on you`
+                                    }
+                                >
+                                    {waitingSessions} waiting
+                                </FilterChip>
+                            ) : null}
+                        </div>
+                    </div>
+                }
             >
                 {body}
-            </div>
-        </div>
+            </ScreenScaffold>
+        </>
     )
 }

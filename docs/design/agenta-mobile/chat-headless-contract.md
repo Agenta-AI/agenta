@@ -83,7 +83,7 @@ useAgentConversation({entityId, sessionId}): {
 useTurnRenderModel(message, ctx): RenderItem[]        // lifted from AgentMessage.tsx:329-416
 useComposerAttachments({sessionId, limits}): {files, rejections, add, remove, clear, atMax, toParts}
 useSessionHydration({sessionId})
-useApprovalDock({messages, onRespond}): {current, count, respond, approveAll, renderer}
+useApprovalDock({messages, respond}): {open, current, count, responding, respond, approveAll}
 useClientToolDispatch()
 useAgentChatQueue(...)            // exists — moves in
 useAgentModelKeyStatus(...)       // exists — moves in

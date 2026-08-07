@@ -33,4 +33,18 @@ describe("classifyPageFailure", () => {
             laterPageFailed: false,
         })
     })
+
+    // The shape a REJECTED later page produces: the failed page never lands in `pages`, so the
+    // only evidence is `isError` alongside rows that are already on screen. Reading that as a
+    // whole-list failure would throw away everything the reader scrolled through.
+    it("keeps the list when a later page rejected instead of resolving null", () => {
+        expect(classifyPageFailure([[{id: "a"}], [{id: "b"}]], true)).toEqual({
+            failed: false,
+            laterPageFailed: true,
+        })
+    })
+
+    it("still reports a whole-list failure when the error arrived with no rows", () => {
+        expect(classifyPageFailure([], true)).toEqual({failed: true, laterPageFailed: false})
+    })
 })

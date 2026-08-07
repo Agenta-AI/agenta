@@ -89,8 +89,15 @@ scroll. `session_streams.updated_at` is heartbeat-fed last activity.
 """apply_windowing must support `updated_at` as the order/cursor attribute.
 
 The sessions list is ordered by last activity (`updated_at` is heartbeat-fed on
-session_streams). Both ORDER BY and the keyset cursor filters must ride updated_at —
-ordering by updated_at while cursor-filtering on another column paginates incorrectly.
+session_streams). Both ORDER BY and the keyset cursor filters must ride the SAME
+expression — ordering by one column while cursor-filtering on another paginates
+incorrectly.
+
+That expression is `coalesce(updated_at, created_at)`, not bare `updated_at`:
+`updated_at` is nullable, and a DESC sort puts NULLs first in Postgres, so a session
+that never got a heartbeat would sit above every active one. The full statement
+therefore mentions `created_at` by design — assert on the coalesced expression, not on
+the absence of that column.
 """
 
 from datetime import datetime, timezone
@@ -196,10 +203,12 @@ the references *filter*; extend it to hydrate.
 
 **Files**
 - Modify: `api/oss/src/core/sessions/service.py` (`query_sessions` — after fetching streams,
-  batch-fetch the latest turn per session via `SessionTurnsDAO` (one query,
-  `DISTINCT ON (session_id) ... ORDER BY session_id, turn_index DESC` or the DAO's existing
-  latest-turn helper from the turn-index fix `9613e7964e`) and attach `references` (+
-  `trace_id` if cheap) to each row)
+  batch-fetch the latest turn per session via `SessionTurnsDAO` and attach `references` (+
+  `trace_id` if cheap) to each row). This needs a NEW batch helper —
+  `latest_turn_per_session(session_ids)`, one `DISTINCT ON (session_id) ... ORDER BY
+  session_id, turn_index DESC` query. The existing latest-turn helper from the turn-index fix
+  `9613e7964e` takes a single session and would make `/sessions/query` an N+1 path; do not use
+  it here. Keep the one-call assertion in the service test.
 - Modify: response model — either add `references`/`latest_turn` to the session row model the
   root query returns, or wrap rows in an enriched envelope; follow whichever the track's
   maintainer style suggests (read `SessionsResponse` in `api/oss/src/apis/fastapi/sessions/models.py` first)

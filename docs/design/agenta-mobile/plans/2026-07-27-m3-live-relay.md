@@ -91,8 +91,17 @@ through the existing (IDB-persisted, deduped) query.
   ApiKey, AND the `sAccessToken` cookie (auth.py:290), and sets
   `request.state.{user_id,project_id}` once at request start — the SSE handler then does the
   same `check_action_access(VIEW_SESSIONS)` as `query_records` (router.py:475-480). Auth is
-  evaluated once at connect; scope holds for the connection's lifetime (standard SSE; cap the
-  connection age server-side if that ever matters).
+  evaluated once at connect; scope holds for the connection's lifetime. That is a real
+  window: revoking a user's `VIEW_SESSIONS` does not close streams they already hold, so
+  they keep receiving change notifications (never payloads — see the wire contract) until
+  they reconnect. **Not bounded as shipped** — there is no maximum stream age today
+  (`env.sessions` carries only `watch_heartbeat_seconds` and `watch_retry_milliseconds`).
+  Accepted for M3 because the stream carries no payloads, only "something changed" for a session
+  the client was already authorized to read, and every revalidation it triggers is a normal
+  authorized request that fails on its own once access is gone. The fix when that is not enough:
+  close the response after a configured max age and let `EventSource` reconnect, which re-runs
+  auth and `check_action_access`. Cheaper than re-checking mid-stream and gives the same upper
+  bound on staleness.
 - Proxy path: Traefik routes `/api` → api:8000 with a strip-prefix middleware only
   (`hosting/docker-compose/oss/docker-compose.dev.yml:188-194`); no custom responding
   timeouts configured. Heartbeats every ~15s keep any idle timeout (Traefik or client) happy.
@@ -215,7 +224,14 @@ domain layering per api/AGENTS.md.
   Log-and-continue on publish failure — persistence is already committed and must not be
   re-driven by relay errors. Unit test with fakeredis: batch with 2 sessions ⇒ 2 publishes,
   each after append; append failure ⇒ no publish for that batch.
-- **T2 — SSE watch endpoint.** `GET /sessions/streams/watch?session_id=` on the
+- **T2 — SSE watch endpoint.** Three event types, not one: `records-changed`
+  (`{session_id}`), `lifecycle` (`{session_id, state: "running"|"ended"}`) and
+  `interaction` (`{session_id, status: "pending"|"resolved"}`). Each names the query the
+  client should revalidate — records, liveness, and actionable interactions respectively —
+  so a client can retire the matching poll. A payload shape that cannot distinguish them
+  would let the mobile task revalidate records only, and the liveness and approval badges
+  would go stale while the stream looked healthy.
+  `GET /sessions/streams/watch?session_id=` on the
   `StreamsRouter` (`api/oss/src/apis/fastapi/sessions/router.py`): `check_action_access`
   (`VIEW_SESSIONS`, mirroring router.py:475-480), validate `session_id`
   (contract.py:121-131), then `StreamingResponse(media_type="text/event-stream")` that
@@ -239,6 +255,15 @@ domain layering per api/AGENTS.md.
   (visibility rules as today). `ChatScreen` cadence (`ChatScreen.tsx:38-42`) becomes: SSE
   open ⇒ slow safety-net poll (30s); SSE errored/unsupported ⇒ today's 4s/7.5s cadence
   unchanged (the fallback IS the current behavior — no regression path).
+
+### Tenant selection
+
+The URL carries `session_id` ONLY. `project_id` comes from `request.state.project_id`,
+set by the auth middleware, and the channel is built from that. A `project_id` in the
+query string would be a tenant selector supplied by the caller: passing another project's
+id would subscribe the caller to that project's channel, and the `VIEW_SESSIONS` check
+would have been run against a different project than the one being watched. The client
+task must not add it to the URL.
 
 ### Deferred (explicitly not in M3)
 
@@ -265,7 +290,11 @@ domain layering per api/AGENTS.md.
 1. **Paragraph-level (~1-2s) change-notification SSE: YES** for the current iteration.
    Token-by-token streaming (runner Redis client + per-delta publishing) stays rejected —
    revisit only if a future product need demands cursor-level liveness on mobile.
-2. **Lifecycle events on the same channel: YES** — the watch stream also carries turn
-   lifecycle (running/ended/approval-pending), so mobile retires all three polls
-   (records tick, liveness, actionable-interactions) in favor of one EventSource; the
-   polls remain as the documented no-regression fallback when the stream is down.
+2. **Lifecycle events on the same channel: YES, but only for the open session** — the
+   watch stream also carries turn lifecycle (running/ended/approval-pending), so an open
+   chat can drop its own records tick, liveness poll and actionable-interactions poll in
+   favor of one EventSource. The channel is `(project_id, session_id)`, so it says nothing
+   about the OTHER sessions in the project: `SessionListScreen`'s liveness and
+   pending-approval badges cover every row and MUST keep their project-wide polls. A
+   project-scoped lifecycle stream would be needed to retire those, and it is not in M3.
+   The polls also remain the documented no-regression fallback when the stream is down.

@@ -76,6 +76,16 @@ describe("mobile reverse gate middleware", () => {
         expect(setCookie).toContain("Path=/")
     })
 
+    it("never bounces an OAuth callback landing off /m", () => {
+        const res = middleware(req("/m/auth/callback/google?code=abc", doc(DESKTOP_UA)))
+        expect(res.headers.get("location")).toBeNull()
+    })
+
+    it("still bounces the mobile sign-in page for desktop UAs", () => {
+        const res = middleware(req("/m/auth", doc(DESKTOP_UA)))
+        expect(res.headers.get("location")).toBe("http://localhost:3000/auth")
+    })
+
     it("mobile UA passes untouched (no cookie, no redirect)", () => {
         const res = middleware(req("/m/", doc(MOBILE_UA)))
         expect(res.headers.get("location")).toBeNull()

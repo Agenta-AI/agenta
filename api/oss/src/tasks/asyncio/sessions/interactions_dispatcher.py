@@ -232,6 +232,14 @@ def compose_approval_messages(
     warm-parked sandbox still fingerprint-matches and resumes live). An optional
     deny-with-redirect ``message`` is appended as a trailing user message, which the
     fingerprint's prior-conversation slice excludes.
+
+    Where that note is DELIVERED is asymmetric, and verified live (2026-07-30). A warm resume
+    answers the parked harness gate on the still-pending original prompt and sends no new
+    prompt (``run-turn.ts``: the resume branch reuses the parked ``promptPromise``), so the
+    note never reaches the model — only a cold replay closes the replayed transcript with it.
+    Fingerprint parity therefore makes the note undeliverable in the common case; mobile's
+    steer control stays flag-gated off until the runner can carry a redirect in-band with the
+    denial (#5444). The note is still persisted as a user record either way.
     """
     messages = build_wire_messages(records)
     gated_id = resolve_gated_tool_call_id(records, interaction, answer)

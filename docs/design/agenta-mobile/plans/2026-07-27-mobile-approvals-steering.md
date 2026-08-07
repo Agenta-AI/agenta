@@ -1,6 +1,12 @@
 # Mobile approvals + steering — design & plan
 
-**Status:** PLANNED · **Date:** 2026-07-27 · **Branch:** `feat/agenta-mobile-wave-1`
+**Status:** HISTORICAL PRE-EXECUTION SNAPSHOT (M0-M3 executed; see [../README.md](../README.md))
+· **Date:** 2026-07-27 · **Branch:** `feat/agenta-mobile-wave-1`
+
+> Read this as the plan as written, not as a description of what shipped. The one contract
+> difference worth knowing before reading further: the client answers a gate with
+> `{approved}` through the detached respond dispatcher, not the payload sketched below, and
+> the "no producer" / unverified notes in §3 were resolved during execution.
 **Goal:** from a phone, on a session whose agent runs in the cloud: (1) see that a turn is
 running and an approval is pending with enough context to decide, (2) approve/deny and have the
 agent proceed, (3) stop, and steer where feasible — all WITHOUT being the SSE stream holder.
@@ -264,6 +270,7 @@ run).
   next send) — mirror the worktree's envelope exactly so the two implementations converge.
   **Dependency flag:** UX blocked on the same harness limitation; do not enable by default
   until #5444 (runner reject-with-feedback) exists.
+  **BUILT 2026-07-30, flag OFF — see §7 for the live delivery measurement.**
 
 ### Phase M2 — BE: wire the out-of-band respond path (small, separable)
 
@@ -326,6 +333,8 @@ path for the "approve from the notification" dream, else it just opens the chat 
 3. **Steer-lite: WAIT** — do not ship deny-with-redirect now; wait for the runner's
    reject-with-feedback (#5444). ⚠️ **FOLLOW-UP (do not forget): Arda may ask for this
    implementation next**; the M1.5 task stays specced and unbuilt.
+   → **Revisited 2026-07-30 (Arda: "go ahead").** Built, flag OFF; the wait still stands and
+   is now measured rather than inferred — §7.
 4. **Warm-park TTL: BUMP** when a pending interaction exists (phone-latency answers should
    warm-resume, not cold-replay).
 5. **M2: build it in this workstream** ("finish this yourself") — do not hand to JP.
@@ -412,3 +421,92 @@ session — an un-gated-concurrent-`/invoke` hazard, not a lock-contract one.
 **Also worth knowing:** `updated_at` is bumped by non-heartbeat writers (attach/detach,
 rename), so watcher churn can hold an orphan's sweep clock open — now a 30-minute window for
 alive-but-idle rows rather than 5.
+
+---
+
+## 7. Steer-lite (M1.5): built, flag OFF — the redirect is cold-replay-only (2026-07-30)
+
+### 7.1 What a denial can carry today
+
+Nothing but the verdict. The harness reply type is a closed union —
+`PermissionReply = "once" | "always" | "reject"` (`services/runner/node_modules/sandbox-agent`,
+`Session.respondPermission(permissionId, reply)`) — and both runner call sites pass exactly that:
+`replyPermission` (`acp-interactions.ts:242-280`, warm/deny path) and the cold decision map
+(`responder.ts` `storedApprovalDecisionOf` → `{approved: boolean, interactionToken?}`). The durable
+plane matches: the answer that resolves an interaction row is `{approved, toolCallId}`. There is no
+feedback/message field anywhere between the client and the model. The denial text the model reads
+(`"Denied by the permission policy."`) is a **static** string the in-sandbox Pi extension returns
+(`extensions/agenta.ts:119,206,334`); on Claude ACP it is the harness's own "user refused
+permission". So "deny with a reason" does not exist at any layer — that is #5444.
+
+### 7.2 Where the redirect note IS delivered
+
+`{approved:false, message}` on `POST /sessions/interactions/{id}/respond` already rides: the
+dispatcher appends the note as a trailing user message (`compose_approval_messages`). Delivery is
+asymmetric, and it lands on the wrong side of the split for mobile:
+
+- **Cold replay — DELIVERED.** No parked sandbox (or a fingerprint mismatch) ⇒ `buildTurnText`
+  replays the transcript, renders the denial as `[user DENIED <tool>; the call was not executed.]`,
+  and closes with `Continue the conversation. The user now says:\n<note>` — the note IS the prompt.
+- **Warm resume — DROPPED.** A parked sandbox that fingerprint-matches resumes by calling
+  `respondPermission` on the still-pending ORIGINAL prompt and takes the
+  `if (opts.resume)` branch in `run-turn.ts:744-800`, which **never calls `session.prompt`**. The
+  trailing note is not sent to the model at all. Worse, it is still persisted as a `user` record
+  (the runner records `resolvePromptText(request)` as the turn's user message), so the transcript
+  shows the instruction as if it had been delivered.
+
+Warm is the DEFAULT for a phone answer since this workstream bumped `approvalTtlMs` to 30 minutes
+(§4b-4) and since the dispatcher was deliberately given fingerprint parity so mobile answers
+warm-resume. In other words the two earlier decisions that made mobile approvals fast are exactly
+what make a mobile steer undeliverable.
+
+**Live measurement** (ephemeral projects, `scratchpad/steer_arm.py {warm,cold}`; identical answer
+payload, redirect = "Do not create any file … reply with exactly the single word PIVOTED"):
+
+| arm | runner dispatch | outcome |
+| --- | --- | --- |
+| `warm` (respond dispatcher, the mobile path) | `[keepalive] resume … answered=1 approve=0 reject=1 tool=Bash` | note NOT delivered; model reasoned *"It appears I don't have permission … Let me try using the write tool instead"* and raised a NEW gate on `Write` |
+| `cold` (same envelope, no fingerprint parity) | `approval-mismatch (history); evict + cold` → `[HITL] cold replay: … resumeFrame=none, turnText 480 chars` | note delivered; agent replied exactly `PIVOTED`, wrote no file, raised no new gate |
+
+The warm arm is the negative result this section exists for: a bare deny makes the model flail into
+a sibling gate, which is precisely the UX #5444 is meant to fix.
+
+### 7.3 What shipped
+
+- `web/mobile/src/features/chat/steer.ts` — `isSteerEnabled()` (`NEXT_PUBLIC_AGENT_CHAT_STEER ===
+  "true"`, desktop-parity spelling of `isAgentChatSteerEnabled`) and `buildApprovalAnswer`, which
+  trims the note and omits it entirely when blank (a blank redirect is a plain deny, never an empty
+  trailing user message).
+- `ApprovalDock.tsx` — a flag-gated "Redirect" control; opening it swaps the decision row for a
+  raw textarea + Cancel / "Deny & send", mirroring the desktop dock's panel swap. The note is reset
+  whenever the acted-on gate changes. No new shadcn component, no motion (raw-UI ethos).
+- `useApprovalActions.ts` — `respond({approvalId, approved, message?})` through the same
+  `respondInteraction` path: fire-and-forget, single-flight `busyRef`, `phase` transitions, 60s
+  re-arm, settle on `pendingCount === 0`, 409 treated as benign.
+- No dispatcher change was needed (`message` already rides and is pinned by
+  `test_denial_with_message_appends_a_trailing_user_note`); its docstring now records the delivery
+  asymmetry.
+
+**Gated:** the control is hidden unless the flag is `true`, so no user can hit the silent drop. The
+implementation ships intact behind it — flipping the flag is the entire enablement once the runner
+carries a redirect in-band with the denial.
+
+### 7.4 Why not "just make it work"
+
+Three alternatives were traced and rejected:
+
+- **Deliver it on the warm path (runner).** Requires either a second `session.prompt` inside the
+  resume turn (new turn semantics: usage, run limits, otel spans, loop risk) or a real
+  reject-with-feedback channel — which is not a runner-local change: `PermissionReply` is a
+  closed ACP union and the denial text is produced in-sandbox by the Pi extension. Also unverifiable
+  here: the runner does not hot-reload TS.
+- **Force the cold path from the API when a note is present.** It works (the `cold` arm proves the
+  end-to-end behavior), but the only lever available is deliberately breaking the history
+  fingerprint. That logs an intentional behavior as `approval-mismatch (history)`, throws away a
+  warm sandbox, and silently reverts to dropping the note the moment the runner relaxes that
+  comparison (the idle branch already skips it for minimal-history clients). Needs a real wire flag
+  to be honest, i.e. a runner change.
+- **Deny now, deliver the note as a follow-up turn** (desktop's shape). Broken on mobile: after a
+  denial the model typically re-attempts with a sibling tool and the session parks on a NEW gate
+  (observed in the warm arm), so "wait for idle, then send" can block indefinitely — and mobile has
+  no send path to queue onto in the first place.

@@ -22,6 +22,7 @@ const VIEW_PARAM = "view"
 const GATE_COOKIE_MAX_AGE = 60 * 60 * 24 * 180
 
 const MOBILE_UA_RE = /Android|iPhone|iPod|iPad|webOS|BlackBerry|IEMobile|Opera Mini|Mobile/i
+const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
 
 function isMobileDevice(header: (name: string) => string | null): boolean {
     const hint = header("sec-ch-ua-mobile")
@@ -84,6 +85,9 @@ export function middleware(request: NextRequest) {
             return response
         }
 
+        // An OAuth landing completes wherever it lands — bouncing it drops the
+        // one-time code and strands the flow.
+        if (AUTH_CALLBACK_RE.test(pathname)) return NextResponse.next()
         if (request.cookies.get(MOBILE_OPTIN_COOKIE)?.value) return NextResponse.next()
         if (isMobileDevice(header)) return NextResponse.next()
 

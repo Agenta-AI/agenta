@@ -34,8 +34,32 @@ describe("livenessBySession", () => {
         expect(livenessBySession(null)).toBeUndefined()
     })
 
-    it("treats a flagless row as not running", () => {
+    // Parity with the desktop dot: the shared derivation defaults every flag to false, so a row
+    // with no live process reads as idle instead of being badged live off the poll's filter alone.
+    it("omits a flagless row rather than assuming it is alive", () => {
         const map = livenessBySession([stream("s-no-flags")])
-        expect(map?.get("s-no-flags")).toBe("alive")
+        expect(map?.has("s-no-flags")).toBe(false)
+    })
+
+    it("omits a zombie row whose flags no longer say alive", () => {
+        const map = livenessBySession([
+            stream("s-zombie", {is_alive: false, is_running: false, is_attached: false}),
+        ])
+        expect(map?.has("s-zombie")).toBe(false)
+    })
+
+    // `is_running` outranks a stale `is_alive` — the same precedence as `sessionDotStatusAtomFamily`.
+    it("badges a running row even if its alive flag lags behind", () => {
+        const map = livenessBySession([
+            stream("s-racing", {is_alive: false, is_running: true, is_attached: true}),
+        ])
+        expect(map?.get("s-racing")).toBe("running")
+    })
+
+    it("badges an attached-but-idle sandbox as live", () => {
+        const map = livenessBySession([
+            stream("s-attached", {is_alive: true, is_running: false, is_attached: true}),
+        ])
+        expect(map?.get("s-attached")).toBe("alive")
     })
 })

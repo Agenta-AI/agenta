@@ -38,9 +38,9 @@ headless chat core shared between desktop and mobile skins).
 | [plans/2026-07-25-wp1-infra-tail.md](./plans/2026-07-25-wp1-infra-tail.md) | WP1 infra tail (prod image CI, compose, run.sh) — **EXECUTED** (Tasks 1-5, 7); fixed the latent entrypoint crash in the unbuilt mobile image. Only the first `workflow_dispatch` publish (Task 7 runbook) is still pending, and it's post-merge by design |
 | [plans/2026-07-26-wp5-device-gate.md](./plans/2026-07-26-wp5-device-gate.md) | WP5 device gate (flag-gated middleware, both directions) — **EXECUTED** (Tasks T1-T7); default-off, T8 banner-retirement deferred to flag-flip |
 
-Wave-2 plans (WP2 auth + project drawer, WP3b mobile chat skin, WP4 product pages, WP5 device
-gate) are **deliberately unwritten** — they must be planned against the real wave-1 code and the
-finalized sessions surface.
+Remaining wave-2 plans (WP2 auth + project drawer, WP3b mobile chat skin, WP4 product pages) are
+**deliberately unwritten** — they must be planned against the real wave-1 code and the finalized
+sessions surface. WP5 is no longer among them: its plan was written and executed (row above).
 
 ## Execution state
 
@@ -65,10 +65,11 @@ What works right now: `cd web && pnpm dev-mobile` → http://localhost:3000/m re
 shell (light+dark from the bridged palette); `pnpm build-mobile` produces a standalone server;
 `pnpm --filter @agenta/mobile lint` enforces the bans + token sync; the dev compose stacks have
 a routable `web-mobile` service (needs a dev-image rebuild to pick up the Dockerfile changes).
-Opt-in in dev too: `run.sh --dev --with-mobile` (originally it rode `with-web` and auto-started,
-but a live dev run showed the second Next dev server pushes an 8GB Docker VM into OOM-killing
-the main web app's first big Turbopack compile — dmesg-confirmed `next-server` kills at ~4.5GB
-RSS. Running both dev servers comfortably wants a 12GB+ VM).
+Opt-in in dev too, from the repo root (swap `--oss` for `--ee` to match the loaded env file):
+`bash ./hosting/docker-compose/run.sh --oss --dev --with-mobile`. Originally it rode `with-web`
+and auto-started, but a live dev run showed the second Next dev server pushes an 8GB Docker VM
+into OOM-killing the main web app's first big Turbopack compile — dmesg-confirmed `next-server`
+kills at ~4.5GB RSS. Running both dev servers comfortably wants a 12GB+ VM.
 
 ### WP0 residual — COMPLETE (2026-07-25, 9 commits, all dual-reviewed)
 
@@ -179,7 +180,8 @@ breakdown and grounding facts.
   produces, because playwright specs are type-checked by the `web/tests` harness, not oss tsc.
   Accepted as precedented noise; the clean fix (excluding `tests/playwright` in
   `web/oss/tsconfig.json`) is a separate cleanup, not part of this WP.
-- Combined six-commit review verdict: **approve**. Every code block landed byte-identical to
+- Combined review verdict across the five commits above plus the T7 documentation commit:
+  **approve**. Every code block landed byte-identical to
   the plan, the desktop matcher regex was independently confirmed correct against the compiled
   middleware manifest (`/m` and `/m/*` excluded; `/models`-style paths still gated), and the
   middleware bundle carries only the gate core (no transitive leaks). Two deferred hardening
@@ -262,7 +264,7 @@ navigation / flows / logic"). All raw-UI; the radix-primitives track re-skins la
 cd web && pnpm install
 pnpm --filter @agenta/mobile lint            # bans + tokens:check
 pnpm --filter @agenta/mobile types:check
-pnpm build-mobile && test -f web/../web/mobile/.next/standalone/mobile/server.js
+pnpm build-mobile && test -f mobile/.next/standalone/mobile/server.js
 pnpm dev-mobile   # → http://localhost:3000/m, check light+dark
 ```
 
@@ -282,10 +284,9 @@ pnpm dev-mobile   # → http://localhost:3000/m, check light+dark
 - **Dev `__env.js`:** the entrypoint mirrors it into the bind-mounted `web/mobile/public/` on
   container start (gitignored). Until the dev image is rebuilt with the P5 Dockerfile changes,
   `/m/__env.js` 404s — harmless console noise.
-- **Chores pending:** `.gitignore` allowlist entries for the `mobile-*` skills (they're tracked
-  via `git add -f`, matching repo precedent — new files inside them would be invisible to
-  `git status` until allowlisted); Fern regen so the FE `include_ended` param stops being a
-  runtime cast.
+- **Chores:** the `.gitignore` allowlist entries for the `mobile-*` skills are **done** (see
+  `.gitignore` — both the `.agents/skills/` and `.claude/skills/` blocks). Still pending: Fern
+  regen so the FE `include_ended` param stops being a runtime cast.
 - **Mobile image CI + publication runbook** (WP1 infra tail, EXECUTED —
   [plans/2026-07-25-wp1-infra-tail.md](./plans/2026-07-25-wp1-infra-tail.md)):
   `.github/workflows/17-check-mobile.yml` build-verifies + smoke-tests the `agenta-web-mobile`
@@ -293,7 +294,7 @@ pnpm dev-mobile   # → http://localhost:3000/m, check light+dark
   in workflow 11) and `@agenta/chat` unit tests (recursive package discovery in workflow 12)
   were already covered by their generic mechanisms — verified, not changed. **First publication
   ordering:** merge → run `17 - check mobile` via `workflow_dispatch` with `push=true,
-  push_latest=true` → only then can operators pass `run.sh --gh --with-mobile`. Until that first
+  push_latest=true` → only then can operators pass `--with-mobile` to `bash ./hosting/docker-compose/run.sh --oss --gh` (or `--ee`). Until that first
   dispatch-push, the `with-web-mobile` compose profile stays opt-in on purpose — `docker compose
   up`/`pull` would fail the whole stack against a `ghcr.io/agenta-ai/agenta-web-mobile:latest`
   that doesn't exist yet.
