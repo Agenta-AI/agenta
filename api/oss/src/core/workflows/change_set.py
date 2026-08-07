@@ -38,7 +38,6 @@ __all__ = [
     "PLATFORM_GUIDANCE_START",
     "PLATFORM_GUIDANCE_END",
     "strip_platform_guidance",
-    "strip_guidance_from_data",
 ]
 
 
@@ -85,17 +84,24 @@ class Reason:
     SOURCE_TOO_LARGE = "source_too_large"
 
 
-_NOT_RETRYABLE = frozenset(
+# `retryable` answers ONE question: can the caller send this REQUEST AGAIN, unchanged, and
+# have it succeed? Not "is there a way forward" (that is `next_step`, and nearly every
+# refusal here has one). See `api/AGENTS.md`.
+#
+# Audited code by code against that question, not flipped mechanically. Almost every
+# refusal in this engine is a fact about the request or about what is stored: a target that
+# does not exist keeps not existing, an anchor that does not match keeps not matching, and
+# resending identical bytes fails identically. Those are `retryable: false` WITH a
+# `next_step`, which means "correct this and send a new request".
+#
+# `source_not_found` is the one that is genuinely retryable, and it is why this is a set
+# rather than a blanket rule. The request names a file the runner could not find; the agent
+# writes that file and sends THE SAME request, and it succeeds. The world changed, not the
+# request. `commit_lock_timeout` is the same shape and lives on the router, for the same
+# reason: the write never happened and the identical bytes can win the lock next time.
+_RETRYABLE = frozenset(
     {
-        Reason.OUT_OF_SCOPE,
-        Reason.INVALID_DELTA,
-        Reason.UNKNOWN_OPERATION,
-        Reason.UNRESOLVED_FILE_MARKER,
-        Reason.INVALID_EMBED,
-        Reason.UNKNOWN_MARKER,
-        Reason.VALUE_TOO_DEEP,
-        Reason.TEXT_TOO_LARGE,
-        Reason.SOURCE_TOO_LARGE,
+        Reason.SOURCE_NOT_FOUND,
     }
 )
 
@@ -171,6 +177,31 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.VALUE_TOO_DEEP: (
         "Flatten the value: the configuration nests a few levels deep, not hundreds."
+    ),
+    # The refusals below cannot be replayed either, and each one still has an action. A
+    # refusal with no next_step is a dead end, and a dead end is what makes a model invent
+    # its own way out.
+    Reason.INVALID_DELTA: (
+        "Send either 'set'/'remove' or 'operations', with at least one change in it."
+    ),
+    Reason.UNKNOWN_OPERATION: (
+        "Use one of the operations in the tool description and send it again."
+    ),
+    Reason.UNRESOLVED_FILE_MARKER: (
+        "Send the file's text directly instead of a marker."
+    ),
+    Reason.TEXT_TOO_LARGE: (
+        "Edit the field with edit_text instead of replacing it whole."
+    ),
+    Reason.SOURCE_TOO_LARGE: "Reference a smaller file.",
+    # These two name the valid forms in their message, because the message has room to show
+    # both shapes. The next_step still has to exist: it is where a model looks first.
+    Reason.INVALID_EMBED: (
+        "Send the embed in the shape the message shows, or use '@ag.file' to import a "
+        "file's contents."
+    ),
+    Reason.UNKNOWN_MARKER: (
+        "Remove that key, or use one of the markers the message names."
     ),
 }
 
@@ -308,30 +339,37 @@ class ChangeSetError(Exception):
 
     @property
     def retryable(self) -> bool:
-        return self.reason not in _NOT_RETRYABLE
+        return self.reason in _RETRYABLE
 
     @property
     def next_step(self) -> Optional[str]:
         return self.explicit_next_step or NEXT_STEPS.get(self.reason)
 
     def to_detail(self) -> Dict[str, Any]:
-        """The HTTP 422 ``detail`` body. Contract section 12."""
-        reason: Dict[str, Any] = {"code": self.reason, "message": self.message}
-        if self.next_step:
-            reason["next_step"] = self.next_step
-        reason.update(self.context)
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
+
+        The reason code IS the code. It used to sit one level down inside a `reason`
+        object under a constant outer `change_set_rejected`, so every consumer had to know
+        that the useful half was nested, and a model reading only the top level learned
+        that something was rejected and nothing about what.
+        """
         detail: Dict[str, Any] = {
-            "code": self.code,
-            "message": "No revision was committed.",
-            "reason": reason,
+            "code": self.reason,
+            "message": self.message,
             "retryable": self.retryable,
         }
+        if self.next_step:
+            detail["next_step"] = self.next_step
+
+        details: Dict[str, Any] = dict(self.context)
         if self.operation_index is not None:
-            detail["operation_index"] = self.operation_index
+            details["operation_index"] = self.operation_index
         if self.operation is not None:
-            detail["operation"] = self.operation
+            details["operation"] = self.operation
         if self.target is not None:
-            detail["target"] = self.target
+            details["target"] = self.target
+        if details:
+            detail["details"] = details
         return detail
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
@@ -574,17 +612,6 @@ def strip_platform_guidance(text: str) -> str:
         left, right = result.rstrip(), piece.lstrip()
         result = f"{left}\n\n{right}" if left and right else (left or right)
     return result.rstrip()
-
-
-def strip_guidance_from_data(data: Any) -> Tuple[Any, List[Warning]]:
-    """Strip the guidance block from a whole configuration tree, outside the delta arms.
-
-    A full-data commit never reaches the engine, and a copied-back instructions file can
-    arrive that way as easily as through a delta. Same rule, same warnings, one entry point
-    for the wrapper.
-    """
-    warnings: List[Warning] = []
-    return _strip_guidance(data, warnings=warnings, path=[]), warnings
 
 
 def _strip_guidance(

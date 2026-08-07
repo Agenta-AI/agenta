@@ -771,6 +771,7 @@ export async function acquireEnvironment(
       isPi: plan.isPi,
       agentMountedPath: environment.agentMountedPath,
       agentMountSkipped: !!agentMountSkipped,
+      toolNames: plan.tools.toolSpecs.map((spec) => spec.name),
     });
     const guidedPlan = guidance
       ? {

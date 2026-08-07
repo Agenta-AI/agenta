@@ -49,7 +49,11 @@ export type HarnessKind = "pi" | "claude" | "codex" | "unknown";
 export interface HarnessLifecycleCapabilities {
   /** `setModel` on the running session. LIVE in v1. */
   readonly model: ActionKind;
-  /** Instructions and skills. Never live: the harness reads them once, at session start. */
+  /**
+   * Instructions and skills. Driven by `WORKSPACE_FILES_EDITS_REBUILD`, and a rebuild by default:
+   * the harness reads its instruction file once, at session start, so an in-place rewrite is not
+   * observed. Read that constant before changing this.
+   */
   readonly workspaceFiles: ActionKind;
   /** System and append prompts. Never live: observation is not guaranteed. */
   readonly prompts: ActionKind;
@@ -59,6 +63,90 @@ export interface HarnessLifecycleCapabilities {
   readonly harnessSession: ActionKind;
   /** The model-visible tool catalog. Uniformly reopen in v1. */
   readonly toolCatalog: ActionKind;
+}
+
+/**
+ * THE SWITCH: does editing instructions or skills go COLD (rebuild) or take the in-place route?
+ *
+ * `true` (the default, and the only VERIFIED-CORRECT position) means a `workspaceFiles` edit
+ * rebuilds the sandbox. `false` restores the in-place workspace refresh.
+ *
+ * ============================================================================================
+ * READ THIS BEFORE FLIPPING IT TO `false`
+ * ============================================================================================
+ *
+ * The in-place route is not merely slower to verify. It is KNOWN BROKEN, and flipping this
+ * restores a specific, measured failure:
+ *
+ *   - The runner rewrites `AGENTS.md` on the running sandbox and the harness never re-reads it,
+ *     because every harness reads its instruction file ONCE, at session start.
+ *   - `applyReconcilePlan` then commits the incoming configuration as applied, so the pool
+ *     reports the NEW fingerprint, every later turn matches, and the session continues warm.
+ *   - The agent goes on obeying the OLD instructions. The user's edit has no effect until
+ *     something else evicts the session.
+ *   - Gate cell `matrix_l5_live_route_observed.py` FAILS in that position. It has a cold control,
+ *     so its failure isolates the runner rather than blaming the model.
+ *
+ * Recorded in `docs/design/agent-config-editing/open-issues.md` under "The workspace live route is
+ * withdrawn; refresh-then-reopen is the follow-up", which also carries the two prerequisites for
+ * making an in-place route honest.
+ *
+ * ============================================================================================
+ * WHY ONE CONSTANT DRIVES BOTH HALVES
+ * ============================================================================================
+ *
+ * The routing has two independent halves, and setting only one of them produces a broken state
+ * that is easy to reach by hand and hard to see:
+ *
+ *   - The capability table says what `workspaceFiles` costs.
+ *   - `LIVE_ACTION_KINDS` says whether `refresh-workspace` may run on a live environment.
+ *
+ * Capability-says-refresh + live-set-refuses means the router plans `refresh-workspace` (outcome
+ * `reuse`) while the coordinator rebuilds, so EVERY instructions edit logs a permanent DISAGREE
+ * that no router work can drive to zero. Capability-says-rebuild + live-set-allows leaves a live
+ * entry nothing routes to, so a later table edit alone can silently make the route live again with
+ * no guard firing.
+ *
+ * Both halves therefore DERIVE from this one constant through the two functions below. The
+ * disagreeing states are not merely discouraged; they are unrepresentable.
+ *
+ * ============================================================================================
+ * L5 IS THE ACCEPTANCE TEST, NOT THIS CONSTANT
+ * ============================================================================================
+ *
+ * Unit tests pin both positions of the switch. They cannot tell you whether a harness OBSERVED a
+ * rewritten file, which is the only question that matters for an in-place route. Any future
+ * in-place mechanism (the intended one is refresh and THEN reopen the session) is accepted by
+ * `matrix_l5_live_route_observed.py` passing live, with `matrix_l1_lifecycle_routes.py` confirming
+ * the route it took. A green unit suite here proves the wiring is consistent, nothing more.
+ *
+ * WHAT YOU WILL SEE IF YOU FLIP IT, AND THE TRAP IN IT. `tsc` stays clean and about fourteen unit
+ * tests fail, across `lifecycle-reconcile-plan.test.ts` and `lifecycle-live-routes.test.ts`. Every
+ * one of them asserts the REBUILD position, so they are a correct signal that behavior changed and
+ * they name exactly what changed. Updating them to match the new position is mechanical, and it is
+ * NOT verification: it produces a green suite over a route the harness still does not observe.
+ * Run L5 before believing the flip.
+ */
+export const WORKSPACE_FILES_EDITS_REBUILD = true;
+
+/** The action `workspaceFiles` takes, given the switch. A pure function of it, so a test can ask
+ *  for both positions without reloading the module. */
+export function workspaceFilesActionFor(rebuild: boolean): ActionKind {
+  return rebuild ? "rebuild-sandbox" : "refresh-workspace";
+}
+
+/**
+ * The live set, given the switch. The other half of the pair above.
+ *
+ * `no-op` and `apply-live` are unconditional. `refresh-workspace` is present exactly when the
+ * switch says the in-place route is on, which is what keeps the two halves from disagreeing.
+ */
+export function liveActionKindsFor(rebuild: boolean): ReadonlySet<ActionKind> {
+  return new Set<ActionKind>(
+    rebuild
+      ? ["no-op", "apply-live"]
+      : ["no-op", "apply-live", "refresh-workspace"],
+  );
 }
 
 /**
@@ -96,7 +184,7 @@ const V1_CAPABILITIES: Readonly<
   // tool catalog is uniform rather than split, and the block above for why the workspace escalates.
   pi: {
     model: "apply-live",
-    workspaceFiles: "rebuild-sandbox",
+    workspaceFiles: workspaceFilesActionFor(WORKSPACE_FILES_EDITS_REBUILD),
     prompts: "reopen-session",
     harnessFiles: "reopen-session",
     harnessSession: "reopen-session",
@@ -104,7 +192,7 @@ const V1_CAPABILITIES: Readonly<
   },
   claude: {
     model: "apply-live",
-    workspaceFiles: "rebuild-sandbox",
+    workspaceFiles: workspaceFilesActionFor(WORKSPACE_FILES_EDITS_REBUILD),
     prompts: "reopen-session",
     harnessFiles: "reopen-session",
     harnessSession: "reopen-session",
@@ -112,7 +200,7 @@ const V1_CAPABILITIES: Readonly<
   },
   codex: {
     model: "apply-live",
-    workspaceFiles: "rebuild-sandbox",
+    workspaceFiles: workspaceFilesActionFor(WORKSPACE_FILES_EDITS_REBUILD),
     prompts: "reopen-session",
     harnessFiles: "reopen-session",
     harnessSession: "reopen-session",
@@ -584,10 +672,9 @@ export function appliedDigestsFrom(
  * Adding an entry is the whole decision to make another route live. It must not happen by
  * accident, so a test counts this set and the capability table is checked against it.
  */
-export const LIVE_ACTION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind>([
-  "no-op",
-  "apply-live",
-]);
+export const LIVE_ACTION_KINDS: ReadonlySet<ActionKind> = liveActionKindsFor(
+  WORKSPACE_FILES_EDITS_REBUILD,
+);
 
 /**
  * Whether a plan can be satisfied ON THE RUNNING ENVIRONMENT.

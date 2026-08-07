@@ -748,9 +748,11 @@ One failure aborts everything. HTTP 422 for a bad change set, 409 for a stale ba
 }
 ```
 
-### 12.1 Retryable errors
+### 12.1 Correctable refusals
 
-The agent can fix these and send again. Each one carries `next_step`.
+The agent changes its request and sends a NEW one. Each carries `next_step`, and each is
+`retryable: false`, because resending the SAME request cannot succeed: a target that does
+not exist keeps not existing, an anchor that does not match keeps not matching.
 
 | Code | Meaning |
 |---|---|
@@ -776,9 +778,11 @@ The agent can fix these and send again. Each one carries `next_step`.
 | `non_embeddable_reference` | The result embeds a static workflow that may not be embedded. Wrapper-owned; `commit-transaction.md` section 4.1. |
 | `final_validation_failed` | The finished tree is not a valid configuration. Carries `issues`. |
 
-### 12.2 Non-retryable refusals
+### 12.2 Terminal refusals
 
-Sending the same payload again never helps.
+Also `retryable: false`, and the difference from 12.1 is what the next_step asks for: these
+need a different approach rather than a corrected field. Both groups tell the agent what to
+do; neither can be replayed unchanged.
 
 | Code | Meaning |
 |---|---|
@@ -792,10 +796,48 @@ Sending the same payload again never helps.
 | `text_too_large` | The target string is above the work limit. |
 | `source_too_large` | The file a marker names is above the byte limit. |
 
-**Why the split matters.** The old model had one `invalid_operation` code marked
-non-retryable. An agent honoring `retryable: false` would dead-end on every rename, because
-a rename arrived as a shape error. Shape errors an agent can correct are now retryable and
-carry the correction; only true refusals are terminal.
+**Why `retryable` is not the recovery field.** It answers exactly one question: can this
+REQUEST be sent again, unchanged, and succeed? Almost nothing here can, so almost everything
+is false, and `next_step` is what carries recovery. The two are independent: a refusal can be
+non-replayable and still perfectly recoverable, which is the normal case.
+
+The one genuinely retryable refusal in this engine is `source_not_found`: the agent writes
+the file the marker names and sends THE SAME request, and it succeeds. The world changed,
+not the request. `commit_lock_timeout` on the commit route has the same shape.
+
+This replaced an earlier split where `retryable` meant "the agent can fix this". That made
+almost everything retryable and told a model to resend bytes that could never work. The
+dead-end risk it was guarding against is real, and it is handled by requiring a `next_step`
+on every code rather than by overloading `retryable`.
+
+### 12.2b The envelope every error uses
+
+Every expected failure an agent can see, from this engine or from anywhere else on the
+path, is one flat object:
+
+```json
+{"code": "...", "message": "...", "retryable": false, "next_step": "...", "details": {}}
+```
+
+The reason code IS the `code`. It used to sit inside a nested `reason` under a constant
+outer `change_set_rejected`, so a reader that looked at the top level learned that
+something was rejected and nothing about what. Everything error-specific, including the
+operation index, the operation, the target, and each reason's own fields, lives in
+`details`. There are no other top-level keys and no nested envelopes.
+
+`retryable` and `next_step` answer different questions, and the split is the point.
+`retryable` is about replaying the SAME request unchanged. `next_step` is the way forward,
+and a refusal that is not retryable still carries one whenever the caller can correct its
+request. `value_too_deep` is the clearest case: the same bytes never succeed, and the
+agent still needs to be told to flatten the value.
+
+`api/AGENTS.md` states the rule for the whole API, and handler-mode failures carry this
+same object in `ToolResult.content` with `STATUS_CODE_ERROR` over HTTP 200.
+
+The scope is failures the platform authors. A gateway or workflow tool's failure carries
+its upstream's own shape instead, which is deliberate: that shape holds the reason the
+model needs to fix its call, and it is the same shape the model already receives when the
+call succeeds. So an error status on that seam does not imply an envelope.
 
 ### 12.3 Every retryable error names the next action
 

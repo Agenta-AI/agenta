@@ -254,8 +254,17 @@ describe("callAgentaTool error disclosure (RUN-TOOLERR-1)", () => {
     assert.ok(logged.some((line) => line.includes("HTTP 502")));
   });
 
-  it("surfaces a 200/STATUS_CODE_ERROR status.message so the model can still self-correct", async () => {
-    // The by-design regression guard: a correctable validation failure must reach the model.
+  it("THROWS a 200/STATUS_CODE_ERROR so the model reads a failed call as failed", async () => {
+    // CONTRACT CHANGE. This asserted that the failure was RETURNED, and returning is what made
+    // the defect: `startToolRelay` wraps any returned string as `{ok: true, text}`, which the MCP
+    // shim renders as `isError: false`. So the model was told a failed gateway call SUCCEEDED and
+    // handed the failure text as its result. On Codex that is the blank-success shape that makes
+    // a model invent an explanation and tell the user to try again.
+    //
+    // The disclosure half of RUN-TOOLERR-1 is unchanged and still holds: a NON-2xx is redacted to
+    // its status code (the test above). This arm is the gateway's own business-level failure,
+    // which is deliberately disclosed, because it is the thing the model rewrites its argument
+    // from.
     stubFetch(
       200,
       JSON.stringify({
@@ -269,15 +278,53 @@ describe("callAgentaTool error disclosure (RUN-TOOLERR-1)", () => {
       }),
     );
 
-    const result = await callAgentaTool(
-      "http://agenta.local/tools/call",
-      "Bearer tok",
-      "send-email",
-      "call-1",
-      {},
+    await assert.rejects(
+      () =>
+        callAgentaTool(
+          "http://agenta.local/tools/call",
+          "Bearer tok",
+          "send-email",
+          "call-1",
+          {},
+        ),
+      (err: Error) => {
+        assert.ok(err.message.includes("missing required field `email`"));
+        // The content rides along too. A model told only the headline cannot always see which
+        // field it got wrong.
+        assert.ok(err.message.includes('{"successful": false}'));
+        return true;
+      },
+    );
+  });
+
+  it("THROWS a STATUS_CODE_ERROR even when status.message is absent", async () => {
+    // The arm the old code missed entirely: it required `status.message` to be a string before it
+    // noticed a failure, so this fell through to the success return. `status.code` alone decides
+    // now, which is also what a handler-mode op needs when its envelope lives in `content`.
+    stubFetch(
+      200,
+      JSON.stringify({
+        call: {
+          data: { content: '{"code":"revision_conflict"}' },
+          status: { code: "STATUS_CODE_ERROR" },
+        },
+      }),
     );
 
-    assert.ok(result.includes("missing required field `email`"));
+    await assert.rejects(
+      () =>
+        callAgentaTool(
+          "http://agenta.local/tools/call",
+          "Bearer tok",
+          "commit_revision",
+          "call-1",
+          {},
+        ),
+      (err: Error) => {
+        assert.ok(err.message.includes("revision_conflict"));
+        return true;
+      },
+    );
   });
 
   it("leaves a 200 success envelope alone (no error prefix)", async () => {

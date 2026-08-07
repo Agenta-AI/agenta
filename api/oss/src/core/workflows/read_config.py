@@ -94,20 +94,29 @@ class ReadConfigError(Exception):
         self.context = context
 
     def to_detail(self) -> Dict[str, Any]:
-        reason: Dict[str, Any] = {"code": self.reason, "message": self.message}
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
+
+        `retryable` is FALSE for every one of these. It used to be hard-coded true, which
+        told the agent to send the identical request again: none of these can succeed on a
+        replay, because each one is a fact about the request or about what is stored. The
+        way forward is the `next_step`, and that is what the agent should read.
+        """
+        detail: Dict[str, Any] = {
+            "code": self.reason,
+            "message": self.message,
+            "retryable": False,
+        }
         next_step = _NEXT_STEPS.get(self.reason)
         if next_step:
-            reason["next_step"] = next_step
-        reason.update(self.context)
-        detail: Dict[str, Any] = {
-            "code": self.code,
-            "reason": reason,
-            "retryable": True,
-        }
+            detail["next_step"] = next_step
+
+        details: Dict[str, Any] = dict(self.context)
         if self.path is not None:
-            detail["path"] = self.path
+            details["path"] = self.path
         if self.children is not None:
-            detail["children"] = self.children
+            details["children"] = self.children
+        if details:
+            detail["details"] = details
         return detail
 
 

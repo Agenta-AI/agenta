@@ -105,12 +105,10 @@ from oss.src.core.workflows.change_set import (
     ChangeSetError,
     Reason,
     apply_change_set,
-    strip_guidance_from_data,
 )
 from oss.src.core.workflows.read_config import (
     ReadConfigError,
     clamp_max_bytes,
-    draft_warning,
     project_config,
 )
 from oss.src.core.workflows.commit_support import (
@@ -184,20 +182,30 @@ class RevisionConflictError(Exception):
         self.current_revision_version = current_revision_version
 
     def to_detail(self) -> Dict[str, Any]:
-        detail: Dict[str, Any] = {
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
+
+        NOT retryable, which is a correction. Replaying this exact request cannot succeed:
+        it carries a `base_revision_id` that is no longer the head, and it will carry the
+        same one forever. What the caller does is re-read and re-anchor, which is the
+        `next_step`. Marking it retryable told a small model to send the same stale bytes
+        again.
+        """
+        details: Dict[str, Any] = {
+            "base_revision_id": self.base_revision_id,
+            "current_revision_id": self.current_revision_id,
+        }
+        if self.current_revision_version is not None:
+            details["current_revision_version"] = self.current_revision_version
+        return {
             "code": self.code,
             "message": "The workflow head changed. No revision was committed.",
+            "retryable": False,
             "next_step": (
                 "Call read_config for the new revision, re-anchor your edits to it, and "
                 "send the commit again with the new base_revision_id."
             ),
-            "base_revision_id": self.base_revision_id,
-            "current_revision_id": self.current_revision_id,
-            "retryable": True,
+            "details": details,
         }
-        if self.current_revision_version is not None:
-            detail["current_revision_version"] = self.current_revision_version
-        return detail
 
 
 def _validate_persisted_shape(data: dict) -> None:
@@ -1937,13 +1945,16 @@ class WorkflowsService:
         workflow_variant_id: UUID,
         path: Optional[list] = None,
         max_bytes: Optional[int] = None,
-        run_is_draft: Optional[bool] = None,
     ) -> "ConfigReadOutcome":
         """Read one part of the variant's committed configuration.
 
-        The answer always comes from the stored head, on every kind of run. On a draft run
-        that is not what is executing, and the response says so: the read and the commit
-        then still agree, because the commit applies to the head too.
+        The answer always comes from the stored head, on every kind of run.
+
+        Whether the RUN is a draft is not an input here. It is a fact about the caller's
+        run context, not about the configuration, and it used to arrive as a request field,
+        which meant a caller could assert it about itself (audit leak C38). The tool
+        handler knows it from the run and decorates the answer; this method reports what is
+        stored and nothing about who is asking.
         """
         head = await self.fetch_workflow_revision(
             project_id=project_id,
@@ -1962,17 +1973,13 @@ class WorkflowsService:
         )
         result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
 
-        warnings = list(result.warnings)
-        if run_is_draft:
-            warnings.append(draft_warning(getattr(head, "version", None)))
-
         return ConfigReadOutcome(
             revision=head,
             path=result.path,
             value=result.value,
             bytes=result.bytes,
-            is_draft=bool(run_is_draft),
-            warnings=warnings,
+            is_draft=False,
+            warnings=list(result.warnings),
         )
 
     async def commit_workflow_revision_checked(
@@ -1984,6 +1991,7 @@ class WorkflowsService:
         workflow_revision_commit: WorkflowRevisionCommit,
         #
         scope_policy=None,
+        agent_context: bool = False,
     ) -> "CommitOutcome":
         """Commit with the base check, the no-change answer, and the warning list.
 
@@ -2005,6 +2013,7 @@ class WorkflowsService:
                 project_id=project_id,
                 workflow_revision_commit=workflow_revision_commit,
                 scope_policy=scope_policy,
+                agent_context=agent_context,
             )
             warnings = list(resolution.warnings)
             head = resolution.head
@@ -2028,23 +2037,6 @@ class WorkflowsService:
                 workflow_revision_commit=workflow_revision_commit,
                 current=head,
             )
-
-            # A full-data commit never reaches the engine, so the guidance block would be
-            # stored verbatim. A copied-back instructions file arrives this way as easily as
-            # through a delta, and the playground's own save path is full-data.
-            if workflow_revision_commit.data is not None:
-                stripped, guidance_warnings = strip_guidance_from_data(
-                    workflow_revision_commit.data.model_dump(
-                        mode="json", exclude_none=True
-                    )
-                )
-                if guidance_warnings:
-                    warnings.extend(
-                        CommitWarning(**w.to_dict()) for w in guidance_warnings
-                    )
-                    workflow_revision_commit = workflow_revision_commit.model_copy(
-                        update={"data": WorkflowRevisionData(**stripped)}
-                    )
 
         # Built before the comparison, because the comparison runs on what would be
         # STORED: enrichment fills `url` and `schemas`, and the flags are inferred from the
@@ -2386,6 +2378,7 @@ class WorkflowsService:
         workflow_revision_commit: WorkflowRevisionCommit,
         scope_policy=None,
         preview: bool = False,
+        agent_context: bool = False,
     ) -> "DeltaResolution":
         """Resolve a delta commit into a full-data commit against the variant's head.
 
@@ -2426,6 +2419,7 @@ class WorkflowsService:
             base=base,
             workflow_revision_commit=workflow_revision_commit,
             scope_policy=scope_policy,
+            agent_context=agent_context,
         )
 
         return DeltaResolution(
@@ -2480,14 +2474,25 @@ class WorkflowsService:
         base: dict,
         workflow_revision_commit: WorkflowRevisionCommit,
         scope_policy=None,
+        agent_context: bool = False,
     ) -> tuple[dict, Optional[str], List[CommitWarning]]:
-        """Run either delta form through the engine, plus the wrapper-owned jobs the engine
-        cannot do: selector normalization, the platform-tool rejection, the derived
-        message, and the warning list (contract change-set.md 17).
+        """Run either delta form through the engine, plus the wrapper-owned jobs.
 
         The engine classifies the form, so a delta carrying both arms is refused rather
         than silently losing one of them, and the legacy arm earns the same marker,
         scope, and unique-name refusals the ordered arm does.
+
+        ``agent_context`` gates the three transformations that exist FOR THE AGENT, and
+        gates nothing else. They were unconditional, so the general commit path (the
+        playground's own save, the SDK, applications and evaluators) silently inherited
+        agent policy it never asked for: its selectors were rewritten, a `tools` list
+        holding a platform entry was refused, and a caller's own commit message was
+        replaced by a derived one. Audit leaks C24, C25, C26 and C43.
+
+        Scope ENFORCEMENT is deliberately NOT gated here. It travels as `scope_policy`
+        into the engine, which sees the RESULT of an operation; a check at this level sees
+        only what the caller named, and an operation that writes an ancestor object can
+        change a refused path without naming it.
         """
         # `exclude_unset` and not `exclude_none`: an explicit `"value": null` is a value
         # the contract writes, and dropping it would report a missing value instead.
@@ -2505,9 +2510,12 @@ class WorkflowsService:
                 "ordered operations are not enabled on this deployment.",
             )
 
-        operations: list = []
+        operations: list = delta.get("operations") or []
         warnings: list = []  # engine warnings; typed at the return
-        if is_ordered:
+        if is_ordered and agent_context:
+            # Forgives the two unambiguous selector mistakes and says so. A model makes
+            # them; a caller writing operations by hand gets its target back unchanged and
+            # a precise refusal if it is wrong, which is what a program wants.
             operations, warnings = normalize_operations(delta["operations"])
             delta = {**delta, "operations": operations}
 
@@ -2521,18 +2529,25 @@ class WorkflowsService:
         )
         warnings = warnings + list(result.warnings)
 
-        # Rejection beats silent stripping: the spike showed that errors teach.
-        offenders = find_platform_tool_entries(result.data)
-        if offenders:
-            raise ChangeSetError(
-                Reason.PLATFORM_TOOL_NOT_COMMITTABLE,
-                PLATFORM_TOOL_REJECTION.format(names=", ".join(offenders)),
-                entries=offenders,
-            )
+        # The build kit is injected for an agent's run and is not part of its stored
+        # configuration, so an agent committing one is committing the playground's own
+        # tools. Rejection beats silent stripping: the spike showed that errors teach.
+        # Only the agent has a build kit, so only the agent is checked for it.
+        if agent_context:
+            offenders = find_platform_tool_entries(result.data)
+            if offenders:
+                raise ChangeSetError(
+                    Reason.PLATFORM_TOOL_NOT_COMMITTABLE,
+                    PLATFORM_TOOL_REJECTION.format(names=", ".join(offenders)),
+                    entries=offenders,
+                )
 
+        # Derived for the agent, because free text was the site of every measured
+        # argument-corruption failure. A human or an SDK caller writes its own message and
+        # keeps it: replacing that was the leak, not the derivation.
         message = (
             derive_commit_message(operations)
-            if is_ordered
+            if is_ordered and agent_context
             else workflow_revision_commit.message
         )
         # The engine speaks its own dataclass. The typed model is what leaves the service.

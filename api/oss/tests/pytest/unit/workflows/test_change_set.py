@@ -596,7 +596,7 @@ class TestEditText:
             )
         )
         assert error.reason == Reason.TEXT_NOT_UNIQUE
-        assert error.to_detail()["reason"]["match_count"] == 2
+        assert error.to_detail()["details"]["match_count"] == 2
 
 
 class TestTextEditContract:
@@ -745,7 +745,7 @@ class TestTextEditContract:
         )
 
         assert error.reason == Reason.TEXT_NOT_FOUND
-        candidates = error.to_detail()["reason"]["nearest_lines"]
+        candidates = error.to_detail()["details"]["nearest_lines"]
         assert candidates[0]["text"] == "Check the API."
         assert candidates[0]["line"] == 1
 
@@ -762,7 +762,7 @@ class TestTextEditContract:
         )
 
         assert error.reason == Reason.TEXT_NOT_FOUND
-        assert error.to_detail()["reason"].get("nearest_lines") != []
+        assert error.to_detail()["details"].get("nearest_lines") != []
 
     def test_nearest_lines_reports_the_line_number_the_agent_can_use(self):
         text = "# Release QA\nRun the release checks manually.\nThen post the result.\n"
@@ -1107,7 +1107,7 @@ class TestRemoveItem:
             base,
         )
         assert error.reason == Reason.DUPLICATE_ITEM_KEY
-        assert error.to_detail()["reason"]["match_count"] == 2
+        assert error.to_detail()["details"]["match_count"] == 2
 
     def test_a_missing_collection_is_target_not_found(self):
         base = base_config()
@@ -1307,15 +1307,22 @@ class TestErrorModel:
                 },
             )
         )
+        # The canonical agent-actionable envelope (api/AGENTS.md). The reason code IS the
+        # code: it used to sit inside a nested `reason` under a constant outer
+        # `change_set_rejected`, so a model reading the top level learned only that
+        # something was rejected. Everything error-specific is in `details`.
         detail = error.to_detail()
-        assert detail["code"] == "change_set_rejected"
-        assert detail["message"] == "No revision was committed."
-        assert detail["operation_index"] == 1
-        assert detail["operation"] == "edit_text"
-        assert detail["target"] == AGENT + [skill("release-qa"), "body"]
-        assert detail["reason"]["code"] == "text_not_unique"
-        assert detail["reason"]["match_count"] == 2
-        assert detail["retryable"] is True
+        assert detail["code"] == "text_not_unique"
+        assert detail["message"].startswith("edits[0].old_text matched")
+        assert detail["retryable"] is False
+        assert detail["next_step"]
+        assert detail["details"]["operation_index"] == 1
+        assert detail["details"]["operation"] == "edit_text"
+        assert detail["details"]["target"] == AGENT + [skill("release-qa"), "body"]
+        assert detail["details"]["match_count"] == 2
+        # No wrapper, no nested envelope, and nothing error-specific at the top level.
+        assert "reason" not in detail
+        assert set(detail) <= {"code", "message", "retryable", "next_step", "details"}
 
     def test_a_scope_refusal_is_not_retryable(self):
         error = failure(
@@ -1478,7 +1485,7 @@ class TestFinalValidation:
             validate=lambda data: ["llm.model is unknown", "tools[0] is invalid"],
         )
         assert error.reason == Reason.FINAL_VALIDATION_FAILED
-        assert len(error.to_detail()["reason"]["issues"]) == 2
+        assert len(error.to_detail()["details"]["issues"]) == 2
 
     def test_a_raised_validator_error_becomes_the_same_reason(self):
         def validate(data):
@@ -1773,7 +1780,8 @@ class TestMatchTolerance:
         # retryable code rather than adding one: the specific guidance rides on `next_step`,
         # which is what that field is for.
         assert error.reason == Reason.INVALID_OPERATION_SHAPE
-        assert error.retryable is True
+        # Correctable, not replayable: the same bad mode fails the same way every time.
+        assert error.retryable is False
         assert "'auto'" in error.next_step and "'exact'" in error.next_step
         # The rejected value is named, so the agent can see what it sent.
         assert "fuzzy" in error.message
@@ -2100,7 +2108,15 @@ class TestNestedCollectionIdentity:
 
 
 class TestErrorSplit:
-    RETRYABLE = [
+    """`retryable` answers one question: can this REQUEST be sent again, unchanged?
+
+    It used to mean "the agent can fix this", which made almost everything retryable and
+    told a model to resend bytes that could never succeed. The way forward moved to
+    `next_step`, which every one of these still carries: `retryable: false` with a
+    `next_step` means correct it and send a NEW request.
+    """
+
+    CORRECTABLE = [
         (
             Reason.TARGET_NOT_FOUND,
             ops({"operation": "remove", "target": AGENT + ["x"]}),
@@ -2125,21 +2141,23 @@ class TestErrorSplit:
         ),
     ]
 
-    @pytest.mark.parametrize("reason,delta", RETRYABLE)
-    def test_shape_errors_are_retryable(self, reason, delta):
-        # An agent honoring `retryable: false` would otherwise dead-end on a mistake it
-        # could fix in one turn.
+    @pytest.mark.parametrize("reason,delta", CORRECTABLE)
+    def test_a_correctable_mistake_is_not_a_replayable_one(self, reason, delta):
+        # A target that does not exist keeps not existing. Resending the identical request
+        # fails identically, so `retryable` is false and the correction rides on next_step.
         error = failure(delta)
         assert error.reason == reason
-        assert error.retryable is True
+        assert error.retryable is False
 
-    @pytest.mark.parametrize("reason,delta", RETRYABLE)
-    def test_every_retryable_error_names_a_next_step(self, reason, delta):
+    @pytest.mark.parametrize("reason,delta", CORRECTABLE)
+    def test_every_correctable_mistake_names_a_next_step(self, reason, delta):
+        # This is what keeps the flip from creating dead ends: the agent still learns what
+        # to do, it just learns it from the field designed to say so.
         error = failure(delta)
         assert error.next_step
-        assert error.to_detail()["reason"]["next_step"] == error.next_step
+        assert error.to_detail()["next_step"] == error.next_step
 
-    def test_a_rename_has_its_own_retryable_code(self):
+    def test_a_rename_has_its_own_code_and_its_own_recovery(self):
         error = failure(
             ops(
                 {
@@ -2150,7 +2168,7 @@ class TestErrorSplit:
             )
         )
         assert error.reason == Reason.ITEM_RENAME_NOT_ALLOWED
-        assert error.retryable is True
+        assert error.retryable is False
         assert "remove_item" in error.next_step
         assert "add_item" in error.next_step
 
@@ -2169,17 +2187,27 @@ class TestErrorSplit:
         error = ChangeSetError(reason, "x")
         assert error.retryable is False
 
-    def test_every_retryable_code_has_a_next_step_sentence(self):
-        # Contract 12.3 makes this mandatory, so a missing entry is a contract violation,
-        # not a cosmetic gap.
-        from oss.src.core.workflows.change_set import NEXT_STEPS, _NOT_RETRYABLE
+    def test_the_only_replayable_refusal_is_the_one_the_world_can_fix(self):
+        # The audit behind the flip, executed. `source_not_found` is retryable because the
+        # agent writes the missing file and sends THE SAME request: the world changed, not
+        # the request. Nothing else in this engine has that shape.
+        from oss.src.core.workflows.change_set import _RETRYABLE
+
+        assert _RETRYABLE == {Reason.SOURCE_NOT_FOUND}
+
+    def test_no_refusal_is_a_dead_end(self):
+        # Every code an agent can hit names an action, whether it is replayable or not. A
+        # refusal with no way forward is what makes a model invent one.
+        from oss.src.core.workflows.change_set import NEXT_STEPS
 
         codes = {
             value
             for name, value in vars(Reason).items()
             if not name.startswith("_") and isinstance(value, str)
         }
-        for code in codes - _NOT_RETRYABLE:
+        # `out_of_scope` carries a next_step built from the policy that refused it, so it
+        # is set at the raise site rather than in the table.
+        for code in codes - {Reason.OUT_OF_SCOPE}:
             assert code in NEXT_STEPS, f"{code} has no next_step sentence"
 
     def test_a_text_too_large_target_is_refused(self):
@@ -3262,3 +3290,79 @@ class TestTheRenderedFileRoundTrips:
         rendered = self._rendered("Be concise.\n")
 
         assert strip_platform_guidance(rendered) == "Be concise."
+
+
+class TestTheAgentActionableEnvelope:
+    """One envelope for every expected failure an agent can see (api/AGENTS.md).
+
+    The rule exists because a small model needs one parse and one place to look for the
+    way forward. Before this, a change-set refusal nested the useful half inside `reason`
+    under a constant outer code, a read refusal used a different constant, and the router
+    wrote three more shapes inline.
+    """
+
+    ALLOWED = {"code", "message", "retryable", "next_step", "details"}
+
+    @staticmethod
+    def _details():
+        # `remove` of a path that does not exist. `set` would create it, which is why it
+        # makes a poor fixture for a refusal.
+        return failure(
+            ops({"operation": "remove", "target": ["nope"]}),
+            base_config(),
+        ).to_detail()
+
+    def test_no_key_outside_the_envelope(self):
+        assert set(self._details()) <= self.ALLOWED
+
+    def test_the_code_is_the_semantic_cause_not_a_wrapper(self):
+        # `change_set_rejected` told a reader that something was rejected and nothing
+        # about what, which is the one thing the code exists to say.
+        assert self._details()["code"] != "change_set_rejected"
+        assert self._details()["code"] == Reason.TARGET_NOT_FOUND
+
+    def test_a_non_retryable_refusal_may_still_name_a_next_step(self):
+        # The half of the rule that the old shape could not express. `retryable: false`
+        # says "resending these bytes cannot work"; it does not say "you are stuck". The
+        # way forward rides on `next_step` either way, which is what a small model reads.
+        detail = failure(
+            ops({"operation": "set", "target": AGENT + ["x"], "value": _nested(500)}),
+            base_config(),
+        ).to_detail()
+
+        assert detail["code"] == Reason.VALUE_TOO_DEEP
+        assert detail["retryable"] is False
+        assert detail["next_step"]
+
+    @pytest.mark.parametrize(
+        "delta",
+        [
+            ops({"operation": "remove", "target": ["nope"]}),
+            ops({"operation": "remove_item", "target": AGENT + [skill("gone")]}),
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + [skill("release-qa"), "body"],
+                    "edits": [{"old_text": "zzz", "new_text": "y"}],
+                }
+            ),
+            {"set": "not-an-object"},
+        ],
+        ids=["target", "item", "anchor", "legacy-shape"],
+    )
+    def test_every_refusal_carries_the_three_mandatory_fields(self, delta):
+        detail = failure(delta, base_config()).to_detail()
+
+        assert isinstance(detail["code"], str) and detail["code"]
+        assert isinstance(detail["message"], str) and detail["message"]
+        assert isinstance(detail["retryable"], bool)
+        assert set(detail) <= self.ALLOWED
+
+    def test_a_refusal_with_nothing_specific_omits_details(self):
+        # `details` is optional, so an error with no error-specific field does not carry
+        # an empty object for a reader to step through. A malformed envelope is refused
+        # before any operation exists to report an index for.
+        detail = failure({"set": "not-an-object"}, base_config()).to_detail()
+
+        assert detail["code"] == Reason.INVALID_DELTA
+        assert "details" not in detail

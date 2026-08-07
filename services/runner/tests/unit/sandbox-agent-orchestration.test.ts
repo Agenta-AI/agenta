@@ -971,6 +971,15 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "codex",
+      customTools: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission: "ask",
+          readOnly: false,
+        },
+      ] as never,
         agentsMd: "Be terse.",
         messages: [{ role: "user", content: "hello" }],
       } as AgentRunRequest,
@@ -985,6 +994,7 @@ describe("runSandboxAgent orchestration", () => {
       isPi: false,
       agentMountedPath: undefined,
       agentMountSkipped: false,
+      toolNames: ["commit_revision"],
     });
     assert.ok(guidance);
     assert.equal(
@@ -1002,6 +1012,15 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "codex",
+      customTools: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission: "ask",
+          readOnly: false,
+        },
+      ] as never,
         messages: [{ role: "user", content: "hello" }],
       } as AgentRunRequest,
       undefined,
@@ -1044,6 +1063,15 @@ describe("runSandboxAgent orchestration", () => {
     const result = await runSandboxAgent(
       {
         harness: "pi_core",
+      customTools: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission: "ask",
+          readOnly: false,
+        },
+      ] as never,
         agentsMd: "Be terse.",
         runContext: { workflow: { artifact: { id: "artifact-1" } } },
         telemetry: {

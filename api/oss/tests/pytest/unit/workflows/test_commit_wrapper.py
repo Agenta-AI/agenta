@@ -98,11 +98,18 @@ def _commit_on(base_revision_id, **delta):
     return request.workflow_revision
 
 
-def _apply(service, base, commit, scope_policy=None):
+def _apply(service, base, commit, scope_policy=None, agent_context=False):
+    """The GENERAL path by default: no agent transformations.
+
+    The agent's own three (selector normalization, the build-kit rejection, the derived
+    message) used to run for every caller, so a cell that did not think about context got
+    them anyway. Pass `agent_context=True` to exercise the agent's path.
+    """
     return service._apply_delta(
         base=base,
         workflow_revision_commit=commit,
         scope_policy=scope_policy,
+        agent_context=agent_context,
     )
 
 
@@ -217,7 +224,7 @@ class TestDeltaForms:
             }
         ).workflow_revision
 
-        _, message, _ = _apply(service, {}, commit)
+        _, message, _ = _apply(service, {}, commit, agent_context=True)
 
         assert message == "set instructions"
 
@@ -255,6 +262,7 @@ class TestTheLegacyArmEarnsTheSameRefusals:
     def test_a_platform_tool_is_refused(self, service):
         # The build kit is injected for the run and is not part of the configuration. An
         # agent that commits it writes the playground's own tools into its stored config.
+        # Only the AGENT has a build kit, so only the agent is checked for it.
         commit = _commit(
             set={
                 "parameters": {
@@ -266,7 +274,7 @@ class TestTheLegacyArmEarnsTheSameRefusals:
         )
 
         with pytest.raises(ChangeSetError) as caught:
-            _apply(service, {}, commit)
+            _apply(service, {}, commit, agent_context=True)
 
         assert caught.value.reason == Reason.PLATFORM_TOOL_NOT_COMMITTABLE
 
@@ -1081,3 +1089,94 @@ class TestAnIntentionalEmptyStillCommits:
         )
 
         assert resolved["parameters"]["agent"]["instructions"]["agents_md"] == ""
+
+
+class TestTheGeneralPathNeverRunsAgentPolicy:
+    """Three transformations exist for the agent. They used to run for everyone.
+
+    The playground's own save, the SDK, applications and evaluators all reach the commit
+    wrapper, and every one of them silently inherited agent policy: selectors rewritten, a
+    `tools` list refused for holding a platform entry, and a caller's own commit message
+    replaced by a derived one. Audit leaks C24, C25, C26 and the general-arm twin C43.
+
+    Each cell here runs the SAME payload both ways, so what it pins is the difference
+    rather than one branch's behavior.
+    """
+
+    PLATFORM_TOOL = {
+        "parameters": {
+            "agent": {"tools": [{"type": "platform", "op": "commit_revision"}]}
+        }
+    }
+
+    def test_a_caller_keeps_its_own_commit_message(self, service, ordered_on):
+        commit = _commit(
+            operations=[
+                {"operation": "set", "target": AGENT + ["instructions"], "value": "hi"}
+            ]
+        )
+        commit.message = "written by a human"
+
+        _, general, _ = _apply(service, {}, commit)
+        _, agent, _ = _apply(service, {}, commit, agent_context=True)
+
+        assert general == "written by a human", "the caller's message was overwritten"
+        assert agent == "set instructions", "the agent still gets a derived message"
+
+    def test_a_platform_tool_entry_is_the_agents_problem_alone(self, service):
+        # A human or an SDK caller may legitimately store a tools list the agent could not
+        # commit: it is their configuration, and they have no build kit to confuse it with.
+        resolved, _, _ = _apply(service, {}, _commit(set=self.PLATFORM_TOOL))
+
+        assert resolved["parameters"]["agent"]["tools"]
+
+        with pytest.raises(ChangeSetError):
+            _apply(service, {}, _commit(set=self.PLATFORM_TOOL), agent_context=True)
+
+    def test_a_selector_is_corrected_for_the_agent_and_left_alone_otherwise(
+        self, service, ordered_on
+    ):
+        # The repeated list name before its own selector: one model made it in 12 percent
+        # of its targets. A program that writes it wants the precise refusal instead.
+        base = {"parameters": {"agent": {"skills": [{"name": "qa", "body": "old"}]}}}
+        delta = _commit(
+            operations=[
+                {
+                    "operation": "set",
+                    "target": AGENT
+                    + ["skills", {"list": "skills", "key": "qa"}, "body"],
+                    "value": "new",
+                }
+            ]
+        )
+
+        resolved, _, warnings = _apply(service, base, delta, agent_context=True)
+        assert resolved["parameters"]["agent"]["skills"][0]["body"] == "new"
+        assert any(w.code == "target_normalized" for w in warnings)
+
+        with pytest.raises(ChangeSetError):
+            _apply(service, base, delta)
+
+    def test_the_scope_is_not_gated_by_the_switch(self, service, ordered_on):
+        # Enforcement stays in the engine and travels as `scope_policy`, so it applies to
+        # whoever is given one. Gating it on `agent_context` would make the confinement a
+        # property of a boolean the caller could be given wrongly, instead of a property
+        # of the entry point that hands out the policy.
+        from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
+
+        delta = _commit(
+            operations=[
+                {"operation": "set", "target": ["uri"], "value": "agenta:builtin:x"}
+            ]
+        )
+
+        for agent_context in (False, True):
+            with pytest.raises(ChangeSetError) as caught:
+                _apply(
+                    service,
+                    {},
+                    delta,
+                    scope_policy=AGENT_COMMIT_SCOPE,
+                    agent_context=agent_context,
+                )
+            assert caught.value.reason == Reason.OUT_OF_SCOPE

@@ -312,10 +312,6 @@ class TestRunResponse(BaseModel):
     test_id: Optional[str] = None
     verdict: TestRunVerdict
     verdict_reason: Optional[str] = None
-    # Excluded from the payload: distinguishes "the child invoke never completed"
-    # (timeout / non-2xx / no output) from a business-level failed verdict, so the API
-    # boundary can set the outer ToolResult status accordingly.
-    infra_failure: bool = Field(default=False, exclude=True)
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +322,58 @@ class TestRunResponse(BaseModel):
 # the agent never sees Composio. See ``docs/design/agent-workflows/projects/
 # tool-discovery/design.md`` for the field-by-field mapping and the connection
 # state machine, and ``core/tools/discovery.py`` for the translation itself.
+
+
+# ---------------------------------------------------------------------------
+# Platform-tool handler results
+# ---------------------------------------------------------------------------
+
+
+class AgentError(BaseModel):
+    """The canonical agent-actionable failure envelope. See `api/AGENTS.md`.
+
+    One shape for every expected failure an agent can see, whichever transport carries it.
+    On the `/tools/call` seam it is the whole of `ToolResult.content`, with
+    `STATUS_CODE_ERROR` over HTTP 200, because the runner hides non-2xx tool bodies and a
+    failure the model cannot see is a failure it invents an explanation for.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+    retryable: bool
+    next_step: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+
+
+class PlatformHandlerResult(BaseModel):
+    """What a platform-tool handler returns. The API boundary turns it into a ToolResult.
+
+    Generic on purpose. The boundary used to receive a `TestRunResponse` and read
+    `infra_failure` and `verdict_reason` off it by name, so a second handler could not be
+    registered without the router learning its response type. It now reads only this.
+
+    ``ok`` false means `STATUS_CODE_ERROR`, and then ``content`` is an :class:`AgentError`.
+    That pairing is the contract the runner keys on: an error status always carries an
+    envelope, so a parser never has to guess whether the body is a result or a failure.
+    """
+
+    content: Any
+    ok: bool = True
+    # Mirrored into `Status.message` for logs and non-agent readers. Never the mechanism:
+    # the runner decides failure from the status code alone, because a message that stops
+    # being mirrored must not turn a failure into a success.
+    message: Optional[str] = None
+    # Set ONLY when this call actually wrote a revision. The API boundary reads it to evict
+    # the warm session and emit the frontend event, so a handler that stores nothing (a
+    # `no_change` answer, a refusal, a read) leaves it None and nothing is emitted. Plain
+    # ids rather than a workflow DTO: the tools layer does not depend on the workflows one.
+    committed_revision: Optional[Dict[str, Any]] = None
+
+    @classmethod
+    def failure(cls, error: AgentError) -> "PlatformHandlerResult":
+        return cls(content=error, ok=False, message=error.message)
 
 
 class ToolConnectionState(str, Enum):
