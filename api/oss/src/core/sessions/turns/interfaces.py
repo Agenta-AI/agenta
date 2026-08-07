@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Windowing
@@ -67,6 +67,14 @@ class SessionTurnsDAOInterface(ABC):
         session_id: str,
         harness_kind: HarnessKind,
     ) -> Optional[SessionTurn]: ...
+
+    @abstractmethod
+    async def latest_turn_per_session(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> Dict[str, SessionTurn]: ...
 
     @abstractmethod
     async def delete_by_session_id(

@@ -8,6 +8,8 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
+import type {AgentaApi} from "@agentaai/api-client"
+
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
@@ -246,32 +248,61 @@ export interface QuerySessionsParams {
      * hide them by display filter, rather than mistake an archived row for a hard-delete and prune
      * it. Set false only for a view that wants strictly non-archived rows. */
     includeArchived?: boolean
+    /** Case-insensitive substring match over the session title (`session_streams.name`). */
+    search?: string
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
+    /** Page size — omit for the server default (no `windowing` sent at all, preserving prior
+     * unpaginated behavior). */
+    limit?: number
+    /** Cursor: the `id` of the last row from the previous page. */
+    next?: string
+    /** Cursor: the activity value (`updated_at ?? created_at`, server-coalesced) of the last
+     * row from the previous page (pairs with `next`). */
+    newest?: string
 }
 
 /**
  * The durable session list for the project: merged stream rows (id, `name` title, flags,
  * `created_at`, `deleted_at`=ended), filtered by the turns' workflow `references`. This is the
- * server source the reconciling sidebar merges over its localStorage cache. Returns `null` on
- * failure / missing project scope.
+ * server source the reconciling sidebar merges over its localStorage cache. Ordered by last
+ * activity (`updated_at`) server-side. Returns `null` on failure / missing project scope.
  */
 export async function querySessions({
     projectId,
     references,
     includeEnded = true,
     includeArchived = true,
+    search,
     appId,
     abortSignal,
     lowPriority,
+    limit,
+    next,
+    newest,
 }: QuerySessionsParams): Promise<SessionStream[] | null> {
     if (!projectId) return null
+
+    // Only attach `windowing` when a caller actually opts into pagination — an absent
+    // field preserves the prior unwindowed (server-default-ordered) query shape.
+    const windowing =
+        limit !== undefined || next !== undefined || newest !== undefined
+            ? {limit, next, newest}
+            : undefined
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[querySessions]", () =>
         client.querySessions(
-            {references, include_ended: includeEnded, include_archived: includeArchived},
+            {
+                references,
+                include_ended: includeEnded,
+                include_archived: includeArchived,
+                windowing,
+                // TODO(fern-regen): `search` isn't in the generated SessionQueryRequest yet
+                // (regen out of scope) — widen the type until the client picks it up.
+                search,
+            } as AgentaApi.SessionQueryRequest & {search?: string},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
