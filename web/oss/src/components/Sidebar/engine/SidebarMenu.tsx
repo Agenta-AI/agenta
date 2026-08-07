@@ -120,17 +120,20 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                     ) : (
                         titleNode
                     )
-                    const submenuLabel = collapsed ? (
-                        <Tooltip
-                            title={item.tooltip || item.title}
-                            placement="right"
-                            mouseEnterDelay={0.8}
-                        >
-                            <span className="w-full">{labelNode}</span>
-                        </Tooltip>
-                    ) : (
-                        labelNode
-                    )
+                    // Dynamic groups already answer the hover with their flyout — a
+                    // tooltip on top of it is noise.
+                    const submenuLabel =
+                        collapsed && !item.isDynamic ? (
+                            <Tooltip
+                                title={item.tooltip || item.title}
+                                placement="right"
+                                mouseEnterDelay={0.8}
+                            >
+                                <span className="w-full">{labelNode}</span>
+                            </Tooltip>
+                        ) : (
+                            labelNode
+                        )
                     const isNavigableParent = Boolean(item.link)
                     const isOpen = openKeys.includes(item.key)
                     const isInlineMode = mode === "inline"
