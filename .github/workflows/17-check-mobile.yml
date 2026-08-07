@@ -8,6 +8,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'web/mobile/**'
+      - 'web/packages/**'
       - 'web/entrypoint.sh'
       - 'web/docker/**'
       - 'web/package.json'

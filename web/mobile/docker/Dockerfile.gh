@@ -27,16 +27,38 @@ COPY docker/run-turbo-build.sh /usr/local/bin/run-turbo-build.sh
 
 RUN chmod +x /usr/local/bin/run-turbo-build.sh
 
-# Manifests first (change less often than source). @agenta/mobile has no
-# workspace package deps in WP1; add packages/*/package.json copies here when
-# WP2+ introduces @agenta/* imports.
+# Manifests first (change less often than source): the mobile app plus the
+# @agenta/* workspace closure it links (chat → entities/playground/shared;
+# entities → sdk/api-client/shared/ui) so `pnpm install` resolves the
+# workspace: deps.
 COPY mobile/package.json ./mobile/package.json
+COPY packages/agenta-shared/package.json ./packages/agenta-shared/
+COPY packages/agenta-ui/package.json ./packages/agenta-ui/
+COPY packages/agenta-entities/package.json ./packages/agenta-entities/
+COPY packages/agenta-playground/package.json ./packages/agenta-playground/
+COPY packages/agenta-chat/package.json ./packages/agenta-chat/
+COPY packages/agenta-sdk/package.json ./packages/agenta-sdk/
+
+# `agenta-api-client` runs `tsc` as a `prepare` lifecycle script during
+# install, so its full source must be present before `pnpm install` runs.
+COPY packages/agenta-api-client/ ./packages/agenta-api-client/
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm fetch --frozen-lockfile
 
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --offline
+
+# Shared package config (required by the package tsconfigs), then the
+# workspace package sources for the same closure.
+COPY packages/tsconfig.base.json ./packages/
+COPY packages/css-modules.d.ts ./packages/
+COPY packages/agenta-shared/ ./packages/agenta-shared/
+COPY packages/agenta-ui/ ./packages/agenta-ui/
+COPY packages/agenta-entities/ ./packages/agenta-entities/
+COPY packages/agenta-playground/ ./packages/agenta-playground/
+COPY packages/agenta-chat/ ./packages/agenta-chat/
+COPY packages/agenta-sdk/ ./packages/agenta-sdk/
 
 COPY mobile/ ./mobile/
 

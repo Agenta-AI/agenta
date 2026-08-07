@@ -39,6 +39,7 @@ COPY packages/agenta-playground-ui/package.json ./packages/agenta-playground-ui/
 COPY packages/agenta-annotation/package.json ./packages/agenta-annotation/
 COPY packages/agenta-annotation-ui/package.json ./packages/agenta-annotation-ui/
 COPY packages/agenta-sdk/package.json ./packages/agenta-sdk/
+COPY packages/agenta-chat/package.json ./packages/agenta-chat/
 
 # `agenta-api-client` runs `tsc` as a `prepare` lifecycle script during install.
 # Its source (src/, tsconfig.json) must be present before `pnpm i` runs, so we
@@ -90,6 +91,8 @@ COPY --chown=agenta:agenta packages/agenta-annotation/src ./packages/agenta-anno
 COPY --chown=agenta:agenta packages/agenta-annotation/tsconfig.json ./packages/agenta-annotation/
 COPY --chown=agenta:agenta packages/agenta-annotation-ui/src ./packages/agenta-annotation-ui/src
 COPY --chown=agenta:agenta packages/agenta-annotation-ui/tsconfig.json ./packages/agenta-annotation-ui/
+COPY --chown=agenta:agenta packages/agenta-chat/src ./packages/agenta-chat/src
+COPY --chown=agenta:agenta packages/agenta-chat/tsconfig.json ./packages/agenta-chat/
 
 COPY --chown=agenta:agenta ee/src ./ee/src
 COPY --chown=agenta:agenta ee/public ./ee/public
