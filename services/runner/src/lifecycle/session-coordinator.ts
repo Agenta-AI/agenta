@@ -128,6 +128,24 @@ export interface KeepaliveEngine {
   /** Best-effort provider activity refresh after a live park succeeds. */
   onParkedLive?(env: SessionEnvironment): Promise<void>;
   /**
+   * Is this parked environment's durable cwd mount still serving I/O?
+   *
+   * THE BACKSTOP for the class of failure `SessionPool.reserve` prevents at the source: a warm
+   * reuse never re-acquires, so it never remounts, and an environment whose mount was pulled while
+   * it sat parked will hand the harness a cwd that no longer exists. Nothing in the reuse path
+   * looks at the filesystem, so the environment's own state is the only thing claiming the mount
+   * is live — and it is exactly the thing that is wrong.
+   *
+   * A false answer costs a rebuild, which remounts. That turns "this session is broken until the
+   * pool entry ages out" into "one slow turn".
+   *
+   * Optional: an engine that does not implement it simply never probes, which is today's
+   * behavior. It must never throw — the coordinator treats a throw as "cannot prove it is dead"
+   * and reuses, because a probe that fails open costs a possible bad turn while one that fails
+   * closed would rebuild every warm session the moment the probe itself broke.
+   */
+  isMountAlive?(env: SessionEnvironment): Promise<boolean>;
+  /**
    * Apply a reconciliation plan to a LIVE environment (lifecycle migration, step 6).
    *
    * Returns whether the WHOLE plan applied. The implementation must commit applied state only
@@ -512,6 +530,27 @@ export async function runWithKeepalive(
     });
   };
 
+  /**
+   * True when the environment's durable mount is PROVEN dead. Anything else — no probe wired, a
+   * live mount, a probe that threw — is false, so the reuse proceeds.
+   *
+   * Fails OPEN deliberately: a probe that cannot answer must not rebuild every warm session. The
+   * cost of a wrong `false` is one failed turn that then evicts and retries cold; the cost of a
+   * wrong `true` would be losing warm reuse across the board the moment the probe misbehaves.
+   */
+  const mountLost = async (env: SessionEnvironment): Promise<boolean> => {
+    if (!engine.isMountAlive) return false;
+    try {
+      return !(await engine.isMountAlive(env));
+    } catch (err) {
+      klog(
+        `mount-probe key=${key} threw, reusing: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+      return false;
+    }
+  };
+
   const resultTeardownReason = (result: AgentRunResult): TeardownReason =>
     shouldPark(result, signal, clientGone)
       ? "clean-resumable"
@@ -543,6 +582,10 @@ export async function runWithKeepalive(
     // stale, so the sandbox may park.
     if (mismatch === "no-parked-gate" || mismatch === "unrecognized-gate-type")
       return "session-incompatible";
+    // The durable cwd under this environment is gone. Parking it would hand the next turn the
+    // same dead mount this probe just caught, so it must delete — and deleting is what lets the
+    // cold acquire below mkdir and remount the path from scratch.
+    if (mismatch === "mount-lost") return "runtime-incompatible";
     // `config` covers every remaining configuration change, including a changed model connection
     // or MCP credential shape. Until the reconciliation router can say which facet moved, treat
     // it as runtime-level and delete. Delete is always sound; it only costs a rebuild.
@@ -640,41 +683,75 @@ export async function runWithKeepalive(
     mountExpiresAtMs: installedMountLease(env.installedMountExpiries),
   });
 
-  // Park a freshly cold-acquired environment (new pool slot) as approval / idle, or tear it down.
+  // Settle a cold turn's environment: park it (approval / idle) or tear it down.
+  //
+  // Two shapes, because `pool.reserve` can refuse a seat when the pool is full of busy sessions:
+  //
+  //  - RESERVED. The seat is already ours, so this is a `repark`, never a `park` — `park` destroys
+  //    whatever occupies the key, and here that occupant IS this environment. `repark` returns
+  //    false when the reservation was superseded or destroyed while the turn ran (a steer does
+  //    exactly that), and the orphan is then dropped.
+  //  - UNRESERVED. Pre-reservation behavior, unchanged: `park` competes for a seat and the
+  //    environment is destroyed when it cannot get one.
   const parkFreshOrDestroy = async (
     env: SessionEnvironment,
+    reservation: LiveSession<SessionEnvironment> | undefined,
     result: AgentRunResult,
   ): Promise<void> => {
     env.clearTurn();
-    const input = {
-      key,
-      environment: env,
+    const stored = {
       // No `configFingerprint`. The environment owns it (lifecycle migration, step 2).
       historyFingerprint: nextHistoryFp(env),
       historyAsserted,
       credentialEpoch: parkedEpoch(env, incomingEpoch),
-      teardown: (reason: TeardownReason) => env.destroy({ reason }),
     };
+    const seat = async (
+      ttlMs: number,
+      state: "idle" | "awaiting_approval",
+    ): Promise<boolean> =>
+      reservation
+        ? pool.repark(reservation, stored, ttlMs, state)
+        : pool.park(
+            {
+              key,
+              environment: env,
+              teardown: (reason: TeardownReason) => env.destroy({ reason }),
+              ...stored,
+            },
+            ttlMs,
+            state,
+          );
+    const drop = async (
+      label: string,
+      reason: TeardownReason,
+    ): Promise<void> => {
+      // Identity-checked when reserved: a supersede may already have evicted and destroyed this
+      // reservation, and neither a double-free nor clobbering a newer occupant is acceptable.
+      if (reservation) await pool.evictIfCurrent(reservation, label, reason);
+      else await env.destroy({ reason });
+    };
+
     if (approvalToPark(env, result)) {
       klog(
         `park-approval key=${key} tool=${env.parkedApproval?.toolName ?? "?"}`,
       );
-      if (
-        !(await pool.park(input, config.approvalTtlMs, "awaiting_approval"))
-      ) {
-        await env.destroy({ reason: "failed-turn" });
+      if (!(await seat(config.approvalTtlMs, "awaiting_approval"))) {
+        await drop("park-refused", "failed-turn");
       } else {
         await notifyParkedLive(env);
         watchParkedPrompt(env);
       }
     } else if (shouldPark(result, signal, clientGone)) {
-      if (!(await pool.park(input, config.ttlMs))) {
-        await env.destroy({ reason: "clean-resumable" });
+      if (!(await seat(config.ttlMs, "idle"))) {
+        await drop("park-refused", "clean-resumable");
       } else {
         await notifyParkedLive(env);
       }
     } else {
-      await env.destroy({ reason: resultTeardownReason(result) });
+      await drop(
+        `no-park:${result.stopReason ?? "failed"}`,
+        resultTeardownReason(result),
+      );
     }
   };
 
@@ -738,6 +815,17 @@ export async function runWithKeepalive(
   };
 
   const coldAndPark = async (): Promise<AgentRunResult> => {
+    // Claim the key BEFORE building anything on its durable cwd.
+    //
+    // Almost every route here already evicted (miss leaves the key empty; supersede, the mismatch
+    // paths, and the failed continuation/resume paths all `await pool.evict` first), so this is
+    // normally a no-op. The exception is the fall-through after `checkoutIdle` loses a race: the
+    // dispatch read an idle entry, awaited a live route or the mount probe, and by the time it
+    // tried to check out, another turn owned it. The key then still holds a session whose durable
+    // cwd is the one this acquire is about to mount — and evicting it AFTER the acquire (which is
+    // where `reserve` would) means unmounting and deleting that cwd out from under the environment
+    // just built on it. That is the original bug in a narrower window, so the claim happens here.
+    await pool.evict(key, "pre-acquire", "failed-turn");
     const acq = await engine.acquireEnvironment(request, signal, signed);
     if (!acq.ok) return { ok: false, error: acq.error };
     const env = acq.env;
@@ -752,6 +840,19 @@ export async function runWithKeepalive(
           `running anyway, every dispatch will rebuild cold`,
       );
     }
+    // Seat this environment at its key BEFORE the turn runs, so a second request on the same
+    // session finds it and supersedes instead of cold-acquiring a rival environment onto the same
+    // durable cwd. See `SessionPool.reserve` for what that rivalry used to cost.
+    const reservation = await pool.reserve({
+      key,
+      environment: env,
+      // Seeded with what a park would store if the turn ended right now; `repark` overwrites both
+      // with the post-turn values. Nothing reads them while the seat is `busy`.
+      historyFingerprint: nextHistoryFp(env),
+      historyAsserted,
+      credentialEpoch: parkedEpoch(env, incomingEpoch),
+      teardown: (reason: TeardownReason) => env.destroy({ reason }),
+    });
     let result: AgentRunResult;
     try {
       // Park mode keeps a parkable ACP permission gate alive. A non-parkable relay or client-tool
@@ -762,13 +863,22 @@ export async function runWithKeepalive(
         ...turnCredential,
       });
     } catch (err) {
-      await env.destroy({ reason: "failed-turn" });
+      // Identity-checked when reserved: a supersede may already have evicted and destroyed this
+      // reservation (that is how a steer interrupts this turn), and its environment must not be
+      // double-freed nor a newer occupant clobbered. Destroy is idempotent either way.
+      if (reservation)
+        await pool.evictIfCurrent(
+          reservation,
+          "cold-turn-threw",
+          "failed-turn",
+        );
+      else await env.destroy({ reason: "failed-turn" });
       return {
         ok: false,
         error: String(err instanceof Error ? err.message : err),
       };
     }
-    await parkFreshOrDestroy(env, result);
+    await parkFreshOrDestroy(env, reservation, result);
     return result;
   };
 
@@ -836,6 +946,12 @@ export async function runWithKeepalive(
         mismatch = undefined;
       }
     }
+
+    // THE BACKSTOP. Last, and only when everything else says reuse: this is the one check that
+    // touches the filesystem, so it runs exactly on the path that is about to trust the mount and
+    // never on a dispatch already bound for a rebuild.
+    if (!mismatch && (await mountLost(existing.environment)))
+      mismatch = "mount-lost";
 
     if (mismatch) {
       klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
@@ -1022,6 +1138,11 @@ export async function runWithKeepalive(
         mismatch = "credentials-rotated";
       }
     }
+    // The same backstop as the idle branch. An approval park holds its environment for the
+    // approval TTL — minutes, not the idle TTL's seconds — so it is if anything MORE exposed to
+    // losing its mount while it waits for the human.
+    if (!mismatch && (await mountLost(existing.environment)))
+      mismatch = "mount-lost";
 
     if (mismatch || resumeDecisions.length === 0) {
       klog(

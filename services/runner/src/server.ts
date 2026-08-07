@@ -44,7 +44,10 @@ import {
   type ParkedApproval,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
-import type { MountCredentials } from "./engines/sandbox_agent/mount.ts";
+import {
+  isMounted,
+  type MountCredentials,
+} from "./engines/sandbox_agent/mount.ts";
 import type { TeardownReason } from "./engines/sandbox_agent/teardown.ts";
 import {
   approvalDecisionForToolCall,
@@ -54,9 +57,7 @@ import {
   type KeepaliveConfig,
   type KeepaliveProviderName,
 } from "./engines/sandbox_agent/session-identity.ts";
-import {
-  SessionPool,
-} from "./engines/sandbox_agent/session-pool.ts";
+import { SessionPool } from "./engines/sandbox_agent/session-pool.ts";
 import { runnerInfo } from "./version.ts";
 import {
   assertRunnerToken,
@@ -234,6 +235,16 @@ const realKeepaliveEngine: KeepaliveEngine = {
   onParkedLive: async (env) => {
     if (!env.plan.isDaytona) return;
     await env.sandbox?.sandbox?.refreshActivity?.(env.sandbox.sandboxId);
+  },
+  // The warm-path mount probe. `mountedCwd` is set only for a LIVE LOCAL mount: Daytona records
+  // an expiry with no host path (the mount lives inside the sandbox and dies with it), and a run
+  // whose mount failed or was never signed falls back to an ephemeral cwd and sets nothing. In
+  // every one of those cases there is no host mountpoint to probe and no claim to falsify, so the
+  // answer is "alive" and the reuse proceeds unchanged.
+  isMountAlive: async (env) => {
+    const cwd = env.mountedCwd;
+    if (!cwd) return true;
+    return isMounted(cwd, klog);
   },
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
   // mount threaded through so an up-front keep-alive sign is never repeated.

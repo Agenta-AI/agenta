@@ -252,7 +252,7 @@ function credEnv(creds: MountCredentials): Record<string, string> {
  * check trusts it, so `mountStorage` short-circuits and the next session inherits a dead cwd.
  * Probe with a real access (`ls -A`) and treat ENOTCONN as NOT-mounted so the caller remounts.
  */
-async function isMounted(
+export async function isMounted(
   cwd: string,
   log: (m: string) => void,
 ): Promise<boolean> {
