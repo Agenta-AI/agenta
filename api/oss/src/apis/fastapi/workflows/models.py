@@ -9,6 +9,8 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.workflows.dtos import (
     #
+    CommitWarning,
+    #
     WorkflowCatalogType,
     WorkflowCatalogHarness,
     WorkflowCatalogTemplate,
@@ -384,11 +386,35 @@ class WorkflowRevisionsLogRequest(BaseModel):
     )
 
 
-class CommitWarning(BaseModel):
-    code: str
-    message: str
-    target: Optional[List[Any]] = None
-    operation_index: Optional[int] = None
+class ReadConfigTarget(BaseModel):
+    workflow_variant_id: Optional[str] = None
+    # Server-bound from $ctx.workflow.is_draft; stripped from the model-visible schema.
+    run_is_draft: Optional[bool] = None
+    path: Optional[List[Any]] = None
+
+
+class ReadConfigRequest(BaseModel):
+    target: ReadConfigTarget
+    max_bytes: Optional[int] = None
+
+
+class ReadConfigRevision(BaseModel):
+    id: str
+    version: Optional[str] = None
+    workflow_variant_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ReadConfigResponse(BaseModel):
+    revision: ReadConfigRevision
+    base_revision_id: str = Field(
+        description="Copy this into your next commit's `base_revision_id`.",
+    )
+    is_draft: bool = False
+    path: List[Any] = Field(default_factory=list)
+    value: Any = None
+    bytes: int = 0
+    warnings: Optional[List[CommitWarning]] = None
 
 
 class WorkflowRevisionResponse(BaseModel):
