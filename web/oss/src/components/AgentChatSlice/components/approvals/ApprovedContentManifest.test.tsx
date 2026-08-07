@@ -17,17 +17,16 @@ import ApprovedContentManifest, {
     type ApprovedContentManifestValue,
 } from "./ApprovedContentManifest"
 
-/** Rendered text with tags stripped, so assertions do not straddle element boundaries. */
-const text = (node: Parameters<typeof renderToStaticMarkup>[0]): string =>
-    renderToStaticMarkup(node)
-        .replace(/<[^>]*>/g, "")
-        .replace(/&#x27;/g, "'")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, "&")
-        .replace(/&gt;/g, ">")
-        .replace(/&lt;/g, "<")
-        .replace(/\s+/g, " ")
-        .trim()
+/**
+ * Rendered text with tags stripped, so assertions do not straddle element boundaries.
+ * Parsed by the test environment's DOM (vitest runs jsdom) rather than by regexes:
+ * real parsing handles tags and entities correctly by construction.
+ */
+const text = (node: Parameters<typeof renderToStaticMarkup>[0]): string => {
+    const host = document.createElement("div")
+    host.innerHTML = renderToStaticMarkup(node)
+    return (host.textContent ?? "").replace(/\s+/g, " ").trim()
+}
 
 const file = (overrides: Record<string, unknown> = {}) => ({
     relativePath: "instructions.md",

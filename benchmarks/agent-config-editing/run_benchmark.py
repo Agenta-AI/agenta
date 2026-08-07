@@ -663,7 +663,7 @@ def main() -> int:
             "threshold": args.threshold,
             "base": creds["base"],
             "project_id": creds["project_id"],
-            "api_key_fingerprint": creds["api_key_fingerprint"],
+            "credentials_context": creds["credentials_context"],
             "stamps": stamps,
             "preflight": health,
         },
