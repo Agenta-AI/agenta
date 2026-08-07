@@ -8,6 +8,7 @@ import {executionItemController, playgroundController} from "@agenta/playground"
 import type {DropdownButtonOption, DropdownButtonOptionStatus} from "@agenta/ui/components"
 import {HeightCollapse} from "@agenta/ui/components"
 import {CollapsibleGroupHeader, EnhancedButton} from "@agenta/ui/components/presentational"
+import {Badge} from "@agenta/ui/ui"
 import {
     ArrowsOutLineHorizontalIcon,
     CopyIcon,
@@ -21,7 +22,6 @@ import {
     RowsIcon,
     X,
 } from "@phosphor-icons/react"
-import {Tag} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -170,13 +170,13 @@ const RowHeaderActions = ({
 
 /** Reusable step name tag (used in both full and compact modes) */
 const StepTag = ({icon, name}: {icon: React.ReactNode; name: string}) => (
-    <Tag
-        variant="filled"
-        className="flex items-center gap-1 !m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent"
+    <Badge
+        variant="default"
+        className="flex items-center gap-1 m-0 self-start whitespace-nowrap rounded px-2 py-0.5 text-xs font-medium bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border-transparent"
     >
         {icon}
         {name}
-    </Tag>
+    </Badge>
 )
 
 /**
@@ -395,12 +395,12 @@ const DownstreamNodeCard = ({
                                     )
                                 }
                                 return (
-                                    <Tag
-                                        color={verdictBoolean ? "success" : "error"}
-                                        className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                    <Badge
+                                        variant={verdictBoolean ? "success" : "error"}
+                                        className="m-0 text-xs rounded-md px-2 py-0 leading-5"
                                     >
                                         {verdictBoolean ? "true" : "false"}
-                                    </Tag>
+                                    </Badge>
                                 )
                             })()}
                         </span>
@@ -777,9 +777,9 @@ const SingleView = ({
                         }}
                         className="text-gray-500 shrink-0"
                         renderLabel={(label) => (
-                            <Tag
-                                variant="filled"
-                                className="flex items-center gap-1 !m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent cursor-pointer select-none hover:bg-[var(--ag-c-0517291A)] transition-colors"
+                            <Badge
+                                variant="default"
+                                className="flex items-center gap-1 m-0 whitespace-nowrap rounded px-2 py-0.5 text-xs bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border-transparent cursor-pointer select-none hover:bg-[var(--ag-c-0517291A)] transition-colors"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     openFocusDrawer({rowId, entityId})
@@ -787,7 +787,7 @@ const SingleView = ({
                             >
                                 <RowsIcon size={12} />
                                 {label}
-                            </Tag>
+                            </Badge>
                         )}
                     />
                     {SyncStateTagSlot && loadableId && (

@@ -361,6 +361,23 @@ const CONTRAST_WAIVERS = [
             "#535353",
             "#b9b9b9",
             "#979ca6",
+            // --ag-c-667085 and its 75%-alpha shade. Raw shim hexes that predate wave 3 —
+            // TypingIndicator's label and NodeNameTag's version suffix both used them on the
+            // antd side too, so they are a palette decision, not a migration regression.
+            "#667085",
+            // #667085 at 75% alpha composited on colorBgContainer — TypingIndicator's label.
+            "#8c94a4",
+            // --ag-rgba-051729-55 (#051729 at 55%) composited on white → measured 4.07:1.
+            // UnreferencedColumnsFooter's summary line. The pre-migration body carried the
+            // identical `!text-[var(--ag-rgba-051729-55)]` class on its antd Button, so this is
+            // a palette token predating wave 3, not a swap regression.
+            "#757f89",
+            // Pure #ff0000 — the CSS keyword `red`, hardcoded in SharedEditor's error state
+            // (`!text-[red]`, SharedEditorImpl.tsx:431). Measured 3.99:1 on white / 3.69:1 on
+            // #f5f6f6, and it is a raw keyword so it does NOT adapt to dark. Pre-existing and
+            // app-wide, not a wave-3 swap. Waived here rather than restyled inside a
+            // story-coverage change; see finding WAVE3-F26 for the one-line fix.
+            "#ff0000",
         ],
         reason: "muted text token (antd colorTextDescription/Placeholder + gray scales) — sub-AA by palette design",
     },
@@ -381,6 +398,9 @@ const CONTRAST_WAIVERS = [
             "#874d00",
             "#d46b08",
             "#13c2c2",
+            // draftTag gold (#d48806 on #fffbe6) — the palette's draftTag family, reproduced
+            // exactly by Badge variant="draft" (see the DraftTag migration note in STATUS.md).
+            "#d48806",
         ],
         reason: "antd preset semantic pair (tag/alert foreground on its tinted background)",
     },
@@ -601,7 +621,15 @@ async function run() {
             lines.push(
                 `    [${v.impact}] ${v.id} — ${v.help} (${gatedNodes.length} node${gatedNodes.length > 1 ? "s" : ""})`,
             )
-            for (const n of gatedNodes.slice(0, 5)) lines.push(`        ${n.target}`)
+            // Print the measured colours for a gated contrast node. Without them the only way
+            // to write an honest waiver is to re-measure by hand in the browser — and the
+            // wave-3 record shows the first draft of an unmeasured waiver is usually wrong.
+            for (const n of gatedNodes.slice(0, 5))
+                lines.push(
+                    n.fg
+                        ? `        ${n.target}\n            fg ${n.fg} on bg ${n.bg} — ratio ${n.ratio}`
+                        : `        ${n.target}`,
+                )
             if (gatedNodes.length > 5) lines.push(`        … ${gatedNodes.length - 5} more`)
         }
         gated += storyGated

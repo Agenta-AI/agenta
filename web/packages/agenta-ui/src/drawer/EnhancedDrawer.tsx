@@ -34,6 +34,18 @@ type DrawerClosable = boolean | object
 /** antd `mask` — a boolean or the antd v6 `MaskConfig` object (`{enabled, blur, closable}`). */
 type DrawerMask = boolean | object
 
+/**
+ * antd `mask` → overlay classes. Radix always renders an overlay (it owns outside-click and
+ * focus trapping), so `mask={false}` cannot remove the element — it makes it transparent, which
+ * is the same thing visually while keeping the behaviour Radix depends on.
+ */
+function maskClasses(mask: DrawerMask | undefined): string | undefined {
+    if (mask === undefined || mask === true) return undefined
+    if (mask === false) return "bg-transparent"
+    const cfg = mask as {enabled?: boolean; blur?: boolean}
+    return cn(cfg.enabled === false && "bg-transparent", cfg.blur && "backdrop-blur-sm")
+}
+
 /** antd `Drawer.styles` semantic-DOM style slots (index sig accepts any antd semantic key). */
 interface DrawerSemanticStyles {
     mask?: React.CSSProperties
@@ -108,6 +120,12 @@ export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
     /** antd `Drawer` had this; Radix already closes on outside-click, so it's effectively a no-op. */
     closeOnLayoutClick?: boolean
+    /**
+     * Accessible name used when the drawer renders no visible `title` (i.e. `closable={false}`
+     * with no title or extra). Radix's dialog needs a name; without one axe reports
+     * `aria-dialog-name`. Falls back to "Drawer" — pass something specific.
+     */
+    ariaLabel?: string
 }
 
 interface DrawerStyles {
@@ -131,6 +149,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         height,
         size,
         closable = true,
+        mask,
         maskClosable = true,
         keyboard = true,
         zIndex,
@@ -139,6 +158,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         className,
         rootClassName,
         afterOpenChange,
+        ariaLabel,
     } = props
 
     const [shouldRender, setShouldRender] = useState(!!open)
@@ -208,6 +228,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
             <SheetContent
                 side={side}
                 container={container}
+                overlayClassName={maskClasses(mask)}
                 className={cn(rootClassName, className)}
                 style={{...sizeStyle, ...(zIndex != null ? {zIndex} : {}), ...styles?.content}}
                 onEscapeKeyDown={(e) => {
@@ -229,7 +250,14 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                         )}
                         {extra != null ? <div data-slot="drawer-extra">{extra}</div> : null}
                     </SheetHeader>
-                ) : null}
+                ) : (
+                    // No header at all (`closable={false}` with no title/extra — the workflow
+                    // revision drawer's shape). Radix renders role="dialog", which axe requires
+                    // to have an accessible name, so emit a screen-reader-only title rather than
+                    // leaving the dialog unnamed. antd's Drawer had no such requirement, which
+                    // is why this only surfaced after the Sheet migration.
+                    <SheetTitle className="sr-only">{ariaLabel ?? "Drawer"}</SheetTitle>
+                )}
                 {/* antd `.ant-drawer-body`: 24px padding, scrolls internally. */}
                 <div
                     data-slot="drawer-body"

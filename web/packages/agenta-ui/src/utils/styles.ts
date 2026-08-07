@@ -230,8 +230,9 @@ export const statusColors = {
     successIcon: "text-green-6",
     /** Warning text - colorWarningText (#faad14) - gold-6 */
     warning: "text-gold-6",
-    /** Warning background - colorWarningBg (#fffbe6) - gold-1 */
-    warningBg: "bg-gold-1",
+    /** Warning background - colorWarningBg (#fffbe6 light / #2b2111 dark). Theme-aware: the
+     *  raw `bg-gold-1` scale it used to point at is frozen at its light hue in dark mode. */
+    warningBg: "bg-colorWarningBg",
     /** Error text - colorErrorText (#d61010) - red-6 */
     error: "text-red-6",
     /** Error background - colorErrorBg (#fbe7e7) - red-1 */

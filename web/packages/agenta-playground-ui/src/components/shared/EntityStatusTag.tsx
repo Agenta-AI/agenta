@@ -1,4 +1,4 @@
-import {Tag} from "antd"
+import {Badge} from "@agenta/ui/ui"
 
 interface QueryState {
     isPending: boolean
@@ -15,10 +15,10 @@ export interface EntityStatusTagProps {
  */
 export function EntityStatusTag({query}: EntityStatusTagProps) {
     if (query.isPending) {
-        return <Tag color="warning">Loading...</Tag>
+        return <Badge variant="warning">Loading...</Badge>
     }
     if (query.isError) {
-        return <Tag color="error">Error</Tag>
+        return <Badge variant="error">Error</Badge>
     }
-    return <Tag color="success">Ready</Tag>
+    return <Badge variant="success">Ready</Badge>
 }

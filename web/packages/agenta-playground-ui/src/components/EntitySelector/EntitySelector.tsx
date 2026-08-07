@@ -41,11 +41,9 @@ import {
 } from "@agenta/entity-ui"
 import {entitySelectorController} from "@agenta/playground"
 import {EnhancedModal} from "@agenta/ui/components/modal"
+import {Button, Input, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
-import {Input, Button, Tabs, Space, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
-
-const {Text} = Typography
 
 // Re-export types from controller for convenience
 export type {EntityType, EntitySelection, EntitySelectorConfig}
@@ -142,26 +140,32 @@ function TestcaseSelector({onSelect}: {onSelect: (selection: EntitySelection) =>
     }
 
     return (
-        <Space direction="vertical" size="small" className="w-full">
-            <Text type="secondary">Testcase ID</Text>
-            <Space.Compact className="w-full">
+        <div className="flex flex-col gap-2 w-full">
+            <span className="text-colorTextDescription">Testcase ID</span>
+            {/* antd Space.Compact join: flatten the inner corners so the pair reads as one control. */}
+            <div className="flex w-full">
                 <Input
                     value={testcaseId}
                     onChange={(e) => setTestcaseId(e.target.value)}
                     placeholder="Enter testcase ID..."
-                    onPressEnter={handleSubmit}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSubmit()
+                    }}
+                    className="rounded-r-none"
                 />
                 <Button
-                    type="primary"
                     onClick={handleSubmit}
                     disabled={!testcaseId.trim()}
-                    icon={<CaretRight size={16} />}
+                    className="rounded-l-none"
                 >
+                    <CaretRight size={16} />
                     Select
                 </Button>
-            </Space.Compact>
-            <Text type="secondary">Testcase selection from testset coming soon</Text>
-        </Space>
+            </div>
+            <span className="text-colorTextDescription">
+                Testcase selection from testset coming soon
+            </span>
+        </div>
     )
 }
 
@@ -183,25 +187,25 @@ function SpanSelector({onSelect}: {onSelect: (selection: EntitySelection) => voi
     }
 
     return (
-        <Space direction="vertical" size="small" className="w-full">
-            <Text type="secondary">Span ID</Text>
-            <Space.Compact className="w-full">
+        <div className="flex flex-col gap-2 w-full">
+            <span className="text-colorTextDescription">Span ID</span>
+            {/* antd Space.Compact join: flatten the inner corners so the pair reads as one control. */}
+            <div className="flex w-full">
                 <Input
                     value={spanId}
                     onChange={(e) => setSpanId(e.target.value)}
                     placeholder="Enter span ID..."
-                    onPressEnter={handleSubmit}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSubmit()
+                    }}
+                    className="rounded-r-none"
                 />
-                <Button
-                    type="primary"
-                    onClick={handleSubmit}
-                    disabled={!spanId.trim()}
-                    icon={<CaretRight size={16} />}
-                >
+                <Button onClick={handleSubmit} disabled={!spanId.trim()} className="rounded-l-none">
+                    <CaretRight size={16} />
                     Select
                 </Button>
-            </Space.Compact>
-        </Space>
+            </div>
+        </div>
     )
 }
 
@@ -267,11 +271,20 @@ function EntitySelectorContent({
     }
 
     return (
-        <Tabs
-            activeKey={activeTab}
-            onChange={(key) => setActiveTab(key as SelectorTab)}
-            items={tabItems}
-        />
+        <Tabs value={activeTab} onValueChange={(key) => setActiveTab(key as SelectorTab)}>
+            <TabsList>
+                {tabItems.map((item) => (
+                    <TabsTrigger key={item.key} value={item.key}>
+                        {item.label}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+            {tabItems.map((item) => (
+                <TabsContent key={item.key} value={item.key}>
+                    {item.children}
+                </TabsContent>
+            ))}
+        </Tabs>
     )
 }
 

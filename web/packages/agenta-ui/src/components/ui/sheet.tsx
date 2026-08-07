@@ -97,16 +97,21 @@ function SheetContent({
     children,
     side = "right",
     container,
+    overlayClassName,
     ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> &
     VariantProps<typeof sheetVariants> & {
         /** Portal target. Defaults to document.body; pass an element to render inline (e.g. a
          * scroll container, or a forced-open parity story). antd `getContainer`. */
         container?: HTMLElement | null
+        /** Overlay overrides. Radix always renders an overlay (it owns outside-click and focus
+         * trapping), so antd's `mask={false}` maps to making it transparent, and antd v6's
+         * `mask={{blur:true}}` to a backdrop filter — not to removing the element. */
+        overlayClassName?: string
     }) {
     return (
         <SheetPortal container={container}>
-            <SheetOverlay />
+            <SheetOverlay className={overlayClassName} />
             <SheetPrimitive.Content
                 data-slot="sheet-content"
                 data-side={side}

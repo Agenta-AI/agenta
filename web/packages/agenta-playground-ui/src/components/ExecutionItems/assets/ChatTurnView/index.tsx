@@ -9,8 +9,7 @@ import {
     getEvaluatorVerdictFromOutput,
     hasAssistantContent as checkHasAssistantContent,
 } from "@agenta/playground/utils"
-import {LoadingOutlined} from "@ant-design/icons"
-import {Popover, Tag} from "antd"
+import {Badge, Spinner, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -135,26 +134,28 @@ const EvaluatorResultPopover = ({
     }, [fullResult, status, outputPorts])
 
     return (
-        <Popover
-            content={popoverContent}
-            title={nodeName}
-            trigger="hover"
-            mouseEnterDelay={0.2}
-            overlayStyle={{maxWidth: 360}}
-        >
-            <Tag color={tagColor} className="!m-0 cursor-pointer text-xs">
-                {status === "running" || status === "pending" ? (
-                    <span className="flex items-center gap-1">
-                        <LoadingOutlined style={{fontSize: 10}} spin />
-                        {nodeName}
-                    </span>
-                ) : (
-                    <span>
-                        {nodeName}: {tagLabel}
-                    </span>
-                )}
-            </Tag>
-        </Popover>
+        // antd `Popover trigger="hover"` — Radix Popover is click-only, so the hover-triggered
+        // primitive is Tooltip. `mouseEnterDelay={0.2}` maps to `delayDuration={200}`.
+        <Tooltip delayDuration={200}>
+            <TooltipTrigger asChild>
+                <Badge variant={tagColor} className="m-0 cursor-pointer text-xs">
+                    {status === "running" || status === "pending" ? (
+                        <span className="flex items-center gap-1">
+                            <Spinner size="small" className="text-[10px]" />
+                            {nodeName}
+                        </span>
+                    ) : (
+                        <span>
+                            {nodeName}: {tagLabel}
+                        </span>
+                    )}
+                </Badge>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-[360px]">
+                <div className="font-semibold">{nodeName}</div>
+                {popoverContent}
+            </TooltipContent>
+        </Tooltip>
     )
 }
 

@@ -1,6 +1,6 @@
 import React from "react"
 
-import {Tag} from "antd"
+import {Badge} from "@agenta/ui/ui"
 import clsx from "clsx"
 
 // ============================================================================
@@ -30,20 +30,20 @@ export const NodeNameTag = ({
     isDraft?: boolean
 }) => (
     <div className="flex items-center gap-1">
-        <Tag
-            variant="filled"
-            className="!m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border border-solid border-transparent"
+        <Badge
+            variant="default"
+            className="m-0 rounded-[6px] px-2 py-[1px] text-xs leading-[22px] bg-[var(--ag-c-0517290F)] text-[var(--ag-c-344054)] border-transparent"
         >
             {name}
             {version != null && <span className="text-[var(--ag-c-667085)] ml-1">v{version}</span>}
-        </Tag>
+        </Badge>
         {isDraft && (
-            <Tag
-                variant="filled"
-                className="!m-0 rounded-[6px] px-1.5 py-[1px] text-[10px] leading-[22px] bg-[var(--ag-c-FFF7E6)] text-[var(--ag-c-D4760A)] border border-solid border-[var(--ag-c-FFE4B5)]"
+            <Badge
+                variant="draft"
+                className="m-0 rounded-[6px] px-1.5 py-[1px] text-[10px] leading-[22px]"
             >
                 draft
-            </Tag>
+            </Badge>
         )}
     </div>
 )

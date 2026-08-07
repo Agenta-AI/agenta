@@ -1197,15 +1197,9 @@ importers:
       '@agenta/ui':
         specifier: workspace:../agenta-ui
         version: link:../agenta-ui
-      '@ant-design/icons':
-        specifier: '>=5.0.0'
-        version: 6.2.2(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@phosphor-icons/react':
         specifier: ^2.1.10
         version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      antd:
-        specifier: '>=5.0.0'
-        version: 6.3.7(date-fns@3.6.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -1537,6 +1531,12 @@ importers:
       '@agenta/oss':
         specifier: workspace:*
         version: link:../oss
+      '@agenta/playground':
+        specifier: workspace:*
+        version: link:../packages/agenta-playground
+      '@agenta/playground-ui':
+        specifier: workspace:*
+        version: link:../packages/agenta-playground-ui
       '@agenta/shared':
         specifier: workspace:*
         version: link:../packages/agenta-shared

@@ -13,7 +13,7 @@ import {testcase} from "@agenta/entities"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcasePaginatedStore} from "@agenta/entities/testcase"
 import {TestcaseTable} from "@agenta/entity-ui"
-import {Divider} from "antd"
+import {Divider} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useTestsetSelection} from "../hooks/useTestsetSelection"
@@ -319,7 +319,8 @@ export function LoadModeContent({
                     })}
                 />
 
-                <Divider orientation="vertical" className="my-0 mx-8 h-auto self-stretch" />
+                {/* antd v6 names the axis `orientation`; the @agenta/ui primitive keeps v5's `type`. */}
+                <Divider type="vertical" className="my-0 mx-8 h-auto self-stretch" />
 
                 {/* Right panel - custom or default */}
                 {renderPreviewPanel ? (

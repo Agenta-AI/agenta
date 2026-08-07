@@ -4,10 +4,8 @@
  * Displayed when no runnable has been added to the playground yet.
  */
 
+import {Button, EmptyState as EmptyStateBase} from "@agenta/ui/ui"
 import {Play, Lightning} from "@phosphor-icons/react"
-import {Button, Empty, Space, Typography} from "antd"
-
-const {Text, Title} = Typography
 
 interface EmptyStateProps {
     onAddRunnable: () => void
@@ -15,27 +13,30 @@ interface EmptyStateProps {
 
 export function EmptyState({onAddRunnable}: EmptyStateProps) {
     return (
-        <Empty
+        <EmptyStateBase
             image={
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
-                    <Play size={32} weight="light" className="text-gray-400" />
+                <div className="w-16 h-16 bg-colorFillQuaternary rounded-full flex items-center justify-center mx-auto">
+                    <Play size={32} weight="light" className="text-colorTextDescription" />
                 </div>
             }
             description={
-                <Space orientation="vertical" size="small">
-                    <Title level={4} style={{marginBottom: 0}}>
+                <div className="flex flex-col gap-2">
+                    {/* mt-[1.33em] reproduces antd Typography.Title's heading margin-top
+                        (21.28px at 16px) — the original set marginBottom:0 but kept the top. */}
+                    <div className="mt-[1.33em] text-base font-semibold text-colorTextHeading">
                         Start your playground
-                    </Title>
-                    <Text type="secondary" className="block max-w-md">
+                    </div>
+                    <span className="block max-w-md text-colorTextDescription">
                         Add an app revision or evaluator to begin. You'll then be able to connect
                         test data and run experiments.
-                    </Text>
-                </Space>
+                    </span>
+                </div>
             }
         >
-            <Button type="primary" icon={<Lightning size={14} />} onClick={onAddRunnable}>
+            <Button onClick={onAddRunnable}>
+                <Lightning size={14} />
                 Add App Revision or Evaluator
             </Button>
-        </Empty>
+        </EmptyStateBase>
     )
 }

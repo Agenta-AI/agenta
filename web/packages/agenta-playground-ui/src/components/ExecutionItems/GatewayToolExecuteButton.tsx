@@ -2,8 +2,9 @@ import React, {useCallback, useState} from "react"
 
 import {type ToolCall} from "@agenta/shared/types"
 import {isGatewayToolSlug} from "@agenta/shared/utils"
+import {message as antMessage} from "@agenta/ui/app-message"
+import {DropdownButton} from "@agenta/ui/components"
 import {CaretDown, Lightning} from "@phosphor-icons/react"
-import {Dropdown, message as antMessage} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 export interface GatewayToolPayloadInfo {
@@ -73,25 +74,19 @@ const GatewayToolExecuteButton: React.FC<Props> = ({
     return (
         <div className="flex flex-col gap-1">
             {gatewayPayloads.map((p) => (
-                <Dropdown.Button
+                <DropdownButton
                     key={p.callId || p.name}
-                    size="small"
-                    icon={<CaretDown size={12} />}
+                    size="sm"
+                    icon={<Lightning size={12} />}
+                    label="Call tool and send to chat"
+                    dropdownIcon={<CaretDown size={12} />}
+                    dropdownAriaLabel="More tool actions"
                     loading={executingId === (p.callId || p.name || "default")}
                     onClick={() => handleExecute(p, true)}
-                    menu={{
-                        items: [
-                            {
-                                key: "call-and-send",
-                                label: "Call tool",
-                            },
-                        ],
-                        onClick: () => handleExecute(p, false),
-                    }}
-                >
-                    <Lightning size={12} />
-                    Call tool and send to chat
-                </Dropdown.Button>
+                    options={[{key: "call-and-send", label: "Call tool"}]}
+                    onOptionSelect={() => handleExecute(p, false)}
+                    placement="bottomRight"
+                />
             ))}
         </div>
     )

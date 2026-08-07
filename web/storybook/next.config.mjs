@@ -12,6 +12,9 @@ const nextConfig = {
         "@agenta/shared",
         "@agenta/entities",
         "@agenta/entity-ui",
+        // @agenta/playground-ui (wave 3) pulls @agenta/playground; both are source-only too.
+        "@agenta/playground",
+        "@agenta/playground-ui",
     ],
 }
 
