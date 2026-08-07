@@ -518,23 +518,13 @@ message.
 - [ ] Test: `alembic upgrade head` then `alembic downgrade -1` against a
       throwaway database completes with no errors; `upgrade` again after
       `downgrade` also completes (idempotent round-trip).
-      > **Deferred to C1** — needs a deployed stack; test written at
-      > `api/oss/tests/pytest/integration/channels/test_channels_migration.py`,
-      > fails without a database.
-      > `pytestmark = pytest.mark.integration`). The test itself does exactly
-      > what this line asks — upgrades to `oss000000021`, asserts every
-      > table+index from entities.md §3, downgrades to `oss000000020`,
-      > asserts they are gone, then upgrades and downgrades again to prove
-      > the round-trip and leave the DB where it found it — but it has never
-      > actually run against Postgres in this worktree (confirmed
-      > unreachable: `connection refused` on `localhost:5432`), so nothing
-      > is proven yet.
-
-## tests
-
-- [x] `api/oss/tests/pytest/unit/channels/test_channels_dtos.py` — the DTO
-      instantiation test from the dtos section above.
-      7 tests, all pass offline (no DB).
+      > **Not automated — removed deliberately.** The test existed at
+      > `integration/channels/test_channels_migration.py` and was deleted: a
+      > round-trip *downgrades*, so running it against the shared dev database
+      > drops the channels tables from under whatever else is using them. The
+      > line says "a throwaway database" and we have none, so the honest state
+      > is unverified rather than a test nobody can safely run. Verify by hand
+      > against a scratch database when the migration changes.
 - [ ] `api/oss/tests/pytest/integration/channels/test_channels_dao_inbox.py` —
       dedup contracts for `record_inbox_event`, `record_inbox_events`
       ordering, `query_events_since` range and origin ordering.
@@ -655,7 +645,8 @@ reachable from this worktree. They live in
 does not touch them, and they now **fail** rather than skip when no database
 is present:
 
-- Migration round-trip test (`test_channels_migration.py`, 1 test).
+- Migration round-trip: **not automated** (see the `migration` section) —
+  a downgrade against the shared dev database is destructive.
 - All 5 tests in `test_channels_dao_inbox.py`.
 - All 4 tests in `test_channels_dao_triggers.py`.
 - All 4 tests in `test_channels_dao_outbox.py`.

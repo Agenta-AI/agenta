@@ -73,7 +73,7 @@ def upgrade() -> None:
         sa.Column("connection_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column(
             "kind",
-            sa.Enum("private", "group", "topic", name="channelspacekind"),
+            sa.Enum("PRIVATE", "GROUP", "TOPIC", name="channelspacekind"),
             nullable=False,
         ),
         sa.Column("external_key", sa.UUID(as_uuid=True), nullable=False),
@@ -190,12 +190,12 @@ def upgrade() -> None:
         sa.Column("external_id", sa.String(), nullable=False),
         sa.Column(
             "kind",
-            sa.Enum("message", "action", name="channeleventkind"),
+            sa.Enum("MESSAGE", "ACTION", name="channeleventkind"),
             nullable=False,
         ),
         sa.Column(
             "origin",
-            sa.Enum("pulled", "pushed", name="channeleventorigin"),
+            sa.Enum("PULLED", "PUSHED", name="channeleventorigin"),
             nullable=False,
         ),
         sa.Column("space_id", sa.UUID(as_uuid=True), nullable=True),
@@ -240,7 +240,7 @@ def upgrade() -> None:
         sa.Column(
             "state",
             sa.Enum(
-                "started", "settled", "refused", "failed", name="channeltriggerstate"
+                "STARTED", "SETTLED", "REFUSED", "FAILED", name="channeltriggerstate"
             ),
             nullable=False,
         ),
@@ -285,7 +285,7 @@ def upgrade() -> None:
         sa.Column(
             "state",
             sa.Enum(
-                "created", "sent", "failed", "abandoned", name="channeldeliverystate"
+                "CREATED", "SENT", "FAILED", "ABANDONED", name="channeldeliverystate"
             ),
             nullable=False,
         ),
@@ -323,30 +323,49 @@ def upgrade() -> None:
 def downgrade() -> None:
     # WP7 tables (once added above) drop first here, symmetrically.
 
-    op.drop_index("ix_channel_outbox_created", table_name="channel_outbox_events")
+    op.drop_index(
+        "ix_channel_outbox_created",
+        table_name="channel_outbox_events",
+    )
     op.drop_table("channel_outbox_events")
     op.execute("DROP TYPE IF EXISTS channeldeliverystate")
 
     op.drop_index(
-        "ix_channel_inbox_triggers_latest", table_name="channel_inbox_triggers"
+        "ix_channel_inbox_triggers_latest",
+        table_name="channel_inbox_triggers",
     )
     op.drop_table("channel_inbox_triggers")
     op.execute("DROP TYPE IF EXISTS channeltriggerstate")
 
-    op.drop_index("ix_channel_inbox_events_log", table_name="channel_inbox_events")
+    op.drop_index(
+        "ix_channel_inbox_events_log",
+        table_name="channel_inbox_events",
+    )
     op.drop_table("channel_inbox_events")
     op.execute("DROP TYPE IF EXISTS channeleventorigin")
     op.execute("DROP TYPE IF EXISTS channeleventkind")
 
-    op.drop_index("ix_channel_threads_current", table_name="channel_threads")
+    op.drop_index(
+        "ix_channel_threads_current",
+        table_name="channel_threads",
+    )
     op.drop_table("channel_threads")
 
-    op.drop_index("uq_channel_grants_default", table_name="channel_grants")
+    op.drop_index(
+        "uq_channel_grants_default",
+        table_name="channel_grants",
+    )
     op.drop_table("channel_grants")
 
-    op.drop_index("ix_channel_spaces_flags", table_name="channel_spaces")
+    op.drop_index(
+        "ix_channel_spaces_flags",
+        table_name="channel_spaces",
+    )
     op.drop_table("channel_spaces")
     op.execute("DROP TYPE IF EXISTS channelspacekind")
 
-    op.drop_index("uq_channel_agents_default", table_name="channel_agents")
+    op.drop_index(
+        "uq_channel_agents_default",
+        table_name="channel_agents",
+    )
     op.drop_table("channel_agents")
