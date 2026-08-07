@@ -22,6 +22,9 @@
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
+
 import type { AgentRunRequest, AgentRunResult } from "../../src/protocol.ts";
 import {
   runWithKeepalive,
@@ -34,9 +37,14 @@ import {
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
 import {
+  appliedStateForRequest,
   AppliedState,
   type AppliedEnvironmentState,
 } from "../../src/engines/sandbox_agent/applied-state.ts";
+import {
+  FACETS,
+  type FacetDigests,
+} from "../../src/lifecycle/desired-state.ts";
 import {
   teardownDisposition,
   type TeardownReason,
@@ -65,7 +73,7 @@ interface FakeEnv {
   id: number;
   /** The environment owns what it applied. The pool reads through to it. */
   readonly appliedState: AppliedEnvironmentState;
-  commitApplied: (result: { configFingerprint: string }) => void;
+  commitApplied: (result: AppliedCommit) => void;
   destroyed: number;
   destroyReasons: TeardownReason[];
   turnsCleared: number;
@@ -95,8 +103,8 @@ function makeEngine(scripts: TurnScript[] = []) {
   let nextEnvId = 1;
 
   // Seeded from the acquiring request, exactly as `prepareEnvironmentSetup` does.
-  const makeEnv = (configFp: string): FakeEnv => {
-    const applied = new AppliedState(configFp);
+  const makeEnv = (request: AgentRunRequest): FakeEnv => {
+    const applied = appliedStateForRequest(request);
     const env: FakeEnv = {
       id: nextEnvId++,
       get appliedState() {
@@ -138,7 +146,7 @@ function makeEngine(scripts: TurnScript[] = []) {
     },
     async acquireEnvironment(request) {
       calls.acquire += 1;
-      const env = makeEnv(configFingerprint(request));
+      const env = makeEnv(request);
       calls.acquiredEnvs.push(env);
       return { ok: true, env: env as unknown as SessionEnvironment };
     },
@@ -682,22 +690,32 @@ describe("(c) applied state is owned by the environment, never stamped by a requ
   it("applied state advances ONLY through commitApplied, and only on a real result", () => {
     // The unit-level guard behind the three tests above. `AppliedState` has no setter, and the
     // generation moves only when a caller reports a lifecycle action that already succeeded.
-    const applied = new AppliedState("fp-m1");
+    const facets = (tag: string) =>
+      Object.fromEntries(FACETS.map((f) => [f, `${tag}-${f}`])) as FacetDigests;
+
+    const applied = new AppliedState("fp-m1", facets("m1"));
     assert.equal(applied.appliedState.configFingerprint, "fp-m1");
     assert.equal(applied.appliedState.generation, 1);
+    assert.equal(applied.appliedState.facets.runtime, "m1-runtime");
 
-    // A snapshot is a copy: mutating it cannot reach the real state.
-    const snapshot = applied.appliedState as { configFingerprint: string };
+    // A snapshot is a copy: mutating it cannot reach the real state. Both halves are copied.
+    const snapshot = applied.appliedState as {
+      configFingerprint: string;
+      facets: Record<string, string>;
+    };
     snapshot.configFingerprint = "fp-forged";
+    snapshot.facets.runtime = "forged-runtime";
     assert.equal(applied.appliedState.configFingerprint, "fp-m1");
+    assert.equal(applied.appliedState.facets.runtime, "m1-runtime");
 
-    applied.commitApplied({ configFingerprint: "fp-m2" });
+    applied.commitApplied({ configFingerprint: "fp-m2", facets: facets("m2") });
     assert.equal(applied.appliedState.configFingerprint, "fp-m2");
+    assert.equal(applied.appliedState.facets.runtime, "m2-runtime");
     assert.equal(applied.appliedState.generation, 2);
 
     // Re-applying the same configuration still advances the generation, so "nothing changed" and
     // "we re-applied" stay distinguishable.
-    applied.commitApplied({ configFingerprint: "fp-m2" });
+    applied.commitApplied({ configFingerprint: "fp-m2", facets: facets("m2") });
     assert.equal(applied.appliedState.generation, 3);
   });
 
