@@ -1,4 +1,3 @@
-from contextlib import nullcontext
 from types import SimpleNamespace
 
 import pytest
@@ -39,11 +38,6 @@ def fake_llm(monkeypatch):
         lambda model: {"model": model, "api_key": "test-key"},
     )
     monkeypatch.setattr(handlers.mockllm, "acompletion", acompletion)
-    monkeypatch.setattr(
-        handlers.mockllm,
-        "user_aws_credentials_from",
-        lambda _settings: nullcontext(),
-    )
 
     return captured
 

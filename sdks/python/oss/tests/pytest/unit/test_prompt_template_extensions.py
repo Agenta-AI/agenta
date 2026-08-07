@@ -1,5 +1,3 @@
-from contextlib import nullcontext
-
 import pytest
 
 from agenta.sdk.engines.running.handlers import (
@@ -333,10 +331,6 @@ async def test_retry_runner_retries_explicit_transient_provider_errors(monkeypat
         "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
         lambda model: {"model": model},
     )
-    monkeypatch.setattr(
-        "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
-        lambda provider_settings: nullcontext(),
-    )
 
     async def fake_completion(**kwargs):
         calls.append(kwargs["model"])
@@ -553,10 +547,6 @@ async def test_retry_exhaustion_raises_after_max_attempts(monkeypatch):
     monkeypatch.setattr(
         "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
         lambda model: {"model": model},
-    )
-    monkeypatch.setattr(
-        "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
-        lambda provider_settings: nullcontext(),
     )
 
     async def fake_completion(**kwargs):
