@@ -125,7 +125,7 @@ describe("the platform-guidance fence", () => {
     // The file is the author's, and they may open it. A visible marker would be our text showing
     // up in their instructions; a comment is inert everywhere markdown is rendered.
     for (const fence of [PLATFORM_GUIDANCE_START, PLATFORM_GUIDANCE_END]) {
-      assert.match(fence, /^<!--.*-->$/);
+      assert.ok(fence.startsWith("<!--") && fence.endsWith("-->"), fence);
     }
   });
 

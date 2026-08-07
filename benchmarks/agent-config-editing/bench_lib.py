@@ -117,8 +117,12 @@ def resolve_credentials(env_file: str | pathlib.Path | None = None) -> dict:
     return {
         "base": os.environ["AGENTA_BASE"],
         "project_id": os.environ["AGENTA_PROJECT_ID"],
-        "api_key_fingerprint": hashlib.sha256(
-            os.environ["AGENTA_API_KEY"].encode()
+        # A short identity for "same stack, same project" run comparison. Deliberately
+        # derived from NON-secret values only: hashing the API key here, even truncated,
+        # reads as credential handling to scanners and to people, and the record only
+        # needs to say which deployment context produced the run.
+        "credentials_context": hashlib.sha256(
+            (os.environ["AGENTA_BASE"] + "|" + os.environ["AGENTA_PROJECT_ID"]).encode()
         ).hexdigest()[:12],
     }
 
