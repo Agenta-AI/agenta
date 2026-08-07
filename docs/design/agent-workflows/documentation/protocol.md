@@ -82,6 +82,12 @@ The runtime emits neutral `AgentEvent` objects. The Vercel adapter maps them to 
 | `tool_result` | `tool-output-available`, `tool-output-error`, or `tool-output-denied` |
 | `interaction_request` | `tool-approval-request` or a `data-*` interaction part |
 | `data` | `data-<name>` |
+
+An approval for a commit that imports workspace content also emits a sibling
+`data-approval-manifest` part, bound to the tool call id: the `tool-approval-request`
+chunk has a strict key set and cannot carry the frozen file bytes, sizes, digests, and
+diff, so they ride beside it and the frontend joins them by id (live and on replay).
+Details: `docs/design/agent-config-editing/contracts/execution-authorization.md`.
 | `file` | `file` |
 | `usage` | `messageMetadata.usage` on `finish` |
 | `error` | `error` |

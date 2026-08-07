@@ -99,8 +99,9 @@ class TestBindings:
 
     def test_both_bindings_are_hidden_from_the_model(self, catalog_on):
         # A bound field the model could set would let it retarget another variant, or
-        # claim it is not on a draft run.
-        assert catalog_on["target_keys"] == ["path"]
+        # claim it is not on a draft run. `description` is the ephemeral per-call note in
+        # its tolerated second position, which the runner lifts out and never sends.
+        assert catalog_on["target_keys"] == ["description", "path"]
 
     def test_it_binds_no_revision_id(self, catalog_on):
         # `$ctx.workflow.revision.id` does not resolve on a draft run, and an unresolved
