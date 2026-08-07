@@ -28,7 +28,7 @@ the base branch.
       Dict[str, List[str]]` — grain name to ordered locator field names,
       e.g. `{"space": ["team", "channel"], "thread": ["team", "channel",
       "thread_ts"]}`; an adapter with no threads declares `"thread": []`).
-- [ ] Add `ChannelCapabilities` (`channel: str, protocol_versions:
+- [ ] Add `ChannelCapabilities` (`channel: str, protocol:
       List[str]`, one field per block above, `commands: List[str]`).
 - [ ] Unit test: construct a `ChannelCapabilities` instance from the exact
       JSON in `capabilities.md` §2 (the Slack example) via

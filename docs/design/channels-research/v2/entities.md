@@ -778,7 +778,7 @@ before the post succeeds there is no receipt.
 
 | step | row | `updated_at` | `idempotency_key` sent | locator |
 | --- | --- | --- | --- | --- |
-| 1. turn starts — insert `state=PENDING` | created, `uuid7` | t₀ | — | — |
+| 1. turn starts — insert `state=CREATED` | created, `uuid7` | t₀ | — | — |
 | 2. `chat.postMessage` | unchanged | t₀ | `uuid5(key, t₀)` | — |
 | 3. receipt — update `state=SENT` | same row | t₁ | — | `(channel, ts)` set |
 | 4. turn ends — update `data.processed` | same row | t₂ | — | unchanged |
@@ -836,7 +836,7 @@ re-deriving the id, which is an arbitrary `uuid7` precisely so it survives updat
 
 | when | write | row count |
 | --- | --- | --- |
-| before posting | insert `state=PENDING` | 1 |
+| before posting | insert `state=CREATED` | 1 |
 | receipt arrives | update `state=SENT`, set `data.external_locator` | still 1 |
 | editing into the final answer | update `data.processed`, keep the locator | still 1 |
 | gave up | update `state=FAILED` / `ABANDONED`, reason in `Status` | still 1 |
@@ -968,7 +968,7 @@ class ChannelOutboxEventDBE(Base, ChannelOutboxEventDBA):
         UniqueConstraint("project_id", "key",
                          name="uq_channel_outbox_key"),
         # the delivery sweep: what is still owed, oldest first
-        Index("ix_channel_outbox_pending",
+        Index("ix_channel_outbox_created",
               "project_id", "state", "created_at"),
     )
 ```
@@ -1054,13 +1054,13 @@ class ChannelTriggerState(str, Enum):
     FAILED  = "failed"
 
 class ChannelDeliveryState(str, Enum):
-    """Where one outbound message is in its life. PENDING is kept and it is not
-    the same non-word as a queue's "pending": the row is inserted *before* the
-    post is attempted (§2.6 step 1), so there is a real committed state meaning
-    "we owe this and have not yet sent it". That is what the delivery sweep
-    selects on, and it is what makes a crash mid-post recoverable rather than
-    invisible."""
-    PENDING   = "pending"    # written, not yet posted
+    """Where one outbound message is in its life. CREATED, not PENDING: the row is
+    inserted *before* the post is attempted (§2.6 step 1), so the state records
+    what we did — we wrote the row — rather than asserting something about a queue
+    we do not have. It reads the same way as ChannelTriggerState's past tense, and
+    it is what the delivery sweep selects on, which is what makes a crash mid-post
+    recoverable rather than invisible."""
+    CREATED   = "created"    # row written, post not yet attempted
     SENT      = "sent"       # the platform acknowledged; locator held
     FAILED    = "failed"     # terminal after retries
     ABANDONED = "abandoned"  # we stopped trying — access revoked mid-thread
@@ -1186,31 +1186,33 @@ class ChannelThreadData(BaseModel):
     # as an indexable key and one as the platform's own fields.
     external_locator: Optional[Dict[str, Any]] = None
 
+class ChannelInboxEventProcessed(BaseModel):
+    """What core reads. The adapter's normalisation of the platform's payload."""
+    content: List[Dict[str, Any]]        # normalised parts
+    sender:  Dict[str, Any]              # platform user, pre-identity-link
+
 class ChannelInboxEventData(BaseModel):
     external_locator: Dict[str, Any]
-    content:          List[Dict[str, Any]]        # normalised parts
-    sender:           Dict[str, Any]              # platform user, pre-identity-link
+    processed:        ChannelInboxEventProcessed
     # raw:            Optional[Dict[str, Any]] = None   # see below
-    # processed:      Optional[Dict[str, Any]] = None   # see below
 
 
 # No ChannelInboxTriggerData: the row holds a position, not a payload. The slug
-# that was named is on the event's content; recording it again per agent would
-# duplicate a fact from the parent row.
+# that was named is on the event's processed content; recording it again per agent
+# would duplicate a fact from the parent row.
 
 class ChannelOutboxEventData(BaseModel):
     # no `references`: a turn is not a Reference (no slug, no version) — it is the
     # root `turn_id` column, exactly as on session_records and session_interactions
     external_locator: Optional[Dict[str, Any]] = None  # the receipt (§2.6)
+    processed:        Optional[Dict[str, Any]] = None  # the request we posted
     # raw:            Optional[Dict[str, Any]] = None   # see below
-    # processed:      Optional[Dict[str, Any]] = None   # see below
 ```
 
-**`raw` and `processed` are commented out deliberately, and they appear on both
-tables.** Every channel event crosses a mapping boundary, and a mapping has two
-ends. Naming them the same way on both sides makes the symmetry visible, where the
-earlier `raw`-inbound / `rendered`-outbound pairing hid it behind two words for one
-idea:
+**Every channel event crosses a mapping boundary, and a mapping has two ends.**
+`raw` is what the boundary received; `processed` is what it produced. Both tables
+name them the same way, so the symmetry is visible rather than hidden behind two
+words for one idea:
 
 | | `raw` | `processed` |
 | --- | --- | --- |
@@ -1218,21 +1220,24 @@ idea:
 | outbox | the turn's output, as folded | the platform-shaped request we posted |
 
 Read down either column and it is the same field doing the same job — *before* the
-mapping, and *after* it. `rendered` named only the outbound *after*, which is why it
-had no inbound counterpart and looked like a one-off.
+mapping and *after* it.
 
-Neither is needed to *operate*: `content` and `sender` already carry everything a
-turn consumes, and the platform holds the posted copy.
+**`processed` is a real field, not a commented one, and on the inbox it is where
+`content` and `sender` live.** They are exactly what the table's `processed` column
+describes, so leaving them loose beside a commented-out `processed` would have been
+the same concept written twice, one copy inert. Core reads
+`data.processed.content`; the adapter is what puts it there.
 
-What they would be for is **audit**, and that is the argument against putting them
-here. `trigger_deliveries` and `webhook_deliveries` keep their full payloads in
-`data` because those tables *are* their domain's audit log. Channels has no audit
-log, and inventing one as two fields on two operational tables is the wrong shape —
-especially given §10: a busy space with forwardfill ingests every message, and `raw`
+**`raw` stays commented on both.** It is not needed to operate — `processed` carries
+everything a turn consumes, and the platform holds the posted copy — and what it
+would be *for* is audit. `trigger_deliveries` and `webhook_deliveries` keep full
+payloads because those tables **are** their domain's audit log; channels has none,
+and inventing one as a field on two operational tables is the wrong shape.
+Especially given §10: a busy space with forwardfill ingests every message, and `raw`
 is the field that makes retention urgent rather than eventual.
 
-So they stay commented, and land properly if channels ever gets system events. Being
-in `data` means adding them later is a DTO change and no migration.
+So `raw` lands properly if channels ever gets system events. Being in `data` means
+adding it later is a DTO change and no migration.
 
 `external_locator` is `Dict[str, Any]` in core and typed per channel by the
 adapter — core stores it, never reads inside it, which is D16. It appears on **four**
@@ -1250,16 +1255,14 @@ and exact:
 ```python
 # --- agents ---------------------------------------------------------------- #
 
-class ChannelAgent(Identifier, Lifecycle, Header, Metadata):
+class ChannelAgent(Identifier, Slug, Lifecycle, Header, Metadata):
     connection_id: UUID
-    slug: str
     #
     data:  ChannelAgentData
     flags: ChannelAgentFlags = Field(default_factory=ChannelAgentFlags)
 
-class ChannelAgentCreate(Header, Metadata):
+class ChannelAgentCreate(Slug, Header, Metadata):
     connection_id: UUID
-    slug: str
     #
     data:  ChannelAgentData
     flags: ChannelAgentFlags = Field(default_factory=ChannelAgentFlags)
@@ -1269,7 +1272,6 @@ class ChannelAgentEdit(Identifier, Header, Metadata):
     flags: ChannelAgentFlags = Field(default_factory=ChannelAgentFlags)
 
 class ChannelAgentQuery(BaseModel):
-    name: Optional[str] = None
     connection_id: Optional[UUID] = None
     slug: Optional[str] = None
 
@@ -1296,19 +1298,18 @@ class ChannelSpaceEdit(Identifier, Header, Metadata):
     flags: ChannelSpaceFlags = Field(default_factory=ChannelSpaceFlags)
 
 class ChannelSpaceQuery(BaseModel):
-    name: Optional[str] = None
     connection_id: Optional[UUID] = None
     kind: Optional[ChannelSpaceKind] = None
     external_key: Optional[UUID] = None
 
 class ChannelSpaceCandidate(BaseModel):
-    """A place the app can see but nobody has configured — discover_spaces (§8).
-    Not an entity: no id, no lifecycle, nothing persisted until chosen."""
+    """One row in the configuration pick-list — discover_spaces (§8). Not an
+    entity: no id, no lifecycle, nothing persisted until the operator chooses."""
     kind: ChannelSpaceKind
-    external_key: UUID
     external_locator: Dict[str, Any]
-    name: Optional[str] = None
-    is_configured: bool = False
+    #
+    display_name: Optional[str] = None   # the platform's own name, for the list
+    is_configured: bool = False          # a space row already exists for it
 
 # --- grants ---------------------------------------------------------------- #
 
@@ -1432,7 +1433,7 @@ class ChannelOutboxEventCreate(BaseModel):
     thread_id: UUID
     turn_id: str
     key: UUID
-    state: ChannelDeliveryState = ChannelDeliveryState.PENDING
+    state: ChannelDeliveryState = ChannelDeliveryState.CREATED
     #
     data: ChannelOutboxEventData
 
@@ -1442,6 +1443,16 @@ class ChannelOutboxEventQuery(BaseModel):
     key: Optional[UUID] = None
     state: Optional[ChannelDeliveryState] = None
 ```
+
+**`ChannelSpaceCandidate` is a view, not an entity, and its three unusual fields
+follow from that.** `external_locator` sits flat rather than in `data` because there
+is no row and therefore no `data` — the column-vs-`data` test (§2) is about what the
+database acts on, and nothing here is stored. It carries **no `external_key`**:
+composing one would key a place nobody has configured, and the key is derived from
+the locator anyway (§2.2), so the caller gains nothing the locator does not already
+give. `display_name` is the platform's own label, present so the pick-list reads
+"#engineering" rather than a locator; `is_configured` marks the ones already set up,
+so the list can show them as taken rather than offering a duplicate.
 
 **Five properties hold across all of them**, each following `triggers` and each
 avoidable-bug-shaped:
@@ -2192,7 +2203,7 @@ class ChannelsDAOInterface(ABC):
         #
         event: ChannelOutboxEventCreate,
     ) -> ChannelOutboxEvent:
-        """Insert at state=PENDING, idempotent on `key` (§2.6).
+        """Insert at state=CREATED, idempotent on `key` (§2.6).
 
         `ON CONFLICT (project_id, key) DO NOTHING ... RETURNING`, falling back to
         a fetch — so a re-run of the outbox worker returns the EXISTING row
@@ -2234,7 +2245,7 @@ class ChannelsDAOInterface(ABC):
         #
         limit: int = 100,
     ) -> List[ChannelOutboxEvent]:
-        """The delivery sweep: PENDING rows, oldest first.
+        """The delivery sweep: CREATED rows, oldest first.
 
         `project_id` is Optional here and only here on the write side, because a
         single sweeper serves every project — the same cross-project shape, and
@@ -2370,6 +2381,15 @@ class ChannelAdapterInterface(ABC):
         """Edit in place — the indicator becoming the answer (D28). Offered only
         where the declaration says `rendering.message_update`."""
 
+    # --- discovery ---
+
+    @abstractmethod
+    async def discover_spaces(self, *, connection: ChannelConnection
+                              ) -> List[ChannelSpaceCandidate]:
+        """Which places this install can actually see, so configuration is a
+        pick-list rather than a paste-the-channel-id form (§8). Returns
+        candidates, not rows — nothing is persisted until an operator chooses."""
+
     # --- history ---
 
     @abstractmethod
@@ -2382,9 +2402,9 @@ class ChannelAdapterInterface(ABC):
         stay distinguishable (D30)."""
 ```
 
-**Six methods, and the count is the point.** Everything else an integration might
+**Seven methods, and the count is the point.** Everything else an integration might
 want — routing, dedup, offsets, policy, sessions — is core's, and an adapter that
-grows a seventh method is usually core logic leaking across the port.
+grows an eighth is usually core logic leaking across the port.
 
 **`parse_event` returns `Optional`** for the same reason `record_inbox_event` does:
 most of what a platform pushes is not addressed to anyone, and *nothing to do here*
@@ -2636,9 +2656,14 @@ class ChannelsRouter:
             status_code=status.HTTP_202_ACCEPTED,
         )
 
-        # --- Capabilities ---
+        # --- Catalog ---
+        # Mounted at /channels, so these are /channels/catalog/ and
+        # /channels/catalog/{channel}/capabilities/. Not /catalog/channels/:
+        # `triggers` reads well as /triggers/catalog/providers/ because a provider
+        # is not a trigger, but a channel IS the domain — repeating it would give
+        # /channels/catalog/channels/.
         self.router.add_api_route(
-            "/catalog/channels/",
+            "/catalog/",
             self.list_channels,
             methods=["GET"],
             operation_id="list_channels",
@@ -2646,7 +2671,7 @@ class ChannelsRouter:
             response_model_exclude_none=True,
         )
         self.router.add_api_route(
-            "/catalog/channels/{channel}/capabilities/",
+            "/catalog/{channel}/capabilities/",
             self.fetch_capabilities,
             methods=["GET"],
             operation_id="fetch_channel_capabilities",

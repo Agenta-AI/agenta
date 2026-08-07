@@ -47,10 +47,10 @@ declaration every first-party adapter answers (`capabilities.md`):
 ```json
 {
   "type": "bridge.hello",
-  "protocol_versions": ["1.0"],
+  "protocol": { "versions": ["0.1.0"] },
   "bridge": { "name": "acme-wecom", "version": "1.2.0" },
   "capabilities": {
-    "addressing": { "agent_sigil": "~", "command_sigil": "!", "mention": true },
+    "addressing": { "sigils": { "agent": "~", "command": "!" }, "mention": true },
     "spaces": { "private": true, "group": true, "topic": false },
     "conversation": { "units": ["space"], "default_unit": "space" },
     "fill": { "backfill": { "supported": false },
@@ -75,6 +75,34 @@ means an approval with more options degrades to numbered text automatically, and
 ## 5. Events
 
 A versioned envelope around the same activity schema core uses internally.
+
+**Three version fields appear here, at three granularities, and conflating them is
+how a wire contract becomes unevolvable.** They are:
+
+| field | versions | who bumps it |
+| --- | --- | --- |
+| `specversion` | the CloudEvents envelope spec — **not ours** | the CNCF |
+| `protocol.versions` | this contract as a whole, in `bridge.hello` | us, at a checkpoint |
+| `.v1` in `type` | one event's `data` shape | us, per event type |
+
+**`specversion`, `id`, `type`, `source`, `time` and `data` are CloudEvents' own
+field names** and are spelled its way, `specversion` included. Renaming it to
+`version` would forfeit the interop and every off-the-shelf validator for
+cosmetics — and it would collide with the two versions that *are* ours. It reads
+`1.0` because CloudEvents is at 1.0, which is unrelated to our `0.1.0`.
+
+**Ours start at `0.1.0`**, because the contract is unproven until a non-Slack
+channel ships on it (§7) and `1.0` would claim a stability we have not earned.
+
+**Parsers are per event type, not per protocol version.** Both directions dispatch
+on `type` — `io.agenta.channel.message.received.v1` selects one inbound parser, and
+a future `.v2` selects another that lives beside it rather than replacing it.
+`protocol.versions` is negotiation, not dispatch: it says *which event types and
+rules this bridge understands at all*, so core can refuse a bridge it cannot talk
+to and stop offering event types that bridge never learned. Bumping the protocol
+does not invalidate a `.v1` parser — that is exactly why the shape version lives in
+the type name (§6).
+
 Inbound:
 
 ```json

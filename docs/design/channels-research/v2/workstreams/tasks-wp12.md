@@ -3,12 +3,14 @@
 ## Registration handshake
 
 - [ ] Implement `hello.py`: send/receive `bridge.hello`, parse
-  `protocol_versions`, `bridge.{name,version}`, and `capabilities`.
+  `protocol.versions`, `bridge.{name,version}`, and `capabilities`.
 - [ ] Implement normalisation at the boundary for the received declaration:
   clamp absurd values, default a declared zero, drop unknown keys, and never
   read any trust-bearing flag from the wire (`capabilities.md` §4).
-- [ ] Pin a protocol version for this package's first cut (`"1.0"`) and
-  reject a `bridge.hello` that does not include it in `protocol_versions`.
+- [ ] Pin a protocol version for this package's first cut (**`"0.1.0"`** — the
+  contract is unproven until a non-Slack channel ships on it, so `1.0` would claim
+  a stability it has not earned) and reject a `bridge.hello` that does not include
+  it in `protocol.versions`.
 - [ ] Test: the worked `bridge.hello` example from `contract.md` §4 — with
   `identity.key_fields: {"space": ["chat_id"], "thread": []}` added per
   `specs-wp12.md` — registers correctly and its declaration round-trips

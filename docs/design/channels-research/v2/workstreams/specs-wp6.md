@@ -68,10 +68,9 @@ declares. The categories below are load-bearing regardless of final naming:
   ```json
   {
     "channel": "slack",
-    "protocol_versions": ["1.0"],
+    "protocol": { "versions": ["0.1.0"] },
     "addressing": {
-      "agent_sigil": "~",
-      "command_sigil": "!",
+      "sigils": { "agent": "~", "command": "!" },
       "mention": true,
       "native_commands": { "supported": true, "in_conversation": false }
     },

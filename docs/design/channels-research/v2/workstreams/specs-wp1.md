@@ -81,7 +81,7 @@ class ChannelTriggerState(str, Enum):
     FAILED  = "failed"
 
 class ChannelDeliveryState(str, Enum):
-    PENDING   = "pending"
+    CREATED   = "created"
     SENT      = "sent"
     FAILED    = "failed"
     ABANDONED = "abandoned"
@@ -246,7 +246,7 @@ constraint listed there — none is decorative:
 - `ix_channel_threads_current` (`project_id, space_id, external_key, agent_id, created_at`) — no unique constraint on this tuple, deliberately
 - `uq_channel_inbox_connection_external`, `ix_channel_inbox_events_log` (`project_id, space_id, origin, id`)
 - `uq_channel_inbox_triggers_thread_event`, `ix_channel_inbox_triggers_latest` (`project_id, thread_id, id`)
-- `uq_channel_outbox_key`, `ix_channel_outbox_pending` (`project_id, state, created_at`)
+- `uq_channel_outbox_key`, `ix_channel_outbox_created` (`project_id, state, created_at`)
 
 ### types.py (§5)
 
@@ -479,7 +479,7 @@ def compose_external_key(
   `idempotency_key` un-stored; it does not compute `idempotency_key` (WP5's
   job at send time), but the column must not exist for it.
 - **D28 — one row for its whole life.** `ChannelOutboxEventDBE` has no
-  `attempts` column. `record_outbox_event` inserts once at `PENDING`;
+  `attempts` column. `record_outbox_event` inserts once at `CREATED`;
   `transition_outbox_event` updates the same row in place by id, never
   inserts, for `SENT` (with `external_locator`), `FAILED`, or `ABANDONED`. An
   edit into the final answer is a write to the same row found by `key`, never
@@ -550,7 +550,7 @@ def compose_external_key(
   appears, and the row's `id` is unchanged before and after.
 - `record_outbox_event` called twice with the same `key` returns the existing
   row the second time (not `None`, unlike the inbox methods).
-- `transition_outbox_event` from `PENDING` to `SENT` sets `data.external_locator`
+- `transition_outbox_event` from `CREATED` to `SENT` sets `data.external_locator`
   and leaves `id` and `key` unchanged; the row count for that `key` stays one.
 - `mark_space_backfilled` sets `flags.is_backfilled = True` and is idempotent
   (calling it twice does not error and does not create a second space row).

@@ -97,7 +97,7 @@ function with no second path.
 
 ## Tests
 
-- Turn-started produces exactly one outbox row (`state=PENDING`), posts an
+- Turn-started produces exactly one outbox row (`state=CREATED`), posts an
   indicator, and records the receipt into `data.external_locator` on
   `state=SENT`.
 - Turn-ended for the same turn edits that same row (assert one row, `id`

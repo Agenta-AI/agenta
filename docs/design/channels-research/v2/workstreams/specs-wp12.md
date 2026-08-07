@@ -41,10 +41,10 @@ carrying the same declaration shape every first-party adapter answers
 ```json
 {
   "type": "bridge.hello",
-  "protocol_versions": ["1.0"],
+  "protocol": { "versions": ["0.1.0"] },
   "bridge": { "name": "acme-wecom", "version": "1.2.0" },
   "capabilities": {
-    "addressing": { "agent_sigil": "~", "command_sigil": "!", "mention": true },
+    "addressing": { "sigils": { "agent": "~", "command": "!" }, "mention": true },
     "spaces": { "private": true, "group": true, "topic": false },
     "conversation": { "units": ["space"], "default_unit": "space" },
     "fill": { "backfill": { "supported": false },

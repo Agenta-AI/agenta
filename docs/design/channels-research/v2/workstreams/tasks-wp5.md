@@ -19,11 +19,11 @@
 
 - [ ] On turn-started (polled), check whether a `channel_threads` row exists
       for the session (one indexed lookup) — skip if not a channel turn.
-- [ ] Call `enqueue_output` to create the outbox row (`state=PENDING`, item 0).
+- [ ] Call `enqueue_output` to create the outbox row (`state=CREATED`, item 0).
 - [ ] Render an indicator per the capability declaration and post it.
 - [ ] Call `deliver`/`transition_outbox_event` to set `state=SENT` and store
       `data.external_locator` from the receipt.
-- [ ] Test: turn-started produces exactly one `PENDING`→`SENT` row with a
+- [ ] Test: turn-started produces exactly one `CREATED`→`SENT` row with a
       receipt.
 
 ## Turn ended

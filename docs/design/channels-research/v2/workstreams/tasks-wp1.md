@@ -72,7 +72,7 @@ already existing on the base branch.
 - [ ] `ChannelOutboxEventDBE` — `__tablename__ = "channel_outbox_events"`; FK
       on `project_id`; PK `(project_id, id)`;
       `UniqueConstraint(project_id, key, name="uq_channel_outbox_key")`;
-      `Index("ix_channel_outbox_pending", project_id, state, created_at)`.
+      `Index("ix_channel_outbox_created", project_id, state, created_at)`.
 - [ ] Confirm, by grep over `dbes.py`, that no `(space_id, external_key,
       agent_id)` unique constraint exists on `ChannelThreadDBE` — deliberate
       absence, not an oversight to "fix".
@@ -260,7 +260,7 @@ already existing on the base branch.
       existing row, never `None` (contrast with the inbox methods — write
       this contrast into the docstring).
 - [ ] Implement `fetch_outbox_event`, `fetch_outbox_event_by_key`.
-- [ ] Implement `claim_outbox_events` as `SELECT ... WHERE state = 'pending'
+- [ ] Implement `claim_outbox_events` as `SELECT ... WHERE state = 'created'
       ORDER BY created_at LIMIT :limit`, `project_id` optional (cross-project
       sweep), mirroring `fetch_active_schedules`'s optional-project shape.
 - [ ] Implement `transition_outbox_event` as `UPDATE ... WHERE id = :event_id
@@ -347,7 +347,7 @@ already existing on the base branch.
 - [ ] `op.create_table("channel_inbox_triggers", ...)`, the thread+event
       unique constraint, the latest-offset index.
 - [ ] `op.create_table("channel_outbox_events", ...)`, the key unique
-      constraint, the pending-sweep index.
+      constraint, the created-sweep index.
 - [ ] `op.create_table(...)` for WP7's identity table(s), per WP7's spec.
 - [ ] `downgrade()`: drop every index then every table, in reverse dependency
       order (outbox/triggers/inbox before threads/grants before
@@ -369,7 +369,7 @@ already existing on the base branch.
 - [ ] `api/oss/tests/pytest/unit/channels/test_channels_dao_outbox.py` —
       `record_outbox_event` conflict-returns-existing-row, `transition_outbox_event`
       in-place update, one-row-for-its-life assertion across the full
-      PENDING→SENT→edited sequence.
+      CREATED→SENT→edited sequence.
 - [ ] `api/oss/tests/pytest/unit/channels/test_channels_default_indexes.py` —
       the two partial-unique-index rejection tests (grant default, agent
       default), asserting the database raises, not application code.

@@ -48,9 +48,16 @@ typing of that document.
 ### interface.py — the capability declaration
 
 ```python
+class ChannelProtocolCapability(BaseModel):
+    versions: List[str]        # this contract's versions, e.g. ["0.1.0"];
+                               # not CloudEvents' specversion (contract.md §5)
+
+class ChannelSigilsCapability(BaseModel):
+    agent: str
+    command: str
+
 class ChannelAddressingCapability(BaseModel):
-    agent_sigil: str
-    command_sigil: str
+    sigils: ChannelSigilsCapability
     mention: bool
     native_commands: "ChannelNativeCommandsCapability"
 
@@ -104,7 +111,7 @@ class ChannelIdentityCapability(BaseModel):
 
 class ChannelCapabilities(BaseModel):
     channel: str
-    protocol_versions: List[str]
+    protocol: ChannelProtocolCapability
     addressing: ChannelAddressingCapability
     spaces: ChannelSpacesCapability
     conversation: ChannelConversationCapability
@@ -143,12 +150,17 @@ class ChannelAdapterInterface(ABC):
     @abstractmethod
     async def verify_signature(
         self, *, headers: Dict[str, str], body: bytes,
-    ) -> bool:
-        """HMAC verification with timestamp replay protection.
+    ) -> str:
+        """HMAC verification with timestamp replay protection. Returns the
+        platform's own installation id; raises `ChannelSignatureInvalid`.
 
-        Returns a bool rather than raising, so the caller (WP3's ingress
-        route) decides the HTTP response; the adapter never sees the
-        request/response cycle.
+        Not a bool: verification and identification are the same act
+        (`entities.md` §7.1, §8) — you cannot check an HMAC without first
+        finding the secret, and finding the secret means finding the
+        installation. Returning the id is what lets the caller reach a
+        connection; a bool would verify and then leave routing with nothing.
+        The adapter still never sees the request/response cycle — WP3 turns
+        the exception into a status code.
         """
         ...
 

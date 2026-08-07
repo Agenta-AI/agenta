@@ -26,11 +26,10 @@ it belongs in the declaration first.
 ```json
 {
   "channel": "slack",
-  "protocol_versions": ["1.0"],
+  "protocol": { "versions": ["0.1.0"] },
 
   "addressing": {
-    "agent_sigil": "~",
-    "command_sigil": "!",
+    "sigils": { "agent": "~", "command": "!" },
     "mention": true,
     "native_commands": { "supported": true, "in_conversation": false }
   },
@@ -54,7 +53,7 @@ it belongs in the declaration first.
   "rendering": {
     "message_update": true,
     "buttons": { "supported": true, "max": 5 },
-    "text": { "format": "mrkdwn", "max_chars": 4000 },
+    "text": { "format": "markdown", "max_chars": 4000 },
     "files": { "receive": true, "send": true, "max_bytes": 1073741824 },
     "ephemeral": true
   },
@@ -100,6 +99,16 @@ space itself. Core never assumes a thread exists.
 `message` — one session per message — is always available and needs no
 declaration, since it requires nothing from the platform.
 
+**`default_unit` is what applies when no policy level states a `session_scope`.**
+It is the channel-defaults input to the intersection (D25), which is why the
+resolver takes channel defaults separately from the three policy documents: a
+platform with native threads should thread by default, and one without should not,
+without anybody configuring it. It must be a member of `units` — normalisation
+rejects a default the adapter did not declare support for.
+
+It is a *default*, not a ceiling: `units` is what constrains, and a stated policy
+narrows from there. The two do different jobs and both are needed.
+
 ### fill
 
 The most consequential block. `backfill` and `forwardfill` are declared
@@ -134,13 +143,32 @@ without knowing which platform it is talking to: an approval with more options
 than `buttons.max` becomes numbered text; a message longer than `max_chars` is
 split; progress becomes new messages where `message_update` is false.
 
+**`text.format` is one of `markdown | html | plain`**, and deliberately not a
+platform's own name for its dialect. Slack calls its variant *mrkdwn* and Telegram
+ships *MarkdownV2*; putting either in the declaration would mean core knowing what
+those words denote, which is D16 broken at the one field most likely to tempt it.
+The renderer targets the declared family and the **adapter** applies its platform's
+escaping — that difference is the adapter's job precisely because it is
+platform-specific.
+
 ### identity
 
-Whether the platform's user id is globally unique or scoped to a workspace or
-tenant, and whether it is stable. This drives the identity-link key shape —
-embedding a workspace id is correct on some platforms and noise on others — and
-`stable: false` flags platforms where the key can change under an existing link
-and needs a rebinding path.
+**`scope` is one of `global | workspace | tenant`** — how far a user id is unique.
+`global` means the id identifies a person platform-wide (Telegram); `workspace`
+means it is unique only within one installation, so the link key must embed the
+workspace (Slack, Discord); `tenant` is the same idea one level up, where the
+boundary is a customer organisation rather than a single install (Teams). Embedding
+a workspace id is correct on some platforms and noise on others, which is why this
+is declared rather than assumed.
+
+`stable: false` flags platforms where the id can change under an existing link, and
+those need a rebinding path (WP7).
+
+**`key_fields` names which locator fields identify a place**, at each grain, and it
+is how `external_key` is composed (`entities.md` §2.2). The adapter supplies the
+locator and declares which of its fields matter; **core composes the key and the
+adapter never does**. A platform with no threads declares `"thread": []`, and thread
+grain composes to null — the same code path as scope-is-the-space.
 
 **`key_fields` names which locator fields identify a place**, at each grain, and it
 is how `external_key` is composed (`entities.md` §2.2). The adapter supplies the
