@@ -4,10 +4,12 @@ from typing import Any, Dict, Optional
 from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from oss.src.core.channels.dtos import (
+    SESSION_SCOPE_ORDER,
     ChannelCapabilities,
     ChannelEffectivePolicy,
     ChannelKeyGrain,
     ChannelPolicy,
+    ChannelPolicyLevel,
 )
 from oss.src.core.channels.types import ChannelLocatorIncomplete
 
@@ -75,6 +77,14 @@ def compose_idempotency_key(
     return uuid5(_CHANNELS, f"{key}:{updated_at.isoformat()}")
 
 
+# positional order of *levels in every call site (§8): agent, space, grant
+_LEVEL_ORDER = (
+    ChannelPolicyLevel.AGENT,
+    ChannelPolicyLevel.SPACE,
+    ChannelPolicyLevel.GRANT,
+)
+
+
 def resolve_policy(
     capabilities: ChannelCapabilities,
     channel_defaults: ChannelPolicy,
@@ -84,7 +94,92 @@ def resolve_policy(
 
     booleans: any stated False wins. sets: intersect every stated set. enums:
     the narrowest stated value, by SESSION_SCOPE_ORDER. Unstated everywhere:
-    fall through to the channel defaults.
+    fall through to the channel defaults. The capability declaration is the
+    outermost, uneditable level (§1) and always contributes a decision.
     """
 
-    raise NotImplementedError
+    stated_levels = list(zip(_LEVEL_ORDER, levels))
+
+    # --- booleans: capability denial, then any stated False, else the default #
+
+    def resolve_bool(field: str, capability_supported: bool):
+        if not capability_supported:
+            return False, ChannelPolicyLevel.CAPABILITY
+
+        stated = [
+            (level, getattr(policy, field))
+            for level, policy in stated_levels
+            if policy is not None and getattr(policy, field) is not None
+        ]
+
+        for level, value in stated:
+            if value is False:
+                return False, level
+
+        if stated:
+            # every stated value is True here (False already returned above)
+            return True, stated[0][0]
+
+        return getattr(channel_defaults, field), ChannelPolicyLevel.CHANNEL
+
+    backfill, backfill_by = resolve_bool(
+        "backfill", capabilities.fill.backfill.supported
+    )
+    forwardfill, forwardfill_by = resolve_bool(
+        "forwardfill", capabilities.fill.forwardfill.supported
+    )
+
+    # --- sets: intersect every stated level, else the default ------------- #
+
+    stated_triggers = [
+        (level, policy.triggers)
+        for level, policy in stated_levels
+        if policy is not None and policy.triggers is not None
+    ]
+
+    if stated_triggers:
+        triggers = set.intersection(*(value for _, value in stated_triggers))
+        triggers_by = stated_triggers[-1][0]
+    else:
+        triggers = channel_defaults.triggers or set()
+        triggers_by = ChannelPolicyLevel.CHANNEL
+
+    # --- enums: narrowest stated value, capability units as the ceiling --- #
+
+    stated_scopes = [
+        (level, policy.session_scope)
+        for level, policy in stated_levels
+        if policy is not None and policy.session_scope is not None
+    ]
+
+    if stated_scopes:
+        session_scope_by, session_scope = max(
+            stated_scopes, key=lambda pair: SESSION_SCOPE_ORDER.index(pair[1])
+        )
+    else:
+        session_scope = channel_defaults.session_scope
+        session_scope_by = ChannelPolicyLevel.CHANNEL
+
+    if capabilities.conversation.units and session_scope not in (
+        capabilities.conversation.units
+    ):
+        # the declaration constrains which units exist at all (§capabilities.md)
+        narrowest_allowed = max(
+            capabilities.conversation.units,
+            key=lambda unit: SESSION_SCOPE_ORDER.index(unit),
+        )
+        session_scope = narrowest_allowed
+        session_scope_by = ChannelPolicyLevel.CAPABILITY
+
+    return ChannelEffectivePolicy(
+        triggers=triggers,
+        session_scope=session_scope,
+        backfill=backfill,
+        forwardfill=forwardfill,
+        decided_by={
+            "triggers": triggers_by,
+            "session_scope": session_scope_by,
+            "backfill": backfill_by,
+            "forwardfill": forwardfill_by,
+        },
+    )
