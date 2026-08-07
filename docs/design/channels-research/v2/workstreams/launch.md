@@ -74,23 +74,42 @@ another package's files to finish something.
 WP3 is deliberately tiny — verify, write one row, answer 202. If it grows routing
 or resolution, that is WP4's work leaking in and the review should reject it.
 
-## Wave 2 — start before wave 1 finishes
+## Wave 2 — five packages, launched from C1
 
-These depend on wave 1's *interfaces*, which C0 already froze, so they do not wait
-for wave 1 to merge:
+All five branch from `channels-c1` (not from a wave-1 package branch, and not
+from a rebase — C1 carries the merged result plus the three cross-package fixes).
 
-| Worktree | Package | Blocked on |
+| Worktree | Package | Feeds |
 | --- | --- | --- |
-| `channels-wp7` | Identity links | nothing structural; needs C0's declaration shape |
-| `channels-wp6` | Slack adapter | C0's adapter interface; merges at C3 |
-| `channels-wp0` | Session events | nothing — different owner entirely |
+| `channels-wp4` | Inbox worker — routing, resolution, detached invoke | C2 |
+| `channels-wp5` | Outbox worker — fold, render, post, receipt | C2 |
+| `channels-wp7` | Identity links — platform user → Agenta account | C2 |
+| `channels-wp6` | Slack adapter — the first real channel | C3 |
+| `channels-wp8` | Configuration API — the non-public routes | C3 |
 
-WP7 writes **no migration**; its tables ride in WP1's `oss000000021`. That is a
-coordination point, not a blocker: WP7 hands WP1 its table definitions early and
-codes against them.
+**Read `c1-merge-notes.md` before starting.** C1's three defects were all seam
+defects — two packages each internally consistent and mutually incompatible. The
+same shape is likely again, and WP6 in particular consumes the capability
+declaration whose vocabulary was the first of them.
 
-WP4 and WP5 can also start against the frozen interfaces, but they are C2 work and
-their reviews should not compete with C1's for attention.
+### Coordination points, not blockers
+
+- **WP7 writes no migration.** Its identity tables are content inside WP1's
+  `oss000000021` — the single line still open on WP1's ledger. WP7 hands over its
+  column shape and someone appends to that revision; never a new one.
+- **WP5 rides polling on purpose.** Its final form needs WP0's session events,
+  which are not channels work and not ours to schedule. Polling keeps C2 off that
+  dependency; expect rework when WP0 lands. Raise it with the sessions owner now
+  rather than at C4.
+- **WP4 and WP8 both touch `api/entrypoints/routers.py`**, a collision file owned
+  by no package. Write the intended edit into the final report; the checkpoint
+  applies them serially.
+
+### WP0 — not ours
+
+Session events are owned by whoever owns sessions. C4 needs them for WP5's final
+form. Listed in `plan.md` so channels' dependency on it is visible, not so this
+team schedules it.
 
 ## Reaching C1
 

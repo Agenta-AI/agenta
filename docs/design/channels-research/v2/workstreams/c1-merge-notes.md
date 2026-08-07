@@ -94,3 +94,24 @@ from a package branch.
 This matters most for WP2, whose own branch lacks the `resolve_policy` fix that
 its `units` correction made necessary — reading that branch in isolation would
 show a defect C1 has already resolved.
+
+## For wave 2: the seam is where the bugs are
+
+All three C1 defects had the same shape — two packages, each internally
+consistent, each green in its own worktree, disagreeing about a shared surface.
+None was findable without running them together.
+
+- A **vocabulary** clash: `units` is a grain set (`thread|space`), `session_scope`
+  is a scope (`thread|message`). Both spell one member "thread", which is what
+  made the confusion survive review.
+- A **convention** clash: `Column(Enum(X))` persists the member *name*, so the
+  migration's labels must be uppercase. Every other enum in the database already
+  was; channels was the outlier.
+- A **naming** clash: the caller and the callee spelled the same two operations
+  differently, and fakes on both sides agreed with their own author.
+
+The practical rule for a wave-2 package: **when you fake a collaborator, you are
+asserting its interface — write down what you assumed.** WP3's fake service was
+correct code built on a wrong assumption, and the assumption was invisible until
+something real was on the other end. Put those assumptions in your final report
+even when your tests pass, especially then.
