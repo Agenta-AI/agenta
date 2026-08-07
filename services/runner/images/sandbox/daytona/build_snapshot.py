@@ -146,6 +146,13 @@ GEESEFS_URL = (
     "https://github.com/yandex-cloud/geesefs/releases/download/"
     f"{GEESEFS_VERSION}/geesefs-linux-amd64"
 )
+FD_VERSION = "v10.4.2"
+# amd64 only, matching this snapshot's base. The runner image arch-matches instead, because it
+# is built for both architectures; this snapshot is x86_64 by construction.
+FD_URL = (
+    f"https://github.com/sharkdp/fd/releases/download/{FD_VERSION}/"
+    f"fd-{FD_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+)
 
 
 def main() -> None:
@@ -194,13 +201,21 @@ def main() -> None:
             # handed an archive reaches for `unzip` and plain `python`; without them every
             # such task burns failed bash calls and extra approval round-trips. The base is
             # Debian bookworm (node:22-bookworm), so python-is-python3 is the right package.
-            # ripgrep/fd-find/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are
-            # the first commands every harness reaches for when searching a tree, and Debian
-            # ships fd as `fdfind`, so the symlink is what makes the typed command resolve.
+            # ripgrep/jq/procps/file/tree are the same bet on habit: `rg` and `fd` are
+            # the first commands every harness reaches for when searching a tree. `fd` is
+            # pinned below rather than taken from Debian, for the version reason recorded there.
             "RUN apt-get update && apt-get install -y --no-install-recommends fuse curl "
-            "python3 python-is-python3 unzip zip ripgrep fd-find jq procps file tree "
-            '&& ln -s "$(which fdfind)" /usr/local/bin/fd '
+            "python3 python-is-python3 unzip zip ripgrep jq procps file tree "
             "&& rm -rf /var/lib/apt/lists/* && echo user_allow_other >> /etc/fuse.conf",
+            # fd, pinned. Debian's `fd-find` is 8.6.0 on bookworm, and Pi's `find` builtin
+            # passes `--no-require-git`, a flag fd only gained in 9.0, so every Pi `find` call
+            # failed here exactly as it did in the runner image. The final `grep -q` is a
+            # BUILD-TIME assertion: a pin that does not carry the flag fails the snapshot build
+            # instead of shipping a sandbox whose `find` is quietly broken.
+            f"RUN curl -fsSL -o /tmp/fd.tar.gz {FD_URL} "
+            "&& tar -xzf /tmp/fd.tar.gz -C /usr/local/bin --strip-components=1 "
+            "--wildcards '*/fd' && rm /tmp/fd.tar.gz && chmod +x /usr/local/bin/fd "
+            "&& fd --version && fd --help | grep -q -- --no-require-git",
             # Code-evaluator runtimes: this snapshot is shared with the SDK DaytonaRunner.
             # typescript@5: ts-node needs the JS compiler API; typescript 7+ is the Go
             # rewrite with no JS API (ts.sys undefined).
