@@ -129,6 +129,14 @@ import {
 } from "./session-continuity.ts";
 import { mountExpiryMs, projectScopeFor } from "./session-identity.ts";
 import { teardownDisposition, type TeardownReason } from "./teardown.ts";
+import {
+  cleanup as cleanupWorkspace,
+  materialize as materializeWorkspace,
+} from "../../environment/workspace-manager.ts";
+import {
+  acquire as acquireSandbox,
+  teardown as teardownSandbox,
+} from "../../environment/sandbox-lifecycle.ts";
 import { uploadToolMcpAssets, type ToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
 import { prepareEnvironmentSetup } from "./environment-setup.ts";
@@ -307,34 +315,16 @@ export async function acquireEnvironment(
       await environment.sandbox
         ?.destroySession?.(environment.session.id)
         .catch(() => {});
-    const disposition = teardownDisposition(opts?.reason ?? "failed-turn");
-    let parked = false;
-    if (
-      disposition === "stop" &&
-      plan.isDaytona &&
-      environment.sandbox?.pauseSandbox
-    ) {
-      const sandboxLogId = environment.sandbox.sandboxId ?? plan.sandboxId;
-      try {
-        await environment.sandbox.pauseSandbox();
-        parked = true;
-        logger(`parked sandbox=${sandboxLogId}`);
-      } catch (err) {
-        logger(
-          `pause failed sandbox=${sandboxLogId}: ${conciseError(err, plan.harness)}`,
-        );
-      }
-    }
-    if (!parked) {
-      // Record the id BEFORE the delete call, and record it even when the call throws. A delete
-      // that failed may still have removed the sandbox, so reconnecting to it is a wasted round
-      // trip either way. See `markSandboxDestroyed`.
-      markSandboxDestroyed(
-        environment.sandbox?.sandboxId ?? plan.sandboxId ?? undefined,
-      );
-      await environment.sandbox?.destroySandbox().catch(() => {});
-    }
-    await environment.sandbox?.dispose().catch(() => {});
+    // SandboxLifecycle owns park-versus-delete. It returns `parked` because the mount teardown
+    // below is gated on it: a parked Daytona sandbox keeps its agent mount.
+    const { parked } = await teardownSandbox({
+      sandbox: environment.sandbox,
+      plannedSandboxId: plan.sandboxId,
+      isDaytona: plan.isDaytona,
+      harness: plan.harness,
+      reason: opts?.reason,
+      log: logger,
+    });
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
     // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete: rmSync must
     // never run against a possibly-live FUSE mount into the durable store.
@@ -365,7 +355,7 @@ export async function acquireEnvironment(
         `durable cwd unmount not confirmed, skipping workspace cleanup cwd=${plan.workspace.cwd}`,
       );
     } else {
-      await environment.workspace?.cleanup().catch(() => {});
+      await cleanupWorkspace(environment.workspace);
     }
     // The per-run Agenta agent dir (skills isolation) is throwaway; remove it too. This is only
     // ever a temp dir: a subscription run leaves `runAgentDir` undefined precisely so that the
@@ -667,52 +657,29 @@ export async function acquireEnvironment(
         ? (deps.createCookieFetch ?? createCookieFetch)()
         : (deps.createAcpFetch ?? createAcpFetch)(),
     };
-    // A stored sandbox id is trusted: reconnect it by id and let reconnect converge its network
-    // policy to this run's plan. Any reconnect failure falls through to a fresh create. Snapshot
-    // and image drift are accepted as per-conversation version pinning, not grounds for a rebuild.
-    const storedSandboxPointer =
-      plan.isDaytona && sessionForMount && runCred
-        ? await (deps.readStoredSandboxPointer ?? readStoredSandboxPointer)(
-            sessionForMount,
-            { authorization: runCred, log: logger },
-          )
-        : undefined;
-    if (storedSandboxPointer) {
-      const sandboxStartStartedAt = Date.now();
-      try {
-        environment.sandbox = await startSandboxAgent({
-          ...startOptions,
-          sandboxId: storedSandboxPointer.sandboxId,
-        });
-        logger(
-          `reconnected sandbox=${storedSandboxPointer.sandboxId} session=${sessionForMount}`,
-        );
-      } catch (err) {
-        logger(
-          `reconnect failed sandbox=${storedSandboxPointer.sandboxId}, creating fresh: ${conciseError(err, plan.harness)}`,
-        );
-        // No explicit pointer clear needed: turns are append-only, so the fresh sandbox this
-        // turn creates below gets its own turn row at completion, and that row's higher
-        // turn_index naturally supersedes the dead one on the next `latest_turn` read — the
-        // staleness guard the old states model needed dissolves with the ordering.
-        if (err instanceof DaytonaReconnectTerminalError) {
-          logger(
-            `terminal Daytona state '${err.state}' for sandbox=${storedSandboxPointer.sandboxId}, not retrying reconnect`,
-          );
-        }
-      } finally {
-        timingLog("sandbox_start", sandboxStartStartedAt, " mode=reconnect");
-      }
-    }
-    if (!environment.sandbox) {
-      const sandboxStartStartedAt = Date.now();
-      try {
-        environment.sandbox = await startSandboxAgent(startOptions);
-      } finally {
-        timingLog("sandbox_start", sandboxStartStartedAt, " mode=create");
-      }
-    }
-    environment.resumable = Boolean(plan.isDaytona && sessionForMount);
+    // SandboxLifecycle owns the reconnect ladder, the fresh-create fallback, and both
+    // `sandbox_start` timing marks. See `environment/sandbox-lifecycle.ts`.
+    const acquiredSandbox = await acquireSandbox(
+      {
+        startOptions,
+        isDaytona: plan.isDaytona,
+        harness: plan.harness,
+        sessionForMount,
+        runCred,
+        log: logger,
+        timingLog,
+      },
+      {
+        startSandboxAgent: startSandboxAgent as unknown as (
+          options: Record<string, unknown>,
+        ) => Promise<unknown>,
+        ...(deps.readStoredSandboxPointer
+          ? { readStoredSandboxPointer: deps.readStoredSandboxPointer }
+          : {}),
+      },
+    );
+    environment.sandbox = acquiredSandbox.sandbox;
+    environment.resumable = acquiredSandbox.resumable;
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
     if (environment.sandbox) inFlightSandboxes.add(environment);
@@ -880,15 +847,16 @@ export async function acquireEnvironment(
     }
 
     const prepareWorkspaceStartedAt = Date.now();
+    // WorkspaceManager owns the write; the retry stays here because it re-signs a MOUNT, which is
+    // the mount unit's concern, not the workspace's.
+    const workspaceInput = {
+      sandbox: environment.sandbox,
+      plan,
+      piSkillSnapshot,
+      log: logger,
+    };
     try {
-      environment.workspace = await (deps.prepareWorkspace ?? prepareWorkspace)(
-        {
-          sandbox: environment.sandbox,
-          plan,
-          piSkillSnapshot,
-          log: logger,
-        },
-      );
+      environment.workspace = await materializeWorkspace(workspaceInput, deps);
     } catch (err) {
       if (
         !plan.isDaytona &&
@@ -899,14 +867,10 @@ export async function acquireEnvironment(
         logger(
           `retrying workspace preparation after local durable cwd remount`,
         );
-        environment.workspace = await (
-          deps.prepareWorkspace ?? prepareWorkspace
-        )({
-          sandbox: environment.sandbox,
-          plan,
-          piSkillSnapshot,
-          log: logger,
-        });
+        environment.workspace = await materializeWorkspace(
+          workspaceInput,
+          deps,
+        );
       } else {
         throw err;
       }

@@ -50,6 +50,7 @@ import {
   resolvesToLocalProvider,
 } from "./session-identity.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
+import { createTimingLog } from "../../environment/timing.ts";
 
 function defaultLog(message: string): void {
   process.stderr.write(`[sandbox-agent] ${message}\n`);
@@ -62,14 +63,13 @@ export async function prepareEnvironmentSetup(
 ) {
   const logger = deps.log ?? defaultLog;
   const acquireStartedAt = Date.now();
-  const timingLog = (stage: string, startedAt: number, fields = ""): void => {
-    const sandboxId = environment?.sandbox?.sandboxId ?? "-";
-    const sessionId =
-      environment?.sessionId ?? request.sessionId?.trim() ?? "-";
-    logger(
-      `[timing] stage=${stage} ms=${Math.round(Date.now() - startedAt)} sandbox=${sandboxId} session=${sessionId}${fields}`,
-    );
-  };
+  // The stage names are matched by dashboards; see `environment/timing.ts`. The accessors are
+  // read at call time on purpose: the sandbox does not exist yet, and the session id changes
+  // during acquire, so capturing either by value would log a stale `-`.
+  const timingLog = createTimingLog(logger, {
+    sandboxId: () => environment?.sandbox?.sandboxId,
+    sessionId: () => environment?.sessionId ?? request.sessionId?.trim(),
+  });
 
   // Local multi-runner fails loudly. Session-owned + local-sandbox only (a non-session run
   // has no cross-replica identity to protect, and a remote sandbox has no runner-local pooled
