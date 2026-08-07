@@ -278,6 +278,101 @@ async def test_known_direct_custom_provider_uses_direct_deployment(
     assert environment == {environment_name: "provider-key"}
 
 
+async def test_default_standard_key_outranks_custom_provider_model_list(
+    fake_http, connection
+):
+    # #5117 bug 1: a custom provider advertising a model the standard key also serves must not
+    # shadow that standard key on a slug-less default connection. A provider_key candidate holds
+    # no model list, so matches_model() is always False for it — without ranking, the custom
+    # provider's model-name match is the only pool and the standard key never gets considered.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("My OpenAI key", "openai", "sk-standard"),
+            _custom_provider("my-gw", "openai", key="sk-gw", models=["gpt-4o-mini"]),
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef.coerce("gpt-4o-mini"), context=_context()
+    )
+    assert resolved.provider == "openai"
+    assert resolved.env == {"OPENAI_API_KEY": "sk-standard"}
+
+
+async def test_default_standard_key_outranks_custom_provider_with_explicit_prefix(
+    fake_http, connection
+):
+    # Same ranking with the provider stated explicitly rather than inferred from the catalog.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("My OpenAI key", "openai", "sk-standard"),
+            _custom_provider("my-gw", "openai", key="sk-gw", models=["gpt-4o-mini"]),
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model(slug=None, provider="openai", model="gpt-4o-mini"),
+        context=_context(),
+    )
+    assert resolved.env == {"OPENAI_API_KEY": "sk-standard"}
+
+
+async def test_default_custom_provider_still_wins_without_a_matching_standard_key(
+    fake_http, connection
+):
+    # Guards against over-narrowing: the ranking only applies when a standard key exists for the
+    # model's OWN provider family. An unrelated family's key must not suppress the custom
+    # provider that genuinely serves this model.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("My Anthropic key", "anthropic", "sk-ant"),
+            _custom_provider("my-gw", "openai", key="sk-gw", models=["gpt-4o-mini"]),
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef.coerce("gpt-4o-mini"), context=_context()
+    )
+    assert resolved.env == {"OPENAI_API_KEY": "sk-gw"}
+
+
+async def test_named_connection_still_narrows_by_model_id(fake_http, connection):
+    # The named path is deliberately unchanged: naming a connection by slug must still select it
+    # even when a standard key for the same provider family is present.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("My OpenAI key", "openai", "sk-standard"),
+            _custom_provider("my-gw", "openai", key="sk-gw", models=["gpt-4o-mini"]),
+        ],
+    )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_model("my-gw", provider="openai", model="gpt-4o-mini"),
+        context=_context(),
+    )
+    assert resolved.env == {"OPENAI_API_KEY": "sk-gw"}
+
+
+async def test_default_two_standard_keys_with_a_custom_model_match_is_ambiguous(
+    fake_http, connection
+):
+    # Consequence of the ranking, pinned deliberately: with two standard keys for the family the
+    # ranked pool is genuinely ambiguous, so resolution fails loud instead of silently falling
+    # through to the custom provider. Consistent with test_default_connection_ambiguous.
+    fake_http(
+        connections,
+        payload=[
+            _provider_key("openai-a", "openai", "sk-a"),
+            _provider_key("openai-b", "openai", "sk-b"),
+            _custom_provider("my-gw", "openai", key="sk-gw", models=["gpt-4o-mini"]),
+        ],
+    )
+    with pytest.raises(AmbiguousConnectionError):
+        await VaultConnectionResolver(connection).resolve(
+            model=ModelRef.coerce("gpt-4o-mini"), context=_context()
+        )
+
+
 async def test_missing_named_connection_fails_loud(fake_http, connection):
     fake_http(connections, payload=[_provider_key("openai-prod", "openai", "sk-prod")])
     with pytest.raises(ConnectionNotFoundError):
