@@ -145,6 +145,7 @@ import {
 import {
   openSession as openHarnessSession,
   probe as probeHarness,
+  reopen as reopenHarnessSession,
   teardown as teardownHarnessSession,
 } from "../../environment/harness-session-lifecycle.ts";
 import {
@@ -877,6 +878,31 @@ export async function acquireEnvironment(
     });
     environment.session = opened.session;
     environment.loadedFromContinuity = opened.loadedFromContinuity;
+    // The reopen capability, captured here because this is the only scope holding the persist
+    // driver, the session-init payload and the local session key together. Same pattern as
+    // `destroy`: the environment carries a closure rather than the ingredients.
+    environment.reopenSession = async ({ transcriptReplayable }) => {
+      const result = await reopenHarnessSession({
+        sandbox: environment.sandbox,
+        persist,
+        acpAgent: plan.acpAgent,
+        harness: plan.harness,
+        cwd: plan.workspace.cwd,
+        sessionInit,
+        priorAgentSessionId: environment.session?.agentSessionId,
+        localSessionId,
+        continuitySessionKey,
+        log: logger,
+        timingLog,
+        current: environment.session,
+        transcriptReplayable,
+      });
+      if (result.ok) {
+        environment.session = result.session;
+        environment.loadedFromContinuity = result.loadedFromContinuity;
+      }
+      return result;
+    };
     environment.sessionId = resolveRunSessionId(
       request,
       environment.session.id,

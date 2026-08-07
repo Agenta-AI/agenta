@@ -25,6 +25,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { fileURLToPath } from "node:url";
+
 import {
   inventoryOf,
   refresh,
@@ -327,5 +329,75 @@ describe("refresh: SCOPE, the facet boundary", () => {
 
     assert.equal(readFileSync(userFile, "utf-8"), "print('mine')");
     assert.ok(existsSync(join(cwd, "src", "app.ts")));
+  });
+});
+
+describe("the parked-without-inventory path: REFUTED", () => {
+  // I flagged this as an open question when the live route landed: apply-plan refuses a workspace
+  // refresh when the environment has no recorded inventory, so could a session park in that
+  // state and be permanently unable to take the route?
+  //
+  // ANSWER: no. The path cannot exist, for three reasons that each have a test below. The
+  // defensive refusal in apply-plan STAYS — it costs one branch and it is the difference between
+  // a rebuild and a silently stale skill if any of this ever changes.
+
+  it("1. materialize ALWAYS returns an inventory, for every plan shape", () => {
+    // There is no "wrote a workspace but recorded nothing" result. `inventoryOf` is total: it
+    // tolerates a partial plan and returns an empty inventory rather than undefined.
+    const shapes: unknown[] = [
+      { isPi: false, acpAgent: "claude", prompt: { agentsMd: "x" }, workspace: { cwd, skillDirs: [] } },
+      { isPi: true, acpAgent: "pi", prompt: {}, workspace: { cwd, skillDirs: [] } },
+      { isPi: false, acpAgent: "codex", prompt: {}, workspace: {} },
+      {},
+    ];
+    for (const plan of shapes) {
+      const inventory = inventoryOf(plan as never);
+      assert.ok(inventory, "an inventory is always produced");
+      assert.ok(Array.isArray([...inventory.skillNames]));
+    }
+  });
+
+  it("2. the acquire path writes the inventory on BOTH materialize branches", () => {
+    // `prepare_workspace` is unconditional inside the acquire try (no enclosing `if`), and both
+    // the first attempt and the post-remount retry assign the inventory. A structural check,
+    // because the alternative is booting a real sandbox.
+    const source = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../src/engines/sandbox_agent/environment.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf-8",
+    );
+    const assignments = source.split("environment.workspaceInventory =").length - 1;
+    const materializations = source.split("await materializeWorkspace(").length - 1;
+    assert.equal(
+      assignments,
+      materializations,
+      "every workspace materialization must record its inventory",
+    );
+    assert.equal(materializations, 2, "the first attempt and the remount retry");
+  });
+
+  it("3. a workspace failure aborts the acquire, so no such environment can park", () => {
+    // The retry path rethrows when it cannot remount, and an acquire that throws never returns an
+    // environment to park. So "parked" implies "materialized" implies "inventory recorded".
+    const source = readFileSync(
+      fileURLToPath(
+        new URL(
+          "../../src/engines/sandbox_agent/environment.ts",
+          import.meta.url,
+        ),
+      ),
+      "utf-8",
+    );
+    const idx = source.indexOf("retrying workspace preparation");
+    assert.ok(idx > 0);
+    const after = source.slice(idx, idx + 600);
+    assert.ok(
+      after.includes("throw err;"),
+      "a workspace failure with no viable remount must abort the acquire",
+    );
   });
 });

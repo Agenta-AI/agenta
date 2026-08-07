@@ -414,6 +414,14 @@ export const LIVE_ACTION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind>([
   "no-op",
   "apply-live",
   "refresh-workspace",
+  // Step 6 (continued). A reopen keeps the sandbox, the daemon, the mounts and the workspace;
+  // only the ACP session is recreated. It is what makes the uniform tool, MCP, prompt and
+  // harness-file routes cheaper than a rebuild.
+  //
+  // It carries its own refusal: a session may only be reopened when the request carries a
+  // transcript to replay, because native history cannot be positively verified. See
+  // `harness-session-lifecycle.ts` `reopen`.
+  "reopen-session",
 ]);
 
 /**
