@@ -9,7 +9,7 @@ import {
     TestSpeedType,
     TestcaseType,
 } from "@agenta/web-tests/playwright/config/testTags"
-import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
 import {expect} from "@agenta/web-tests/utils"
 import type {Page} from "@playwright/test"
@@ -24,6 +24,20 @@ import {
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
+
+const test = baseTest.extend<{
+    registerAgentAppForCleanup: (appId: string) => void
+}>({
+    registerAgentAppForCleanup: async ({apiHelpers}, use) => {
+        let appId: string | undefined
+        await use((createdAppId) => {
+            appId = createdAppId
+        })
+        if (appId) {
+            await apiHelpers.archiveApp(appId)
+        }
+    },
+})
 
 const scenarios = createScenarios(test)
 
@@ -95,7 +109,7 @@ const selectBundledFile = async (page: Page, label: string) => {
 test(
     "uploading a skill package parses the folded description and keeps bundled files isolated",
     {tag: tags},
-    async ({page, uiHelpers}) => {
+    async ({page, uiHelpers, registerAgentAppForCleanup}) => {
         const appName = `e2e-skill-upload-${Date.now()}`
         const descriptionField = () =>
             skillDrawer(page).getByPlaceholder("When the agent should reach for this skill")
@@ -145,6 +159,7 @@ test(
             const createResponse = await createResponsePromise
             expect(createResponse.ok()).toBe(true)
             const created = (await createResponse.json()) as {workflow: {id: string}}
+            registerAgentAppForCleanup(created.workflow.id)
 
             // Environments without the agent platform (e.g. OSS previews with the feature
             // flags off) silently create a prompt-type app here, so the Skills UI under test

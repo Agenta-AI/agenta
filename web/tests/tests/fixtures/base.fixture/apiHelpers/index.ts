@@ -8,24 +8,16 @@ import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 
-import type {ApiHandlerOptions, ApiHelpers, CreateTestsetInput, CreatedTestset} from "./types"
+import type {
+    ApiHandlerOptions,
+    ApiHelpers,
+    APP_TYPE,
+    CreateTestsetInput,
+    CreatedTestset,
+    ListAppsItem,
+} from "./types"
 
-type APP_TYPE = "completion" | "chat" | "custom"
 type CREATABLE_APP_TYPE = Exclude<APP_TYPE, "custom">
-
-interface ListAppsItem {
-    id: string
-    name: string
-    app_type: APP_TYPE
-    flags: {
-        is_chat?: boolean
-        is_custom?: boolean
-        is_application?: boolean
-        is_evaluator?: boolean
-    } | null
-    created_at: string | null
-    [key: string]: any
-}
 
 interface ApiVariant {
     id: string
@@ -44,6 +36,14 @@ interface ApiVariant {
 }
 
 const latestRevisionIdByAppId = new Map<string, string>()
+
+export interface AppRevision {
+    workflow_id?: string | null
+    flags?: ListAppsItem["flags"]
+    version?: string | null
+    created_at?: string | null
+    updated_at?: string | null
+}
 
 interface TestProjectMetadata {
     project_id?: string
@@ -410,6 +410,65 @@ async function createApp(page: Page, type: APP_TYPE): Promise<ListAppsItem> {
     } as ListAppsItem
 }
 
+const revisionRecencyScore = (revision: AppRevision): number => {
+    const createdAt = revision.created_at ? Date.parse(revision.created_at) : 0
+    const updatedAt = revision.updated_at ? Date.parse(revision.updated_at) : 0
+    return createdAt || updatedAt || Number(revision.version ?? 0)
+}
+
+export const selectLatestAppRevisions = (revisions: AppRevision[]): Map<string, AppRevision> => {
+    const latestByAppId = new Map<string, AppRevision>()
+
+    for (const revision of revisions) {
+        const appId = revision.workflow_id
+        if (!appId || revision.version === "0") continue
+
+        const current = latestByAppId.get(appId)
+        if (!current || revisionRecencyScore(revision) > revisionRecencyScore(current)) {
+            latestByAppId.set(appId, revision)
+        }
+    }
+
+    return latestByAppId
+}
+
+const getLatestAppRevisions = async (
+    page: Page,
+    apps: ListAppsItem[],
+): Promise<Map<string, AppRevision>> => {
+    if (!apps.length) return new Map()
+
+    const queryUrl = new URL(`${getApiURL(page)}/workflows/revisions/query`)
+    queryUrl.searchParams.set("project_id", getProjectId(page))
+
+    const response = await page.request.post(queryUrl.toString(), {
+        data: {workflow_refs: apps.map(({id}) => ({id}))},
+    })
+    if (!response.ok()) {
+        const body = await response.text().catch(() => "<unreadable>")
+        throw new Error(
+            `getLatestAppRevisions failed: HTTP ${response.status()} ${response.statusText()}.\n` +
+                `URL: ${queryUrl.toString()}\n` +
+                `Response body: ${body}`,
+        )
+    }
+
+    const data = (await response.json()) as {workflow_revisions?: AppRevision[]}
+    return selectLatestAppRevisions(data.workflow_revisions ?? [])
+}
+
+export const appMatchesType = (
+    app: ListAppsItem,
+    type: APP_TYPE,
+    latestRevision?: {flags?: ListAppsItem["flags"]},
+): boolean => {
+    const flags = {...(app.flags ?? {}), ...(latestRevision?.flags ?? {})}
+    if (flags.is_agent) return false
+    if (type === "chat") return !!flags.is_chat
+    if (type === "custom") return !!flags.is_custom
+    return !flags.is_chat && !flags.is_custom && !flags.is_evaluator
+}
+
 export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     const appsResponse = waitForApiResponse<{workflows: ListAppsItem[]; count: number}>(page, {
         route: "/workflows/query",
@@ -425,18 +484,15 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
 
     expect(Array.isArray(apps)).toBe(true)
 
-    const appMatchesType = (app: ListAppsItem) => {
-        if (type === "chat") return !!app.flags?.is_chat
-        if (type === "custom") return !!app.flags?.is_custom
-        // completion: exclude evaluator apps, which also lack is_chat/is_custom
-        return !app.flags?.is_chat && !app.flags?.is_custom && !app.flags?.is_evaluator
-    }
+    const latestRevisions = await getLatestAppRevisions(page, apps)
 
     let targetApp
     if (!apps.length) {
         targetApp = await createApp(page, type)
     } else if (type) {
-        const app = apps.find(appMatchesType)
+        const app = apps.find((candidate) =>
+            appMatchesType(candidate, type, latestRevisions.get(candidate.id)),
+        )
         if (!app) {
             targetApp = await createApp(page, type)
         } else {
@@ -453,6 +509,21 @@ export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
     }
 
     return targetApp
+}
+
+export const archiveApp = async (page: Page, appId: string): Promise<void> => {
+    const archiveUrl = new URL(`${getApiURL(page)}/workflows/${appId}/archive`)
+    archiveUrl.searchParams.set("project_id", getProjectId(page))
+
+    const response = await page.request.post(archiveUrl.toString(), {data: {}})
+    if (!response.ok()) {
+        const body = await response.text().catch(() => "<unreadable>")
+        throw new Error(
+            `archiveApp('${appId}') failed: HTTP ${response.status()} ${response.statusText()}.\n` +
+                `URL: ${archiveUrl.toString()}\n` +
+                `Response body: ${body}`,
+        )
+    }
 }
 
 export const getAppById = async (page: Page, appId: string) => {
@@ -666,6 +737,9 @@ export const apiHelpers = () => {
             },
             getApp: async (type?: APP_TYPE): Promise<ListAppsItem> => {
                 return await getApp(page, type)
+            },
+            archiveApp: async (appId: string): Promise<void> => {
+                await archiveApp(page, appId)
             },
             getAppById: async (appId: string): Promise<ListAppsItem> => {
                 return await getAppById(page, appId)
