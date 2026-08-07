@@ -472,7 +472,13 @@ export interface AgentUsage {
   input: number;
   output: number;
   total: number;
-  cost: number;
+  /**
+   * INVARIANT: absent means the cost is UNKNOWN (the harness reported none); a present `0` is a
+   * measured zero — a free model or a fully cached turn. Consumers read presence as evidence of
+   * a measurement, so a producer must never substitute a zero for an absence: doing so records
+   * an unpriced run as a free one, which every downstream aggregate then believes.
+   */
+  cost?: number;
 }
 
 /**
