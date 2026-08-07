@@ -254,10 +254,27 @@ class ApiCachingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class WorkflowsConfig(BaseModel):
+    """Workflow-revision behavior toggles."""
+
+    # The ordered-operations change set (agent-config-editing, slice S1b). OFF is today's
+    # surface exactly: the catalog advertises only `set`/`remove`, and a delta carrying
+    # `operations` is refused as an unknown field, the same answer it gets today. Turning
+    # it on adds the ordered arm to the request model and the catalog schema. The flag
+    # exists so the API can ship dark, ahead of the SDK catalog and the runner, per the
+    # mixed-version rollout order.
+    ordered_operations_enabled: bool = _parse_bool_env(
+        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", False
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
+    workflows: WorkflowsConfig = WorkflowsConfig()
 
     model_config = ConfigDict(extra="ignore")
 

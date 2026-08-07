@@ -15,7 +15,9 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
+from oss.src.core.workflows.change_set import ChangeSetError
 from oss.src.core.workflows.service import (
+    RevisionConflictError,
     WorkflowsService,
     SimpleWorkflowsService,
 )
@@ -1554,27 +1556,35 @@ class WorkflowsRouter:
                     detail="workflow_revision.data is required when committing a workflow revision.",
                 )
 
-        workflow_revision = await self.workflows_service.commit_workflow_revision(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
-        )
+        try:
+            outcome = await self.workflows_service.commit_workflow_revision_checked(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
+            )
+        except RevisionConflictError as e:
+            raise HTTPException(status_code=409, detail=e.to_detail()) from e
+        except ChangeSetError as e:
+            raise HTTPException(status_code=422, detail=e.to_detail()) from e
 
-        # Invalidate legacy caches so the registry page reflects the new revision
-        await invalidate_cache(project_id=request.state.project_id)
+        workflow_revision = outcome.revision
 
-        await _emit_committed_revision_data_event(
-            request=request,
-            workflow_revision=workflow_revision,
-        )
+        # A commit event evicts the warm session, so `no_change` must emit nothing.
+        if outcome.status == "committed":
+            await invalidate_cache(project_id=request.state.project_id)
 
-        workflow_revision_response = WorkflowRevisionResponse(
+            await _emit_committed_revision_data_event(
+                request=request,
+                workflow_revision=workflow_revision,
+            )
+
+        return WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
+            status=outcome.status,
+            warnings=outcome.warnings or None,
         )
-
-        return workflow_revision_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionsResponse(), exclude=[HTTPException])

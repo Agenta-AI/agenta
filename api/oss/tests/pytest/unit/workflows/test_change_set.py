@@ -26,7 +26,11 @@ from oss.src.core.workflows.change_set import (
     deep_merge,
     find_file_markers,
     item_key,
+    nearest_lines,
     subtree_scope,
+    PLATFORM_GUIDANCE_START,
+    PLATFORM_GUIDANCE_END,
+    strip_platform_guidance,
 )
 
 
@@ -230,7 +234,8 @@ class TestLegacyMatchesTheOriginalFold:
 
     def test_lists_replace_whole(self):
         result = apply({"set": {"parameters": {"agent": {"skills": []}}}})
-        assert result["parameters"]["agent"]["skills"] == []
+        names = [s["name"] for s in result["parameters"]["agent"]["skills"]]
+        assert "release-qa" not in names
 
     def test_scalars_replace_dicts(self):
         result = apply({"set": {"parameters": {"agent": {"llm": "gpt"}}}})
@@ -719,6 +724,62 @@ class TestTextEditContract:
         )
         assert error.reason == Reason.TEXT_NOT_FOUND
         assert base == base_config()
+
+    # --- the near misses ride along with the refusal (contract 12.4) ---
+
+    def test_a_failed_anchor_carries_the_nearest_lines(self):
+        # The recovery content was written months ago and never wired to anything, so a
+        # failed anchor cost the agent a whole turn reading the field back. It is raised
+        # here because this is the only place holding both the string and the anchor.
+        error = failure(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + [skill("release-qa"), "body"],
+                    "edits": [
+                        {"old_text": "Check the APl.", "new_text": "Check the SDK."}
+                    ],
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.TEXT_NOT_FOUND
+        candidates = error.to_detail()["reason"]["nearest_lines"]
+        assert candidates[0]["text"] == "Check the API."
+        assert candidates[0]["line"] == 1
+
+    def test_a_refusal_with_no_near_miss_carries_no_empty_field(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + [skill("release-qa"), "body"],
+                    "edits": [{"old_text": "zzz", "new_text": "y"}],
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.TEXT_NOT_FOUND
+        assert error.to_detail()["reason"].get("nearest_lines") != []
+
+    def test_nearest_lines_reports_the_line_number_the_agent_can_use(self):
+        text = "# Release QA\nRun the release checks manually.\nThen post the result.\n"
+
+        lines = nearest_lines(text, "Run the release checks manualy.")
+
+        assert lines[0]["text"] == "Run the release checks manually."
+        assert lines[0]["line"] == 2
+
+    def test_nearest_lines_caps_its_output(self):
+        text = "# Release QA\nRun the release checks manually.\nThen post the result.\n"
+
+        assert len(nearest_lines(text, "Run", limit=2)) == 2
+
+    def test_nearest_lines_survives_empty_input(self):
+        assert nearest_lines("", "x") == []
+        assert nearest_lines("x", "") == []
 
     # --- matching is exact: no Pi normalization ---
 
@@ -1706,8 +1767,16 @@ class TestMatchTolerance:
                 }
             )
         )
-        assert error.reason == Reason.UNKNOWN_OPERATION
-        assert error.retryable is False
+        # The operation is `edit_text` and it exists; only the modifier is wrong. Reporting
+        # an unknown OPERATION, non-retryably, told the agent its verb was wrong and that
+        # there was no way forward, when the fix is one word. It reuses the existing
+        # retryable code rather than adding one: the specific guidance rides on `next_step`,
+        # which is what that field is for.
+        assert error.reason == Reason.INVALID_OPERATION_SHAPE
+        assert error.retryable is True
+        assert "'auto'" in error.next_step and "'exact'" in error.next_step
+        # The rejected value is named, so the agent can see what it sent.
+        assert "fuzzy" in error.message
 
     def test_a_normalized_match_must_still_be_unique(self):
         base = base_config()
@@ -2674,3 +2743,522 @@ class TestInventedMarkers:
         ).data
 
         assert result["parameters"]["agent"]["instructions"]["at"] == "an @ in prose"
+
+
+# --------------------------------------------------------------------------------------
+# Bounds and shapes: the engine refuses instead of crashing (#5748)
+# --------------------------------------------------------------------------------------
+
+
+def _nested(depth):
+    """A value nested `depth` levels, the way a JSON body can carry one."""
+    root = {}
+    node = root
+    for _ in range(depth):
+        node["n"] = {}
+        node = node["n"]
+    return root
+
+
+class TestValueDepth:
+    """A value the engine cannot walk earns a refusal, not a stack overflow.
+
+    `deep_merge`, the marker walks and the scope walk all recurse over the value. Before the
+    guard, a deeply nested one raised `RecursionError` from inside the engine, which the API
+    reports as a 500: the caller is told the server broke, when what happened is that the
+    server will not accept what it sent. An agent can act on a refusal and cannot act on a
+    crash.
+    """
+
+    def test_a_deeply_nested_value_is_refused_on_the_ordered_arm(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": _nested(500),
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.VALUE_TOO_DEEP
+
+    def test_a_deeply_nested_value_is_refused_on_the_legacy_arm(self):
+        # The arm that actually overflowed: its `deep_merge` recurses over the whole patch.
+        error = failure(
+            {"set": {"parameters": {"agent": {"instructions": _nested(500)}}}},
+            base_config(),
+        )
+
+        assert error.reason == Reason.VALUE_TOO_DEEP
+
+    def test_the_refusal_beats_the_crash(self):
+        # The point of the whole guard, stated as a test: whatever comes back, it is the
+        # engine's own error and not a RecursionError escaping to the router as a 500.
+        with pytest.raises(ChangeSetError):
+            apply_change_set(
+                {}, {"set": {"parameters": {"agent": _nested(5000)}}}, None
+            )
+
+    def test_a_configuration_shaped_value_is_well_inside_the_limit(self):
+        # The limit has to be generous against real data or it becomes the bug. A skill with
+        # a nested file is six levels; this is twenty.
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions"],
+                    "value": _nested(20),
+                }
+            ),
+            base_config(),
+        ).data
+
+        assert result["parameters"]["agent"]["instructions"] is not None
+
+    def test_the_guard_does_not_recurse_itself(self):
+        # A recursive depth check is the same overflow one frame earlier, so the check walks
+        # iteratively. A value far past Python's own recursion limit proves it.
+        from oss.src.core.workflows.change_set import _reject_deep_values
+
+        with pytest.raises(Exception) as caught:
+            _reject_deep_values(_nested(20_000))
+
+        assert not isinstance(caught.value, RecursionError)
+
+
+class TestTheLegacyFieldShapes:
+    """`set` and `remove` are typed before either arm touches them.
+
+    A `remove` sent as a string used to be iterated character by character, so every letter
+    became a path to delete. Nothing refused it and nothing reported it.
+    """
+
+    def test_a_set_that_is_not_an_object_is_refused(self):
+        error = failure({"set": "parameters.agent.instructions"}, base_config())
+
+        assert error.reason == Reason.INVALID_DELTA
+        assert "object" in error.message
+
+    def test_a_remove_that_is_a_bare_string_is_refused(self):
+        # The nasty one: a string is iterable, so this silently became one removal per
+        # character rather than the single path the caller meant.
+        error = failure(
+            {"set": {}, "remove": "parameters.agent.llm"},
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_DELTA
+        assert "list" in error.message
+
+    def test_a_remove_holding_a_non_string_entry_is_refused(self):
+        error = failure(
+            {"set": {}, "remove": ["parameters.agent.llm", {"path": "x"}]},
+            base_config(),
+        )
+
+        assert error.reason == Reason.INVALID_DELTA
+
+    def test_the_well_formed_legacy_delta_still_applies(self):
+        base = base_config()
+
+        result = run(
+            {
+                "set": {"parameters": {"agent": {"instructions": "new"}}},
+                "remove": ["parameters.agent.llm"],
+            },
+            base,
+        ).data
+
+        assert result["parameters"]["agent"]["instructions"] == "new"
+        assert "llm" not in result["parameters"]["agent"]
+
+
+class TestUnkeyedListsAreNamedPrecisely:
+    """All three item operations answer the same way about a list that has no keys.
+
+    `add_item` always did. Its two siblings went straight to the lookup and reported that
+    the list did not exist, or that no entry matched. Both are true, neither is the reason,
+    and an agent reading them retries the same shape against a list that can never take it.
+    """
+
+    @staticmethod
+    def _base():
+        base = base_config()
+        base["parameters"]["agent"]["outputs"] = [{"name": "a"}]
+        return base
+
+    def test_replace_item_on_an_unkeyed_list_says_so(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "replace_item",
+                    "target": AGENT + [{"list": "outputs", "key": "a"}],
+                    "value": {"name": "a"},
+                }
+            ),
+            self._base(),
+        )
+
+        assert error.reason == Reason.UNKEYED_COLLECTION
+
+    def test_remove_item_on_an_unkeyed_list_says_so(self):
+        error = failure(
+            ops(
+                {
+                    "operation": "remove_item",
+                    "target": AGENT + [{"list": "outputs", "key": "a"}],
+                }
+            ),
+            self._base(),
+        )
+
+        assert error.reason == Reason.UNKEYED_COLLECTION
+
+    def test_all_three_item_operations_agree(self):
+        # The reason this is one rule and not three: an agent that learns the answer from
+        # one operation must get the same answer from the others.
+        reasons = set()
+        for operation in (
+            {
+                "operation": "add_item",
+                "target": AGENT + ["outputs"],
+                "value": {"name": "b"},
+            },
+            {
+                "operation": "replace_item",
+                "target": AGENT + [{"list": "outputs", "key": "a"}],
+                "value": {"name": "a"},
+            },
+            {
+                "operation": "remove_item",
+                "target": AGENT + [{"list": "outputs", "key": "a"}],
+            },
+        ):
+            reasons.add(failure(ops(operation), self._base()).reason)
+
+        assert reasons == {Reason.UNKEYED_COLLECTION}
+
+    def test_a_keyed_list_is_untouched_by_the_guard(self):
+        result = run(
+            ops(
+                {
+                    "operation": "remove_item",
+                    "target": AGENT + [skill("release-qa")],
+                }
+            ),
+            base_config(),
+        ).data
+
+        names = [entry["name"] for entry in result["parameters"]["agent"]["skills"]]
+        assert "release-qa" not in names
+
+
+class TestTheNearMissSearchIsBounded:
+    """`nearest_lines` runs on the way to an error, so its cost must be bounded.
+
+    A field may hold 200_000 characters. Scoring every line of one, on a call that produces
+    nothing, is work an agent can trigger repeatedly by mistyping an anchor.
+    """
+
+    def test_a_huge_field_does_not_pay_for_the_search(self):
+        from oss.src.core.workflows.change_set import MAX_SCANNED_LINES, nearest_lines
+
+        text = "\n".join(f"line {i}" for i in range(MAX_SCANNED_LINES + 1))
+
+        assert nearest_lines(text, "line 3") == []
+
+    def test_a_normal_field_still_gets_its_near_miss(self):
+        from oss.src.core.workflows.change_set import nearest_lines
+
+        text = "# Release QA\nRun the release checks manually.\nThen post the result.\n"
+
+        lines = nearest_lines(text, "Run the release checks manualy.")
+
+        assert lines[0]["line"] == 2
+
+    def test_one_enormous_line_is_clipped_not_scored_whole(self):
+        import time
+
+        from oss.src.core.workflows.change_set import MAX_TEXT_LENGTH, nearest_lines
+
+        # A minified file is one line of the whole field. Comparing against it is quadratic
+        # in its length, so the clip is what keeps a refusal from becoming a stall.
+        text = "x" * MAX_TEXT_LENGTH
+        started = time.monotonic()
+
+        nearest_lines(text, "y" * 10_000)
+
+        assert time.monotonic() - started < 2.0
+
+
+# --------------------------------------------------------------------------------------
+# The platform-guidance block (stripped, never refused)
+# --------------------------------------------------------------------------------------
+
+
+class TestThePlatformGuidanceBlock:
+    """The runner appends a fenced guidance block to the instructions file it renders.
+
+    The stored configuration never contains it. A model that copies the rendered file back
+    into a commit would store our own guidance as the user's configuration, so the engine
+    removes it. Removal is SILENT to the model on purpose: it did nothing wrong, and an
+    error it has to recover from costs a turn to teach it something it cannot act on.
+    """
+
+    BLOCK = (
+        f"{PLATFORM_GUIDANCE_START}\n"
+        "Commit configuration changes with the commit tool. Files you write in the\n"
+        "workspace are not your configuration.\n"
+        f"{PLATFORM_GUIDANCE_END}"
+    )
+
+    def test_the_fence_literals_match_the_runner(self):
+        # The runner writes these in
+        # `services/runner/src/engines/sandbox_agent/system-prompt-appendix.ts`. If either
+        # side changes the fence alone, the block stops being recognized and starts being
+        # stored as configuration. Pinning the literal here is what makes that a test
+        # failure instead of a silent regression.
+        assert PLATFORM_GUIDANCE_START == "<!-- agenta:platform-guidance:start -->"
+        assert PLATFORM_GUIDANCE_END == "<!-- agenta:platform-guidance:end -->"
+
+    def test_a_copied_back_file_stores_only_the_user_text(self):
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "value": f"Be concise.\n\n{self.BLOCK}\n",
+                }
+            ),
+            base_config(),
+        )
+
+        stored = result.data["parameters"]["agent"]["instructions"]["agents_md"]
+        assert stored == "Be concise."
+        assert PLATFORM_GUIDANCE_START not in stored
+
+    def test_the_strip_is_a_warning_and_never_a_refusal(self):
+        # The whole point: the commit succeeds. A refusal would make the model recover from
+        # something it could not have known about.
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "value": f"Be concise.\n\n{self.BLOCK}\n",
+                }
+            ),
+            base_config(),
+        )
+
+        codes = [w.code for w in result.warnings]
+        assert WarningCode.PLATFORM_GUIDANCE_STRIPPED in codes
+
+    def test_the_warning_names_the_field_it_was_stripped_from(self):
+        result = run(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["skills"],
+                    "value": {
+                        "name": "new-skill",
+                        "body": f"Do the thing.\n\n{self.BLOCK}",
+                    },
+                }
+            ),
+            base_config(),
+        )
+
+        warning = next(
+            w
+            for w in result.warnings
+            if w.code == WarningCode.PLATFORM_GUIDANCE_STRIPPED
+        )
+        assert "body" in warning.message
+
+    def test_it_is_stripped_from_a_value_nested_anywhere(self):
+        result = run(
+            ops(
+                {
+                    "operation": "add_item",
+                    "target": AGENT + ["skills"],
+                    "value": {
+                        "name": "deep",
+                        "body": "clean",
+                        "files": [{"path": "a.md", "content": f"text\n\n{self.BLOCK}"}],
+                    },
+                }
+            ),
+            base_config(),
+        )
+
+        added = result.data["parameters"]["agent"]["skills"][-1]
+        assert added["files"][0]["content"] == "text"
+
+    def test_the_legacy_arm_strips_it_too(self):
+        # The arm a wholesale copy-back actually uses: the model sends the whole
+        # instructions object under `set`.
+        result = run(
+            {
+                "set": {
+                    "parameters": {
+                        "agent": {
+                            "instructions": {
+                                "agents_md": f"Be concise.\n\n{self.BLOCK}\n"
+                            }
+                        }
+                    }
+                }
+            },
+            base_config(),
+        )
+
+        stored = result.data["parameters"]["agent"]["instructions"]["agents_md"]
+        assert stored == "Be concise."
+        assert WarningCode.PLATFORM_GUIDANCE_STRIPPED in [
+            w.code for w in result.warnings
+        ]
+
+    # --- the delimiter edge cases ---
+
+    def test_an_unmatched_opening_fence_strips_to_the_end(self):
+        # Whatever follows an opener is guidance whose closer was lost, so keeping it would
+        # store the thing this rule exists to remove.
+        assert (
+            strip_platform_guidance(f"Keep me.\n\n{PLATFORM_GUIDANCE_START}\nlost")
+            == "Keep me."
+        )
+
+    def test_a_lone_closing_fence_is_left_as_plain_text(self):
+        # Inert without its opener. Deleting on the strength of it would let one stray line
+        # remove a user's own content.
+        text = f"Keep me.\n{PLATFORM_GUIDANCE_END}\nAnd me."
+        assert strip_platform_guidance(text) == text
+
+    def test_a_value_with_no_fence_is_returned_untouched(self):
+        # A no-op has to be a true no-op, trailing newline included, or every commit that
+        # never saw a block would still rewrite its own text.
+        assert strip_platform_guidance("Be concise.\n") == "Be concise.\n"
+
+    def test_two_blocks_are_both_removed(self):
+        text = f"A\n{self.BLOCK}\nB\n{self.BLOCK}\nC"
+        assert strip_platform_guidance(text) == "A\n\nB\n\nC"
+
+    def test_stripping_is_idempotent(self):
+        once = strip_platform_guidance(f"Be concise.\n\n{self.BLOCK}\n")
+        assert strip_platform_guidance(once) == once
+
+    def test_an_anchor_inside_a_stripped_region_simply_misses(self):
+        # No special case. The block is not in the stored text, so an `old_text` copied out
+        # of it fails the ordinary text_not_found path, which already tells the agent to
+        # copy the anchor from the configuration it read.
+        error = failure(
+            ops(
+                {
+                    "operation": "edit_text",
+                    "target": AGENT + [skill("release-qa"), "body"],
+                    "edits": [
+                        {
+                            "old_text": "Commit configuration changes with the commit tool.",
+                            "new_text": "x",
+                        }
+                    ],
+                }
+            ),
+            base_config(),
+        )
+
+        assert error.reason == Reason.TEXT_NOT_FOUND
+
+
+class TestTheRenderedFileRoundTrips:
+    """Render, copy the rendered file back as a wholesale set, get the stored text back.
+
+    This is the invariant the whole strip exists to protect, stated end to end rather than
+    as a property of the helper. The fixture below stands in for the runner's renderer,
+    which does not exist yet: it is built from the agreed fence literals and a plausible
+    separator. **The runner side must keep this fixture true.** If
+    `services/runner/src/engines/sandbox_agent/system-prompt-appendix.ts` renders a block
+    this fixture does not describe, this test keeps passing while the real round trip
+    breaks, so treat the fixture as part of the contract and not as scaffolding.
+
+    Deliberately not a fixed-newline pattern. The strip normalizes, so the runner may change
+    its spacing without breaking the round trip, and these cells vary the spacing to prove
+    that rather than assume it.
+    """
+
+    GUIDANCE = (
+        "Commit configuration changes with the commit tool.\n"
+        "Files you write in the workspace are not your configuration."
+    )
+
+    @classmethod
+    def _rendered(cls, stored: str, separator: str = "\n\n") -> str:
+        """What the agent sees in its workspace: stored text, then the fenced block."""
+        return (
+            f"{stored}{separator}"
+            f"{PLATFORM_GUIDANCE_START}\n{cls.GUIDANCE}\n{PLATFORM_GUIDANCE_END}\n"
+        )
+
+    @pytest.mark.parametrize(
+        "separator",
+        ["\n\n", "\n", "\n\n\n", "\n\n \n"],
+        ids=["blank-line", "single-newline", "two-blank-lines", "trailing-space"],
+    )
+    def test_the_stored_text_comes_back_byte_for_byte(self, separator):
+        stored = "Be concise.\nAnswer in one paragraph."
+
+        result = run(
+            {
+                "set": {
+                    "parameters": {
+                        "agent": {
+                            "instructions": {
+                                "agents_md": self._rendered(stored, separator)
+                            }
+                        }
+                    }
+                }
+            },
+            base_config(),
+        )
+
+        assert result.data["parameters"]["agent"]["instructions"]["agents_md"] == stored
+
+    def test_the_same_round_trip_through_the_ordered_arm(self):
+        stored = "Be concise.\nAnswer in one paragraph."
+
+        result = run(
+            ops(
+                {
+                    "operation": "set",
+                    "target": AGENT + ["instructions", "agents_md"],
+                    "value": self._rendered(stored),
+                }
+            ),
+            base_config(),
+        )
+
+        assert result.data["parameters"]["agent"]["instructions"]["agents_md"] == stored
+
+    def test_a_second_round_trip_changes_nothing(self):
+        # The agent reads, the runner renders, the agent copies back, twice. If the strip
+        # were not idempotent the text would drift a little on every loop.
+        stored = "Be concise."
+        once = strip_platform_guidance(self._rendered(stored))
+        twice = strip_platform_guidance(self._rendered(once))
+
+        assert once == stored
+        assert twice == stored
+
+    def test_trailing_whitespace_on_the_stored_text_is_the_one_exception(self):
+        # Stated rather than hidden. The strip cannot tell a trailing newline the user wrote
+        # from one the renderer's separator swallowed, so it normalizes to neither. A stored
+        # value that ends in whitespace comes back without it, which is a revision differing
+        # by trailing whitespace and never by content. Values converge after one commit,
+        # because what the strip returns has none.
+        rendered = self._rendered("Be concise.\n")
+
+        assert strip_platform_guidance(rendered) == "Be concise."

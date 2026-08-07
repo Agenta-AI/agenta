@@ -216,13 +216,14 @@ async def _build_test_workflow_request(
         )
 
     if request.delta is not None:
-        resolved = await workflows_service._resolve_revision_delta(
+        resolution = await workflows_service._resolve_revision_delta(
             project_id=project_id,
             workflow_revision_commit=WorkflowRevisionCommit(
                 workflow_variant_id=request.target.workflow_variant_id,
                 delta=request.delta,
             ),
         )
+        resolved = resolution.commit
         if resolved.data is None:
             raise PlatformToolHandlerError(
                 "test_run could not resolve the revision delta."
