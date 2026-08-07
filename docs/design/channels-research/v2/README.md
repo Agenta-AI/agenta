@@ -48,6 +48,9 @@ tables plus one reused, and a capability-declaring adapter per platform.
 9. **`workstreams/`** — one `specs-wp{k}.md` and `tasks-wp{k}.md` per package, so
    a package can be handed to someone with no context beyond this folder. Its
    `README.md` carries the file-ownership table and the parallel-work rules.
+10. **`findings.md`** — the open defects and gaps found while building, with the
+    evidence for each. Written during development, not after: a cross-package
+    seam that nobody records is one that gets rediscovered at the next merge.
 
 **Every document except `decisions.md` and `notes.md` states only what is.** They
 carry no history and no record of alternatives: a shape that was proposed and

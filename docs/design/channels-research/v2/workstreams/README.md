@@ -9,6 +9,11 @@ context than `v2/`.
 add what was missed. Neither carries history; the design documents in `v2/` remain
 the source of truth and a spec that disagrees with them is a bug in the spec.
 
+Anything that outlives a single package — a cross-package seam, a pre-existing
+defect, something blocked on a checkpoint — goes in [`../findings.md`](../findings.md),
+not in a `tasks-*` ledger. A finding records what was *verified*, with file and
+line; a passing suite is not evidence that two packages agree.
+
 ## The base
 
 Everything branches from the **current upstream release branch** on
