@@ -446,6 +446,10 @@ class ResolvedToolSet(BaseModel):
         validation_alias=AliasChoices("tool_specs", "custom_tools"),
     )
     tool_callback: Optional[ToolCallback] = None
+    # Human-facing warnings raised during resolution that did not fail the run — e.g. a
+    # gateway tool dropped because its action 404s. Each names the affected tool. Surfaced so
+    # a degraded resolution is never silent; empty on a fully clean resolve.
+    warnings: List[str] = Field(default_factory=list)
 
     @field_validator("tool_specs", mode="before")
     @classmethod
