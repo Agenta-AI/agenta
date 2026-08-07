@@ -161,6 +161,11 @@ from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
+
+# --- channels: seeded declarations; wiring lands with the domain packages ---
+from oss.src.core.channels.adapters.interface import ChannelAdapterInterface  # noqa: F401
+from oss.src.core.channels.interfaces import ChannelsDAOInterface  # noqa: F401
+
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.store.storage import ObjectStore
@@ -414,6 +419,11 @@ _OPENAPI_TAGS = [
     {
         "name": "Triggers",
         "description": "Inbound provider event triggers and their watchable event catalog.",
+    },
+    # --
+    {
+        "name": "Channels",
+        "description": "Chat platform channels — connections, agents, spaces, grants, and the inbound event log.",
     },
     # --
     {
@@ -1455,6 +1465,17 @@ app.include_router(
     tags=["Triggers"],
     include_in_schema=False,
 )
+
+# --- channels ---
+# The router mounts at /channels once WP3 ships the ingress and WP8 the config
+# API. Ingress paths are literal per channel (/channels/slack/events/), never a
+# path parameter: _PUBLIC_ENDPOINTS matches by prefix.
+#
+# app.include_router(
+#     router=channels.router,
+#     prefix="/channels",
+#     tags=["Channels"],
+# )
 
 app.include_router(
     router=triggers.admin_router,
