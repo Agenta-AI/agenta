@@ -20,3 +20,5 @@ Append-only. One line per benchmark run. A row whose path is marked `(outside re
 | `/home/mahmoud/.claude/jobs/8a4c460e/tmp/preflight-test` (outside results/) | 1 | 1 | 3 | 100% | 100% | 0 | 0 | $0.06 | `a85076d4c3065298*` | `cda38f6ff5d31334*` |
 | [20260806-220910](20260806-220910/summary.md) | 3 | 7 | 63 | 67% | 75% | 0 | 0 | $1.14 | `a85076d4c3065298*` | `cda38f6ff5d31334*` |
 | [20260806-222803](20260806-222803/summary.md) | 1 | 7 | 21 | 67% | 86% | 0 | 0 | $0.00 | `a85076d4c3065298*` | `cda38f6ff5d31334*` |
+| [20260806-223649](20260806-223649/summary.md) | 4 | 7 | 84 | 39% | 68% | 0 | 0 | $1.17 | `a85076d4c3065298*` | `cda38f6ff5d31334*` |
+| [20260806-230121](20260806-230121/summary.md) | 3 | 7 | 63 | 67% | 89% | 0 | 0 | $1.04 | `3b01fb97c8d5d2e1*` | `cda38f6ff5d31334*` |

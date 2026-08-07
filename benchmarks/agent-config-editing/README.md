@@ -416,6 +416,36 @@ file. The `wrong_surface` collapse is the sentence.
   Asked to adopt the same file as its instructions, it looked at the workspace root and told the
   user to save a file they had already saved. That rules out reachability and delivery; what
   remains is a hypothesis worth one run if `fm-01` still fails after the guidance change.
+- **Infrastructure must never be scored as model behaviour, and it will try to be, three ways.**
+  (1) A skip matcher that pattern-matched `connection` swallowed transport failures. (2) A live
+  outage produced 84 tool errors that read as refusals. (3) An upstream provider retry arrives as
+  the assistant's *reply text* — `Retrying (attempt 1/3, waiting 2s)...` — on a turn that settles
+  normally, which naive scoring reads as a model that did nothing; one rate-limited run put a cell
+  at 10% with ten invented failures. Each is now caught (`TRANSPORT_MARKERS`, the pre-flight,
+  `_PROVIDER_RETRY_RE`). Every instance inflated a FAILURE count, never a success count, which is
+  the direction that quietly makes a product look worse than it is.
+- **The pre-flight gates on the transport trials actually use, not on a route.** A migration
+  flipped the config ops to handler mode, so a direct probe of the legacy endpoint could pass
+  while the real path was broken — and that endpoint is scheduled for deletion, which would later
+  make it a false red. The legacy probe is advisory; the gate is one live agent turn that must get
+  a served `read_config`.
+- **A pre-flight cannot catch an INTERMITTENT failure, and that limit is honest rather than
+  fixable here.** One healthy live turn says nothing about a fault that spikes under concurrency.
+  The right answer to a transport that fails silently is for the runner to surface it onto the
+  wire, not for the benchmark to simulate load: tonight a runner-to-harness transport was
+  reportedly failing in the runner logs while ZERO trace of it appeared in any wire data across
+  seven runs. A client cannot assert on what it cannot see.
+- **Never compare two runs' cell totals without checking the SCENARIO SET.** A cell read 19/21 in
+  one run and 12/21 in the next and looked like a regression; the two runs measured different
+  scenarios (instruction-targeted versus skill/read), so the pairing was meaningless. `table.py
+  --against` warns on this; a hand-written comparison has no such guard.
+- **When a turn dies, ask whether it made PROGRESS first — that names the owner.** A reply
+  carrying a provider retry with ZERO tool calls died at the start: upstream capacity, not the
+  product. Tool calls followed by silence is a session evicted or a transport dropped mid-run,
+  which IS the product's problem. Two cells on one shared key failed the same way for different
+  reasons within an hour, and the same lens split a certification cell's three failures into
+  one-with-progress and two-without. Recorded per trial as `infra_signature`; both still score
+  `unsettled`, because this is triage information, not a verdict.
 - **Codex reports no usage on the wire**, so cost accounting is blind for codex cells and every
   total understates by whatever they spent.
 - **`table.py` re-labels stored trials on read.** Outcome definitions will keep improving; an

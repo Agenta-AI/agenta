@@ -255,6 +255,7 @@ def run_trial(cell_id: str, cell: dict, scenario: dict, index: int) -> dict:
         record.update(
             {
                 "outcome": outcome,
+                "infra_signature": B.infra_signature(flat),
                 "blocked_only_by_harness": B.blocked_only_by_harness(
                     errors, commit_calls, budget
                 ),
