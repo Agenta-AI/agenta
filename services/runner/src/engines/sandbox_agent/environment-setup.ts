@@ -50,6 +50,7 @@ import {
   resolvesToLocalProvider,
 } from "./session-identity.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
+import { buildRuntimeEnvironment } from "../../environment/runtime-lifecycle.ts";
 import { createTimingLog } from "../../environment/timing.ts";
 
 function defaultLog(message: string): void {
@@ -173,59 +174,21 @@ export async function prepareEnvironmentSetup(
   // provider cannot leak.
   // "none" asserts NO credential (connections/models.py), so it clears too — otherwise the
   // daemon would inherit the declared provider's keys (e.g. OPENAI_API_KEY) from the sidecar.
-  // Only runtime_provided keeps the inherited keys: the harness uses its own login there.
-  const clearProviderEnv =
-    plan.credentials.credentialMode === "env" ||
-    plan.credentials.credentialMode === "none";
-  const env = (deps.buildDaemonEnv ?? buildDaemonEnv)(plan.acpAgent, {
-    clearProviderEnv,
-    provider: request.modelConnection?.provider,
-    deployment: request.modelConnection?.deployment,
+  // RuntimeLifecycle BUILDS the daemon world: both env maps plus the 0600 OTLP bearer file.
+  // That was never planning, which is why it moved out of this file (lifecycle migration,
+  // step 5). See `environment/runtime-lifecycle.ts` for the ordering rule inside it.
+  const runtimeEnvironment = buildRuntimeEnvironment({
+    plan: plan as never,
+    request: request as never,
+    piSkillSnapshot,
+    log: logger,
+    deps: { ...(deps.buildDaemonEnv ? { buildDaemonEnv: deps.buildDaemonEnv } : {}) },
   });
-  // apply only the resolved provider keys
-  Object.assign(env, plan.credentials.modelEnvironment);
-  applyClaudeConnectionEnv(env, request, plan.acpAgent, logger);
-  const piSessionDir = configurePiSessionWorkspace(plan, env);
-  configurePiSkillSnapshot(piSkillSnapshot, env);
+  const env = runtimeEnvironment.env;
+  const piExtEnv = runtimeEnvironment.piExtEnv;
+  const piSessionDir = runtimeEnvironment.piSessionDir;
+  const otlpAuthFilePath = runtimeEnvironment.otlpAuthFilePath;
   const strictModel = modelResolutionStrict();
-  // Pi self-instruments locally: propagate the trace context + public tool metadata into Pi
-  // via the Agenta extension. Tool execution always relays back to this runner, which keeps
-  // private specs, scoped env, callback endpoints, and callback auth in memory.
-  // local Pi's OTLP bearer rides a runner-written 0600 file, never a plain env var —
-  // Daytona never receives telemetry env here at all (`!plan.isDaytona` gates it off above).
-  const otlpAuthFilePath =
-    plan.isPi && !plan.isDaytona
-      ? `${plan.workspace.relayDir}.otlp-auth`
-      : undefined;
-  const otlpAuthorization =
-    request.telemetry?.exporters?.otlp?.headers?.authorization;
-  if (otlpAuthFilePath && otlpAuthorization) {
-    writeOtlpAuthFile(otlpAuthFilePath, otlpAuthorization, logger);
-  }
-  const piExtEnv = plan.isPi
-    ? buildPiExtensionEnv(request, !plan.isDaytona, {
-        relayDir: plan.workspace.relayDir,
-        usageOutPath: plan.workspace.usageOutPath,
-        otlpAuthFilePath,
-        builtinGatingActive: plan.tools.builtinGatingActive,
-        // The materialized skill names (author + forced `_agenta.*`) so Pi's own agent span
-        // records which skills loaded; local Pi self-instruments, so the runner's sandbox-agent
-        // otel has no span to stamp here.
-        skills: plan.workspace.skillDirs.map((s) => s.name),
-      })
-    : {};
-  // Daytona's provider is built from `piExtEnv` rather than the local daemon env. Keep the
-  // transcript location in both environment slices so Pi and pi-acp see the same durable path
-  // regardless of provider.
-  if (piSessionDir) piExtEnv.PI_CODING_AGENT_SESSION_DIR = piSessionDir;
-  configurePiSkillSnapshot(piSkillSnapshot, piExtEnv);
-  // Managed Daytona Codex: CODEX_HOME stays on the durable cwd (native resume rides its sessions/
-  // rollouts) while CODEX_SQLITE_HOME points in-VM, off the mount (D-002 final ruling). Set here
-  // because the Daytona daemon env is fixed at sandbox creation and is built from piExtEnv. Managed
-  // auth is file-free (env_key provider; no auth.json anywhere). Non-Daytona / non-codex runs are
-  // no-ops; local Codex uses configureCodexHome below instead.
-  configureDaytonaCodexEnv(plan, piExtEnv);
-  Object.assign(env, piExtEnv); // local daemon inherits it; daytona gets it via envVars
   logger(
     `tools=${plan.tools.toolSpecs.length} executableTools=${plan.tools.executableToolSpecs.length} ` +
       `piPublicTools=${piExtEnv.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ? "yes" : "no"}`,
