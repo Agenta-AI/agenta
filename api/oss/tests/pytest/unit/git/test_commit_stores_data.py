@@ -261,16 +261,21 @@ class TestReadConfigSeesWhatWasStored:
         assert head is not None and head.data is not None
 
 
-class TestThePlatformGuidanceNeverReachesTheDatabase:
-    """The stored row is the assertion, not the response.
+class TestThePlatformGuidanceOnTheTwoPaths:
+    """The strip belongs to the agent's path, and only to it.
 
-    The runner appends a fenced guidance block to the instructions file it renders into the
-    workspace. A model that copies that file back into a commit would store our own guidance
-    as the user's configuration. The engine strips it, and this cell proves the strip
-    reaches the DATABASE rather than only the object the endpoint echoes back.
+    A full-data commit briefly went through the strip too, because a stored-row test caught
+    the block reaching the database that way. That was the wrong fix: the general path must
+    never silently rewrite what a caller sent, and a human pasting a rendered file into the
+    playground is sending their own text.
+
+    The exposure the strip was covering is closed by the entry point instead. An agent
+    CANNOT send a full-data commit: its handler refuses the shape outright
+    (`full_data_not_committable`), so the only way the block reaches storage is a human
+    deliberately putting it there, which is theirs to do.
     """
 
-    async def test_a_copied_back_file_is_stored_without_the_block(
+    async def test_a_delta_commit_stores_the_text_without_the_block(
         self, engine, variant
     ):
         from oss.src.core.workflows.change_set import (
@@ -280,18 +285,22 @@ class TestThePlatformGuidanceNeverReachesTheDatabase:
 
         service = _service(engine)
         block = (
-            f"{PLATFORM_GUIDANCE_START}\n"
-            "Commit configuration changes with the commit tool.\n"
-            f"{PLATFORM_GUIDANCE_END}"
+            f"{PLATFORM_GUIDANCE_START}\nCommit with the tool.\n{PLATFORM_GUIDANCE_END}"
         )
-
+        await _commit(
+            service,
+            variant,
+            data={"parameters": {"agent": {"instructions": {"agents_md": "seed"}}}},
+        )
         outcome = await _commit(
             service,
             variant,
-            data={
-                "parameters": {
-                    "agent": {
-                        "instructions": {"agents_md": f"Be concise.\n\n{block}\n"}
+            delta={
+                "set": {
+                    "parameters": {
+                        "agent": {
+                            "instructions": {"agents_md": f"Be concise.\n\n{block}\n"}
+                        }
                     }
                 }
             },
@@ -300,5 +309,29 @@ class TestThePlatformGuidanceNeverReachesTheDatabase:
         stored = await _stored_data(engine, outcome.revision.id)
         agents_md = stored["parameters"]["agent"]["instructions"]["agents_md"]
         assert PLATFORM_GUIDANCE_START not in agents_md
-        assert PLATFORM_GUIDANCE_END not in agents_md
         assert agents_md == "Be concise."
+
+    async def test_a_full_data_commit_stores_exactly_what_it_was_sent(
+        self, engine, variant
+    ):
+        # The general path does not edit caller data, and this is the cell that says so.
+        # The agent cannot reach here: its handler refuses a full-data commit by shape.
+        from oss.src.core.workflows.change_set import (
+            PLATFORM_GUIDANCE_END,
+            PLATFORM_GUIDANCE_START,
+        )
+
+        service = _service(engine)
+        block = (
+            f"{PLATFORM_GUIDANCE_START}\nCommit with the tool.\n{PLATFORM_GUIDANCE_END}"
+        )
+        sent = f"Be concise.\n\n{block}\n"
+
+        outcome = await _commit(
+            service,
+            variant,
+            data={"parameters": {"agent": {"instructions": {"agents_md": sent}}}},
+        )
+
+        stored = await _stored_data(engine, outcome.revision.id)
+        assert stored["parameters"]["agent"]["instructions"]["agents_md"] == sent

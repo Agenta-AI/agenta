@@ -24,12 +24,31 @@
  * anyway: the base is a precondition, so the commit itself would answer 409. The conflict
  * simply surfaces one step earlier, with the same next step the model already knows.
  */
-import { callDirect, directCallUrl, resolveCtxToken } from "./direct.ts";
+import { callAgentaTool } from "./callback.ts";
+import { resolveCtxToken } from "./direct.ts";
 import type { RunContext, ToolCallbackContext } from "../protocol.ts";
 import type { ConfigTextFetcher } from "./commit-authorization.ts";
 
-/** The platform op's own path (read-config.md 2). */
-const READ_CONFIG_PATH = "/api/workflows/revisions/read-config";
+/**
+ * The read op's call ref, dispatched by `POST /tools/call` (API migration, step 8).
+ *
+ * This used to POST `/api/workflows/revisions/read-config` directly. That route is being deleted:
+ * the op now runs behind a registered handler in the API process
+ * (`core/tools/platform_handlers.py`, `READ_CONFIG_CALL_REF`), reached through the same generic
+ * tool seam every other tool uses. The body is unchanged, because the handler reads the same
+ * `target` and `max_bytes` the route did, so this is a transport swap and not a reshape.
+ *
+ * WHAT CHANGES FOR FAILURES. The route answered a domain failure with a non-2xx whose FastAPI
+ * `detail` carried the reason. The handler answers HTTP 200 with `STATUS_CODE_ERROR` and the
+ * canonical `{code, message, retryable, next_step, details}` envelope in the tool result.
+ * `callAgentaTool` throws on that status, so a refusal still arrives here as a throw and still
+ * reaches the caller the same way. The envelope rides the message.
+ */
+const READ_CONFIG_CALL_REF = "tools.agenta.read_config";
+
+/** The handler's own budget (`READ_CONFIG_DEFAULT_TIMEOUT_MS`), mirrored so the runner does not
+ *  give up before the API does. */
+const READ_CONFIG_TIMEOUT_MS = 15_000;
 
 /** The endpoint's ceiling. A long instructions document must fit, or the card cannot show it. */
 const READ_CONFIG_MAX_BYTES = 262144;
@@ -63,23 +82,22 @@ export function buildConfigTextFetcher(input: {
       },
       max_bytes: READ_CONFIG_MAX_BYTES,
     };
-    const url = directCallUrl(
+    // A synthetic id: this read is the RUNNER's, not a call the model made, so there is no
+    // tool-call id to echo. It only travels back as `tool_call_id`, and naming it makes the
+    // API-side log say which reader asked.
+    const raw = await callAgentaTool(
       endpoint,
-      { method: "POST", path: READ_CONFIG_PATH },
-      body,
-    );
-    const raw = await callDirect(
-      "POST",
-      url,
       input.callback?.authorization,
+      READ_CONFIG_CALL_REF,
+      `config-text-${revisionId}`,
       body,
-      {
-        signal: input.signal,
-      },
+      { signal: input.signal, timeoutMs: READ_CONFIG_TIMEOUT_MS },
     );
 
     let parsed: unknown;
     try {
+      // `callAgentaTool` hands back the tool result's `content`, which for this op is the same
+      // `ReadConfigResponse` object the route used to return as its body.
       parsed = JSON.parse(raw);
     } catch {
       throw new Error("the configuration read returned a malformed response");

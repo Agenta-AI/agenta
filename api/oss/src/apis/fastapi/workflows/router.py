@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, HTTPException, Depends
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
@@ -17,8 +18,7 @@ from oss.src.core.git.types import CommitLockTimeout
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
-from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE, ChangeSetError
-from oss.src.core.workflows.read_config import ReadConfigError
+from oss.src.core.workflows.change_set import ChangeSetError
 from oss.src.core.workflows.service import (
     RevisionConflictError,
     WorkflowsService,
@@ -58,9 +58,6 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowRevisionResponse,
     WorkflowRevisionsResponse,
     #
-    ReadConfigRequest,
-    ReadConfigResponse,
-    ReadConfigRevision,
     #
     WorkflowRevisionResolveRequest,
     WorkflowRevisionResolveResponse,
@@ -434,30 +431,6 @@ class WorkflowsRouter:
             operation_id="commit_workflow_revision",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionResponse,
-            response_model_exclude_none=True,
-        )
-
-        # The agent's own commit surface. Same flow, same response, one difference: every
-        # write is confined to `parameters.agent`. It is a separate route because that is
-        # what makes the confinement unforgeable — the model cannot ask for the unscoped
-        # one, since the URL comes from the server-side catalog and it holds no credential.
-        self.router.add_api_route(
-            "/revisions/commit/agent",
-            self.commit_agent_workflow_revision,
-            methods=["POST"],
-            operation_id="commit_agent_workflow_revision",
-            status_code=status.HTTP_200_OK,
-            response_model=WorkflowRevisionResponse,
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
-            "/revisions/read-config",
-            self.read_workflow_revision_config,
-            methods=["POST"],
-            operation_id="read_workflow_revision_config",
-            status_code=status.HTTP_200_OK,
-            response_model=ReadConfigResponse,
             response_model_exclude_none=True,
         )
 
@@ -1530,59 +1503,6 @@ class WorkflowsRouter:
 
     @intercept_exceptions()
     @handle_workflow_exceptions()
-    @intercept_exceptions()
-    async def read_workflow_revision_config(
-        self,
-        request: Request,
-        *,
-        read_config_request: ReadConfigRequest,
-    ) -> ReadConfigResponse:
-        if not await check_action_access(  # type: ignore
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_WORKFLOWS,  # type: ignore
-        ):
-            raise FORBIDDEN_EXCEPTION  # type: ignore
-
-        variant_id = read_config_request.target.workflow_variant_id
-        if not variant_id:
-            raise HTTPException(
-                status_code=400,
-                detail="target.workflow_variant_id is required.",
-            )
-
-        try:
-            outcome = await self.workflows_service.read_workflow_revision_config(
-                project_id=UUID(request.state.project_id),
-                workflow_variant_id=UUID(variant_id),
-                path=read_config_request.target.path,
-                max_bytes=read_config_request.max_bytes,
-                run_is_draft=read_config_request.target.run_is_draft,
-            )
-        except ReadConfigError as e:
-            raise HTTPException(status_code=e.status_code, detail=e.to_detail()) from e
-
-        revision = outcome.revision
-        return ReadConfigResponse(
-            revision=ReadConfigRevision(
-                id=str(revision.id),
-                version=getattr(revision, "version", None),
-                workflow_variant_id=str(getattr(revision, "variant_id", "") or "")
-                or None,
-                created_at=str(getattr(revision, "created_at", "") or "") or None,
-            ),
-            # The value the agent must copy into its next commit; the commit answers 409
-            # when the head moved, which is what makes read-then-edit safe.
-            base_revision_id=str(revision.id),
-            is_draft=outcome.is_draft,
-            path=outcome.path,
-            value=outcome.value,
-            bytes=outcome.bytes,
-            warnings=outcome.warnings or None,
-        )
-
-    @intercept_exceptions()
-    @handle_workflow_exceptions()
     @handle_git_exceptions()
     async def commit_workflow_revision(
         self,
@@ -1598,31 +1518,6 @@ class WorkflowsRouter:
             workflow_variant_id=workflow_variant_id,
             workflow_revision_commit_request=workflow_revision_commit_request,
             scope_policy=None,
-        )
-
-    @intercept_exceptions()
-    @handle_workflow_exceptions()
-    @handle_git_exceptions()
-    async def commit_agent_workflow_revision(
-        self,
-        request: Request,
-        *,
-        workflow_variant_id: Optional[UUID] = None,
-        #
-        workflow_revision_commit_request: WorkflowRevisionCommitRequest,
-    ) -> WorkflowRevisionResponse:
-        """The agent's own route: every write is confined to `parameters.agent`.
-
-        The confinement is a property of the ROUTE, not of anything in the request, which
-        is what makes it unforgeable: the model never holds the credential, and the URL it
-        reaches comes from the server-side op catalog, so an agent cannot express an
-        unscoped commit (read-config.md 11.2).
-        """
-        return await self._commit_workflow_revision(
-            request=request,
-            workflow_variant_id=workflow_variant_id,
-            workflow_revision_commit_request=workflow_revision_commit_request,
-            scope_policy=AGENT_COMMIT_SCOPE,
         )
 
     async def _commit_workflow_revision(
@@ -1733,25 +1628,39 @@ class WorkflowsRouter:
         except ChangeSetError as e:
             raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except NonEmbeddableWorkflowReferenceError as e:
-            # A change-set refusal like any other on this endpoint, so it answers 422 with
-            # a reason code rather than the shared 400 the other workflow routes give
-            # (contract commit-transaction.md 4.1).
+            # One code, one status. This used to answer 422 here and 400 everywhere else
+            # the same failure is raised, so a caller had to learn the status per route
+            # rather than per cause (audit leak C31).
             raise HTTPException(
-                status_code=422,
+                status_code=400,
                 detail={
                     "code": "non_embeddable_reference",
                     "message": str(e),
                     "retryable": False,
+                    "next_step": (
+                        "Remove the embedded reference to that workflow and send the "
+                        "commit again."
+                    ),
                 },
             ) from e
         except CommitLockTimeout as e:
             raise HTTPException(
                 status_code=503,
                 detail={
+                    # The one genuinely retryable failure on this path: the request was
+                    # never applied, and the identical bytes can succeed once the commit
+                    # in flight releases the variant lock.
                     "code": "commit_lock_timeout",
                     "message": e.message,
-                    "next_step": "Wait for the commit in flight to finish, then send this commit again.",
                     "retryable": True,
+                    "next_step": (
+                        "Wait for the commit in flight to finish, then send this commit "
+                        "again."
+                    ),
+                    "details": {
+                        "variant_id": str(e.variant_id) if e.variant_id else None,
+                        "timeout_ms": env.postgres.commit_lock_timeout_ms,
+                    },
                 },
             ) from e
 
@@ -1763,9 +1672,13 @@ class WorkflowsRouter:
             raise HTTPException(
                 status_code=500,
                 detail={
+                    # NOT retryable, and no next_step. This fires when the write layer
+                    # reported success and produced nothing, which is an invariant failure
+                    # inside the server. Telling a caller to retry an unknown-state write
+                    # invites a duplicate commit; there is no action it can take.
                     "code": "commit_failed",
                     "message": "The commit did not produce a revision.",
-                    "retryable": True,
+                    "retryable": False,
                 },
             )
 

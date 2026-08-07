@@ -55,6 +55,28 @@ export function refusedAtGateText(toolName: string): string {
   );
 }
 
+/**
+ * The approval channel itself is broken, so the call could not even be PUT to anyone.
+ *
+ * Not a denial. Nobody refused this call; the machinery that would have asked was missing or
+ * failed, and the runner blocked the tool rather than run it unapproved. The model's situation is
+ * still the one this module exists for: something did not run, and without a next step it will
+ * invent one. These two used to be bare statements of fact ("Permission dialog is unavailable.",
+ * "Permission dialog failed.") with nothing telling the model what to do, which is exactly the
+ * shape that produced "I'll retry as soon as that is allowed".
+ *
+ * `cause` keeps the two apart for whoever reads the transcript later, since a missing UI plane and
+ * a dialog that threw are different operational faults. The instruction is identical either way,
+ * because the model's options are identical either way.
+ */
+export function approvalUnavailableText(toolName: string, cause: string): string {
+  return (
+    `The '${toolName}' call could not be approved: ${cause} Nothing ran, and this is not ` +
+    `something you can fix by trying again or by changing the arguments. Tell the user the ` +
+    `approval step is unavailable in this session and ask how they would like to proceed.`
+  );
+}
+
 /** The run's permission policy refuses the tool, whatever its arguments are. */
 export function deniedByPolicyText(toolName: string): string {
   return (

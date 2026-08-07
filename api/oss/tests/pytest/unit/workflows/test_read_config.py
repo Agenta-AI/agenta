@@ -198,7 +198,7 @@ class TestRefuseNotTruncate:
 
     def test_the_refusal_names_the_next_step(self):
         error = refusal(AGENT, max_bytes=64)
-        assert "children" in error.to_detail()["reason"]["next_step"]
+        assert "children" in error.to_detail()["next_step"]
 
     def test_a_value_at_the_limit_still_answers(self):
         result = read(["uri"], max_bytes=64)
@@ -264,11 +264,26 @@ class TestErrors:
         assert error.status_code == 404
 
     def test_the_envelope_matches_the_commit_error_shape(self):
+        # One envelope for both families (api/AGENTS.md), so a model parses errors the
+        # same way whether it was reading or committing.
         detail = refusal(AGENT + ["nope"]).to_detail()
-        assert detail["code"] == "read_config_rejected"
-        assert detail["reason"]["code"] == Reason.TARGET_NOT_FOUND
-        assert detail["retryable"] is True
-        assert "path" in detail
+        assert detail["code"] == Reason.TARGET_NOT_FOUND
+        assert detail["retryable"] is False
+        assert detail["details"]["path"]
+        assert "reason" not in detail
+        assert set(detail) <= {"code", "message", "retryable", "next_step", "details"}
+
+    def test_no_read_failure_is_retryable(self):
+        # It used to be hard-coded true, which told the agent to send the identical
+        # request again. None of these can succeed on a replay: each is a fact about the
+        # request or about what is stored. The way forward is the next_step.
+        for path in (
+            AGENT + ["nope"],
+            AGENT + [{"list": "skills", "key": "nope"}],
+            ["schemas"],
+            AGENT + ["llm", "model", "deeper"],
+        ):
+            assert refusal(path).to_detail()["retryable"] is False, path
 
     def test_every_error_names_a_next_step(self):
         for path in (
@@ -278,7 +293,7 @@ class TestErrors:
             AGENT + ["llm", "model", "deeper"],
         ):
             detail = refusal(path).to_detail()
-            assert detail["reason"].get("next_step"), path
+            assert detail.get("next_step"), path
 
 
 # --------------------------------------------------------------------------------------
