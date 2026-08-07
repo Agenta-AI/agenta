@@ -6,10 +6,8 @@ Create Date: 2026-08-07 00:00:00.000000
 
 WP7 (identity links) rides this same revision per workstreams/README.md's
 collision table ("One migration, owned by WP1, containing WP7's tables too").
-WP7's table shape was not available in entities.md/specs-wp7.md at the time
-this revision was authored (specs-wp7.md gives only the service interface,
-not columns) — WP7 adds its `op.create_table(...)` calls into this file in a
-follow-up commit on this same revision, never a new revision.
+`channel_identity_links` was added by WP7 in a follow-up commit on this same
+revision, never a new revision.
 """
 
 from typing import Sequence, Union
@@ -315,13 +313,38 @@ def upgrade() -> None:
         ["project_id", "state", "created_at"],
     )
 
-    # WP7 (identity links) tables land here, in this same revision, once
-    # WP7's own worktree defines their shape (workstreams/README.md collision
-    # table: "One migration, owned by WP1, containing WP7's tables too").
+    # WP7 (identity links): platform user -> Agenta account, per specs-wp7.md.
+    op.create_table(
+        "channel_identity_links",
+        sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column("connection_id", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column("user_id", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column("external_user_key", sa.String(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.func.current_timestamp(),
+            nullable=True,
+        ),
+        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("created_by_id", sa.UUID(as_uuid=True), nullable=True),
+        sa.Column("updated_by_id", sa.UUID(as_uuid=True), nullable=True),
+        sa.Column("deleted_by_id", sa.UUID(as_uuid=True), nullable=True),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("project_id", "id"),
+        sa.UniqueConstraint(
+            "project_id",
+            "connection_id",
+            "external_user_key",
+            name="uq_channel_identity_links_connection_external_user_key",
+        ),
+    )
 
 
 def downgrade() -> None:
-    # WP7 tables (once added above) drop first here, symmetrically.
+    op.drop_table("channel_identity_links")
 
     op.drop_index(
         "ix_channel_outbox_created",

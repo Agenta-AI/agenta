@@ -501,13 +501,15 @@ message.
       unique constraint, the latest-offset index.
 - [x] `op.create_table("channel_outbox_events", ...)`, the key unique
       constraint, the created-sweep index.
-- [ ] `op.create_table(...)` for WP7's identity table(s), per WP7's spec.
-      > **Deferred — blocked on another package.** WP7's spec did not carry
-      > table columns at the time this revision was authored (only the
-      > service interface exists in `specs-wp7.md` per the migration's own
-      > header comment). Not WP1's to write; WP7 adds it in a follow-up
-      > commit on this same revision. Confirmed no `channel_identity_links`
-      > or similarly-named table exists anywhere in this migration file.
+- [x] `op.create_table(...)` for WP7's identity table(s), per WP7's spec.
+      Closed by WP7: `channel_identity_links` added to `upgrade()`
+      (`id`, `project_id`, `connection_id`, `user_id`, `external_user_key`
+      plus the standard lifecycle columns), FK on `project_id` only (no FK to
+      `users.id` — consistent with every other `*_by_id`/`user_id` column in
+      this codebase), PK `(project_id, id)`, unique constraint on
+      `(project_id, connection_id, external_user_key)`. No enum columns, so
+      the uppercase-label pitfall does not apply. Dropped first in
+      `downgrade()` since nothing else has an FK into it.
 - [x] `downgrade()`: drop every index then every table, in reverse dependency
       order (outbox/triggers/inbox before threads/grants before
       spaces/agents, WP7 tables last or first as WP7's FK direction requires).
