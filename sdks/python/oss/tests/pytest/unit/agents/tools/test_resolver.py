@@ -295,8 +295,11 @@ async def test_reserved_gateway_name_fails_before_adapter_call():
 
 
 async def test_a_bare_tool_name_string_is_ignored_too():
-    # `coerce_tool_config` turns a bare string into a BuiltinToolConfig.
-    resolved = await ToolResolver().resolve(coerce_tool_configs(["read"]))
+    # `coerce_tool_configs` turns a bare string into a BuiltinToolConfig.
+    parsed = coerce_tool_configs(["read"])
+    assert parsed.tool_configs == [BuiltinToolConfig(name="read")]
+
+    resolved = await ToolResolver().resolve(parsed.tool_configs)
 
     assert resolved.tool_specs == []
 

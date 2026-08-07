@@ -10,6 +10,7 @@ is not mirrored in the doc fails CI instead of shipping a stale reference to the
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import get_args
@@ -165,13 +166,31 @@ def test_config_schema_names_every_tool_type_discriminator():
     assert not missing, f"config-schema.md does not document tool type(s): {missing}"
 
 
+def _contains_builtin_tool_entry(value: object) -> bool:
+    if isinstance(value, dict):
+        if value.get("type") == "builtin":
+            return True
+        return any(_contains_builtin_tool_entry(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_contains_builtin_tool_entry(item) for item in value)
+    return False
+
+
 def test_no_json_example_writes_a_builtin_tool_entry():
     # The `builtin` arm survives only as legacy dual-read. The authoring agent copies these
     # examples verbatim, so an example that still writes one would keep producing configs the
     # resolver has to ignore.
     content = _file("references/config-schema.md").content
-    for block in re.findall(r"```json\n(.*?)```", content, flags=re.DOTALL):
-        assert '"type": "builtin"' not in block, (
+    blocks = re.findall(r"```json\n(.*?)```", content, flags=re.DOTALL)
+    assert blocks, "config-schema.md must contain at least one JSON example"
+    for block in blocks:
+        try:
+            parsed = json.loads(block)
+        except json.JSONDecodeError as exc:
+            raise AssertionError(
+                f"config-schema.md has a json fence that is not valid JSON: {exc}"
+            ) from exc
+        assert not _contains_builtin_tool_entry(parsed), (
             "a JSON example in config-schema.md still writes a builtin tool entry"
         )
 
