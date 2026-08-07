@@ -7,13 +7,13 @@ the base branch.
 ## types (capability DTOs)
 
 - [ ] `core/channels/adapters/interface.py`: add
-      `ChannelNativeCommandsCapability` (`supported: bool, in_conversation:
+      `ChannelCommandsCapability` (`supported: bool, in_conversation:
       bool`) and `ChannelAddressingCapability` (`agent_sigil: str,
-      command_sigil: str, mention: bool, native_commands:
-      ChannelNativeCommandsCapability`).
+      sigils, mention: bool, commands:
+      ChannelCommandsCapability`).
 - [ ] Add `ChannelSpacesCapability` (`private: bool, group: bool, topic:
       bool`).
-- [ ] Add `ChannelConversationCapability` (`units: List[str], default_unit:
+- [ ] Add `ChannelConversationCapability` (`units: List[str], default:
       str`).
 - [ ] Add `ChannelFillOperationCapability` (`supported: bool,
       requires_permission: Optional[str] = None`) and `ChannelFillCapability`
@@ -22,9 +22,9 @@ the base branch.
 - [ ] Add `ChannelButtonsCapability` (`supported: bool, max: int`),
       `ChannelTextCapability` (`format: str, max_chars: int`),
       `ChannelFilesCapability` (`receive: bool, send: bool, max_bytes: int`),
-      `ChannelRenderingCapability` (all four plus `message_update: bool,
+      `ChannelRenderingCapability` (all four plus `controls.update: bool,
       ephemeral: bool`).
-- [ ] Add `ChannelIdentityCapability` (`scope: str, stable: bool, key_fields:
+- [ ] Add `ChannelIdentityCapability` (`scope: str, stable: bool, keys:
       Dict[str, List[str]]` — grain name to ordered locator field names,
       e.g. `{"space": ["team", "channel"], "thread": ["team", "channel",
       "thread_ts"]}`; an adapter with no threads declares `"thread": []`).
@@ -103,7 +103,7 @@ the base branch.
 - [ ] Missing-block defaulting: a raw payload omitting an entire optional
       block (e.g. no `identity` key) still normalises to a valid
       `ChannelCapabilities` via each block's own field defaults.
-- [ ] `identity.key_fields` passes through unchanged — it is data the
+- [ ] `identity.keys` passes through unchanged — it is data the
       declaration commits to, not a block normalisation may clamp, reorder,
       or drop entries from; an adapter declaring `"thread": []` must survive
       normalisation as `[]`, never defaulted to a non-empty list.
@@ -119,7 +119,7 @@ the base branch.
       shape as normalising a hypothetical in-process adapter's raw dict with
       equivalent content — same function, same output shape, regardless of
       source.
-- [ ] Test: `identity.key_fields` with `"thread": []` normalises to `[]`
+- [ ] Test: `identity.keys` with `"thread": []` normalises to `[]`
       unchanged (not defaulted to a non-empty list by the missing-block or
       zero-clamping paths above — `[]` is a meaningful declared value here,
       not an absent one).
@@ -132,20 +132,20 @@ the base branch.
       fake locator), actually enforces its own declared `buttons.max` by
       truncating/rejecting extra buttons, and actually edits in place when
       `edit_message` is called with a locator it already holds. Declares
-      `identity.key_fields = {"space": ["team", "channel"], "thread":
+      `identity.keys = {"space": ["team", "channel"], "thread":
       ["team", "channel", "thread_ts"]}` and ships at least two fixture
       thread locators that share `team`/`channel` but differ in `thread_ts`,
       plus one locator missing a declared field, for the identity suite
       assertions below.
 - [ ] Implement `LyingFakeAdapter(ChannelAdapterInterface)` — declares
-      `rendering.message_update: true` but `edit_message` always creates a
+      `rendering.controls.update: true` but `edit_message` always creates a
       new locator instead of reusing the given one (the silent-no-op failure
       mode named in `capabilities.md` §5).
 - [ ] Implement a second lying variant (or a constructor flag on the same
       class) that declares `rendering.buttons.max: 5` but accepts and returns
       success for a 6-button `post_message` call without truncating.
 - [ ] Implement a third lying variant that declares
-      `identity.key_fields["thread"] = ["team", "channel"]` (omitting
+      `identity.keys["thread"] = ["team", "channel"]` (omitting
       `thread_ts`) against fixture locators that actually vary only in
       `thread_ts` — the too-small-field-set case (`capabilities.md` §3,
       `entities.md` §2.2's "worse than a wrong key" failure).
@@ -154,7 +154,7 @@ the base branch.
       against it — this is what WP6/WP11/WP12 later reuse, so keep the entry
       point a plain function taking `adapter: ChannelAdapterInterface`, not a
       fixture tied to this file's own test classes only.
-- [ ] Suite assertion: if `capabilities.rendering.message_update is True`,
+- [ ] Suite assertion: if `capabilities.rendering.controls.update is True`,
       call `post_message` then `edit_message` with the returned locator, and
       assert the second call's resulting locator equals the first's (same
       message, edited — not a new one).
@@ -188,18 +188,18 @@ the base branch.
       `compose_external_key` raises `ChannelLocatorIncomplete` — never
       returns a key computed over the remaining fields.
 - [ ] Suite assertion (identity, no-threads): if
-      `capabilities.identity.key_fields["thread"] == []`, assert
+      `capabilities.identity.keys["thread"] == []`, assert
       `compose_external_key(capabilities, ChannelKeyGrain.THREAD, locator)`
       returns `None` for any locator, never raises.
 - [ ] Run the suite against `WellBehavedFakeAdapter`: every assertion passes.
 - [ ] Run the suite against `LyingFakeAdapter` (the edit-is-actually-a-new-post
       variant): assert the suite raises an `AssertionError` whose message
-      names `message_update` or `edit_message`.
+      names `controls.update` or `edit_message`.
 - [ ] Run the suite against the buttons-lying variant: assert the suite
       raises an `AssertionError` whose message names `buttons.max`.
-- [ ] Run the suite against the too-small-`key_fields`-lying variant: assert
+- [ ] Run the suite against the too-small-`identity.keys`-lying variant: assert
       the suite raises an `AssertionError` whose message names
-      `key_fields`/`thread` and reports two locators colliding on one key —
+      `identity.keys`/`thread` and reports two locators colliding on one key —
       this is the meta-proof that the suite catches the too-small-field-set
       failure, not just the too-generous-declaration failures above.
 - [ ] These last three tests are themselves pytest tests that assert

@@ -35,10 +35,10 @@
 
 - [ ] Implement `capabilities.py` returning the `channel: "slack"` value
   block verbatim as specced in `specs-wp6.md` §Interfaces, including
-  `identity.key_fields = {"space": ["team", "channel"], "thread": ["team",
+  `identity.keys = {"space": ["team", "channel"], "thread": ["team",
   "channel", "thread_ts"]}`.
 - [ ] Test: the declared value matches `capabilities.md`'s Slack worked
-  example field for field, `key_fields` included.
+  example field for field, `identity.keys` included.
 
 ## Inbound mapping
 
@@ -54,7 +54,7 @@
 - [ ] Implement `external_key` composition inputs: hand the structured
   `(team, channel, thread_ts)` locator to core; do not call
   `compose_external_key` or otherwise derive the `UUID` here — one function,
-  core-side, composes it from the adapter's declared `key_fields`
+  core-side, composes it from the adapter's declared `identity.keys`
   (`entities.md` §2.2).
 - [ ] Implement bot-authored message marking, so the domain never treats the
   adapter's own posts as input (D23).
@@ -66,7 +66,7 @@
 - [ ] Test: a message from the bot's own identity is marked bot-authored.
 - [ ] Test: two locators for distinct Slack threads (same `team`/`channel`,
   different `thread_ts`) produce distinct locator dicts; running each through
-  `compose_external_key` with this adapter's declared `key_fields.thread`
+  `compose_external_key` with this adapter's declared `keys.thread`
   produces two distinct `UUID`s (the WP2 contract suite's distinctness
   assertion, exercised here with Slack's real shape).
 
@@ -103,7 +103,7 @@
 
 - [ ] Register `SlackAdapter` against WP2's contract test suite and run it
   to green — every declared capability demonstrated, no silent no-op,
-  including the `identity.key_fields` distinctness/canonicalisation/
+  including the `identity.keys` distinctness/canonicalisation/
   incompleteness/no-threads assertions (`specs-wp2.md`), run against this
   adapter's own Slack-shaped fixture locators.
 - [ ] Fix any divergence found by the suite in this package, not by softening

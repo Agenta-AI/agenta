@@ -29,11 +29,11 @@ New:
 - `api/oss/tests/pytest/unit/channels/contract/fakes.py` — a minimal
   well-behaved fake adapter (used by WP1/WP3's tests as the default fixture)
   and a deliberately lying fake adapter (used only by this suite, to prove
-  the suite catches it). The well-behaved fake declares `identity.key_fields`
+  the suite catches it). The well-behaved fake declares `identity.keys`
   with a real thread-distinguishing field (e.g.
   `{"space": ["team", "channel"], "thread": ["team", "channel",
   "thread_ts"]}`) so the distinctness assertion has something real to check;
-  a third variant declares a too-small `key_fields["thread"]` to prove the
+  a third variant declares a too-small `keys["thread"]` to prove the
   suite catches that failure too.
 
 Edited: none.
@@ -59,11 +59,11 @@ class ChannelSigilsCapability(BaseModel):
 class ChannelAddressingCapability(BaseModel):
     sigils: ChannelSigilsCapability
     mention: bool
-    native_commands: "ChannelNativeCommandsCapability"
+    commands: "ChannelCommandsCapability"
 
-class ChannelNativeCommandsCapability(BaseModel):
-    supported: bool
-    in_conversation: bool
+class ChannelCommandsCapability(BaseModel):
+    native: bool           # a native slash-command surface exists
+    in_conversation: bool  # ...and its response is visible to the channel
 
 class ChannelSpacesCapability(BaseModel):
     private: bool
@@ -72,7 +72,7 @@ class ChannelSpacesCapability(BaseModel):
 
 class ChannelConversationCapability(BaseModel):
     units: List[str]           # values drawn from {"thread", "space"}
-    default_unit: str
+    default: str
 
 class ChannelFillOperationCapability(BaseModel):
     supported: bool
@@ -90,22 +90,30 @@ class ChannelTextCapability(BaseModel):
     format: str
     max_chars: int
 
-class ChannelFilesCapability(BaseModel):
-    receive: bool
-    send: bool
+class ChannelFileDirectionCapability(BaseModel):
+    supported: bool
     max_bytes: int
 
+class ChannelFilesCapability(BaseModel):
+    # split by direction: the caps genuinely differ (Telegram 50 MB up /
+    # 20 MB down; Discord's bot cap is not its user cap)
+    send:    ChannelFileDirectionCapability
+    receive: ChannelFileDirectionCapability
+
+class ChannelControlsCapability(BaseModel):
+    update: bool       # a posted message can be edited in place (D28)
+    ephemeral: bool    # a message can be shown to one user in a shared space
+
 class ChannelRenderingCapability(BaseModel):
-    message_update: bool
+    controls: ChannelControlsCapability
     buttons: ChannelButtonsCapability
     text: ChannelTextCapability
     files: ChannelFilesCapability
-    ephemeral: bool
 
 class ChannelIdentityCapability(BaseModel):
     scope: str                 # e.g. "workspace", "tenant"
     stable: bool
-    key_fields: Dict[str, List[str]]   # grain -> ordered locator field names
+    keys: Dict[str, List[str]]   # grain -> ordered locator field names
                                         # (capabilities.md identity section);
                                         # composes external_key (entities.md §2.2)
 
@@ -290,7 +298,7 @@ def normalise_capabilities(raw: Dict[str, Any]) -> ChannelCapabilities:
   default.
 - **The contract suite must fail a lying adapter, and this is non-negotiable
   per `plan.md`'s WP2 exit condition.** Concretely: an adapter that declares
-  `rendering.message_update: true` but whose `edit_message` is a no-op (or
+  `rendering.controls.update: true` but whose `edit_message` is a no-op (or
   silently posts a new message instead of editing) must fail the suite. An
   adapter that declares `rendering.buttons.max: 5` but accepts a sixth button
   without truncating or rejecting must fail the suite. The suite ships in
@@ -305,27 +313,27 @@ def normalise_capabilities(raw: Dict[str, Any]) -> ChannelCapabilities:
   several WP1 DAO methods where `None` is a meaningful non-error outcome
   (D-noted in `specs-wp1.md`), an unregistered `channel_key` here is always
   an error — raise, never return `None`.
-- **`identity.key_fields` is the fragile part of the declaration, and this
+- **`identity.keys` is the fragile part of the declaration, and this
   package is what makes it checkable.** `entities.md` §2.2: "the declaration
   is the load-bearing part... change which fields identify a place and every
   existing row re-keys, forking every live conversation." Normalisation must
-  not silently drop or reorder a channel's `key_fields` entries — an adapter
+  not silently drop or reorder a channel's `identity.keys` entries — an adapter
   declaring no thread key fields (`"thread": []`) is a valid, meaningful
   declaration (thread-grain composition returns `None`), not a missing block
   to default away. `compose_external_key` itself is WP1's; this package only
   types and normalises the declaration it reads from.
 
-## Contract test suite additions for `identity.key_fields` (flagship)
+## Contract test suite additions for `identity.keys` (flagship)
 
 Per `capabilities.md` §3 identity: *"Two failures the contract suite tests
 directly: Too few fields — two distinct threads composing to one key... A
 declared field absent from a real locator — composition raises
 `ChannelLocatorIncomplete`."* The suite in this package is where those two
 failures are actually asserted, against any registered adapter's own declared
-`key_fields` and its own locator shapes — not a hardcoded Slack case:
+`identity.keys` and its own locator shapes — not a hardcoded Slack case:
 
 - Two distinct thread locators from the adapter's own fixtures (differing in
-  at least one field the adapter's `key_fields["thread"]` names) must compose
+  at least one field the adapter's `keys["thread"]` names) must compose
   to two distinct `external_key`s via `compose_external_key`. This is the
   worst failure to miss — a too-small declared field set silently merges two
   conversations — so the suite asserts distinctness directly, never assumes
@@ -333,10 +341,10 @@ failures are actually asserted, against any registered adapter's own declared
 - The same locator, composed twice with its keys in a different order, must
   produce the identical `external_key` (canonicalisation holds regardless of
   how an adapter happens to build its locator dict).
-- A locator missing a field the adapter declares in `key_fields[grain]` must
+- A locator missing a field the adapter declares in `keys[grain]` must
   raise `ChannelLocatorIncomplete`, never compose a key over the fields that
   are present.
-- An adapter declaring `key_fields["thread"] == []` must compose to `None` at
+- An adapter declaring `keys["thread"] == []` must compose to `None` at
   `THREAD` grain, never raise — the platform-has-no-threads case is a normal
   outcome, not a contract violation.
 
@@ -358,7 +366,7 @@ failures are actually asserted, against any registered adapter's own declared
   still produces a valid `ChannelCapabilities` (defaults fill the gap).
 - Contract suite, run against the well-behaved fake: every assertion passes.
 - Contract suite, run against the lying fake (`fakes.py`'s deliberately
-  broken one — declares `message_update: true` but `edit_message` posts a new
+  broken one — declares `controls.update: true` but `edit_message` posts a new
   message instead of editing): at least one contract assertion fails, and the
   failure message names which declared capability was violated.
 - Contract suite, run against a second lying fake that declares
@@ -368,13 +376,13 @@ failures are actually asserted, against any registered adapter's own declared
   directly raises `TypeError` (standard ABC behaviour); a subclass missing
   one method also fails to instantiate.
 - Every method on `ChannelAdapterInterface` is keyword-only after `*`.
-- `ChannelIdentityCapability.key_fields` round-trips through
+- `ChannelIdentityCapability.keys` round-trips through
   `normalise_capabilities` unchanged for a well-formed declaration (it is not
   a block normalisation defaults away).
-- The four `identity.key_fields` contract-suite assertions above, run against
+- The four `identity.keys` contract-suite assertions above, run against
   the well-behaved fake: all pass.
 - The distinctness assertion, run against a fake declaring a too-small
-  `key_fields["thread"]` (e.g. `["team", "channel"]` for a platform that
+  `keys["thread"]` (e.g. `["team", "channel"]` for a platform that
   actually needs `thread_ts` to distinguish threads): fails, naming the
   collision — this is the suite's proof that it catches the too-small-field-
   set failure, not just the too-generous one.

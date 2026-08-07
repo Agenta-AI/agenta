@@ -46,28 +46,31 @@ carrying the same declaration shape every first-party adapter answers
   "capabilities": {
     "addressing": { "sigils": { "agent": "~", "command": "!" }, "mention": true },
     "spaces": { "private": true, "group": true, "topic": false },
-    "conversation": { "units": ["space"], "default_unit": "space" },
+    "conversation": { "units": ["space"], "default": "space" },
     "fill": { "backfill": { "supported": false },
               "forwardfill": { "supported": true } },
     "rendering": {
-      "message_update": true,
+      "controls": { "update": true, "ephemeral": false },
       "buttons": { "supported": true, "max": 3 },
       "text": { "format": "plain", "max_chars": 2048 },
-      "files": { "receive": true, "send": false, "max_bytes": 10485760 }
+      "files": {
+        "send":    { "supported": false, "max_bytes": 0 },
+        "receive": { "supported": true,  "max_bytes": 10485760 }
+      }
     },
     "identity": {
       "scope": "tenant",
       "stable": true,
-      "key_fields": { "space": ["chat_id"], "thread": [] }
+      "keys": { "space": ["chat_id"], "thread": [] }
     },
     "commands": ["new", "sessions"]
   }
 }
 ```
 
-`key_fields.thread: []` matches `conversation.units: ["space"]` above — this
+`keys.thread: []` matches `conversation.units: ["space"]` above — this
 bridge has no thread grain, so thread-grain composition returns `None`
-(§Interfaces "addressed", below, and `entities.md` §2.2). `key_fields` is a
+(§Interfaces "addressed", below, and `entities.md` §2.2). `identity.keys` is a
 declaration from the bridge like any other adapter's, normalised at the
 boundary like every other block (`contract.md` §4 "normalised, never
 trusted") — this package does not compose `external_key` itself, and does
@@ -99,7 +102,7 @@ field was renamed for exactly this reason: `external_key` now means a core-compo
 `uuid5`, and a bridge sending a raw platform string under that name would be putting
 a value of the wrong type into a uniquely-indexed column. The bridge sends its
 platform's own fields; core composes the key from the subset the bridge declared in
-`identity.key_fields`. That is what keeps §2.2's *"one function composes it, no
+`identity.keys`. That is what keeps §2.2's *"one function composes it, no
 exceptions"* true across the wire.
 
 `addressed` is the bridge's own answer to "trigger or fill" (D9) — the bridge
@@ -178,7 +181,7 @@ These rules are the deliverable, not documentation of it (`contract.md` §6,
   `capabilities.md` §4 specifies — a declared zero becomes the default,
   absurd values clamp, unknown keys are dropped, trust-bearing flags are
   never read from the wire.
-- `bridge.hello`'s `identity.key_fields` survives normalisation unchanged
+- `bridge.hello`'s `identity.keys` survives normalisation unchanged
   (`{"space": ["chat_id"], "thread": []}` in, same out) — WP2's contract
   suite, run against this package's registered bridge adapter, passes the
   no-threads assertion (`compose_external_key` at `THREAD` grain returns

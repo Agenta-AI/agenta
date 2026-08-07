@@ -2379,7 +2379,7 @@ class ChannelAdapterInterface(ABC):
                            content: List[Dict[str, Any]],
                            idempotency_key: UUID) -> Dict[str, Any]:
         """Edit in place — the indicator becoming the answer (D28). Offered only
-        where the declaration says `rendering.message_update`."""
+        where the declaration says `rendering.controls.update`."""
 
     # --- discovery ---
 
@@ -2587,7 +2587,7 @@ def compose_external_key(
     Raises ChannelLocatorIncomplete when a declared field is missing from the
     locator: a key composed from a partial locator is a silent thread fork.
     """
-    fields = capabilities.identity.key_fields[grain]   # declared, ordered
+    fields = capabilities.identity.keys[grain]   # declared, ordered
     if not fields:
         return None
     subset = {f: locator[f] for f in fields}           # KeyError → incomplete

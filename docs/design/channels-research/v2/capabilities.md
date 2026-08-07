@@ -31,7 +31,7 @@ it belongs in the declaration first.
   "addressing": {
     "sigils": { "agent": "~", "command": "!" },
     "mention": true,
-    "native_commands": { "supported": true, "in_conversation": false }
+    "commands": { "native": true, "in_conversation": false }
   },
 
   "spaces": {
@@ -42,7 +42,7 @@ it belongs in the declaration first.
 
   "conversation": {
     "units": ["thread", "space"],
-    "default_unit": "thread"
+    "default": "thread"
   },
 
   "fill": {
@@ -51,17 +51,19 @@ it belongs in the declaration first.
   },
 
   "rendering": {
-    "message_update": true,
-    "buttons": { "supported": true, "max": 5 },
-    "text": { "format": "markdown", "max_chars": 4000 },
-    "files": { "receive": true, "send": true, "max_bytes": 1073741824 },
-    "ephemeral": true
+    "controls": { "update": true, "ephemeral": true },
+    "buttons": { "supported": true, "max": 25 },
+    "text": { "format": "markdown", "max_chars": 3000 },
+    "files": {
+      "send":    { "supported": true, "max_bytes": 1073741824 },
+      "receive": { "supported": true, "max_bytes": 1073741824 }
+    }
   },
 
   "identity": {
     "scope": "workspace",
     "stable": true,
-    "key_fields": {
+    "keys": {
       "space":  ["team", "channel"],
       "thread": ["team", "channel", "thread_ts"]
     }
@@ -81,7 +83,7 @@ autocompletion before the event arrives, and `/` collides with native command
 surfaces on three platforms. The grammar shape is universal; the characters are
 not (D13).
 
-`native_commands.in_conversation` is separate from `supported` because a platform
+`addressing.commands.in_conversation` is separate from `supported` because a platform
 can offer commands that do not work in the place you need them — which is exactly
 the case that forces a text convention.
 
@@ -99,7 +101,7 @@ space itself. Core never assumes a thread exists.
 `message` — one session per message — is always available and needs no
 declaration, since it requires nothing from the platform.
 
-**`default_unit` is what applies when no policy level states a `session_scope`.**
+**`conversation.default` is what applies when no policy level states a `session_scope`.**
 It is the channel-defaults input to the intersection (D25), which is why the
 resolver takes channel defaults separately from the three policy documents: a
 platform with native threads should thread by default, and one without should not,
@@ -141,7 +143,32 @@ install and harmless on a tight one, where the platform simply returns fewer.
 The outbound half. Limits are declared as data so the renderer can degrade
 without knowing which platform it is talking to: an approval with more options
 than `buttons.max` becomes numbered text; a message longer than `max_chars` is
-split; progress becomes new messages where `message_update` is false.
+split; progress becomes new messages where `controls.update` is false.
+
+**`files` is split by direction**, because the caps genuinely differ: Telegram
+allows 50 MB up and 20 MB down, and Discord's bot upload cap is not its user
+upload cap. One `max_bytes` covering both would be wrong for two of the three
+first-class channels, so each direction carries its own `supported` and
+`max_bytes`.
+
+**Every limit here is the one the adapter will actually render against**, not the
+largest the platform documents anywhere. Three real cases make that rule
+necessary, all in `channels.md`:
+
+- Slack publishes 4000 as client-side *guidance*, while the enforced Block Kit
+  ceilings are 3000 per section block and 40000 per message. The declaration says
+  3000 because that is what the renderer must respect.
+- Telegram's plain message is 4096 but a media caption is 1024; Discord's message
+  is 2000 but an embed is 4096. **Declare the plain-message ceiling**, since that
+  is what the renderer emits — a caption or embed path, if one is ever built, is a
+  different rendering surface and would need its own field rather than a
+  reinterpretation of this one.
+- Slack's legacy attachments allowed 5 buttons and Block Kit allows 25. Both APIs
+  are live; the declaration states the one the adapter builds against.
+
+The rule that makes this safe: **under-declaring degrades, over-declaring fails.**
+A conservative number produces an unnecessary split or a numbered list; an
+optimistic one produces a platform rejection at send time, which the user sees.
 
 **`text.format` is one of `markdown | html | plain`**, and deliberately not a
 platform's own name for its dialect. Slack calls its variant *mrkdwn* and Telegram
@@ -161,16 +188,33 @@ boundary is a customer organisation rather than a single install (Teams). Embedd
 a workspace id is correct on some platforms and noise on others, which is why this
 is declared rather than assumed.
 
+**`scope` is the only field here that can depend on the install rather than the
+platform.** Slack under Enterprise Grid issues one global user id across every
+workspace in the org, so the same adapter faces `workspace` on a standalone install
+and something `tenant`-shaped on Grid (`channels.md` §Slack). The declaration is
+per channel, so it cannot say both.
+
+**Declare the narrower value — `workspace` — and let the wider install be a
+superset.** A key that embeds the workspace stays unique under Grid; it just links
+the same person twice if they act in two workspaces, which is a duplicate link
+rather than a collision. The reverse would be a real fault: a `tenant`-scoped key
+on a standalone install cannot distinguish two people who share a user id across
+unrelated workspaces.
+
+If Grid ever needs one link per person rather than per workspace, that is a
+per-connection override on the identity link (WP7), not a second declaration —
+capabilities describe a platform, and this is a fact about one customer's install.
+
 `stable: false` flags platforms where the id can change under an existing link, and
 those need a rebinding path (WP7).
 
-**`key_fields` names which locator fields identify a place**, at each grain, and it
+**`identity.keys` names which locator fields identify a place**, at each grain, and it
 is how `external_key` is composed (`entities.md` §2.2). The adapter supplies the
 locator and declares which of its fields matter; **core composes the key and the
 adapter never does**. A platform with no threads declares `"thread": []`, and thread
 grain composes to null — the same code path as scope-is-the-space.
 
-**`key_fields` names which locator fields identify a place**, at each grain, and it
+**`identity.keys` names which locator fields identify a place**, at each grain, and it
 is how `external_key` is composed (`entities.md` §2.2). The adapter supplies the
 locator and declares which of its fields matter; **core composes the key and the
 adapter never does**. A platform with no threads declares `"thread": []`, and thread
@@ -207,7 +251,7 @@ never read from the wire.
 Every adapter is held to its declaration. The studied failure mode of adapter
 ecosystems is the **silent no-op** — a declared capability that quietly does
 nothing — so a declaration is a promise the test suite enforces. An adapter
-claiming `message_update: true` must demonstrably edit a message; one claiming
+claiming `controls.update: true` must demonstrably edit a message; one claiming
 `buttons.max: 5` must reject a sixth rather than dropping it.
 
 ## 6. What is deliberately not here

@@ -129,7 +129,7 @@ already existing on the base branch.
 - [ ] `ChannelLocatorIncomplete(*, channel: str, grain: ChannelKeyGrain,
       missing: List[str])` — raised by `compose_external_key` when a locator
       is missing a field the capability declaration names in
-      `identity.key_fields` for that grain.
+      `identity.keys` for that grain.
 - [ ] Unit test: each exception's `.message` is set and non-empty after
       construction with minimal args.
 
@@ -171,14 +171,14 @@ already existing on the base branch.
 - [ ] Implement `compose_external_key(capabilities: ChannelCapabilities,
       grain: ChannelKeyGrain, locator: Dict[str, Any]) -> Optional[UUID]` as
       the single function that derives `external_key`. It reads the field set
-      from `capabilities.identity.key_fields[grain]` — never from a hardcoded
+      from `capabilities.identity.keys[grain]` — never from a hardcoded
       per-channel list — restricts `locator` to those fields, and returns
       `uuid5(_CHANNELS, canonical_json(subset))`. No other function in the
       codebase may build an `external_key`.
-- [ ] At `THREAD` grain, when `capabilities.identity.key_fields["thread"]` is
+- [ ] At `THREAD` grain, when `capabilities.identity.keys["thread"]` is
       `[]`, return `None` rather than raising (the platform-has-no-threads
       case).
-- [ ] When a field named in `key_fields[grain]` is absent from `locator`,
+- [ ] When a field named in `keys[grain]` is absent from `locator`,
       raise `ChannelLocatorIncomplete(channel=..., grain=..., missing=...)`
       naming every missing field — never compose a key over what is present.
 - [ ] Unit test: two distinct locator shapes (differing only in a

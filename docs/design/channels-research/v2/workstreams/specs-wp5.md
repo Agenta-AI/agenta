@@ -85,7 +85,7 @@ function with no second path.
   (`capabilities.md` §3 rendering block): buttons where `rendering.buttons.supported`
   is true, numbered text where it is false or the option count exceeds
   `rendering.buttons.max`; a message longer than `rendering.text.max_chars`
-  is split; a new message where `rendering.message_update` is false (editing
+  is split; a new message where `rendering.controls.update` is false (editing
   unavailable).
 - **Two hard exclusions.** Model reasoning never leaves as channel content —
   only messages `fold()` surfaces, never thoughts/usage/internal reasoning.

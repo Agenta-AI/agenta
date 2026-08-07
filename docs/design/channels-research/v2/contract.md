@@ -52,14 +52,17 @@ declaration every first-party adapter answers (`capabilities.md`):
   "capabilities": {
     "addressing": { "sigils": { "agent": "~", "command": "!" }, "mention": true },
     "spaces": { "private": true, "group": true, "topic": false },
-    "conversation": { "units": ["space"], "default_unit": "space" },
+    "conversation": { "units": ["space"], "default": "space" },
     "fill": { "backfill": { "supported": false },
               "forwardfill": { "supported": true } },
     "rendering": {
-      "message_update": true,
+      "controls": { "update": true, "ephemeral": false },
       "buttons": { "supported": true, "max": 3 },
       "text": { "format": "plain", "max_chars": 2048 },
-      "files": { "receive": true, "send": false, "max_bytes": 10485760 }
+      "files": {
+        "send":    { "supported": false, "max_bytes": 0 },
+        "receive": { "supported": true,  "max_bytes": 10485760 }
+      }
     },
     "identity": { "scope": "tenant", "stable": true },
     "commands": ["new", "sessions"]
@@ -127,7 +130,7 @@ the bridge knows its own platform's addressing conventions; core does not.
 
 **A bridge sends a `locator`, never an `external_key`.** The locator is the
 platform's own fields, and core composes `external_key` from the subset the bridge
-declared in `identity.key_fields` (`entities.md` §2.2). The distinction is not
+declared in `identity.keys` (`entities.md` §2.2). The distinction is not
 pedantic: `external_key` is a `uuid5` that core owns, and a bridge that sent a raw
 platform string under that name would be writing a value of the wrong type into a
 uniquely-indexed column. Sending the locator and letting core key it is also what
@@ -157,7 +160,7 @@ apart (`entities.md` §2.6):
 
 The receipt is load-bearing: editing a progress message and updating a resolved
 approval both require knowing what the platform called the message we posted. A
-bridge that cannot supply one declares `message_update: false`, and core stops
+bridge that cannot supply one declares `controls.update: false`, and core stops
 offering edits rather than silently losing them.
 
 **Following Linear's example**, a bridge that can cheaply supply prior context

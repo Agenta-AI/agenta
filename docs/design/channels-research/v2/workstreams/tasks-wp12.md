@@ -12,7 +12,7 @@
   a stability it has not earned) and reject a `bridge.hello` that does not include
   it in `protocol.versions`.
 - [ ] Test: the worked `bridge.hello` example from `contract.md` §4 — with
-  `identity.key_fields: {"space": ["chat_id"], "thread": []}` added per
+  `identity.keys: {"space": ["chat_id"], "thread": []}` added per
   `specs-wp12.md` — registers correctly and its declaration round-trips
   through normalisation unchanged (it is already within bounds).
 - [ ] Test: a declaration with an absurd value (e.g. `buttons.max: 999999`)
@@ -32,7 +32,7 @@
 - [ ] Map `data.space.locator` (the bridge's own platform fields, e.g.
   `{"chat_id": "grp_456"}`) straight onto the `ChannelInboundEvent` locator.
   Never write it into core's `external_key` column — that column holds the
-  `uuid5` `compose_external_key` derives from the declared `key_fields` subset.
+  `uuid5` `compose_external_key` derives from the declared `identity.keys` subset.
 - [ ] Implement the must-ignore rule: an unrecognised top-level field is
   dropped silently; an unrecognised `type` is ignored rather than raising.
 - [ ] Wire `addressed` straight through as the bridge's own trigger/fill

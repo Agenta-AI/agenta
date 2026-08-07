@@ -286,7 +286,7 @@ Every subclass sets `self.message` plus its identifying attribute(s) in
 `__init__`, per D31. `ChannelSignatureInvalid` carries nothing else — no byte
 diff, no timestamp detail. `ChannelLocatorIncomplete` is raised by
 `compose_external_key` when a locator is missing a field the capability
-declaration names in `identity.key_fields` for that grain — it must never
+declaration names in `identity.keys` for that grain — it must never
 compose a key over what happens to be present.
 
 ### interfaces.py — `ChannelsDAOInterface` (§7)
@@ -427,7 +427,7 @@ def resolve_policy(
 One function — every space/thread `external_key` column is built by calling
 this, and nothing else composes a key. It takes the **capabilities**, not the
 locator's shape alone, because the field set that identifies a place is
-declared per adapter (`capabilities.md`'s `identity.key_fields`), not known by
+declared per adapter (`capabilities.md`'s `identity.keys`), not known by
 this function:
 
 ```python
@@ -437,13 +437,13 @@ def compose_external_key(
     locator: Dict[str, Any],
 ) -> Optional[UUID]:
     """Derive `uuid5(_CHANNELS, canonical_json(subset))`, where `subset` is
-    `locator` restricted to `capabilities.identity.key_fields[grain]`.
+    `locator` restricted to `capabilities.identity.keys[grain]`.
 
     Returns `None` at `THREAD` grain when the adapter declares no thread key
     fields (`"thread": []`) — the platform-has-no-threads case, not an error.
 
     Raises `ChannelLocatorIncomplete(channel=..., grain=..., missing=...)`
-    when a field named in `key_fields[grain]` is absent from `locator` — never
+    when a field named in `keys[grain]` is absent from `locator` — never
     composes a key over what happens to be present (a too-small effective
     field set is the failure that silently merges two conversations, so a
     missing field must raise rather than key over the rest).
@@ -580,7 +580,7 @@ def compose_external_key(
 - `compose_external_key` at `THREAD` grain against capabilities declaring
   `"thread": []` returns `None`, not an exception.
 - `compose_external_key` against a locator missing a field named in
-  `key_fields[grain]` raises `ChannelLocatorIncomplete`, naming the missing
+  `keys[grain]` raises `ChannelLocatorIncomplete`, naming the missing
   field(s).
 - Migration: `alembic upgrade head` then `alembic downgrade -1` round-trips
   cleanly against a throwaway database; every index and constraint named in

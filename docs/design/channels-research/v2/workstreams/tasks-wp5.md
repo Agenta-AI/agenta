@@ -51,7 +51,7 @@
       exceeds `max`.
 - [ ] Implement `max_chars` split: multiple posts as distinct items
       (0, 1, ...), each with its own `key` and independently editable.
-- [ ] Implement `message_update: false` fallback: post a new message instead
+- [ ] Implement `controls.update: false` fallback: post a new message instead
       of editing.
 - [ ] Test each degradation path against a fake capability declaration
       toggling the relevant field.

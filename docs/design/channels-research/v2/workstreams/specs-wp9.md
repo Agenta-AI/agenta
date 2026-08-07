@@ -66,7 +66,7 @@ via the same append path, with the target validated against
   posts against its own (now previous) session. Cancellation is `!stop`, a
   different gesture.
 - Where a platform has a native command surface that works in-conversation
-  (`addressing.native_commands.in_conversation`), it may register aliases
+  (`addressing.commands.in_conversation`), it may register aliases
   producing the same internal command — this package's dispatch is reached
   either way and does not care which surface produced the event.
 

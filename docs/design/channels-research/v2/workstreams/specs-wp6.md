@@ -72,25 +72,27 @@ declares. The categories below are load-bearing regardless of final naming:
     "addressing": {
       "sigils": { "agent": "~", "command": "!" },
       "mention": true,
-      "native_commands": { "supported": true, "in_conversation": false }
+      "commands": { "native": true, "in_conversation": false }
     },
     "spaces": { "private": true, "group": true, "topic": true },
-    "conversation": { "units": ["thread", "space"], "default_unit": "thread" },
+    "conversation": { "units": ["thread", "space"], "default": "thread" },
     "fill": {
       "backfill":    { "supported": true, "requires_permission": "channels:history" },
       "forwardfill": { "supported": true, "requires_permission": "channels:history" }
     },
     "rendering": {
-      "message_update": true,
+      "controls": { "update": true, "ephemeral": true },
       "buttons": { "supported": true, "max": 5 },
-      "text": { "format": "mrkdwn", "max_chars": 4000 },
-      "files": { "receive": true, "send": true, "max_bytes": 1073741824 },
-      "ephemeral": true
+      "text": { "format": "markdown", "max_chars": 4000 },
+      "files": {
+        "send":    { "supported": true, "max_bytes": 1073741824 },
+        "receive": { "supported": true, "max_bytes": 1073741824 }
+      }
     },
     "identity": {
       "scope": "workspace",
       "stable": true,
-      "key_fields": {
+      "keys": {
         "space":  ["team", "channel"],
         "thread": ["team", "channel", "thread_ts"]
       }
@@ -99,7 +101,7 @@ declares. The categories below are load-bearing regardless of final naming:
   }
   ```
 
-  `native_commands.in_conversation: false` because slash commands cannot be
+  `commands.in_conversation: false` because slash commands cannot be
   invoked in threads (`channels.md` §3 Slack, "Reset"). `commands` lists only
   what this adapter implements per D13/WP9's vocabulary — `stop` is
   deliberately not claimed here unless WP9's text convention is the only path,
@@ -127,7 +129,7 @@ declares. The categories below are load-bearing regardless of final naming:
 - **The capability declaration must be true.** WP2's contract test suite
   (`plan.md` WP2, `capabilities.md` §5) exists specifically to catch an
   adapter lying about its own declaration — the studied failure mode is the
-  silent no-op. `SlackAdapter` claiming `message_update: true` must
+  silent no-op. `SlackAdapter` claiming `controls.update: true` must
   demonstrably edit a message (`chat.update` against a stored receipt);
   claiming `buttons.max: 5` must reject or degrade a sixth button rather than
   dropping it silently; claiming `backfill.supported: true` must actually
@@ -141,8 +143,8 @@ declares. The categories below are load-bearing regardless of final naming:
   choice, it is the only mechanism that survives Slack's client-side rewrite.
 - **Slack's native threads are the thread unit.** `thread_ts` is orthogonal to
   `channel` — a thread is not a fifth container type (`channels.md` §3 Slack,
-  "Containers"). The adapter declares `identity.key_fields.thread =
-  ["team", "channel", "thread_ts"]` and `identity.key_fields.space = ["team",
+  "Containers"). The adapter declares `identity.keys.thread =
+  ["team", "channel", "thread_ts"]` and `identity.keys.space = ["team",
   "channel"]` (`entities.md` §2.2, `capabilities.md`'s identity section) —
   the adapter's job stops at supplying the locator and this declared field
   set; **core composes `external_key`** by calling
@@ -180,12 +182,12 @@ declares. The categories below are load-bearing regardless of final naming:
 - A message inside an existing thread produces a locator carrying `team`,
   `channel`, `thread_ts`; a message with no `thread_ts` produces a locator at
   the space unit — the adapter hands core the locator, and calling
-  `compose_external_key` with the declared `key_fields` against each
+  `compose_external_key` with the declared `identity.keys` against each
   produces the correct grain's key (composition itself is core's, not this
   package's, per §Interfaces).
 - Two distinct Slack threads in the same channel (same `team`/`channel`,
   different `thread_ts`) compose to two distinct `external_key`s via
-  `compose_external_key` and this adapter's declared `key_fields.thread` —
+  `compose_external_key` and this adapter's declared `keys.thread` —
   proof that `["team", "channel", "thread_ts"]` is not too small a field set
   for Slack's own locator shape.
 - Backfill against a install with `channels:history` denied returns a refusal
