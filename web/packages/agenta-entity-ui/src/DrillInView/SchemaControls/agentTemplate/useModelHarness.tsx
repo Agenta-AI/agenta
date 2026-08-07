@@ -79,6 +79,15 @@ function isPermissionPolicy(value: unknown): value is PermissionPolicy {
     return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
 }
 
+/**
+ * Resolve the effective harness kind from the config, defaulting to `"pi_core"` when absent.
+ * The runner already treats a missing harness.kind as pi_core, so this aligns the UI with
+ * what actually runs. The default is read-path only — it never writes kind back into the config.
+ */
+export function resolveHarnessKind(harness: {kind?: string} | null | undefined): string {
+    return typeof harness?.kind === "string" ? harness.kind : "pi_core"
+}
+
 export function useModelHarness({
     schema,
     config,
@@ -165,7 +174,7 @@ export function useModelHarness({
     // carries through extra keys (e.g. `extras`) so a form edit never silently drops them. The picker
     // is harness-filtered: selecting a model sets BOTH the model id and its provider, fed by the
     // `/inspect` capability map below.
-    const harnessValue = typeof harness.kind === "string" ? (harness.kind as string) : null
+    const harnessValue = resolveHarnessKind(harness)
     const isPiHarness = harnessValue === "pi_core" || harnessValue === "pi_agenta"
     const llm = config.llm
     const modelId = useMemo(() => modelIdFromConfig(llm), [llm])
