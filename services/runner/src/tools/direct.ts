@@ -351,6 +351,51 @@ export function directCallUrl(
   return resolved.toString();
 }
 
+/** Contract: what the model may read out of a failed call, in characters. */
+export const MAX_ERROR_DETAIL_CHARS = 2000;
+
+/**
+ * The `detail` of an Agenta error envelope, or undefined when the body is not one.
+ *
+ * WHY THIS DOES NOT LEAK. Every `callDirect` URL comes from `directCallUrl`, which locks the
+ * origin to the run's own Agenta and confines the path to its API mount. The one remaining call
+ * site (the relay's `call` branch) uses it, so the responder is always our own API. The
+ * config-text reader was the second until the API migration moved it to the `/tools/call` seam;
+ * its failures now arrive as the handler envelope through `callAgentaTool` instead of through
+ * this function.
+ * `detail` is the one field that API puts a caller-facing reason in: a string for the git
+ * exceptions, an object carrying `code`, `message` and `next_step` for a change-set refusal or a
+ * revision conflict, a list for a FastAPI validation error.
+ *
+ * WHY IT IS STILL SHAPE-GATED. Our origin can sit behind a proxy or a load balancer, and those
+ * answer with HTML or with JSON of their own. A body that is not an object carrying a usable
+ * `detail` therefore keeps the redacted message, so an upstream the runner did not write can put
+ * nothing in front of the model. Passing the body through for every 4xx would fail that case, and
+ * a 5xx page can carry an internal hostname or a stack trace.
+ *
+ * WHY IT MATTERS. Without it the model reads `HTTP 422` and nothing else. The change-set engine
+ * answers a wrong target or a duplicate key with a code and a next step precisely so the agent can
+ * recover by itself, and the redaction was throwing that away one layer above it.
+ */
+export function agentaErrorDetail(bodyText: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    return undefined;
+  }
+  if (!isPlainObject(parsed) || !("detail" in parsed)) return undefined;
+  const detail = parsed.detail;
+  if (detail === null || detail === undefined) return undefined;
+  // A string reads better unquoted. Anything else goes back out as it arrived, because the
+  // structure IS the information the model needs.
+  const text = typeof detail === "string" ? detail : JSON.stringify(detail);
+  if (!text) return undefined;
+  return text.length > MAX_ERROR_DETAIL_CHARS
+    ? `${text.slice(0, MAX_ERROR_DETAIL_CHARS)} (truncated)`
+    : text;
+}
+
 /**
  * One direct call to an Agenta endpoint. Reuses the run's caller credential (`authorization`),
  * combines an optional caller `signal` with the per-tool timeout, and returns the response text
@@ -406,12 +451,18 @@ export async function callDirect(
 
   const bodyText = await response.text();
   if (!response.ok) {
-    // Keep the internal URL and the upstream response body server-side; the model gets only the
-    // status code. (`redirect: "manual"` makes a 3xx a non-ok response, so it lands here too.)
+    // Keep the internal URL and the raw body server-side. The model gets the status, plus the
+    // `detail` field when the body is one of OUR error envelopes. (`redirect: "manual"` makes a
+    // 3xx a non-ok response, so it lands here too, and it carries no `detail`.)
     console.error(
       `direct tool call ${method} ${url} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
     );
-    throw new Error(`direct tool call failed: HTTP ${response.status}`);
+    const detail = agentaErrorDetail(bodyText);
+    throw new Error(
+      detail === undefined
+        ? `direct tool call failed: HTTP ${response.status}`
+        : `direct tool call failed: HTTP ${response.status}: ${detail}`,
+    );
   }
   return bodyText;
 }
