@@ -54,7 +54,18 @@ class SessionStreamsDAOInterface(ABC):
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
     ) -> List[SessionStream]: ...
+
+    @abstractmethod
+    async def count(
+        self,
+        *,
+        project_id: UUID,
+        filter: SessionStreamQuery,
+        session_ids: Optional[List[str]] = None,
+        exclude_session_ids: Optional[List[str]] = None,
+    ) -> int: ...
 
     @abstractmethod
     async def update(

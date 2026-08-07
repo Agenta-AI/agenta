@@ -73,6 +73,10 @@ class SessionStreamQuery(BaseModel):
     include_archived: bool = False
     # Case-insensitive substring match over `name` (the session title).
     search: Optional[str] = None
+    # jsonb containment against the row's `tags` — carries the origin filter.
+    tags: Optional[Dict[str, Any]] = None
+    # Its negation. A row with NULL tags PASSES: absence of a stamp is not a match.
+    exclude_tags: Optional[Dict[str, Any]] = None
 
 
 class CommandMode(str, Enum):
