@@ -193,11 +193,24 @@ function turn2(overrides: Partial<AgentRunRequest> = {}): AgentRunRequest {
 
 describe("the live-route gate", () => {
   it("declares EXACTLY the authorized kinds, plus the trivial no-op", () => {
-    // The single place that says how many routes are live. A fourth entry is the whole decision
-    // to make another route live, and it must not happen by accident.
+    // DELIBERATE EDIT. `reopen-session` joined the live set: it keeps the sandbox, the daemon,
+    // the mounts and the workspace, recreating only the ACP session, which is what makes the
+    // uniform tool/MCP/prompt/harness-file routes cheaper than a rebuild. It carries its own
+    // refusal (see `reopen`), so being live-APPLICABLE is not the same as always succeeding.
+    //
+    // The guard still matters: this list is the single place that says how many routes are live,
+    // and a fifth entry must be a decision, never an accident.
     assert.deepEqual(
       [...LIVE_ACTION_KINDS].sort(),
-      ["apply-live", "no-op", "refresh-workspace"],
+      ["apply-live", "no-op", "refresh-workspace", "reopen-session"],
+    );
+    assert.ok(
+      !LIVE_ACTION_KINDS.has("restart-runtime"),
+      "a runtime restart is not live: it loses everything installed in the daemon",
+    );
+    assert.ok(
+      !LIVE_ACTION_KINDS.has("rebuild-sandbox"),
+      "a rebuild is the opposite of a live route",
     );
   });
 
@@ -209,9 +222,9 @@ describe("the live-route gate", () => {
         buildPlan(
           [
             { facet: "workspaceFiles", kind: "refresh-workspace", reason: "r" },
-            { facet: "harnessFiles", kind: "reopen-session", reason: "r" },
+            { facet: "runtime", kind: "restart-runtime", reason: "r" },
           ],
-          ["workspaceFiles", "harnessFiles"],
+          ["workspaceFiles", "runtime"],
         ),
       ),
       false,
@@ -225,8 +238,9 @@ describe("the live-route gate", () => {
           [
             { facet: "workspaceFiles", kind: "refresh-workspace", reason: "r" },
             { facet: "model", kind: "apply-live", reason: "r" },
+            { facet: "harnessFiles", kind: "reopen-session", reason: "r" },
           ],
-          ["workspaceFiles", "model"],
+          ["workspaceFiles", "model", "harnessFiles"],
         ),
       ),
       true,
@@ -304,11 +318,16 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     const { engine, calls } = makeEngine();
     const ctx = makeCtx(engine);
     await runWithKeepalive(turn1, undefined, undefined, ctx);
-    // Instructions (live) plus harness files (must escalate).
+    // Instructions (live) plus a model-connection change (restart-runtime: NOT live).
     await runWithKeepalive(
       turn2({
         agentsMd: "REWRITTEN",
-        harnessFiles: [{ path: "a", content: "b" }] as never,
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "env",
+          credentials: [],
+        } as never,
       }),
       undefined,
       undefined,
@@ -518,21 +537,62 @@ describe("route selection matches the facet diff", () => {
       live: true,
     });
     assert.deepEqual(routeFor({ model: "m2" }), { kinds: ["apply-live"], live: true });
+    // These three route to a session REOPEN, which is now live-applicable — the sandbox survives
+    // and only the ACP session is recreated. The reopen still refuses at execution time when the
+    // conversation could not be replayed, which is a different question from routing.
     assert.deepEqual(routeFor({ systemPrompt: "sp" }), {
       kinds: ["reopen-session"],
-      live: false,
+      live: true,
     });
     assert.deepEqual(routeFor({ harnessFiles: [{ path: "a", content: "b" }] as never }), {
       kinds: ["reopen-session"],
-      live: false,
+      live: true,
     });
     assert.deepEqual(routeFor({ permissions: { default: "deny" } as never }), {
       kinds: ["reopen-session"],
-      live: false,
+      live: true,
     });
     assert.deepEqual(routeFor({ sandbox: "daytona" }), {
       kinds: ["rebuild-sandbox"],
       live: false,
     });
+  });
+});
+
+describe("reopen: the history condition (adapter-matrix 6.2)", () => {
+  it("a harness-files change now REUSES the sandbox instead of rebuilding", async () => {
+    // The payoff of making reopen live: the uniform tool/MCP/prompt/harness-file routes stop
+    // costing a full sandbox rebuild.
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1, undefined, undefined, ctx);
+    await runWithKeepalive(
+      turn2({ harnessFiles: [{ path: "a", content: "b" }] as never }),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(calls.acquire, 1, "the sandbox survives a harness-file change");
+    assert.deepEqual(calls.applied[0].actions, ["reopen-session"]);
+  });
+
+  it("a LAST-MESSAGE-ONLY request still rebuilds, because history cannot be verified", async () => {
+    // The fail-closed half. When the request carries no transcript, the harness's native memory
+    // IS the conversation, and a matching agentSessionId proves only that the adapter accepted
+    // the id — never that it replayed the turns. So the reopen refuses and the caller rebuilds.
+    const { engine, calls } = makeEngine({ apply: "refuse" });
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1, undefined, undefined, ctx);
+    await runWithKeepalive(
+      {
+        ...turn1,
+        harnessFiles: [{ path: "a", content: "b" }] as never,
+        messages: [{ role: "user", content: "only this" }],
+      },
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(calls.acquire, 2, "no transcript to replay means no safe reopen");
   });
 });
