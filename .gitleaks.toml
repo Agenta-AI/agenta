@@ -18,6 +18,14 @@ paths = [
   '''^.*/\.next/.*''',
   # -------------------------------------------------------------- ALL ENV FILES
   '''^.*\.env.*$''',
+  # ------------------------------------------------- MERGE-CONFLICT TOOL ARTIFACTS
+  # A conflict-resolution tool committed its scratch state in 98ef076243: full copies
+  # of both merge sides, the base, and its own working dir. Deleted from the tree by
+  # later commits; the blobs remain in history, so a --git scan still walks them.
+  '''^\.conflict-side-\d+/.*''',
+  '''^\.conflict-base-\d+/.*''',
+  '''^\.conflict-files$''',
+  '''^\.auto-resolution/.*''',
   # -------------------------------------------------- LOCAL-DEV STORE FALLBACK KEY
   # webidentity.py ships a hardcoded RSA key used ONLY as the local-dev fallback for
   # signing the object-store's web-identity token (production setups must set
@@ -41,6 +49,7 @@ regexes = [
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG
   '''phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp''',  # POSTHOG
   '''phc_qH8GezjMAeToR9ygdsnTH0C9c2njhO7CFqf66pTUX7H''',  # POSTHOG
+  '''phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI''',  # POSTHOG
   '''18ab633e81d706cbda7c78d25d0fe763''',                 # ALGOLIA
   # ------------------------------------------------- LOCAL-DEV STORE SIGNING KEY
   # Dummy SeaweedFS STS signing key shown (commented) as a format hint in the dev
