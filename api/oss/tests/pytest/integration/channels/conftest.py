@@ -110,6 +110,7 @@ async def channels_scope():
 
     async with engine.session() as session:
         for table in (
+            "channel_identity_links",
             "channel_outbox_events",
             "channel_inbox_triggers",
             "channel_inbox_events",
