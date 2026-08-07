@@ -5,6 +5,8 @@
  */
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
+
+import { declinedByUserText } from "../../src/tools/denial-text.ts";
 import { tmpdir } from "node:os";
 import {
   existsSync,
@@ -1752,7 +1754,7 @@ describe("runSandboxAgent orchestration", () => {
       {
         allow: false,
         reason:
-          "Tool 'server_tool' was not approved via the permission dialog.",
+          declinedByUserText("server_tool"),
       },
       "Pi ask without a grant fails closed",
     );
