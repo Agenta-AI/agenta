@@ -58,6 +58,19 @@ export const changePassword = async (payload: {
 }
 
 /**
+ * Generate a password reset link for a workspace member (admin action).
+ * Calls POST /api/profile/reset-password?user_id=...
+ */
+export const resetPassword = async (userId: string): Promise<string> => {
+    const base = getBaseUrl()
+    const url = new URL("api/profile/reset-password", base)
+    url.searchParams.set("user_id", userId)
+    return fetchJson<string>(url, {
+        method: "POST",
+    })
+}
+
+/**
  * Permanently delete the current user's account (EE only). Removes the user
  * from the database (with the organizations they own), the auth provider,
  * Stripe, and the marketing email list. Irreversible.
