@@ -6,6 +6,12 @@ useDefault = true
 
 [allowlist]
 paths = [
+  # ------------------------------------------------------- QA RUN RECORDS
+  # Gate-run and benchmark result files carry deliberate high-entropy MARKER
+  # strings (QA-CWD-*, QA-APPROVE-*) that the release-gate cells write and read
+  # back to prove storage round trips. They are test artifacts, not credentials.
+  '''^\.agents/skills/agent-release-gate/resources/qa-gate-runs/.*''',
+  '''^benchmarks/agent-config-editing/results/.*''',
   # ---------------------------------------------------------------- PUBLIC DOCS
   '''^website/docs/reference/api/.*\.mdx''',
   '''^core/docs/docs/reference/api/.*\.mdx''',

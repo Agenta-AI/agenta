@@ -10,5 +10,6 @@ export const HarnessKind = {
     PiCore: "pi_core",
     Claude: "claude",
     PiAgenta: "pi_agenta",
+    Codex: "codex",
 } as const;
 export type HarnessKind = (typeof HarnessKind)[keyof typeof HarnessKind];

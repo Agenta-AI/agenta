@@ -296,7 +296,12 @@ class GitDAOInterface(ABC):
         revision_commit: RevisionCommit,
         #
         initial: bool = False,
+        #
+        expected_head_revision_id: Optional[UUID] = None,
     ) -> Optional[Revision]:
+        """Append a revision. With ``expected_head_revision_id`` the implementation locks
+        the variant, re-reads the head under that lock, and raises ``RevisionConflict``
+        when it differs."""
         raise NotImplementedError
 
     @abstractmethod

@@ -42,6 +42,8 @@ import {
 } from "./session-continuity-durable.ts";
 import { type SessionContinuityStore } from "./session-continuity.ts";
 import { type InstalledMountExpiries } from "./session-identity.ts";
+import type { AppliedEnvironmentState } from "./applied-state.ts";
+import type { FacetDigests } from "../../lifecycle/desired-state.ts";
 import { type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
@@ -217,6 +219,53 @@ export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
  * call. Per-turn state rides `currentTurn`, swapped in by `runTurn`.
  */
 export interface SessionEnvironment {
+  /**
+   * What this environment ACTUALLY has installed.
+   *
+   * LIFECYCLE MIGRATION, STEP 2. The pool reads this instead of a fingerprint its caller supplies,
+   * so a request can no longer stamp a configuration the environment never applied. Only
+   * `commitApplied` advances it, and only after a lifecycle action succeeds. See
+   * `applied-state.ts`.
+   */
+  readonly appliedState: AppliedEnvironmentState;
+  /**
+   * What the workspace write left behind, so a later in-place refresh knows what to DELETE.
+   *
+   * Undefined until a workspace is materialized. A refresh with no inventory refuses rather than
+   * writing without deleting: a stale skill left readable is the failure that route exists to
+   * prevent. See `environment/workspace-manager.ts`.
+   */
+  workspaceInventory?: import("../../environment/workspace-manager.ts").WorkspaceInventory;
+  /**
+   * Close and reopen this environment's harness session on the SAME sandbox.
+   *
+   * A CLOSURE built at acquire, exactly like `destroy`, because a reopen needs the persist
+   * driver, the session-init payload and the local session key — all of which live in the acquire
+   * scope and none of which belong on this interface individually.
+   *
+   * Undefined when the environment never opened a session. The caller then rebuilds.
+   */
+  reopenSession?: (opts: {
+    transcriptReplayable: boolean;
+  }) => Promise<
+    import("../../environment/harness-session-lifecycle.ts").ReopenResult
+  >;
+  /**
+   * How a rotated credential reaches this environment WITHOUT rebuilding it, or undefined.
+   *
+   * LIFECYCLE MIGRATION, STEP 8. This is the single source of truth for what a rotation costs on
+   * this environment, and it is a property of the ENVIRONMENT rather than of the provider name on
+   * the request. The difference is load-bearing: a Daytona run with credential hiding switched off
+   * puts the values in the daemon environment as plain variables, so it holds no reference to
+   * rotate and must rebuild — a table keyed by "daytona" would claim a live rotation it cannot
+   * perform. Undefined means "no live credential route here", which is always a sound answer.
+   */
+  credentialDelivery?: import("../../providers/credential-delivery-port.ts").CredentialDeliveryPort;
+  /** Record a lifecycle action that already succeeded. The only writer of `appliedState`. */
+  commitApplied: (result: {
+    configFingerprint: string;
+    facets: FacetDigests;
+  }) => void;
   plan: RunPlan;
   logger: Log;
   deps: SandboxAgentDeps;
@@ -289,6 +338,14 @@ export interface SessionEnvironment {
    */
   parkedApprovals: Map<string, ParkedApproval>;
   /**
+   * Frozen approval bytes and single-use authorization records for commits that reference
+   * workspace files (`@ag.file`). Session-scoped so a parked approval survives to its live
+   * resume and commits the exact bytes the human saw; the turn drops it whenever it did not
+   * park, and a cold resume gets a new environment and therefore an empty store, which is what
+   * forces a fresh gate rather than executing bytes nobody approved.
+   */
+  commitAuthorization?: import("./approved-content.ts").CommitAuthorizationState;
+  /**
    * The FIRST parked gate this turn, a convenience for per-turn-uniform reads (logging, the
    * gate-type check, the shared history/credential validation). Undefined when the map is empty.
    * The multi-answer resume and the all-parkable park check read `parkedApprovals`, not this.
@@ -320,4 +377,5 @@ export interface SessionEnvironment {
 }
 
 export type AcquireEnvironmentResult =
-  { ok: true; env: SessionEnvironment } | { ok: false; error: string };
+  | { ok: true; env: SessionEnvironment }
+  | { ok: false; error: string };
