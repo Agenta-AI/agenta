@@ -43,6 +43,9 @@ from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workflow
 from agenta.sdk.engines.running.errors import ErrorStatus
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -484,12 +487,15 @@ async def handle_invoke_success(
 async def handle_invoke_failure(exception: Exception) -> Response:
     status = None
 
+    # Traceback is logged server-side only, never returned to the client.
+    stacktrace = None
+
     if isinstance(exception, ErrorStatus):
+        stacktrace = exception.stacktrace
         status = WorkflowServiceStatus(
             type=exception.type,
             code=exception.code,
             message=exception.message,
-            stacktrace=exception.stacktrace,
         )
 
     else:
@@ -506,17 +512,18 @@ async def handle_invoke_failure(exception: Exception) -> Response:
 
         message = str(exception) or "Internal Server Error"
 
-        stacktrace = format_exception(
-            exception,  # type: ignore
-            value=exception,
-            tb=exception.__traceback__,
+        stacktrace = "".join(
+            format_exception(
+                exception,  # type: ignore
+                value=exception,
+                tb=exception.__traceback__,
+            )
         )
 
         status = WorkflowServiceStatus(
             type=type,
             code=code,
             message=message,
-            stacktrace=stacktrace,
         )
 
     trace_id = None
@@ -533,6 +540,16 @@ async def handle_invoke_failure(exception: Exception) -> Response:
 
     error = WorkflowBatchResponse(
         status=status,
+        trace_id=trace_id,
+        span_id=span_id,
+    )
+
+    log.warning(
+        "Workflow handler invocation failed",
+        status_code=status.code if status else None,
+        status_type=status.type if status else None,
+        message=status.message if status else None,
+        stacktrace=stacktrace,
         trace_id=trace_id,
         span_id=span_id,
     )
