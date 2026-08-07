@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Smoke fixture</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; height: 100vh; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 28px;
+        font-family: -apple-system, system-ui, sans-serif;
+        background: linear-gradient(135deg, #f8fafc, #eef2ff); color: #0f172a;
+      }
+      h1 { font-size: 46px; margin: 0; }
+      .row { display: flex; gap: 16px; align-items: center; }
+      input {
+        width: 620px; height: 64px; font-size: 22px; padding: 0 20px;
+        border: 2px solid #c7d2fe; border-radius: 14px; outline: none; background: #fff;
+      }
+      button {
+        height: 64px; padding: 0 34px; font-size: 22px; font-weight: 600;
+        color: #fff; background: #2563eb; border: none; border-radius: 14px; cursor: pointer;
+      }
+      #result {
+        font-size: 26px; color: #2563eb; font-weight: 600; height: 40px; opacity: 0;
+        transition: opacity .3s ease;
+      }
+      #result.show { opacity: 1; }
+    </style>
+  </head>
+  <body>
+    <h1>What do you want to build?</h1>
+    <div class="row">
+      <input id="prompt" placeholder="Describe your agent…" />
+      <button id="create">Create agent</button>
+    </div>
+    <div id="result">✓ Agent created</div>
+    <script>
+      document.getElementById("create").addEventListener("click", () => {
+        document.getElementById("result").classList.add("show");
+      });
+    </script>
+  </body>
+</html>

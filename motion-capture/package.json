@@ -1,0 +1,52 @@
+{
+  "name": "motion-capture",
+  "version": "1.0.0",
+  "description": "My Remotion video",
+  "repository": {},
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@remotion/cli": "4.0.506",
+    "@remotion/media": "4.0.506",
+    "@remotion/tailwind-v4": "4.0.506",
+    "dotenv": "^17.4.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.506",
+    "tailwindcss": "4.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@remotion/eslint-config-flat": "4.0.506",
+    "@types/node": "^26.1.2",
+    "@types/react": "19.2.7",
+    "@types/web": "0.0.166",
+    "eslint": "9.19.0",
+    "playwright": "^1.62.1",
+    "prettier": "3.8.1",
+    "tsx": "^4.23.8",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "studio": "remotion studio",
+    "auth": "tsx scripts/auth-setup.ts",
+    "record": "tsx scripts/record-demo.ts",
+    "record:agent": "tsx scripts/record-agent-demo.ts",
+    "check": "tsx scripts/record-agent-demo.ts --check",
+    "convert": "tsx scripts/convert.ts",
+    "render": "tsx scripts/render.ts",
+    "clip": "tsx scripts/clip.ts",
+    "build": "remotion bundle",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
