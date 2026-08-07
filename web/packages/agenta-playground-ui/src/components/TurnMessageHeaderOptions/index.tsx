@@ -2,6 +2,16 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {getViewOptions, ViewModeDropdown, type ViewMode} from "@agenta/ui/drill-in"
 import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
+import {
     ArrowClockwise,
     ArrowsOutLineHorizontal,
     Check,
@@ -11,11 +21,16 @@ import {
     MinusCircle,
     Paperclip,
 } from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
-import {Button, Dropdown, Tooltip} from "antd"
 import clsx from "clsx"
 
 import CollapseToggleButton from "../shared/CollapseToggleButton"
+
+/** Replaces antd's `MenuProps["items"]` — the JSX is built by the DropdownMenu below. */
+interface AttachmentMenuItem {
+    key: string
+    disabled: boolean
+    label: React.ReactNode
+}
 
 export interface TurnMessageHeaderOptionsProps {
     id: string
@@ -131,8 +146,8 @@ const TurnMessageHeaderOptions = ({
     const canAddDocument = Boolean(onAddDocumentSlot) && allowFileUpload && !maxDocumentReached
     const attachmentButtonDisabled = !canAddImage && !canAddDocument
 
-    const attachmentMenuItems = useMemo<NonNullable<MenuProps["items"]>>(() => {
-        const items: NonNullable<MenuProps["items"]> = []
+    const attachmentMenuItems = useMemo<AttachmentMenuItem[]>(() => {
+        const items: AttachmentMenuItem[] = []
         if (onAddUploadSlot) {
             items.push({
                 key: "image",
@@ -160,8 +175,8 @@ const TurnMessageHeaderOptions = ({
         return items
     }, [onAddUploadSlot, onAddDocumentSlot, canAddImage, canAddDocument])
 
-    const handleAttachmentMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
-        ({key}) => {
+    const handleAttachmentMenuClick = useCallback(
+        (key: string) => {
             if (key === "image" && canAddImage) {
                 onAddUploadSlot?.()
             } else if (key === "document" && canAddDocument) {
@@ -196,25 +211,36 @@ const TurnMessageHeaderOptions = ({
                 {repetitionProps && renderRepetitionNav && renderRepetitionNav(repetitionProps)}
 
                 {onViewAllRepeats && (
-                    <Tooltip title="Expand results">
-                        <Button
-                            icon={<ArrowsOutLineHorizontal size={12} />}
-                            size="small"
-                            type="text"
-                            onClick={onViewAllRepeats}
-                            disabled={!resultHashes || resultHashes.length === 0}
-                        />
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Expand results"
+                                onClick={onViewAllRepeats}
+                                disabled={!resultHashes || resultHashes.length === 0}
+                            >
+                                <ArrowsOutLineHorizontal size={12} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Expand results</TooltipContent>
                     </Tooltip>
                 )}
 
                 {onRerun ? (
-                    <Tooltip title="Re-run">
-                        <Button
-                            icon={<ArrowClockwise size={14} />}
-                            type="text"
-                            onClick={onRerun}
-                            disabled={disabled}
-                        />
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Re-run"
+                                onClick={onRerun}
+                                disabled={disabled}
+                            >
+                                <ArrowClockwise size={14} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Re-run</TooltipContent>
                     </Tooltip>
                 ) : null}
 
@@ -229,42 +255,63 @@ const TurnMessageHeaderOptions = ({
                     })}
 
                 {attachmentMenuItems.length > 0 ? (
-                    <Dropdown
-                        trigger={["click"]}
-                        placement="bottomRight"
-                        menu={{
-                            items: attachmentMenuItems,
-                            onClick: handleAttachmentMenuClick,
-                        }}
-                        disabled={attachmentButtonDisabled}
-                    >
-                        <span className="inline-flex">
-                            <Tooltip title="Add attachment">
-                                <Button
-                                    icon={<Paperclip size={14} />}
-                                    type="text"
-                                    disabled={attachmentButtonDisabled}
-                                />
-                            </Tooltip>
-                        </span>
-                    </Dropdown>
+                    <DropdownMenu>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label="Add attachment"
+                                        disabled={attachmentButtonDisabled}
+                                    >
+                                        <Paperclip size={14} />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                            </TooltipTrigger>
+                            <TooltipContent>Add attachment</TooltipContent>
+                        </Tooltip>
+                        <DropdownMenuContent align="end">
+                            {attachmentMenuItems.map((item) => (
+                                <DropdownMenuItem
+                                    key={item.key}
+                                    disabled={item.disabled}
+                                    onSelect={() => handleAttachmentMenuClick(item.key)}
+                                >
+                                    {item.label}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 ) : null}
 
-                <Tooltip title={isCopied ? "Copied" : "Copy"}>
-                    <Button
-                        icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
-                        type="text"
-                        onClick={onCopyText}
-                    />
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={isCopied ? "Copied" : "Copy"}
+                            onClick={onCopyText}
+                        >
+                            {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>{isCopied ? "Copied" : "Copy"}</TooltipContent>
                 </Tooltip>
 
-                <Tooltip title="Remove">
-                    <Button
-                        icon={<MinusCircle size={14} />}
-                        type="text"
-                        onClick={onDelete}
-                        disabled={!onDelete}
-                    />
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Remove"
+                            onClick={onDelete}
+                            disabled={!onDelete}
+                        >
+                            <MinusCircle size={14} />
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remove</TooltipContent>
                 </Tooltip>
 
                 <CollapseToggleButton collapsed={isCollapsed} onToggle={handleToggleCollapse} />

@@ -6,7 +6,7 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {Tag} from "antd"
+import {Badge} from "@agenta/ui/ui"
 import {atom, useAtomValue} from "jotai"
 
 import {useRepetitionResult} from "../../hooks/useRepetitionResult"
@@ -230,12 +230,12 @@ function DownstreamNodeCard({
                                     )
                                 }
                                 return (
-                                    <Tag
-                                        color={verdictBoolean ? "success" : "error"}
-                                        className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                    <Badge
+                                        variant={verdictBoolean ? "success" : "error"}
+                                        className="m-0 text-xs rounded-md px-2 py-0 leading-5"
                                     >
                                         {verdictBoolean ? "true" : "false"}
-                                    </Tag>
+                                    </Badge>
                                 )
                             })()}
                         </span>

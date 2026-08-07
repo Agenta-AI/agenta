@@ -27,7 +27,9 @@
 
 import {createContext, useContext, type ComponentType, type ReactNode} from "react"
 
-import type {ButtonProps} from "antd"
+// `EnhancedButtonProps` is @agenta/ui's own antd-`Button`-compatible surface, so this keeps the
+// same prop shape for injected implementations with no antd dependency.
+import type {EnhancedButtonProps} from "@agenta/ui/components/presentational"
 
 // ============================================================================
 // PROP TYPES FOR INJECTABLE COMPONENTS
@@ -101,10 +103,10 @@ export interface LoadTestsetSelectionPayload {
  * Props for CommitVariantChangesButton component
  * Button for committing variant changes
  *
- * Note: Uses ButtonProps (not Omit<ButtonProps, "onClick">) for compatibility
+ * Note: Uses the full button surface (not `Omit<…, "onClick">`) for compatibility
  * with OSS implementations that handle onClick internally.
  */
-export interface CommitVariantChangesButtonProps extends ButtonProps {
+export interface CommitVariantChangesButtonProps extends EnhancedButtonProps {
     entityId: string
     label?: ReactNode
     icon?: boolean

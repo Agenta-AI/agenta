@@ -5,7 +5,7 @@ import type {PlaygroundNode} from "@agenta/entities/runnable"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {RunnableOutputValue} from "@agenta/entity-ui"
 import {executionItemController, playgroundController} from "@agenta/playground"
-import {Tag} from "antd"
+import {Badge} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {atom} from "jotai"
 import {useAtomValue} from "jotai"
@@ -161,12 +161,12 @@ const DownstreamNodeCard = ({
                                     )
                                 }
                                 return (
-                                    <Tag
-                                        color={verdictBoolean ? "success" : "error"}
-                                        className="!m-0 text-xs rounded-md px-2 py-0 leading-5"
+                                    <Badge
+                                        variant={verdictBoolean ? "success" : "error"}
+                                        className="m-0 text-xs rounded-md px-2 py-0 leading-5"
                                     >
                                         {verdictBoolean ? "true" : "false"}
-                                    </Tag>
+                                    </Badge>
                                 )
                             })()}
                         </span>

@@ -10,14 +10,11 @@ import {environmentMolecule} from "@agenta/entities/environment"
 import {UserAuthorLabel} from "@agenta/entities/shared"
 import {workflowDetailQueryAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {FormattedDate, cn, textColors} from "@agenta/ui"
-import {Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {useDrawerProviders} from "./DrawerContext"
 import type {DrawerContext} from "./store"
-
-const {Text} = Typography
 
 interface MetadataSidebarProps {
     revisionId: string
@@ -68,7 +65,7 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
         >
             {/* Header */}
             <div className="px-4 pt-4 pb-3">
-                <Text className={cn("text-sm font-semibold", textColors.secondary)}>Details</Text>
+                <span className={cn("text-sm font-semibold", textColors.secondary)}>Details</span>
             </div>
 
             {/* Metadata fields */}
@@ -94,9 +91,9 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
 
                 {isEvaluator && evaluatorSlug && (
                     <MetadataField label="Slug">
-                        <Text className={cn("break-all leading-relaxed", textColors.primary)}>
+                        <span className={cn("break-all leading-relaxed", textColors.primary)}>
                             {evaluatorSlug}
-                        </Text>
+                        </span>
                     </MetadataField>
                 )}
 
@@ -117,7 +114,9 @@ const MetadataSidebar = memo(({revisionId, context, isCompact}: MetadataSidebarP
 
                 {workflowData.message && (
                     <MetadataField label="Note">
-                        <Text className="leading-relaxed">{workflowData.message}</Text>
+                        <span className="leading-relaxed text-colorText">
+                            {workflowData.message}
+                        </span>
                     </MetadataField>
                 )}
 

@@ -36,21 +36,28 @@ import {
     valueToDisplay,
 } from "@agenta/entity-ui/view-types"
 import type {ExpectedType, LogicalType, ViewOption, ViewType} from "@agenta/entity-ui/view-types"
+import {message} from "@agenta/ui/app-message"
 import {ChatMessageList} from "@agenta/ui/chat-message"
 import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
+import {
+    Alert,
+    AutosizeTextarea,
+    Badge,
+    Button,
+    InputNumber,
+    Switch,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, CopySimple, Database, Info, Warning} from "@phosphor-icons/react"
-import {Alert, Button, Input, InputNumber, Switch, Tag, Tooltip, Typography, message} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
 import {variableViewModeAtomFamily} from "./viewModeAtoms"
-
-const {TextArea} = Input
-
-const {Text: AntText} = Typography
 
 /** A schema-vs-value structural conflict at a single key (possibly nested
  *  — `key` is a dotted path, e.g. `"obj.a"`). Schema expects a nested
@@ -425,36 +432,32 @@ export function VariableCard({
         <div className="agenta-variable-card flex flex-col gap-2 rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2 min-w-0">
             <div className="flex items-center justify-between gap-2 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
-                    <AntText className="font-mono text-[12px] leading-[20px] font-medium text-[var(--ag-c-1677FF)] truncate">
+                    <span className="font-mono text-[12px] leading-[20px] font-medium text-[var(--ag-c-1677FF)] truncate">
                         {name}
-                    </AntText>
+                    </span>
                     <TypeChip variant={chipVariant} value={value} />
                     {helpText ? (
-                        <Tooltip
-                            title={helpText}
-                            placement="topLeft"
-                            overlayStyle={{maxWidth: 360}}
-                        >
-                            <Info
-                                size={12}
-                                className="text-gray-400 hover:text-gray-600 shrink-0 cursor-help"
-                                aria-label={`About ${name}`}
-                            />
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Info
+                                    size={12}
+                                    className="text-colorTextDescription hover:text-colorText shrink-0 cursor-help"
+                                    aria-label={`About ${name}`}
+                                />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="start" className="max-w-[360px]">
+                                {helpText}
+                            </TooltipContent>
                         </Tooltip>
                     ) : null}
                     {isDraft ? (
-                        <Tag
-                            color="default"
-                            style={{
-                                fontSize: 10,
-                                marginInlineEnd: 0,
-                                fontFamily:
-                                    "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-                            }}
+                        <Badge
+                            variant="default"
+                            className="me-0 font-mono text-[10px]"
                             title="New prompt variable · commit the workflow to publish it."
                         >
                             draft
-                        </Tag>
+                        </Badge>
                     ) : null}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -462,22 +465,31 @@ export function VariableCard({
                      *  testset-sync indicator. Same set on every card so
                      *  the row reads as a consistent block of inputs. */}
                     {connectedSourceName ? (
-                        <Tooltip title={`Synced from ${connectedSourceName}`} placement="top">
-                            <Database
-                                size={14}
-                                className="text-gray-400 shrink-0"
-                                aria-label="Synced from testset"
-                            />
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Database
+                                    size={14}
+                                    className="text-colorTextDescription shrink-0"
+                                    aria-label="Synced from testset"
+                                />
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                                {`Synced from ${connectedSourceName}`}
+                            </TooltipContent>
                         </Tooltip>
                     ) : null}
-                    <Tooltip title="Copy value" placement="top">
-                        <Button
-                            type="text"
-                            size="small"
-                            icon={<CopySimple size={14} />}
-                            onClick={handleCopy}
-                            aria-label={`Copy ${name}`}
-                        />
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={handleCopy}
+                                aria-label={`Copy ${name}`}
+                            >
+                                <CopySimple size={14} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Copy value</TooltipContent>
                     </Tooltip>
                     <ViewTypeSelect
                         value={mode}
@@ -520,7 +532,8 @@ export function VariableCard({
                                 {shapeConflicts.length > 1 ? "s" : ""}.
                             </span>
                             <Button
-                                size="small"
+                                variant="outline"
+                                size="sm"
                                 onClick={handleAdoptPromptShape}
                                 className="shrink-0"
                             >
@@ -538,6 +551,7 @@ export function VariableCard({
                     expectedSchema={expectedSchema}
                     editable={editable}
                     onChange={handleValueChange}
+                    name={name}
                     templateFormat={templateFormat}
                 />
             </div>
@@ -583,13 +597,13 @@ function StashedPathsFooter({variableName, paths}: StashedPathsFooterProps) {
     return (
         <div className="agenta-stashed-paths mt-1 flex flex-col gap-1">
             <Button
-                type="text"
-                size="small"
-                icon={expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                variant="ghost"
+                size="sm"
                 onClick={() => setExpanded((prev) => !prev)}
                 aria-expanded={expanded}
-                className="self-start !px-1 text-[12px] !text-[var(--ag-rgba-051729-55)]"
+                className="self-start px-1 text-[12px] text-[var(--ag-rgba-051729-55)]"
             >
+                {expanded ? <CaretDown size={12} /> : <CaretRight size={12} />}
                 {summary}
             </Button>
             {expanded ? (
@@ -637,6 +651,9 @@ interface CardBodyProps {
     expectedSchema?: unknown
     editable: boolean
     onChange: (next: unknown) => void
+    /** Variable name — used to give the boolean branch's Switch an accessible name.
+     *  antd's Switch was unnamed too, so this is a fix, not a reproduction. */
+    name: string
     /** Active prompt template format. Forwarded to `ChatMessageList` when
      *  the value renders in chat mode so its inner editors tokenize the
      *  right `{{...}}` syntax. */
@@ -650,6 +667,7 @@ function CardBody({
     expectedSchema,
     editable,
     onChange,
+    name,
     templateFormat = "curly",
 }: CardBodyProps): ReactNode {
     const originalType = useMemo<LogicalType>(() => inferLogicalType(value), [value])
@@ -752,12 +770,12 @@ function CardBody({
         return (
             <InputNumber
                 size="middle"
-                variant="borderless"
+                variant="ghost"
                 value={value as number}
                 disabled={!editable}
                 onChange={(next) => onChange(next ?? null)}
                 placeholder="Enter number"
-                className="w-full max-w-[320px] !px-0"
+                className="w-full max-w-[320px] [&_input]:px-0"
             />
         )
     }
@@ -767,7 +785,8 @@ function CardBody({
             <Switch
                 checked={Boolean(value)}
                 disabled={!editable}
-                onChange={(next) => onChange(next)}
+                onCheckedChange={(next) => onChange(next)}
+                aria-label={name}
             />
         )
     }
@@ -820,15 +839,15 @@ function TextLeafEditor({mode, value, editable, originalType, onChange}: TextLea
     // visible boundary; this editor melts into it so the label, controls,
     // and value read as one block.
     return (
-        <TextArea
-            variant="borderless"
+        <AutosizeTextarea
+            variant="ghost"
             value={buffer}
             onChange={(e) => handleChange(e.target.value)}
             placeholder="Enter a value"
             autoSize={{minRows: 2}}
             disabled={!editable}
             className={clsx(
-                "!p-0 !shadow-none !min-h-[40px] resize-none",
+                "p-0 shadow-none min-h-[40px] resize-none",
                 mode === "markdown" && "prose-sm",
             )}
         />

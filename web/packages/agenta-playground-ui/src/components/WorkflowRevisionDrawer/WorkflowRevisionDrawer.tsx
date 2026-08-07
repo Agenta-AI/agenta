@@ -17,7 +17,7 @@
  */
 import {memo, useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
-import {Drawer} from "antd"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import DrawerContent from "./DrawerContent"
@@ -103,22 +103,25 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
     if (!shouldRender) return null
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={isOpen}
             closable={false}
+            // No visible title (DrawerHeader owns the chrome), so name the dialog explicitly —
+            // Radix renders role="dialog" and an unnamed one fails axe's aria-dialog-name.
+            ariaLabel={isEvaluatorDrawer ? "Evaluator" : "Workflow revision"}
+            // Radix always renders an overlay (it owns outside-click + focus trapping), so
+            // `mask={false}` maps to a TRANSPARENT overlay rather than no element. Same look,
+            // and the behaviour Radix depends on stays intact.
             mask={showBlurredMask ? {blur: true} : false}
             onClose={handleClose}
             destroyOnHidden
             afterOpenChange={handleAfterOpenChange}
-            // This drawer is still antd (default zIndex 1000), but anything it opens via
-            // @agenta/ui — EnhancedModal/EnhancedDrawer — renders a Radix Dialog/Sheet at
-            // z-40/z-50. Pin below that scale so a nested Create/confirm modal stacks above
-            // this drawer instead of behind it.
+            // Now a Radix Sheet itself. Anything this drawer opens via @agenta/ui renders at
+            // z-40/z-50, so stay pinned below that scale — a nested Create/confirm modal must
+            // stack above this drawer, not behind it.
             zIndex={40}
-            styles={{
-                body: {padding: 0},
-                wrapper: {width: isExpanded ? "clamp(1155px, 92vw, 1600px)" : 1100},
-            }}
+            width={isExpanded ? "clamp(1155px, 92vw, 1600px)" : 1100}
+            styles={{body: {padding: 0}}}
         >
             {isOpen && entityId && (
                 <div className="flex flex-col w-full h-full overflow-hidden">
@@ -126,7 +129,7 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
                     <DrawerContent entityId={entityId} playgroundContent={playgroundContent} />
                 </div>
             )}
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 

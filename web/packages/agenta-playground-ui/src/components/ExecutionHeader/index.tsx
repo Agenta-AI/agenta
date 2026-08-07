@@ -8,8 +8,8 @@ import {
 } from "@agenta/playground"
 import {CollapsibleGroupHeader, RunButton} from "@agenta/ui/components/presentational"
 import {useRunAllShortcut} from "@agenta/ui/hooks"
+import {Button, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
 import {ArrowsInLineVertical, ArrowsOutLineVertical} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
@@ -150,16 +150,16 @@ const ExecutionHeader = ({
                         />
                     </div>
                 ) : (
-                    <Typography
+                    <div
                         className={clsx(
-                            "text-nowrap",
+                            "text-nowrap text-colorText",
                             isComparisonView
                                 ? "text-base font-medium"
                                 : "text-[16px] leading-[18px] font-[600]",
                         )}
                     >
                         {isChatMode ? "Chat" : isComparisonView ? "Generations" : "Generations"}
-                    </Typography>
+                    </div>
                 )}
             </div>
 
@@ -167,10 +167,18 @@ const ExecutionHeader = ({
                 {/* Agent entities drive their run from the panel composer, so the
                     shell's Clear / Run all / Cancel controls are hidden. */}
                 {!isAgent && (
-                    <Tooltip title="Clear all">
-                        <Button size="small" onClick={() => clearAll()} disabled={isRunning}>
-                            Clear
-                        </Button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => clearAll()}
+                                disabled={isRunning}
+                            >
+                                Clear
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Clear all</TooltipContent>
                     </Tooltip>
                 )}
 
@@ -181,14 +189,18 @@ const ExecutionHeader = ({
                 {!isAgent &&
                     (!isRunning ? (
                         <div className="flex">
-                            <Tooltip title={`${runAllTooltip} (Ctrl+Enter / ⌘+Enter)`}>
-                                <RunButton
-                                    mode="runAll"
-                                    variant="default"
-                                    onClick={() => runTests()}
-                                    disabled={isRunning || !canRun}
-                                    // style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
-                                />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <RunButton
+                                        mode="runAll"
+                                        variant="default"
+                                        onClick={() => runTests()}
+                                        disabled={isRunning || !canRun}
+                                    />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {`${runAllTooltip} (Ctrl+Enter / ⌘+Enter)`}
+                                </TooltipContent>
                             </Tooltip>
                             {/* {showRunOptions && entityId && (
                                 <RunOptionsPopover
