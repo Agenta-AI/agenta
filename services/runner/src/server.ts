@@ -204,6 +204,7 @@ function apiBaseFromRequest(request: AgentRunRequest): string | undefined {
  * The seams are re-exported below so every existing import path and test keeps working
  * unchanged. That is what makes the extraction reviewable: the diff is a move, not a rewrite.
  */
+import { applyReconcilePlan } from "./environment/apply-plan.ts";
 import {
   klog,
   runWithKeepalive,
@@ -226,6 +227,10 @@ const realKeepaliveEngine: KeepaliveEngine = {
     acquireEnvironment(request, {}, signal, presignedMount),
   runTurn: (env, request, emit, signal, opts) =>
     runTurn(env, request, emit, signal, opts),
+  // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
+  // entirely live-applicable; this performs it and commits applied state only if all of it landed.
+  applyReconcilePlan: (env, request, plan) =>
+    applyReconcilePlan(env, request, plan, klog),
   onParkedLive: async (env) => {
     if (!env.plan.isDaytona) return;
     await env.sandbox?.sandbox?.refreshActivity?.(env.sandbox.sandboxId);

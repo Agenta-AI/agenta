@@ -697,7 +697,10 @@ export async function acquireEnvironment(
       log: logger,
     };
     try {
-      environment.workspace = await materializeWorkspace(workspaceInput, deps);
+      const materialized = await materializeWorkspace(workspaceInput, deps);
+      environment.workspace = materialized;
+      // The record a later in-place refresh needs to know what to DELETE.
+      environment.workspaceInventory = materialized.inventory;
     } catch (err) {
       if (
         !plan.isDaytona &&
@@ -708,10 +711,9 @@ export async function acquireEnvironment(
         logger(
           `retrying workspace preparation after local durable cwd remount`,
         );
-        environment.workspace = await materializeWorkspace(
-          workspaceInput,
-          deps,
-        );
+        const retried = await materializeWorkspace(workspaceInput, deps);
+        environment.workspace = retried;
+        environment.workspaceInventory = retried.inventory;
       } else {
         throw err;
       }

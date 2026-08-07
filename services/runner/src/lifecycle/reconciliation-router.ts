@@ -44,39 +44,57 @@ export type HarnessKind = "pi" | "claude" | "codex" | "unknown";
  *  - the MCP shim `tools.listChanged` capability plus its notification.
  */
 export interface HarnessLifecycleCapabilities {
+  /** `setModel` on the running session. LIVE in v1. */
   readonly model: ActionKind;
+  /** Instructions and skills, rewritten in place. LIVE in v1. */
+  readonly workspaceFiles: ActionKind;
+  /** System and append prompts. Never live: observation is not guaranteed. */
+  readonly prompts: ActionKind;
+  /** Opaque harness-rendered files. Never live: they may be permission files. */
+  readonly harnessFiles: ActionKind;
+  /** Mode, capabilities, permissions, MCP server list. Never live. */
+  readonly harnessSession: ActionKind;
+  /** The model-visible tool catalog. Uniformly reopen in v1. */
   readonly toolCatalog: ActionKind;
-  readonly mcpServers: ActionKind;
-  readonly workspace: ActionKind;
 }
 
 const V1_CAPABILITIES: Readonly<
   Record<HarnessKind, HarnessLifecycleCapabilities>
 > = {
+  // The two LIVE routes are `model` and `workspaceFiles`, uniformly across harnesses. Everything
+  // else escalates. See the module comment for why the tool catalog is uniform rather than split.
   pi: {
-    model: "reopen-session",
+    model: "apply-live",
+    workspaceFiles: "refresh-workspace",
+    prompts: "reopen-session",
+    harnessFiles: "reopen-session",
+    harnessSession: "reopen-session",
     toolCatalog: "reopen-session",
-    mcpServers: "reopen-session",
-    workspace: "refresh-workspace",
   },
   claude: {
-    model: "reopen-session",
+    model: "apply-live",
+    workspaceFiles: "refresh-workspace",
+    prompts: "reopen-session",
+    harnessFiles: "reopen-session",
+    harnessSession: "reopen-session",
     toolCatalog: "reopen-session",
-    mcpServers: "reopen-session",
-    workspace: "refresh-workspace",
   },
   codex: {
-    model: "reopen-session",
+    model: "apply-live",
+    workspaceFiles: "refresh-workspace",
+    prompts: "reopen-session",
+    harnessFiles: "reopen-session",
+    harnessSession: "reopen-session",
     toolCatalog: "reopen-session",
-    mcpServers: "reopen-session",
-    workspace: "refresh-workspace",
   },
   // An unrecognized harness gets the safest answer available. Fail closed, never fail open.
   unknown: {
     model: "rebuild-sandbox",
+    workspaceFiles: "rebuild-sandbox",
+    prompts: "rebuild-sandbox",
+    harnessFiles: "rebuild-sandbox",
+    harnessSession: "rebuild-sandbox",
     toolCatalog: "rebuild-sandbox",
-    mcpServers: "rebuild-sandbox",
-    workspace: "rebuild-sandbox",
   },
 };
 
@@ -115,17 +133,47 @@ function actionForFacet(
         kind: "restart-runtime",
         reason: "daemon environment or credential shape changed",
       };
-    case "workspace":
+    case "workspaceFiles":
+      // Instructions and skills. The one workspace facet the runner may rewrite in place.
       return {
         facet,
-        kind: capabilities.workspace,
-        reason: "managed workspace files changed",
+        kind: capabilities.workspaceFiles,
+        reason: "instructions or skills changed",
       };
-    case "harnessSession":
+    case "prompts":
+      // Pi keeps these as files under its agent directory and a running process may already have
+      // captured them, so the adapter matrix records active-session observation as NOT
+      // GUARANTEED. Refreshing them and claiming the model saw it would be dishonest.
+      return {
+        facet,
+        kind: capabilities.prompts,
+        reason: "system or append prompt changed",
+      };
+    case "harnessFiles":
+      // Opaque by construction, and they may BE permission files. `adapter-matrix.md` section
+      // 4.3.2 rule 3 puts harness permission files alongside permission tightening and credential
+      // revocation on the never-apply-live list, and the runner cannot tell one harness file from
+      // another. So the whole facet escalates.
+      return {
+        facet,
+        kind: capabilities.harnessFiles,
+        reason: "harness-rendered configuration files changed",
+      };
+    case "model":
+      // The one session-level change with a real live path: `setModel` on the running session.
       return {
         facet,
         kind: capabilities.model,
-        reason: "model, mode, permissions, or MCP servers changed",
+        reason: "requested model changed",
+      };
+    case "harnessSession":
+      // Mode, capabilities, permissions, and the MCP server list. None is live: permission
+      // tightening is exempt from apply-live by section 1.4, and no harness exposes a live API
+      // for the MCP server list.
+      return {
+        facet,
+        kind: capabilities.harnessSession,
+        reason: "mode, permissions, or MCP servers changed",
       };
     case "toolCatalog":
       return {
@@ -158,6 +206,25 @@ export function planReconcile(
 /** What the coordinator actually decided, in the plan's own vocabulary. */
 export type CoordinatorDecision = "reuse" | "rebuild";
 
+/**
+ * What KIND of question the coordinator was answering.
+ *
+ * This distinction is what makes the disagreement counter mean anything. The router only ever
+ * answers one question: "does this ENVIRONMENT need rebuilding?" The coordinator answers a
+ * broader one, and some of its reasons are not about the environment at all.
+ *
+ *  - `environment`: the decision was about the environment's configuration. The router's plan is
+ *    directly comparable, so agreement and disagreement are both meaningful.
+ *  - `continuity`: the decision was about the CONVERSATION — an edited transcript, a tail the
+ *    runner did not write. The environment is untouched and the router correctly plans a no-op,
+ *    so counting that as a disagreement would be a permanent false positive that no amount of
+ *    router work could ever drive to zero.
+ *
+ * A continuity-scoped decision is still LOGGED, because seeing it is useful. It is simply not
+ * counted.
+ */
+export type DecisionScope = "environment" | "continuity";
+
 export interface ShadowLogInput {
   key: string;
   request: AgentRunRequest;
@@ -171,7 +238,57 @@ export interface ShadowLogInput {
   decision: CoordinatorDecision;
   /** The coordinator's own label for why, e.g. `mismatch:config` or `hit-continue`. */
   decisionReason: string;
+  /** Which question the decision answered. Defaults to `environment`. */
+  scope?: DecisionScope;
+  /**
+   * The plan the caller ACTED ON, when it already has one.
+   *
+   * The live route needs this. It builds a plan, applies it, and commits the new applied state —
+   * so by the time the shadow runs, recomputing from the environment yields an EMPTY plan and the
+   * counter would record `no-op` instead of the route that was actually taken. A counter that
+   * cannot name the route it is counting is useless for the rollout it exists to inform.
+   */
+  plan?: ReconcilePlan;
   log?: (message: string) => void;
+}
+
+/**
+ * Agreement counters, per action kind.
+ *
+ * The rollout signal. A route is ready to go authoritative when its disagreement count sits at
+ * zero across real traffic; a route that keeps disagreeing has a facet-ownership problem the
+ * shadow is telling you about.
+ *
+ * Keyed by the plan's `maxAction`, so a counter names the ROUTE rather than the facet: several
+ * facets can share one action kind, and it is the action that either works or does not.
+ */
+export interface ReconcileCounters {
+  readonly agree: Readonly<Record<string, number>>;
+  readonly disagree: Readonly<Record<string, number>>;
+  /** Decisions excluded from the comparison because they were not about the environment. */
+  readonly skippedByScope: number;
+}
+
+const counters = {
+  agree: {} as Record<string, number>,
+  disagree: {} as Record<string, number>,
+  skippedByScope: 0,
+};
+
+/** Read the counters. Returns a copy, so a caller cannot mutate the live tallies. */
+export function reconcileCounters(): ReconcileCounters {
+  return {
+    agree: { ...counters.agree },
+    disagree: { ...counters.disagree },
+    skippedByScope: counters.skippedByScope,
+  };
+}
+
+/** Test seam: forget every tally. */
+export function resetReconcileCounters(): void {
+  counters.agree = {};
+  counters.disagree = {};
+  counters.skippedByScope = 0;
 }
 
 function defaultLog(message: string): void {
@@ -207,11 +324,23 @@ export function logReconcileShadow(input: ShadowLogInput): ReconcilePlan | undef
       input.request,
       input.configFingerprint,
     );
-    const plan = planReconcile(input.request, desired, input.appliedDigests);
+    const plan =
+      input.plan ?? planReconcile(input.request, desired, input.appliedDigests);
+    const scope = input.scope ?? "environment";
     const agree = plan.outcome === input.decision;
+    // Count only what is comparable. A continuity decision is about the CONVERSATION, so the
+    // router's environment plan is not an answer to the same question and counting it would
+    // create a false positive that can never reach zero.
+    if (scope === "continuity") {
+      counters.skippedByScope += 1;
+    } else {
+      const bucket = agree ? counters.agree : counters.disagree;
+      bucket[plan.maxAction] = (bucket[plan.maxAction] ?? 0) + 1;
+    }
     // The marker is the point of the whole exercise: it is greppable, and a burst of DISAGREE
     // lines is the signal that the router's naming or ownership is still wrong.
-    const marker = agree ? "agree" : "DISAGREE";
+    const marker =
+      scope === "continuity" ? "n/a(continuity)" : agree ? "agree" : "DISAGREE";
     log(
       `shadow key=${input.key} harness=${harnessKind(input.request)} ` +
         `decision=${input.decision}(${input.decisionReason}) ` +
@@ -232,12 +361,15 @@ export function logReconcileShadow(input: ShadowLogInput): ReconcilePlan | undef
  * KNOWN DISAGREEMENTS. Both were found by running the shadow, which is what it is for. Neither
  * may be treated as noise, and neither may be silenced by widening a facet.
  *
- * 1. `mismatch:history` and `mismatch:tail`. The coordinator rebuilds; the router plans a no-op.
- *    THE ROUTER IS RIGHT. A wrong transcript says nothing about the environment, which is exactly
- *    why step 1 gave it the `continuity-invalid` teardown reason that parks the sandbox rather
- *    than deleting it. Closing this gap means teaching the coordinator that a continuity failure
- *    needs a fresh CONVERSATION, not a fresh environment. That is a behavior change, so it waits
- *    for step 6.
+ * 1. `mismatch:history` and `mismatch:tail`. RESOLVED, by classification rather than by code.
+ *    The coordinator rebuilds the conversation; the router plans a no-op for the environment.
+ *    Both are correct, because they answer DIFFERENT questions — which is the whole reason
+ *    `DecisionScope` exists. These decisions are now marked `continuity`, logged for visibility,
+ *    and excluded from the counters. Counting them would have left a permanent false positive
+ *    that no router work could ever drive to zero.
+ *
+ *    The environment side of it was already right: step 1 gave a transcript mismatch the
+ *    `continuity-invalid` teardown reason, which PARKS the sandbox instead of deleting it.
  *
  * 2. `mismatch:credentials-*`. The coordinator rebuilds; the router plans a no-op.
  *    THE ROUTER IS WRONG, and this one is security-relevant. Credential VALUES are deliberately
@@ -267,4 +399,30 @@ export function appliedDigestsFrom(
 ): FacetDigests | undefined {
   if (!acquiringRequest || !appliedFingerprint) return undefined;
   return normalizeDesiredState(acquiringRequest, appliedFingerprint).digests;
+}
+
+/**
+ * The action kinds the runner may perform on a LIVE environment, as of step 6.
+ *
+ * EXACTLY TWO, and this constant is the single place that says so. `no-op` is here because an
+ * empty plan is trivially satisfiable without touching anything.
+ *
+ * Adding a third entry is the whole decision to make another route live. It must not happen by
+ * accident, so a test counts this set and the capability table is checked against it.
+ */
+export const LIVE_ACTION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind>([
+  "no-op",
+  "apply-live",
+  "refresh-workspace",
+]);
+
+/**
+ * Whether a plan can be satisfied ON THE RUNNING ENVIRONMENT.
+ *
+ * FAIL CLOSED: an empty action list is applicable (nothing to do), but a single action outside
+ * the live set makes the whole plan inapplicable. A plan is all-or-nothing — applying the live
+ * half of a mixed plan would leave the environment in a state no request described.
+ */
+export function isLivelyApplicable(plan: ReconcilePlan): boolean {
+  return plan.actions.every((action) => LIVE_ACTION_KINDS.has(action.kind));
 }

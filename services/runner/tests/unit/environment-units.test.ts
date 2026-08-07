@@ -26,6 +26,13 @@ const SRC = (rel: string) =>
  * Every file that may emit an acquire stage. The split moves stages OUT of `environment.ts` and
  * into the units, so the stage guard has to follow them. A unit added later must be listed here,
  * or its stages become invisible to the guard.
+ *
+ * `environment/timing.ts` MUST NOT be listed, and this is not a detail. That file DECLARES the
+ * stage names as quoted string literals, so searching it for `"sandbox_start"` finds the
+ * declaration rather than an emission. With it in the list the guard below matched its own
+ * source, passed for a stage nothing emitted any more, and reported a healthy dashboard contract
+ * while the dashboards broke. A guard that cannot fail is worse than no guard, because it is what
+ * the next reviewer checks against.
  */
 const STAGE_EMITTERS = [
   "engines/sandbox_agent/environment.ts",
@@ -35,7 +42,6 @@ const STAGE_EMITTERS = [
   "environment/mount-lifecycle.ts",
   "environment/harness-session-lifecycle.ts",
   "environment/runtime-lifecycle.ts",
-  "environment/timing.ts",
 ];
 
 const ALL_STAGE_SOURCE = () => STAGE_EMITTERS.map(SRC).join("\n");
@@ -94,10 +100,15 @@ describe("timing: the stage names are a public interface", () => {
   it("declares every stage the acquire path emits", () => {
     // The guard that keeps dashboards working. If a stage is renamed or dropped during the split,
     // the source no longer emits it and this fails.
-    const source = ALL_STAGE_SOURCE();
+    //
+    // The match is on the CALL, `timingLog("<stage>"`, not on the bare quoted name. A quoted name
+    // occurs in plenty of places that emit nothing, the declaration in `timing.ts` first among
+    // them, and matching those is how this guard used to pass for a stage that had gone.
+    const source = CODE_ONLY(ALL_STAGE_SOURCE());
     for (const stage of ACQUIRE_STAGES) {
-      assert.ok(
-        source.includes(`"${stage}"`),
+      assert.match(
+        source,
+        new RegExp(`timingLog\\(\\s*"${stage}"`),
         `stage '${stage}' is declared but no longer emitted; dashboards match on this name`,
       );
     }
@@ -121,15 +132,20 @@ describe("timing: the stage names are a public interface", () => {
   it("keeps the two-mode stages as ONE stage name with a mode suffix", () => {
     // A dashboard groups by stage and splits by mode. Turning `sandbox_start` into
     // `sandbox_start_create` would silently break every existing query.
-    const source = ALL_STAGE_SOURCE();
+    //
+    // Stage and mode are matched in ONE expression, over a single call. Checked apart, they were
+    // satisfied by any two emissions anywhere in the source, so `mode=create` on `create_session`
+    // stood in for `mode=create` on `sandbox_start` and a mode moved to the wrong stage passed.
+    const source = CODE_ONLY(ALL_STAGE_SOURCE());
     for (const [stage, modes] of [
       ["sandbox_start", ["reconnect", "create"]],
       ["create_session", ["load", "create"]],
     ] as Array<[AcquireStage, string[]]>) {
       for (const mode of modes) {
-        assert.ok(
-          source.includes(`"${stage}", `) && source.includes(`mode=${mode}`),
-          `${stage} must still carry mode=${mode} as a field, not in its name`,
+        assert.match(
+          source,
+          new RegExp(`timingLog\\(\\s*"${stage}"\\s*,[^;]*mode=${mode}\\b`),
+          `${stage} must still carry mode=${mode} as a field of its OWN call, not in its name`,
         );
       }
     }
@@ -149,7 +165,13 @@ describe("workspace manager: the public surface", () => {
     const result = await workspaceManager.materialize(
       {
         sandbox: { id: "sbx" },
-        plan: { marker: "the-plan" } as never,
+        plan: {
+          marker: "the-plan",
+          isPi: false,
+          acpAgent: "claude",
+          prompt: { agentsMd: "body" },
+          workspace: { cwd: "/run/cwd", skillDirs: [] },
+        } as never,
         piSkillSnapshot: { marker: "snapshot" } as never,
         log: () => {},
       },
@@ -160,35 +182,29 @@ describe("workspace manager: the public surface", () => {
         }) as never,
       },
     );
-    assert.equal(result, fake);
+    // Step 6: materialize now returns a ManagedWorkspace — the writer's handle PLUS the
+    // inventory of what it wrote — so it is no longer reference-equal to the raw result.
+    assert.equal(result.cleanup, fake.cleanup, "the writer's handle is carried through");
+    assert.equal(result.inventory.instructionsFile, "CLAUDE.md");
     assert.equal(seen.length, 1);
     const input = seen[0] as Record<string, unknown>;
-    assert.deepEqual(input.plan, { marker: "the-plan" });
+    assert.equal((input.plan as { marker: string }).marker, "the-plan");
     assert.deepEqual(input.sandbox, { id: "sbx" });
   });
 
-  it("refresh is DECLARED but not implemented, and says so", async () => {
-    // Step 5 is a structural split with zero behavior change. The entry exists so step 6 is a
-    // routing change; throwing is what keeps it from being wired by accident.
-    await assert.rejects(
-      () =>
-        workspaceManager.refresh(
-          { sandbox: {}, plan: {} as never, log: () => {} },
-          { files: new Map(), skillDirs: [] },
-        ),
-      (err: Error) => /not implemented/.test(err.message),
-    );
-  });
-
   it("refresh takes a complete manifest, because deletion needs one", () => {
-    // A delta cannot express a removal: it cannot tell "unchanged" from "gone". The manifest
-    // shape is what lets step 6 delete a skill directory that left the request.
+    // DELIBERATE EDIT. Step 5 asserted `refresh` threw "not implemented"; step 6 implements it.
+    // A delta cannot express a removal — it cannot tell "unchanged" from "gone" — so the manifest
+    // is a complete statement and the previous inventory is what makes deletion decidable.
     const manifest: workspaceManager.WorkspaceManifest = {
-      files: new Map([["AGENTS.md", "body"]]),
-      skillDirs: ["pdf-tools"],
+      instructions: "body",
+      skills: [{ name: "pdf-tools", dir: "/tmp/pdf-tools" }],
     };
-    assert.equal(manifest.files.get("AGENTS.md"), "body");
-    assert.deepEqual([...manifest.skillDirs], ["pdf-tools"]);
+    assert.equal(manifest.instructions, "body");
+    assert.deepEqual(
+      manifest.skills.map((s) => s.name),
+      ["pdf-tools"],
+    );
   });
 
   it("cleanup swallows a failing cleanup and tolerates no workspace", async () => {

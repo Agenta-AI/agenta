@@ -33,11 +33,22 @@ import type { AgentRunRequest } from "../protocol.ts";
  * The order is a real dependency order, not a naming convention. Changed harness files may need
  * both a workspace refresh AND a session reopen, and the refresh must land first or the reopened
  * session reads the old bytes.
+ *
+ * GRANULARITY IS A SAFETY PROPERTY, NOT A STYLE CHOICE. A facet is the unit the router routes, so
+ * a facet that mixes two concerns forces the cheaper route onto both. The first three facets here
+ * were split out of one coarse `workspace` facet and one coarse `harnessSession` facet precisely
+ * because making those live would have routed harness permission files through an in-place
+ * refresh, and a permissions change through `setModel` — both of which `adapter-matrix.md`
+ * forbids by name. When in doubt, split: an over-fine facet costs an unnecessary rebuild, while
+ * an over-coarse one silently downgrades a security-relevant change.
  */
 export const FACETS = [
   "sandbox",
   "runtime",
-  "workspace",
+  "workspaceFiles",
+  "prompts",
+  "harnessFiles",
+  "model",
   "harnessSession",
   "toolCatalog",
 ] as const;
@@ -112,21 +123,51 @@ export function normalizeDesiredState(
       : null,
   });
 
-  // WORKSPACE: the managed files the runner writes into the run directory. These can be
-  // rewritten in place on a live sandbox, which is why they are their own facet.
-  const workspace = canonical({
+  // WORKSPACE FILES: the managed files the runner writes and OWNS. Instructions and skills only.
+  // This is the one workspace facet that may be refreshed in place on a live sandbox, so it is
+  // deliberately the narrowest of the four the old `workspace` facet used to contain.
+  const workspaceFiles = canonical({
     agentsMd: request.agentsMd ?? null,
+    skills: request.skills ?? null,
+  });
+
+  // PROMPTS: the system and append prompts.
+  //
+  // SEPARATE FROM `workspaceFiles`, and not live. For Pi these land as files under the agent
+  // directory, and the adapter matrix records active-session observation as NOT GUARANTEED: a
+  // running process may have captured their location or content already. Refreshing them and
+  // claiming the model saw the change would be a lie, so a prompt change escalates.
+  const prompts = canonical({
     systemPrompt: request.systemPrompt ?? null,
     appendSystemPrompt: request.appendSystemPrompt ?? null,
-    skills: request.skills ?? null,
+  });
+
+  // HARNESS FILES: opaque, harness-rendered configuration files.
+  //
+  // SEPARATE FROM `workspaceFiles`, and never live. `adapter-matrix.md` section 4.3.2 rule 3 is
+  // explicit: harness PERMISSION files join permission tightening and credential revocation on
+  // the list of changes that must never take the apply-live route. The runner cannot tell a
+  // permission file from any other harness file — they are opaque by construction — so the whole
+  // facet escalates. Folding these in with instructions would silently route a security-relevant
+  // change through an in-place refresh.
+  const harnessFiles = canonical({
     harnessFiles: request.harnessFiles ?? null,
   });
 
-  // HARNESS SESSION: what is fixed when the ACP session opens. The model and the harness mode
-  // are here because a live `setModel` is a session-level operation, not a daemon restart.
-  // User MCP servers are here because the server LIST is only read at session initialization.
+  // MODEL: the requested model id, ALONE.
+  //
+  // Its own facet because it is the one session-level change with a real live path: `setModel`
+  // on the running session. Everything else that is fixed at session open stays in
+  // `harnessSession` below and escalates.
+  const model = canonical({ model: request.model ?? null });
+
+  // HARNESS SESSION: everything else fixed when the ACP session opens. None of it is live.
+  //
+  // `permissions` is here rather than beside `model` for the same reason `harnessFiles` is its
+  // own facet: section 1.4 exempts permission TIGHTENING from apply-live entirely, and it must
+  // take effect or fail closed before execution continues. `mcpServers` is here because the
+  // server LIST is only read at session initialization and no live API exists on any harness.
   const harnessSession = canonical({
-    model: request.model ?? null,
     harnessMode: request.harnessMode ?? null,
     modelCapabilities: request.modelCapabilities ?? null,
     permissions: request.permissions ?? null,
@@ -152,7 +193,10 @@ export function normalizeDesiredState(
     digests: {
       sandbox: sha256(sandbox),
       runtime: sha256(runtime),
-      workspace: sha256(workspace),
+      workspaceFiles: sha256(workspaceFiles),
+      prompts: sha256(prompts),
+      harnessFiles: sha256(harnessFiles),
+      model: sha256(model),
       harnessSession: sha256(harnessSession),
       toolCatalog: sha256(toolCatalog),
     },
