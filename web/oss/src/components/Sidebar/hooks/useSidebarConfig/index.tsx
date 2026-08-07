@@ -16,7 +16,6 @@ import {useAtomValue} from "jotai"
 
 import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
-import {useCurrentAppLite} from "@/oss/state/app"
 import {useAppState} from "@/oss/state/appState"
 import {
     advancedNavHiddenAtom,
@@ -43,16 +42,14 @@ export interface MainSidebarItems {
 }
 
 export const useSidebarConfig = (): MainSidebarItems => {
-    const {currentApp, recentlyVisitedAppId} = useCurrentAppLite()
-    const {appId: routedAppId, routeLayer} = useAppState()
-    const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
+    const {routeLayer} = useAppState()
+    const {projectURL, baseAppURL, appURL} = useURL()
     const dynamicChildren = useSidebarDynamicChildren()
     const homeNavInert = useAtomValue(homeNavInertAtom)
     const deadEndNavDisabled = useAtomValue(deadEndNavDisabledAtom)
     const hideAdvancedNav = useAtomValue(advancedNavHiddenAtom)
     const hasProjectURL = Boolean(projectURL)
-    const hasAppContext =
-        routeLayer === "app" && Boolean(routedAppId || appURL || recentlyVisitedAppURL)
+    const hasAppContext = routeLayer === "app" && Boolean(appURL)
 
     const projectItems = useMemo<SidebarConfig[]>(
         () => [
@@ -149,12 +146,12 @@ export const useSidebarConfig = (): MainSidebarItems => {
     )
 
     const appItems = useMemo<SidebarConfig[]>(() => {
-        const isHidden = !hasAppContext && !currentApp && !recentlyVisitedAppId
+        const isHidden = !hasAppContext
         return [
             {
                 key: "overview-link",
                 title: "Overview",
-                link: `${appURL || recentlyVisitedAppURL}/overview`,
+                link: `${appURL}/overview`,
                 icon: <DesktopIcon size={14} />,
                 isHidden: isHidden || hideAdvancedNav,
                 // Enabled for evaluators too — scoped by the workflow id as the `application` reference.
@@ -163,7 +160,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
             {
                 key: "app-playground-link",
                 title: "Playground",
-                link: `${appURL || recentlyVisitedAppURL}/playground`,
+                link: `${appURL}/playground`,
                 icon: <RocketIcon size={14} />,
                 isHidden,
                 disabled: !hasProjectURL,
@@ -171,7 +168,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
             {
                 key: "app-variants-link",
                 title: "Registry",
-                link: `${appURL || recentlyVisitedAppURL}/variants`,
+                link: `${appURL}/variants`,
                 isHidden: isHidden || hideAdvancedNav,
                 icon: <LightningIcon size={14} />,
                 disabled: !hasProjectURL,
@@ -181,7 +178,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
             {
                 key: "app-evaluations-link",
                 title: "Evaluations",
-                link: `${appURL || recentlyVisitedAppURL}/evaluations`,
+                link: `${appURL}/evaluations`,
                 isHidden: isHidden || hideAdvancedNav,
                 icon: <FlaskIcon size={14} />,
                 // Enabled for evaluators too — shows the runs scoped by the evaluator's id.
@@ -193,19 +190,11 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Observability",
                 icon: <TreeViewIcon size={14} />,
                 isHidden,
-                link: `${appURL || recentlyVisitedAppURL}/traces`,
+                link: `${appURL}/traces`,
                 disabled: !hasProjectURL,
             },
         ]
-    }, [
-        appURL,
-        currentApp,
-        hasAppContext,
-        hasProjectURL,
-        hideAdvancedNav,
-        recentlyVisitedAppId,
-        recentlyVisitedAppURL,
-    ])
+    }, [appURL, hasAppContext, hasProjectURL, hideAdvancedNav])
 
     const projectItemsWithDynamicChildren = useMemo(
         () => injectDynamicChildren(projectItems, dynamicChildren),

@@ -11,13 +11,9 @@ export interface SidebarConfig {
     icon: JSX.Element
     isHidden?: boolean
     submenu?: SidebarConfig[]
-    defaultOpen?: boolean
     onClick?: (e: MouseEvent) => void
-    tag?: string
     /** Right-aligned content (e.g. a version label); hidden when the rail is collapsed. */
     suffix?: JSX.Element
-    isCloudFeature?: boolean
-    cloudFeatureTooltip?: string
     divider?: boolean
     disabled?: boolean
     dataTour?: string

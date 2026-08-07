@@ -9,6 +9,7 @@ import {eagerAtom} from "jotai-eager"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
+import {useRecentAppTracker} from "@/oss/state/app/hooks"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
@@ -158,9 +159,8 @@ const appRouteSliceAtom = selectAtom(
     (snapshot) => ({
         pathname: snapshot.pathname,
         asPath: snapshot.asPath,
-        routeLayer: snapshot.routeLayer,
     }),
-    (a, b) => a.pathname === b.pathname && a.asPath === b.asPath && a.routeLayer === b.routeLayer,
+    (a, b) => a.pathname === b.pathname && a.asPath === b.asPath,
 )
 
 // String-valued so org/app churn inside urlAtom doesn't re-render AppWithVariants
@@ -197,25 +197,19 @@ const AppWithVariants = memo(
         const baseAppURL = useAtomValue(baseAppURLAtom)
         const appState = useAtomValue(appRouteSliceAtom)
         const isAnnotations = appState.pathname.includes("/annotations")
-        const lastBasePathRef = useRef<string | null>(null)
+        // Sole writer for recentAppIdAtom — must stay mounted on every app route.
+        useRecentAppTracker()
         const lastNonSettingsPathRef = useRef<string | null>(null)
-        const activeSidebarView = resolveSidebarView({
-            pathname: appState.pathname,
-            routeLayer: appState.routeLayer,
-        })
+        const activeSidebarView = resolveSidebarView({pathname: appState.pathname})
 
         useEffect(() => {
-            if (activeSidebarView.isBase) {
-                lastBasePathRef.current = appState.asPath
-            }
             if (activeSidebarView.id !== SETTINGS_SIDEBAR_SCOPE_ID) {
                 lastNonSettingsPathRef.current = appState.asPath
             }
-        }, [activeSidebarView.id, activeSidebarView.isBase, appState.asPath])
+        }, [activeSidebarView.id, appState.asPath])
 
         const sidebarLastPath = resolveSidebarLastPath({
             view: activeSidebarView,
-            lastBasePath: lastBasePathRef.current,
             lastNonSettingsPath: lastNonSettingsPathRef.current,
             fallbackPath: baseAppURL,
         })

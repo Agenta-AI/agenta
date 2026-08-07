@@ -21,9 +21,9 @@ import {currentWorkflowAtom, currentWorkflowContextAtom} from "./selectors/workf
  * **Authoritative-write rule (eng review decision, see Eng Review Outcome
  * section in design doc):** this hook writes ONLY to `recentEvaluatorIdAtom`
  * (when current workflow is an evaluator). It NEVER writes
- * `recentAppIdAtom` — that remains the sole responsibility of `useAppsData()`
- * to prevent duplicate writes / race conditions when both hooks mount on the
- * same page.
+ * `recentAppIdAtom` — that remains the sole responsibility of
+ * `useRecentAppTracker()` to prevent duplicate writes / race conditions when
+ * both hooks mount on the same page.
  */
 export const useWorkflowsData = () => {
     const map = useAtomValue(workflowsByIdMapAtom)

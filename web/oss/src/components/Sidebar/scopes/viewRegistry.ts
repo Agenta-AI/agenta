@@ -1,19 +1,11 @@
-import type {RouteLayer} from "@/oss/state/appState"
-
 import type {SidebarScope} from "../engine/types"
 
-import {
-    MAIN_SIDEBAR_SCOPE_ID,
-    SETTINGS_SIDEBAR_SCOPE_ID,
-    WORKFLOW_SIDEBAR_SCOPE_ID,
-} from "./constants"
+import {MAIN_SIDEBAR_SCOPE_ID, SETTINGS_SIDEBAR_SCOPE_ID} from "./constants"
 import {mainSidebarScope} from "./mainScope"
 import {createSettingsSidebarScope} from "./settingsScope"
-import {createWorkflowSidebarScope} from "./workflowScope"
 
 export interface SidebarViewMatchContext {
     pathname: string
-    routeLayer: RouteLayer
 }
 
 export interface SidebarViewContext {
@@ -37,11 +29,6 @@ export const SIDEBAR_VIEWS = [
         id: SETTINGS_SIDEBAR_SCOPE_ID,
         matches: (ctx: SidebarViewMatchContext) => ctx.pathname.endsWith("/settings"),
         create: ({lastPath}: SidebarViewContext) => createSettingsSidebarScope({lastPath}),
-    },
-    {
-        id: WORKFLOW_SIDEBAR_SCOPE_ID,
-        matches: (ctx: SidebarViewMatchContext) => ctx.routeLayer === "app",
-        create: ({lastPath}: SidebarViewContext) => createWorkflowSidebarScope({lastPath}),
     },
     {
         id: MAIN_SIDEBAR_SCOPE_ID,
