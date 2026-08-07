@@ -36,6 +36,17 @@
 - Unit-layer state at `bd9c5683f9`: 259 channels tests pass, 2344 across the
   layer. The 7 failures and 45 errors under `sessions/` and `git/` reproduce
   identically on the untouched C1 baseline — verified, not assumed.
+- **The first integration run against a real deployment found four defects in
+  one pass** (`F4`, `F18`, `F19`, `F20`), three of them fixed in `48204802ea`.
+  Every one had been invisible to a green unit suite: the fakes accepted
+  `provider_key` values Pydantic rejects, ignored `space_id` when querying, and
+  never produced a row with a null `updated_at`. This is the strongest evidence
+  yet for the rule in `c1-merge-notes.md` — a faked collaborator is an asserted
+  interface, and the assertion is only tested when something real replaces it.
+- Runner suite: 19 failures across three TypeScript files
+  (`commit-authorization`, `sandbox-agent-acp-interactions`, `workspace-import`).
+  Unchanged since before wave 1 and untouched by channels, which ships no
+  TypeScript. Not tracked here.
 
 ## Decisions
 
@@ -45,6 +56,46 @@
 - Deployment happens at checkpoints only, never per work package.
 
 ## Open Findings
+
+### F18. An addressing event is never attached to its space, so the agent sees empty input
+
+- ID: `F18`
+- Origin: `first integration run`
+- Severity: `P0`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `compose_input` builds the turn's content from
+  `query_events_since(space_id=...)`, but the ingress writes every inbound event
+  with `space_id=None` — it cannot do otherwise, since the space is resolved
+  later, during `resolve()`. Nothing ever back-fills the column, so the query
+  matches no rows and the agent is invoked with empty content.
+- Evidence:
+  - `apis/fastapi/channels/ingress.py:143-151` constructs
+    `ChannelInboxEventCreate` with no `space_id`; the field defaults to `None`
+    (`core/channels/dtos.py:475`).
+  - `core/channels/service.py:736-757` — `compose_input` reads via
+    `query_events_since`.
+  - `dbs/postgres/channels/dao.py:932-935` — that query filters
+    `space_id == space_id`.
+  - `test_resolve_sigil_creates_thread_and_open_turn_writes_started_row` fails
+    `assert turn_input.content == event.data.processed.content` with `[] ==
+    [{'type': 'text', ...}]`.
+- Files: `api/oss/src/core/channels/service.py`,
+  `api/oss/src/apis/fastapi/channels/ingress.py`,
+  `api/oss/src/dbs/postgres/channels/dao.py`
+- Cause: The event row is written before the space exists, and no write path
+  attaches the two afterwards. Every unit test covering this used a fake DAO
+  whose query ignored `space_id`, so the gap was invisible until a real table.
+- Suggested Fix: Have `resolve()` attach the resolved space to the addressing
+  event (a new DAO write), or have `compose_input` locate events by
+  `connection_id` + locator rather than `space_id`. The first keeps the query
+  cheap and the column meaningful; it needs a method on WP1's DAO.
+- Notes: Not fixed at C2 — adding a write path to the frozen DAO mid-checkpoint,
+  against a live deployment, is a bigger change than a checkpoint fix should
+  make unilaterally. It blocks any end-to-end turn, so it should lead C3.
+- Related: `F1` — until the entrypoints are wired, no production path reaches
+  this code, which is why it surfaced in a test rather than a deployment.
 
 ### F1. Nothing enqueues inbox events or schedules the outbox poll
 
@@ -103,13 +154,24 @@
   assumption is only that the replacement dispatches to the same
   `on_turn_started`/`on_turn_ended` methods.
 
-### F4. `Connection.provider_key` is typed `{composio, agenta}` but carries channel keys
+### [CLOSED] F4. `Connection.provider_key` is typed `{composio, agenta}` but carries channel keys
 
 - ID: `F4`
 - Origin: `pre-existing`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
+- Fix: Added `SLACK = "slack"` to `ConnectionProviderKind`. Widening the field
+  to plain `str` — which the DB column and DAO already are — was tried first
+  and reverted: eight call sites in `tools/`, `triggers/` and `gateway/` read
+  `provider_key.value`, and two tools unit tests failed immediately. Rewriting
+  three subsystems to fix a channels defect is the wrong trade at a checkpoint.
+- Commit: `48204802ea`
+- Notes: The narrow fix leaves the underlying design question open — one enum
+  still serves two vocabularies, and every new channel needs a member. Revisit
+  when the second adapter lands.
+- Verified: four integration failures resolved; 386 unit tests pass including
+  `unit/tools/`.
 - Category: `Correctness`, `Compatibility`
 - Summary: `ConnectionProviderKind` declares only `COMPOSIO` and `AGENTA`, while
   channels code passes the channel key (`"slack"`) through the same field and
@@ -328,6 +390,39 @@
   run does not attribute it to this feature.
 
 ## Closed Findings
+
+### [CLOSED] F19. `compose_idempotency_key` crashed on every first send
+
+- ID: `F19`
+- Origin: `first integration run`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: The util called `updated_at.isoformat()` unconditionally, but
+  `updated_at` is nullable with no server default (unlike `created_at`), so it
+  is `None` on every freshly-inserted outbox row — i.e. on every first send.
+- Evidence: `AttributeError: 'NoneType' object has no attribute 'isoformat'` in
+  two outbox integration tests; `dbs/postgres/shared/dbas.py:98-101` shows the
+  column has no default.
+- Fix: A null `updated_at` keys off the row identity alone; later revisions key
+  off their own timestamp, preserving the "one token per revision" contract.
+- Commit: `48204802ea`
+
+### [CLOSED] F20. `HarnessKind.CLAUDE_CODE` does not exist
+
+- ID: `F20`
+- Origin: `first integration run`
+- Severity: `P3`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: A WP5 integration test referenced `HarnessKind.CLAUDE_CODE`; the
+  enum's members are `PI`, `CLAUDE`, `AGENTA`, `CODEX`.
+- Fix: Corrected to `HarnessKind.CLAUDE`.
+- Commit: `48204802ea`
+- Notes: A test-only bug, and a good argument for the policy that
+  written-but-unrun tests are provisional until a checkpoint runs them.
 
 ### [CLOSED] F15. Turns ran as the agent's creator, not the platform sender
 
