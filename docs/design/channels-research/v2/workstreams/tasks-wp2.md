@@ -186,7 +186,7 @@ corrected.
 Feeds **C1**. Exit condition, verbatim from `plan.md`: *"a signed request to
 `POST /channels/slack/events/` writes exactly one `channel_inbox_events`
 row and answers 202; an unsigned one is rejected; a redelivery of the same
-event writes no second row. Migration applies and downgrades. The contract
+event writes no second row. The contract
 suite fails a deliberately lying fake adapter."*
 
 **WP2 is done.** A fake adapter registers in `ChannelAdapterRegistry`, its

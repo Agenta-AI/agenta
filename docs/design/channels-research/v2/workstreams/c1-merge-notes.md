@@ -74,8 +74,6 @@ environment, and one is not stood up per package. Everything below needs a
 running stack and is therefore **written but unverified** until the deployment
 that opens C1:
 
-- The migration **applies and downgrades** on the merged base. Proving this
-  against WP1's isolated tree would not be the same claim.
 - A signed request to `POST /channels/slack/events/` writes exactly one
   `channel_inbox_events` row and answers 202.
 - An unsigned request is rejected.

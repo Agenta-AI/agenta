@@ -117,8 +117,13 @@ reachable from a cold start with no waiting.
 
 **Exit condition:** a signed request to `POST /channels/slack/events/` writes
 exactly one `channel_inbox_events` row and answers 202; an unsigned one is
-rejected; a redelivery of the same event writes no second row. Migration applies
-and downgrades. The contract suite fails a deliberately lying fake adapter.
+rejected; a redelivery of the same event writes no second row. The contract suite
+fails a deliberately lying fake adapter.
+
+The migration's apply/downgrade is **not** part of this gate and is never a pytest
+test: a downgrade drops the tables, so running it against a shared database
+destroys whatever else is using them. It is checked by hand against local Docker
+Postgres.
 
 **Serialised here:** WP1's migration (revision `oss000000021`), WP3's
 `_PUBLIC_ENDPOINTS` line, and the DAO/service wiring in `api/entrypoints/routers.py`.

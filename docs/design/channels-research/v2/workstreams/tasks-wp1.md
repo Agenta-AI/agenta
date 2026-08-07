@@ -601,11 +601,10 @@ message.
 Feeds **C1**. Exit condition, verbatim from `plan.md`: *"a signed request to
 `POST /channels/slack/events/` writes exactly one `channel_inbox_events`
 row and answers 202; an unsigned one is rejected; a redelivery of the same
-event writes no second row. Migration applies and downgrades. The contract
+event writes no second row. The contract
 suite fails a deliberately lying fake adapter."*
 
-WP1 is done when: the migration (`oss000000021`) applies and downgrades
-cleanly against a throwaway database; the DAO round-trips every entity;
+WP1 is done when: the DAO round-trips every entity;
 `record_inbox_event` returns `None` on a duplicate rather than raising; and a
 policy denied at any one of the five levels (capability, channel, agent,
 space, grant) stays denied regardless of how permissive the other levels are,
@@ -616,9 +615,10 @@ verified by the `resolve_policy` unit tests above.
 > five-level denial-wins behavior is unit-tested and green, and
 > `record_inbox_event`'s `None`-on-duplicate contract is written and code-
 > reviewed correct against the DAO's `ON CONFLICT DO NOTHING ... RETURNING`
-> statement. The two pieces that inherently need Postgres — "migration
-> applies and downgrades" and "the DAO round-trips every entity" — are
-> written, believed correct on inspection, and unexecuted in this worktree.
+> statement. "The DAO round-trips every entity" inherently needs Postgres and
+> is unexecuted in this worktree. Migration apply/downgrade is deliberately
+> not a pytest test at all — it is a by-hand check against local Docker
+> Postgres, since a downgrade drops the tables.
 > WP1 is not itself blocked; C1 as a whole is, until an environment exists to
 > run the 23 tests in `integration/channels/`, which fail rather than skip
 > when no database is reachable.

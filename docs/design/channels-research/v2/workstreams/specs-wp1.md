@@ -582,9 +582,11 @@ def compose_external_key(
 - `compose_external_key` against a locator missing a field named in
   `keys[grain]` raises `ChannelLocatorIncomplete`, naming the missing
   field(s).
-- Migration: `alembic upgrade head` then `alembic downgrade -1` round-trips
-  cleanly against a throwaway database; every index and constraint named in
-  §3 exists after `upgrade` and is gone after `downgrade`.
+- Migration: **not a pytest test.** `upgrade` then `downgrade` is verified by
+  hand against local Docker Postgres — a downgrade drops the channels tables,
+  so a test doing it against the shared dev database destroys whatever else is
+  using them. Check by hand that every index and constraint named in §3 exists
+  after `upgrade` and is gone after `downgrade`.
 - DAO round-trip: for every entity with a `create_*`/`fetch_*` pair, creating
   then fetching returns a DTO equal (field-for-field) to what was passed in,
   modulo server-assigned fields (`id`, timestamps).
@@ -617,9 +619,9 @@ Feeds **C1 — A message lands and is persisted** (with WP2 and WP3).
 Exit condition, verbatim from `plan.md`: *"a signed request to `POST
 /channels/slack/events/` writes exactly one `channel_inbox_events` row and
 answers 202; an unsigned one is rejected; a redelivery of the same event
-writes no second row. Migration applies and downgrades. The contract suite
+writes no second row. The contract suite
 fails a deliberately lying fake adapter."*
 
-WP1's direct contribution to that exit condition: the migration applies and
-downgrades cleanly, and `record_inbox_event`'s dedup contract is what makes
+WP1's direct contribution to that exit condition: `record_inbox_event`'s dedup
+contract is what makes
 "a redelivery writes no second row" true underneath WP3's route.

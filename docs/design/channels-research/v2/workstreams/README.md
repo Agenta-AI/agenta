@@ -136,3 +136,13 @@ and the checklist that says C1 has actually been reached.
 | [specs-wp12.md](specs-wp12.md) | [tasks-wp12.md](tasks-wp12.md) | Bridge |
 | [specs-wp13.md](specs-wp13.md) | [tasks-wp13.md](tasks-wp13.md) | Web app |
 | [specs-wp14.md](specs-wp14.md) | [tasks-wp14.md](tasks-wp14.md) | Input sequencing |
+
+## Migrations are never verified by pytest
+
+A downgrade drops tables. Against the shared local database that destroys
+whatever else is using them, and a "throwaway database" does not exist in this
+setup — so a migration round-trip test is either destructive or a lie.
+
+Verify `upgrade`/`downgrade` by hand against local Docker Postgres. No package's
+exit condition may include a migration test, and no checklist item should track
+one as a gap.

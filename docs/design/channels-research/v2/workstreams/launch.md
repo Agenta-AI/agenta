@@ -101,7 +101,9 @@ done:
       two need the tables.
 - [ ] Apply the serialised edits: WP1's DAO/service wiring, WP3's
       `_PUBLIC_ENDPOINTS` line, both into `api/entrypoints/routers.py` as one edit.
-- [ ] Migration applies **and downgrades**.
+- Migration apply/downgrade is **checked by hand against local Docker Postgres**,
+  never by pytest — a downgrade drops the tables, so a test doing it against a
+  shared dev database destroys whatever else is using them. Not a C1 gate.
 - [ ] Signed request to `POST /channels/slack/events/` → exactly one
       `channel_inbox_events` row, 202.
 - [ ] Unsigned request → rejected.
