@@ -1,7 +1,6 @@
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import PricingModalTitle from "./assets/PricingModalTitle"
 import {PricingModalProps} from "./assets/types"
@@ -10,7 +9,7 @@ const PricingModalContent = dynamic(() => import("./assets/PricingModalContent")
 const PricingModal = ({onCancelSubscription, ...props}: PricingModalProps) => {
     return (
         <EnhancedModal
-            className={clsx("[&_.ant-modal-close]:top-[19px]", props.className)}
+            className={clsx('[&_[data-slot="dialog-close-x"]]:!top-[19px]', props.className)}
             width={1200}
             title={<PricingModalTitle />}
             footer={null}

@@ -1,0 +1,23 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Overview" />
+
+# Presentational
+
+Presentational components are app-specific compositions built **on top of** the primitives.
+Some re-skin a single antd control (a status `Tag`, a `Button`); most are pure `@agenta/ui`
+composites with no single antd counterpart. Each subfolder's Overview names, per component,
+whether an antd part is still used internally — a running migration to-do.
+
+They are grouped by role:
+
+- **Buttons** — icon/behaviour buttons (RunButton, CopyButton, DropdownButton, …).
+- **Tags** — domain status pills (StatusTag, EnvironmentTag, VersionBadge, …).
+- **Labels** — entity text readouts (AuthorLabel, RevisionLabel, FormattedDate, …).
+- **Layout** — page / panel scaffolding (Section, PageLayout, PanelFooter, …).
+- **Forms** — labelled / composite inputs (LabeledField, EditableText, SliderInput, …).
+- **Attachments** — attachment display + upload (ImageAttachment, PromptImageUpload, …).
+- **Media** — image / avatar helpers (ImagePreview, InitialsAvatar, …).
+- **Feedback** — surface-shaped placeholders (LoadingSkeleton, TableEmptyState, …).
+
+Open each subfolder's **Overview** for its component table.

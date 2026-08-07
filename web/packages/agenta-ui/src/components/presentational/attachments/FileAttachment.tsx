@@ -21,7 +21,6 @@
 import React from "react"
 
 import {FileArchive, X} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 
 import {
     bgColors,
@@ -33,6 +32,8 @@ import {
     textColors,
     textSizes,
 } from "../../../utils/styles"
+import {Button} from "../../ui/button"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 // ============================================================================
 // TYPES
@@ -84,7 +85,7 @@ export function FileAttachment({
     return (
         <div
             className={cn(
-                "relative group px-2 py-1 rounded-md border",
+                "relative group px-2 py-1 rounded-md border border-solid",
                 borderColors.secondary,
                 bgColors.subtle,
                 flexLayouts.rowCenter,
@@ -101,19 +102,25 @@ export function FileAttachment({
                 {filename}
             </span>
             {!disabled && onRemove && (
-                <Tooltip title="Remove file">
-                    <Button
-                        type="text"
-                        size="small"
-                        icon={<X size={12} />}
-                        onClick={onRemove}
-                        className={cn(
-                            "!p-0 !h-auto !min-w-0",
-                            textColors.tertiary,
-                            dangerColors.hover,
-                        )}
-                    />
-                </Tooltip>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={onRemove}
+                                className={cn(
+                                    "!p-0 !h-auto !min-w-0",
+                                    textColors.tertiary,
+                                    dangerColors.hover,
+                                )}
+                            >
+                                {<X size={12} />}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Remove file</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
         </div>
     )

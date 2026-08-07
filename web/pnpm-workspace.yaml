@@ -3,6 +3,7 @@ packages:
   - 'ee'
   - 'tests'
   - 'packages/*'
+  - 'storybook'
 overrides:
   'prismjs@<1.30.0': '>=1.30.0 <2'
   '@babel/runtime@<7.26.10': '>=7.26.10 <8'
@@ -24,6 +25,7 @@ allowBuilds:
   '@swc/core': true
   browser-tabs-lock: false
   core-js: true
+  core-js-pure: false
   esbuild: true
   protobufjs: false
   sharp: true

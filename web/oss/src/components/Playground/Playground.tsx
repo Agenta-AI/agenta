@@ -9,7 +9,7 @@ import {
     type PlaygroundUIProviders,
 } from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
-import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
+import {preloadEditorPlugins, Tag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -69,8 +69,8 @@ function PlaygroundSyncStateTag({rowId, loadableId}: {rowId: string; loadableId:
     const syncState = isNew ? "new" : isDirty ? "modified" : "unmodified"
 
     return (
-        <SyncStateTag
-            syncState={syncState}
+        <Tag
+            sync={syncState}
             dismissible={syncState === "modified"}
             onDismiss={syncState === "modified" ? handleDiscard : undefined}
         />

@@ -508,7 +508,7 @@ export const TraceSpanDrillInView = memo(
                                 icon={true}
                                 buttonText={null}
                                 stopPropagation
-                                size="small"
+                                size="icon-sm"
                             />
                         </div>
                     </div>

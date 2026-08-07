@@ -3,7 +3,7 @@ import {useMemo, useState} from "react"
 
 import {getScheduleMessage, setScheduleMessage} from "@agenta/entities/gatewayTrigger"
 import {Editor} from "@agenta/ui/editor"
-import {Input, Typography} from "antd"
+import {AutosizeTextarea} from "@agenta/ui/ui"
 
 // ---------------------------------------------------------------------------
 // MessageComposer — friendly "what should the agent do?" message that maps to the
@@ -12,6 +12,9 @@ import {Input, Typography} from "antd"
 // one editor is mounted at a time so the message and JSON never desync. Always opens
 // on the message — a mapping the composer can't reproduce warns instead of switching.
 // ---------------------------------------------------------------------------
+
+const LINK_CLASS =
+    "cursor-pointer border-0 bg-transparent p-0 text-btn-link hover:text-btn-link-hover active:text-btn-link-active"
 
 export function MessageComposer({
     inputsText,
@@ -43,12 +46,13 @@ export function MessageComposer({
     if (rawMode) {
         return (
             <div className="flex flex-col gap-1.5">
-                <Typography.Link
-                    className="!text-[11px] self-start"
+                <button
+                    type="button"
+                    className={`${LINK_CLASS} self-start text-[11px]`}
                     onClick={() => setRawMode(false)}
                 >
                     ← Back to message
-                </Typography.Link>
+                </button>
                 <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorder)]">
                     <Editor
                         initialValue={inputsText || "{}"}
@@ -60,14 +64,17 @@ export function MessageComposer({
                         disabled={disabled}
                     />
                 </div>
-                <Typography.Text
-                    type={rawValid ? "secondary" : "danger"}
-                    className="!text-[11px] leading-snug"
+                <span
+                    className={`text-[11px] leading-snug ${
+                        rawValid
+                            ? "text-[var(--ag-colorTextDescription)]"
+                            : "text-[var(--ag-colorErrorText)]"
+                    }`}
                 >
                     {rawValid
                         ? "Raw inputs sent to the workflow each tick (JSON)."
                         : "Invalid JSON."}
-                </Typography.Text>
+                </span>
             </div>
         )
     }
@@ -77,7 +84,7 @@ export function MessageComposer({
     const wouldReplace = !message && !!inputsText.trim() && inputsText.trim() !== "{}"
     return (
         <div className="flex flex-col gap-1.5">
-            <Input.TextArea
+            <AutosizeTextarea
                 placeholder="Summarize yesterday's support tickets and post the digest to #ops."
                 value={message}
                 onChange={(e) =>
@@ -87,9 +94,12 @@ export function MessageComposer({
                 disabled={disabled}
             />
             <div className="flex items-center justify-between gap-2">
-                <Typography.Text
-                    type={wouldReplace ? "warning" : "secondary"}
-                    className="!text-[11px] leading-snug"
+                <span
+                    className={`text-[11px] leading-snug ${
+                        wouldReplace
+                            ? "text-[var(--ag-colorWarningText)]"
+                            : "text-[var(--ag-colorTextDescription)]"
+                    }`}
                 >
                     {wouldReplace ? (
                         "This mapping is richer than one message — typing here replaces it. Edit it under Advanced."
@@ -100,13 +110,14 @@ export function MessageComposer({
                             each run.
                         </>
                     )}
-                </Typography.Text>
-                <Typography.Link
-                    className="!shrink-0 !text-[11px]"
+                </span>
+                <button
+                    type="button"
+                    className={`${LINK_CLASS} shrink-0 text-[11px]`}
                     onClick={() => setRawMode(true)}
                 >
                     Advanced — raw JSON
-                </Typography.Link>
+                </button>
             </div>
         </div>
     )
