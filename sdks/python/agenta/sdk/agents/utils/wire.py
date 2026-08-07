@@ -48,7 +48,9 @@ class PermissionsConfig(TypedDict, total=False):
 
 # The user-facing error must not carry an internal stack/path dump. Cap the surfaced line and
 # strip the patterns that leak implementation detail; the full text is logged, never shown.
-_ERROR_MAX_LEN = 300
+# The cap bounds SIZE, not content: first-line-only, the stack-frame strip, and the redactor below
+# are what protect the user, so it is set wide enough for a real actionable message to arrive whole.
+_ERROR_MAX_LEN = 2000
 # A stack frame leaked into the message ("at fn (/abs/path:12:3)" / 'File "/abs/path", line 12').
 _STACK_FRAME_RE = re.compile(r"\b(at\s+\S+\s*\(|File\s+\"|/[\w./-]+:\d+)")
 

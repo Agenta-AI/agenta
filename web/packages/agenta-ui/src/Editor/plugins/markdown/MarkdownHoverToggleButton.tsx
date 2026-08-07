@@ -2,10 +2,16 @@ import {memo, useCallback} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import {Button} from "../../../components/ui/button"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "../../../components/ui/tooltip"
 import {markdownViewAtom} from "../../state/assets/atoms"
 
 import {TOGGLE_MARKDOWN_VIEW} from "./commands"
@@ -30,14 +36,19 @@ const MarkdownHoverToggleButton = ({id}: MarkdownHoverToggleButtonProps) => {
             )}
             style={{top: 8, right: 36}}
         >
-            <Tooltip title={markdownView ? "Preview text" : "Preview markdown"}>
-                <Button
-                    type="text"
-                    size="small"
-                    icon={markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
-                    onClick={onToggleMarkdown}
-                />
-            </Tooltip>
+            {/* antd `mouseEnterDelay` default is 0.1s → delayDuration 100ms. */}
+            <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button variant="ghost" size="sm" onClick={onToggleMarkdown}>
+                            {markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        {markdownView ? "Preview text" : "Preview markdown"}
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         </div>
     )
 }

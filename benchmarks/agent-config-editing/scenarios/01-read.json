@@ -1,0 +1,51 @@
+{
+  "class": "read",
+  "about": [
+    "Reading a configuration value: the user asks a question and gets the right answer.",
+    "",
+    "THESE ROWS DO NOT REQUIRE A read_config CALL, and that is a decision rather than an",
+    "oversight. The agent's own instructions and skills are RENDERED INTO ITS WORKSPACE, so a",
+    "question about them is already answerable from context, and the first smoke run confirmed it:",
+    "claude-haiku answered the escalation code correctly with zero tool calls. Demanding the call",
+    "would score a correct answer as a failure and would measure mechanism, which this benchmark",
+    "deliberately does not do. The wire record still stores every call, so any analysis that wants",
+    "the read rate can have it.",
+    "",
+    "What the rendered copy CANNOT do is stay current: it is written at session start, so after an",
+    "out-of-band change it is stale, and answering from it is wrong. That case is",
+    "`fm-02-stale-recitation`, and it is where reading is genuinely load-bearing.",
+    "",
+    "Every answer here is a per-trial random {{TOKEN}} or a seeded name, so a correct answer",
+    "cannot come from the model's priors."
+  ],
+  "scenarios": [
+    {
+      "id": "read-01-escalation-code",
+      "title": "read one value out of the instructions",
+      "prompt_note": "How a human asks: no field path, no tool name, no mention of configuration.",
+      "turns": [
+        {
+          "prompt": "what's the escalation code i'm supposed to use when i page someone?"
+        }
+      ],
+      "budget": { "max_tool_errors": 0, "max_commit_calls": 0, "max_rounds": 4 },
+      "checks": [
+        { "check": "turn_reply_contains", "text": "{{TOKEN}}" },
+        { "check": "no_revision_created" }
+      ]
+    },
+    {
+      "id": "read-02-list-skills",
+      "title": "read a list out of the configuration",
+      "prompt_note": "The names are seeded, so a correct answer cannot come from priors either.",
+      "turns": [{ "prompt": "what skills do i have set up right now?" }],
+      "budget": { "max_tool_errors": 0, "max_commit_calls": 0, "max_rounds": 4 },
+      "checks": [
+        { "check": "turn_reply_contains", "text": "release-qa" },
+        { "check": "turn_reply_contains", "text": "changelog-writer" },
+        { "check": "turn_reply_contains", "text": "triage" },
+        { "check": "no_revision_created" }
+      ]
+    }
+  ]
+}

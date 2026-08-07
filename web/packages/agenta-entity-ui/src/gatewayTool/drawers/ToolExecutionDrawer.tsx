@@ -11,7 +11,18 @@ import {
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
-import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
+import {ScrollSentinel, ScrollToTopButton, message} from "@agenta/ui"
+import {Tag} from "@agenta/ui/components/presentational"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {
+    Button,
+    Divider,
+    EmptyState,
+    InputAffix,
+    LoadingButton,
+    Segmented,
+    Spinner,
+} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     BracketsRound,
@@ -20,23 +31,10 @@ import {
     MagnifyingGlass,
     Play,
 } from "@phosphor-icons/react"
-import {
-    Button,
-    Card,
-    Divider,
-    Drawer,
-    Empty,
-    Form,
-    Input,
-    message,
-    Segmented,
-    Spin,
-    Tag,
-    Typography,
-} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
 
+import {CatalogCard} from "../components/catalogPrimitives"
 import ResultViewer from "../components/ResultViewer"
 import type {SchemaFormHandle} from "../components/SchemaForm"
 import SchemaForm from "../components/SchemaForm"
@@ -82,7 +80,7 @@ export default function ToolExecutionDrawer() {
     const drawerTitle = step === 2 ? "Test Action" : "Select Action"
 
     return (
-        <Drawer
+        <EnhancedDrawer
             open={open}
             onClose={handleClose}
             title={drawerTitle}
@@ -118,7 +116,7 @@ export default function ToolExecutionDrawer() {
                         onBack={handleBack}
                     />
                 ))}
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 
@@ -174,27 +172,26 @@ function ActionPickerStep({
                         />
                     )}
                     <div className="flex flex-col min-w-0 flex-1">
-                        <Typography.Text strong className="truncate">
+                        <span className="truncate font-medium">
                             {integrationName || integrationKey}
-                        </Typography.Text>
-                        <Typography.Text type="secondary" className="text-xs truncate">
+                        </span>
+                        <span className="text-xs truncate text-colorTextDescription">
                             Connection: {connectionSlug}
-                        </Typography.Text>
+                        </span>
                     </div>
                 </div>
 
-                <Input
+                <InputAffix
                     placeholder="Search actions…"
                     prefix={<MagnifyingGlass size={16} />}
                     value={search.value}
-                    onChange={(e) => search.onChange(e.target.value)}
+                    onValueChange={(value) => search.onChange(value)}
                     allowClear
-                    onClear={() => search.onChange("")}
                 />
 
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-colorTextDescription">
                     {total} action{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -206,10 +203,10 @@ function ActionPickerStep({
             >
                 {isLoading && actions.length === 0 ? (
                     <div className="flex items-center justify-center py-8">
-                        <Spin />
+                        <Spinner />
                     </div>
                 ) : actions.length === 0 ? (
-                    <Empty description="No actions found" />
+                    <EmptyState description="No actions found" />
                 ) : (
                     <div className="flex flex-col gap-2">
                         {actions.map((action, i) => (
@@ -221,33 +218,28 @@ function ActionPickerStep({
                                         isFetching={isFetchingNextPage}
                                     />
                                 )}
-                                <Card
-                                    hoverable
+                                <CatalogCard
                                     className="cursor-pointer"
-                                    size="small"
                                     onClick={() => onSelectAction(action)}
                                 >
                                     <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
-                                            <Typography.Text strong className="truncate">
+                                            <span className="truncate font-medium">
                                                 {action.name}
-                                            </Typography.Text>
+                                            </span>
                                             {action.categories?.slice(0, 2).map((c) => (
-                                                <Tag key={c} className="text-xs">
+                                                <Tag key={c} tone="default" className="text-xs">
                                                     {c}
                                                 </Tag>
                                             ))}
                                         </div>
                                         {action.description && (
-                                            <Typography.Text
-                                                type="secondary"
-                                                className="text-xs line-clamp-2"
-                                            >
+                                            <span className="text-xs line-clamp-2 text-colorTextDescription">
                                                 {action.description}
-                                            </Typography.Text>
+                                            </span>
                                         )}
                                     </div>
-                                </Card>
+                                </CatalogCard>
                             </React.Fragment>
                         ))}
 
@@ -259,7 +251,7 @@ function ActionPickerStep({
 
                         {isFetchingNextPage && (
                             <div className="flex items-center justify-center py-4">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                     </div>
@@ -294,7 +286,6 @@ function ActionDetailStep({
     canGoBack: boolean
     onBack: () => void
 }) {
-    const [form] = Form.useForm()
     const schemaFormRef = useRef<SchemaFormHandle>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     const {action, isLoading: detailLoading} = useToolActionDetail(integrationKey, actionKey)
@@ -313,13 +304,15 @@ function ActionDetailStep({
 
     const handleCopyInputs = useCallback(() => {
         try {
-            const values = form.getFieldsValue(true)
+            // Raw, unvalidated snapshot — was `form.getFieldsValue(true)` on the antd
+            // form instance this drawer used to own; the handle exposes it now.
+            const values = schemaFormRef.current?.getRawValues() ?? {}
             navigator.clipboard.writeText(JSON.stringify(values, null, 2))
             message.success("Copied to clipboard")
         } catch {
             message.error("Failed to copy")
         }
-    }, [form])
+    }, [])
 
     const handleExecute = useCallback(async () => {
         try {
@@ -348,12 +341,14 @@ function ActionDetailStep({
                 <div className="flex items-center gap-3">
                     {canGoBack && (
                         <Button
-                            type="text"
+                            variant="ghost"
+                            size="icon"
                             aria-label="Go back"
-                            icon={<ArrowLeft size={16} />}
                             onClick={onBack}
                             className="shrink-0"
-                        />
+                        >
+                            <ArrowLeft size={16} />
+                        </Button>
                     )}
                     {integrationLogo && (
                         <Image
@@ -366,36 +361,40 @@ function ActionDetailStep({
                         />
                     )}
                     {integrationName && (
-                        <Typography.Text type="secondary" className="shrink-0">
+                        <span className="shrink-0 text-colorTextDescription">
                             {integrationName}
-                        </Typography.Text>
+                        </span>
                     )}
                     {integrationName && (
-                        <Typography.Text type="secondary" className="shrink-0">
-                            /
-                        </Typography.Text>
+                        <span className="shrink-0 text-colorTextDescription">/</span>
                     )}
-                    <Typography.Text strong className="truncate flex-1">
+                    <span className="truncate flex-1 font-medium">
                         {detailLoading ? "Loading…" : displayName}
-                    </Typography.Text>
+                    </span>
                     <Segmented
-                        size="small"
+                        size="sm"
                         value={viewMode}
                         onChange={(v) => setViewMode(v as "form" | "json")}
                         options={[
-                            {value: "form", icon: <ListDashes size={14} />},
-                            {value: "json", icon: <BracketsRound size={14} />},
+                            {
+                                value: "form",
+                                icon: <ListDashes size={14} />,
+                                "aria-label": "Form view",
+                            },
+                            {
+                                value: "json",
+                                icon: <BracketsRound size={14} />,
+                                "aria-label": "JSON view",
+                            },
                         ]}
                     />
                 </div>
                 {action?.description && (
-                    <Typography.Text type="secondary" className="text-xs">
-                        {action.description}
-                    </Typography.Text>
+                    <span className="text-xs text-colorTextDescription">{action.description}</span>
                 )}
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-colorTextDescription">
                     Connection: {connectionSlug}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -407,53 +406,48 @@ function ActionDetailStep({
             >
                 {detailLoading ? (
                     <div className="flex items-center justify-center py-8">
-                        <Spin />
+                        <Spinner />
                     </div>
                 ) : (
                     <div className="flex flex-col gap-3">
                         {/* Inputs section */}
                         <div className="flex flex-col gap-2">
                             <div className="flex items-center justify-between">
-                                <Typography.Text strong className="text-sm">
-                                    Inputs
-                                </Typography.Text>
+                                <span className="text-sm font-medium">Inputs</span>
                                 {!jsonMode && (
                                     <Button
-                                        type="text"
+                                        variant="ghost"
+                                        size="icon-sm"
                                         aria-label="Copy inputs"
-                                        icon={<CopySimple size={14} />}
-                                        size="small"
                                         onClick={handleCopyInputs}
                                         className="opacity-60 hover:opacity-100"
-                                    />
+                                    >
+                                        <CopySimple size={14} />
+                                    </Button>
                                 )}
                             </div>
                             <SchemaForm
                                 ref={schemaFormRef}
                                 schema={inputSchema as Record<string, unknown> | null}
-                                form={form}
                                 disabled={isExecuting}
                                 jsonMode={jsonMode}
                             />
-                            <Button
-                                type="primary"
-                                icon={<Play size={14} />}
+                            <LoadingButton
+                                size="sm"
                                 loading={isExecuting}
                                 onClick={handleExecute}
                                 className="self-start"
-                                size="small"
                             >
+                                {!isExecuting && <Play size={14} />}
                                 Run
-                            </Button>
+                            </LoadingButton>
                         </div>
 
                         <Divider className="!my-1" />
 
                         {/* Outputs section */}
                         <div className="flex flex-col gap-2">
-                            <Typography.Text strong className="text-sm">
-                                Outputs
-                            </Typography.Text>
+                            <span className="text-sm font-medium">Outputs</span>
                             {result || error ? (
                                 <ResultViewer
                                     result={result}
@@ -463,9 +457,9 @@ function ActionDetailStep({
                                 />
                             ) : (
                                 <div className="rounded-lg border border-dashed border-gray-300 p-4 text-center">
-                                    <Typography.Text type="secondary" className="text-xs">
+                                    <span className="text-xs text-colorTextDescription">
                                         Run the action to see results
-                                    </Typography.Text>
+                                    </span>
                                 </div>
                             )}
                         </div>

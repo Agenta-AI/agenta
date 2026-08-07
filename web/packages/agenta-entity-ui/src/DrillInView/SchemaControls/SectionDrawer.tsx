@@ -12,7 +12,7 @@ import {type ReactNode, useCallback, useState} from "react"
 
 import {EnhancedModal} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button} from "antd"
+import {Button} from "@agenta/ui/ui"
 
 export interface SectionDrawerProps {
     open: boolean
@@ -72,8 +72,10 @@ export function SectionDrawer({
                             {footerNote}
                         </span>
                         <div className="flex shrink-0 items-center gap-2">
-                            <Button onClick={onCancel}>Cancel</Button>
-                            <Button type="primary" onClick={onSave} disabled={disabled}>
+                            <Button variant="outline" onClick={onCancel}>
+                                Cancel
+                            </Button>
+                            <Button onClick={onSave} disabled={disabled}>
                                 Save
                             </Button>
                         </div>
@@ -92,9 +94,11 @@ export function SectionDrawer({
                 width={420}
                 footer={
                     <div className="flex items-center justify-end gap-2">
-                        <Button onClick={() => setConfirmOpen(false)}>Keep editing</Button>
+                        <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+                            Keep editing
+                        </Button>
                         <Button
-                            danger
+                            variant="destructive-outline"
                             onClick={() => {
                                 setConfirmOpen(false)
                                 onCancel()
@@ -103,7 +107,6 @@ export function SectionDrawer({
                             Discard
                         </Button>
                         <Button
-                            type="primary"
                             disabled={disabled}
                             onClick={() => {
                                 setConfirmOpen(false)

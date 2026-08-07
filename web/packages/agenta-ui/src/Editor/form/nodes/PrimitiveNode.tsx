@@ -1,8 +1,12 @@
-import {type FC, type ReactNode} from "react"
+import {type FC, type ReactNode, useCallback, useEffect, useState} from "react"
 
-import {Form, Input, InputNumber, Switch, Typography} from "antd"
 import clsx from "clsx"
 
+import EditableText from "../../../components/presentational/editable/EditableText"
+import {Input} from "../../../components/ui/input"
+import {AutosizeTextarea} from "../../../components/ui/input-composed"
+import {InputNumber} from "../../../components/ui/input-number"
+import {Switch} from "../../../components/ui/switch"
 import TreeRow from "../shared/TreeRow"
 
 import {BaseNodeProps, CustomRenderFn} from "./NodeTypes"
@@ -11,52 +15,82 @@ export interface PrimitiveNodeProps extends BaseNodeProps {
     customRender?: CustomRenderFn
 }
 
-const {Text} = Typography
-
 const PrimitiveNodeComponent: FC<PrimitiveNodeProps> = ({
     className,
     path,
     k,
     value,
     depth,
+    onChange,
     handleRename,
 }) => {
-    let input: ReactNode = <Input.TextArea rows={3} variant="borderless" autoSize />
+    // Local buffer: the value echo round-trips through the root state, so typing would
+    // stutter if the input read the prop directly.
+    const [localValue, setLocalValue] = useState<unknown>(value)
+
+    useEffect(() => {
+        setLocalValue(value)
+    }, [value])
+
+    const emit = useCallback(
+        (next: unknown) => {
+            setLocalValue(next)
+            onChange(path, next)
+        },
+        [onChange, path],
+    )
+
+    const handleRenameKey = useCallback(
+        (newKey: string) => {
+            const trimmed = newKey.trim()
+            if (trimmed && trimmed !== k) {
+                handleRename(path, trimmed)
+            }
+        },
+        [handleRename, path, k],
+    )
+
+    let input: ReactNode = (
+        <AutosizeTextarea
+            rows={3}
+            variant="ghost"
+            value={localValue === null || localValue === undefined ? "" : String(localValue)}
+            onChange={(e) => emit(e.target.value)}
+        />
+    )
 
     if (typeof value === "number")
-        input = <InputNumber style={{width: "100%", textAlign: "right"}} variant="borderless" />
-    else if (typeof value === "boolean") input = <Switch />
-    else if (typeof value === "string") input = <Input variant="borderless" />
+        input = (
+            <InputNumber
+                className="w-full [&_input]:text-right"
+                value={typeof localValue === "number" ? localValue : null}
+                onChange={(next) => emit(next)}
+            />
+        )
+    else if (typeof value === "boolean")
+        input = <Switch checked={Boolean(localValue)} onCheckedChange={(next) => emit(next)} />
+    else if (typeof value === "string")
+        input = (
+            <Input
+                variant="ghost"
+                value={typeof localValue === "string" ? localValue : ""}
+                onChange={(e) => emit(e.target.value)}
+            />
+        )
 
     return (
         <TreeRow depth={depth} className={clsx("primitive", className)}>
             {typeof k === "number" ? (
-                <Text className="text-xs font-semibold leading-5 mr-1">{k}</Text>
+                <span className="text-xs font-semibold leading-5 mr-1">{k}</span>
             ) : (
-                <Text
-                    className="text-xs font-semibold leading-5 mr-1"
-                    editable={{
-                        icon: null,
-                        triggerType: ["text"],
-                        autoSize: true,
-                        onChange: (newKey) => {
-                            const trimmed = newKey.trim()
-                            if (trimmed && trimmed !== k) {
-                                handleRename(path, trimmed)
-                            }
-                        },
-                    }}
-                >
-                    {k}
-                </Text>
+                <EditableText
+                    value={k}
+                    onChange={handleRenameKey}
+                    monospace={false}
+                    className="font-semibold leading-5 mr-1"
+                />
             )}
-            <Form.Item
-                name={path}
-                style={{flex: 1, marginBottom: 0, lineHeight: "20px"}}
-                valuePropName={typeof value === "boolean" ? "checked" : "value"}
-            >
-                {input}
-            </Form.Item>
+            <div className="flex-1 leading-5">{input}</div>
         </TreeRow>
     )
 }

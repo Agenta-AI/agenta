@@ -43,11 +43,10 @@ const TreeSelectItemRenderer = ({
                     {!showAsCompare && showCreateNew && (
                         <NewVariantButton
                             className="flex justify-start [&_.ant-btn-icon]:!hidden self-center grow-0 mr-0.5"
-                            variant="solid"
-                            type="primary"
+                            variant="default"
                             onClick={close}
                             label="Create new"
-                            size="small"
+                            size="sm"
                         />
                     )}
                 </div>

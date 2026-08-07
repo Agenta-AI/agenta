@@ -14,9 +14,8 @@
  */
 import {memo, useCallback, useMemo} from "react"
 
-import {Select} from "antd"
-
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
+import {ChipsInput} from "../../gatewayTool/components/schemaFormControls"
 
 import {
     PI_BUILTIN_RULE_NAMES,
@@ -33,7 +32,7 @@ export interface PiPermissionsControlProps {
     disabled?: boolean
 }
 
-const RULE_OPTIONS = PI_BUILTIN_RULE_NAMES.map((name) => ({value: name, label: name}))
+const RULE_OPTIONS = [...PI_BUILTIN_RULE_NAMES]
 
 const ROWS: {list: PiPermissionList; label: string; help: string}[] = [
     {list: "allow", label: "Allow", help: "Tools that run without asking."},
@@ -64,11 +63,9 @@ export const PiPermissionsControl = memo(function PiPermissionsControl({
                     path={`harness.permissions.${list}`}
                     label={railInfoLabel(label, help)}
                 >
-                    <Select<string[]>
-                        mode="tags"
-                        className="w-full"
+                    <ChipsInput
                         value={current[list]}
-                        onChange={(rules) => write(list, rules)}
+                        onChange={(rules) => write(list, rules ?? [])}
                         options={RULE_OPTIONS}
                         placeholder="Bash(npm run:*)"
                         disabled={disabled}

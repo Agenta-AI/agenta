@@ -1,5 +1,6 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
 import {
     Button,
@@ -15,7 +16,6 @@ import {
 } from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {
     WebhookProvider,
     WebhookSubscriptionCreateRequest,

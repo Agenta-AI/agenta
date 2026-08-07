@@ -1,7 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {PlusOutlined} from "@ant-design/icons"
-import {TrashIcon} from "@phosphor-icons/react"
+import {CopyIcon, TrashIcon} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 import {
     App,
@@ -54,6 +54,22 @@ const ProjectsSettings = () => {
     const invalidateProjects = useCallback(async () => {
         await queryClient.invalidateQueries({queryKey: ["projects"]})
     }, [queryClient])
+
+    const copyProjectId = useCallback(
+        async (projectId: string) => {
+            if (typeof navigator === "undefined" || !navigator?.clipboard) {
+                message.error("Clipboard not supported")
+                return
+            }
+            try {
+                await navigator.clipboard.writeText(projectId)
+                message.success("Project ID copied")
+            } catch {
+                message.error("Failed to copy project ID")
+            }
+        },
+        [message],
+    )
 
     const createMutation = useMutation({
         mutationFn: (payload: ProjectFormValues) => createProject(payload),
@@ -186,9 +202,20 @@ const ProjectsSettings = () => {
                                 <Tag className="bg-[var(--ag-c-0517290F)] m-0">Default</Tag>
                             )}
                         </div>
-                        <Text type="secondary" className="text-xs">
-                            {record.project_id}
-                        </Text>
+                        <div className="flex items-center gap-1">
+                            <Text type="secondary" className="text-xs">
+                                {record.project_id}
+                            </Text>
+                            <Tooltip title="Copy project ID">
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    className="!h-5 !w-5 !min-w-0 !px-0"
+                                    icon={<CopyIcon size={12} />}
+                                    onClick={() => copyProjectId(record.project_id)}
+                                />
+                            </Tooltip>
+                        </div>
                     </div>
                 ),
             },
@@ -256,6 +283,7 @@ const ProjectsSettings = () => {
         ],
         [
             canDeleteProjects,
+            copyProjectId,
             defaultMutation.isPending,
             defaultMutation.variables,
             deleteMutation.isPending,

@@ -6,10 +6,10 @@ import {LexicalErrorBoundary} from "@lexical/react/LexicalErrorBoundary"
 import {HistoryPlugin} from "@lexical/react/LexicalHistoryPlugin"
 import {OnChangePlugin} from "@lexical/react/LexicalOnChangePlugin"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
-import {Skeleton} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import {Skeleton} from "../../components/ui/skeleton"
 import {markdownViewAtom} from "../state/assets/atoms"
 import type {EditorPluginsProps} from "../types"
 
@@ -86,6 +86,7 @@ const EditorPlugins = ({
     loadingFallback = "skeleton",
     useNativeCodeNodes = false,
     isDiffView = false,
+    ariaLabel,
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
 
@@ -116,6 +117,11 @@ const EditorPlugins = ({
             <RichTextPlugin
                 contentEditable={
                     <ContentEditable
+                        // Lexical 0.46 spreads standard aria-* onto the div; `ariaLabel` is dropped.
+                        // Lexical sets role="textbox", so an unnamed surface fails aria-input-field-name.
+                        aria-label={
+                            ariaLabel || placeholder || (codeOnly ? "Code editor" : "Text editor")
+                        }
                         className={clsx(
                             `editor-input relative outline-none min-h-[inherit] ${
                                 singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""

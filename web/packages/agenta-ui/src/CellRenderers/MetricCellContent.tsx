@@ -14,8 +14,10 @@
 
 import {memo, useMemo} from "react"
 
-import {Tag, Tooltip} from "antd"
 import clsx from "clsx"
+
+import {Badge} from "../components/ui/badge"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
 
 import EvaluatorMetricBar from "./EvaluatorMetricBar"
 import {
@@ -80,13 +82,13 @@ const MetricCellContent = memo(function MetricCellContent({
             return (
                 <div className="flex flex-col items-start gap-1">
                     {arrayTags.map((entry, index) => (
-                        <Tag
+                        <Badge
                             key={`${entry.label}-${index}`}
-                            color={getTagColor(index)}
+                            variant={getTagColor(index)}
                             className="m-0 text-xs"
                         >
                             {entry.label}
-                        </Tag>
+                        </Badge>
                     ))}
                 </div>
             )
@@ -137,9 +139,9 @@ export const MetricValueDisplay = memo(function MetricValueDisplay({
     // Boolean
     if (typeof value === "boolean") {
         return (
-            <Tag color={value ? "green" : "default"} className="m-0 text-xs">
+            <Badge variant={value ? "green" : "default"} className="m-0 text-xs">
                 {String(value)}
-            </Tag>
+            </Badge>
         )
     }
 
@@ -150,14 +152,19 @@ export const MetricValueDisplay = memo(function MetricValueDisplay({
                 {value.map((v, i) => {
                     const display = v === null || v === undefined ? "—" : String(v)
                     return (
-                        <Tooltip key={`${display}-${i}`} title={display}>
-                            <Tag
-                                color={getTagColor(i)}
-                                className="!m-0 max-w-[120px] truncate text-xs"
-                            >
-                                {display}
-                            </Tag>
-                        </Tooltip>
+                        <TooltipProvider key={`${display}-${i}`} delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Badge
+                                        variant={getTagColor(i)}
+                                        className="!m-0 max-w-[120px] truncate text-xs"
+                                    >
+                                        {display}
+                                    </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>{display}</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     )
                 })}
             </div>
@@ -168,17 +175,27 @@ export const MetricValueDisplay = memo(function MetricValueDisplay({
     if (typeof value === "number") {
         const formatted = formatMetricDisplay({value, metricKey, metricType})
         return (
-            <Tooltip title={formatted}>
-                <Tag className="!m-0 max-w-[120px] truncate text-xs">{formatted}</Tag>
-            </Tooltip>
+            <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Badge className="!m-0 max-w-[120px] truncate text-xs">{formatted}</Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>{formatted}</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         )
     }
 
     // String
     const display = String(value)
     return (
-        <Tooltip title={display}>
-            <Tag className="!m-0 max-w-[120px] truncate text-xs">{display}</Tag>
-        </Tooltip>
+        <TooltipProvider delayDuration={100}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Badge className="!m-0 max-w-[120px] truncate text-xs">{display}</Badge>
+                </TooltipTrigger>
+                <TooltipContent>{display}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 })
