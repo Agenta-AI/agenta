@@ -1,3 +1,4 @@
+import re
 from typing import TYPE_CHECKING, List, Optional, Tuple
 from uuid import UUID
 
@@ -14,13 +15,21 @@ from oss.src.core.channels.dtos import (
     ChannelGrantQuery,
     ChannelInboxEvent,
     ChannelInboxEventCreate,
+    ChannelInboxTrigger,
+    ChannelInboxTriggerCreate,
+    ChannelResolution,
+    ChannelSessionScope,
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelSpaceCreate,
     ChannelSpaceEdit,
     ChannelSpaceQuery,
     ChannelThread,
+    ChannelThreadCreate,
+    ChannelThreadData,
     ChannelThreadQuery,
+    ChannelTriggerState,
+    ChannelTurnInput,
 )
 from oss.src.core.channels.interfaces import ChannelsDAOInterface
 from oss.src.core.channels.types import (
@@ -30,7 +39,7 @@ from oss.src.core.channels.types import (
     ChannelThreadNotFound,
 )
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Status, Windowing
 
 if TYPE_CHECKING:
     # WP2 owns registry.py; imported for typing only so WP1 does not depend on
@@ -546,17 +555,257 @@ class ChannelsService:
     async def record_event(self, *, channel, envelope):
         raise NotImplementedError
 
-    async def resolve(self, *, project_id, connection_id, event):
-        raise NotImplementedError
+    async def resolve(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+    ) -> Optional[ChannelResolution]:
+        """Who runs, and under what policy (`entities.md` §8, `architecture.md` §5
+        steps 2-4). Default-deny on an unconfigured space; `None` on no addressed
+        agent or a silent grant refusal (D17) -- both read identically to the
+        worker, which is the point.
+        """
 
-    async def compose_input(self, *, project_id, resolution):
-        raise NotImplementedError
+        connection = await self.connections_service.get_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise ChannelConnectionNotFound(connection_id=connection_id)
 
-    async def open_turn(self, *, project_id, resolution, turn_id):
-        raise NotImplementedError
+        capabilities = await self.fetch_capabilities(channel=connection.provider_key)
 
-    async def settle_turn(self, *, project_id, trigger_id, state, status=None) -> None:
-        raise NotImplementedError
+        space_key = compose_external_key(
+            capabilities,
+            ChannelKeyGrain.SPACE,
+            event.data.external_locator,
+        )
+
+        space = await self.channels_dao.fetch_space_by_key(
+            project_id=project_id,
+            connection_id=connection_id,
+            external_key=space_key,
+        )
+        if space is None:
+            # default-deny (architecture.md §5 step 2): no configured space
+            # means the agent may not answer here, regardless of addressing.
+            return None
+
+        agent = await self._addressed_agent(
+            project_id=project_id,
+            connection_id=connection_id,
+            space=space,
+            event=event,
+            capabilities=capabilities,
+        )
+        if agent is None:
+            return None
+
+        grant = await self.channels_dao.fetch_grant(
+            project_id=project_id,
+            agent_id=agent.id,
+            space_id=space.id,
+        )
+        if grant is None:
+            has_any_grant = await self.channels_dao.count_grants(
+                project_id=project_id,
+                agent_id=agent.id,
+            )
+            if has_any_grant:
+                # refuse silently and identically to "no such agent" (D17)
+                return None
+
+        from oss.src.core.channels.utils import resolve_policy
+
+        channel_defaults = _channel_defaults(capabilities)
+        policy = resolve_policy(
+            capabilities,
+            channel_defaults,
+            agent.data.policy,
+            space.data.policy,
+            grant.data.policy if grant else None,
+        )
+
+        # THREAD grain composes to None where the platform declares no thread
+        # fields (the no-threads case, architecture.md §5 step 4c). MESSAGE
+        # scope always mints a fresh thread keyed on this event's own id,
+        # since "one session per message" is the point of that scope.
+        is_message_scope = policy.session_scope is ChannelSessionScope.MESSAGE
+
+        thread = None
+        if is_message_scope:
+            thread_key = event.id
+        else:
+            thread_key = compose_external_key(
+                capabilities,
+                ChannelKeyGrain.THREAD,
+                event.data.external_locator,
+            )
+            thread = await self.channels_dao.fetch_current_thread(
+                project_id=project_id,
+                space_id=space.id,
+                external_key=thread_key,
+                agent_id=agent.id,
+            )
+
+        if thread is None or not thread.flags.is_active:
+            thread = await self.channels_dao.create_thread(
+                project_id=project_id,
+                user_id=None,
+                thread=ChannelThreadCreate(
+                    space_id=space.id,
+                    agent_id=agent.id,
+                    external_key=thread_key,
+                    session_id=str(thread_key or space.external_key),
+                    data=ChannelThreadData(
+                        external_locator=event.data.external_locator,
+                    ),
+                ),
+            )
+
+        return ChannelResolution(
+            space=space,
+            agent=agent,
+            thread=thread,
+            policy=policy,
+        )
+
+    async def _addressed_agent(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        space: ChannelSpace,
+        event: ChannelInboxEvent,
+        capabilities: ChannelCapabilities,
+    ) -> Optional[ChannelAgent]:
+        """The chain (`entities.md` §8, §2.5): an explicit sigil names one, else
+        the space's default grant, else the connection's default agent."""
+
+        slug = _parse_sigil(
+            content=event.data.processed.content,
+            sigil=capabilities.addressing.sigils.agent,
+        )
+        if slug is not None:
+            agent = await self.channels_dao.fetch_agent_by_slug(
+                project_id=project_id,
+                connection_id=connection_id,
+                slug=slug,
+            )
+            return agent
+
+        default_grant = await self.channels_dao.fetch_default_grant(
+            project_id=project_id,
+            space_id=space.id,
+        )
+        if default_grant is not None:
+            return await self.channels_dao.fetch_agent(
+                project_id=project_id,
+                agent_id=default_grant.agent_id,
+            )
+
+        return await self.channels_dao.fetch_default_agent(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+
+    async def compose_input(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        event_id: UUID,
+    ) -> ChannelTurnInput:
+        """What the agent sees (`entities.md` §8, `architecture.md` §5 step 5).
+
+        ``event_id`` is the addressing event's own id -- the frozen §8 signature
+        omits it, but ``ChannelResolution`` carries no event reference and the
+        offset write in ``open_turn`` needs the exact row, not "whatever is
+        latest" (a second event can race in between resolve and open_turn).
+        WP4's worker holds the id already, since it is what triggered resolve()
+        in the first place; threading it through here is the one place this
+        package's signature departs from the doc string that omits it -- see
+        the deviation note in this package's final report.
+
+        Fill mechanics (backfill fetch) are WP10's; forwardfill off skips the
+        range read, not the log write, per `specs-wp10.md`.
+        """
+
+        latest_trigger = await self.channels_dao.fetch_latest_trigger(
+            project_id=project_id,
+            thread_id=resolution.thread.id,
+        )
+
+        if not resolution.policy.forwardfill:
+            # the turn takes the addressing event alone (architecture.md §5)
+            events = [
+                stored
+                for stored in await self.channels_dao.query_events_since(
+                    project_id=project_id,
+                    space_id=resolution.space.id,
+                    after_event_id=latest_trigger.event_id if latest_trigger else None,
+                )
+                if stored.id == event_id
+            ]
+        else:
+            events = await self.channels_dao.query_events_since(
+                project_id=project_id,
+                space_id=resolution.space.id,
+                after_event_id=latest_trigger.event_id if latest_trigger else None,
+            )
+
+        content: List[dict] = []
+        for stored in events:
+            content.extend(stored.data.processed.content)
+
+        return ChannelTurnInput(
+            content=content,
+            is_backfilled=resolution.space.flags.is_backfilled,
+        )
+
+    async def open_turn(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        turn_id: str,
+        event_id: UUID,
+    ) -> Optional[ChannelInboxTrigger]:
+        """Writes the offset row at STARTED before invoke runs (D14/D22):
+        nothing holds a transaction across the detached call. `None` means a
+        concurrent worker already claimed this exact addressing (D9) -- the
+        caller must not invoke. ``event_id`` -- see the note on `compose_input`.
+        """
+
+        return await self.channels_dao.record_inbox_trigger(
+            project_id=project_id,
+            trigger=ChannelInboxTriggerCreate(
+                thread_id=resolution.thread.id,
+                event_id=event_id,
+                turn_id=turn_id,
+                state=ChannelTriggerState.STARTED,
+            ),
+        )
+
+    async def settle_turn(
+        self,
+        *,
+        project_id: UUID,
+        trigger_id: UUID,
+        state: ChannelTriggerState,
+        status: Optional[Status] = None,
+    ) -> None:
+        """Records the turn's fate whenever it becomes known -- an in-place
+        transition by id, never a fresh insert (`entities.md` §7)."""
+
+        await self.channels_dao.transition_inbox_trigger(
+            project_id=project_id,
+            trigger_id=trigger_id,
+            state=state,
+            status=status,
+        )
 
     # --- delivery: the outbound path (§2.6, §2.7) — WP5 fills these ------- #
 
@@ -600,6 +849,27 @@ def _canonical_locator(locator: Optional[dict]) -> str:
     from oss.src.core.channels.utils import canonical_json
 
     return canonical_json(locator or {})
+
+
+def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
+    """The first `{sigil}{slug}` token across this message's text parts, or
+    None. The grammar is universal (capabilities.md §3); the sigil character
+    is per-channel and undeclared platforms (`sigil is None`) never match."""
+
+    if not sigil:
+        return None
+
+    pattern = re.compile(re.escape(sigil) + r"([A-Za-z0-9_-]+)")
+
+    for part in content:
+        if not isinstance(part, dict) or part.get("type") != "text":
+            continue
+
+        match = pattern.search(part.get("text") or "")
+        if match:
+            return match.group(1)
+
+    return None
 
 
 def _channel_defaults(capabilities: ChannelCapabilities):
