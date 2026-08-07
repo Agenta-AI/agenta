@@ -25,10 +25,12 @@ from oss.src.tasks.taskiq.shared.broker import (
 
 from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
@@ -79,6 +81,7 @@ async def _build_spans_worker(redis_client: Redis) -> StreamConsumer:
 
 
 async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
+    watch_publisher = SessionsWatchPublisher(redis_client=redis_client)
     return RecordsWorker(
         service=RecordsService(records_dao=RecordsDAO()),
         redis_client=redis_client,
@@ -86,7 +89,14 @@ async def _build_records_worker(redis_client: Redis) -> StreamConsumer:
         consumer_group="worker-records",
         # M3 live relay: post-append change notifications on the durable plane,
         # reusing this process's durable connection.
-        watch_publisher=SessionsWatchPublisher(redis_client=redis_client),
+        watch_publisher=watch_publisher,
+        # The gate safety net: this loop sees every turn's terminal record, so it is where a
+        # pending gate that outlived its turn gets cancelled, scoped to that turn's own gates
+        # so a newer turn's live park is never in range.
+        interactions_service=SessionInteractionsService(
+            interactions_dao=SessionInteractionsDAO(),
+            watch_publisher=watch_publisher,
+        ),
     )
 
 

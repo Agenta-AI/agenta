@@ -17,6 +17,7 @@ import {
   ConversationDecisions,
   extractApprovalDecisions,
   extractClientToolOutputs,
+  extractInBandApprovalAnswers,
 } from "../../responder.ts";
 import {
   buildInteractionData,
@@ -140,6 +141,10 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
+  // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
+  // consumed. Without it, a resume the harness does not re-gate leaves them `pending` forever.
+  let settleInBandInteractions: (() => Promise<void>) | undefined;
 
   // Time-based run deadlines (total/idle/TTFB/per-tool-call) for THIS turn: an idle/wedged harness
   // has no deadline anywhere, so a silent or hung turn would hold its sandbox forever. Tripping a
@@ -615,10 +620,12 @@ export async function runTurn(
     // interactions-plane answer already transitioned it to responded, and an in-band answer is
     // detected at sweep time (`inBandAnswerToken`) and exempted via the sweep's `tokens` — the
     // row stays pending until this resolve lands it as resolved, never cancelled.
+    const resolvedInteractionTokens = new Set<string>();
     const resolveInteractionToken = (
       token: string,
       verdict?: { approved: boolean; toolCallId: string },
     ): void => {
+      resolvedInteractionTokens.add(token);
       if (verdict) {
         run.emitEvent({
           type: "interaction_response",
@@ -640,6 +647,43 @@ export async function runTurn(
             }
           : undefined,
       );
+    };
+    // A resume's approval envelope is a CONSUMED decision even when the harness never re-raises
+    // the gate: on a cold replay the transcript already contains the human's answer, so the agent
+    // just proceeds and no reply path ever reaches `resolveInteractionToken`. That is exactly how a
+    // gate outlives its turn as a forever-actionable `pending` row. Settle the leftovers here, with
+    // the verdict the human actually gave, so the row lands `resolved` and not `cancelled`. A row
+    // already terminal (resolved by the reply path, or cancelled by the turn-start sweep) simply
+    // 404s the transition — the CAS is the arbiter, this is only a last writer.
+    //
+    // Deliberately does NOT go through `resolveInteractionToken`: that emits an
+    // `interaction_response` event, and this can run once the turn's event stream is closed,
+    // which would land a record after the turn's terminal `done`. The durable row is the only
+    // thing to fix.
+    //
+    // Awaited, and awaited BEFORE the terminal record is emitted. `record()` hands `done`
+    // straight to the sink, so the moment `finish()` runs the API's gate reconciliation may
+    // consume it and cancel this still-pending row — after which the transition below finds a
+    // terminal row and 404s, filing a decision the human actually made as an abandonment.
+    settleInBandInteractions = async (): Promise<void> => {
+      const cred = runCredential(request);
+      if (!cred) return;
+      const settling: Promise<void>[] = [];
+      for (const answer of extractInBandApprovalAnswers(request)) {
+        if (resolvedInteractionTokens.has(answer.token)) continue;
+        resolvedInteractionTokens.add(answer.token);
+        logger(
+          `[HITL] settling in-band answer with no harness gate token=${answer.token} ` +
+            `approved=${answer.approved}`,
+        );
+        settling.push(
+          resolveInteraction(sessionId, answer.token, () => cred, {
+            verdict: answer.approved ? "approved" : "denied",
+            tool_call_id: answer.toolCallId,
+          }),
+        );
+      }
+      await Promise.all(settling);
     };
     const serverPermissions = serverPermissionsFromRequest(request);
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
@@ -1096,6 +1140,8 @@ export async function runTurn(
       run.emitEvent({ type: "error", message: swallowedError });
     }
 
+    // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
+    await settleInBandInteractions?.();
     const output = run.finish(stopReason);
     await run.flush();
     const turnEndedAt = new Date().toISOString();
@@ -1168,6 +1214,8 @@ export async function runTurn(
     otel?.emitEvent({ type: "error", message: error });
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
+    // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
+    await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.
     try {
       otel?.finish();
@@ -1175,6 +1223,10 @@ export async function runTurn(
     await otel?.flush().catch(() => {});
     return { ok: false, error };
   } finally {
+    // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
+    // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
+    // never throws — a row whose gate is gone is unanswerable however the turn ended.
+    void settleInBandInteractions?.();
     // Release every run-limits timer (idempotent, never re-arms on a late event) on EVERY path.
     runLimits.dispose();
     // This turn owns its relay: stop it on EVERY exit path (the happy path already stopped it

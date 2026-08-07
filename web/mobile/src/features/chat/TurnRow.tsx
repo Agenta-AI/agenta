@@ -1,25 +1,35 @@
 import {partToolName, rowSummary, type TurnViewModel} from "@agenta/chat/model"
 
-/** One transcript turn: raw aligned text parts, one-line tool summaries, raw error line. */
+import {AssistantMarkdown} from "./AssistantMarkdown"
+import {isLiveTextItem} from "./markdownStream"
+
+/** One transcript turn: markdown assistant text, one-line tool summaries, raw error line. */
 export const TurnRow = ({turn}: {turn: TurnViewModel}) => (
     <div className={`flex ${turn.isUser ? "justify-end" : "justify-start"}`}>
         <div
-            className={`flex max-w-[85%] flex-col gap-1 ${turn.isUser ? "items-end" : "items-start"}`}
+            className={`flex min-w-0 max-w-[85%] flex-col gap-1 ${turn.isUser ? "items-end" : "items-start"}`}
         >
-            {turn.items.map((item) => {
+            {turn.items.map((item, position) => {
                 if (item.kind === "part") {
                     if (item.part.type === "text") {
+                        // Desktop parity: only user messages get a bubble, and what the user
+                        // typed renders literally — markdown in your own words is surprising.
+                        if (turn.isUser) {
+                            return (
+                                <p
+                                    key={item.index}
+                                    className="bg-muted rounded-lg px-3 py-2 whitespace-pre-wrap text-xs"
+                                >
+                                    {item.part.text}
+                                </p>
+                            )
+                        }
                         return (
-                            <p
+                            <AssistantMarkdown
                                 key={item.index}
-                                className={`whitespace-pre-wrap text-xs ${
-                                    // Desktop parity: only user messages get a bubble, and the
-                                    // brand accent stays reserved for CTAs — muted fill here.
-                                    turn.isUser ? "bg-muted rounded-lg px-3 py-2" : ""
-                                }`}
-                            >
-                                {item.part.text}
-                            </p>
+                                streaming={isLiveTextItem(turn, position)}
+                                text={item.part.text}
+                            />
                         )
                     }
                     if (item.part.type === "reasoning") {

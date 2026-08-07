@@ -13,6 +13,7 @@ from typing import Any, AsyncIterator, Callable, Optional
 from oss.src.dbs.redis.sessions.contract import (
     WATCH_EVENT_INTERACTION,
     WATCH_EVENT_LIFECYCLE,
+    WATCH_EVENT_READY,
     WATCH_EVENT_RECORDS_CHANGED,
 )
 from oss.src.utils.logging import get_module_logger
@@ -20,6 +21,17 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 HEARTBEAT_FRAME = ": heartbeat\n\n"
+
+
+def retry_frame(retry_milliseconds: int) -> str:
+    """SSE `retry:` field — sets the client's built-in auto-reconnect delay."""
+    return f"retry: {retry_milliseconds}\n\n"
+
+
+def ready_frame() -> str:
+    """Emitted once the Redis subscription is live: the client's cue to revalidate."""
+    return "event: " + WATCH_EVENT_READY + "\ndata: {}\n\n"
+
 
 _KNOWN_EVENTS = {
     WATCH_EVENT_RECORDS_CHANGED,
@@ -50,8 +62,21 @@ async def watch_event_stream(
     channel: str,
     pubsub_factory: Callable[[], Any],
     heartbeat_seconds: float,
+    retry_milliseconds: int,
 ) -> AsyncIterator[str]:
     """Subscribe to the session's watch channel and yield SSE frames forever.
+
+    The first frame is a ``retry:`` preamble: it pins the client's built-in
+    auto-reconnect delay (implementation-defined otherwise) so a server-side
+    drop — an API restart, a deploy — cannot reconnect-storm us.
+
+    The second is a ``ready`` event, and that is what a client revalidates on.
+    ``onopen`` fires as soon as the response headers arrive, and Starlette flushes
+    those BEFORE it starts iterating this generator — so a revalidation driven by
+    ``onopen`` can read the record log, and a change can land and publish, all before
+    the ``subscribe`` below completes. That change would reach neither the refetch nor
+    the stream. ``ready`` is emitted once the subscription is live, so a revalidation
+    keyed on it cannot straddle the gap.
 
     The subscription is torn down in ``finally`` — a client disconnect cancels
     the generator (GeneratorExit/CancelledError), which is exactly the cleanup
@@ -60,6 +85,8 @@ async def watch_event_stream(
     pubsub = pubsub_factory()
     try:
         await pubsub.subscribe(channel)
+        yield retry_frame(retry_milliseconds)
+        yield ready_frame()
         while True:
             message = await pubsub.get_message(
                 ignore_subscribe_messages=True,

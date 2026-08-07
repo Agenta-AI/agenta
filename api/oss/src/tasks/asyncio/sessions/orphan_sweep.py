@@ -22,6 +22,7 @@ from oss.src.dbs.redis.sessions.locks import (
     force_cancel_alive,
     clear_running,
     force_clear_owner,
+    mark_turn_superseded,
 )
 
 from sqlalchemy import and_, func, not_, or_, select
@@ -90,12 +91,21 @@ async def run_orphan_sweep(engine: TransactionsEngine, lock_engine: LockEngine) 
         # Bring the Redis locks the SEND gate reads in sync with the rows just written.
         for row in orphans:
             project_id = str(row.project_id)
-            await force_cancel_alive(
+            displaced_alive = await force_cancel_alive(
                 lock_engine, project_id=project_id, session_id=row.session_id
             )
-            await clear_running(
+            displaced_running = await clear_running(
                 lock_engine, project_id=project_id, session_id=row.session_id
             )
+            # A swept turn is declared dead; tombstone it so a late beat from it cannot
+            # re-nest the session it was just evicted from.
+            for turn_id in {t for t in (displaced_alive, displaced_running) if t}:
+                await mark_turn_superseded(
+                    lock_engine,
+                    project_id=project_id,
+                    session_id=row.session_id,
+                    turn_id=turn_id,
+                )
             # A swept session is dead; free its affinity like kill does.
             await force_clear_owner(
                 lock_engine, project_id=project_id, session_id=row.session_id
