@@ -27,7 +27,7 @@ imported platform package.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -56,6 +56,27 @@ _CTX_TOKEN_PREFIX = "$ctx."
 # server's registered handlers (``PLATFORM_TOOL_HANDLERS`` in the API's
 # ``core/tools/platform_handlers.py``); an op naming anything else fails at import.
 _HANDLER_CALL_REFS = frozenset({f"{PLATFORM_OP_NAMESPACE}test_run"})
+
+# The ephemeral per-call description (R12). The model writes it, the frontend shows it beside
+# the call, and the runner deletes it before it builds the request. It is NOT the commit message:
+# ``message`` describes the change in the revision history and is persisted; this describes the
+# call in the conversation and is never persisted. It is also NOT the persisted
+# ``RevisionCommit.description``, which the model never sets. See
+# ``docs/design/agent-config-editing/contracts/read-config.md`` section 12.
+EPHEMERAL_DESCRIPTION_ARG = "description"
+
+# Long enough for one or two sentences of intent, short enough that it can never become a payload
+# channel. The frontend truncates for display and shows that it truncated.
+EPHEMERAL_DESCRIPTION_MAX_LENGTH = 500
+
+_EPHEMERAL_DESCRIPTION_SCHEMA: Dict[str, Any] = {
+    "type": "string",
+    "maxLength": EPHEMERAL_DESCRIPTION_MAX_LENGTH,
+    "description": (
+        "Optional. One or two sentences saying what this call does and why. The user sees it "
+        "beside the call. It is not saved with the change; use the commit message for that."
+    ),
+}
 
 
 class PlatformOp(BaseModel):
@@ -95,6 +116,11 @@ class PlatformOp(BaseModel):
     read_only: bool = False
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
     timeout_ms: Optional[int] = Field(default=None, gt=0)
+    # Builder ops opt in to the ephemeral per-call ``description`` (R12). The model writes one
+    # sentence saying what this call does and why; the frontend shows it beside the call. The
+    # runner strips it before it builds the request, so no endpoint schema changes. Off by
+    # default: an op that does not show its calls to a human gains nothing from it.
+    accepts_description: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> "PlatformOp":
@@ -153,12 +179,24 @@ class PlatformOp(BaseModel):
         """The stable reserved id, ``tools.agenta.<op>``."""
         return f"{PLATFORM_OP_NAMESPACE}{self.op}"
 
+    @property
+    def ephemeral_args(self) -> Optional[List[str]]:
+        """Top-level argument names the runner must delete before it builds the request.
+
+        These are model-authored fields that exist for the human, not for the endpoint. Returning
+        them on the spec keeps ONE list: the schema that offers the field and the strip that
+        removes it cannot drift apart.
+        """
+        return [EPHEMERAL_DESCRIPTION_ARG] if self.accepts_description else None
+
     def resolved_input_schema(self) -> Dict[str, Any]:
         """The concrete, model-visible input schema.
 
         Catalog schema with every ``x-ag-type-ref`` expanded to concrete JSON Schema, then with the
         server-bound ``context_bindings`` fields stripped (path-aware, including their ``required``
-        entries) so the model never sees a field the runner fills from run context.
+        entries) so the model never sees a field the runner fills from run context. A builder op
+        then gains the optional ephemeral ``description`` at the TOP level, beside the op's own
+        payload object, because it describes the call and not the payload.
         """
         if self.input_schema_ref is not None:
             schema = expand_type_refs({"x-ag-type-ref": self.input_schema_ref})
@@ -170,6 +208,15 @@ class PlatformOp(BaseModel):
             return schema
         for field in self.context_bindings:
             _strip_field(schema, field)
+        if self.accepts_description:
+            # The catalog schemas are closed (``additionalProperties: false``), so the field must
+            # be advertised or the model cannot send it at all. It is never required: an agent
+            # that says nothing is quieter, not broken.
+            properties = schema.setdefault("properties", {})
+            if isinstance(properties, dict):
+                properties[EPHEMERAL_DESCRIPTION_ARG] = deepcopy(
+                    _EPHEMERAL_DESCRIPTION_SCHEMA
+                )
         return schema
 
     def to_call(self) -> ToolCall:
@@ -1098,6 +1145,9 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             context_bindings={"target.workflow_variant_id": "$ctx.workflow.variant.id"},
             read_only=False,
             timeout_ms=120000,
+            # A builder op: the playground shows every one of its calls to the human who is
+            # building the agent, so the agent's own account of the call is worth showing (R12).
+            accepts_description=True,
         ),
         PlatformOp(
             op="commit_revision",
@@ -1109,6 +1159,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
                 "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
             },
             read_only=False,
+            accepts_description=True,
         ),
         PlatformOp(
             op="annotate_trace",
