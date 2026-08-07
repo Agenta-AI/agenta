@@ -786,7 +786,9 @@ _composio_adapters = {}
 if env.composio.enabled:
     _composio_adapters["composio"] = ComposioToolsAdapter(
         api_key=env.composio.api_key,  # type: ignore[arg-type]  # guarded by .enabled
-        api_url=env.composio.api_url,
+        # v3.1 so discover (list/search) and resolve/execute agree on one slug
+        # set — see ComposioConfig.tools_api_url and #5174.
+        api_url=env.composio.tools_api_url,
     )
 else:
     log.warning("Composio not enabled — set COMPOSIO_API_KEY to activate gateway tools")
