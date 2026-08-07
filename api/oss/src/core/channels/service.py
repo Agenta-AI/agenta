@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.channels.dtos import (
@@ -12,6 +12,8 @@ from oss.src.core.channels.dtos import (
     ChannelGrantCreate,
     ChannelGrantEdit,
     ChannelGrantQuery,
+    ChannelInboxEvent,
+    ChannelInboxEventCreate,
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelSpaceCreate,
@@ -511,6 +513,32 @@ class ChannelsService:
         )
 
     # --- routing: the inbound path (§2.1, §2.4) — WP3/WP4 fill these ------ #
+
+    async def get_project_and_connection_by_external_id(
+        self,
+        *,
+        channel: str,
+        external_id: str,
+    ) -> Optional[Tuple[UUID, UUID]]:
+        """Unscoped by necessity: an inbound platform event carries no tenant."""
+
+        return await self.channels_dao.get_project_and_connection_by_external_id(
+            channel=channel,
+            external_id=external_id,
+        )
+
+    async def record_inbox_event(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelInboxEventCreate,
+    ) -> Optional[ChannelInboxEvent]:
+        """None means already recorded — the dedup contract, not an error."""
+
+        return await self.channels_dao.record_inbox_event(
+            project_id=project_id,
+            event=event,
+        )
 
     async def verify_signature(self, *, channel, headers, body) -> UUID:
         raise NotImplementedError

@@ -104,6 +104,8 @@ async def channels_scope():
         "project_id": project_id,
         "user_id": user_id,
         "connection_id": connection_id,
+        # the platform-side installation id an inbound event carries
+        "external_id": f"T{connection_id.hex[:8]}",
     }
 
     async with engine.session() as session:
