@@ -24,8 +24,19 @@ function TooltipProvider({
     )
 }
 
+/**
+ * Self-provides, as current shadcn does. Radix throws "`Tooltip` must be used within
+ * `TooltipProvider`" otherwise — a RUNTIME error that neither gate catches (a crashed story
+ * renders an error overlay, which the VRT reads as "no pairs" and axe audits as one clean root).
+ * antd's Tooltip needed no provider, so every migrated call site was one of these waiting to
+ * happen. Nesting is harmless: an outer TooltipProvider still wins for shared delay/skip state.
+ */
 function Tooltip(props: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-    return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+    return (
+        <TooltipProvider>
+            <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+        </TooltipProvider>
+    )
 }
 
 function TooltipTrigger(props: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {

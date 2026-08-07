@@ -57,8 +57,14 @@ const inputNumberVariants = cva(
                 middle: "rounded-control",
                 large: "rounded-control-lg",
             },
+            // Mirrors Input's `ghost` (= antd's `variant="borderless"`): no box of its own, so
+            // it melts into a container that already draws one.
+            variant: {
+                default: "",
+                ghost: "bg-transparent border-0 hover:border-0 focus-within:border-0 focus-within:shadow-none",
+            },
         },
-        defaultVariants: {state: "enabled", size: "middle"},
+        defaultVariants: {state: "enabled", size: "middle", variant: "default"},
     },
 )
 
@@ -121,6 +127,7 @@ export function InputNumber({
     step = 1,
     disabled = false,
     size = "middle",
+    variant = "default",
     placeholder,
     className,
     style,
@@ -203,7 +210,7 @@ export function InputNumber({
             data-slot="input-number"
             style={style}
             className={cn(
-                inputNumberVariants({state: disabled ? "disabled" : "enabled", size}),
+                inputNumberVariants({state: disabled ? "disabled" : "enabled", size, variant}),
                 className,
             )}
         >
