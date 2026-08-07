@@ -1,6 +1,11 @@
 import type { McpServerConfig } from "../../protocol.ts";
+import { createDaytonaCredentialDeliveryPort } from "../../providers/daytona-credential-delivery.ts";
+import type {
+  CredentialDeliveryCapabilities,
+  CredentialDeliveryPort,
+} from "../../providers/credential-delivery-port.ts";
 import { DaytonaReconnectTerminalError } from "./daytona-provider.ts";
-import type { DaytonaSecretPlan } from "./daytona-secret-plan.ts";
+import { planSlotKeys, type DaytonaSecretPlan } from "./daytona-secret-plan.ts";
 import {
   allocateDaytonaSecrets,
   deleteDaytonaSecrets,
@@ -30,12 +35,29 @@ export interface ProcessLocalDaytonaSecretProvider extends DaytonaProviderLike {
   materializeMcpServers(
     servers: McpServerConfig[] | undefined,
   ): McpServerConfig[] | undefined;
+  /**
+   * How a rotated credential reaches THIS sandbox without rebuilding it.
+   *
+   * Undefined until an allocation is current (before create, or after the sandbox was cleaned up),
+   * and undefined for a plan with no hideable credentials — there is no reference to rotate, so
+   * there is no live delivery to offer, and the caller correctly falls back to a rebuild.
+   */
+  credentialDeliveryPort(): CredentialDeliveryPort | undefined;
 }
 
 export interface ProcessLocalSecretDependencies {
   registry?: Map<string, RegistryEntry>;
-  /** Hash of all create-time routing, environment, and sandbox config. */
-  createFingerprint?: string;
+  /**
+   * Hash of all create-time routing, environment, and sandbox config: the sandbox's GENERATION id.
+   *
+   * REQUIRED, and that is the point of it (lifecycle migration, step 9). It used to default to
+   * `JSON.stringify(plan)` — a raw-value serialization of every credential in the run, held for
+   * the sandbox's whole parked life and compared on every reconnect. Nothing passed the default in
+   * production, so it protected nobody and only waited for a new caller to reintroduce it.
+   */
+  createFingerprint: string;
+  /** Capability override for the delivery port. See `DaytonaCredentialDeliveryDeps`. */
+  credentialCapabilities?: CredentialDeliveryCapabilities;
   cleanupDelayMilliseconds: number;
   setCleanupTimer?: typeof setTimeout;
   clearCleanupTimer?: typeof clearTimeout;
@@ -46,6 +68,19 @@ const processLocalRegistry = new Map<string, RegistryEntry>();
 
 function plansMatch(entry: RegistryEntry, createFingerprint: string): boolean {
   return entry.createFingerprint === createFingerprint;
+}
+
+/** Whether an allocation's slots are exactly the ones a plan asks for. Identities only. */
+function slotSetsMatch(
+  allocation: DaytonaSecretAllocation,
+  plan: DaytonaSecretPlan,
+): boolean {
+  const allocated = [...allocation.bySlot.keys()].sort();
+  const wanted = planSlotKeys(plan);
+  return (
+    allocated.length === wanted.length &&
+    allocated.every((key, index) => key === wanted[index])
+  );
 }
 
 async function destroySandboxIdempotently(
@@ -142,10 +177,12 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
   const schedule = dependencies.setCleanupTimer ?? setTimeout;
   const cancel = dependencies.clearCleanupTimer ?? clearTimeout;
   const log = dependencies.log ?? (() => {});
-  const createFingerprint =
-    dependencies.createFingerprint ?? JSON.stringify(plan);
+  const createFingerprint = dependencies.createFingerprint;
   let provider: T | undefined;
   let currentAllocation: DaytonaSecretAllocation | undefined;
+  // The sandbox the current allocation belongs to, so the delivery port can name the environment
+  // it serializes on. Cleared wherever the allocation is.
+  let currentSandboxId: string | undefined;
 
   const providerFor = (attachments: Record<string, string>): T => {
     provider ??= buildProvider(attachments);
@@ -162,7 +199,10 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
     await destroySandboxIdempotently(activeProvider, sandboxId);
     await deleteDaytonaSecrets(entry.allocation, api);
     if (registry.get(sandboxId) === entry) registry.delete(sandboxId);
-    if (currentAllocation === entry.allocation) currentAllocation = undefined;
+    if (currentAllocation === entry.allocation) {
+      currentAllocation = undefined;
+      currentSandboxId = undefined;
+    }
   };
 
   const facade: ProcessLocalDaytonaSecretProvider = {
@@ -195,6 +235,7 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         };
         registry.set(sandboxId, entry);
         currentAllocation = allocation;
+        currentSandboxId = sandboxId;
         return sandboxId;
       } catch (cause) {
         // The vendored provider creates the remote sandbox before it starts the daemon and only
@@ -242,7 +283,27 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
             "process-local-secret-allocation-mismatch",
           );
         }
+        // THE SLOT SET, CHECKED SEPARATELY FROM THE GENERATION (lifecycle migration, step 9).
+        //
+        // Credential material left the create fingerprint so that a ROTATION stops reading as a
+        // different sandbox. The slot SET is a different question: this sandbox was created holding
+        // one placeholder per allocated slot, and no runner action can add or remove one. If the
+        // incoming plan names slots this allocation does not have, the parked sandbox physically
+        // cannot serve it — `materializeMcpServers` would fail later, mid-acquire, with a message
+        // about a missing placeholder rather than about the real cause.
+        //
+        // So the identities are reconciled here and FAIL CLOSED, which is what the split promised:
+        // immutable topology rebuilds, mutable state reconciles on reconnect or gives up. Slot
+        // identities carry no values (consumer, binding, host), so comparing them logs nothing.
+        if (!slotSetsMatch(entry.allocation, plan)) {
+          await cleanupAfterSandbox(sandboxId, entry, activeProvider);
+          throw new DaytonaReconnectTerminalError(
+            sandboxId,
+            "process-local-secret-slot-set-mismatch",
+          );
+        }
         currentAllocation = entry.allocation;
+        currentSandboxId = sandboxId;
         try {
           await activeProvider.reconnect?.(sandboxId);
         } catch (cause) {
@@ -310,6 +371,21 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         await cleanupAfterSandbox(sandboxId, entry, activeProvider);
       });
     },
+    credentialDeliveryPort(): CredentialDeliveryPort | undefined {
+      // No allocation, no reference to rotate. A plan with no hideable candidates lands here too:
+      // its values were passed to Daytona directly and live in the daemon environment, where only
+      // a rebuild replaces them. Returning undefined is what routes those back to a rebuild.
+      if (!currentAllocation || !currentSandboxId) return undefined;
+      if (currentAllocation.bySlot.size === 0) return undefined;
+      return createDaytonaCredentialDeliveryPort({
+        environmentId: currentSandboxId,
+        api,
+        bySlot: currentAllocation.bySlot,
+        ...(dependencies.credentialCapabilities
+          ? { capabilities: dependencies.credentialCapabilities }
+          : {}),
+      });
+    },
     materializeMcpServers(servers) {
       if (
         !currentAllocation &&
@@ -335,6 +411,29 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       return typeof value === "function" ? value.bind(activeProvider) : value;
     },
   });
+}
+
+/**
+ * The delivery port of whatever provider this environment ended up with, or undefined.
+ *
+ * Duck-typed exactly like `materializeDaytonaMcpServers` below and for the same reason: the
+ * acquire holds a provider it deliberately does not know the concrete type of. Undefined means
+ * "no live credential route exists here", which is the honest answer for the local provider, for
+ * a Daytona run with credential hiding switched off (values are plain environment variables in
+ * that sandbox, so only a rebuild replaces them), and for a run with nothing hideable.
+ */
+export function daytonaCredentialDeliveryPort(
+  provider: unknown,
+): CredentialDeliveryPort | undefined {
+  if (
+    typeof provider === "object" &&
+    provider !== null &&
+    "credentialDeliveryPort" in provider &&
+    typeof provider.credentialDeliveryPort === "function"
+  ) {
+    return provider.credentialDeliveryPort();
+  }
+  return undefined;
 }
 
 export function materializeDaytonaMcpServers(

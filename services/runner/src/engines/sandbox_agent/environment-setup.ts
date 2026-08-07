@@ -178,8 +178,8 @@ export async function prepareEnvironmentSetup(
   // That was never planning, which is why it moved out of this file (lifecycle migration,
   // step 5). See `environment/runtime-lifecycle.ts` for the ordering rule inside it.
   const runtimeEnvironment = buildRuntimeEnvironment({
-    plan: plan as never,
-    request: request as never,
+    plan,
+    request,
     piSkillSnapshot,
     log: logger,
     deps: { ...(deps.buildDaemonEnv ? { buildDaemonEnv: deps.buildDaemonEnv } : {}) },

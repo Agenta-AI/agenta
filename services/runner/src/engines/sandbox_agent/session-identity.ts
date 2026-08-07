@@ -528,6 +528,23 @@ export interface CredentialEpoch {
   /** The credentials this session was built with. Compared, never read. */
   secrets: CredentialMaterial;
   /**
+   * The half of that material a live delivery can NEVER reach: public model config
+   * (`modelConnection.environment`) and `local_use` credentials.
+   *
+   * WHY IT IS SPLIT OUT (lifecycle migration, step 8). A `local_use` credential is read by the
+   * provider SDK inside the sandbox, so it is baked into the daemon environment at create and no
+   * amount of vault work changes it; only the `opaque_http` half lives behind a Daytona Secret
+   * reference the runner can rotate in place. `configFingerprint` strips credential VALUES, so a
+   * rotated `AWS_SECRET_ACCESS_KEY` is invisible to it and surfaces ONLY as a moved epoch.
+   *
+   * Without this field the live credential route would answer such a rotation by updating vault
+   * records that do not hold it, report success, and keep a sandbox running on the OLD value.
+   * The route therefore requires this half to be unchanged and rebuilds otherwise. Same material,
+   * same never-logged holder; it is a second question asked of the same secrets, not a second copy
+   * of anything the epoch did not already retain.
+   */
+  direct: CredentialMaterial;
+  /**
    * Parked epochs only: the environment's installed-mount lease as epoch millis, or undefined when
    * it has no mounts. Incoming epochs never carry one.
    */
@@ -575,7 +592,21 @@ export function computeCredentialEpoch(
       })),
     ),
   });
-  return { secrets: new CredentialMaterial(material) };
+  // The half no live delivery can reach. See `CredentialEpoch.direct`: these values are read
+  // locally by the provider SDK, so they are baked into the daemon environment at create.
+  const directMaterial = canonicalJson({
+    modelEnvironment: request.modelConnection?.environment ?? {},
+    localUseCredentials: (request.modelConnection?.credentials ?? [])
+      .filter((credential) => credential.usage === "local_use")
+      .map((credential) => ({
+        binding: credential.binding,
+        value: credential.value,
+      })),
+  });
+  return {
+    secrets: new CredentialMaterial(material),
+    direct: new CredentialMaterial(directMaterial),
+  };
 }
 
 /** True when credentials baked into a parked sandbox/session changed (rotation ⇒ evict). */

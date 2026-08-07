@@ -259,6 +259,62 @@ describe("the composer delegates instead of inlining", () => {
   });
 });
 
+describe("a skipped durable mount is LOUD at both surfaces", () => {
+  // Source assertions, for the same reason the stage-name guard uses them: the wiring lives inside
+  // `acquireEnvironment`, which no unit test can drive without a live provider. What must not
+  // regress is that the skip has a branch at all. It used to have none, and the timing line was
+  // the only trace it left.
+  const environment = () => CODE_ONLY(SRC("engines/sandbox_agent/environment.ts"));
+
+  it("names WHY the mount was refused, because the two causes have different fixes", () => {
+    const source = environment();
+    assert.match(source, /store-unreachable-and-no-tunnel/);
+    assert.match(
+      source,
+      /WARN durable cwd mount SKIPPED/,
+      "the cwd mount announces its own skip",
+    );
+    assert.match(
+      source,
+      /WARN durable agent mount SKIPPED/,
+      "and so does the agent mount",
+    );
+  });
+
+  it("tells the MODEL, not only the operator", () => {
+    // The operator line alone would leave the model to discover the empty folder itself, which is
+    // the failure that started this: it searched, found nothing, and reported the user's work
+    // gone.
+    assert.match(environment(), /agentMountUnavailableAppendix/);
+  });
+
+  it("keeps three states, so a run with no durable storage stays quiet", () => {
+    // A stack whose tunnel is permanently down would otherwise carry the caveat in every prompt
+    // forever, and a warning in every prompt is one a model learns to ignore.
+    const source = environment();
+    assert.match(source, /agentMountSkipped/);
+    assert.match(
+      source,
+      /environment\.agentMountedPath\s*\?\s*agentMountAppendix\(/,
+      "a live mount advertises its resolved path",
+    );
+    assert.match(
+      source,
+      /composeSystemPromptAppendix\(/,
+      "and it goes through the shared composer, not a bespoke combine",
+    );
+  });
+
+  it("advertises the resolved path and never the variable name", () => {
+    const guidance = CODE_ONLY(SRC("engines/sandbox_agent/agent-mount-guidance.ts"));
+    assert.doesNotMatch(
+      guidance,
+      /also.{0,20}AGENTA_AGENT_MOUNT_DIR/,
+      "the clause that taught the model a variable we do not set on Daytona is gone",
+    );
+  });
+});
+
 describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
   it("the six helpers left environment.ts", () => {
     // They were mutually recursive closures over `acquireEnvironment`'s scope. The composer now
@@ -280,6 +336,9 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     const source = SRC("environment/mount-lifecycle.ts");
     for (const fn of [
       "activateAgentMountGuidance",
+      // The negative sibling: it tells the model the durable folder is unreachable, and it must
+      // obey the same no-capture rule as the rest of the unit.
+      "activateAgentMountUnavailableGuidance",
       "mountLocalDurableCwd",
       "mountLocalAgentCwd",
       "reSignAndRemountLocalAgentMount",
@@ -293,8 +352,8 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
     }
     assert.equal(
       source.split("ctx: AcquireContext").length - 1,
-      6,
-      "all six helpers take ctx; a captured variable would defeat the split",
+      7,
+      "all seven helpers take ctx; a captured variable would defeat the split",
     );
   });
 
@@ -312,11 +371,40 @@ describe("mount unit: the seam (lifecycle migration, step 5 / S7b)", () => {
   it("every operational catch rethrows an invariant violation first", () => {
     // Without this the freeze throw dies in mountLocalAgentCwd's catch and the run continues
     // with a harness that cannot see its durable storage.
-    const source = SRC("environment/mount-lifecycle.ts");
-    assert.ok(source.includes("catch (err)"), "the unit still has an operational catch");
+    //
+    // EVERY catch, not just one. Asserting that the file contains a `rethrowIfInvariant(err)`
+    // somewhere passes forever once a single catch has it, while a catch added later swallows an
+    // AcquireInvariantError in silence. So each block is checked, and the call must be the FIRST
+    // statement: a catch that logs or cleans up before rethrowing has already acted on a
+    // violation it was supposed to refuse.
+    const source = CODE_ONLY(SRC("environment/mount-lifecycle.ts"));
+    const blocks = [...source.matchAll(/catch\s*\((\w+)\)\s*\{/g)];
+    assert.ok(blocks.length > 0, "the unit still has an operational catch");
+    for (const block of blocks) {
+      const binding = block[1];
+      const body = source.slice(block.index + block[0].length);
+      const firstStatement = body.slice(0, body.indexOf(";") + 1).trim();
+      assert.equal(
+        firstStatement,
+        `rethrowIfInvariant(${binding});`,
+        `a catch binding '${binding}' must start with rethrowIfInvariant(${binding})`,
+      );
+    }
+  });
+
+  it("builds the acquire context BEFORE assigning destroy", () => {
+    // `destroy` calls `ctx.recordCwdUnmountResult`, and a `const` is in the temporal dead zone
+    // until its declaration runs. With the context created after the assignment, a throw from
+    // `createAcquireContext` left `acquireEnvironment` rejecting with `destroy` never called, so
+    // the skills temp root leaked; and a `destroy()` between the two points raised a
+    // ReferenceError instead of tearing down.
+    const source = CODE_ONLY(SRC("engines/sandbox_agent/environment.ts"));
+    const ctxAt = source.indexOf("const { context: ctx } = createAcquireContext");
+    const destroyAt = source.indexOf("environment.destroy = async (opts");
+    assert.ok(ctxAt > 0 && destroyAt > 0, "both sites still exist");
     assert.ok(
-      source.includes("rethrowIfInvariant(err)"),
-      "an operational catch must start with rethrowIfInvariant",
+      ctxAt < destroyAt,
+      "createAcquireContext must run before destroy is assigned",
     );
   });
 
