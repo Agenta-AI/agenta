@@ -110,6 +110,10 @@ class AgentaPlatformToolResolver:
                     render=tool_config.render,
                     permission=tool_config.permission,
                     read_only=op.read_only,
+                    # Model-authored arguments the runner deletes before it builds the request
+                    # (today: the ephemeral per-call ``description``). Both dispatch modes carry
+                    # it, because both must strip before they send.
+                    ephemeral_args=op.ephemeral_args,
                     **target,
                 )
             )

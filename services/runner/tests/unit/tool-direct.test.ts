@@ -35,6 +35,7 @@ import {
   directCallUrl,
   pathParamNames,
   resolveCtxToken,
+  stripEphemeralArgs,
   type DirectCall,
 } from "../../src/tools/direct.ts";
 import {
@@ -707,5 +708,187 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
     assert.equal(res.error, "direct tool call failed: HTTP 500");
     assert.doesNotMatch(res.error ?? "", /agenta\.example/);
     assert.doesNotMatch(res.error ?? "", /stack trace|secret detail/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ephemeral arguments (the per-call `description`, R12)
+//
+// A builder tool call may carry a model-authored `description`: one or two sentences saying what
+// the call does and why. The frontend shows it beside the call, so it must stay in the RECORDED
+// call, and it must never reach the API. The runner therefore strips it at dispatch, on both
+// branches, before either one builds a request.
+// ---------------------------------------------------------------------------
+
+describe("stripEphemeralArgs", () => {
+  it("removes only the declared top-level names", () => {
+    const args = { description: "why", workflow_revision: { message: "m" } };
+    assert.deepEqual(stripEphemeralArgs(args, ["description"]), {
+      workflow_revision: { message: "m" },
+    });
+  });
+
+  it("leaves a same-named NESTED field alone", () => {
+    // `create_schedule` and friends have a real `description` inside their payload object.
+    const args = { schedule: { description: "a real payload field" } };
+    assert.deepEqual(stripEphemeralArgs(args, ["description"]), args);
+  });
+
+  it("returns the same object when there is nothing to strip", () => {
+    const args = { a: 1 };
+    assert.equal(stripEphemeralArgs(args, ["description"]), args);
+    assert.equal(stripEphemeralArgs(args, []), args);
+    assert.equal(stripEphemeralArgs(args, undefined), args);
+  });
+
+  it("does not mutate the caller's arguments", () => {
+    const args = { description: "why", keep: 1 };
+    stripEphemeralArgs(args, ["description"]);
+    assert.deepEqual(args, { description: "why", keep: 1 });
+  });
+
+  it("passes a non-object through untouched", () => {
+    assert.equal(stripEphemeralArgs("plain", ["description"]), "plain");
+    assert.equal(stripEphemeralArgs(undefined, ["description"]), undefined);
+  });
+});
+
+describe("relay strips ephemeral args before it builds a request", () => {
+  /** A builder op: self-targeting, and it accepts the ephemeral description. */
+  const commitSpec: ResolvedToolSpec = {
+    name: "commit_revision",
+    kind: "callback",
+    call: {
+      method: "POST",
+      path: "/api/workflows/revisions/commit",
+      context: {
+        "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id",
+      },
+    },
+    ephemeralArgs: ["description"],
+  };
+
+  it("keeps the description out of the direct-call request body", async () => {
+    const calls = stubFetch("committed");
+    const res = await relayOnce(
+      commitSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      {
+        description: "Adding the pdf-tools skill you asked for.",
+        workflow_revision: { message: "Add the pdf-tools skill." },
+      },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    const body = JSON.parse(calls[0].init.body as string);
+    assert.equal(
+      body.description,
+      undefined,
+      "the ephemeral note never reaches the API",
+    );
+    assert.deepEqual(body, {
+      workflow_revision: {
+        message: "Add the pdf-tools skill.",
+        workflow_variant_id: "own-variant",
+      },
+    });
+  });
+
+  it("sends the same body when the model writes no description", async () => {
+    const calls = stubFetch("committed");
+    const res = await relayOnce(
+      commitSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { workflow_revision: { message: "Add the pdf-tools skill." } },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    const body = JSON.parse(calls[0].init.body as string);
+    // No empty key appears: absent and present-then-stripped produce one identical request.
+    assert.deepEqual(body, {
+      workflow_revision: {
+        message: "Add the pdf-tools skill.",
+        workflow_variant_id: "own-variant",
+      },
+    });
+    assert.ok(!("description" in body));
+  });
+
+  it("strips BEFORE args_into, so the note cannot land inside the payload", async () => {
+    // This is the failure the strip point prevents: with `args_into` every model argument is
+    // deep-set at that path, so a description left in place would become `data.inputs.description`.
+    const calls = stubFetch("ok");
+    const spec: ResolvedToolSpec = {
+      ...refSpec,
+      ephemeralArgs: ["description"],
+    };
+    const res = await relayOnce(
+      spec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { description: "Checking the weather first.", city: "Berlin" },
+    );
+
+    assert.equal(res.ok, true);
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      data: { inputs: { city: "Berlin" } },
+      references: { workflow_revision: { id: "rev_abc123" } },
+    });
+  });
+
+  it("strips on the gateway branch too (handler-mode ops post through /tools/call)", async () => {
+    const calls = stubFetch(JSON.stringify({ ok: true }));
+    // `test_run` is handler-mode: it carries a callRef, not a `call` descriptor.
+    const testRunSpec: ResolvedToolSpec = {
+      name: "test_run",
+      kind: "callback",
+      callRef: "tools.agenta.test_run",
+      contextBindings: {
+        "target.workflow_variant_id": "$ctx.workflow.variant.id",
+      },
+      ephemeralArgs: ["description"],
+    };
+    const res = await relayOnce(
+      testRunSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      {
+        description: "Trying the new instructions once.",
+        inputs: { messages: [] },
+      },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(
+      (calls[0].init.body as string).includes(
+        "Trying the new instructions once.",
+      ),
+      false,
+      "the ephemeral note never reaches /tools/call",
+    );
+  });
+
+  it("leaves `description` alone for an op that did not declare it ephemeral", async () => {
+    // A payload field named `description` is normal (a schedule, a subscription). Only a spec
+    // that declares the name loses it, so the strip can never eat someone else's data.
+    const calls = stubFetch("ok");
+    const plainSpec: ResolvedToolSpec = {
+      name: "create_thing",
+      kind: "callback",
+      call: { method: "POST", path: "/api/things" },
+    };
+    const res = await relayOnce(
+      plainSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { description: "a real field" },
+    );
+
+    assert.equal(res.ok, true);
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      description: "a real field",
+    });
   });
 });
