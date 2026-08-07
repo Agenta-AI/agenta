@@ -1,0 +1,328 @@
+{
+  "class": "failure_mode",
+  "about": [
+    "Every scenario in this file reproduces a failure seen in live QA with a real user typing. They",
+    "are written as scenarios rather than as notes because a failure nobody measures comes back:",
+    "each one is a hard fail if it happens again, on any cell.",
+    "",
+    "One instrument is global rather than declared here \u2014 identical-call-resent-after-refusal. It",
+    "runs on EVERY trial in the suite, because the behavior it detects (a model that read",
+    "`retryable` and ignored `next_step`) can appear in any scenario that earns a refusal, and a",
+    "check that only watches the scenarios expecting a refusal would miss it exactly where it is",
+    "most surprising.",
+    "",
+    "A FAILING TRIAL HERE IS LABELLED BY SHAPE, not just counted (`bench_lib.classify_outcome`).",
+    "The same prompt fails two ways that want opposite fixes: `described_no_action` is a model that",
+    "explained the mechanism and never reached for it, and `attempt_refused` is a model that",
+    "reached for it and got the details wrong. See the `baseline` block on fm-03 for the live",
+    "measurement that forced the distinction."
+  ],
+  "scenarios": [
+    {
+      "id": "fm-01-invented-marker",
+      "title": "invented marker syntax stored as configuration data",
+      "prompt_note": "The live failure: a session sent {\"@ag.embed\": {\"@ag.references\": {\"file\": \"/abs/path\"}}} meaning 'import this file', was told the commit succeeded, and every read of that field returned a marker afterwards.",
+      "seed_workspace": {
+        "handbook.md": "# Release handbook\n\nYou are the release QA agent for this team.\n\nAlways read the changelog before you start. The on-call escalation code is {{TOKEN}}.\n\nBe brief. Do not use emojis.\n"
+      },
+      "turns": [
+        {
+          "prompt": "i saved a handbook.md in your folder \u2014 use what's in it as my instructions from now on."
+        }
+      ],
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      },
+      "checks": [
+        {
+          "check": "no_stored_marker"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_matches",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "pattern": "(?i)release handbook"
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "baseline": {
+        "note": "Measured by this benchmark, run results/20260806-200904 (3 cells x 3 trials). 0/9 one-shot. Kept here because the row measures TWO different failures and a future reader should not fix the wrong one.",
+        "shapes": [
+          {
+            "cells": [
+              "claude-haiku-local",
+              "pi-luna-local"
+            ],
+            "trials": 6,
+            "shape": "no_action",
+            "detail": "Behavioural adoption: the model reads the handbook and adopts it for the conversation instead of storing it. pi even echoes the user's own persistence signal back \u2014 \"I'll follow it from now on\" \u2014 while nothing is stored. The signal is received and misapplied; this is not a discovery failure."
+          },
+          {
+            "cells": [
+              "codex-luna-local"
+            ],
+            "trials": 2,
+            "shape": "no_action",
+            "detail": "\"I couldn't find handbook.md in the workspace. Please save it there.\" The file was in the durable agent folder, where the user said they put it. A probe ruled out reachability: asked to READ the same seeded file, codex found it with both vague (\"your folder\") and explicit (\"your durable agent folder\") wording. Surviving hypothesis, untested at n>1: the search changes with task framing, and an instructions-shaped task sends it to the workspace root where AGENTS.md lives."
+          }
+        ],
+        "candidate_change": "A persistence-signal sentence (\"from now on\", \"always\", \"remember to\" = a configuration change, not a conversational instruction). DELIBERATELY NOT PROPOSED YET: this row is the CONTROL for the instructions-source sentence, which predicts fm-01 will not move. Landing a second sentence first would make neither delta attributable, and 9 trials should not pre-empt the 64 that wrong_surface costs."
+      }
+    },
+    {
+      "id": "fm-02-stale-recitation",
+      "title": "\"check again\" answered without checking",
+      "prompt_note": "The head moves between the two turns. A model that answers the second question from the first answer's memory reports the old value with full confidence, and nothing on the wire contradicts it except the missing tool call.",
+      "turns": [
+        {
+          "prompt": "what's my escalation code?"
+        },
+        {
+          "before_turn": {
+            "action": "commit_out_of_band",
+            "message": "someone rotates the escalation code",
+            "patch": {
+              "instructions": {
+                "agents_md": "# Release QA agent\n\nYou help the team ship a release.\n\n## Escalation\n\nThe on-call escalation code is {{TOKEN}}-ROTATED. Quote it when you page someone.\n\n## Tone\n\nBe brief. Use short sentences. Do not use emojis.\n"
+              }
+            }
+          },
+          "prompt": "someone said it changed. can you check again?"
+        }
+      ],
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 0,
+        "max_rounds": 6
+      },
+      "checks": [
+        {
+          "check": "turn_tool_called",
+          "name": "read_config",
+          "min": 1,
+          "turn": 1
+        },
+        {
+          "check": "turn_reply_contains",
+          "text": "{{TOKEN}}-ROTATED",
+          "turn": 1
+        },
+        {
+          "check": "no_revision_created"
+        }
+      ]
+    },
+    {
+      "id": "fm-03-harness-skills-folder",
+      "title": "a skill saved into the harness's own folder instead of the configuration",
+      "prompt_note": "Mahmoud's words, verbatim, from session b59cb549. Before the platform guidance existed this failed 3 times out of 3: the model copied the file into .codex/skills or .claude/skills and reported success, and nothing was saved.",
+      "seed_workspace": {
+        "gstack-autoplan/SKILL.md": "---\nname: gstack-autoplan\ndescription: Auto-review pipeline that runs the CEO, design, engineering, and DX reviews sequentially with automatic decisions.\n---\n\n# Autoplan\n\nRun the four review passes in order and decide automatically using the six decision\nprinciples. Reference code {{TOKEN}}.\n\n1. CEO review - is this worth building at all?\n2. Design review - does the shape fit the product?\n3. Engineering review - is the implementation sound?\n4. DX review - can a developer actually use it?\n"
+      },
+      "turns": [
+        {
+          "prompt": "can you add gstack-autoplan skill to your skills (i saved it in your folder)"
+        }
+      ],
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      },
+      "checks": [
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "gstack-autoplan"
+            }
+          ]
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "gstack-autoplan"
+            },
+            "body"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 4
+        },
+        {
+          "check": "turn_reply_not_contains",
+          "any_of": [
+            ".codex/skills",
+            ".claude/skills",
+            ".agents/skills"
+          ]
+        },
+        {
+          "check": "no_stored_marker"
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "baseline": {
+        "note": "Recorded from the release gate's discovery cell (.agents/skills/agent-release-gate/resources/matrix_g1_guidance_discovery.py), which drives this same verbatim prompt. External measurement, not produced by this benchmark \u2014 kept here so a wording change has a before-number to beat on the two harnesses this benchmark could not measure itself.",
+        "measured": "2026-08-06, gate reruns with the live OpenAI key",
+        "legs": [
+          {
+            "cell": "pi_core + claude-haiku-4-5",
+            "score": "2/3",
+            "shape": "attempt_refused",
+            "session": "7b4a1f01",
+            "detail": "Copied the whole skill DIRECTORY into .agenta-imports/ and then referenced a file path that did not match. The fail-closed deny correctly stopped it. Mechanical: it used the surface and got the details wrong."
+          },
+          {
+            "cell": "codex + gpt-5.6-luna",
+            "score": "2/3",
+            "shape": "described_no_action",
+            "session": "4fa17164",
+            "detail": "Correctly described the mechanism (\"skills must be enabled through the agent configuration\") and then made ZERO tool calls. Behavioral: it knew the surface and never reached for it."
+          }
+        ],
+        "candidate_change": "qa proposes making the guidance directive: \"always attempt the tool calls; do not only describe the mechanism\". UNVERIFIED by design \u2014 it targets the codex leg's shape and would plausibly do nothing for the pi_core leg's, which is exactly the prediction the outcome labels exist to test."
+      }
+    },
+    {
+      "id": "fm-04-gateway-without-connection",
+      "title": "a gateway tool committed without its connection",
+      "prompt_note": "discover -> connect -> commit is a three-step flow, and the middle step is the one a model skips: the tool entry commits fine, the config LOOKS wired, and the first real call fails. Needs discover_tools and list_connections mounted, and a deployment with a gateway provider; it SKIPs loudly otherwise, because a skip here is an untested claim and not a pass.",
+      "requires": [
+        "gateway"
+      ],
+      "tools": [
+        {
+          "type": "platform",
+          "op": "discover_tools"
+        },
+        {
+          "type": "platform",
+          "op": "list_connections"
+        }
+      ],
+      "turns": [
+        {
+          "prompt": "i want you to be able to post messages to our slack. set that up for me."
+        }
+      ],
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      },
+      "checks": [
+        {
+          "check": "no_stored_gateway_without_connection"
+        },
+        {
+          "check": "no_stored_marker"
+        }
+      ]
+    },
+    {
+      "id": "fm-05-recovery-from-correctable-refusal",
+      "title": "recover from a correctable refusal in one more call",
+      "prompt_note": "The seeded document says the same sentence twice, so the obvious anchor is ambiguous and earns `text_not_unique`, whose next step is 'add more surrounding lines until it appears once'. One-shot recovery means the model follows that and succeeds on the next call. The global identical-repeat instrument is what catches the opposite behavior: re-sending the same bytes because `retryable` said so.",
+      "seed": {
+        "instructions": {
+          "agents_md": "# Onboarding agent\n\nYou onboard new engineers. Escalation code {{TOKEN}}.\n\n## Hardware\n\nAsk for the laptop serial number.\n\nOrder the standby machine when the serial is missing.\n\n## Accounts\n\nAsk for the laptop serial number.\n\nCreate the accounts once you have it.\n"
+        }
+      },
+      "turns": [
+        {
+          "prompt": "under Accounts you should be asking for the github username, not the laptop serial number. fix that line. Hardware still needs the serial."
+        }
+      ],
+      "budget": {
+        "max_tool_errors": 1,
+        "max_commit_calls": 2,
+        "max_rounds": 8
+      },
+      "checks": [
+        {
+          "check": "stored_count",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "Ask for the laptop serial number.",
+          "value": 1
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "## Hardware\n\nAsk for the laptop serial number."
+        },
+        {
+          "check": "stored_matches",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "pattern": "(?is)## Accounts.{0,120}github username"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "Create the accounts once you have it."
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "Order the standby machine when the serial is missing."
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "instructions"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ]
+    }
+  ]
+}

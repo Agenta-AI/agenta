@@ -237,7 +237,9 @@ export {
     MessagesSchemaControl,
     isMessagesSchema,
     ResponseFormatControl,
+    ResponseFormatControlView,
     responseFormatModalOpenAtom,
+    SchemaTree,
     FeedbackConfigurationControl,
     PromptSchemaControl,
     isPromptSchema,
@@ -285,6 +287,8 @@ export type {
     MessagesSchemaControlProps,
     ResponseFormatValue,
     ResponseFormatControlProps,
+    ResponseFormatControlViewProps,
+    SchemaTreeProps,
     FeedbackConfigurationControlProps,
     FeedbackConfig,
     ResponseFormatType,
@@ -307,3 +311,86 @@ export {
     AgentOperationsSections,
     AgentOperationsSkeleton,
 } from "./SchemaControls/AgentOperationsSections"
+
+// Triggers section internals — surfaced so the Storybook component inventory can render
+// each one (the section itself is data-connected; the two rows are presentational).
+export {
+    TriggerManagementSection,
+    AddTriggerDropdown,
+} from "./SchemaControls/TriggerManagementSection"
+export type {TriggerManagementSectionProps} from "./SchemaControls/TriggerManagementSection"
+export {TriggerRow} from "./SchemaControls/triggerManagement/TriggerRow"
+export {SubscriptionChildRow} from "./SchemaControls/triggerManagement/SubscriptionChildRow"
+export {SubscriptionRunPopover} from "./SchemaControls/triggerManagement/SubscriptionRunPopover"
+export {TriggerActionsMenu} from "./SchemaControls/triggerManagement/TriggerActionsMenu"
+
+// Configure-popover panels (model / fallback / retry / advanced). Presentational and
+// prop-driven; surfaced so the Storybook component inventory can render each one.
+export {ModelConfigEditor} from "./components/PlaygroundConfigSection/ModelConfigEditor"
+export type {ModelConfigEditorProps} from "./components/PlaygroundConfigSection/ModelConfigEditor"
+export {AdvancedConfigFields} from "./components/PlaygroundConfigSection/AdvancedConfigFields"
+export type {AdvancedConfigFieldsProps} from "./components/PlaygroundConfigSection/AdvancedConfigFields"
+export {FallbackConfigTab} from "./components/PlaygroundConfigSection/FallbackConfigTab"
+export type {FallbackConfigTabProps} from "./components/PlaygroundConfigSection/FallbackConfigTab"
+export {RetryConfigTab} from "./components/PlaygroundConfigSection/RetryConfigTab"
+export type {RetryConfigTabProps} from "./components/PlaygroundConfigSection/RetryConfigTab"
+export {ConfigSelect, HintTooltip} from "./components/PlaygroundConfigSection/configPopoverControls"
+export {useModelConfigurePopover} from "./components/PlaygroundConfigSection/useModelConfigurePopover"
+export {useFieldSlots} from "./components/PlaygroundConfigSection/useFieldSlots"
+
+// Schema-control LEAVES (chunk G2). Presentational and prop-driven; surfaced so the
+// Storybook component inventory can render each one on its own.
+export {FieldsTagsEditorControl} from "./SchemaControls/FieldsTagsEditorControl"
+export type {FieldsTagsEditorControlProps} from "./SchemaControls/FieldsTagsEditorControl"
+export {CodeBlockLanguageMenu} from "./SchemaControls/CodeBlockLanguageMenu"
+export {HookConfigControl} from "./SchemaControls/HookConfigControl"
+export type {HookConfigControlProps} from "./SchemaControls/HookConfigControl"
+export {CodeConfigControl} from "./SchemaControls/CodeConfigControl"
+export type {CodeConfigControlProps} from "./SchemaControls/CodeConfigControl"
+
+export {SchemasConfigControl} from "./SchemaControls/SchemasConfigControl"
+export type {SchemasConfigControlProps} from "./SchemaControls/SchemasConfigControl"
+export {JsonObjectEditor} from "./SchemaControls/JsonObjectEditor"
+export type {JsonObjectEditorProps} from "./SchemaControls/JsonObjectEditor"
+export {SectionDrawer} from "./SchemaControls/SectionDrawer"
+export type {SectionDrawerProps} from "./SchemaControls/SectionDrawer"
+export {SectionQuickAction} from "./SchemaControls/SectionQuickAction"
+export type {SectionQuickActionProps} from "./SchemaControls/SectionQuickAction"
+export {
+    ProviderLogo,
+    SubSectionHeader,
+    CollapsibleProviderGroup,
+} from "./SchemaControls/sectionGroups"
+
+// Tool / skill / MCP item + form views. Presentational and prop-driven (the drawer owns the
+// value); surfaced so the Storybook component inventory can render each one.
+export {McpServerItemControl} from "./SchemaControls/McpServerItemControl"
+export type {McpServerItemControlProps} from "./SchemaControls/McpServerItemControl"
+export {SkillTemplateControl} from "./SchemaControls/SkillTemplateControl"
+export type {SkillTemplateControlProps} from "./SchemaControls/SkillTemplateControl"
+export {ToolFormView} from "./SchemaControls/ToolFormView"
+export type {ToolFormViewProps} from "./SchemaControls/ToolFormView"
+export {ReferenceToolFormView} from "./SchemaControls/ReferenceToolFormView"
+export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFormView"
+export {McpServerFormView} from "./SchemaControls/McpServerFormView"
+export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
+export {SkillFormView} from "./SchemaControls/SkillFormView"
+export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
+export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
+export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
+
+// Agent config panel — presentational siblings of the AgentTemplateControl container (the
+// control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,
+// zero atom reads, so the Storybook component inventory can render each surface directly.
+export {AgentTemplateSectionList} from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
+export type {
+    AgentTemplateSectionListProps,
+    AgentTemplateSectionDescriptor,
+} from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
+export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
+export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
+export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"
+export type {
+    SectionTitleBadgeProps,
+    SectionTitleBadgeTone,
+} from "./SchemaControls/agentTemplate/SectionTitleBadge"

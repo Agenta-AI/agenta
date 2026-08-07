@@ -1,10 +1,10 @@
-import React, {memo, useMemo} from "react"
+import {memo, useMemo} from "react"
 
-import {Avatar} from "antd"
+import {AvatarBox, type AvatarBoxProps} from "../../ui/avatar"
 
 import {getColorPairFromStr, getInitials} from "./utils"
 
-export interface InitialsAvatarProps extends Omit<React.ComponentProps<typeof Avatar>, "children"> {
+export interface InitialsAvatarProps extends Omit<AvatarBoxProps, "children"> {
     name: string
 }
 
@@ -18,9 +18,9 @@ export const InitialsAvatar = memo(({name, style, ...props}: InitialsAvatarProps
     }, [name])
 
     return (
-        <Avatar shape="square" style={{...colorStyle, ...style}} {...props}>
+        <AvatarBox shape="square" style={{...colorStyle, ...style}} {...props}>
             {getInitials(name)}
-        </Avatar>
+        </AvatarBox>
     )
 })
 

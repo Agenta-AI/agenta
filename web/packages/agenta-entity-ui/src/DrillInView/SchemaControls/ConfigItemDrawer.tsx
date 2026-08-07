@@ -23,9 +23,34 @@
 import {type ReactNode} from "react"
 
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Segmented, Tag} from "antd"
+import {Badge, type BadgeProps, Button, Segmented} from "@agenta/ui/ui"
 
 export type ConfigItemView = "form" | "json"
+
+// The badge `color` is an antd preset hue name supplied by the item-kind descriptors
+// (`typeColor: "cyan" | "blue" | …`), which type it as a plain string — so resolve it to a Badge
+// variant here rather than casting, and fall back to the neutral chip for an unknown hue.
+const BADGE_VARIANTS = [
+    "blue",
+    "green",
+    "orange",
+    "red",
+    "purple",
+    "cyan",
+    "magenta",
+    "pink",
+    "yellow",
+    "volcano",
+    "geekblue",
+    "lime",
+    "gold",
+] as const
+
+function badgeVariantFor(color: string | undefined): BadgeProps["variant"] {
+    return (BADGE_VARIANTS as readonly string[]).includes(color ?? "")
+        ? (color as BadgeProps["variant"])
+        : "default"
+}
 
 export interface ConfigItemDrawerProps {
     open: boolean
@@ -112,12 +137,15 @@ export function ConfigItemDrawer({
                         <div className="flex min-w-0 items-center gap-2">
                             <span className="truncate text-sm font-medium">{title}</span>
                             {badge ? (
-                                <Tag
-                                    color={badge.color}
-                                    className="m-0 shrink-0 text-[11px] font-normal"
+                                <Badge
+                                    variant={badgeVariantFor(badge.color)}
+                                    // `text-[11px]` displaces Badge's `text-badge-md` and
+                                    // brings no line-height; antd Tag keeps its absolute
+                                    // tagLineHeight (lineHeightSM x fontSizeSM = 22.4px).
+                                    className="shrink-0 text-[11px] font-normal leading-[22.4px]"
                                 >
                                     {badge.text}
-                                </Tag>
+                                </Badge>
                             ) : null}
                         </div>
                         {subtitle ? (
@@ -138,6 +166,7 @@ export function ConfigItemDrawer({
                             {label: "JSON", value: "json"},
                         ]}
                         disabled={disabled}
+                        aria-label="Item view"
                     />
                 )
             }
@@ -147,8 +176,14 @@ export function ConfigItemDrawer({
                         {footerNote}
                     </span>
                     <div className="flex shrink-0 items-center gap-2">
-                        <Button onClick={onCancel}>Cancel</Button>
-                        <Button type="primary" onClick={onSave} disabled={disabled || saveDisabled}>
+                        <Button variant="outline" onClick={onCancel}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="default"
+                            onClick={onSave}
+                            disabled={disabled || saveDisabled}
+                        >
                             {mode === "create" ? "Create" : "Save"}
                         </Button>
                     </div>

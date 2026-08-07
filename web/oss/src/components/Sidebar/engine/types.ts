@@ -67,6 +67,8 @@ export interface SidebarScope {
     useSections: () => SidebarSection[]
     header?: SidebarSlot
     footer?: SidebarSlot
+    /** Pinned slot rendered below the bottom section — the very last element in the rail. */
+    afterBottom?: SidebarSlot
 }
 
 export interface SidebarShellProps {

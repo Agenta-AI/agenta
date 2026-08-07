@@ -10,7 +10,7 @@
  */
 import type {ReactNode} from "react"
 
-import {Button} from "antd"
+import {Button} from "@agenta/ui/ui"
 import clsx from "clsx"
 
 export interface SectionRailItem {
@@ -59,18 +59,19 @@ export function SectionRail({
                     return (
                         <Button
                             key={item.value}
-                            type="text"
-                            block
+                            variant="ghost"
                             disabled={disabled}
                             onClick={() => onChange(item.value)}
-                            className={`!h-8 !rounded-md !px-2.5 !text-xs transition-colors ${
+                            className={`h-8 w-full rounded-md px-2.5 text-xs transition-colors ${
                                 item.count != null || item.status
-                                    ? "!flex !items-center !justify-between"
-                                    : "!justify-start"
+                                    ? "flex items-center justify-between"
+                                    : "justify-start"
                             } ${
+                                // disabled: restated — the pre-migration `!` classes beat antd's
+                                // disabled skin, so disabled rows keep their resting colors.
                                 active
-                                    ? "!bg-[var(--ag-colorFillSecondary)] !font-semibold !text-[var(--ag-colorText)]"
-                                    : "!text-[var(--ag-colorTextSecondary)] hover:!bg-[var(--ag-colorFillTertiary)] hover:!text-[var(--ag-colorText)]"
+                                    ? "bg-[var(--ag-colorFillSecondary)] font-semibold text-[var(--ag-colorText)] disabled:bg-[var(--ag-colorFillSecondary)] disabled:text-[var(--ag-colorText)]"
+                                    : "text-[var(--ag-colorTextSecondary)] hover:bg-[var(--ag-colorFillTertiary)] hover:text-[var(--ag-colorText)] disabled:text-[var(--ag-colorTextSecondary)]"
                             }`}
                         >
                             <span className="truncate">{item.label}</span>

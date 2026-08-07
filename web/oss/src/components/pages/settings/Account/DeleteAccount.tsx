@@ -1,10 +1,10 @@
 import {useState} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {Trash} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {Button, Input, Typography, message} from "antd"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {useSession} from "@/oss/hooks/useSession"
 import {deleteAccount} from "@/oss/services/profile"
 import {useProfileData} from "@/oss/state/profile"

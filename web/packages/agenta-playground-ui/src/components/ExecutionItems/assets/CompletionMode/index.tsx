@@ -1,7 +1,8 @@
 import React, {useMemo} from "react"
 
 import {executionItemController} from "@agenta/playground"
-import {AddButton} from "@agenta/ui/components/presentational"
+import {Button} from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -74,7 +75,15 @@ const CompletionMode = ({
 
             {withControls && viewType !== "comparison" ? (
                 <div className="flex items-center gap-2 px-4 pt-3 pb-4">
-                    <AddButton size="small" label="Test case" onClick={() => handleAddNewRow()} />
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="self-start"
+                        onClick={() => handleAddNewRow()}
+                    >
+                        <Plus size={14} />
+                        Test case
+                    </Button>
                 </div>
             ) : null}
         </div>

@@ -317,6 +317,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             <div className="w-full flex flex-col shrink-0">
                                 {renderSlot(scope.footer, collapsed, scope.lastPath)}
                                 {bottomSections.map(renderSection)}
+                                {renderSlot(scope.afterBottom, collapsed, scope.lastPath)}
                             </div>
                         </div>
                     </SidebarErrorBoundary>

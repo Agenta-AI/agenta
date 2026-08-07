@@ -1,4 +1,4 @@
-import {Select, Typography} from "antd"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner} from "@agenta/ui/ui"
 
 import {SectionRail} from "../../../drawers/shared/SectionRail"
 import {
@@ -180,9 +180,9 @@ export function RunVersionField({
         >
             {bindMode === "revision" || hideEnvironment ? (
                 <>
-                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
                         {revisionHint}
-                    </Typography.Text>
+                    </span>
                     <EntityPicker<WorkflowRevisionSelectionResult>
                         variant="popover-cascader"
                         adapter={revisionAdapter}
@@ -193,18 +193,30 @@ export function RunVersionField({
                 </>
             ) : (
                 <>
-                    <Typography.Text type="secondary" className="!text-[11px] leading-snug">
+                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
                         {envHint}
-                    </Typography.Text>
+                    </span>
                     <Select
-                        placeholder="Select an environment"
-                        className="w-full max-w-prose"
                         value={environmentSlug ?? undefined}
-                        onChange={onEnvironmentChange}
-                        loading={envLoading}
-                        options={envOptions}
-                        notFoundContent={envNotFound}
-                    />
+                        onValueChange={(slug) => onEnvironmentChange?.(slug)}
+                    >
+                        <SelectTrigger className="w-full max-w-prose">
+                            <SelectValue placeholder="Select an environment" />
+                            {envLoading ? <Spinner size="small" /> : null}
+                        </SelectTrigger>
+                        <SelectContent>
+                            {(envOptions ?? []).map((o) => (
+                                <SelectItem key={o.value} value={o.value}>
+                                    {o.label}
+                                </SelectItem>
+                            ))}
+                            {(envOptions ?? []).length === 0 && (
+                                <div className="px-3 py-2 text-xs text-[var(--ag-colorTextDescription)]">
+                                    {envNotFound ?? "No data"}
+                                </div>
+                            )}
+                        </SelectContent>
+                    </Select>
                 </>
             )}
         </SectionRail>

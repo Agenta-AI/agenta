@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {VariantNameCell} from "@agenta/entity-ui/variant"
-import {CommitMessageInput, EnvironmentTag, VersionBadge} from "@agenta/ui"
+import {CommitMessageInput, Tag, VersionBadge} from "@agenta/ui"
 import {Typography, Table} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtom, useAtomValue} from "jotai"
@@ -25,7 +25,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                     style: {minWidth: 160},
                 }),
                 render: (_, record) => {
-                    return <EnvironmentTag environment={record.name} />
+                    return <Tag env={record.name} />
                 },
             },
             {

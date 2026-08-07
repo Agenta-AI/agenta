@@ -178,7 +178,7 @@ export const FolderView = ({
                                         text={folderPath}
                                         buttonText={null}
                                         icon
-                                        size="small"
+                                        size="icon-sm"
                                         aria-label="Copy folder path"
                                         successMessage=""
                                         className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"

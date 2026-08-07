@@ -110,6 +110,11 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             onClose={handleClose}
             destroyOnHidden
             afterOpenChange={handleAfterOpenChange}
+            // This drawer is still antd (default zIndex 1000), but anything it opens via
+            // @agenta/ui — EnhancedModal/EnhancedDrawer — renders a Radix Dialog/Sheet at
+            // z-40/z-50. Pin below that scale so a nested Create/confirm modal stacks above
+            // this drawer instead of behind it.
+            zIndex={40}
             styles={{
                 body: {padding: 0},
                 wrapper: {width: isExpanded ? "clamp(1155px, 92vw, 1600px)" : 1100},

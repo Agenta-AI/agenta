@@ -23,6 +23,16 @@ import type {
     WorkflowReferenceUI,
 } from "@agenta/ui/drill-in"
 import {
+    AutosizeTextarea,
+    Badge,
+    type BadgeProps,
+    EmptyState,
+    InputAffix,
+    Segmented,
+    Skeleton,
+    Spinner,
+} from "@agenta/ui/ui"
+import {
     GitBranch,
     GraphIcon,
     HandPointing,
@@ -30,7 +40,6 @@ import {
     SlidersHorizontal,
     TreeStructure,
 } from "@phosphor-icons/react"
-import {Empty, Input, Segmented, Skeleton, Spin, Tag} from "antd"
 import {atom, useSetAtom} from "jotai"
 
 import {DrawerFooter} from "../../drawers/shared/DrawerFooter"
@@ -57,8 +66,8 @@ export interface WorkflowReferenceSelectorProps {
 const refWorkflowIdAtom = atom<string | null>(null)
 const referenceRevisionAdapter = createWorkflowRevisionAdapter({workflowIdAtom: refWorkflowIdAtom})
 
-// antd named colors adapt to dark mode via the theme algorithm.
-const TYPE_BADGE: Record<WorkflowReferenceType, {color: string; label: string}> = {
+// Badge preset hues (the antd preset Tag colours, palette-driven so they flip light↔dark).
+const TYPE_BADGE: Record<WorkflowReferenceType, {color: BadgeProps["variant"]; label: string}> = {
     agent: {color: "purple", label: "agent"},
     chat: {color: "blue", label: "chat"},
     completion: {color: "cyan", label: "completion"},
@@ -127,9 +136,9 @@ function TypeBadge({type, label}: {type: WorkflowReferenceType | undefined; labe
     if (!type) return null
     const cfg = TYPE_BADGE[type]
     return (
-        <Tag
-            color={cfg.color}
-            className={`m-0 max-w-[140px] truncate px-1.5 py-0 text-[10px] leading-[18px] ${
+        <Badge
+            variant={cfg.color}
+            className={`max-w-[140px] truncate px-1.5 py-0 text-[10px] leading-[18px] ${
                 type === "completion"
                     ? "ag-type-completion"
                     : type === "chat"
@@ -138,10 +147,9 @@ function TypeBadge({type, label}: {type: WorkflowReferenceType | undefined; labe
                         ? "ag-type-agent"
                         : ""
             }`}
-            bordered={false}
         >
             {label || cfg.label}
-        </Tag>
+        </Badge>
     )
 }
 
@@ -365,7 +373,7 @@ export function WorkflowReferenceSelector({
                 {/* Master rail */}
                 <div className="ag-drawer-rail flex w-[260px] shrink-0 flex-col border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)]">
                     <div className="shrink-0 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] p-3">
-                        <Input
+                        <InputAffix
                             prefix={
                                 <MagnifyingGlass
                                     size={14}
@@ -373,8 +381,9 @@ export function WorkflowReferenceSelector({
                                 />
                             }
                             placeholder="Search workflows"
+                            aria-label="Search workflows"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onValueChange={setSearch}
                             allowClear
                         />
                         <p className="m-0 mt-2 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
@@ -388,6 +397,7 @@ export function WorkflowReferenceSelector({
                                     value={filter}
                                     onChange={(val) => setFilter(val as TypeFilter)}
                                     options={filterOptions}
+                                    aria-label="Filter workflows by type"
                                 />
                             </div>
                         )}
@@ -396,11 +406,11 @@ export function WorkflowReferenceSelector({
                     <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
                         {bridge.workflowsLoading ? (
                             <div className="flex justify-center py-6">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         ) : filtered.length === 0 ? (
-                            <Empty
-                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            <EmptyState
+                                image="simple"
                                 description={
                                     <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                                         No workflows to reference
@@ -486,7 +496,7 @@ export function WorkflowReferenceSelector({
                                                 text={selected.slug}
                                                 buttonText={null}
                                                 icon
-                                                type="text"
+                                                variant="ghost"
                                             />
                                         </div>
                                     </div>
@@ -497,11 +507,12 @@ export function WorkflowReferenceSelector({
                                         Description
                                     </div>
                                     <div className="flex min-w-0 flex-1 flex-col border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] pl-3">
-                                        <Input.TextArea
+                                        <AutosizeTextarea
                                             className="max-w-prose"
                                             value={description}
                                             onChange={(e) => setDescription(e.target.value)}
                                             autoSize={{minRows: 2, maxRows: 6}}
+                                            aria-label="Tool description"
                                             placeholder="What this tool does and when the agent should call it"
                                         />
                                     </div>
@@ -610,7 +621,7 @@ export function WorkflowReferenceSelector({
                                         onEnvironmentChange={setEnvironment}
                                         envNotFound={
                                             environmentsLoading ? (
-                                                <Spin size="small" />
+                                                <Spinner size="small" />
                                             ) : (
                                                 <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                                                     No environments deployed

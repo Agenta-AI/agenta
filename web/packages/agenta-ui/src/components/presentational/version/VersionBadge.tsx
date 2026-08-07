@@ -70,10 +70,11 @@ export function VersionBadge({
     const variantClasses = {
         text: "",
         bold: "font-medium",
+        // `text-foreground` (not a fixed gray) so the chip adapts in dark mode.
         chip: cn(
             flexLayouts.inlineCenter,
             bgColors.chip,
-            "px-1.5 py-0.5 rounded text-gray-700 font-medium",
+            "px-1.5 py-0.5 rounded text-foreground font-medium",
         ),
     }
 
