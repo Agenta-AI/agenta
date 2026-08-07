@@ -25,11 +25,16 @@ import {
 } from "../../src/server.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
+  configFingerprint,
   mountExpiryMs,
   MOUNT_LEASE_SKEW_MS,
   type InstalledMountExpiries,
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  AppliedState,
+  type AppliedEnvironmentState,
+} from "../../src/engines/sandbox_agent/applied-state.ts";
 import { TOTAL_DEADLINE_ENV } from "../../src/engines/sandbox_agent/run-limits.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
@@ -60,6 +65,9 @@ interface EngineOptions {
 
 interface FakeEnv {
   id: number;
+  /** The environment owns what it applied (lifecycle migration, step 2). The pool reads it. */
+  readonly appliedState: AppliedEnvironmentState;
+  commitApplied: (result: { configFingerprint: string }) => void;
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
@@ -89,9 +97,16 @@ function makeEngine(options: EngineOptions = {}) {
   };
 
   let nextEnvId = 1;
-  const makeEnv = (): FakeEnv => {
+  // The fake acquire seeds applied state from the acquiring request, exactly as the real
+  // `prepareEnvironmentSetup` does. Without it the pool would have nothing to read.
+  const makeEnv = (configFp: string): FakeEnv => {
+    const applied = new AppliedState(configFp);
     const env: FakeEnv = {
       id: nextEnvId++,
+      get appliedState() {
+        return applied.appliedState;
+      },
+      commitApplied: (result) => applied.commitApplied(result),
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
@@ -155,9 +170,9 @@ function makeEngine(options: EngineOptions = {}) {
         options.mountExpiresAtSequence?.[idx] ?? options.mountExpiresAt,
       );
     },
-    async acquireEnvironment(_request, _signal, presigned) {
+    async acquireEnvironment(request, _signal, presigned) {
       calls.acquire += 1;
-      const env = makeEnv();
+      const env = makeEnv(configFingerprint(request));
       // The real mount helpers stamp the expiry of the credentials the daemon received; a
       // mount-less acquire leaves the entry unset (no lease at all).
       const cwd = mountExpiryMs(presigned?.expiresAt);

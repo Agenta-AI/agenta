@@ -42,6 +42,7 @@ import {
 } from "./session-continuity-durable.ts";
 import { type SessionContinuityStore } from "./session-continuity.ts";
 import { type InstalledMountExpiries } from "./session-identity.ts";
+import type { AppliedEnvironmentState } from "./applied-state.ts";
 import { type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
@@ -217,6 +218,17 @@ export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
  * call. Per-turn state rides `currentTurn`, swapped in by `runTurn`.
  */
 export interface SessionEnvironment {
+  /**
+   * What this environment ACTUALLY has installed.
+   *
+   * LIFECYCLE MIGRATION, STEP 2. The pool reads this instead of a fingerprint its caller supplies,
+   * so a request can no longer stamp a configuration the environment never applied. Only
+   * `commitApplied` advances it, and only after a lifecycle action succeeds. See
+   * `applied-state.ts`.
+   */
+  readonly appliedState: AppliedEnvironmentState;
+  /** Record a lifecycle action that already succeeded. The only writer of `appliedState`. */
+  commitApplied: (result: { configFingerprint: string }) => void;
   plan: RunPlan;
   logger: Log;
   deps: SandboxAgentDeps;
