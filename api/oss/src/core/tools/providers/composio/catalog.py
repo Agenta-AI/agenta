@@ -209,13 +209,14 @@ class ComposioCatalogClient:
         """
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
-        # Do NOT pin ``toolkit_versions=latest`` here: Composio's "latest" toolkit
-        # version emits SHORT action slugs (e.g. GITHUB_ACCEPT_REPOSITORY_INVITATION)
-        # that its single-tool GET and execute endpoints reject unless the same
-        # version is threaded through — and execute rejects the latest short slugs
-        # outright. The default (pinned) toolkit version emits the canonical LONG
-        # slugs (GITHUB_ACCEPT_A_REPOSITORY_INVITATION) that get_action AND execute
-        # both accept with no version param, so list/get/execute stay consistent.
+        # Slug consistency comes from the adapter's base URL, not from a version
+        # param here. The tools adapter is pinned to Composio API v3.1 (see
+        # ComposioConfig.tools_api_url, #5174) so this LIST, COMPOSIO_SEARCH_TOOLS,
+        # get_action, and execute all resolve the SAME v3.1 slug spelling. Do NOT
+        # add ``toolkit_versions=latest`` or any per-call version override: mixing
+        # a version scope here against a differently-scoped get/execute is exactly
+        # what surfaces "tools that don't exist" — a listed slug that resolve/execute
+        # then 404 with Tool_ToolNotFound.
         params: Dict[str, Any] = {
             "toolkit_slug": integration_key,
             "include_deprecated": False,
