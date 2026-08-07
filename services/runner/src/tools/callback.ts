@@ -24,19 +24,41 @@ export const EMPTY_OBJECT_SCHEMA = {
 };
 
 /** Bound a tool result body so a malformed/oversized upstream response cannot exhaust runner
- *  memory or blow out the model's context. Same cap and mechanism as tool-mcp-http.ts. */
+ *  memory. Same cap and mechanism as tool-mcp-http.ts. This is a memory-safety ceiling, not the
+ *  model-facing content budget — see `MAX_GATEWAY_RESULT_BYTES` below for that. */
 export const MAX_BODY_BYTES = 1_000_000;
 
 /**
  * Hard ceiling on the RAW wire body read off the socket, before any JSON parsing. Larger than
- * `MAX_BODY_BYTES` (the model-facing cap on the parsed `content` field) because the raw body is
- * a JSON envelope wrapping `content` plus its own quoting/escaping overhead — capping the raw
- * read at exactly `MAX_BODY_BYTES` would truncate the envelope itself and corrupt otherwise
- * well-formed JSON before it ever reaches `capToolResultText`. This is purely a memory-safety
- * backstop against a malformed/oversized upstream; `content` still gets capped to
- * `MAX_BODY_BYTES` after parsing, same as before.
+ * `MAX_BODY_BYTES` because the raw body is a JSON envelope wrapping `content` plus its own
+ * quoting/escaping overhead — capping the raw read at exactly `MAX_BODY_BYTES` would truncate
+ * the envelope itself and corrupt otherwise well-formed JSON before it ever reaches
+ * `capToolResultText`. This is purely a memory-safety backstop against a malformed/oversized
+ * upstream; the parsed `content` field is capped far tighter, to `MAX_GATEWAY_RESULT_BYTES`,
+ * before it ever reaches the model.
  */
 export const MAX_RAW_RESPONSE_BYTES = MAX_BODY_BYTES * 4;
+
+/**
+ * Model-facing cap on ONE gateway/Composio tool result, well below `MAX_BODY_BYTES`. A single
+ * `get_pull_request` call was observed returning ~1 MB (~241,000 tokens) of `content`, which blew
+ * out the whole conversation's context in one turn (issue #5341). `MAX_BODY_BYTES` stays as the
+ * outer memory-safety ceiling on the raw transport; this is the much tighter budget the model
+ * itself should ever see from a gateway call, so an oversized result reads as "narrow your query"
+ * rather than "here is a wall of text, good luck." ~100,000 bytes approximates 25,000 tokens at
+ * the usual ~4 bytes/token for English/JSON text. Env-overridable like the other budgets in this
+ * file (e.g. TOOL_CALL_TIMEOUT_MS above).
+ */
+export const MAX_GATEWAY_RESULT_BYTES = Number(
+  process.env.AGENTA_AGENT_TOOLS_GATEWAY_RESULT_MAX_BYTES ?? 100_000,
+);
+
+/** Appended in place of the omitted tail when a gateway result is cut at
+ *  `MAX_GATEWAY_RESULT_BYTES`, steering the model to narrow the call instead of retrying blind. */
+export const GATEWAY_RESULT_STEERING_MESSAGE =
+  "This result was too large to return in full. Narrow your query (add filters, a smaller " +
+  "date range, or specific fields), request a summary, or paginate and fetch fewer items " +
+  "per call, then try again.";
 
 /** How many trailing bytes of `buf[0..end)` are a truncated (incomplete) UTF-8 sequence that
  *  should be walked back past before decoding — otherwise `Buffer.toString` replaces the
@@ -67,13 +89,20 @@ function trailingIncompleteUtf8Length(buf: Buffer, end: number): number {
  *  way the replay transcript does (`transcript.ts` TOOL_RESULT_RENDER_MAX_CHARS) so the model
  *  can tell it was truncated. Guarantees the returned prefix is `<= maxBytes` and the omitted
  *  count is exact and non-negative — a byte-only cut can split a multibyte sequence, which
- *  decodes to U+FFFD and can push the result back over `maxBytes`. */
-export function capToolResultText(text: string, maxBytes: number = MAX_BODY_BYTES): string {
+ *  decodes to U+FFFD and can push the result back over `maxBytes`. An optional `steeringMessage`
+ *  is appended after the omitted-count marker, telling the model what to do about the cut
+ *  (narrow, filter, paginate) instead of leaving it to guess from a bare truncation notice. */
+export function capToolResultText(
+  text: string,
+  maxBytes: number = MAX_BODY_BYTES,
+  steeringMessage?: string,
+): string {
   const buf = Buffer.from(text, "utf-8");
   if (buf.length <= maxBytes) return text;
   const safeEnd = maxBytes - trailingIncompleteUtf8Length(buf, maxBytes);
   const truncated = buf.subarray(0, safeEnd).toString("utf-8");
-  return `${truncated} [... ${buf.length - safeEnd} bytes omitted]`;
+  const marker = `${truncated} [... ${buf.length - safeEnd} bytes omitted]`;
+  return steeringMessage ? `${marker}\n\n${steeringMessage}` : marker;
 }
 
 /**
@@ -213,7 +242,7 @@ export async function callAgentaTool(
   try {
     parsed = JSON.parse(bodyText);
   } catch {
-    return capToolResultText(bodyText);
+    return capToolResultText(bodyText, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
   }
 
   const content = parsed?.call?.data?.content;
@@ -265,10 +294,20 @@ export async function callAgentaTool(
       typeof status?.message === "string" && status.message
         ? `tool call ${callRef} failed: ${status.message}`
         : `tool call ${callRef} failed`;
-    throw new Error(capToolResultText(detail ? `${reason}\n${detail}` : reason));
+    throw new Error(
+      capToolResultText(
+        detail ? `${reason}\n${detail}` : reason,
+        MAX_GATEWAY_RESULT_BYTES,
+        GATEWAY_RESULT_STEERING_MESSAGE,
+      ),
+    );
   }
 
-  if (typeof content === "string") return capToolResultText(content);
-  if (content != null) return capToolResultText(detail);
-  return capToolResultText(bodyText);
+  if (typeof content === "string") {
+    return capToolResultText(content, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
+  }
+  if (content != null) {
+    return capToolResultText(detail, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
+  }
+  return capToolResultText(bodyText, MAX_GATEWAY_RESULT_BYTES, GATEWAY_RESULT_STEERING_MESSAGE);
 }
