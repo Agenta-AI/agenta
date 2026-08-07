@@ -162,9 +162,10 @@ from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
-# --- channels: seeded declarations; wiring lands with the domain packages ---
-from oss.src.core.channels.adapters.interface import ChannelAdapterInterface  # noqa: F401
-from oss.src.core.channels.interfaces import ChannelsDAOInterface  # noqa: F401
+from oss.src.dbs.postgres.channels.dao import ChannelsDAO
+from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+from oss.src.core.channels.service import ChannelsService
+from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
@@ -1053,6 +1054,23 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
+# Adapters register as each ships; the bridge route resolves its own at runtime.
+channels_adapter_registry = ChannelAdapterRegistry(adapters={})
+
+channels_dao = ChannelsDAO(engine=_transactions_engine)
+
+channels_service = ChannelsService(
+    channels_dao=channels_dao,
+    adapter_registry=channels_adapter_registry,
+    connections_service=connections_service,
+)
+
+channels_ingress = ChannelsIngressRouter(
+    channels_service=channels_service,
+    adapter_registry=channels_adapter_registry,
+    dispatch_task=None,  # WP4's inbox dispatch
+)
+
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
 )
@@ -1467,15 +1485,21 @@ app.include_router(
 )
 
 # --- channels ---
-# The router mounts at /channels once WP3 ships the ingress and WP8 the config
-# API. Ingress paths are literal per channel (/channels/slack/events/), never a
-# path parameter: _PUBLIC_ENDPOINTS matches by prefix.
-#
-# app.include_router(
-#     router=channels.router,
-#     prefix="/channels",
-#     tags=["Channels"],
-# )
+# Ingress paths are literal per channel (/channels/slack/events/), never a path
+# parameter: _PUBLIC_ENDPOINTS matches by prefix. WP8's configuration router
+# mounts under the same prefix.
+app.include_router(
+    router=channels_ingress.router,
+    prefix="/channels",
+    tags=["Channels"],
+)
+
+app.include_router(
+    router=channels_ingress.router,
+    prefix="/preview/channels",
+    tags=["Channels"],
+    include_in_schema=False,
+)
 
 app.include_router(
     router=triggers.admin_router,

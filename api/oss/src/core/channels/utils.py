@@ -10,6 +10,7 @@ from oss.src.core.channels.dtos import (
     ChannelKeyGrain,
     ChannelPolicy,
     ChannelPolicyLevel,
+    ChannelSessionScope,
 )
 from oss.src.core.channels.types import ChannelLocatorIncomplete
 
@@ -160,15 +161,14 @@ def resolve_policy(
         session_scope = channel_defaults.session_scope
         session_scope_by = ChannelPolicyLevel.CHANNEL
 
-    if capabilities.conversation.units and session_scope not in (
-        capabilities.conversation.units
+    # `units` is a grain vocabulary (thread|space), not a scope one
+    # (thread|message): MESSAGE is always available and never declared, so the
+    # ceiling can only take THREAD away.
+    if (
+        session_scope is ChannelSessionScope.THREAD
+        and ChannelKeyGrain.THREAD not in capabilities.conversation.units
     ):
-        # the declaration constrains which units exist at all (§capabilities.md)
-        narrowest_allowed = max(
-            capabilities.conversation.units,
-            key=lambda unit: SESSION_SCOPE_ORDER.index(unit),
-        )
-        session_scope = narrowest_allowed
+        session_scope = ChannelSessionScope.MESSAGE
         session_scope_by = ChannelPolicyLevel.CAPABILITY
 
     return ChannelEffectivePolicy(

@@ -14,7 +14,7 @@ from oss.src.core.channels.utils import resolve_policy
 
 SLACK = {
     "channel": "slack",
-    "conversation": {"units": ["thread", "message"], "default": "thread"},
+    "conversation": {"units": ["thread", "space"], "default": "thread"},
     "fill": {
         "backfill": {"supported": True},
         "forwardfill": {"supported": True},
@@ -128,7 +128,7 @@ def test_capability_conversation_units_ceiling_narrows_the_default():
     no_threads = ChannelCapabilities(
         **{
             **SLACK,
-            "conversation": {"units": ["message"], "default": "message"},
+            "conversation": {"units": ["space"], "default": "space"},
         }
     )
     defaults = ChannelPolicy(
