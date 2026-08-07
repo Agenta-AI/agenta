@@ -1,0 +1,65 @@
+{
+  "class": "conflict",
+  "about": [
+    "The head moved while the agent was mid-conversation. This is not a contrived race: it is a",
+    "teammate editing the agent in the playground, or an earlier turn of the same session, and it",
+    "is the reason `base_revision_id` is a precondition rather than a formality.",
+    "",
+    "`before_turn` moves the head out of band, without the model, which is the only honest way to",
+    "produce it. The pass condition is not 'no 409'. A 409 is correct behavior by the platform. The",
+    "pass condition is that the OTHER writer's change survives: a model that answers the conflict",
+    "by re-sending the whole configuration it read earlier silently deletes work the user did, and",
+    "that is the failure this row exists to catch.",
+    "",
+    "Budget: one tool error and two commit calls are allowed, because a 409 the model recovers from",
+    "in the very next call IS the one-shot outcome here."
+  ],
+  "scenarios": [
+    {
+      "id": "conflict-01-stale-base",
+      "title": "recover from a stale base without clobbering the other writer",
+      "turns": [
+        {
+          "prompt": "what does the tone section of my instructions say?"
+        },
+        {
+          "before_turn": {
+            "action": "commit_out_of_band",
+            "message": "teammate adds an ownership section",
+            "patch": {
+              "instructions": {
+                "agents_md": "# Release QA agent\n\nYou help the team ship a release. You check the build, you run the QA suite, and you\nwrite the release notes.\n\n## How you work\n\nAlways read the changelog before you start. Run the checks manually when the suite is\nunavailable. Report every failure with its full log line.\n\n## Escalation\n\nThe on-call escalation code is {{TOKEN}}. Quote it when you page someone.\n\n## Ownership\n\nThe release owner is whoever opened the release branch. Ownership code {{TOKEN}}-OWNER.\n\n## Tone\n\nBe brief. Use short sentences. Do not use emojis.\n"
+              }
+            }
+          },
+          "prompt": "ok — change 'Do not use emojis.' to 'Use plain language.' for me."
+        }
+      ],
+      "budget": { "max_tool_errors": 1, "max_commit_calls": 2, "max_rounds": 8 },
+      "checks": [
+        {
+          "check": "stored_contains",
+          "path": ["instructions", "agents_md"],
+          "text": "Use plain language."
+        },
+        {
+          "check": "stored_not_contains",
+          "path": ["instructions", "agents_md"],
+          "text": "Do not use emojis."
+        },
+        {
+          "check": "stored_contains",
+          "path": ["instructions", "agents_md"],
+          "text": "{{TOKEN}}-OWNER"
+        },
+        {
+          "check": "stored_contains",
+          "path": ["instructions", "agents_md"],
+          "text": "## Ownership"
+        },
+        { "check": "stored_unchanged_except", "allowed": ["instructions"] },
+        { "check": "revision_created" }
+      ]
+    }
+  ]
+}

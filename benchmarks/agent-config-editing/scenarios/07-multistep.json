@@ -1,0 +1,164 @@
+{
+  "class": "multistep",
+  "about": [
+    "Read, then edit, in one turn. The user does not say 'read your configuration first'; they",
+    "describe a change that cannot be made without looking, because the anchor text has to come",
+    "from what is stored rather than from what the model remembers.",
+    "",
+    "`multi-01` is the deletion case, which is where a model that skips the read is easiest to",
+    "catch: {{TOKEN}} lives in the section being removed, so its absence proves the removal, and",
+    "the surviving sections prove the rest of the document was left alone."
+  ],
+  "scenarios": [
+    {
+      "id": "multi-01-read-then-remove-section",
+      "title": "look at the instructions, then remove one section",
+      "turns": [
+        {
+          "prompt": "have a look at my instructions and drop the escalation section \u2014 we track that somewhere else now."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_not_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_not_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "## Escalation"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "## Tone"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "## How you work"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "# Release QA agent"
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "instructions"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "prompt_note": "The instructions are rendered into the workspace, so the model may act without a read_config call and still be right. The verdict is therefore the stored row: the escalation token gone, every other section intact. See scenarios/01-read.json for why no read is required."
+    },
+    {
+      "id": "multi-02-two-changes-one-ask",
+      "title": "two unrelated changes in one message",
+      "prompt_note": "Two commits is a legitimate answer, so the budget allows it; what it does not allow is an error.",
+      "turns": [
+        {
+          "prompt": "two things: drop the context7 mcp server, and in my instructions swap 'Do not use emojis.' for 'Use plain language.'"
+        }
+      ],
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 2,
+        "max_rounds": 8
+      },
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "mcps"
+          ],
+          "value": 1
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "mcps",
+              "key": "deepwiki"
+            }
+          ]
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "Use plain language."
+        },
+        {
+          "check": "stored_not_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "Do not use emojis."
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "instructions",
+            "mcps"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "seed": {
+        "mcps": [
+          {
+            "name": "deepwiki",
+            "connection": {
+              "type": "http",
+              "url": "https://mcp.deepwiki.com/mcp"
+            }
+          },
+          {
+            "name": "context7",
+            "connection": {
+              "type": "http",
+              "url": "https://mcp.context7.com/mcp"
+            }
+          }
+        ]
+      },
+      "unsupported_harness": [
+        "pi_core"
+      ],
+      "unsupported_reason": "The Pi harness rejects user MCP servers outright (\"User MCPs are not supported on the Pi harness\"), so the run fails before the model sees the task. Counting that as a config-editing failure would be measuring the wrong thing."
+    }
+  ]
+}
