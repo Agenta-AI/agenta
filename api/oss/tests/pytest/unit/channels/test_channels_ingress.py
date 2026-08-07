@@ -1,0 +1,413 @@
+"""Unit tests for the channels ingress route (WP3).
+
+Deliberately tiny, matching the package it tests: verify, write one row,
+answer 202. No DB, no real adapter -- WP1's ChannelsService and WP2's
+ChannelAdapterRegistry do not exist yet in this worktree, so both are faked
+here to the shape their specs declare (`entities.md` §7-§8, `specs-wp2.md`).
+"""
+
+from typing import Dict, Optional
+from uuid import UUID, uuid4
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
+from oss.src.core.channels.dtos import (
+    ChannelEventKind,
+    ChannelInboundEvent,
+    ChannelInboxEventProcessed,
+    ChannelSpaceKind,
+)
+from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
+
+
+LOCATOR = {"team": "T1", "channel": "C1"}
+
+
+class FakeAdapter:
+    """A minimal well-behaved adapter -- verifies a fixed header, parses a
+    fixed inbound event. Stands in for WP2's ChannelAdapterInterface."""
+
+    channel = "slack"
+
+    def __init__(self, *, installation_id: str = "T1"):
+        self.installation_id = installation_id
+        self.verify_calls = 0
+        self.parse_calls = 0
+
+    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
+        self.verify_calls += 1
+        if headers.get("x-fake-signature") != "valid":
+            raise ChannelSignatureInvalid(channel=self.channel)
+        return self.installation_id
+
+    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+        self.parse_calls += 1
+        if body == b"noop":
+            return None
+        return ChannelInboundEvent(
+            external_id="Ev1",
+            kind=ChannelEventKind.MESSAGE,
+            space_kind=ChannelSpaceKind.TOPIC,
+            space_locator=LOCATOR,
+            external_locator=LOCATOR,
+            processed=ChannelInboxEventProcessed(
+                content=[{"type": "text", "text": "hi"}],
+                sender={"id": "U1"},
+            ),
+        )
+
+
+class FakeAdapterRegistry:
+    """Stands in for WP2's ChannelAdapterRegistry -- same two behaviours:
+    dispatch by key, raise ChannelNotSupported on a miss."""
+
+    def __init__(self, adapters: Dict[str, FakeAdapter]):
+        self._adapters = adapters
+
+    def get(self, channel: str) -> FakeAdapter:
+        if channel not in self._adapters:
+            raise ChannelNotSupported(channel=channel)
+        return self._adapters[channel]
+
+
+class FakeChannelsService:
+    """Stands in for WP1's ChannelsService -- just the two ingress-facing
+    methods (`entities.md` §7/§8): resolve a connection, and append to the
+    log with the dedup contract (None on an already-recorded external_id)."""
+
+    def __init__(self, *, project_id: UUID, connection_id: UUID):
+        self.project_id = project_id
+        self.connection_id = connection_id
+        self.recorded = []
+        self.seen_external_ids = set()
+
+    async def get_project_and_connection_by_external_id(self, *, channel, external_id):
+        if external_id != "T1":
+            return None
+        return (self.project_id, self.connection_id)
+
+    async def record_inbox_event(self, *, project_id, event):
+        key = (project_id, event.connection_id, event.external_id)
+        if key in self.seen_external_ids:
+            return None
+        self.seen_external_ids.add(key)
+        self.recorded.append(event)
+        return event
+
+
+def _make_app(
+    *, service: FakeChannelsService, registry: FakeAdapterRegistry, dispatch_task=None
+):
+    app = FastAPI()
+    router = ChannelsIngressRouter(
+        channels_service=service,
+        adapter_registry=registry,
+        dispatch_task=dispatch_task,
+    )
+    app.include_router(router.router, prefix="/channels")
+    return app, router
+
+
+@pytest.fixture
+def project_id() -> UUID:
+    return uuid4()
+
+
+@pytest.fixture
+def connection_id() -> UUID:
+    return uuid4()
+
+
+@pytest.fixture
+def service(project_id, connection_id) -> FakeChannelsService:
+    return FakeChannelsService(project_id=project_id, connection_id=connection_id)
+
+
+@pytest.fixture
+def adapter() -> FakeAdapter:
+    return FakeAdapter()
+
+
+@pytest.fixture
+def registry(adapter) -> FakeAdapterRegistry:
+    return FakeAdapterRegistry({"slack": adapter})
+
+
+@pytest.fixture
+def client(service, registry) -> TestClient:
+    app, _ = _make_app(service=service, registry=registry)
+    return TestClient(app)
+
+
+# ---------------------------------------------------------------------------
+# The happy path: signed, fresh -> one row, 202.
+# ---------------------------------------------------------------------------
+
+
+def test_signed_request_writes_one_row_and_acks_202(client, service):
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 202, response.text
+    assert response.json()["status"] == "accepted"
+    assert len(service.recorded) == 1
+    assert service.recorded[0].external_id == "Ev1"
+
+
+def test_bridge_route_is_registered_and_reachable(service):
+    bridge_adapter = FakeAdapter()
+    bridge_adapter.channel = "bridge"
+    registry = FakeAdapterRegistry({"bridge": bridge_adapter})
+    app, _ = _make_app(service=service, registry=registry)
+    client = TestClient(app)
+
+    response = client.post(
+        "/channels/bridge/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 202, response.text
+    assert len(service.recorded) == 1
+
+
+# ---------------------------------------------------------------------------
+# Rejections: no signature, bad signature, stale timestamp (adapter's job,
+# exercised through the route).
+# ---------------------------------------------------------------------------
+
+
+def test_unsigned_request_is_rejected_no_row_no_detail_leak(client, service):
+    response = client.post("/channels/slack/events/", content=b"{}")
+
+    assert response.status_code == 401, response.text
+    assert service.recorded == []
+    # ChannelSignatureInvalid carries nothing but the channel -- the body
+    # must not repeat which header or byte failed.
+    body_text = response.text.lower()
+    assert "signature" not in body_text or "invalid" not in body_text
+    assert "x-fake-signature" not in body_text
+
+
+def test_invalid_signature_is_rejected(client, service):
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "forged"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 401, response.text
+    assert service.recorded == []
+
+
+def test_stale_timestamp_rejected_even_with_structurally_valid_signature(
+    service, registry
+):
+    """The adapter's own replay guard (WP2/WP6) must still be reachable and
+    honoured through the route -- WP3 does not implement it, only calls it."""
+
+    class ReplayGuardedAdapter(FakeAdapter):
+        async def verify_signature(self, *, headers, body):
+            if headers.get("x-fake-timestamp") == "stale":
+                raise ChannelSignatureInvalid(channel=self.channel)
+            return await super().verify_signature(headers=headers, body=body)
+
+    guarded = ReplayGuardedAdapter()
+    app, _ = _make_app(
+        service=service, registry=FakeAdapterRegistry({"slack": guarded})
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid", "x-fake-timestamp": "stale"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 401, response.text
+    assert service.recorded == []
+
+
+# ---------------------------------------------------------------------------
+# Redelivery: absorbed by the dedup contract, not application logic.
+# ---------------------------------------------------------------------------
+
+
+def test_redelivery_writes_no_second_row_still_202(client, service):
+    first = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+    second = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+
+    assert first.status_code == 202, first.text
+    assert second.status_code == 202, second.text
+    assert len(service.recorded) == 1
+
+
+def test_platform_noise_with_no_addressable_event_acks_without_a_row(client, service):
+    """parse_event returning None (ack, bot echo) is a normal outcome, not
+    an error -- 202, no row, no branch."""
+
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"noop",
+    )
+
+    assert response.status_code == 202, response.text
+    assert service.recorded == []
+
+
+# ---------------------------------------------------------------------------
+# Unregistered channel: 404 from the route table itself.
+# ---------------------------------------------------------------------------
+
+
+def test_unregistered_channel_404s_from_the_route_table(service):
+    """Only slack is registered here; the literal-route convention means an
+    unregistered channel path never reaches a handler that has to reject it
+    by hand -- registering a channel with no route at all also 404s, but the
+    interesting case this test pins is ChannelNotSupported -> 404 when the
+    registry itself is asked for a channel it does not have."""
+
+    empty_registry = FakeAdapterRegistry({})
+    app, router = _make_app(service=service, registry=empty_registry)
+
+    # Register a literal /telegram/events/ pointing at the same handler body
+    # to exercise the ChannelNotSupported -> 404 mapping without a real
+    # adapter registered for it (mirrors how a future channel's route would
+    # 404 today if wired ahead of its adapter).
+    app.router.add_api_route(
+        "/channels/telegram/events/",
+        router.ingest_slack_event,
+        methods=["POST"],
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/channels/telegram/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 404, response.text
+    assert service.recorded == []
+
+
+def test_truly_unregistered_path_404s_without_reaching_a_handler(client):
+    """No /channels/telegram/events/ route exists at all in the default
+    fixture app -- this is the actual literal-route guarantee: an adapter
+    that has not shipped has no path, so FastAPI's router 404s before any
+    channels code runs."""
+
+    response = client.post(
+        "/channels/telegram/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 404, response.text
+
+
+# ---------------------------------------------------------------------------
+# No project-scoped auth is read on this path.
+# ---------------------------------------------------------------------------
+
+
+def test_route_reachable_with_no_authorization_header(client):
+    """Proves the handler itself expects no Authorization header -- the
+    _PUBLIC_ENDPOINTS wiring is proven separately in
+    test_channels_ingress_public_endpoints.py."""
+
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 202
+    assert "authorization" not in {h.lower() for h in response.request.headers}
+
+
+# ---------------------------------------------------------------------------
+# Enqueue: best-effort, off the hot path; 202 does not depend on it existing.
+# ---------------------------------------------------------------------------
+
+
+def test_no_dispatch_task_still_acks_202(client):
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+    assert response.status_code == 202
+
+
+def test_dispatch_task_is_enqueued_after_the_row_is_written(service, registry):
+    calls = []
+
+    class FakeDispatch:
+        async def kiq(self, **kwargs):
+            calls.append(kwargs)
+
+    app, _ = _make_app(service=service, registry=registry, dispatch_task=FakeDispatch())
+    client = TestClient(app)
+
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 202, response.text
+    assert len(calls) == 1
+    assert calls[0]["channel"] == "slack"
+
+
+def test_dispatch_enqueue_failure_is_503_row_already_written(service, registry):
+    class FailingDispatch:
+        async def kiq(self, **kwargs):
+            raise RuntimeError("queue unavailable")
+
+    app, _ = _make_app(
+        service=service, registry=registry, dispatch_task=FailingDispatch()
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 503, response.text
+    # The row is written before the enqueue is attempted -- a 503 here must
+    # not be read as "nothing happened".
+    assert len(service.recorded) == 1
+
+
+# ---------------------------------------------------------------------------
+# Scope discipline: this module must not import WP4's worker logic.
+# ---------------------------------------------------------------------------
+
+
+def test_ingress_module_does_not_import_inbox_worker():
+    import oss.src.apis.fastapi.channels.ingress as ingress_module
+
+    with open(ingress_module.__file__, "r", encoding="utf-8") as f:
+        source = f.read()
+
+    assert "tasks.asyncio.channels.inbox" not in source
+    assert "tasks/asyncio/channels/inbox" not in source
