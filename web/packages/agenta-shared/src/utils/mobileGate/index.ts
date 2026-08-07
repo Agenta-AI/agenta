@@ -58,16 +58,50 @@ export function isDocumentNavigation(input: Pick<GateInput, "method" | "header">
 
 /**
  * Desktop routes that must never redirect to /m (design.md documented
- * exceptions). /auth stays here until WP2 ships the mobile sign-in, then
- * moves into the map (→ /m/auth); /post-signup and /workspaces/accept are
+ * exceptions). /auth now maps to the mobile sign-in (→ /m/auth, auth-lite),
+ * EXCEPT /auth/callback: the OAuth/SSO redirect landing must complete on the
+ * desktop app (mobile has no SSO). /post-signup and /workspaces/accept are
  * permanently desktop-only.
  */
-const DESKTOP_EXCEPTIONS = [/^\/auth(\/|$)/, /^\/post-signup(\/|$)/, /^\/workspaces\/accept(\/|$)/]
+const AUTH_RE = /^\/auth(\/|$)/
+
+/**
+ * An `/auth` link carrying a one-time `token` (SuperTokens password reset, invite acceptance —
+ * `web/oss/src/pages/auth/[[...path]].tsx` reads `router.query.token`) completes on desktop.
+ *
+ * Redirecting it would drop the token twice over: `mapDesktopToMobile` returns a bare `/m/auth`,
+ * and the mobile app has no screen that consumes one. Same reasoning as the OAuth callback
+ * exception — a single-use credential must not be bounced.
+ */
+export function isTokenBearingAuthLink(pathname: string, search: string): boolean {
+    if (!AUTH_RE.test(pathname)) return false
+    return Boolean(new URLSearchParams(search).get("token"))
+}
+
+/**
+ * An `/auth` link carrying `auth_error` completes on desktop, for the same reason as a token: the
+ * param IS the payload. `web/oss/src/lib/api/assets/axiosConfig.ts` redirects a 403 here so the
+ * user can finish required SSO or social re-authentication, and the desktop auth page reads it.
+ * `mapDesktopToMobile` returns a bare `/m/auth`, so redirecting would drop the reason and leave
+ * the user on a sign-in screen that cannot explain why it appeared.
+ */
+export function isPolicyAuthLink(pathname: string, search: string): boolean {
+    if (!AUTH_RE.test(pathname)) return false
+    return Boolean(new URLSearchParams(search).get("auth_error"))
+}
+
+const DESKTOP_EXCEPTIONS = [
+    /^\/auth\/callback(\/|$)/,
+    /^\/post-signup(\/|$)/,
+    /^\/workspaces\/accept(\/|$)/,
+]
 
 const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(\/|$)/
 
 /** Desktop URL → mobile equivalent (design.md "Gate and routing"). */
 export function mapDesktopToMobile(pathname: string, search: string): string {
+    // Mobile sign-in (auth-lite): /auth/callback never reaches here (exception).
+    if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
     const m = pathname.match(PROJECT_PATH_RE)
     if (m) {
         const [, ws, proj] = m
@@ -123,6 +157,10 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         }
 
         if (DESKTOP_EXCEPTIONS.some((re) => re.test(input.pathname))) return {kind: "pass"}
+        // A one-time token completes where it landed; see isTokenBearingAuthLink.
+        if (isTokenBearingAuthLink(input.pathname, input.search)) return {kind: "pass"}
+        // Same reasoning for a policy error; see isPolicyAuthLink.
+        if (isPolicyAuthLink(input.pathname, input.search)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTOUT_COOKIE)) return {kind: "pass"}
         if (!isMobileDevice(input.header)) return {kind: "pass"}
 

@@ -39,6 +39,41 @@ const docHeaders = (ua: string, extra: Record<string, string> = {}) => ({
 })
 
 describe("isMobileDevice", () => {
+    it("leaves a token-bearing auth link on desktop", () => {
+        // SuperTokens password-reset and invite links carry a one-time ?token=. Redirecting
+        // drops it twice over: mapDesktopToMobile returns a bare /m/auth, and mobile has no
+        // screen that consumes a token.
+        for (const pathname of ["/auth", "/auth/reset-password"]) {
+            expect(
+                decideDesktopGate(
+                    input({pathname, search: "?token=abc123", headers: docHeaders(MOBILE_UA)}),
+                ),
+            ).toEqual({kind: "pass"})
+        }
+    })
+
+    // axiosConfig's 403 handler sends the user to /auth?auth_error=… so they can complete
+    // required SSO; mapDesktopToMobile returns a bare /m/auth and would drop the reason.
+    it("leaves a policy auth_error link on desktop", () => {
+        for (const err of ["upgrade_required", "sso_denied"]) {
+            expect(
+                decideDesktopGate(
+                    input({
+                        pathname: "/auth",
+                        search: `?auth_error=${err}`,
+                        headers: docHeaders(MOBILE_UA),
+                    }),
+                ),
+            ).toEqual({kind: "pass"})
+        }
+    })
+
+    it("still redirects a plain auth link with no token", () => {
+        expect(
+            decideDesktopGate(input({pathname: "/auth", headers: docHeaders(MOBILE_UA)})),
+        ).toEqual({kind: "redirect", location: "/m/auth"})
+    })
+
     it("trusts sec-ch-ua-mobile ?1 over a desktop UA", () => {
         expect(
             isMobileDevice(
@@ -89,6 +124,10 @@ describe("isDocumentNavigation", () => {
 })
 
 describe("mapDesktopToMobile", () => {
+    it("maps desktop auth to the mobile sign-in page", () => {
+        expect(mapDesktopToMobile("/auth", "")).toBe("/m/auth")
+        expect(mapDesktopToMobile("/auth/reset-password", "")).toBe("/m/auth")
+    })
     it("maps an observability session deep link to the mobile chat", () => {
         expect(mapDesktopToMobile("/w/ws1/p/pr1/observability", "?session=abc&span=s1")).toBe(
             "/m/w/ws1/p/pr1/sessions/abc",
@@ -137,11 +176,16 @@ describe("decideDesktopGate", () => {
         ).toEqual({kind: "redirect", location: "/m/w/ws1/p/pr1/sessions"})
     })
     it("never redirects the documented exceptions", () => {
-        for (const pathname of ["/auth", "/auth/callback", "/post-signup", "/workspaces/accept"]) {
+        for (const pathname of ["/auth/callback", "/post-signup", "/workspaces/accept"]) {
             expect(decideDesktopGate(input({pathname, headers: docHeaders(MOBILE_UA)}))).toEqual({
                 kind: "pass",
             })
         }
+    })
+    it("redirects mobile devices on desktop /auth to the mobile sign-in", () => {
+        expect(
+            decideDesktopGate(input({pathname: "/auth", headers: docHeaders(MOBILE_UA)})),
+        ).toEqual({kind: "redirect", location: "/m/auth"})
     })
     it("honors the opt-out cookie", () => {
         const i = input({headers: docHeaders(MOBILE_UA)})
