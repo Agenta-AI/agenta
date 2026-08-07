@@ -4,6 +4,7 @@ import {
     describeCron,
     isEntityActive,
     triggerDeliveriesDrawerAtom,
+    triggerBoundAgentId,
     triggerScheduleDrawerAtom,
     useTriggerSchedule,
     useTriggerSchedules,
@@ -131,13 +132,7 @@ export default function GatewaySchedulesSection() {
                 key: "workflow",
                 onHeaderCell: () => ({style: {minWidth: 160}}),
                 render: (_, record) => {
-                    const refs = record.data?.references
-                    const wfId =
-                        refs?.application?.id ??
-                        refs?.application_variant?.id ??
-                        refs?.application_revision?.id ??
-                        null
-                    return <BoundWorkflowCell wfId={wfId} />
+                    return <BoundWorkflowCell wfId={triggerBoundAgentId(record.data?.references)} />
                 },
             },
             {
