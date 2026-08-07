@@ -1,0 +1,30 @@
+{
+    "compilerOptions": {
+        "target": "ES2020",
+        "lib": ["dom", "dom.iterable", "esnext"],
+        "jsx": "preserve",
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "resolveJsonModule": true,
+        "esModuleInterop": true,
+        "allowJs": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "noEmit": true,
+        "isolatedModules": true,
+        "baseUrl": ".",
+        "paths": {
+            "@/oss/*": ["../oss/src/*"],
+            "@agenta/oss/*": ["../oss/*"]
+        }
+    },
+    "include": [
+        ".storybook/**/*.ts",
+        ".storybook/**/*.tsx",
+        "stories/**/*.ts",
+        "stories/**/*.tsx",
+        "fixtures/**/*.ts",
+        "*.ts",
+        "*.mjs"
+    ]
+}

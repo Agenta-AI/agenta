@@ -3,12 +3,12 @@ import {memo} from "react"
 import type {EntitySchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Select, Typography} from "antd"
 
 import {NumberSliderControl} from "../../SchemaControls/NumberSliderControl"
 import {resolveAnyOfSchema} from "../../SchemaControls/schemaUtils"
 
 import {AdvancedConfigFields} from "./AdvancedConfigFields"
+import {ConfigSelect} from "./configPopoverControls"
 
 export interface ModelConfigEditorProps {
     value: Record<string, unknown>
@@ -41,18 +41,19 @@ export const ModelConfigEditor = memo(function ModelConfigEditor({
         const enumValues = (resolved?.enum ?? schema?.enum) as string[] | undefined
 
         if (enumValues && enumValues.length > 0) {
+            const fieldLabel = formatLabel(schema.title || key)
             return (
                 <div key={key} className="flex flex-col gap-1">
-                    <Typography.Text className="font-medium">
-                        {formatLabel(schema.title || key)}
-                    </Typography.Text>
-                    <Select
-                        value={(value?.[key] as string | null) ?? undefined}
-                        onChange={(v) => onChange(key, v ?? null)}
+                    <span className="font-medium text-xs">{fieldLabel}</span>
+                    <ConfigSelect
+                        value={(value?.[key] as string | null) ?? null}
+                        onChange={(v) => onChange(key, v)}
                         disabled={disabled}
-                        size="small"
+                        size="sm"
                         allowClear
                         placeholder="Select one"
+                        // The visible label above; the shared "Select one" placeholder names nothing.
+                        aria-label={fieldLabel}
                         options={enumValues.map((v) => ({
                             label: formatLabel(String(v)),
                             value: v,

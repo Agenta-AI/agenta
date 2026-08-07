@@ -69,17 +69,21 @@ export const useSidebarBottomSection = ({
         [hasProjectURL, projectURL],
     )
 
+    const inviteItem = useMemo<SidebarConfig>(
+        () => ({
+            key: "invite-teammate-link",
+            title: "Invite Teammate",
+            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
+            icon: <PaperPlaneIcon size={14} />,
+            tooltip: "Invite Teammate",
+            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
+            disabled: !hasProjectURL,
+        }),
+        [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrg],
+    )
+
     const sharedItems = useMemo<SidebarConfig[]>(
         () => [
-            {
-                key: "invite-teammate-link",
-                title: "Invite Teammate",
-                link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-                icon: <PaperPlaneIcon size={14} />,
-                tooltip: "Invite Teammate",
-                isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
-                disabled: !hasProjectURL,
-            },
             {
                 key: "get-started-guide-link",
                 title: "Get Started Guide",
@@ -91,13 +95,6 @@ export const useSidebarBottomSection = ({
                 tooltip: "Open the onboarding guide",
                 isHidden: !SHOW_GET_STARTED_GUIDE || !doesSessionExist,
                 onClick: handleOpenWidget,
-            },
-            {
-                key: "support-chat-link",
-                title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
-                icon: <ChatCircleIcon size={14} />,
-                isHidden: !isDemo() || !isCrispEnabled,
-                onClick: handleToggleSupport,
             },
             {
                 key: "help-docs-link",
@@ -122,37 +119,38 @@ export const useSidebarBottomSection = ({
                         title: "Slack Support",
                         link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
                         icon: <SlackLogoIcon size={14} />,
-                        divider: true,
                     },
                     {
                         key: "book-call",
                         title: "Book a call",
                         link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
                         icon: <PhoneIcon size={14} />,
+                        // Live Chat relocates here from a standalone row; keep the divider only
+                        // when it will actually render (demo + Crisp), else it dangles.
+                        divider: isDemo() && isCrispEnabled,
+                    },
+                    {
+                        key: "support-chat-link",
+                        title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
+                        icon: <ChatCircleIcon size={14} />,
+                        isHidden: !isDemo() || !isCrispEnabled,
+                        onClick: handleToggleSupport,
                     },
                 ],
             },
         ],
-        [
-            canInviteMembers,
-            doesSessionExist,
-            handleOpenWidget,
-            handleToggleSupport,
-            hasProjectURL,
-            isCrispEnabled,
-            isVisible,
-            projectURL,
-            selectedOrg,
-        ],
+        [doesSessionExist, handleOpenWidget, handleToggleSupport, isCrispEnabled, isVisible],
     )
 
     return useMemo(
         () => ({
             key: "bottom",
-            items: includeSettingsLink ? [settingsLink, ...sharedItems] : sharedItems,
+            items: includeSettingsLink
+                ? [settingsLink, inviteItem, ...sharedItems]
+                : [inviteItem, ...sharedItems],
             placement: "bottom",
             mode: "vertical",
         }),
-        [includeSettingsLink, settingsLink, sharedItems],
+        [includeSettingsLink, settingsLink, inviteItem, sharedItems],
     )
 }

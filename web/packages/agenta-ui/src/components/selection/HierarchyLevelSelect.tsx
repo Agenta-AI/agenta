@@ -28,12 +28,8 @@
 
 import React, {useMemo} from "react"
 
-import {Select, Typography} from "antd"
-import type {DefaultOptionType} from "antd/es/select"
-
 import {cn, textColors} from "../../utils/styles"
-
-const {Text} = Typography
+import {Combobox, type ComboboxOption, type ComboboxOptionGroup} from "../ui/combobox"
 
 // ============================================================================
 // TYPES
@@ -93,9 +89,9 @@ export interface HierarchyLevelSelectProps<T> {
 
     /**
      * Select size
-     * @default "middle"
+     * @default "default"
      */
-    size?: "small" | "middle" | "large"
+    size?: "sm" | "default" | "lg"
 
     /**
      * Whether the select is disabled
@@ -168,18 +164,8 @@ export interface HierarchyLevelSelectProps<T> {
     className?: string
 }
 
-interface HierarchyLevelSelectLeafOption extends DefaultOptionType {
-    value: string
-    label: React.ReactNode
-    searchLabel: string
-}
-
-interface HierarchyLevelSelectGroupOption extends DefaultOptionType {
-    label: React.ReactNode
-    options: HierarchyLevelSelectLeafOption[]
-}
-
-type HierarchyLevelSelectOption = HierarchyLevelSelectLeafOption | HierarchyLevelSelectGroupOption
+type HierarchyLevelSelectLeafOption = ComboboxOption
+type HierarchyLevelSelectGroupOption = ComboboxOptionGroup
 
 // ============================================================================
 // COMPONENT
@@ -211,7 +197,7 @@ export function HierarchyLevelSelect<T>({
     label,
     showLabel = false,
     placeholder,
-    size = "middle",
+    size = "default",
     disabled = false,
     isLoading = false,
     isError = false,
@@ -251,7 +237,7 @@ export function HierarchyLevelSelect<T>({
             return {
                 value: getItemId(item),
                 label: labelNode ?? stringLabel,
-                searchLabel: stringLabel,
+                searchValue: stringLabel,
             }
         }
 
@@ -285,7 +271,7 @@ export function HierarchyLevelSelect<T>({
     }, [items, getItemId, getItemLabel, getItemLabelNode, getGroupKey, getGroupLabel])
 
     // Handle change
-    const handleChange = (value: string | null) => {
+    const handleChange = (value: string | undefined) => {
         onSelect(value ?? null)
     }
 
@@ -301,33 +287,25 @@ export function HierarchyLevelSelect<T>({
     return (
         <div className={cn("flex flex-col min-w-0", className)}>
             {showLabel && label && (
-                <Text className={cn("text-xs mb-1 block", textColors.secondary)}>
+                <span className={cn("text-xs mb-1 block", textColors.secondary)}>
                     {label}
                     {showAutoIndicator && isAutoSelected && (
-                        <span className="text-zinc-400 ml-1">(auto)</span>
+                        <span className="ml-1 text-colorTextDescription">(auto)</span>
                     )}
-                </Text>
+                </span>
             )}
-            <Select<string, HierarchyLevelSelectOption>
+            <Combobox
                 className="w-full"
+                aria-label={label ?? placeholder}
                 placeholder={effectivePlaceholder}
-                value={selectedId}
+                value={selectedId ?? undefined}
                 onChange={handleChange}
                 loading={isLoading}
                 disabled={disabled || !isEnabled || isLoading}
-                status={isError ? "error" : undefined}
+                invalid={isError}
                 options={options}
                 size={size}
-                showSearch
-                filterOption={(input, option) => {
-                    // Use searchLabel for filtering if available, otherwise try label
-                    const searchText =
-                        option && "searchLabel" in option && typeof option.searchLabel === "string"
-                            ? option.searchLabel
-                            : String(option?.label ?? "")
-                    return searchText.toLowerCase().includes(input.toLowerCase())
-                }}
-                notFoundContent={getNotFoundContentText()}
+                emptyText={getNotFoundContentText()}
                 allowClear={allowClear}
             />
         </div>

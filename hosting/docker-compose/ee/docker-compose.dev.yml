@@ -46,6 +46,13 @@ services:
             - with-web
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
+        # === RESOURCES ============================================ #
+        # `next dev` grows unbounded (measured 7.2GiB steady-state on this box) and an
+        # uncapped dev server took the whole machine into swap on 2026-08-06. 8g is
+        # measured headroom, not a guess; the kernel kills the dev server instead of
+        # the machine when it leaks past that.
+        mem_limit: 8g
+        mem_reservation: 3g
         # === EXECUTION ============================================ #
         command: sh -c "pnpm dev-ee"
         # === STORAGE ============================================== #
@@ -385,9 +392,14 @@ services:
         image: agenta-ee-dev-runner:latest
         # === EXECUTION ============================================ #
         init: true
-        # No file watcher (the box's inotify limit is shared across stacks). The Pi login is
-        # bind-mounted read-write at /pi-agent and the harness runs directly out of it, so a
-        # refreshed OAuth token persists to the host login instead of dying with the container.
+        # `tsx watch` restarts the server on every source change, matching the OSS dev
+        # compose. A dev runner without reload serves stale code after every landing until
+        # someone remembers to recreate it. The old no-watcher rationale (shared inotify
+        # budget across stacks) no longer binds: the watch scope is ~123 files against a
+        # ~500k host limit. A watch restart kills live sessions; in dev that is the point.
+        # The Pi login is bind-mounted read-write at /pi-agent and the harness runs
+        # directly out of it, so a refreshed OAuth token persists to the host login
+        # instead of dying with the container.
         # This command replaces the image CMD, so the Pi extension rebuild
         # has to live here too: dist/ is not bind-mounted and src/extensions/agenta.ts is,
         # so without this a restart keeps a stale bundle and custom tools silently stop
@@ -395,7 +407,7 @@ services:
         # src on start; fail loud if it cannot build rather than run a stale bundle.
         command: >
             sh -c "node scripts/build-extension.mjs &&
-            exec node_modules/.bin/tsx src/server.ts"
+            exec node_modules/.bin/tsx watch src/server.ts"
         # === CONFIGURATION ======================================== #
         # Deliberately no env_file: the harness sandbox must not inherit the stack's
         # secrets (COMPOSIO_API_KEY, STRIPE/POSTHOG/GOOGLE keys, ...). Tools run
@@ -403,6 +415,15 @@ services:
         # login (mounted below), the OTLP export fallback, and the Daytona credentials
         # the runner reads for the `daytona` sandbox provider.
         environment:
+            # `tsx watch` watches per FILE, and on Linux each watched file costs one inotify
+            # INSTANCE, capped per-UID by fs.inotify.max_user_instances (128 on the preview
+            # host, ~65 already held by the other stacks). The watch scope is ~123 files, so
+            # tsx crash-looped on `EMFILE: too many open files, watch` the moment it started.
+            # The ~500k figure in the watch rationale is max_user_WATCHES, a different limit
+            # that never binds here. Polling uses no inotify at all and costs nothing
+            # measurable at this file count, so the dev reload works without a host sysctl.
+            CHOKIDAR_USEPOLLING: "1"
+            CHOKIDAR_INTERVAL: "300"
             AGENTA_RUNNER_PORT: "8765"
             # Bind on all interfaces: the co-located Python `services` container reaches the
             # sidecar over the compose network at `runner:8765`, so the trust-model

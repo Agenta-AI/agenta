@@ -1,19 +1,10 @@
 /**
- * Status Components
+ * Status types + environment color record.
  *
- * Reusable components for displaying status indicators.
- *
- * @example
- * ```tsx
- * import { StatusTag } from '@agenta/ui'
- *
- * <StatusTag status="loading" />
- * <StatusTag status="ready" />
- * <StatusTag status="error" />
- * ```
+ * The status/environment TAGS now live in `Tag` (`<Tag status=… />` / `<Tag env=… />`, ../tag).
+ * This module keeps the status types, `EnvironmentName`, and the `environmentColors` record
+ * (read by non-tag consumers, e.g. skeletons).
  */
-
-import {Tag} from "antd"
 
 // ============================================================================
 // TYPES
@@ -22,137 +13,32 @@ import {Tag} from "antd"
 export type QueryStatus = "loading" | "error" | "ready"
 export type ExecutionStatus = "idle" | "pending" | "running" | "success" | "error"
 
-export interface StatusTagProps {
-    /**
-     * The status to display
-     */
-    status: QueryStatus | ExecutionStatus
-    /**
-     * Custom label (defaults to capitalized status)
-     */
-    label?: string
-    /**
-     * Size variant
-     * @default "default"
-     */
-    size?: "small" | "default"
-    /**
-     * Additional CSS class
-     */
-    className?: string
-}
-
 // ============================================================================
-// HELPERS
-// ============================================================================
-
-/**
- * Get the Ant Design color for a status
- */
-export function getStatusColor(status: QueryStatus | ExecutionStatus): string {
-    switch (status) {
-        case "loading":
-        case "pending":
-            return "warning"
-        case "running":
-            return "processing"
-        case "error":
-            return "error"
-        case "success":
-        case "ready":
-            return "success"
-        case "idle":
-        default:
-            return "default"
-    }
-}
-
-/**
- * Get the default label for a status
- */
-export function getStatusLabel(status: QueryStatus | ExecutionStatus): string {
-    switch (status) {
-        case "loading":
-            return "Loading..."
-        case "pending":
-            return "Pending"
-        case "running":
-            return "Running..."
-        case "error":
-            return "Error"
-        case "success":
-            return "Success"
-        case "ready":
-            return "Ready"
-        case "idle":
-            return "Idle"
-        default:
-            return status
-    }
-}
-
-// ============================================================================
-// COMPONENTS
-// ============================================================================
-
-/**
- * A status indicator tag with consistent styling
- */
-export function StatusTag({status, label, size = "default", className}: StatusTagProps) {
-    const color = getStatusColor(status)
-    const displayLabel = label ?? getStatusLabel(status)
-
-    return (
-        <Tag
-            color={color}
-            className={`m-0 ${size === "small" ? "text-[10px] leading-tight py-0" : ""} ${className ?? ""}`}
-        >
-            {displayLabel}
-        </Tag>
-    )
-}
-
-// ============================================================================
-// ENVIRONMENT TAG
+// ENVIRONMENT — the env TAG now lives in `Tag` (`<Tag env="production" />`, ../tag);
+// this keeps the env name type + the color record (read by non-tag consumers).
 // ============================================================================
 
 export type EnvironmentName = "production" | "staging" | "development"
 
+// Values are theme CSS vars (not raw hex) so any consumer reading them — e.g. the
+// DeploymentCard skeleton — adapts in dark mode instead of pinning a light-mode hex.
 export const environmentColors: Record<
     EnvironmentName,
     {bgColor: string; textColor: string; label: string}
 > = {
-    production: {bgColor: "#D9F7BE", textColor: "#237804", label: "Production"},
-    staging: {bgColor: "#FFF2E8", textColor: "#FA541C", label: "Staging"},
-    development: {bgColor: "#F9F0FF", textColor: "#722ED1", label: "Development"},
-}
-
-export interface EnvironmentTagProps {
-    environment: string
-    className?: string
-}
-
-export function EnvironmentTag({environment, className}: EnvironmentTagProps) {
-    const name = environment.toLowerCase() as EnvironmentName
-    const known = environmentColors[name]
-    const label = known?.label ?? (environment || "Unknown")
-
-    // Route through CSS variables (defined in theme-variables.css) so the tag
-    // adapts in dark mode instead of keeping its bright light-mode hex.
-    return (
-        <Tag
-            className={`w-fit ${className ?? ""}`}
-            style={
-                known
-                    ? {
-                          backgroundColor: `var(--ag-env-${name}-bg)`,
-                          color: `var(--ag-env-${name}-text)`,
-                          borderColor: `var(--ag-env-${name}-border)`,
-                      }
-                    : undefined
-            }
-        >
-            {label}
-        </Tag>
-    )
+    production: {
+        bgColor: "var(--ag-env-production-bg)",
+        textColor: "var(--ag-env-production-text)",
+        label: "Production",
+    },
+    staging: {
+        bgColor: "var(--ag-env-staging-bg)",
+        textColor: "var(--ag-env-staging-text)",
+        label: "Staging",
+    },
+    development: {
+        bgColor: "var(--ag-env-development-bg)",
+        textColor: "var(--ag-env-development-text)",
+        label: "Development",
+    },
 }
