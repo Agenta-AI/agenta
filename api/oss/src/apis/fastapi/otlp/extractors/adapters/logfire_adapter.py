@@ -193,6 +193,11 @@ GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
         "gen_ai.usage.cache_creation.input_tokens",
         "ag.metrics.unit.tokens.cache_creation",
     ),
+    # Producer-reported cost. This is the aggregate total for the span's whole run
+    # (see the agent SDK's record_usage), so it maps to `cumulative`, not
+    # `incremental`: as an incremental value the tree roll-up would add it on top of
+    # the run's own model-call spans and double count.
+    ("gen_ai.usage.cost", "ag.metrics.costs.cumulative.total"),
 ]
 
 OPERATION_TO_NODETYPE = {
