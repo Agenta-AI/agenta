@@ -54,7 +54,10 @@ services:
         mem_limit: 8g
         mem_reservation: 3g
         # === EXECUTION ============================================ #
-        command: sh -c "pnpm dev-ee"
+        # Turbopack's dev middleware sandbox only exposes .env-file vars (not the
+        # container's process env), so mirror the gate flag into an env file the
+        # app loads. Prod standalone reads process.env at request time — dev-only.
+        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-false}" > /app/ee/.env.development.local && pnpm dev-ee'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/ee/src:/app/ee/src
@@ -71,6 +74,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
+            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -85,11 +89,12 @@ services:
     web-mobile:
         # === ACTIVATION =========================================== #
         profiles:
-            - with-web
+            - with-web-mobile
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
         # === EXECUTION ============================================ #
-        command: sh -c "pnpm dev-mobile"
+        # Same dev-sandbox env mirroring as the web service (see comment there).
+        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-false}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/mobile/src:/app/mobile/src
@@ -102,6 +107,7 @@ services:
         environment:
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
+            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
