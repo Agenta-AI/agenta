@@ -9,7 +9,7 @@ import {eagerAtom} from "jotai-eager"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
-import {currentAppAtom} from "@/oss/state/app"
+import {useRecentAppTracker} from "@/oss/state/app/hooks"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
@@ -29,7 +29,6 @@ import {resolveSidebarLastPath} from "../Sidebar/scopes/sidebarLastPath"
 import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
 import type {SidebarView} from "../Sidebar/types"
 
-import BreadcrumbContainer from "./assets/Breadcrumbs"
 import {useStyles} from "./assets/styles"
 import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
@@ -170,9 +169,8 @@ const appRouteSliceAtom = selectAtom(
     (snapshot) => ({
         pathname: snapshot.pathname,
         asPath: snapshot.asPath,
-        routeLayer: snapshot.routeLayer,
     }),
-    (a, b) => a.pathname === b.pathname && a.asPath === b.asPath && a.routeLayer === b.routeLayer,
+    (a, b) => a.pathname === b.pathname && a.asPath === b.asPath,
 )
 
 // String-valued so org/app churn inside urlAtom doesn't re-render AppWithVariants
@@ -209,25 +207,19 @@ const AppWithVariants = memo(
         const baseAppURL = useAtomValue(baseAppURLAtom)
         const appState = useAtomValue(appRouteSliceAtom)
         const isAnnotations = appState.pathname.includes("/annotations")
-        const lastBasePathRef = useRef<string | null>(null)
+        // Sole writer for recentAppIdAtom — must stay mounted on every app route.
+        useRecentAppTracker()
         const lastNonSettingsPathRef = useRef<string | null>(null)
-        const activeSidebarView = resolveSidebarView({
-            pathname: appState.pathname,
-            routeLayer: appState.routeLayer,
-        })
+        const activeSidebarView = resolveSidebarView({pathname: appState.pathname})
 
         useEffect(() => {
-            if (activeSidebarView.isBase) {
-                lastBasePathRef.current = appState.asPath
-            }
             if (activeSidebarView.id !== SETTINGS_SIDEBAR_SCOPE_ID) {
                 lastNonSettingsPathRef.current = appState.asPath
             }
-        }, [activeSidebarView.id, activeSidebarView.isBase, appState.asPath])
+        }, [activeSidebarView.id, appState.asPath])
 
         const sidebarLastPath = resolveSidebarLastPath({
             view: activeSidebarView,
-            lastBasePath: lastBasePathRef.current,
             lastNonSettingsPath: lastNonSettingsPathRef.current,
             fallbackPath: baseAppURL,
         })
@@ -239,7 +231,6 @@ const AppWithVariants = memo(
             }
         }, [activeSidebarView.id, sidebarLastPath])
 
-        const currentApp = useAtomValue(currentAppAtom)
         const {project} = useProjectData()
         const lastNonDemoProject = useAtomValue(lastNonDemoProjectAtom)
         const [demoReturnHintPending, setDemoReturnHintPending] = useAtom(demoReturnHintPendingAtom)
@@ -344,10 +335,6 @@ const AppWithVariants = memo(
                                 },
                             ])}
                         >
-                            <BreadcrumbContainer
-                                appTheme={appTheme}
-                                appName={currentApp?.name ?? currentApp?.slug ?? ""}
-                            />
                             {/* ONE stable tree for both app and non-app routes: the layout flags
                                 (committed at routeChangeComplete, AFTER the destination page has
                                 rendered) may flip a beat after a client-side nav — as CLASSNAME
@@ -386,7 +373,7 @@ const AppWithVariants = memo(
                                             <ConfigProvider theme={contentThemeConfig}>
                                                 <div
                                                     className={clsx("w-full", {
-                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden":
+                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-29px)] overflow-hidden":
                                                             isFullHeight,
                                                         "flex flex-col":
                                                             !isFullHeight && !isAppRoute,

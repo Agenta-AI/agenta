@@ -5,15 +5,22 @@ import {EnhancedModal} from "@agenta/ui/components/modal"
 import {
     ArrowLeft,
     ArrowsLeftRight,
+    CaretRight,
     CaretUpDown,
     Check,
+    Desktop,
     GearSix,
+    Moon,
     Plus,
     SignOut,
+    Sun,
     X,
 } from "@phosphor-icons/react"
-import {Dropdown, Form, Input} from "antd"
+import {Dropdown, Form, Input, Popover} from "antd"
 import clsx from "clsx"
+
+import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
+import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
 import {useProjectOrgSwitcher} from "../../hooks/useProjectOrgSwitcher"
 
@@ -32,6 +39,10 @@ const ITEM_ROW_CLASS = "shrink-0"
 const CAPTION_CLASS =
     "px-2 pt-1.5 pb-1 text-[11.5px] font-medium text-[var(--ag-colorTextTertiary)] truncate"
 
+/** Capped scroll list (3 h-8 rows) with the scrollbar hidden. */
+const SCROLL_LIST_CLASS =
+    "flex max-h-24 flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+
 const Row = ({
     onClick,
     className,
@@ -46,6 +57,75 @@ const Row = ({
     <button type="button" onClick={onClick} className={clsx(ROW_CLASS, className)} title={title}>
         {children}
     </button>
+)
+
+const themeIcon = (mode: ThemeMode) => {
+    switch (mode) {
+        case ThemeMode.Dark:
+            return <Moon size={14} className="shrink-0" />
+        case ThemeMode.System:
+            return <Desktop size={14} className="shrink-0" />
+        default:
+            return <Sun size={14} className="shrink-0" />
+    }
+}
+
+/** Theme switcher as a hover fly-out row for the switcher menu (see also the Preferences tab). */
+const ThemeFlyout = () => {
+    const {themeMode, toggleAppTheme} = useAppTheme()
+    const current = THEME_OPTIONS.find(({mode}) => mode === themeMode) ?? THEME_OPTIONS[0]
+
+    return (
+        <Popover
+            trigger="hover"
+            placement="rightBottom"
+            arrow={false}
+            styles={{
+                root: {zIndex: 2001},
+                container: {padding: 0, background: "transparent", boxShadow: "none"},
+            }}
+            content={
+                <div className="w-[190px] overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] p-1 shadow-md">
+                    {THEME_OPTIONS.map(({mode, label}) => (
+                        <Row
+                            key={mode}
+                            className={ITEM_ROW_CLASS}
+                            onClick={() => toggleAppTheme(mode)}
+                        >
+                            {themeIcon(mode)}
+                            <span className="min-w-0 flex-1 truncate">{label}</span>
+                            {themeMode === mode && (
+                                <Check size={14} className="shrink-0 text-[var(--ag-colorText)]" />
+                            )}
+                        </Row>
+                    ))}
+                </div>
+            }
+        >
+            <button type="button" className={ROW_CLASS}>
+                {themeIcon(themeMode)}
+                <span className="flex-1">Theme</span>
+                <span className="text-[12px] text-[var(--ag-colorTextSecondary)]">
+                    {current.short}
+                </span>
+                <CaretRight size={14} className="shrink-0 text-[var(--ag-colorTextSecondary)]" />
+            </button>
+        </Popover>
+    )
+}
+
+const MenuDivider = () => <div className="my-1 h-px bg-[var(--ag-colorBorderSecondary)]" />
+
+/** Shared bottom section for both switcher panels: theme fly-out + logout. */
+const SwitcherFooter = ({onLogout}: {onLogout: () => void}) => (
+    <>
+        <MenuDivider />
+        <ThemeFlyout />
+        <Row className="!text-[var(--ag-colorError)]" onClick={onLogout}>
+            <SignOut size={14} className="shrink-0" />
+            <span className="flex-1">Logout</span>
+        </Row>
+    </>
 )
 
 const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
@@ -78,12 +158,16 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
         setPanel("projects")
     }, [])
 
+    const handleLogout = useCallback(() => {
+        close()
+        confirmLogout()
+    }, [close, confirmLogout])
+
     const projectPanel = useMemo(
         () => (
             <div className="flex flex-col p-1">
                 <div className={CAPTION_CLASS}>Projects in {orgLabel}</div>
-                {/* Cap the list at 3 item rows (h-8 each); the rest scrolls. */}
-                <div className="flex max-h-24 flex-col overflow-y-auto">
+                <div className={SCROLL_LIST_CLASS}>
                     {projectsForOrg.map((proj) => {
                         const isActive =
                             proj.project_id === currentProject?.project_id &&
@@ -112,7 +196,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                         )
                     })}
                 </div>
-                <div className="my-1 h-px bg-[var(--ag-colorBorderSecondary)]" />
+                <MenuDivider />
                 <Row onClick={() => setPanel("orgs")}>
                     <ArrowsLeftRight size={14} className="shrink-0" />
                     <span className="flex-1">Switch organization</span>
@@ -127,24 +211,15 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     <Plus size={14} className="shrink-0" />
                     <span className="flex-1">New project</span>
                 </Row>
-                <Row
-                    className="!text-[var(--ag-colorError)]"
-                    onClick={() => {
-                        close()
-                        confirmLogout()
-                    }}
-                >
-                    <SignOut size={14} className="shrink-0" />
-                    <span className="flex-1">Logout</span>
-                </Row>
+                <SwitcherFooter onLogout={handleLogout} />
             </div>
         ),
         [
             close,
-            confirmLogout,
             createProject,
             currentProject?.project_id,
             currentProject?.workspace_id,
+            handleLogout,
             orgLabel,
             projectsForOrg,
             switchProject,
@@ -173,8 +248,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     </button>
                 </div>
                 <div className={CAPTION_CLASS}>Organizations</div>
-                {/* Cap the list at 3 item rows (h-8 each); the rest scrolls. */}
-                <div className="flex max-h-24 flex-col overflow-y-auto">
+                <div className={SCROLL_LIST_CLASS}>
                     {orgOptions.map((org) => {
                         const isActive = org.id === currentOrg?.id
                         return (
@@ -201,7 +275,7 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                         )
                     })}
                 </div>
-                <div className="my-1 h-px bg-[var(--ag-colorBorderSecondary)]" />
+                <MenuDivider />
                 <Row
                     className="font-medium text-[var(--ag-colorPrimary)]"
                     onClick={() => {
@@ -221,9 +295,10 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     <GearSix size={14} className="shrink-0" />
                     <span className="flex-1">Organization settings</span>
                 </Row>
+                <SwitcherFooter onLogout={handleLogout} />
             </div>
         ),
-        [close, createOrg, currentOrg?.id, goToOrgSettings, orgOptions, switchOrg],
+        [close, createOrg, currentOrg?.id, goToOrgSettings, handleLogout, orgOptions, switchOrg],
     )
 
     return (

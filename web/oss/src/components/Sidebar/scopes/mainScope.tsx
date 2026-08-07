@@ -17,6 +17,7 @@ import {useSidebarConfig} from "../hooks/useSidebarConfig"
 
 import {useSidebarBottomSection} from "./bottomSection"
 import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID} from "./constants"
+import {useWorkflowSidebarSection} from "./workflowSection"
 
 const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => <SidebarLogo collapsed={collapsed} />
 
@@ -45,6 +46,7 @@ const useMainSidebarSelection = (): SidebarSelection => {
 
 const useMainSidebarSections = (): SidebarSection[] => {
     const {projectItems} = useSidebarConfig()
+    const workflowSection = useWorkflowSidebarSection()
     const bottomSection = useSidebarBottomSection()
 
     return useMemo(
@@ -53,9 +55,10 @@ const useMainSidebarSections = (): SidebarSection[] => {
                 key: "project",
                 items: projectItems,
             },
+            ...(workflowSection ? [workflowSection] : []),
             bottomSection,
         ],
-        [bottomSection, projectItems],
+        [bottomSection, projectItems, workflowSection],
     )
 }
 

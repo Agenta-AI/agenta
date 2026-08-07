@@ -1,12 +1,13 @@
 import {memo, useCallback, useMemo, useRef} from "react"
 
 import {CaretRight} from "@phosphor-icons/react"
-import {Menu, Skeleton, Tag, Tooltip} from "antd"
+import {Menu, Tooltip} from "antd"
 import type {MenuProps} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import SidebarRowSkeleton from "./SidebarRowSkeleton"
 import {SidebarConfig, SidebarMenuProps} from "./types"
 
 type MenuItem = NonNullable<MenuProps["items"]>[number]
@@ -89,11 +90,14 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
     const transformItems = useCallback(
         (items: SidebarConfig[]): MenuItem[] => {
             return items.flatMap((item): MenuItem[] => {
-                if (item.submenu && !(collapsed && item.isDynamic)) {
+                if (item.submenu) {
                     const titleNode = (
-                        <>
-                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
-                        </>
+                        <span className="flex w-full items-center">
+                            <span className="flex min-w-0 items-center gap-1">{item.title}</span>
+                            {item.suffix && !collapsed && (
+                                <span className="ml-auto shrink-0 pl-2">{item.suffix}</span>
+                            )}
+                        </span>
                     )
                     const labelNode = item.link ? (
                         <Link
@@ -116,17 +120,20 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                     ) : (
                         titleNode
                     )
-                    const submenuLabel = collapsed ? (
-                        <Tooltip
-                            title={item.tooltip || item.title}
-                            placement="right"
-                            mouseEnterDelay={0.8}
-                        >
-                            <span className="w-full">{labelNode}</span>
-                        </Tooltip>
-                    ) : (
-                        labelNode
-                    )
+                    // Dynamic groups already answer the hover with their flyout — a
+                    // tooltip on top of it is noise.
+                    const submenuLabel =
+                        collapsed && !item.isDynamic ? (
+                            <Tooltip
+                                title={item.tooltip || item.title}
+                                placement="right"
+                                mouseEnterDelay={0.8}
+                            >
+                                <span className="w-full">{labelNode}</span>
+                            </Tooltip>
+                        ) : (
+                            labelNode
+                        )
                     const isNavigableParent = Boolean(item.link)
                     const isOpen = openKeys.includes(item.key)
                     const isInlineMode = mode === "inline"
@@ -187,7 +194,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                 "ag-sidebar-submenu-open": mode === "inline" && isOpen,
                                 "[&_.ant-menu-submenu-arrow]:hidden": collapsed,
                             }),
-                            disabled: item.isCloudFeature || item.disabled,
+                            disabled: item.disabled,
                             onTitleClick: ({
                                 domEvent,
                             }: {
@@ -210,12 +217,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                     const labelClassName = clsx("w-full", item.isPlaceholder && "text-gray-400")
                     const node = item.isLoading ? (
                         <span className={labelClassName}>
-                            <Skeleton.Button
-                                active
-                                size="small"
-                                block
-                                className="!h-4 !min-w-[72px]"
-                            />
+                            <SidebarRowSkeleton block />
                         </span>
                     ) : item.link ? (
                         <Link
@@ -236,11 +238,11 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
                             rel={item.link?.startsWith("http") ? "noopener noreferrer" : undefined}
                         >
-                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                            {item.title}
                         </Link>
                     ) : (
                         <span className={labelClassName} onClick={item.onClick}>
-                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                            {item.title}
                         </span>
                     )
 

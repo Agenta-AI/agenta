@@ -5,6 +5,7 @@ import {useAtomValue} from "jotai"
 
 import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
+import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 
 import type {SidebarConfig} from "../engine/types"
 
@@ -24,6 +25,8 @@ export const resolveChildren = (
     source: SidebarEntitySource | undefined,
     projectURL: string,
     idleFallback?: SidebarConfig[],
+    // Collapsed flyouts scroll (popup max-height), so they list everything.
+    unlimited = false,
 ): SidebarConfig[] => {
     const icon = () => entity.icon ?? getEntityKindIcon(entity.kind)
     const status = source?.status ?? "idle"
@@ -83,7 +86,7 @@ export const resolveChildren = (
         ]
     }
 
-    const visibleRefs = refs.slice(0, entity.maxItems)
+    const visibleRefs = unlimited ? refs : refs.slice(0, entity.maxItems)
     const children: SidebarConfig[] = []
     let currentGroup: string | null = null
     for (const ref of visibleRefs) {
@@ -131,6 +134,7 @@ export const resolveChildren = (
 export const useSidebarDynamicChildren = (): Record<string, SidebarConfig[]> => {
     const {projectURL} = useURL()
     const sources = useAtomValue(sidebarEntitySourcesAtom)
+    const collapsed = useAtomValue(sidebarCollapsedAtom)
     const cachedChildrenRef = useRef<
         Record<string, {projectURL: string; children: SidebarConfig[]}>
     >({})
@@ -147,10 +151,16 @@ export const useSidebarDynamicChildren = (): Record<string, SidebarConfig[]> => 
             const cached = cachedChildren[key]
             const idleFallback =
                 cached?.projectURL === resolvedProjectURL ? cached.children : undefined
-            result[key] = resolveChildren(entity, source, resolvedProjectURL, idleFallback)
+            result[key] = resolveChildren(
+                entity,
+                source,
+                resolvedProjectURL,
+                idleFallback,
+                collapsed,
+            )
         }
         return result
-    }, [sources, projectURL])
+    }, [sources, projectURL, collapsed])
 
     // Keep the last non-idle children per group so a group going idle (its query
     // unsubscribing) still renders its previous items instead of the idle placeholder.

@@ -102,21 +102,7 @@ const findAncestorKeys = (items: SidebarConfig[], selectedKey?: string) => {
     return visit(items, []) ?? []
 }
 
-const findDefaultOpenKeys = (items: SidebarConfig[]) => {
-    const keys: string[] = []
-
-    const visit = (nodes: SidebarConfig[]) => {
-        nodes.forEach((item) => {
-            if (item.submenu?.length) {
-                if (item.defaultOpen) keys.push(item.key)
-                visit(item.submenu)
-            }
-        })
-    }
-
-    visit(items)
-    return keys
-}
+const NO_OPEN_KEYS: string[] = []
 
 const findNavigableGroupKeys = (items: SidebarConfig[]) => {
     const keys = new Set<string>()
@@ -188,7 +174,6 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     }, [allItems, currentPath, selection])
 
     const selectedKeys = useMemo(() => (selectedKey ? [selectedKey] : []), [selectedKey])
-    const defaultOpenKeys = useMemo(() => findDefaultOpenKeys(allItems), [allItems])
     const activeAncestorKeys = useMemo(
         () =>
             selection.mode === "controlled"
@@ -197,7 +182,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
         [allItems, routeOpenKeys, selectedKey, selection.mode],
     )
     const navigableGroupKeys = useMemo(() => findNavigableGroupKeys(allItems), [allItems])
-    const persistedOrDefaultOpenGroups = persistedOpenGroups ?? defaultOpenKeys
+    const persistedOrDefaultOpenGroups = persistedOpenGroups ?? NO_OPEN_KEYS
     const openKeys = useMemo(
         () => uniqueKeys(persistedOrDefaultOpenGroups),
         [persistedOrDefaultOpenGroups],
@@ -263,7 +248,10 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                             .filter(Boolean)
                             .join(" "),
                         selectedKeys,
-                        ...(isInlineSection
+                        // Collapsed popups are hover-managed by antd: controlled openKeys
+                        // would pin them open, and handleOpenChange's navigable-group
+                        // filter would block them from ever opening.
+                        ...(isInlineSection && !collapsed
                             ? {
                                   openKeys,
                                   onOpenChange: (keys) => handleOpenChange(keys as string[]),
@@ -282,8 +270,10 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     items={section.items}
                     collapsed={collapsed}
                     mode={section.mode}
-                    openKeys={isInlineSection ? openKeys : []}
-                    onToggleOpenKey={isInlineSection ? handleToggleOpenKey : undefined}
+                    openKeys={isInlineSection && !collapsed ? openKeys : []}
+                    onToggleOpenKey={
+                        isInlineSection && !collapsed ? handleToggleOpenKey : undefined
+                    }
                     onPopupOpenChange={onPopupOpenChange}
                 />
             </React.Fragment>
