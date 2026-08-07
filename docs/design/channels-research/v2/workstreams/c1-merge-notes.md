@@ -82,3 +82,15 @@ that opens C1:
 Everything else at C1 — the contract suite failing a lying adapter, the
 `_PUBLIC_ENDPOINTS` scoping, DTO and key-composition behaviour — is unit-level
 and already holds without a deployment.
+
+## C1 carries the result; the package worktrees are not rebased
+
+The original runbook ended C1 with "every worktree rebases on the merged base".
+Superseded: `channels-c1` already contains all three packages plus the three
+cross-package fixes, so rebasing WP1/WP2/WP3 would only re-derive what C1 holds.
+Their ledgers are closed *here*, and **wave 2 branches from `channels-c1`**, not
+from a package branch.
+
+This matters most for WP2, whose own branch lacks the `resolve_policy` fix that
+its `units` correction made necessary — reading that branch in isolation would
+show a defect C1 has already resolved.

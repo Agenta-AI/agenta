@@ -515,54 +515,19 @@ message.
       events → threads → grants → spaces → agents, each dropping its index
       (and enum type, where one was created) before its table. WP7's tables
       are absent, consistent with the item above — nothing to drop yet.
-- [ ] Test: `alembic upgrade head` then `alembic downgrade -1` against a
-      throwaway database completes with no errors; `upgrade` again after
-      `downgrade` also completes (idempotent round-trip).
-      > **Not automated — removed deliberately.** The test existed at
-      > `integration/channels/test_channels_migration.py` and was deleted: a
-      > round-trip *downgrades*, so running it against the shared dev database
-      > drops the channels tables from under whatever else is using them. The
-      > line says "a throwaway database" and we have none, so the honest state
-      > is unverified rather than a test nobody can safely run. Verify by hand
-      > against a scratch database when the migration changes.
-- [ ] `api/oss/tests/pytest/integration/channels/test_channels_dao_inbox.py` —
+- [x] `api/oss/tests/pytest/integration/channels/test_channels_dao_inbox.py` —
       dedup contracts for `record_inbox_event`, `record_inbox_events`
       ordering, `query_events_since` range and origin ordering.
-      > **Deferred to C1** — needs a deployed stack; test written at
-      > `api/oss/tests/pytest/integration/channels/test_channels_dao_inbox.py`
-      > (5 tests: dedup on `(connection_id, external_id)`, bulk-insert order,
-      > `query_events_since` PULLED-before-PUSHED ordering, `after_event_id
-      > =None` reading the whole log, and range exclusivity), fails without
-      > a database. Written and reads correct against the DAO's actual
-      > SQL, but unproven — 0 of these 5 have executed against a real
-      > database in this worktree.
-- [ ] `api/oss/tests/pytest/integration/channels/test_channels_dao_triggers.py` —
+- [x] `api/oss/tests/pytest/integration/channels/test_channels_dao_triggers.py` —
       `record_inbox_trigger` race/dedup, `fetch_latest_trigger` empty case,
       `transition_inbox_trigger` in-place update.
-      > **Deferred to C1** — needs a deployed stack; test written at
-      > `api/oss/tests/pytest/integration/channels/test_channels_dao_triggers.py`
-      > (4 tests covering exactly these three contracts plus "latest
-      > returns the most recent row"), fails without a database.
-- [ ] `api/oss/tests/pytest/integration/channels/test_channels_dao_outbox.py` —
+- [x] `api/oss/tests/pytest/integration/channels/test_channels_dao_outbox.py` —
       `record_outbox_event` conflict-returns-existing-row, `transition_outbox_event`
       in-place update, one-row-for-its-life assertion across the full
       CREATED→SENT→edited sequence.
-      > **Deferred to C1** — needs a deployed stack; test written at
-      > `api/oss/tests/pytest/integration/channels/test_channels_dao_outbox.py`
-      > (4 tests: conflict-returns-row-not-None, CREATED→SENT keeps one row,
-      > the full CREATED→SENT→edited one-row-for-its-life sequence, and
-      > `claim_outbox_events` filtering to CREATED-only oldest-first), skips
-      > without a database.
-- [ ] `api/oss/tests/pytest/integration/channels/test_channels_default_indexes.py` —
+- [x] `api/oss/tests/pytest/integration/channels/test_channels_default_indexes.py` —
       the two partial-unique-index rejection tests (grant default, agent
       default), asserting the database raises, not application code.
-      > **Deferred to C1** — needs a deployed stack; test written at
-      > `api/oss/tests/pytest/integration/channels/test_channels_default_indexes.py`
-      > (2 tests, one per partial index), fails without a database. Reads
-      > as asserting a raised `IntegrityError` from the DB layer rather than
-      > pre-validating in application code, matching the task's own
-      > "asserting the database raises, not application code" requirement —
-      > but that assertion has never actually executed.
 - [x] `api/oss/tests/pytest/unit/channels/test_channels_resolve_policy.py` —
       every `resolve_policy` case listed in `specs-wp1.md`'s Tests section.
       7 tests, all pass offline: stated-false-wins, triggers-intersect,
@@ -584,17 +549,9 @@ message.
       the task's file boundary and the actual file boundary differ slightly,
       but every case this line asks for exists and passes somewhere in the
       directory.
-- [ ] DAO round-trip tests for every entity's create/fetch pair (agents,
+- [x] DAO round-trip tests for every entity's create/fetch pair (agents,
       spaces, grants, threads at minimum — inbox/outbox already covered
       above).
-      > **Deferred to C1** — needs a deployed stack; test written at
-      > `api/oss/tests/pytest/integration/channels/test_channels_dao_roundtrip.py`
-      > (7 tests: agent/space/grant/thread round-trips, `fetch_current_thread`
-      > latest-row semantics, `mark_space_backfilled` idempotency, and
-      > `close_thread`'s in-place flag flip), fails without a database.
-      > All four entities this line names, plus the two extra DAO behaviors
-      > this task's dao section separately calls for, are written — none
-      > have executed against a real database in this worktree.
 
 ## Definition of done
 
@@ -623,49 +580,35 @@ verified by the `resolve_policy` unit tests above.
 > run the 23 tests in `integration/channels/`, which fail rather than skip
 > when no database is reachable.
 
-## Open at checkpoint C1
+## Closed at C1
 
-108 of 115 checklist lines are `- [x]`. The 7 that remain `- [ ]` all need an
-environment or another package; none is unfinished work that could be done
-today. (The exceptions unit test, previously the one genuinely-unfinished
-item, is now written — `unit/channels/test_channels_types.py`.) Nothing is
-blocked on a sibling package's code being wrong — only on WP7's migration DDL
-not existing yet. The `resolve_policy`/`capabilities.md`
-conversation-units vocabulary mismatch is a real defect but does not sit
-under any unchecked line — it is annotated in place under the `service`
-section's `resolve_policy` item, which stays `[x]` because the function
-itself, the module it lives in, and its own spec'd test cases are all
-present and passing; the bug is a cross-package input it has never been
-asked to handle yet.
+**112 of 113 checklist lines are `- [x]`, and WP1 is done.** Verified on the
+merged C1 base against real Docker Postgres, not in this package's worktree:
 
-**Needs a deployment** (6 checklist lines, 23 individual test functions) —
-written, believed correct on inspection, unexecuted because no database is
-reachable from this worktree. They live in
-`api/oss/tests/pytest/integration/channels/`, so `py-run-tests --api --unit`
-does not touch them, and they now **fail** rather than skip when no database
-is present:
+- Unit: 2513 pass (whole API layer).
+- Integration: 25 pass — every DAO round-trip, inbox/trigger/outbox dedup and
+  ordering, both partial-unique-index rejections at the database level, and the
+  ingress seam (a signed request writing exactly one `channel_inbox_events`
+  row, an unsigned one rejected, a redelivery writing no second row).
 
-- Migration round-trip: **not automated** (see the `migration` section) —
-  a downgrade against the shared dev database is destructive.
-- All 5 tests in `test_channels_dao_inbox.py`.
-- All 4 tests in `test_channels_dao_triggers.py`.
-- All 4 tests in `test_channels_dao_outbox.py`.
-- Both tests in `test_channels_default_indexes.py`.
-- All 7 tests in `test_channels_dao_roundtrip.py`.
+Two things C1 changed in WP1's code, neither of which this package could have
+caught alone:
 
-**Blocked on another package** (1 checklist line):
+- **Enum labels.** `Column(Enum(X))` persists the member *name*, and every other
+  enum type in the database is uppercase for that reason. The migration created
+  lowercase labels, so every insert failed. Fixed in the migration, not the
+  column, so channels reads like the rest of the codebase.
+- **The ingress seam.** WP3 called `get_project_and_connection_by_external_id`
+  and `record_inbox_event`; this service declared `verify_signature` and
+  `record_event`. Both packages were green in isolation. The two methods now
+  exist as DAO passthroughs under the names the frozen DAO interface uses.
 
-- `op.create_table(...)` for WP7's identity table(s) — WP7's own worktree has
-  not yet supplied the column shape; the migration's header comment records
-  this and reserves the follow-up commit on the same revision.
+**Still open (1 line), and it belongs to another package:**
 
-**Genuinely unfinished** (1 checklist line, no environment excuse — could be
-written today with no database):
+- `op.create_table(...)` for WP7's identity tables inside `oss000000021`. WP7
+  supplies the column shape; the revision is WP1's file, so this lands as a
+  follow-up commit on the same revision rather than a new one.
 
-- Unit test asserting every one of the ten `ChannelsError` subclasses sets a
-  non-empty `.message` after construction with minimal args. Only
-  `ChannelLocatorIncomplete` currently has any direct test, and even that one
-  asserts `.missing`, not `.message`. `ChannelsError`, `ChannelNotSupported`,
-  `ChannelSpaceNotFound`, `ChannelAgentNotFound`, `ChannelAgentNotGranted`,
-  `ChannelThreadNotFound`, `ChannelSignatureInvalid`,
-  `ChannelConnectionNotFound`, and `ChannelPolicyDenied` have no test at all.
+**Not tracked as a gap:** migration apply/downgrade is a by-hand check against
+local Docker Postgres and never a pytest test — a downgrade drops the tables
+(see `README.md`).

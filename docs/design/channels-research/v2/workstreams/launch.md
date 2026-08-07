@@ -95,21 +95,37 @@ their reviews should not compete with C1's for attention.
 ## Reaching C1
 
 C1 is reached when this runs on the merged base, not when three packages report
-done:
+done. **Reached** — verified on `channels-c1` against local Docker Postgres:
 
-- [ ] Merge WP1, WP2, WP3 in that order — WP1's migration first, since the other
+- [x] Merge WP1, WP2, WP3 in that order — WP1's migration first, since the other
       two need the tables.
-- [ ] Apply the serialised edits: WP1's DAO/service wiring, WP3's
+- [x] Apply the serialised edits: WP1's DAO/service wiring, WP3's
       `_PUBLIC_ENDPOINTS` line, both into `api/entrypoints/routers.py` as one edit.
+- [x] Signed request to `POST /channels/slack/events/` → exactly one
+      `channel_inbox_events` row, 202.
+- [x] Unsigned request → rejected.
+- [x] Redelivery of the same event → no second row.
+- [x] Contract suite fails a fake adapter that lies about its declaration.
 - Migration apply/downgrade is **checked by hand against local Docker Postgres**,
   never by pytest — a downgrade drops the tables, so a test doing it against a
   shared dev database destroys whatever else is using them. Not a C1 gate.
-- [ ] Signed request to `POST /channels/slack/events/` → exactly one
-      `channel_inbox_events` row, 202.
-- [ ] Unsigned request → rejected.
-- [ ] Redelivery of the same event → no second row.
-- [ ] Contract suite fails a fake adapter that lies about its declaration.
-- [ ] Every worktree rebases on the merged base before continuing.
+
+Totals on the merged base: **2513 unit, 25 integration, 802 acceptance, 0 fail.**
+
+**Three defects the merge surfaced that no package could see alone** — the reason
+C1 is a gate and not a formality:
+
+1. `resolve_policy` indexed a *grain* vocabulary (`thread|space`) against a
+   *scope* ordering (`thread|message`), so any platform without threads raised
+   `ValueError` — including `contract.md`'s own bridge example.
+2. The migration created lowercase enum labels while `Column(Enum(X))` persists
+   member names, so every insert failed. Every other enum in the database is
+   uppercase.
+3. WP3's ingress called two service methods WP1 never implemented, under names
+   WP1 had spelled differently. Both packages were green in isolation.
+
+**Instead of rebasing the package worktrees**, C1 carries the whole result: the
+three ledgers are closed here, and wave 2 branches from `channels-c1`.
 
 ## Rules for anyone working a package
 
