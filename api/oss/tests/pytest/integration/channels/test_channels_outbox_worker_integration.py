@@ -392,7 +392,7 @@ async def test_polling_finds_the_channel_thread_by_session_id(outbox_scope):
             turn_id=uuid.uuid4(),
             stream_id=outbox_scope["stream_id"],
             turn_index=0,
-            harness_kind=HarnessKind.CLAUDE_CODE,
+            harness_kind=HarnessKind.CLAUDE,
             start_time=datetime.now(timezone.utc),
         ),
     )

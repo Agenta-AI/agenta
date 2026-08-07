@@ -71,9 +71,17 @@ def compose_outbox_key(
 def compose_idempotency_key(
     *,
     key: UUID,
-    updated_at: datetime,
+    updated_at: Optional[datetime],
 ) -> UUID:
-    """The wire token — one request. Derived at send time, never stored."""
+    """The wire token — one request. Derived at send time, never stored.
+
+    `updated_at` is null until a row is first edited (no server default, unlike
+    `created_at`), so a first send keys off the row's identity alone; every
+    later revision keys off its own timestamp.
+    """
+
+    if updated_at is None:
+        return uuid5(_CHANNELS, str(key))
 
     return uuid5(_CHANNELS, f"{key}:{updated_at.isoformat()}")
 

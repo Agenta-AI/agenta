@@ -20,6 +20,8 @@ from oss.src.core.shared.dtos import (
 class ConnectionProviderKind(str, Enum):
     COMPOSIO = "composio"
     AGENTA = "agenta"
+    # channels reach the same connections table keyed by channel (F4)
+    SLACK = "slack"
 
 
 class ConnectionAuthScheme(str, Enum):
