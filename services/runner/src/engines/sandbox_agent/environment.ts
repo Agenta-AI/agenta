@@ -58,11 +58,11 @@ import {
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { conciseError } from "./errors.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
-import { materializeDaytonaMcpServers } from "./daytona-secret-provider.ts";
 import {
-  buildSessionMcpServers,
-  validateUserMcpServers,
-} from "./mcp.ts";
+  daytonaCredentialDeliveryPort,
+  materializeDaytonaMcpServers,
+} from "./daytona-secret-provider.ts";
+import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
   discoverTunnelEndpoint,
@@ -92,11 +92,17 @@ import {
   seedAgentReadmeRemote,
 } from "./agent-mount.ts";
 import {
-  AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT,
-  claudeMountSystemPromptMeta,
-  combineAppendSystemPrompt,
-  type ClaudeSystemPromptMeta,
+  agentMountAppendix,
+  agentMountUnavailableAppendix,
 } from "./agent-mount-guidance.ts";
+import {
+  appendPlatformGuidance,
+  appendToSystemPrompt,
+  claudeSystemPromptMeta,
+  composeSystemPromptAppendix,
+  type ClaudeSystemPromptMeta,
+} from "./system-prompt-appendix.ts";
+import { platformGuidanceAppendix } from "./platform-guidance.ts";
 import { claudeThinkingMeta } from "./claude-thinking.ts";
 import {
   describeCodexSubscriptionAuthFault,
@@ -150,6 +156,7 @@ import {
 } from "../../environment/harness-session-lifecycle.ts";
 import {
   activateAgentMountGuidance as activateAgentMountGuidanceUnit,
+  activateAgentMountUnavailableGuidance as activateAgentMountUnavailableGuidanceUnit,
   mountLocalAgentCwd as mountLocalAgentCwdUnit,
   mountLocalDurableCwd as mountLocalDurableCwdUnit,
   reSignAndRemountLocalCwd as reSignAndRemountLocalCwdUnit,
@@ -316,6 +323,33 @@ export async function acquireEnvironment(
   } = setup;
   let runAgentDir = setup.runAgentDir;
 
+  // ---- MountLifecycle ------------------------------------------------------------------ //
+  // The six mount helpers moved to `environment/mount-lifecycle.ts`. They used to be mutually
+  // recursive closures over this scope; they now take `ctx` and capture nothing. `ctx` is the
+  // only thing that carries the shared state, and it exposes the environment as a read-only
+  // projection so a unit cannot reach a field it does not own. See `environment/acquire-context.ts`.
+  const { context: ctx } = createAcquireContext({
+    environment,
+    plan,
+    env,
+    piExtEnv,
+    sessionForMount,
+    artifactId,
+    runCred,
+    log: logger,
+    timingLog,
+    remountLimit: LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT,
+    combineAppendSystemPrompt: appendToSystemPrompt,
+    // Needs the raw daemon env map, which units must not see, so it is injected here.
+    reprepareLocalPiAssets: () =>
+      prepareLocalPiAssets({ plan, env, log: logger }).dir,
+  });
+  // `ctx` is built BEFORE `destroy` is assigned, and the order is load-bearing. `destroy` calls
+  // `ctx.recordCwdUnmountResult`, and a `const` stays in the temporal dead zone until its own
+  // declaration runs. With the context created later, a throw from `createAcquireContext` left
+  // `acquireEnvironment` rejecting with no `destroy` ever called, so the skills temp root leaked;
+  // and any future call to `destroy()` from between the two points raised a ReferenceError
+  // instead of tearing the environment down.
   // The one complete, idempotent teardown — the same steps the old per-run `finally` ran, in the
   // same order. Every resource is null-checked, so it is safe after a partial acquire and safe to
   // call twice (the guard returns on a second call). It must never throw.
@@ -396,27 +430,6 @@ export async function acquireEnvironment(
     plan.workspace.skillsCleanup();
   };
 
-  // ---- MountLifecycle ------------------------------------------------------------------ //
-  // The six mount helpers moved to `environment/mount-lifecycle.ts`. They used to be mutually
-  // recursive closures over this scope; they now take `ctx` and capture nothing. `ctx` is the
-  // only thing that carries the shared state, and it exposes the environment as a read-only
-  // projection so a unit cannot reach a field it does not own. See `environment/acquire-context.ts`.
-  const { context: ctx } = createAcquireContext({
-    environment,
-    plan,
-    env,
-    piExtEnv,
-    sessionForMount,
-    artifactId,
-    runCred,
-    log: logger,
-    timingLog,
-    remountLimit: LOCAL_DURABLE_CWD_ENOTCONN_REMOUNT_LIMIT,
-    combineAppendSystemPrompt,
-    // Needs the raw daemon env map, which units must not see, so it is injected here.
-    reprepareLocalPiAssets: () =>
-      prepareLocalPiAssets({ plan, env, log: logger }).dir,
-  });
   const mountDeps: MountDeps = {
     ...(deps.mountStorage ? { mountStorage: deps.mountStorage } : {}),
     signMount,
@@ -430,6 +443,8 @@ export async function acquireEnvironment(
     reSignAndRemountLocalCwdUnit(ctx, mountDeps);
   const activateAgentMountGuidance = () =>
     activateAgentMountGuidanceUnit(ctx, mountDeps);
+  const activateAgentMountUnavailableGuidance = () =>
+    activateAgentMountUnavailableGuidanceUnit(ctx, mountDeps);
   const remountLocalCwdAfterRuntimeEnotconn = (event: unknown) =>
     remountLocalCwdAfterRuntimeEnotconnUnit(ctx, mountDeps, event);
 
@@ -522,6 +537,12 @@ export async function acquireEnvironment(
     );
     environment.sandbox = acquiredSandbox.sandbox;
     environment.resumable = acquiredSandbox.resumable;
+    // Read AFTER the sandbox is acquired, because the port is bound to a sandbox: the provider has
+    // no allocation to deliver against until create (or reconnect) has settled. Undefined for
+    // every provider that cannot deliver a credential to a live sandbox, which is what routes a
+    // rotation there back to a rebuild. See `daytonaCredentialDeliveryPort`.
+    environment.credentialDelivery =
+      daytonaCredentialDeliveryPort(sandboxProvider);
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
     if (environment.sandbox) inFlightSandboxes.add(environment);
@@ -580,6 +601,24 @@ export async function acquireEnvironment(
       // to the durable <cwd>/.codex and CODEX_SQLITE_HOME off-mount). Nothing to write here.
     }
 
+    /**
+     * Why a durable mount could not be attempted, or undefined when it could.
+     *
+     * The two causes need different fixes, so the operator line must name which one: an absent
+     * tunnel is an infrastructure seat to claim, while an unreachable store is a networking or
+     * endpoint problem. A warning that says only "mounts skipped" sends the reader back into this
+     * file to find out which.
+     */
+    const mountRefusal = (
+      endpoint: string | undefined,
+      tunnel: string | undefined,
+    ): "store-unreachable-and-no-tunnel" | undefined =>
+      storeReachableFromSandbox(endpoint) || tunnel
+        ? undefined
+        : "store-unreachable-and-no-tunnel";
+    /** Set when a durable mount was ATTEMPTED and refused. Drives the model-facing sentence. */
+    let agentMountSkipped: string | undefined;
+
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
     // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
     // prefix instead of being hidden under the FUSE mount).
@@ -587,14 +626,31 @@ export async function acquireEnvironment(
       const mountsStartedAt = Date.now();
       try {
         // Mount against the store's own endpoint when the sandbox can reach it (public S3); fall
-        // back to the tunnel only for an in-network store. No tunnel + in-network store => skip.
+        // back to the tunnel only for an in-network store. No tunnel + in-network store => the
+        // mount is REFUSED, and the refusal is announced rather than silent. It used to be
+        // silent, and the cost was not theoretical: the run continued on an empty directory, the
+        // model went looking for the user's saved files because its own history showed an earlier
+        // session where they were there, found nothing, and told the user their work was missing.
+        // Both surfaces now say so, the operator through the WARN below and the model through
+        // `agentMountUnavailableGuidance`.
         const storeEndpoint = environment.mountCreds.endpoint;
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
             })) ?? undefined);
-        const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
+        const refusal = mountRefusal(storeEndpoint, endpoint);
+        const canMount = !refusal;
+        if (refusal) {
+          // WARN, not debug, and once per acquire rather than once per day: a run whose durable
+          // cwd is missing behaves differently for the whole session, and the operator needs the
+          // cause named to know which thing to fix.
+          logger(
+            `WARN durable cwd mount SKIPPED for session=${sessionForMount}: ${refusal}. ` +
+              "The run continues on throwaway storage; nothing the agent writes to the working " +
+              "directory survives this session.",
+          );
+        }
         if (
           canMount &&
           (await (deps.mountStorageRemote ?? mountStorageRemote)(
@@ -652,8 +708,21 @@ export async function acquireEnvironment(
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
               log: logger,
             })) ?? undefined);
-        const canMount = storeReachableFromSandbox(storeEndpoint) || !!endpoint;
+        const refusal = mountRefusal(storeEndpoint, endpoint);
+        const canMount = !refusal;
         const mountPath = agentMountDir;
+        if (refusal) {
+          agentMountSkipped = refusal;
+          logger(
+            `WARN durable agent mount SKIPPED for artifact=${artifactId}: ${refusal}. ` +
+              "The agent's durable folder is absent this run; the model is told so explicitly " +
+              "so it does not report the user's saved work as missing.",
+          );
+          // Pi reads its guidance from the append-prompt channel, so the negative sentence has to
+          // be delivered here. Claude takes the same statement through the session-init `_meta`
+          // built below, off `agentMountSkipped`.
+          await activateAgentMountUnavailableGuidance();
+        }
         if (
           canMount &&
           (await (deps.mountStorageRemote ?? mountStorageRemote)(
@@ -689,11 +758,34 @@ export async function acquireEnvironment(
     }
 
     const prepareWorkspaceStartedAt = Date.now();
+    // The instructions file is the fourth guidance channel, and the only one every harness reads.
+    // It is composed HERE rather than in `run-plan.ts` because the mount arm needs mount state:
+    // both agent-mount paths above run before this point (local at `mountLocalAgentCwd`, Daytona
+    // in the block just above), so `agentMountedPath` and `agentMountSkipped` are settled and the
+    // file can state what is true instead of what was hoped for.
+    //
+    // The guidance rides a COPY of the plan. `plan.prompt.agentsMd` is the author's text, and the
+    // rest of the run should keep seeing it that way; only the write wants the rendered form.
+    const guidance = platformGuidanceAppendix({
+      acpAgent: plan.acpAgent,
+      isPi: plan.isPi,
+      agentMountedPath: environment.agentMountedPath,
+      agentMountSkipped: !!agentMountSkipped,
+    });
+    const guidedPlan = guidance
+      ? {
+          ...plan,
+          prompt: {
+            ...plan.prompt,
+            agentsMd: appendPlatformGuidance(plan.prompt.agentsMd, guidance),
+          },
+        }
+      : plan;
     // WorkspaceManager owns the write; the retry stays here because it re-signs a MOUNT, which is
     // the mount unit's concern, not the workspace's.
     const workspaceInput = {
       sandbox: environment.sandbox,
-      plan,
+      plan: guidedPlan,
       piSkillSnapshot,
       log: logger,
     };
@@ -758,7 +850,11 @@ export async function acquireEnvironment(
         acpAgent: plan.acpAgent,
         timingLog,
       },
-      { ...(deps.probeCapabilities ? { probeCapabilities: deps.probeCapabilities } : {}) },
+      {
+        ...(deps.probeCapabilities
+          ? { probeCapabilities: deps.probeCapabilities }
+          : {}),
+      },
     );
     const capabilities = probed.capabilities;
     environment.capabilities = capabilities;
@@ -806,10 +902,27 @@ export async function acquireEnvironment(
     // the daemon's own runtime forwards `_meta` unconditionally (`normalizeSessionInit` /
     // `buildLoadSessionParams` in the vendored `sandbox-agent` patch), only the published types
     // are stricter than the wire protocol they describe.
-    const claudeSystemPromptMeta: ClaudeSystemPromptMeta | undefined =
-      environment.agentMountedPath && plan.acpAgent === "claude"
-        ? claudeMountSystemPromptMeta(AGENT_MOUNT_SYSTEM_PROMPT_SEGMENT)
+    // Three states, not two. A mount that WORKED advertises its resolved absolute path; a mount
+    // that was attempted and SKIPPED says so, because the model's history may show an earlier
+    // session where the folder worked and only a statement in this turn can contradict it; a run
+    // with no durable storage configured says nothing, so a permanently tunnel-less stack does not
+    // carry the caveat as eternal noise.
+    // One ordered composition, so a contributor added later is placed here deliberately rather
+    // than appended by whichever call site happens to run last. The mount is the only contributor
+    // today; the delivery below is unchanged.
+    const claudeAppendix =
+      plan.acpAgent === "claude"
+        ? composeSystemPromptAppendix([
+            environment.agentMountedPath
+              ? agentMountAppendix(environment.agentMountedPath)
+              : agentMountSkipped
+                ? agentMountUnavailableAppendix()
+                : undefined,
+          ])
         : undefined;
+    const claudeAppendixMeta: ClaudeSystemPromptMeta | undefined = claudeAppendix
+      ? claudeSystemPromptMeta(claudeAppendix)
+      : undefined;
     // Claude-only: request visible ("summarized") extended-thinking display so the model's
     // reasoning reaches the runner (and the playground). Without it, recent Claude models
     // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.
@@ -818,8 +931,8 @@ export async function acquireEnvironment(
     // Disjoint `_meta` keys (`systemPrompt` vs `claudeCode`), so a shallow merge keeps both.
     // A future second `claudeCode` producer would need a deep merge here.
     const claudeMeta =
-      claudeSystemPromptMeta || claudeThinking
-        ? { ...(claudeSystemPromptMeta ?? {}), ...(claudeThinking ?? {}) }
+      claudeAppendixMeta || claudeThinking
+        ? { ...(claudeAppendixMeta ?? {}), ...(claudeThinking ?? {}) }
         : undefined;
     const sessionInit = {
       cwd: plan.workspace.cwd,

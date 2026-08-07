@@ -42,6 +42,14 @@ import {
 import type { MountCredentials } from "../engines/sandbox_agent/mount.ts";
 import type { TeardownReason } from "../engines/sandbox_agent/teardown.ts";
 import {
+  mechanismForRotation,
+  runCredentialDelivery,
+  type CredentialDeliveryLogEvent,
+  type CredentialDeliveryMechanism,
+  type CredentialTeardownReason,
+} from "../providers/credential-delivery-port.ts";
+import { desiredCredentialSetFor } from "../providers/daytona-credential-delivery.ts";
+import {
   approvalDecisionForToolCall,
   assertsPriorConversation,
   computeCredentialEpoch,
@@ -160,6 +168,12 @@ export interface KeepaliveContext {
   clientGone?: () => boolean;
   /** Latest session credential accessor supplied by the alive watchdog. */
   credential?: () => string;
+  /**
+   * Test seam for the credential-propagation hold. Production waits for real: the hold is what
+   * keeps applied state from advancing over a value the provider's egress layer has probably not
+   * picked up yet, so it must never be skipped outside a test.
+   */
+  credentialWait?: (ms: number) => Promise<void>;
 }
 
 /**
@@ -195,7 +209,7 @@ export async function runWithKeepalive(
   signal: AbortSignal | undefined,
   ctx: KeepaliveContext,
 ): Promise<AgentRunResult> {
-  const { engine, pool, config, clientGone, credential } = ctx;
+  const { engine, pool, config, clientGone, credential, credentialWait } = ctx;
   const turnCredential = credential ? { credential } : {};
   const sessionId = request.sessionId?.trim();
   // Every execution carries an id: callers that omit `turnId` get one minted here, so the
@@ -341,12 +355,148 @@ export async function runWithKeepalive(
     }
   };
 
+  /**
+   * The credential material a DELIVERY installed on this dispatch, or undefined.
+   *
+   * The credential half of "applied state advances only on success". A parked epoch says what the
+   * environment holds; it may therefore advance to the incoming material only when a delivery
+   * actually put that material where the environment reads it. Set in exactly one place, from a
+   * successful `runCredentialDelivery` result, and read only by the re-park.
+   */
+  let deliveredCredentials: CredentialEpoch | undefined;
+  /** The disposition a FAILED delivery forces, carried from the failure value to the teardown. */
+  let credentialTeardown: CredentialTeardownReason | undefined;
+
+  /**
+   * The delivery log. Every field is derived by this coordinator from a closed union; nothing the
+   * provider returned is formatted here. No value, no digest, no length, no record name, no
+   * placeholder, no host, no provider error text — see the port's question 5.
+   */
+  const logCredentialDelivery = (event: CredentialDeliveryLogEvent): void => {
+    const detail =
+      event.event === "delivered"
+        ? ` holdTurnForMs=${event.holdTurnForMs}`
+        : event.event === "failed"
+          ? ` reason=${event.reason}`
+          : "";
+    klog(
+      `credential-route key=${key} ${event.event} mechanism=${event.mechanism}${detail}`,
+    );
+  };
+
+  /**
+   * LIFECYCLE MIGRATION, STEP 8. Deliver a rotated credential to the RUNNING environment instead
+   * of deleting the sandbox that holds it.
+   *
+   * This is the Q5 route: a rotated model key restarts nothing and rebuilds nothing, because the
+   * sandbox holds an opaque placeholder and only the value behind it moves. It follows
+   * `tryLiveRoutes`'s shape deliberately — same guards, same fail-closed reflex, same "returns the
+   * plan it ACTED ON so the shadow can name the route".
+   *
+   * THE FOUR REFUSALS, each of which costs a rebuild and none of which may be relaxed:
+   *
+   *  1. NO PORT. Nothing to deliver through. (Also the local provider, and Daytona with hiding off.)
+   *  2. A MECHANISM THAT IS NOT `rotate-in-place`. `restart-runtime` is a delivery the port type
+   *     admits, but it is not in `LIVE_ACTION_KINDS`: routing it here would reuse an environment
+   *     the router planned a rebuild for, and the two must not disagree about what happened.
+   *  3. A MOVED `direct` HALF. The delivery reaches material held behind a reference; a `local_use`
+   *     credential is read by the provider SDK inside the sandbox and is baked into the daemon
+   *     environment. If that half moved, delivering the other half and reusing would leave the run
+   *     on a stale value while reporting success. See `CredentialEpoch.direct`.
+   *  4. NOTHING HIDEABLE TO DELIVER. A delivery with an empty desired set is not a cheap rotation;
+   *     it is a claim that one happened.
+   *
+   * ON THE HOLD: `runCredentialDelivery` waits out the propagation bound BEFORE it returns
+   * success, so by the time this function sees `ok` the turn has already been held. It is reported
+   * so the log can state it, and deliberately not waited on twice — a second wait would be a
+   * second claim about propagation that the provider never made.
+   */
+  const tryCredentialRoute = async (
+    existing: LiveSession<SessionEnvironment>,
+  ): Promise<ReconcilePlan | undefined> => {
+    const port = existing.environment.credentialDelivery;
+    if (!port) return undefined;
+    const mechanism = mechanismForRotation(port.capabilities);
+    if (mechanism !== "rotate-in-place") return undefined;
+    if (!existing.credentialEpoch.direct.equals(incomingEpoch.direct)) {
+      klog(
+        `credential-route key=${key} refused: non-deliverable material moved`,
+      );
+      return undefined;
+    }
+    const desired = desiredCredentialSetFor(request, incomingEpoch.secrets);
+    if (!desired) return undefined;
+
+    try {
+      const result = await runCredentialDelivery(
+        port,
+        // A rotation reaching this point has an unchanged slot SET by construction: credential
+        // shapes, hosts, endpoints and the MCP server list all live in `configFingerprint`, so a
+        // slot-set change would have been `mismatch:config` several branches earlier and never
+        // reached the credential comparison at all.
+        { mechanism, delta: { rotated: true, slotSetChanged: false } },
+        desired,
+        logCredentialDelivery,
+        credentialWait ? { wait: credentialWait } : {},
+      );
+      if (!result.ok) {
+        // The failure carries its own disposition, so the teardown below cannot pick a softer one.
+        credentialTeardown = result.teardown;
+        return undefined;
+      }
+      // The environment now holds the incoming material. This is the ONLY assignment.
+      deliveredCredentials = incomingEpoch;
+      return planReconcile(
+        request,
+        normalizeDesiredState(request, cfgFp),
+        existing.environment.appliedState.facets,
+        { mechanism },
+      );
+    } catch (err) {
+      // FAIL CLOSED, exactly as the config route does: an unexpected failure costs a rebuild,
+      // never a session reused over a credential nobody can prove was delivered.
+      //
+      // The message is safe to print because a PROVIDER error can never arrive here —
+      // `runCredentialDelivery` swallows those as `port-threw` — so a throw is runner-internal.
+      // And a runner-internal message that interpolated credential material would print
+      // `[disclosable-secret]` or `[credential-material]`, which is what those holders exist for.
+      klog(
+        `credential-route key=${key} threw, rebuilding: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+      return undefined;
+    }
+  };
+
+  /**
+   * What a rotation would cost on THIS environment.
+   *
+   * STEP 8. Which action a rotation needs is PROVIDER-DEPENDENT — `local` bakes values into a
+   * daemon environment frozen before the daemon starts, while Daytona can hold an opaque reference
+   * whose value the provider substitutes at egress — so the pure router cannot decide it and the
+   * coordinator passes the conclusion in.
+   *
+   * IT IS ASKED OF THE ENVIRONMENT, NOT OF THE PROVIDER NAME, and that distinction is the whole
+   * correctness of this function. An environment offers a delivery port only when it actually
+   * holds rotatable references: a Daytona run with credential hiding switched off passes its
+   * values to the sandbox as plain environment variables, and a table keyed by "daytona" would
+   * promise a live rotation that would silently deliver nothing. No port means no live route,
+   * which is `rebuild-sandbox` — the same answer `mechanismForRotation` gives for `local`.
+   */
+  const rotationMechanism = (
+    existing: LiveSession<SessionEnvironment> | undefined,
+  ): CredentialDeliveryMechanism => {
+    const port = existing?.environment.credentialDelivery;
+    return port ? mechanismForRotation(port.capabilities) : "rebuild-sandbox";
+  };
+
   const shadowRoute = (
     existing: LiveSession<SessionEnvironment> | undefined,
     decision: "reuse" | "rebuild",
     decisionReason: string,
     scope: DecisionScope = "environment",
     plan?: ReconcilePlan,
+    rotationMechanismUsed?: CredentialDeliveryMechanism,
   ): void => {
     logReconcileShadow({
       key,
@@ -358,6 +508,7 @@ export async function runWithKeepalive(
       decisionReason,
       scope,
       ...(plan ? { plan } : {}),
+      credential: { mechanism: rotationMechanismUsed },
     });
   };
 
@@ -382,7 +533,8 @@ export async function runWithKeepalive(
    */
   const mismatchTeardownReason = (mismatch: string): TeardownReason => {
     // A conversation problem. The environment is fine; the transcript is not.
-    if (mismatch === "history" || mismatch === "tail") return "continuity-invalid";
+    if (mismatch === "history" || mismatch === "tail")
+      return "continuity-invalid";
     // Credentials live in the daemon's environment on Daytona, and Pi's runtime assets are
     // installed at start. A parked sandbox would resume with the stale material still in place,
     // so these must delete. This is the case the lifecycle design warns about by name.
@@ -481,9 +633,10 @@ export async function runWithKeepalive(
   // from whatever this dispatch signed to compute the pool key.
   const parkedEpoch = (
     env: SessionEnvironment,
-    secrets: CredentialMaterial,
+    material: Pick<CredentialEpoch, "secrets" | "direct">,
   ): CredentialEpoch => ({
-    secrets,
+    secrets: material.secrets,
+    direct: material.direct,
     mountExpiresAtMs: installedMountLease(env.installedMountExpiries),
   });
 
@@ -499,7 +652,7 @@ export async function runWithKeepalive(
       // No `configFingerprint`. The environment owns it (lifecycle migration, step 2).
       historyFingerprint: nextHistoryFp(env),
       historyAsserted,
-      credentialEpoch: parkedEpoch(env, incomingEpoch.secrets),
+      credentialEpoch: parkedEpoch(env, incomingEpoch),
       teardown: (reason: TeardownReason) => env.destroy({ reason }),
     };
     if (approvalToPark(env, result)) {
@@ -526,9 +679,15 @@ export async function runWithKeepalive(
   };
 
   // Re-park a checked-out pool session (same slot) as approval / idle, or evict it. A re-park
-  // describes the LIVE environment, so it always keeps the live secrets hash: on the idle path the
+  // describes the LIVE environment, so it keeps the live secrets hash: on the idle path the
   // mismatch gate already proved the live and incoming hashes equal, and the approval-resume path
   // deliberately keeps the live one (the resume's re-minted secrets were never baked in).
+  //
+  // STEP 8 ADDS THE ONE EXCEPTION, and it is not a loosening: when a DELIVERY succeeded this
+  // dispatch, the live environment now holds the incoming material, so the parked epoch must say
+  // so or the next turn re-detects the same rotation and delivers it again forever. The exception
+  // is expressible only from a successful delivery result, which is what keeps it from becoming
+  // the stale-config bug in credential form.
   const reparkOrEvict = async (
     live: LiveSession<SessionEnvironment>,
     result: AgentRunResult,
@@ -541,7 +700,10 @@ export async function runWithKeepalive(
       // environment that had never applied it. The field is gone, so the bug cannot be written.
       historyFingerprint: nextHistoryFp(env),
       historyAsserted,
-      credentialEpoch: parkedEpoch(env, live.credentialEpoch.secrets),
+      credentialEpoch: parkedEpoch(
+        env,
+        deliveredCredentials ?? live.credentialEpoch,
+      ),
     };
     if (approvalToPark(env, result)) {
       klog(
@@ -646,7 +808,31 @@ export async function runWithKeepalive(
       // recomputing here would yield an empty plan and the counter could not name the route.
       const appliedPlan = await tryLiveRoutes(existing);
       if (appliedPlan) {
-        shadowRoute(existing, "reuse", "live-route", "environment", appliedPlan);
+        shadowRoute(
+          existing,
+          "reuse",
+          "live-route",
+          "environment",
+          appliedPlan,
+        );
+        mismatch = undefined;
+      }
+    }
+
+    // STEP 8. A rotated credential gets the same chance. The other credential mismatches do NOT:
+    // `credentials-expired` and `credentials-expiring` are mount-lease facts that the mount
+    // subsystem repairs by re-signing, and delivering a model key would not extend a lease.
+    if (mismatch === "credentials-rotated") {
+      const deliveredPlan = await tryCredentialRoute(existing);
+      if (deliveredPlan) {
+        shadowRoute(
+          existing,
+          "reuse",
+          "credential-route",
+          "environment",
+          deliveredPlan,
+          "rotate-in-place",
+        );
         mismatch = undefined;
       }
     }
@@ -662,13 +848,31 @@ export async function runWithKeepalive(
         mismatch === "history" || mismatch === "tail"
           ? "continuity"
           : "environment",
+        undefined,
+        // STEP 8. Tell the router what the epoch comparison already knows. `credentials-expiring`
+        // and `credentials-expired` are MOUNT LEASE facts, not rotations — the mount subsystem
+        // repairs those by re-signing — so only a true rotation feeds the credential input.
+        //
+        // A rotation that reaches HERE was either never deliverable or its delivery failed, and
+        // both are rebuilds. Reporting the mechanism the port COULD have used would make the
+        // router's plan disagree with reality on every refusal; reporting what actually happened
+        // keeps a disagreement meaning what it is supposed to mean — a delivery that was planned
+        // live and then did not happen.
+        mismatch === "credentials-rotated"
+          ? credentialTeardown
+            ? "rotate-in-place"
+            : rotationMechanism(existing)
+          : undefined,
       );
       // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
       // mount — they must never overlap.
       await pool.evict(
         key,
         `mismatch:${mismatch}`,
-        mismatchTeardownReason(mismatch),
+        // A failed delivery brings its own teardown reason, so the disposition travels with the
+        // failure instead of being re-derived from a label. They agree today; the point is that
+        // they cannot drift.
+        credentialTeardown ?? mismatchTeardownReason(mismatch),
       );
       return coldAndPark();
     }
@@ -823,7 +1027,20 @@ export async function runWithKeepalive(
       klog(
         `approval-mismatch (${mismatch ?? "unknown"}) key=${key}; evict + cold`,
       );
-      shadowRoute(existing, "rebuild", `approval-mismatch:${mismatch ?? "unknown"}`);
+      shadowRoute(
+        existing,
+        "rebuild",
+        `approval-mismatch:${mismatch ?? "unknown"}`,
+        "environment",
+        undefined,
+        // An approval-parked session does NOT take the delivery route, so on this path a rotation
+        // costs a rebuild whatever the provider could do. The route is deliberately confined to the
+        // idle branch: this session is mid-turn with a gate the human has not answered, and holding
+        // an already-paused turn for a propagation window is not a thing the pause protocol can
+        // express. A rotation here is rare and a rebuild is correct; widening the route to a paused
+        // turn needs its own design, not a copied branch.
+        mismatch === "credentials-rotated" ? "rebuild-sandbox" : undefined,
+      );
       await pool.evict(
         key,
         `approval-mismatch:${mismatch ?? "unknown"}`,
