@@ -6,7 +6,7 @@ the AI SDK client continues the last assistant message on a resume, but our serv
 mints a fresh `msg-{trace_id}` per HTTP request, so the client's identity check fails
 and it pushes a full clone instead of replacing in place.
 
-Design-only workspace (2026-07-06). No product code changed here.
+Design-only workspace created 2026-07-06; trace continuation re-audited 2026-07-24. No product code changed here.
 
 ## Files
 
@@ -16,7 +16,9 @@ Design-only workspace (2026-07-06). No product code changed here.
 | `research.md` | The full verified flow: message-id lifecycle, why the client clones, frontend decision points, wire frames for normal/pause/resume, before/after playground mock. Read this to understand the system. |
 | `fix-options.md` | Options A/B/C evaluated, interface-role review, the trace-per-message implications, recommendation (A: server echoes the continuation id) |
 | `plan.md` | Implementation slices, unit + manual test plan, rollout |
-| `trace-continuation.md` | Follow-up design: propagate trace context across a turn's resumes so one turn = one trace (fixes the multi-trace trade-off v1 accepts). Decision pending. |
+| `trace-continuation.md` | Original 2026-07-06 trace-continuation proposal. Retained as research; superseded for implementation by `trace-continuation-v2.md`. |
+| `trace-continuation-v2.md` | Current design: keep protocol context in the session transport, replay it for approvals and client tools, aggregate usage, and refresh the growing trace's caches. |
+| `trace-continuation-complexity.md` | Exact work breakdown, dependencies, edge cases, test matrix, rollout order, and revised complexity estimate. |
 | `status.md` | Current progress and decisions |
 
 ## Related
