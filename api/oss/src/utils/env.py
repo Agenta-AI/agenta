@@ -1247,6 +1247,12 @@ class PostgresConfig(BaseModel):
     _user_q: str = quote_plus(user)
     _password_q: str = quote_plus(password)
 
+    # How long a checked commit waits for the variant row lock before it gives up. The
+    # wait must be bounded, or a stuck holder pins a connection for the whole pool.
+    commit_lock_timeout_ms: int = (
+        _parse_optional_positive_int_env("POSTGRES_COMMIT_LOCK_TIMEOUT_MS") or 5_000
+    )
+
     uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
         f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_core"
     )
