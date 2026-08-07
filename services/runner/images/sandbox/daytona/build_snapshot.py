@@ -207,8 +207,8 @@ def main() -> None:
             "RUN npm install -g typescript@5 ts-node@10 "
             "&& python3 --version "
             "&& echo 'const v: number = 1; console.log(v)' > /tmp/v.ts "
-            "&& ts-node /tmp/v.ts && rm /tmp/v.ts",
-            f"RUN curl -fsSL -o /usr/local/bin/geesefs {GEESEFS_URL} "
+            "&& ts-node /tmp/v.ts && rm /tmp/v.ts",            
+            f"RUN curl -fsSL --retry 5 --retry-delay 2 --retry-all-errors -o /usr/local/bin/geesefs {GEESEFS_URL} "
             "&& chmod +x /usr/local/bin/geesefs",
             "USER sandbox",
             # Replace the base image's private Pi adapter. sandbox-agent resolves this launcher
