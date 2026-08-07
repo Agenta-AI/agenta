@@ -58,7 +58,8 @@ async def test_get_user_llm_providers_secrets_normalizes_legacy_provider_slugs(
 
     assert secrets["MISTRAL_API_KEY"] == "mistral-key"
     assert "MISTRALAI_API_KEY" not in secrets
-    assert secrets["TOGETHERAI_API_KEY"] == "together-key"
+    assert secrets["TOGETHER_API_KEY"] == "together-key"
+    assert "TOGETHERAI_API_KEY" not in secrets
     assert "TOGETHER_AI_API_KEY" not in secrets
     assert secrets["MINIMAX_API_KEY"] == "minimax-vault-key"
 
@@ -72,3 +73,16 @@ async def test_get_system_llm_providers_secrets_reads_legacy_mistralai_env(monke
 
     assert secrets["MISTRAL_API_KEY"] == "legacy-mistral-key"
     assert "MISTRALAI_API_KEY" not in secrets
+
+
+@pytest.mark.asyncio
+async def test_get_system_llm_providers_secrets_reads_legacy_togetherai_env(
+    monkeypatch,
+):
+    monkeypatch.delenv("TOGETHER_API_KEY", raising=False)
+    monkeypatch.setenv("TOGETHERAI_API_KEY", "legacy-together-key")
+
+    secrets = await get_system_llm_providers_secrets()
+
+    assert secrets["TOGETHER_API_KEY"] == "legacy-together-key"
+    assert "TOGETHERAI_API_KEY" not in secrets
