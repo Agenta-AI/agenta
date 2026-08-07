@@ -116,9 +116,8 @@ const themeAwareColors = {
     colorWarning: v("colorWarning"),
     colorWarningBorder: v("colorWarningBorder"),
     colorWarningText: v("colorWarningText"),
-    // The generator already emits --ag-colorWarningBg (#fffbe6 / #2b2111); it just was never
-    // bridged, so `statusColors.warningBg` had to fall back to the raw `bg-gold-1` scale and
-    // rendered a light banner in dark. See antd-inventory/wave-3/findings.md F13.
+    // Unbridged before: `statusColors.warningBg` fell back to `bg-gold-1` and rendered a light
+    // banner in dark mode (antd-inventory/wave-3/findings.md F13).
     colorWarningBg: v("colorWarningBg"),
     colorErrorText: v("colorErrorText"),
     colorError: v("colorError"),
