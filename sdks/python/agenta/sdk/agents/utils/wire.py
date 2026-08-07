@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TypedDict
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.redaction.context import get_active_redactor
 
+from .effective_config import stamp_effective_parameters
 from ..permission_rules import PermissionRule
 from ..errors import AgentRunFailed
 from ..dtos import (
@@ -48,7 +49,9 @@ class PermissionsConfig(TypedDict, total=False):
 
 # The user-facing error must not carry an internal stack/path dump. Cap the surfaced line and
 # strip the patterns that leak implementation detail; the full text is logged, never shown.
-_ERROR_MAX_LEN = 300
+# The cap bounds SIZE, not content: first-line-only, the stack-frame strip, and the redactor below
+# are what protect the user, so it is set wide enough for a real actionable message to arrive whole.
+_ERROR_MAX_LEN = 2000
 # A stack frame leaked into the message ("at fn (/abs/path:12:3)" / 'File "/abs/path", line 12').
 _STACK_FRAME_RE = re.compile(r"\b(at\s+\S+\s*\(|File\s+\"|/[\w./-]+:\d+)")
 
@@ -91,6 +94,7 @@ def request_to_wire(
     session_id: Optional[str] = None,
     turn_id: Optional[str] = None,
     project_id: Optional[str] = None,
+    effective_parameters: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Serialize one turn into the ``/run`` request JSON.
 
@@ -119,6 +123,16 @@ def request_to_wire(
     set it rides as ``runContext`` and is consumed by tool context bindings at dispatch
     (``call.context`` on direct-call specs and ``contextBindings`` on callRef specs) (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
     so a run that needs no binding stays byte-identical to before.
+
+    ``effective_parameters`` is the POST-HYDRATION config this turn actually runs (the handler's
+    resolved ``data.parameters``). It rides as the opaque ``effectiveParameters`` ONLY on a
+    session run — a non-session run has no interaction row to stamp it onto, so its payload stays
+    byte-identical to the golden contract. The runner echoes it onto the durable interaction row
+    of any HITL gate this turn parks, so a client that answers the gate without being able to
+    reproduce the config (mobile, the M2 dispatcher) can replay the exact turn instead of
+    hydrating the referenced variant's HEAD. Redacted and size-capped by
+    ``effective_config.stamp_effective_parameters``, which returns ``None`` (key omitted) when
+    there is nothing safe to stamp.
     """
     payload: Dict[str, Any] = {
         "harness": harness.value,
@@ -152,6 +166,10 @@ def request_to_wire(
         payload["turnId"] = turn_id
     if project_id is not None:
         payload["projectId"] = project_id
+    if session_id:
+        stamped = stamp_effective_parameters(effective_parameters)
+        if stamped:
+            payload["effectiveParameters"] = stamped
     return payload
 
 

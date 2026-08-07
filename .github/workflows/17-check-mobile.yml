@@ -1,0 +1,272 @@
+name: "17 - check mobile"
+
+on:
+  pull_request:
+    # `ready_for_review` is not a default activity type. Both entry jobs skip while a PR is a
+    # draft, so without it the commits pushed during draft are never checked — marking the PR
+    # ready would leave an unvalidated head.
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'web/mobile/**'
+      - 'web/packages/**'
+      - 'web/entrypoint.sh'
+      - 'web/docker/**'
+      - 'web/package.json'
+      - 'web/pnpm-lock.yaml'
+      - 'web/pnpm-workspace.yaml'
+      - 'web/turbo.json'
+      - 'web/patches/**'
+      - '.github/workflows/17-check-mobile.yml'
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push the built image to GHCR"
+        type: boolean
+        default: false
+      image_tag:
+        description: "Image tag; leave empty for manual-<short-sha>"
+        type: string
+        default: ""
+      push_latest:
+        description: "Also tag :latest (requires push)"
+        type: boolean
+        default: false
+
+# Least privilege at the top; the two jobs that log in to the registry raise it themselves.
+permissions:
+  contents: read
+
+concurrency:
+  group: check-mobile-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Mobile types
+    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: cd web && pnpm install --frozen-lockfile
+
+      - name: Typecheck @agenta/mobile
+        run: cd web && pnpm turbo run types:check --filter=@agenta/mobile --filter=@agenta/chat
+
+  prepare:
+    name: prepare
+    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      cache_scope: ${{ steps.meta.outputs.cache_scope }}
+      push: ${{ steps.meta.outputs.push }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Determine build metadata
+        id: meta
+        env:
+          # Never interpolate a dispatch input straight into the script: the expression is
+          # substituted before bash parses it, so the value could close the quote and run
+          # commands. Through env it is only ever data.
+          PR: ${{ github.event.pull_request.number }}
+          INPUT_TAG: ${{ inputs.image_tag }}
+          INPUT_PUSH: ${{ inputs.push }}
+        run: |
+          PR="$PR"
+          INPUT_TAG="$INPUT_TAG"
+          SHA="$(git rev-parse --short HEAD)"
+
+          if [ -n "$PR" ]; then
+            TAG="pr-${PR}-${SHA}"
+            PUSH=false
+            CACHE_SCOPE="pr-${PR}"
+          else
+            TAG="${INPUT_TAG:-manual-${SHA}}"
+            PUSH="$INPUT_PUSH"
+            REF="$(printf "%s" "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9._-' '-')"
+            REF="${REF#-}"
+            REF="${REF%-}"
+            CACHE_SCOPE="${REF:-manual}"
+          fi
+
+          CACHE_SCOPE="${CACHE_SCOPE:0:80}"
+
+          # `image_tag` is interpolated into later `run:` blocks, so it must be a Docker tag and
+          # nothing else. `case` matches the WHOLE value, including any newline — a line-based
+          # check (grep) would pass "good\nimage_tag=evil", which forges a second step output.
+          case "$TAG" in
+            "" | [!A-Za-z0-9_]* | *[!A-Za-z0-9_.-]*)
+              echo "::error::image_tag is not a valid Docker tag"
+              exit 1
+              ;;
+          esac
+          if [ "${#TAG}" -gt 128 ]; then
+            echo "::error::image_tag is longer than 128 characters"
+            exit 1
+          fi
+
+          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "cache_scope=${CACHE_SCOPE}" >> "$GITHUB_OUTPUT"
+          echo "push=${PUSH}" >> "$GITHUB_OUTPUT"
+
+  build-image:
+    permissions:
+      contents: read
+      packages: write
+    name: build-image
+    # Also `typecheck`, not just `prepare`: `web/mobile/next.config.ts` sets
+    # `typescript.ignoreBuildErrors: true`, so the build and the smoke test can both pass while
+    # the dedicated typecheck fails. Without this, a dispatch with `push=true` publishes that
+    # tag and `merge-manifests` can move `latest` onto it.
+    needs: [prepare, typecheck]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - amd64
+          - arm64
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            platform: linux/amd64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Log in to GHCR
+        if: needs.prepare.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build per-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: web
+          file: web/mobile/docker/Dockerfile.gh
+          push: ${{ needs.prepare.outputs.push == 'true' }}
+          load: ${{ needs.prepare.outputs.push != 'true' }}
+          platforms: ${{ matrix.platform }}
+          # Mirror 42-railway-build: no provenance/SBOM attestations (they add
+          # unknown/unknown manifest entries we don't consume).
+          provenance: false
+          sbom: false
+          tags: ghcr.io/agenta-ai/agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}
+          # Per-arch cache refs so amd64 and arm64 don't clobber each other.
+          # cache-to is push-gated: PR runs (incl. forks) have no registry write.
+          cache-from: |
+            type=registry,ref=ghcr.io/agenta-ai/agenta-web-mobile:buildcache-shared-${{ matrix.arch }}
+            type=registry,ref=ghcr.io/agenta-ai/agenta-web-mobile:buildcache-${{ needs.prepare.outputs.cache_scope }}-${{ matrix.arch }}
+          cache-to: ${{ needs.prepare.outputs.push == 'true' && format('type=registry,ref=ghcr.io/agenta-ai/agenta-web-mobile:buildcache-shared-{0},mode=max', matrix.arch) || '' }}
+
+      - name: Smoke-test the image serves /m
+        run: |
+          IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
+          if [ "${{ needs.prepare.outputs.push }}" = "true" ]; then
+            docker pull "$IMAGE"
+          fi
+          docker run -d --name mobile-smoke -p 3000:3000 "$IMAGE"
+          # Every request is bounded. A container that accepts the connection but never answers
+          # would otherwise hang until the job timeout, with no diagnostic.
+          CURL_TIMEOUTS="--connect-timeout 5 --max-time 15"
+          for i in $(seq 1 30); do
+            if curl -sf $CURL_TIMEOUTS http://127.0.0.1:3000/m >/dev/null; then break; fi
+            sleep 1
+          done
+          # Assert the status itself rather than curl's exit code: `-sf` succeeds on a 3xx
+          # (the page never rendered) and fails identically on 404 and 500.
+          expect_status() {
+            local path="$1" want="$2" got
+            # `|| true` on purpose: under `set -e` a transport failure here would exit the step
+            # before `docker logs` runs, losing the only evidence of what went wrong. Turn it
+            # into a sentinel status so the mismatch branch reports and dumps the log.
+            got="$(curl -s $CURL_TIMEOUTS -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000${path}" || true)"
+            [ -n "$got" ] || got="no-response"
+            if [ "$got" != "$want" ]; then
+              echo "::error::expected ${path} to return ${want}, got ${got}"
+              docker logs mobile-smoke
+              exit 1
+            fi
+          }
+          expect_status /m 200
+          expect_status /m/__env.js 200
+          # basePath /m owns the prefix, so the bare root belongs to nothing.
+          expect_status / 404
+          docker rm -f mobile-smoke
+
+      - name: Verify image runs as non-root
+        run: |
+          IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
+          USER=$(docker inspect --format='{{.Config.User}}' "$IMAGE")
+          if [ -z "$USER" ] || [ "$USER" = "root" ] || [ "$USER" = "0" ]; then
+            echo "::error::agenta-web-mobile (${{ matrix.arch }}) runs as root (User='${USER}')"
+            exit 1
+          fi
+          echo "PASS: runs as User='${USER}'"
+
+      - name: Summary
+        run: |
+          IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}"
+          SIZE="$(docker image ls --format '{{.Size}}' "$IMAGE" | head -1)"
+          echo "- Built \`agenta-web-mobile:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}\` (${SIZE}), smoke on /m passed" >> "$GITHUB_STEP_SUMMARY"
+
+  merge-manifests:
+    permissions:
+      contents: read
+      packages: write
+    name: merge-manifest
+    needs: [prepare, build-image]
+    if: needs.prepare.outputs.push == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Stitch per-arch tags into manifest list
+        env:
+          IMAGE: ghcr.io/agenta-ai/agenta-web-mobile
+          TAG: ${{ needs.prepare.outputs.image_tag }}
+          PUSH_LATEST: ${{ inputs.push_latest }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            -t "${IMAGE}:${TAG}" \
+            "${IMAGE}:${TAG}-amd64" \
+            "${IMAGE}:${TAG}-arm64"
+          if [ "${PUSH_LATEST}" = "true" ]; then
+            docker buildx imagetools create \
+              -t "${IMAGE}:latest" \
+              "${IMAGE}:${TAG}-amd64" \
+              "${IMAGE}:${TAG}-arm64"
+          fi
+          echo "- Merged \`agenta-web-mobile:${TAG}\` (linux/amd64 + linux/arm64; latest=${PUSH_LATEST})" >> "$GITHUB_STEP_SUMMARY"

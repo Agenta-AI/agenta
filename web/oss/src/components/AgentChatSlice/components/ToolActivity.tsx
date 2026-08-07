@@ -18,7 +18,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {DriveFileCard} from "@/oss/components/Drives/DriveFileCard"
 
-import {partToolName, resolveToolDisplay, type ToolDisplay} from "../assets/toolDisplay"
+import {
+    extractCallDescription,
+    partToolName,
+    resolveToolDisplay,
+    type ToolDisplay,
+} from "../assets/toolDisplay"
 import {formatToolValue, stripFence} from "../assets/toolFormat"
 import {
     APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX,
@@ -203,6 +208,8 @@ const ToolRow = ({
     const stored = useAtomValue(expandedValueAtomFamily(rowKey))
     const setExpanded = useSetAtom(setExpandedAtom)
     const open = stored ?? false
+    // The agent's own note about this call (R12). Always shown: explaining the call is its job.
+    const callDescription = extractCallDescription(input)
 
     const header = (
         <>
@@ -248,6 +255,17 @@ const ToolRow = ({
             ) : (
                 <div className="flex min-w-0 items-center gap-2">{header}</div>
             )}
+
+            {callDescription ? (
+                <Text
+                    type="secondary"
+                    className="!text-[11px] mt-0.5 pl-[21px] italic leading-snug"
+                    title={callDescription.text}
+                >
+                    {callDescription.text}
+                    {callDescription.truncated ? "… (shortened)" : ""}
+                </Text>
+            ) : null}
 
             {hasIO ? (
                 <HeightCollapse open={open}>

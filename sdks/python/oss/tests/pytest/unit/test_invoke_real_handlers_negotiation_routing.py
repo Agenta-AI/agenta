@@ -146,6 +146,7 @@ class _FakeBackend(Backend):
         trace=None,
         run_context=None,
         session_id=None,
+        effective_parameters=None,
     ) -> _FakeSession:
         return _FakeSession(
             AgentResult(output=self._output, events=self._events, usage={"total": 5})

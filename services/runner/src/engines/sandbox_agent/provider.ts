@@ -105,11 +105,28 @@ function canonicalJson(value: unknown): string {
     .join(",")}}`;
 }
 
-/** Opaque comparison key for every field baked into a parked Daytona sandbox at create time. */
+/**
+ * The sandbox's GENERATION id: the immutable topology a parked Daytona sandbox was built with.
+ *
+ * THE CREATION-IDENTITY SPLIT (lifecycle migration, step 9). This used to hash the Daytona secret
+ * PLAN as well, values included, which had two consequences and both were wrong:
+ *
+ *  1. A rotated model key produced a different fingerprint, so a parked sandbox failed the
+ *     reconnect comparison and was DELETED. A rotation read as a different sandbox. That is the
+ *     precise reason Q5 could not be satisfied — the credential-delivery port would have been
+ *     inert, because the sandbox it wanted to rotate was already gone.
+ *  2. The fingerprint's input retained raw credential values for the sandbox's whole parked life,
+ *     to answer a question the epoch already answers better.
+ *
+ * What stays is what a rebuild is the only repair for: the image, the create request (routing,
+ * environment, network policy, lifecycle intervals), and through them the provider and target.
+ * Credential VALUES move to the epoch, which rotates them in place; the credential SLOT SET is
+ * reconciled on reconnect and fails closed (`daytona-secret-provider.ts`). Nothing lost the check
+ * it had — each is now checked by the layer that can actually repair it.
+ */
 export function daytonaCreateFingerprint(input: {
   image?: string;
   create: Record<string, unknown>;
-  secretPlan: DaytonaSecretPlan;
 }): string {
   return createHash("sha256").update(canonicalJson(input)).digest("hex");
 }
@@ -192,7 +209,6 @@ export function buildSandboxProvider(
       const createFingerprint = daytonaCreateFingerprint({
         image,
         create: createFields,
-        secretPlan: daytonaSecretPlan,
       });
       return daytonaWithProcessLocalSecrets(
         buildDaytona,

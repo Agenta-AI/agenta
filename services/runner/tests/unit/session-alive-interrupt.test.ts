@@ -102,6 +102,25 @@ describe("startAliveWatchdog onInterrupted", () => {
     assert.equal(onInterrupted.mock.calls.length, 1);
   });
 
+  it("a refused beat (superseded turn) aborts the run and never throws", async () => {
+    // The API refuses every beat from a turn it has tombstoned as superseded — including
+    // the turn-end beat — by answering `is_current_turn: false`. The runner needs no new
+    // wire field to understand that: the existing signal already means "you lost the
+    // session, abort". This pins that the refusal path is the abort path.
+    nextIsCurrentTurn = false;
+    const onInterrupted = vi.fn();
+    const watchdog = await startAliveWatchdog(
+      "sess-superseded",
+      "turn-superseded",
+      "proj-1",
+      onInterrupted,
+    );
+    await flushMicrotasks();
+
+    assert.equal(onInterrupted.mock.calls.length, 1);
+    await assert.doesNotReject(() => watchdog.release());
+  });
+
   it("treats a network/HTTP failure as NOT interrupted (fail-open)", async () => {
     vi.stubGlobal("fetch", async () => {
       throw new Error("network down");
