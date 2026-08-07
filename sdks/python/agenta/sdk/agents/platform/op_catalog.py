@@ -26,12 +26,12 @@ imported platform package.
 
 from __future__ import annotations
 
-import os
 from copy import deepcopy
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from agenta.sdk.agents.flags import ORDERED_OPERATIONS_ENV, ordered_operations_enabled
 from agenta.sdk.agents.tools.errors import UnknownPlatformOpError
 from agenta.sdk.agents.tools.models import ToolCall
 from agenta.sdk.utils.types import CATALOG_TYPES
@@ -818,19 +818,11 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # One switch for the API and the model-facing catalog: the SDK runs inside the API
 # process, so both read the same variable. The rollout order needs API support to exist
 # before the catalog advertises the shape (gate 3, plan ruling).
-_ORDERED_OPERATIONS_ENV = "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED"
-
-# Mirrors `_TRUTHY` in `api/oss/src/utils/env.py`, which the SDK cannot import: that module
-# is the API's foundational config and pulls the whole API package in behind it. The two
-# sets must accept the same spellings, or a deployment written as `enabled` turns the
-# ordered arm on in the API while the catalog keeps advertising the legacy surface. The
-# equality is pinned by `api/oss/tests/pytest/unit/workflows/test_ordered_operations_flag.py`,
-# which is on the one side that can import both.
-_TRUTHY = frozenset({"true", "1", "t", "y", "yes", "on", "enable", "enabled"})
-
-
-def _ordered_operations_enabled() -> bool:
-    return (os.getenv(_ORDERED_OPERATIONS_ENV) or "").strip().lower() in _TRUTHY
+# The switch itself lives in `agenta.sdk.agents.flags`, a leaf module, because the
+# `build-an-agent` skill reads it too and an adapter cannot import this package (it reaches
+# the SDK singleton). Re-exported under the private names this module has always used.
+_ORDERED_OPERATIONS_ENV = ORDERED_OPERATIONS_ENV
+_ordered_operations_enabled = ordered_operations_enabled
 
 
 # The legacy description, for the flag-off surface. The wholesale-list sentence names the
