@@ -1,7 +1,4 @@
-import socket
 import uuid
-from functools import lru_cache
-from urllib.parse import urlparse
 
 import pytest
 from sqlalchemy import text
@@ -10,28 +7,6 @@ import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401
 from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-from oss.src.utils.env import env
-
-
-@lru_cache(maxsize=1)
-def _postgres_reachable() -> bool:
-    """TCP-probe the configured core Postgres once per session (mirrors
-    unit/conftest.py's session fixture) — these DAO tests need a real DB."""
-
-    parsed = urlparse(env.postgres.uri_core)
-    host = parsed.hostname or "postgres"
-    port = parsed.port or 5432
-    try:
-        with socket.create_connection((host, port), timeout=0.5):
-            return True
-    except OSError:
-        return False
-
-
-@pytest.fixture(autouse=True)
-def _skip_when_postgres_unreachable(request):
-    if request.node.get_closest_marker("integration") and not _postgres_reachable():
-        pytest.skip("Postgres not reachable — skipping channels DAO integration tests")
 
 
 @pytest.fixture(autouse=True)

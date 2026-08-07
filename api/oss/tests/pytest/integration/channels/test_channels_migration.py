@@ -6,10 +6,6 @@ every table+index from entities.md §3 exists, downgrades, checks they are
 gone, then upgrades again to leave the DB as this test found it.
 """
 
-import socket
-from functools import lru_cache
-from urllib.parse import urlparse
-
 import pytest
 from sqlalchemy import inspect
 
@@ -51,18 +47,6 @@ _INDEXES = {
 }
 
 
-@lru_cache(maxsize=1)
-def _postgres_reachable() -> bool:
-    parsed = urlparse(env.postgres.uri_core)
-    host = parsed.hostname or "postgres"
-    port = parsed.port or 5432
-    try:
-        with socket.create_connection((host, port), timeout=0.5):
-            return True
-    except OSError:
-        return False
-
-
 def _alembic_config():
     from alembic.config import Config
 
@@ -78,9 +62,6 @@ def _index_names(inspector, table: str) -> set:
 
 
 async def test_upgrade_then_downgrade_round_trips_cleanly():
-    if not _postgres_reachable():
-        pytest.skip("Postgres not reachable — skipping migration integration test")
-
     from alembic import command
     from sqlalchemy import create_engine
 
