@@ -21,6 +21,7 @@ NUKE=false  # Default to not nuking volumes
 DOWN=false  # Default to up; --down only stops containers
 WITH_TUNNEL=true  # Composio trigger-event tunnel; disable with --no-tunnel
 LOCAL_OVERRIDES=true  # Auto-include docker-compose.<stage>.*.local.yml; disable with --no-local-overrides
+WITH_MOBILE=false  # Start the mobile web app (/m) via the with-web-mobile profile; enable with --with-mobile
 declare -a EXTRA_COMPOSE_FILES=()  # Extra -f files from --compose-file (repeatable)
 declare -a RECREATE_SERVICES=()    # Services to surgically recreate via --recreate (repeatable)
 declare -a REBUILD_SERVICES=()     # Services to surgically rebuild + recreate via --rebuild (repeatable)
@@ -50,6 +51,8 @@ show_usage() {
     echo "  --web-local             Alias for --web-mode local"
     echo "  --web-mode <mode>       Web mode: docker|local|none (default: docker)"
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
+    echo "  --with-mobile           Also start the mobile web app at /m (gh/ssl/gh.local stacks;"
+    echo "                          no-op on --dev, where web-mobile rides the with-web profile)"
     echo ""
     echo "Environment:"
     echo "  -e, --env <path>        Use explicit env file (otherwise stage default)"
@@ -253,6 +256,9 @@ while [[ "$#" -gt 0 ]]; do
         --no-tunnel)
             WITH_TUNNEL=false
             ;;
+        --with-mobile)
+            WITH_MOBILE=true
+            ;;
         --no-local-overrides)
             LOCAL_OVERRIDES=false
             ;;
@@ -438,6 +444,10 @@ if $WITH_TUNNEL; then
     COMPOSE_CMD+=" --profile with-tunnel"
 fi
 
+if $WITH_MOBILE; then
+    COMPOSE_CMD+=" --profile with-web-mobile"
+fi
+
 # --------------------------------------------------------------------------------------------
 # Surgical service lifecycle: --recreate / --rebuild
 #
@@ -523,7 +533,7 @@ fi
 echo "Stopping existing Docker containers..."
 
 # Include all profiles to ensure clean shutdown
-SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik --profile with-tunnel down"
+SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web-mobile --profile with-web --profile with-nginx --profile with-traefik --profile with-tunnel down"
 
 if $NUKE; then
     SHUTDOWN_CMD+=" --volumes"
