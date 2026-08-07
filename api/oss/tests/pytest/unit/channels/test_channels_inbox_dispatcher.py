@@ -439,3 +439,134 @@ class TestIndependence:
         assert len(settle_calls) == 2
         trigger_ids = {call.kwargs["trigger_id"] for call in settle_calls}
         assert trigger_ids == {triage_trigger.id, deploy_trigger.id}
+
+
+class TestIdentityAttribution:
+    """C2 wired WP7's identity links into the invoke (architecture.md §5: the
+    credential is the invoking user's). Before C2 every turn ran as the agent's
+    creator; these pin that the linked account now wins, and that the fallback
+    survives when identity is absent or the sender is unlinked.
+    """
+
+    @staticmethod
+    def _capabilities():
+        from oss.src.core.channels.dtos import (
+            ChannelCapabilities,
+            ChannelIdentity,
+            ChannelKeyGrain,
+        )
+
+        return ChannelCapabilities(
+            channel="slack",
+            identity=ChannelIdentity(
+                scope="workspace",
+                stable=True,
+                keys={
+                    ChannelKeyGrain.SPACE: ["team", "channel"],
+                    ChannelKeyGrain.THREAD: ["team", "channel", "thread_ts"],
+                },
+            ),
+        )
+
+    def _wire(self, *, link, resolution, trigger):
+        channels_service = _make_channels_service(
+            resolution=resolution, trigger=trigger
+        )
+        channels_service.resolve_channel = AsyncMock(return_value="slack")
+        channels_service.fetch_capabilities = AsyncMock(
+            return_value=self._capabilities()
+        )
+        identity_service = MagicMock()
+        identity_service.resolve_link = AsyncMock(return_value=link)
+        return channels_service, identity_service
+
+    async def test_linked_sender_runs_as_the_linked_account(self):
+        resolution = _make_resolution()
+        trigger = _make_trigger()
+        linked_user_id = uuid4()
+        link = MagicMock()
+        link.user_id = linked_user_id
+
+        channels_service, identity_service = self._wire(
+            link=link, resolution=resolution, trigger=trigger
+        )
+        invoke_fn = AsyncMock()
+        event = _make_event()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            identity_service=identity_service,
+            invoke_fn=invoke_fn,
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        assert invoke_fn.await_args.kwargs["user_id"] == linked_user_id
+        assert linked_user_id != resolution.agent.created_by_id
+
+    async def test_scope_id_comes_from_the_declared_space_key_not_the_scope_name(self):
+        """Slack declares scope "workspace" but locates by "team": composing
+        the key off the scope's own name would silently key on None."""
+
+        resolution = _make_resolution()
+        link = MagicMock()
+        link.user_id = uuid4()
+        channels_service, identity_service = self._wire(
+            link=link, resolution=resolution, trigger=_make_trigger()
+        )
+        event = _make_event()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            identity_service=identity_service,
+            invoke_fn=AsyncMock(),
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        composed_key = identity_service.resolve_link.await_args.kwargs[
+            "external_user_key"
+        ]
+        assert "T1" in composed_key  # the team id, from locator["team"]
+        assert "U1" in composed_key  # the platform user
+
+    async def test_unlinked_sender_falls_back_to_the_agent_creator(self):
+        resolution = _make_resolution()
+        channels_service, identity_service = self._wire(
+            link=None, resolution=resolution, trigger=_make_trigger()
+        )
+        invoke_fn = AsyncMock()
+        event = _make_event()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            identity_service=identity_service,
+            invoke_fn=invoke_fn,
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        # no user_id kwarg at all: the invoke path applies its own fallback
+        assert "user_id" not in invoke_fn.await_args.kwargs
+
+    async def test_no_identity_service_keeps_the_pre_c2_signature(self):
+        """A dispatcher built without identity must not pass user_id — every
+        injected invoke_fn predating C2 takes exactly four arguments."""
+
+        channels_service = _make_channels_service(
+            resolution=_make_resolution(), trigger=_make_trigger()
+        )
+        invoke_fn = AsyncMock()
+        event = _make_event()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=invoke_fn
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        assert "user_id" not in invoke_fn.await_args.kwargs

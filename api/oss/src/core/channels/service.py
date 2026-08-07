@@ -835,6 +835,15 @@ class ChannelsService:
 
     # --- helpers ------------------------------------------------------------ #
 
+    async def resolve_channel(self, *, project_id: UUID, connection_id: UUID) -> str:
+        """Public since C2: WP4's dispatcher needs the channel key to fetch
+        capabilities for identity-key composition."""
+
+        return await self._resolve_channel(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+
     async def _resolve_channel(self, *, project_id: UUID, connection_id: UUID) -> str:
         connection = await self.connections_service.get_connection(
             project_id=project_id,

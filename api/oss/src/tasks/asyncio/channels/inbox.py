@@ -21,12 +21,17 @@ from uuid import UUID, uuid4
 from oss.src.core.channels.dtos import (
     ChannelInboxEvent,
     ChannelInboxEventQuery,
+    ChannelKeyGrain,
     ChannelResolution,
     ChannelTriggerState,
     ChannelTurnInput,
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.shared.dtos import Status
+from oss.src.core.channels.identity import (
+    ChannelIdentityService,
+    compose_external_user_key,
+)
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -62,10 +67,13 @@ class InboxDispatcher:
         *,
         channels_service: ChannelsService,
         workflows_service: Optional[WorkflowsService] = None,
+        identity_service: Optional[ChannelIdentityService] = None,
         invoke_fn: Optional[InvokeFn] = None,
     ):
         self.channels_service = channels_service
         self.workflows_service = workflows_service
+        # None keeps the pre-C2 fallback: the turn runs as the agent's creator.
+        self.identity_service = identity_service
         # `invoke_fn` overrides the default entirely (tests inject a fake
         # here); otherwise the default closes over `workflows_service`.
         self._invoke_fn = invoke_fn or self._invoke_via_workflows_service
@@ -101,6 +109,53 @@ class InboxDispatcher:
             connection_id=connection_id,
             event=events[0],
         )
+
+    async def _invoking_user_id(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+        resolution,
+    ) -> Optional[UUID]:
+        """The platform sender's linked account (architecture.md §5). None
+        means unlinked or unconfigured — the caller falls back to the agent's
+        creator, which is attribution's stand-in, not its mechanism."""
+
+        if self.identity_service is None:
+            return None
+
+        platform_user_id = (event.data.processed.sender or {}).get("id")
+        if not platform_user_id:
+            return None
+
+        capabilities = await self.channels_service.fetch_capabilities(
+            channel=await self.channels_service.resolve_channel(
+                project_id=project_id,
+                connection_id=connection_id,
+            ),
+        )
+
+        # scope_id comes from the first `identity.keys[space]` field, which is
+        # the one that bounds the scope (Slack: "team"), not from `scope`'s own
+        # name ("workspace") — that names the boundary, not a locator key.
+        space_keys = capabilities.identity.keys.get(ChannelKeyGrain.SPACE) or []
+        locator = event.data.external_locator or {}
+        scope_id = locator.get(space_keys[0]) if space_keys else None
+
+        external_user_key = compose_external_user_key(
+            capabilities,
+            str(platform_user_id),
+            scope_id=str(scope_id) if scope_id is not None else None,
+        )
+
+        link = await self.identity_service.resolve_link(
+            project_id=project_id,
+            connection_id=connection_id,
+            external_user_key=external_user_key,
+        )
+
+        return link.user_id if link is not None else None
 
     async def dispatch_event(
         self,
@@ -150,12 +205,20 @@ class InboxDispatcher:
             )
             return
 
+        user_id = await self._invoking_user_id(
+            project_id=project_id,
+            connection_id=connection_id,
+            event=event,
+            resolution=resolution,
+        )
+
         await self._invoke_with_retry(
             project_id=project_id,
             resolution=resolution,
             turn_input=turn_input,
             turn_id=turn_id,
             trigger_id=trigger.id,
+            user_id=user_id,
         )
 
     async def _invoke_with_retry(
@@ -166,6 +229,7 @@ class InboxDispatcher:
         turn_input: ChannelTurnInput,
         turn_id: str,
         trigger_id: UUID,
+        user_id: Optional[UUID] = None,
     ) -> None:
         """Invoke once, retrying only on a refused overlapping turn
         (tasks-wp4.md "Retry on refusal") — never the `force` path, never
@@ -175,11 +239,15 @@ class InboxDispatcher:
         while True:
             attempt += 1
             try:
+                # user_id is passed only when identity resolved a linked
+                # account; an injected invoke_fn keeps its four-argument shape.
+                extra = {"user_id": user_id} if user_id is not None else {}
                 await self._invoke_fn(
                     project_id=project_id,
                     resolution=resolution,
                     turn_input=turn_input,
                     turn_id=turn_id,
+                    **extra,
                 )
             except TurnRefused:
                 if attempt >= _MAX_INVOKE_ATTEMPTS:
@@ -232,6 +300,7 @@ class InboxDispatcher:
         resolution: ChannelResolution,
         turn_input: ChannelTurnInput,
         turn_id: str,
+        user_id: Optional[UUID] = None,
     ) -> str:
         """The real invoke: `WorkflowsService.invoke_workflow_detached` over
         the agent's bound references, on the thread's session.
@@ -242,11 +311,8 @@ class InboxDispatcher:
         passes it as `run_id`; if the runner-level `turnId` field is wired
         through `WorkflowsService` later, this is the one call site to update.
 
-        ASSUMPTION: the invoking `user_id` should be the platform sender's
-        linked Agenta account (`architecture.md` §5: "the credential is the
-        invoking user's"), which is WP7's identity-links table and does not
-        exist yet. This falls back to the agent's own `created_by_id`, which
-        is a stand-in the design's own attribution intent, not the mechanism.
+        `user_id` is the platform sender's linked account when C2's identity
+        service resolved one (`architecture.md` §5), else the agent's creator.
         """
 
         if self.workflows_service is None:
@@ -273,7 +339,7 @@ class InboxDispatcher:
         try:
             response = await self.workflows_service.invoke_workflow_detached(
                 project_id=project_id,
-                user_id=resolution.agent.created_by_id,
+                user_id=user_id or resolution.agent.created_by_id,
                 request=request,
                 run_id=turn_id,
             )
