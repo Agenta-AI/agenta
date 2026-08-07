@@ -902,6 +902,10 @@ def _wrote_to_workspace(call: dict) -> bool:
 # Vocabulary a model uses when it EXPLAINS the mechanism instead of using it. Deliberately narrow:
 # these are words about the configuration surface, not words about the task, so a reply that
 # merely mentions "skill" does not qualify.
+# The harness surfaces an upstream provider retry as the assistant's reply text. It is
+# infrastructure, never an answer, and it must not be scored as model behaviour.
+_PROVIDER_RETRY_RE = re.compile(r"Retrying \(attempt \d+/\d+", re.IGNORECASE)
+
 _MECHANISM_RE = re.compile(
     r"(agent )?configuration|parameters\.agent|commit[_ ]revision|read[_ ]config|"
     r"new revision|through the (agent )?config|enabled through",
@@ -950,6 +954,14 @@ def classify_outcome(
         return "unsettled"
     if passed_checks and not hard_failed:
         return "one_shot" if within_budget else "recovered"
+    # A PROVIDER RETRY IS NOT A MODEL ANSWER. When the upstream provider rate-limits, the harness
+    # surfaces "Retrying (attempt 1/3, waiting 2s)..." AS the assistant reply and the turn settles
+    # normally — no wire error, no approval pending. Scored naively that reads as a model which
+    # said something irrelevant and did nothing, i.e. `no_action`, and one rate-limited run put a
+    # cell at 10% one-shot with 10 invented `no_action` failures. Infrastructure must never be
+    # scored as behaviour; `unsettled` is where it belongs, counted and visible.
+    if _PROVIDER_RETRY_RE.search("\n".join(t.reply for t in turns)):
+        return "unsettled"
     calls = distinct_calls(turns)
     config_calls = [
         c for c in calls if any(m in (c["toolName"] or "") for m in CONFIG_TOOL_MARKERS)
@@ -991,6 +1003,10 @@ def classify_record(trial: dict) -> str | None:
         return "unsettled"
     if trial.get("eventual"):
         return "one_shot" if trial.get("one_shot") else "recovered"
+    if _PROVIDER_RETRY_RE.search(
+        trial.get("full_reply") or trial.get("final_reply") or ""
+    ):
+        return "unsettled"
     config_calls = [
         c for c in calls if any(m in (c["toolName"] or "") for m in CONFIG_TOOL_MARKERS)
     ]
@@ -1059,6 +1075,31 @@ def identical_repeat_after_refusal(turns: list) -> list:
                 )
             break
     return repeats
+
+
+def infra_signature(turns: list) -> str | None:
+    """WHICH infrastructure failure a dead turn looks like, or None if it does not look like one.
+
+    Two mechanisms produce a turn that ends without doing the job, and they need different owners.
+    The discriminator is whether the turn made any PROGRESS before it died:
+
+      `throttled_no_progress` — the reply carries a provider retry and NO tool call was ever made.
+                                The turn died at the start: upstream capacity, not the product.
+      `died_after_progress`   — tool calls happened and then the turn stopped producing. That is
+                                the shape of a session being evicted or a transport dropping
+                                mid-run, which IS the product's problem.
+
+    Recorded per trial rather than folded into the outcome label, because both are `unsettled` as
+    far as scoring goes; this is triage information, and it was worth having the moment two cells
+    failed the same way for different reasons on the same shared key."""
+    text = "\n".join(t.reply for t in turns)
+    retrying = bool(_PROVIDER_RETRY_RE.search(text))
+    progressed = bool(distinct_calls(turns))
+    if retrying and not progressed:
+        return "throttled_no_progress"
+    if retrying and progressed:
+        return "throttled_after_progress"
+    return None
 
 
 def error_kind(error: dict) -> str:
@@ -1328,22 +1369,60 @@ def preflight(cell: dict) -> dict:
         revision_id, _ = w.seed_and_baseline(workflow_id, variant_id, agent, hexid)
         checks.append({"check": "create+seed a workflow", "ok": True})
 
-        r = w.read_config_direct(variant_id)
-        checks.append(
-            {
-                "check": "read_config (full)",
-                "ok": r.status_code == 200,
-                "status": r.status_code,
-                "detail": "" if r.status_code == 200 else r.text[:300],
-            }
+        # THE LEGACY ROUTE IS ADVISORY, NOT THE GATE. Migration milestone 7 flipped both config
+        # ops to handler mode through /tools/call, so this endpoint is no longer the transport an
+        # agent trial exercises, and milestone 9 deletes it outright. Blocking on it would be
+        # wrong in both directions: a false green while the real transport is broken, and later a
+        # false red the day the route legitimately 404s. It is reported because while it exists a
+        # 5xx here is still a useful signal about the service underneath.
+        for label, path in (
+            ("full", None),
+            ("scoped path", ["parameters", "agent", "skills"]),
+        ):
+            r = w.read_config_direct(variant_id, path)
+            checks.append(
+                {
+                    "check": f"legacy read-config route, {label} (advisory)",
+                    "ok": True,
+                    "advisory": True,
+                    "status": r.status_code,
+                    "detail": ""
+                    if r.status_code in (200, 404)
+                    else f"unexpected: {r.text[:200]}",
+                }
+            )
+
+        # THE REAL GATE: one live turn through the transport the trials use. A direct route probe
+        # cannot see handler mode at all, and the whole point of a pre-flight is to fail before
+        # spending, on the path that will actually be spent.
+        session_id = str(uuid.uuid4())
+        agent = json.loads(json.dumps(agent))
+        agent["tools"] = LIVE_TOOLS
+        turn = w.invoke(
+            session_id,
+            [w.user_msg("Read your configuration and reply with only your model id.")],
+            {"agent": agent},
+            w.refs(workflow_id, variant_id, revision_id),
+            log=False,
         )
-        r = w.read_config_direct(variant_id, ["parameters", "agent", "skills"])
+        reads = [
+            c
+            for c in distinct_calls([turn])
+            if any(m in (c["toolName"] or "") for m in CONFIG_TOOL_MARKERS)
+        ]
+        served = [c for c in reads if c["outcome"] == "available"]
         checks.append(
             {
-                "check": "read_config (scoped path)",
-                "ok": r.status_code == 200,
-                "status": r.status_code,
-                "detail": "" if r.status_code == 200 else r.text[:300],
+                "check": "read_config through the live agent transport",
+                "ok": bool(served),
+                "detail": ""
+                if served
+                else (
+                    f"wire errors: {turn.errors[:1]}"
+                    if turn.errors
+                    else f"{len(reads)} config call(s), none served: "
+                    + json.dumps([c["outcome"] for c in reads])
+                ),
             }
         )
         # The scoped commit route, exercised with a delta that changes nothing real. A 200 or a
