@@ -19,6 +19,7 @@ import {
   extractClientToolOutputs,
 } from "../../responder.ts";
 import {
+  buildInteractionData,
   buildWorkflowReferences,
   createInteraction,
   resolveInteraction,
@@ -595,23 +596,15 @@ export async function runTurn(
     ): void => {
       const cred = runCredential(request);
       if (!cred) return;
-      const references = buildWorkflowReferences(request.runContext?.workflow);
-      // Every gate leaves a durable inbox/audit row; workflow references are attribution, not a precondition.
+      // Every gate leaves a durable inbox/audit row; workflow references are attribution, not a
+      // precondition. The row also carries the turn's effective config when the SDK stamped one,
+      // so an out-of-band answer replays THIS turn, not the referenced variant's HEAD.
       void createInteraction(
         sessionId,
         request.turnId ?? "",
         token,
         kind,
-        {
-          request: {
-            tool: toolName ?? token,
-            args: toolArgs,
-            // The gate id (`token`) and the harness's tool-call id differ; an out-of-band answer
-            // needs the latter to name the call it is answering.
-            ...(toolCallId ? { tool_call_id: toolCallId } : {}),
-          },
-          references,
-        },
+        buildInteractionData(request, toolName ?? token, toolArgs, toolCallId),
         () => cred,
       );
     };

@@ -1,53 +1,40 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {loadSessionMessages} from "@agenta/chat/assets"
-import {getPendingApprovals} from "@agenta/chat/model"
 import {
-    buildAgentResumeRequest,
-    resolveInvocationUrl,
-    type AgentResumeReference,
-} from "@agenta/chat/transport"
-import {queryInteractions} from "@agenta/entities/session"
+    isInteractionConflict,
+    queryInteractions,
+    respondInteraction,
+} from "@agenta/entities/session"
 
-import {getAuthorizationHeader} from "@/lib/auth"
-
-import {stampApprovalResponses} from "./approvalStamp"
+import {selectApprovalTargets, type ApprovalTarget} from "./approvalTargets"
 
 export type ResumePhase = "idle" | "resuming" | "error"
+
+/** Fern's `AgentaApiError` message is transport jargon — show the status instead. */
+const respondErrorText = (error: unknown): string => {
+    const status = (error as {statusCode?: number} | null)?.statusCode
+    return status ? `Approval failed (HTTP ${status}).` : "Approval failed."
+}
 
 export interface ApprovalActions {
     phase: ResumePhase
     errorText: string | null
     /** Answer one gate. Deny also resumes (the runner needs the denial round-trip). */
     respond: (args: {approvalId: string; approved: boolean}) => void
-    /** Approve every pending gate — all responses ride ONE resume POST. */
+    /** Approve every pending gate — one respond call per gate (the endpoint is per-interaction). */
     approveAll: () => void
 }
 
-/** Keep only `{id, slug, version}` string fields of the interaction row's role-keyed refs. */
-const sanitizeReferences = (
-    raw: Record<string, unknown> | null | undefined,
-): Record<string, AgentResumeReference> | null => {
-    if (!raw) return null
-    const out: Record<string, AgentResumeReference> = {}
-    for (const [key, value] of Object.entries(raw)) {
-        if (!value || typeof value !== "object") continue
-        const {id, slug, version} = value as Record<string, unknown>
-        const ref: AgentResumeReference = {}
-        if (typeof id === "string") ref.id = id
-        if (typeof slug === "string") ref.slug = slug
-        if (typeof version === "string") ref.version = version
-        if (Object.keys(ref).length > 0) out[key] = ref
-    }
-    return Object.keys(out).length > 0 ? out : null
-}
-
 /**
- * Approve/deny pending HITL gates from the phone — the lite resume path (plan M1.3):
- * fresh records → stamp `approval-responded` on the tail → ONE references-only invoke POST
- * (`buildAgentResumeRequest`), fire-and-forget. No live SSE consumption: the response is
- * drained in the background and the tightened records poll repaints the transcript until the
- * turn settles (`phase` drops back to idle once no gate is pending).
+ * Approve/deny pending HITL gates from the phone via the DETACHED respond dispatcher:
+ * `POST /sessions/interactions/{id}/respond`. The backend CAS-flips the row to `responded`,
+ * then the interactions worker rebuilds the turn's history from the durable records and
+ * replays the gate's stamped effective config, so the parked run resumes WARM.
+ *
+ * Never hand-build an `/invoke` resume here: an invoke carrying stamped messages runs as a
+ * NEW turn (`approval-mismatch (history)` → evict + cold) and leaves the interaction row
+ * `pending`, so the gate never clears. Fire-and-forget: no stream is consumed, and the
+ * records poll repaints the transcript until `pendingCount` drops to 0.
  */
 export const useApprovalActions = ({
     sessionId,
@@ -70,7 +57,7 @@ export const useApprovalActions = ({
         }
     }, [pendingCount])
 
-    // Failure-path re-arm: if the resume was accepted but the run dies before the gate
+    // Failure-path re-arm: if the respond was accepted but the run dies before the gate
     // resolves, the poll never settles us — drop back to idle so the buttons re-arm.
     useEffect(() => {
         if (phase !== "resuming") return
@@ -79,92 +66,43 @@ export const useApprovalActions = ({
     }, [phase])
 
     const submit = useCallback(
-        async (target: {all: true} | {all?: false; approvalId: string}, approved: boolean) => {
+        async (target: ApprovalTarget, approved: boolean) => {
             if (busyRef.current) return
             busyRef.current = true
             setPhase("resuming")
             setErrorText(null)
             try {
-                // Never stamp a stale tail — re-read the durable records first.
-                const messages = (await loadSessionMessages(sessionId)) ?? []
-                const pending = getPendingApprovals(messages)
-                if (pending.length === 0) {
-                    throw new Error("No pending approval found — the turn may have moved on.")
-                }
-                const ids = target.all ? pending.map((p) => p.approvalId) : [target.approvalId]
-                const stamped = stampApprovalResponses(messages, ids, approved)
-                if (stamped === messages) {
-                    throw new Error("This approval is no longer pending — refresh and retry.")
-                }
-                // The interaction row stores the run's role-keyed workflow references —
-                // the resolver hydrates config from them server-side (references-only body).
-                const interactions = await queryInteractions({
+                // Never answer a stale gate — re-read the actionable rows (pending + in TTL).
+                const rows = await queryInteractions({
                     sessionId,
                     projectId,
                     actionableOnly: true,
                 })
-                const withRefs = (interactions ?? []).filter(
-                    (row) => row.data?.references && Object.keys(row.data.references).length > 0,
-                )
-                // Bind to the answered gate's own row when possible — two parked runs on
-                // different revisions in one session must not resume with the wrong config.
-                const answeredId = target.all ? undefined : target.approvalId
-                const matched = answeredId
-                    ? withRefs.find((row) => row.token === answeredId)
-                    : undefined
-                const references = sanitizeReferences((matched ?? withRefs[0])?.data?.references)
-                if (!references) {
+                const targets = selectApprovalTargets(rows, target)
+                if (targets.length === 0) {
                     throw new Error(
-                        "This approval carries no workflow reference — answer on desktop.",
+                        target.all
+                            ? "No pending approval found — the turn may have moved on."
+                            : "This approval is no longer pending — refresh and retry.",
                     )
                 }
-                const invocationUrl = await resolveInvocationUrl({
-                    projectId,
-                    revisionId:
-                        references.workflow_revision?.id ?? references.application_revision?.id,
-                    workflowId: references.workflow?.id ?? references.application?.id,
-                })
-                if (!invocationUrl) {
-                    throw new Error("Could not resolve the agent's invoke URL.")
-                }
-                const request = buildAgentResumeRequest({
-                    invocationUrl,
-                    references,
-                    sessionId,
-                    messages: stamped,
-                    projectId,
-                    applicationId: references.application?.id ?? undefined,
-                })
-                const authHeader = await getAuthorizationHeader()
-                const response = await fetch(request.invocationUrl, {
-                    method: "POST",
-                    headers: {
-                        ...request.headers,
-                        ...authHeader,
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(request.requestBody),
-                    credentials: "include",
-                })
-                if (!response.ok) {
-                    throw new Error(`Resume failed (HTTP ${response.status}).`)
-                }
-                // Fire-and-forget, but NEVER cancel: cancelling the body aborts the request,
-                // and the agent service treats that disconnect as "stop" — the resumed run
-                // dies ~200ms in and the gate stays pending (observed live). Drain instead.
-                void (async () => {
-                    const reader = response.body?.getReader()
-                    if (!reader) return
+                let answered = 0
+                for (const row of targets) {
                     try {
-                        for (;;) {
-                            const {done} = await reader.read()
-                            if (done) return
-                        }
-                    } catch {
-                        // Connection dropped (screen locked, network change) — the run
-                        // continues server-side; records polling picks the result up.
+                        await respondInteraction({
+                            interactionId: row.id as string,
+                            projectId,
+                            answer: {approved},
+                        })
+                        answered += 1
+                    } catch (err) {
+                        // Someone (desktop, another tab) already answered this gate — benign.
+                        if (!isInteractionConflict(err)) throw new Error(respondErrorText(err))
                     }
-                })()
+                }
+                // Every target was already answered: nothing is resuming, so re-arm now
+                // instead of waiting out the 60s timeout.
+                if (answered === 0) setPhase("idle")
             } catch (err) {
                 setPhase("error")
                 setErrorText(err instanceof Error ? err.message : "Resume failed.")

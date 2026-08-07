@@ -88,25 +88,6 @@ export async function signInWithEmailPassword(
 }
 
 /**
- * `Authorization` for an invoke, mirroring the desktop's `getJWT()`
- * (web/oss/src/services/api.ts). The cookie alone authenticates the invoke, but the SDK
- * resolves the model connection by fetching the vault with the caller's Authorization
- * header ONLY — without it the run proceeds with no injected credential and the model
- * rejects it ("no connection resolved for provider …").
- */
-export async function getAuthorizationHeader(): Promise<Record<string, string>> {
-    if (typeof window === "undefined") return {}
-    ensureAuthInit()
-    try {
-        if (!(await Session.doesSessionExist())) return {}
-        const jwt = await Session.getAccessToken()
-        return jwt ? {Authorization: `Bearer ${jwt}`} : {}
-    } catch {
-        return {}
-    }
-}
-
-/**
  * Attempt a cookie-based session refresh. Resolves false when there is no
  * refresh token or the backend rejects it — the caller's signed-out verdict
  * stands. Never throws (network failure counts as "not refreshed").

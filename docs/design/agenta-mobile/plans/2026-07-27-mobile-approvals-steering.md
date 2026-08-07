@@ -46,12 +46,22 @@ watchdog heartbeats `POST /sessions/streams/heartbeat` every 30s (`sessions/aliv
    (`services/runner/src/engines/sandbox_agent/acp-interactions.ts:166-200`) emits stream event
    `{type:"interaction_request", kind:"user_approval", payload:{toolCallId, toolCall,
    availableReplies, options}}`, creates a durable **interactions row** (kind `user_approval`,
-   status `pending`, `data.request={tool,args}` + stored workflow `references` —
-   `services/runner/src/sessions/interactions.ts:55-93` → `POST /sessions/interactions/`), and
+   status `pending`, `data.request={tool,args}` + stored workflow `references` + the turn's
+   **effective config** `data.parameters` —
+   `services/runner/src/sessions/interactions.ts` `buildInteractionData` →
+   `POST /sessions/interactions/`), and
    the turn ends `stopReason:"paused"`. The sandbox **parks warm** in the in-process
    `SessionPool` (`awaiting_approval`, TTL `approvalTtlMs` = **5 min**,
    `session-identity.ts:31,34`; `server.ts:427-455`). After TTL: sandbox evicted, the pending
    row stays actionable for **7 days** (`interactions/dao.py:31`, 209-214).
+   > **`data.parameters` (effective-turn-config plan, 2026-07-29).** The row now carries the
+   > post-hydration config the gated turn was RUNNING, stamped by the SDK onto the `/run` wire
+   > as `effectiveParameters` and echoed here opaquely by the runner. An out-of-band answer
+   > replays it as the resume's `data.parameters`, which suppresses reference hydration and
+   > reproduces the turn — without it a references-only resume runs the referenced variant's
+   > HEAD revision, which for a dirty run means the wrong model, instructions and **tool
+   > permissions**. A row written before this landed (or one whose config was over the 64 KB
+   > stamp cap) has no `parameters` and is still answerable — it just degrades to hydration.
 2. **Durable visibility (twice over):** the `interaction_request` event is a session record
    (replayable), and the interactions row is queryable via `POST /sessions/interactions/query`
    `{query:{session_id?, actionable_only:true}}` — `session_id` is OPTIONAL

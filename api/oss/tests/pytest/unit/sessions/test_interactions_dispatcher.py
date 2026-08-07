@@ -21,6 +21,7 @@ def _make_interaction(
     with_refs=True,
     kind=SessionInteractionKind.user_input,
     request=None,
+    parameters=None,
 ):
     from oss.src.core.sessions.interactions.dtos import (
         SessionInteraction,
@@ -37,7 +38,12 @@ def _make_interaction(
         token="tok-abc",
         kind=kind,
         status=SessionInteractionStatus.pending,
-        data=SessionInteractionData(references=refs, selector=None, request=request),
+        data=SessionInteractionData(
+            references=refs,
+            selector=None,
+            request=request,
+            parameters=parameters,
+        ),
     )
 
 
@@ -402,6 +408,190 @@ async def test_approval_answer_without_a_boolean_verdict_passes_through():
     )
 
     assert dispatch_fn.await_args.kwargs["request"].data.inputs == {"approved": "yep"}
+
+
+# ---------------------------------------------------------------------------
+# The effective turn config on the row is replayed inline (effective-turn-config plan, T5-T7)
+# ---------------------------------------------------------------------------
+
+_EFFECTIVE_PARAMETERS = {
+    "agent": {
+        "instructions": "Draft config, committed nowhere.",
+        "llm": {"model": "anthropic/claude-sonnet-4-5"},
+        "tools": [{"name": "Bash"}],
+        "runner": {"permissions": {"default": "allow_reads"}},
+    }
+}
+
+
+def test_interaction_data_declares_parameters():
+    """The DTO must DECLARE the field or it is dropped twice over.
+
+    ``SessionInteractionData`` is a closed pydantic model with the default
+    ``extra="ignore"``, and the postgres mapping round-trips through it on write
+    (``model_dump``) and on read (``model_validate``) even though ``data`` is a schemaless
+    ``json`` column. An undeclared key written by the runner would vanish on ingest and again
+    on read-back, with no error anywhere.
+    """
+    from oss.src.core.sessions.interactions.dtos import SessionInteractionData
+
+    raw = {
+        "request": {"tool": "Bash", "args": {"command": "echo hi"}},
+        "parameters": _EFFECTIVE_PARAMETERS,
+    }
+    parsed = SessionInteractionData.model_validate(raw)
+    assert parsed.parameters == _EFFECTIVE_PARAMETERS
+
+    dumped = parsed.model_dump(mode="json", exclude_none=True)
+    assert dumped["parameters"] == _EFFECTIVE_PARAMETERS
+    assert SessionInteractionData.model_validate(dumped).parameters == (
+        _EFFECTIVE_PARAMETERS
+    )
+
+
+def test_postgres_mapping_round_trips_the_stamped_config():
+    """create -> row -> read-back through the REAL postgres mappings (both are pure).
+
+    This is the ingest path the runner actually hits: the create mapping dumps the DTO into
+    the ``json`` column and the read mapping validates it back. Either direction silently
+    drops an undeclared key, which is what makes this the guard for the ``extra="ignore"``
+    trap rather than the DTO test above.
+    """
+    from oss.src.core.sessions.interactions.dtos import (
+        SessionInteractionCreate,
+        SessionInteractionData,
+        SessionInteractionKind as Kind,
+    )
+    from oss.src.dbs.postgres.sessions.interactions.mappings import (
+        map_interaction_dbe_to_dto,
+        map_interaction_dto_to_dbe_create,
+    )
+
+    project_id = uuid4()
+    dbe = map_interaction_dto_to_dbe_create(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction=SessionInteractionCreate(
+            project_id=project_id,
+            session_id="sess-test-1",
+            turn_id="turn-1",
+            token="tok-abc",
+            kind=Kind.user_approval,
+            data=SessionInteractionData(
+                request={"tool": "Bash", "args": {"command": "echo hi"}},
+                parameters=_EFFECTIVE_PARAMETERS,
+            ),
+        ),
+    )
+    assert dbe.data["parameters"] == _EFFECTIVE_PARAMETERS
+
+    dbe.id = uuid4()
+    dbe.created_at = dbe.updated_at = None
+    dbe.deleted_at = dbe.updated_by_id = dbe.deleted_by_id = None
+    read_back = map_interaction_dbe_to_dto(dbe)
+    assert read_back.data.parameters == _EFFECTIVE_PARAMETERS
+    # `request` reads back as the typed SessionInteractionRequest, not a bare dict.
+    assert read_back.data.request.tool == "Bash"
+    assert read_back.data.request.args == {"command": "echo hi"}
+
+
+def test_interaction_data_omits_parameters_when_unstamped():
+    # A legacy row (and any turn whose config was too large or unsafe to stamp) must serialize
+    # to exactly the shape it had before this field existed.
+    from oss.src.core.sessions.interactions.dtos import SessionInteractionData
+
+    dumped = SessionInteractionData.model_validate(
+        {"request": {"tool": "Bash", "args": None}}
+    ).model_dump(mode="json", exclude_none=True)
+    assert "parameters" not in dumped
+
+
+async def test_respond_sends_the_stamped_config_inline_with_references():
+    """Parameters present -> inline on the invoke, references still sent.
+
+    Inline parameters are exactly what suppresses hydration in the SDK resolver
+    (``_caller_supplied_configuration``), so the resumed run continues under the gated turn's
+    own config instead of the referenced variant's HEAD revision.
+    """
+    project_id = uuid4()
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        parameters=_EFFECTIVE_PARAMETERS,
+    )
+    dispatch_fn = AsyncMock()
+    dispatcher = _dispatcher_with(
+        interaction, _approval_records(project_id), dispatch_fn
+    )
+
+    await dispatcher.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    request = dispatch_fn.await_args.kwargs["request"]
+    assert request.data.parameters == _EFFECTIVE_PARAMETERS
+    # References still ride along: attribution, plus the hydration fallback if the inline
+    # config is ever dropped upstream.
+    assert request.references["workflow"].slug == "wf-1"
+    assert request.session_id == "sess-test-1"
+    # The composed resume conversation is untouched by the config replay.
+    assert request.data.inputs["messages"][0] == {
+        "role": "user",
+        "content": "run the migration",
+    }
+
+
+async def test_respond_on_a_pre_change_row_stays_references_only():
+    # Backward compatibility: a row written before the runner stamped configs must produce the
+    # byte-identical body this dispatcher has always sent, so it hydrates as it does today.
+    project_id = uuid4()
+    interaction = _make_interaction(kind=SessionInteractionKind.user_approval)
+    dispatch_fn = AsyncMock()
+    dispatcher = _dispatcher_with(
+        interaction, _approval_records(project_id), dispatch_fn
+    )
+
+    await dispatcher.respond(
+        project_id=project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    request = dispatch_fn.await_args.kwargs["request"]
+    assert request.data.parameters is None
+    assert request.data.model_dump(exclude_none=True).keys() == {"inputs"}
+    assert request.references["workflow"].slug == "wf-1"
+
+
+async def test_respond_passes_the_stamped_config_on_the_blocking_path_too():
+    # The non-detached path (no dispatch_fn) builds the same request object.
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        parameters=_EFFECTIVE_PARAMETERS,
+    )
+
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    workflows_service = MagicMock()
+    workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
+
+    dispatcher = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=interactions_service,
+    )
+
+    await dispatcher.respond(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+
+    request = workflows_service.invoke_workflow.await_args.kwargs["request"]
+    assert request.data.parameters == _EFFECTIVE_PARAMETERS
 
 
 async def test_the_stored_call_id_anchors_the_envelope_when_records_are_missing():

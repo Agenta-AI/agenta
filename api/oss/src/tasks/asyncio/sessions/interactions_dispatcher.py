@@ -11,6 +11,12 @@ stays minimal: ``{approved: bool, tool_call_id?, message?}``.
 
 Every other interaction kind keeps the original passthrough contract
 (``data.inputs = answer``).
+
+The resume also carries the gated turn's own config when the runner stamped one on the row
+(``data.parameters``): sending it inline suppresses reference hydration in the SDK resolver,
+so the run continues under the config the gate was raised against rather than the referenced
+variant's HEAD revision. A row written before that field existed has none, and the body is
+byte-identical to the references-only one this dispatcher has always sent.
 """
 
 from typing import Any, Callable, Dict, List, Optional
@@ -356,11 +362,18 @@ class InteractionsDispatcher:
             interaction=interaction,
             answer=answer,
         )
+        # The effective config the gated turn ran under, when the runner stamped one. Sending it
+        # INLINE is what makes the resume correct: the resolver decides hydration purely from
+        # what the caller sent (`_caller_supplied_configuration`), so inline parameters suppress
+        # it and the run continues under the gated turn's own config instead of the referenced
+        # variant's HEAD revision. References still ride along (attribution + the fallback for a
+        # pre-change row, which has no parameters and keeps today's hydrating body verbatim).
+        parameters = data.parameters if data else None
 
         invoke_request = WorkflowServiceRequest(
             references=references,
             selector=selector,
-            data=WorkflowServiceRequestData(inputs=inputs),
+            data=WorkflowServiceRequestData(inputs=inputs, parameters=parameters),
             session_id=interaction.session_id,
         )
 

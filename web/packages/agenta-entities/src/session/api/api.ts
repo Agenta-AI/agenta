@@ -169,13 +169,22 @@ export interface RespondInteractionParams extends InteractionScopedParams {
     answer: Record<string, unknown>
 }
 
+/** True for the backend's `409 Interaction is no longer pending` (someone already answered).
+ * Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
+export const isInteractionConflict = (error: unknown): boolean =>
+    (error as {statusCode?: number} | null)?.statusCode === 409
+
 /**
- * Resolve a HITL interaction (approve/deny/input). Returns the updated record, or `null`.
+ * Resolve a HITL interaction (approve/deny/input) — the detached respond dispatcher.
  *
- * NOTE (2026-06): per JP, decoupled interactions are deferred/"not a priority" — approvals +
- * tool-calls currently flow through MESSAGES (the live `addToolApprovalResponse` +
- * `tool_approvals` transport path), which stays. This is the durable replacement, ready but
- * not yet wired (runner doesn't auto-create rows; respond doesn't transition status).
+ * The backend CAS-flips the row to `responded` and enqueues the resume invoke, which rebuilds
+ * the turn's history from the durable records and replays the gate's stamped effective config.
+ * A caller must NOT hand-build an `/invoke` resume instead: that lands as a fresh turn and
+ * leaves the row `pending`.
+ *
+ * Unlike the read wrappers here this THROWS on failure rather than returning `null` — it is a
+ * mutation, and the caller has to tell a real failure from an already-answered gate
+ * (`isInteractionConflict`). Identify the row by its `id`, not its `token`.
  */
 export async function respondInteraction({
     interactionId,
@@ -186,13 +195,10 @@ export async function respondInteraction({
 }: RespondInteractionParams): Promise<SessionInteraction | null> {
     if (!projectId || !interactionId) return null
 
-    const data = await callFern("[respondInteraction]", () =>
-        getSessionsClient().respondInteraction(
-            {interaction_id: interactionId, answer},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
+    const data = await getSessionsClient().respondInteraction(
+        {interaction_id: interactionId, answer},
+        projectScopedRequest(projectId, appId, abortSignal),
     )
-    if (!data) return null
 
     const validated = safeParseWithLogging(
         sessionInteractionResponseSchema,
