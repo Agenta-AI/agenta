@@ -46,7 +46,7 @@ SLACK = {
         "commands": {"native": True, "in_conversation": False},
     },
     "spaces": {"private": True, "group": True, "topic": True},
-    "conversation": {"units": ["thread", "message"], "default": "thread"},
+    "conversation": {"units": ["thread", "space"], "default": "thread"},
     "fill": {
         "backfill": {"supported": True, "requires_permission": "channels:history"},
         "forwardfill": {"supported": True, "requires_permission": "channels:history"},
