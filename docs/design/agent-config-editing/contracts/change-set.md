@@ -442,7 +442,11 @@ retryable and whose next step is "send `remove_item` then `add_item`".
 
 Removes one existing entry. A missing entry is `item_not_found`.
 
-## 6. The `@ag.file` marker
+## 6. Markers, and the shape of a committed value
+
+Sections 6.1 to 6.6 are the `@ag.file` marker. 6.7 to 6.9 are the rules that keep every
+other value committable: which markers exist at all, how deep a value may nest, and the
+platform-guidance block that must never be stored.
 
 ### 6.1 The shape
 
@@ -542,6 +546,79 @@ every value, then dispatches. A failure on any one marker fails the whole call b
 anything is sent. `execution-authorization.md` section 3.4 owns the atomic
 verify-and-consume rules, which now cover the SET of markers in one commit rather than a
 set of operation-level sources.
+
+### 6.7 Every other `@ag.*` marker is refused
+
+`@ag.file` and `@ag.embed` are the only markers a committed value may carry, and
+`@ag.references` / `@ag.selector` are meaningful only inside an embed. Any other `@ag.*`
+key, at any depth, in either delta form, is `unknown_marker`.
+
+An `@ag.embed` must also BE one: a non-empty object holding only `@ag.references` and
+`@ag.selector`, carrying at least one reference, where every reference is an object
+identifying a stored artifact. Anything else is `invalid_embed`.
+
+This is a storage-integrity rule, not schema hygiene. The embed resolver skips a reference
+whose value is not an object, so an invented marker resolved to nothing and the literal
+marker dict was STORED as the configuration value. A live session sent
+`{"@ag.embed": {"@ag.references": {"file": "/abs/path"}}}` meaning "import this file",
+was told the commit succeeded, and every read of that field returned a marker afterwards.
+The engine is the last thing that sees a value before it is written, and a marker it does
+not understand is a value nobody can read back.
+
+Both refusals name the two valid forms in full, including `@ag.file` for pulling in file
+content. A model that invents a marker has to be shown the real one; telling it that its
+guess was wrong teaches it nothing.
+
+### 6.8 Values are bounded in depth
+
+A value nested deeper than 64 levels is refused with `value_too_deep`.
+
+The engine walks values recursively in several places, and `deepcopy` does too, so a deeply
+nested value raised `RecursionError` from inside the engine. That reaches the caller as a
+500: the server reporting that it broke, when what happened is that it will not accept what
+it was sent. An agent can act on a refusal and cannot act on a crash.
+
+The check runs before anything else touches the delta, because `deepcopy` and the scope
+walk are themselves recursive passes: a guard placed after either of them is a guard the
+overflow reaches first. It measures depth iteratively, since a recursive depth check is the
+same overflow one frame earlier.
+
+### 6.9 The platform-guidance block is stripped, never stored
+
+The runner appends a fenced block of platform guidance to the instructions file it renders
+into the agent's workspace, on every harness. The stored configuration never contains it:
+it is injected at render time and belongs to the platform, not to the user.
+
+```
+<!-- agenta:platform-guidance:start -->
+...guidance the runner wrote...
+<!-- agenta:platform-guidance:end -->
+```
+
+A model that copies the rendered file back into a commit would store that guidance as the
+user's configuration. So every committed STRING, at any depth, in either delta form and in a
+full-data commit, has the block removed before the value is stored. The whitespace at each
+junction collapses to one blank line and trailing whitespace goes, which makes the strip
+idempotent: a value that has been through it once is stable.
+
+The removal is silent to the model and visible to the human. There is no refusal and no
+reason code, because the model did nothing wrong and an error it has to recover from would
+cost a turn teaching it something it cannot act on. A `platform_guidance_stripped` warning
+names the field, so the removal appears in the response.
+
+Two delimiter cases are decided rather than left to chance. An unmatched OPENING fence strips
+to the end of the string, because whatever follows an opener is guidance whose closer was
+lost. An unmatched CLOSING fence is left as plain text: it is inert without its opener, and
+deleting on the strength of it would let one stray line remove a user's own content.
+
+An `edit_text` anchor copied out of a stripped region is not special-cased. The block is not
+in the stored text, so the anchor misses and earns the ordinary `text_not_found`, which
+already tells the agent to copy its anchor from the configuration it read.
+
+The two literals are the contract with the runner's
+`services/runner/src/engines/sandbox_agent/system-prompt-appendix.ts`. A test pins them on
+this side so neither side can change the fence alone: a fence that no longer matches is not a
+parse error, it is guidance stored as configuration.
 
 ## 7. Application and atomicity
 
@@ -687,7 +764,7 @@ The agent can fix these and send again. Each one carries `next_step`.
 | `item_key_undefined` | The value has no derivable key. |
 | `unkeyed_collection` | The list has no key field. |
 | `missing_operation_value` | A value-bearing operation carried no `value`. |
-| `invalid_operation_shape` | Any other malformed operation the schema also rejects. |
+| `invalid_operation_shape` | Any other malformed operation the schema also rejects, including a `match_mode` that is not `auto` or `exact`. That case carries a `next_step` naming the modes. |
 | `text_not_found` | The anchor does not occur. |
 | `text_not_unique` | The anchor occurs more than once. |
 | `text_edits_overlap` | Two matches share a character. |
@@ -707,8 +784,11 @@ Sending the same payload again never helps.
 |---|---|
 | `out_of_scope` | The scope policy refuses the target. |
 | `invalid_delta` | Both forms, no form, or an unknown delta field. |
-| `unknown_operation` | An unknown verb or an unknown `match_mode`. |
+| `unknown_operation` | An unknown verb. A bad `match_mode` is NOT this: the verb was right, so it is a retryable `invalid_operation_shape`. |
 | `unresolved_file_marker` | An `@ag.file` reached the engine. Section 6.5. |
+| `invalid_embed` | An `@ag.embed` that is not one: no references, a reference that is not an object, or a key an embed does not hold. Section 6.7. |
+| `unknown_marker` | An `@ag.*` key the platform does not define. Section 6.7. |
+| `value_too_deep` | The value nests past the depth the engine walks. Section 6.8. |
 | `text_too_large` | The target string is above the work limit. |
 | `source_too_large` | The file a marker names is above the byte limit. |
 
