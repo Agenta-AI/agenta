@@ -19,9 +19,17 @@
 
 import type {ReactNode} from "react"
 
-import {Tag} from "antd"
-
 import {cn, entityIconColors, flexLayouts, gapClasses} from "../../../utils/styles"
+import {Badge, type BadgeProps} from "../../ui/badge"
+
+// antd Tag `color` → shadcn Badge variant.
+const COLOR_VARIANT: Record<string, NonNullable<BadgeProps["variant"]>> = {
+    default: "default",
+    green: "green",
+    orange: "orange",
+    blue: "blue",
+    red: "red",
+}
 
 // ============================================================================
 // TYPES
@@ -52,10 +60,6 @@ export interface SourceIndicatorProps {
      */
     modified?: boolean
     /**
-     * Override the computed tag color
-     */
-    color?: string
-    /**
      * Click handler for the tag
      */
     onClick?: () => void
@@ -78,24 +82,22 @@ export function SourceIndicator({
     name,
     connected = true,
     modified = false,
-    color,
     onClick,
     className,
 }: SourceIndicatorProps) {
-    const computedColor = !connected ? "default" : modified ? "orange" : "green"
-    const tagColor = color ?? computedColor
+    const tagColor = !connected ? "default" : modified ? "orange" : "green"
     const displayName = modified ? `${name} (modified)` : name
 
     return (
         <div className={cn(flexLayouts.rowCenter, gapClasses.sm, className)}>
             <span className={cn("flex-shrink-0", iconColor)}>{icon}</span>
-            <Tag
-                color={tagColor}
-                className={cn("m-0", onClick && "cursor-pointer")}
+            <Badge
+                variant={COLOR_VARIANT[tagColor] ?? "default"}
+                className={cn(onClick && "cursor-pointer")}
                 onClick={onClick}
             >
                 {displayName}
-            </Tag>
+            </Badge>
         </div>
     )
 }

@@ -5,9 +5,10 @@
  */
 import {type ReactNode} from "react"
 
+import {Tag} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CaretRight, Trash} from "@phosphor-icons/react"
-import {Tag, Tooltip, Typography} from "antd"
 
 import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
 
@@ -28,12 +29,17 @@ const STATUS_BORDER: Record<ItemRowStatusTone, string> = {
     invalid: "var(--ag-colorErrorBorder)",
     incomplete: "var(--ag-colorWarningBorder)",
 }
-const STATUS_TAG_COLOR: Record<ItemRowStatusTone, string> = {
+// antd preset `Tag color` → the presentational Tag's `tone` (same preset hues on `Badge`).
+const STATUS_TAG_TONE = {
     new: "green",
     edited: "blue",
     invalid: "red",
     incomplete: "gold",
-}
+} as const satisfies Record<ItemRowStatusTone, string>
+// antd pins `.ant-tag`'s line-height in px (22.4), so overriding only the FONT size leaves it
+// intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-[11px]` drops
+// (tags rendered 20.3px instead of 24.4px until this was restated).
+const TAG_CLS = "m-0 text-[11px] leading-[22.4px]"
 // Solid accent for borderless child rows (an inset left bar, so rounded corners survive).
 const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
     new: "var(--ag-colorSuccess)",
@@ -43,12 +49,23 @@ const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
 }
 
 export function StatusTag({status}: {status: ItemRowStatus}) {
+    const tag = (
+        <Tag tone={STATUS_TAG_TONE[status.tone]} className={TAG_CLS}>
+            {status.label}
+        </Tag>
+    )
+    // antd renders no tooltip for an empty `title`; Radix would render an empty panel.
+    if (!status.tooltip) return tag
     return (
-        <Tooltip title={status.tooltip}>
-            <Tag color={STATUS_TAG_COLOR[status.tone]} className="m-0 text-[11px]">
-                {status.label}
-            </Tag>
-        </Tooltip>
+        <TooltipProvider>
+            <Tooltip>
+                {/* `Tag` takes no ref, so `asChild` needs a host element to attach to. */}
+                <TooltipTrigger asChild>
+                    <span className="inline-flex">{tag}</span>
+                </TooltipTrigger>
+                <TooltipContent>{status.tooltip}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }
 
@@ -90,19 +107,6 @@ export function ItemRow({
     const interactive = Boolean(onEdit) && !locked
     return (
         <div
-            role={interactive ? "button" : undefined}
-            tabIndex={interactive ? 0 : undefined}
-            onClick={interactive ? onEdit : undefined}
-            onKeyDown={
-                interactive
-                    ? (e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault()
-                              onEdit?.()
-                          }
-                      }
-                    : undefined
-            }
             style={status ? {borderColor: STATUS_BORDER[status.tone]} : undefined}
             className={cn(
                 "group flex items-center gap-2.5 rounded border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-2 transition-colors",
@@ -113,32 +117,49 @@ export function ItemRow({
                 locked && "bg-[var(--ant-color-fill-quaternary)] opacity-70",
             )}
         >
-            <ItemAvatar descriptor={descriptor} />
-            <div className="min-w-0 flex-1">
-                <div
-                    className={`truncate text-xs font-medium ${
-                        descriptor.monoName === false ? "" : "font-mono"
-                    }`}
-                >
-                    {descriptor.name}
-                </div>
-                {descriptor.description ? (
-                    <Typography.Text
-                        type="secondary"
-                        className="block truncate text-xs leading-tight"
+            {/* The `role="button"` region is a SIBLING of the remove button, never its ancestor
+                (axe nested-interactive) — same split as SubscriptionChildRow. The outer flex
+                still supplies the gap between the two groups, so geometry is unchanged. */}
+            <div
+                role={interactive ? "button" : undefined}
+                tabIndex={interactive ? 0 : undefined}
+                onClick={interactive ? onEdit : undefined}
+                onKeyDown={
+                    interactive
+                        ? (e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault()
+                                  onEdit?.()
+                              }
+                          }
+                        : undefined
+                }
+                className="flex min-w-0 flex-1 items-center gap-2.5"
+            >
+                <ItemAvatar descriptor={descriptor} />
+                <div className="min-w-0 flex-1">
+                    <div
+                        className={`truncate text-xs font-medium ${
+                            descriptor.monoName === false ? "" : "font-mono"
+                        }`}
                     >
-                        {descriptor.description}
-                    </Typography.Text>
-                ) : null}
+                        {descriptor.name}
+                    </div>
+                    {descriptor.description ? (
+                        <span className="block truncate text-xs leading-tight text-colorTextDescription">
+                            {descriptor.description}
+                        </span>
+                    ) : null}
+                </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
                 {status ? <StatusTag status={status} /> : null}
                 {descriptor.tags.map((tag) => (
-                    <Tag key={tag} className="m-0 text-[11px]">
+                    <Tag key={tag} className={TAG_CLS}>
                         {tag}
                     </Tag>
                 ))}
-                {locked ? <Tag className="m-0 text-[11px]">Locked</Tag> : null}
+                {locked ? <Tag className={TAG_CLS}>Locked</Tag> : null}
                 {onRemove && !disabled && !locked ? (
                     <button
                         type="button"
@@ -181,20 +202,24 @@ export function ItemChildRow({
 }) {
     return (
         <div
-            role="button"
-            tabIndex={0}
-            onClick={onEdit}
-            onKeyDown={(e) => {
-                if (e.target !== e.currentTarget) return
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    onEdit()
-                }
-            }}
             style={status ? {boxShadow: `inset 2px 0 0 ${STATUS_ACCENT[status.tone]}`} : undefined}
             className="group flex cursor-pointer items-center gap-2.5 rounded px-2.5 py-1.5 transition-colors hover:bg-[var(--ag-colorFillSecondary)]"
         >
-            <div className="min-w-0 flex-1">
+            {/* `role="button"` on the text region only — a sibling of the remove button, not its
+                ancestor (axe nested-interactive). */}
+            <div
+                role="button"
+                tabIndex={0}
+                onClick={onEdit}
+                onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return
+                    if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        onEdit()
+                    }
+                }}
+                className="min-w-0 flex-1"
+            >
                 <div
                     className={`truncate text-xs font-medium ${
                         descriptor.monoName === false ? "" : "font-mono"
@@ -203,12 +228,9 @@ export function ItemChildRow({
                     {descriptor.name}
                 </div>
                 {descriptor.description ? (
-                    <Typography.Text
-                        type="secondary"
-                        className="block truncate text-[11px] leading-snug"
-                    >
+                    <span className="block truncate text-[11px] leading-snug text-colorTextDescription">
                         {descriptor.description}
-                    </Typography.Text>
+                    </span>
                 ) : null}
             </div>
             <div
@@ -283,19 +305,18 @@ export function InstructionsFileRow({
                     <span className="truncate font-mono text-[13px] font-medium leading-tight">
                         {filename}
                     </span>
-                    <Typography.Text type="secondary" className="shrink-0 text-[11px]">
+                    {/* antd's Typography carries `line-height: token.lineHeight` (5/3); a bare
+                        span would inherit the row's instead, so restate it. */}
+                    <span className="shrink-0 text-[11px] leading-[1.6667] text-colorTextDescription">
                         {meta}
-                    </Typography.Text>
+                    </span>
                     {status ? <StatusTag status={status} /> : null}
                 </div>
                 {/* `descriptor.description` is the stripped-markdown preview (or "Empty file");
                     clamp to 2 lines so long instructions get a real "…" rather than a hard cut. */}
-                <Typography.Text
-                    type="secondary"
-                    className="mt-1 line-clamp-2 text-xs leading-snug"
-                >
+                <span className="mt-1 line-clamp-2 text-xs leading-snug text-colorTextDescription">
                     {descriptor.description}
-                </Typography.Text>
+                </span>
             </div>
             <CaretRight size={15} className="mt-1 shrink-0 text-[var(--ag-c-97A4B0,#97a4b0)]" />
         </div>

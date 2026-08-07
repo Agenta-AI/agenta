@@ -1,8 +1,7 @@
 import {memo} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import dynamic from "next/dynamic"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import {DeleteEvaluatorsModalProps} from "./types"
 

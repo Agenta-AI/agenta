@@ -4,6 +4,11 @@
  * A base component combining a slider and number input for numeric range selection.
  * Used for temperature, max tokens, top P, penalties, and other numeric parameters.
  *
+ * Migrated off antd: the number field is the `@agenta/ui` `InputNumber` primitive and the
+ * track is the `@agenta/ui` `Slider` primitive (Radix). The public `SliderInputProps`
+ * surface is unchanged, so the hand-rolled antd `Slider` + `InputNumber` pairs still in the
+ * app (`SamplingRateControl.tsx`, `MetricField.tsx`) can adopt it without an API change.
+ *
  * @example
  * ```tsx
  * import { SliderInput } from '@agenta/ui'
@@ -21,9 +26,11 @@
 import {memo, useCallback, useEffect, useState} from "react"
 
 import {XCircle} from "@phosphor-icons/react"
-import {Button, InputNumber, Slider} from "antd"
 
 import {cn, flexLayouts, gapClasses} from "../../../utils/styles"
+import {Button} from "../../ui/button"
+import {InputNumber} from "../../ui/input-number"
+import {Slider} from "../../ui/slider"
 
 // ============================================================================
 // TYPES
@@ -50,6 +57,9 @@ export interface SliderInputProps {
     placeholder?: string
     /** Additional CSS classes */
     className?: string
+    /** Accessible name for both the number field and the slider thumb (there is no visible label). */
+    "aria-label"?: string
+    "aria-labelledby"?: string
 }
 
 // ============================================================================
@@ -71,6 +81,8 @@ export const SliderInput = memo(function SliderInput({
     inputWidth = 70,
     placeholder,
     className,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledby,
 }: SliderInputProps) {
     // Local state for immediate UI feedback
     const [localValue, setLocalValue] = useState<number | null>(value ?? null)
@@ -90,6 +102,14 @@ export const SliderInput = memo(function SliderInput({
         [onChange],
     )
 
+    // Radix reports an array of thumb values; this control has exactly one thumb.
+    const handleSliderChange = useCallback(
+        (next: number[]) => {
+            handleValueChange(next[0])
+        },
+        [handleValueChange],
+    )
+
     return (
         <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
             <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
@@ -104,16 +124,19 @@ export const SliderInput = memo(function SliderInput({
                     style={{width: inputWidth}}
                     placeholder={placeholder}
                     size="small"
+                    aria-label={ariaLabel}
+                    aria-labelledby={ariaLabelledby}
                 />
 
                 {allowClear && localValue !== null && (
                     <Button
-                        icon={<XCircle size={14} />}
-                        type="text"
-                        size="small"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => handleValueChange(null)}
                         disabled={disabled}
-                    />
+                    >
+                        {<XCircle size={14} />}
+                    </Button>
                 )}
             </div>
 
@@ -121,10 +144,11 @@ export const SliderInput = memo(function SliderInput({
                 min={min}
                 max={max}
                 step={step}
-                value={localValue ?? min}
+                value={[localValue ?? min]}
                 disabled={disabled}
-                onChange={handleValueChange}
-                className="mt-0"
+                onValueChange={handleSliderChange}
+                aria-label={ariaLabel}
+                aria-labelledby={ariaLabelledby}
             />
         </div>
     )

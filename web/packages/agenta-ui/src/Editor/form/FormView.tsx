@@ -1,8 +1,6 @@
 import {FC, Fragment, useState, useEffect, useCallback} from "react"
 
 import {isPlainObject} from "@agenta/shared/utils"
-import {Form} from "antd"
-import merge from "lodash/merge"
 
 import styles from "./FormView.module.css"
 import {CustomRenderFn} from "./nodes/NodeTypes"
@@ -96,7 +94,6 @@ const parseMaybeJsonDeep = (val: unknown): unknown => {
 }
 
 const FormView: FC<FormViewProps> = ({value, onChange, customRender}) => {
-    const [form] = Form.useForm()
     const [formValuesRef, setFormValuesRef] = useState<Record<string, unknown>>({})
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
     const toggleFold = useCallback((key: string) => {
@@ -113,26 +110,13 @@ const FormView: FC<FormViewProps> = ({value, onChange, customRender}) => {
         setFormValuesRef(newValues)
     }, [value])
 
-    const handleValuesChange = useCallback(
-        (_: unknown, allValues: Record<string, unknown>) => {
-            const merged = merge(formValuesRef, allValues)
-            const parsed = parseMaybeJsonDeep(merged) as Record<string, unknown>
-            onChange(parsed)
-        },
-        [setFormValuesRef, formValuesRef],
-    )
-
     const handleRename = useCallback(
         (path: (string | number)[], newKey: string) => {
             const newValues = renameKey(formValuesRef, path, newKey)
             onChange(newValues)
         },
-        [form, formValuesRef],
+        [formValuesRef, onChange],
     )
-
-    useEffect(() => {
-        form.setFieldsValue(formValuesRef)
-    }, [formValuesRef])
 
     const boundHandleValuesChange = useCallback(
         (path: (string | number)[], newValue: unknown) => {
@@ -145,7 +129,8 @@ const FormView: FC<FormViewProps> = ({value, onChange, customRender}) => {
             const lastKey = path[path.length - 1]
             if (parent !== undefined) {
                 ;(parent as Record<string | number, unknown>)[lastKey] = newValue
-                onChange(updatedRoot)
+                // antd's onValuesChange used to normalise JSON-ish strings here; keep that.
+                onChange(parseMaybeJsonDeep(updatedRoot) as Record<string, unknown>)
             }
         },
         [formValuesRef, onChange],
@@ -160,16 +145,10 @@ const FormView: FC<FormViewProps> = ({value, onChange, customRender}) => {
 
     return formValuesRef ? (
         <div className={styles["form-view"]}>
-            <Form
-                form={form}
-                layout="vertical"
-                onValuesChange={handleValuesChange}
-                initialValues={formValuesRef}
-            >
+            <div>
                 {Object.entries(formValuesRef).map(([k, v]) => (
                     <Fragment key={k}>
                         {renderNode({
-                            form,
                             path: [k],
                             k,
                             value: v,
@@ -182,7 +161,7 @@ const FormView: FC<FormViewProps> = ({value, onChange, customRender}) => {
                         })}
                     </Fragment>
                 ))}
-            </Form>
+            </div>
         </div>
     ) : null
 }

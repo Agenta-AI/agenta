@@ -47,6 +47,7 @@ from agenta.sdk.agents import (
     TraceContext,
 )
 from agenta.sdk.agents.utils.wire import (
+    _ERROR_MAX_LEN,
     request_to_wire,
     result_from_wire,
     sanitize_runner_error,
@@ -997,10 +998,64 @@ def test_sanitize_runner_error_falls_back_when_first_line_is_a_stack_frame():
 
 
 def test_sanitize_runner_error_caps_length():
-    raw = "x" * 1000
+    # Reads the constant instead of a literal: the cap is a size bound that may be retuned, and a
+    # hardcoded number here silently pins it (this test asserted 300 until the cap was raised).
+    raw = "x" * (_ERROR_MAX_LEN + 700)
     result = sanitize_runner_error(raw)
-    assert len(result) <= 300
+    assert len(result) <= _ERROR_MAX_LEN
     assert result.endswith("…")
+
+
+def test_sanitize_runner_error_keeps_a_long_actionable_message_whole():
+    """A real runner error must arrive complete, because nothing downstream can recover the rest.
+
+    The full text goes to the server log only. It is not on the trace and not on the wire, so a
+    message cut here is unreadable for the user whatever the UI does (the error card already
+    reveals everything it is given).
+    """
+    message = (
+        "The runner refused the request: the Daytona API key cannot manage Secrets. "
+        + "Grant that permission to the key in AGENTA_RUNNER_DAYTONA_API_KEY. " * 12
+    ).strip()
+    assert 300 < len(message) <= _ERROR_MAX_LEN
+
+    result = sanitize_runner_error(message)
+
+    assert result == message
+    assert "…" not in result
+
+
+def test_sanitize_runner_error_still_drops_a_stack_dump_after_the_first_line():
+    # A long first line must not let the stack behind it through.
+    raw = (
+        "ValueError: "
+        + "boom " * 200
+        + '\n  File "/abs/secret/path.py", line 12, in run'
+    )
+    result = sanitize_runner_error(raw)
+
+    assert "/abs/secret/path.py" not in result
+    assert "File " not in result
+
+
+def test_sanitize_runner_error_still_falls_back_on_a_long_stack_frame_first_line():
+    raw = 'File "/abs/secret/path.py", line 12, in run - ' + "detail " * 200
+    assert sanitize_runner_error(raw) == "agent run failed"
+
+
+def test_sanitize_runner_error_still_redacts_a_known_secret_in_a_long_message():
+    # The redactor runs last, so a secret cannot ride out inside the extra room the cap now allows.
+    secret = "sk-runner-fake-secret-cccc3333cccc3333"
+    message = (
+        "The runner rejected the credential " + secret + ". Rotate it and retry. " * 40
+    ).strip()
+    assert len(message) <= _ERROR_MAX_LEN
+
+    with redaction_context(Redactor().with_known_secrets([secret])):
+        result = sanitize_runner_error(message)
+
+    assert secret not in result
+    assert "The runner rejected the credential" in result
 
 
 def test_sanitize_runner_error_handles_none_and_empty():

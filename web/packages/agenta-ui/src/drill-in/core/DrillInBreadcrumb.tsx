@@ -8,7 +8,14 @@
 import {memo, type ReactNode, useMemo} from "react"
 
 import {ArrowLeft, CaretRight, DotsThree} from "@phosphor-icons/react"
-import {Button, Dropdown} from "antd"
+
+import {Button} from "../../components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu"
 
 export interface DrillInBreadcrumbProps {
     /** Current navigation path */
@@ -118,12 +125,13 @@ export const DrillInBreadcrumb = memo(
                 <div className="flex items-center gap-1 flex-nowrap min-w-0">
                     {showBackArrow && currentPath.length > 0 && (
                         <Button
-                            type="text"
-                            size="small"
-                            icon={<ArrowLeft size={14} />}
+                            variant="ghost"
+                            size="sm"
                             onClick={onNavigateBack}
                             className="!px-2 flex-shrink-0"
-                        />
+                        >
+                            {<ArrowLeft size={14} />}
+                        </Button>
                     )}
                     {renderRoot ? (
                         renderRoot()
@@ -141,14 +149,23 @@ export const DrillInBreadcrumb = memo(
                     {showEllipsis && hiddenSegments.length > 0 && (
                         <div className="flex items-center flex-shrink-0">
                             <CaretRight size={12} className="text-gray-400" />
-                            <Dropdown menu={{items: dropdownItems}} trigger={["click"]}>
-                                <button
-                                    type="button"
-                                    className="px-2 py-1 rounded hover:bg-gray-100 transition-colors bg-transparent border-none cursor-pointer text-gray-500"
-                                >
-                                    <DotsThree size={16} weight="bold" />
-                                </button>
-                            </Dropdown>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        type="button"
+                                        className="box-border px-2 py-1 rounded hover:bg-controlItemBgHover transition-colors bg-transparent border-none cursor-pointer text-colorTextSecondary"
+                                    >
+                                        <DotsThree size={16} weight="bold" />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    {dropdownItems.map((item) => (
+                                        <DropdownMenuItem key={item.key} onClick={item.onClick}>
+                                            {item.label}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         </div>
                     )}
 
