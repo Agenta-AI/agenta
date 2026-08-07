@@ -793,6 +793,7 @@ else:
 
 tools_adapter_registry = ToolsGatewayRegistry(
     adapters=_composio_adapters,
+    unconfigured=({} if env.composio.enabled else {"composio": "COMPOSIO_API_KEY"}),
 )
 
 tools_service = ToolsService(
@@ -811,6 +812,7 @@ if env.composio.enabled:
 
 triggers_adapter_registry = TriggersGatewayRegistry(
     adapters=_composio_triggers_adapters,
+    unconfigured=({} if env.composio.enabled else {"composio": "COMPOSIO_API_KEY"}),
 )
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
