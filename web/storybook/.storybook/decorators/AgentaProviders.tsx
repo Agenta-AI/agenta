@@ -8,6 +8,17 @@ import {getDefaultStore, Provider as JotaiProvider} from "jotai"
 
 import {defaultStoryQueryClient} from "./withAgentaData"
 
+// KNOWN GAP — author labels render blank in Storybook. `UserAuthorLabel`
+// (@agenta/entities/shared/user) resolves a user id through an atom pair the APP injects at
+// module scope in oss `AppGlobalWrappers`; the harness never imports that file, so `atomConfig`
+// stays null and the label renders nothing, silently and with no failing gate.
+//
+// Wiring it here does NOT work: importing `@agenta/oss/src/state/workspace/atoms/selectors`
+// pulls the OSS org-state graph into the preview bundle and throws
+// `Cannot access 'cacheWorkspaceOrgPair' before initialization` during module init, which takes
+// down EVERY story, not just the ones with author labels. Fixing this properly means breaking
+// that cycle in the OSS org state or exposing a leaf-level members atom.
+
 // The REAL app theme provider (ConfigProvider + antd theme + cssVar:{key:"agenta"} +
 // .agenta/.dark class wiring). Reused verbatim so Storybook renders exactly what the
 // app renders — no re-derived token math.

@@ -492,6 +492,13 @@ const DEFAULT_STORIES = [
     "agenta-ui-primitives-overlays-sheet--open-state",
     "agenta-ui-primitives-overlays-sheet--sides",
     "agenta-ui-primitives-overlays-tooltip--open-state",
+    // Wave 3 — @agenta/playground-ui, chunk 1 (TestsetSelectionModal). The package had zero
+    // coverage before this; these are its first gated stories.
+    "agenta-playground-ui-testsetselection-createtestsetcard--antd-vs-agenta",
+    "agenta-playground-ui-testsetselection-selectionsummary--antd-vs-agenta",
+    "agenta-playground-ui-testsetselection-testsetselectionpreview--antd-vs-agenta",
+    "agenta-playground-ui-shared-leaves--antd-vs-agenta",
+    "agenta-playground-ui-presentational--antd-vs-agenta",
 ]
 
 /**
@@ -646,6 +653,244 @@ const NO_PAIR_EXPECTED = new Map([
         "agenta-entity-ui-workflow-workflowtypetag--evaluator-unknown-key",
         "agenta-entity-ui-workflow-workflowtypetag--evaluator-by-type-key",
     ].map((id) => [id, "entity-ui data-seam showcase — no antd half in this export"]),
+    // Wave 3 chunk 1: LoadModeContent container states. The only antd this file ever had was
+    // one Divider, and that swap IS gated — as the `vertical divider` row on
+    // testsetselectionpreview--antd-vs-agenta. These three exist to exercise the data seam.
+    ...[
+        "agenta-playground-ui-testsetselection-loadmodecontent--loading",
+        "agenta-playground-ui-testsetselection-loadmodecontent--empty",
+        "agenta-playground-ui-testsetselection-loadmodecontent--populated",
+    ].map((id) => [
+        id,
+        "playground-ui data-seam showcase — container state, no antd half (its Divider swap is gated on testsetselectionpreview--antd-vs-agenta)",
+    ]),
+    // Wave 3 showcases, each with the reason it has no antd half.
+    ...[
+        [
+            "agenta-playground-ui-shared-leaves--placeholders",
+            "ResultPlaceholder/RunningPlaceholder/ClickRunPlaceholder were never on antd — plain markup before and after.",
+        ],
+        [
+            "agenta-playground-ui-presentational--run-controls",
+            "ControlsBar was already antd-free (RunButton + @agenta/ui Button); storied for inventory, no antd half exists to compare.",
+        ],
+        [
+            "agenta-playground-ui-presentational--tool-call",
+            "ToolCallView was already antd-free (CopyTooltip + SharedEditor); inventory only.",
+        ],
+        [
+            "agenta-playground-ui-presentational--empty-state-presets",
+            "The @agenta/ui EmptyState primitive's own image presets — gated by empty-state--antd-vs-agenta in the primitives inventory, not here.",
+        ],
+        [
+            "agenta-playground-ui-inputs-variablecard--by-value-kind",
+            "VariableCard showcase: 894 lines and 9 antd components, so the antd half would mean inlining the whole pre-migration body. The individual swaps are gated by the primitives' own parity stories (button/input/switch/alert/tooltip); this covers that each value KIND still renders its widget.",
+        ],
+        [
+            "agenta-playground-ui-inputs-variablecard--header-states",
+            "As by-value-kind: header affordances (draft Badge, help Tooltip, synced icon, read-only) after the antd swap.",
+        ],
+    ],
+    // Wave 3 story-coverage backfill. These are showcases BY DECISION, not by accident: the
+    // migration is already merged and verified, so an antd half here would be a hand-copied
+    // pre-migration body reconstructed from `git show main:` — it would rot, and every
+    // individual swap is already pixel-gated by the primitives' own parity stories. The gate
+    // that carries these is the crash-check (both themes) plus a11y, not the VRT.
+    ...[
+        [
+            "agenta-playground-ui-shared-parts--status-tag",
+            "EntityStatusTag's three Badge states; the antd Tag→Badge pair is gated on shared-leaves--antd-vs-agenta.",
+        ],
+        [
+            "agenta-playground-ui-shared-parts--field-grid",
+            "EvaluatorFieldGrid render modes (values / loading skeletons / idle / bounded score). Its only antd was the verdict Tag, gated on shared-leaves--antd-vs-agenta.",
+        ],
+        [
+            "agenta-playground-ui-shared-parts--result-card",
+            "NodeResultCard border states per NodeStatus. Its antd was the NodeNameTag Tag, gated on shared-leaves--antd-vs-agenta.",
+        ],
+        [
+            "agenta-playground-ui-inputs-bodyparts--body",
+            "PlaygroundInputsBody was never on antd — it composes VariableCard, whose swaps are gated on inputs-variablecard--*. Covers the flat/sectioned/draft/synced layout branches.",
+        ],
+        [
+            "agenta-playground-ui-inputs-bodyparts--unused-columns",
+            "UnreferencedColumnsFooter collapsed states. Its antd Button swap is gated by button--antd-vs-agenta.",
+        ],
+        [
+            "agenta-playground-ui-inputs-bodyparts--unused-columns-expanded",
+            "As above, with the toggle clicked — the only way to see the revealed read-only cards, which are collapsed by default by design.",
+        ],
+        [
+            "agenta-playground-ui-turn-headeroptions--toolbar",
+            "TurnMessageHeaderOptions action set. Two antd imports on main (Button/Tooltip, Dropdown), all gated by the primitives' own parity stories. Visibility is forced here because the toolbar is `invisible` until its turn is hovered.",
+        ],
+        [
+            "agenta-playground-ui-turn-headeroptions--hidden-until-hover",
+            "Records the default hidden state — an empty strip is the CORRECT rendering, so this id must never be read as a crash.",
+        ],
+        [
+            "agenta-playground-ui-testsetselection-modal--load-mode",
+            "Modal chrome around LoadModeContent; EnhancedModal has its own parity story. Body renders in a portal.",
+        ],
+        [
+            "agenta-playground-ui-testsetselection-modal--edit-mode",
+            "As load-mode, with a connected testset revision.",
+        ],
+        [
+            "agenta-playground-ui-testsetselection-modal--with-warning",
+            "As edit-mode, with the stale-revision warning banner.",
+        ],
+        [
+            "agenta-playground-ui-testsetselection-modal--closed",
+            "open={false}: the content and all its testset queries stay unmounted. A near-empty page is the CORRECT rendering.",
+        ],
+        [
+            "agenta-playground-ui-drawer-workflowrevision--collapsed",
+            "WorkflowRevisionDrawer shell (Drawer→Sheet). EnhancedDrawer has its own parity story; this covers the collapsed split — playground + metadata sidebar — and the mask={false}→transparent-overlay mapping. Body renders in a portal.",
+        ],
+        [
+            "agenta-playground-ui-drawer-workflowrevision--expanded",
+            "As collapsed: sidebar folds into the header Info popover and the drawer widens.",
+        ],
+        [
+            "agenta-playground-ui-drawer-workflowrevision--evaluator-view",
+            "Evaluator context — different title, no header actions, blurred mask ({blur:true} → backdrop-blur-sm).",
+        ],
+        [
+            "agenta-playground-ui-drawer-workflowrevision--app-create",
+            "app-create context — the title is replaced by an inline editable name Input (antd Input→@agenta/ui Input, gated by input--antd-vs-agenta).",
+        ],
+        [
+            "agenta-playground-ui-drawer-workflowrevision--header",
+            "DrawerHeader standalone. Its antd was Button/Popover/Input, each gated by that primitive's own parity story.",
+        ],
+        [
+            "agenta-playground-ui-drawer-workflowrevision--metadata",
+            "MetadataSidebar full-width and compact. 'Created by' is blank because the harness cannot wire setUserAtoms — see the note in .storybook/decorators/AgentaProviders.tsx.",
+        ],
+        [
+            "agenta-playground-ui-drawer-workflowrevision--content",
+            "DrawerContent split. Never had antd; covers the collapsed-only metadata sidebar rule.",
+        ],
+        // Execution leaves.
+        [
+            "agenta-playground-ui-execution-leaves--run-control",
+            "ExecutionRowRunControl was never on antd (RunButton + DropdownButton); covers all seven busy/dropdown branches.",
+        ],
+        [
+            "agenta-playground-ui-execution-leaves--run-options",
+            "RunOptionsPopover's Button/Popover/InputNumber/Slider swaps are each gated by that primitive's own parity story.",
+        ],
+        [
+            "agenta-playground-ui-execution-leaves--run-options-open",
+            "As run-options, with the panel clicked open — the only way the repeats InputNumber and Slider appear in a screenshot.",
+        ],
+        [
+            "agenta-playground-ui-execution-leaves--row-actions",
+            "ExecutionRowActions' Button swap is gated by button--antd-vs-agenta. Delete is disabled with no seeded row graph — that is the real one-row-left behaviour.",
+        ],
+        [
+            "agenta-playground-ui-execution-leaves--gateway-tools",
+            "GatewayTool buttons; DropdownButton has its own parity story. Includes the two render-nothing branches (non-gateway slug, no tool_calls) so they are recorded rather than mistaken for breakage.",
+        ],
+        [
+            "agenta-playground-ui-execution-leaves--comparison-input-header",
+            "GenerationComparisonInputHeader is a 22-line static bar; its antd was nothing but layout classes.",
+        ],
+        // Comparison view.
+        [
+            "agenta-playground-ui-comparison-view--output-header",
+            "Data-seam showcase for an already-migrated header (Tag→Badge, gated on shared-leaves--antd-vs-agenta).",
+        ],
+        [
+            "agenta-playground-ui-comparison-view--output",
+            "Records the by-design null return while isChatMode is undefined. Nothing to compare.",
+        ],
+        [
+            "agenta-playground-ui-comparison-view--chat-output",
+            "GenerationComparisonChatOutput never had antd; the turn content needs the loadable row graph, documented in the story.",
+        ],
+        [
+            "agenta-playground-ui-comparison-view--completion-output",
+            "Data-seam showcase (idle Click-Run state across two variant indices); its antd swaps are gated by the primitives.",
+        ],
+        // Execution composites — all backed by seedPlaygroundLoadable.
+        ...[
+            ["execution-items-completion", "ExecutionItems, completion arm"],
+            ["execution-items-chat", "ExecutionItems, chat arm"],
+            ["execution-row-single", "ExecutionRow's single-layout routing"],
+            ["execution-row-comparison", "ExecutionRow's comparison routing"],
+            ["single-layout-idle", "SingleLayout idle"],
+            ["single-layout-success", "SingleLayout with a completed run"],
+            ["single-layout-error", "SingleLayout with a failed run"],
+            ["single-layout-running", "SingleLayout mid-run"],
+            ["comparison-layout-two-variants", "ComparisonLayout's shared input column"],
+            ["chat-turn-answered", "ChatTurnView with an assistant reply"],
+            ["chat-turn-awaiting-run", "ChatTurnView placeholder branch"],
+        ].map(([slug, what]) => [
+            `agenta-playground-ui-execution-composites--${slug}`,
+            `${what} — seeded-execution-graph showcase. These components' antd swaps are merged and gated by the primitives' own parity stories; there is no pre-migration half to reconstruct.`,
+        ]),
+        // Modes — thin wrappers over ExecutionRow, no antd markup of their own.
+        ...[
+            ["completion-rows", "CompletionMode row source"],
+            ["completion-comparison", "CompletionMode comparison branch"],
+            ["chat-conversation", "ChatMode turn source"],
+            ["chat-empty", "ChatMode bootstrap branch"],
+        ].map(([slug, what]) => [
+            `agenta-playground-ui-execution-modes--${slug}`,
+            `${what} — a thin row/turn-source wrapper with no antd markup of its own.`,
+        ]),
+        // Adapters — both files are antd-free; their subtrees' swaps are gated elsewhere.
+        ...[
+            ["turn-kinds", "TurnMessageAdapter across message kinds"],
+            ["turn-with-tool-calls", "TurnMessageAdapter tool-call branch"],
+            ["turn-content-and-slots", "TurnMessageAdapter content shapes and caller slots"],
+            [
+                "turn-no-message",
+                "records TurnMessageAdapter's null return when no message resolves",
+            ],
+            ["variable-by-port-type", "VariableControlAdapter per declared port type"],
+            ["variable-chrome", "VariableControlAdapter prop/chrome states"],
+            ["variable-custom-app-gating", "VariableControlAdapter's schemaInputKeys allow-list"],
+            ["variable-evaluator-envelope", "VariableControlAdapter evaluator envelope ports"],
+        ].map(([slug, what]) => [
+            `agenta-playground-ui-adapters--${slug}`,
+            `${what} — the adapter files import no antd; their subtree's swaps (SharedEditor, InputNumber, Switch) are pixel-gated by those components' own parity stories.`,
+        ]),
+        // Outputs.
+        ...[
+            ["result-states", "ExecutionResultView result branches"],
+            ["result-view-empty", "records the showEmptyPlaceholder={false} null return"],
+            [
+                "header",
+                "ExecutionHeader; its Button/Tooltip swaps are gated by button-- and tooltip--antd-vs-agenta",
+            ],
+            ["outputs-single", "PlaygroundOutputs single layout"],
+            ["outputs-with-evaluators", "PlaygroundOutputs chain/evaluator layout"],
+            ["outputs-comparison", "PlaygroundOutputs comparison columns"],
+            ["outputs-idle", "PlaygroundOutputs pre-run state"],
+            ["inputs-body-host", "PlaygroundInputsBodyHost atom-to-props bridge"],
+            ["inputs-body-host-read-only", "PlaygroundInputsBodyHost read-only"],
+            ["inputs-body-host-sections", "PlaygroundInputsBodyHost grouped sections"],
+        ].map(([slug, what]) => [
+            `agenta-playground-ui-outputs--${slug}`,
+            `${what} — data-seam showcase; PlaygroundOutputs' only antd was Tag→Badge and the rest are antd-free, so there is no half to diff.`,
+        ]),
+        // EntitySelector.
+        ...[
+            ["all-tabs", "every entity tab"],
+            ["evaluator-tab", "the synthesised evaluator tab"],
+            ["single-type", "the no-tab-strip branch"],
+            ["default-tab-span", "initial-tab behaviour"],
+            ["modal", "EnhancedModal-wrapped selector, rendered in a portal"],
+            ["modal-closed", "records the closed/unmounted state"],
+        ].map(([slug, what]) => [
+            `agenta-playground-ui-entityselector--${slug}`,
+            `EntitySelector — ${what}. Its Tabs/Input/Button swaps are gated by those primitives' own parity rows, and EnhancedModal has its own.`,
+        ]),
+    ],
     // Wave 2 DrillInView state showcases: the file's antd captions belong to its
     // `--antd-vs-agenta` / `--open-state` exports, which do gate.
     ...[
