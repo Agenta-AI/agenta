@@ -76,7 +76,14 @@ import {
   resolveRunLimits,
   TOTAL_DEADLINE_ENV,
 } from "../engines/sandbox_agent/run-limits.ts";
-import { logReconcileShadow } from "./reconciliation-router.ts";
+import {
+  isLivelyApplicable,
+  logReconcileShadow,
+  planReconcile,
+  type DecisionScope,
+} from "./reconciliation-router.ts";
+import { normalizeDesiredState } from "./desired-state.ts";
+import { formatPlan, type ReconcilePlan } from "./reconcile-plan.ts";
 
 export function klog(message: string): void {
   process.stderr.write(`[keepalive] ${message}\n`);
@@ -112,6 +119,22 @@ export interface KeepaliveEngine {
   ): Promise<AgentRunResult>;
   /** Best-effort provider activity refresh after a live park succeeds. */
   onParkedLive?(env: SessionEnvironment): Promise<void>;
+  /**
+   * Apply a reconciliation plan to a LIVE environment (lifecycle migration, step 6).
+   *
+   * Returns whether the WHOLE plan applied. The implementation must commit applied state only
+   * after every action succeeded, and must leave applied state untouched otherwise — a partially
+   * applied environment that claims the new configuration is the stale-config bug wearing a
+   * different hat.
+   *
+   * Optional: an engine that does not implement it simply never takes a live route, and every
+   * config change keeps rebuilding exactly as before.
+   */
+  applyReconcilePlan?(
+    env: SessionEnvironment,
+    request: AgentRunRequest,
+    plan: ReconcilePlan,
+  ): Promise<boolean>;
   /**
    * Today's cold path (acquire -> runTurn -> teardown). Used when a request must not park.
    * `presignedMount` threads an already-signed mount in (null = signed, no mount — do not sign
@@ -266,10 +289,64 @@ export async function runWithKeepalive(
    * fail the turn; the only product is a log line, and a `DISAGREE` marker is the signal that the
    * router's facet ownership still needs work before step 5 lets it decide anything.
    */
+  /**
+   * LIFECYCLE MIGRATION, STEP 6. Try to satisfy a configuration change on the RUNNING
+   * environment instead of rebuilding it.
+   *
+   * This is the first genuine behavior change in the lifecycle work, so every guard matters:
+   *
+   *  - It runs ONLY for `mismatch:config`. The credential and continuity mismatches are decided
+   *    before this point by their own checks and are untouched — credential facets keep
+   *    delegating to the epoch comparison until step 8 teaches the router to read it.
+   *  - The plan must be ENTIRELY live-applicable. A mixed plan rebuilds, because applying half
+   *    of it would leave the environment in a state no request ever described.
+   *  - The engine commits applied state only after every action succeeded. A `false` return
+   *    leaves the environment exactly as it was.
+   *  - Any throw is caught and treated as "did not apply". FAIL CLOSED: an unexpected failure
+   *    must cost a rebuild, never a silently half-reconfigured environment.
+   */
+  const tryLiveRoutes = async (
+    existing: LiveSession<SessionEnvironment>,
+  ): Promise<ReconcilePlan | undefined> => {
+    if (!engine.applyReconcilePlan) return undefined;
+    const desired = normalizeDesiredState(request, cfgFp);
+    const plan = planReconcile(
+      request,
+      desired,
+      existing.environment.appliedState.facets,
+    );
+    if (plan.actions.length === 0) return undefined;
+    if (!isLivelyApplicable(plan)) return undefined;
+    try {
+      const applied = await engine.applyReconcilePlan(
+        existing.environment,
+        request,
+        plan,
+      );
+      if (applied) {
+        klog(
+          `live-route key=${key} applied=[${formatPlan(plan)}] ` +
+            `generation=${existing.environment.appliedState.generation}`,
+        );
+        return plan;
+      }
+      klog(`live-route key=${key} refused=[${formatPlan(plan)}]; rebuilding`);
+      return undefined;
+    } catch (err) {
+      klog(
+        `live-route key=${key} threw, rebuilding: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+      );
+      return undefined;
+    }
+  };
+
   const shadowRoute = (
     existing: LiveSession<SessionEnvironment> | undefined,
     decision: "reuse" | "rebuild",
     decisionReason: string,
+    scope: DecisionScope = "environment",
+    plan?: ReconcilePlan,
   ): void => {
     logReconcileShadow({
       key,
@@ -279,6 +356,8 @@ export async function runWithKeepalive(
       appliedDigests: existing?.environment.appliedState.facets,
       decision,
       decisionReason,
+      scope,
+      ...(plan ? { plan } : {}),
     });
   };
 
@@ -559,9 +638,31 @@ export async function runWithKeepalive(
       mismatch = "credentials-expiring";
     else if (!tailIsFreshUserMessage(request)) mismatch = "tail";
 
+    // STEP 6. A pure configuration mismatch gets one chance to be satisfied on the live
+    // environment. Everything else — credentials, continuity, an expiring lease — is decided
+    // above and never reaches this door.
+    if (mismatch === "config") {
+      // Pass the plan we ACTED ON: the apply has already committed the new applied state, so
+      // recomputing here would yield an empty plan and the counter could not name the route.
+      const appliedPlan = await tryLiveRoutes(existing);
+      if (appliedPlan) {
+        shadowRoute(existing, "reuse", "live-route", "environment", appliedPlan);
+        mismatch = undefined;
+      }
+    }
+
     if (mismatch) {
       klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
-      shadowRoute(existing, "rebuild", `mismatch:${mismatch}`);
+      // A transcript mismatch is a decision about the CONVERSATION, not the environment, so it
+      // is logged but never counted against the router. See `DecisionScope`.
+      shadowRoute(
+        existing,
+        "rebuild",
+        `mismatch:${mismatch}`,
+        mismatch === "history" || mismatch === "tail"
+          ? "continuity"
+          : "environment",
+      );
       // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
       // mount — they must never overlap.
       await pool.evict(
