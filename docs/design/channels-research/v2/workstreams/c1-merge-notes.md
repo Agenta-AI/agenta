@@ -66,3 +66,21 @@ document's shape is the default unless WP8 finds a reason against it.
 Each package's tests pass against **its own** worktree's base. The C1 exit
 conditions in `launch.md` are the only ones that count, and they run on the
 merged tree.
+
+## What is deferred to the checkpoint deployment
+
+Packages are verified by unit tests and static checks only — a worktree has no
+environment, and one is not stood up per package. Everything below needs a
+running stack and is therefore **written but unverified** until the deployment
+that opens C1:
+
+- The migration **applies and downgrades** on the merged base. Proving this
+  against WP1's isolated tree would not be the same claim.
+- A signed request to `POST /channels/slack/events/` writes exactly one
+  `channel_inbox_events` row and answers 202.
+- An unsigned request is rejected.
+- A redelivery of the same event writes no second row.
+
+Everything else at C1 — the contract suite failing a lying adapter, the
+`_PUBLIC_ENDPOINTS` scoping, DTO and key-composition behaviour — is unit-level
+and already holds without a deployment.
