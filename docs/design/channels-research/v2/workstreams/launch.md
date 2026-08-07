@@ -16,7 +16,7 @@ only — and it is the reason nothing else has to wait afterwards.
       `Agenta-AI/agenta` (`release/v0.110.0`) — see `README.md` "The base". Not
       `main`, not `big-agents`, not a fork. Migration head verified at
       `oss000000020`, so WP1 takes `oss000000021`.
-- [ ] Write `core/channels/{dtos,types,interfaces}.py` and
+- [x] Write `core/channels/{dtos,types,interfaces}.py` and
       `core/channels/adapters/interface.py`, complete, every body
       `raise NotImplementedError`. Verbatim from `entities.md` §4–§7 and
       `capabilities.md`.
@@ -27,12 +27,31 @@ only — and it is the reason nothing else has to wait afterwards.
       Exceptions go in **`types.py`**, following `sessions` rather than
       `triggers` — `entities.md` §5 states the choice and the reason. Getting
       this wrong at C0 means renaming imports in twelve worktrees.
-- [ ] Add the empty `channels` block to `api/entrypoints/routers.py` — imports and
+
+      Two shapes had no Python definition in any design document and were
+      derived at C0 from `capabilities.md` §2 and the adapter port's
+      signatures: **`ChannelCapabilities`** (with its nested declaration
+      models) and **`ChannelInboundEvent`**. `ChannelConnection` is an alias
+      of the shared gateway `Connection`. A package that finds one of these
+      wrong reports it rather than editing around it.
+
+      `compose_external_key` and the `key`/`idempotency_key` derivations went
+      to **`core/channels/utils.py`**, alongside `resolve_policy` — which is
+      declared and left `NotImplementedError` for WP1.
+- [x] Add the empty `channels` block to `api/entrypoints/routers.py` — imports and
       registration scaffold only, so four later packages add to a file that already
       has the domain in it.
-- [ ] Verify: the stubs import, type-check, and a test instantiating each DTO with
+- [x] Verify: the stubs import, type-check, and a test instantiating each DTO with
       representative values passes.
-- [ ] Commit. **Record the SHA** — every worktree branches from exactly this commit.
+
+      `oss/tests/pytest/unit/channels/test_channels_seed.py`, 10 passing. It
+      also asserts the four identity properties WP2's contract suite holds
+      every adapter to — grain distinctness, canonicalisation, the no-threads
+      `None`, and a raise on an incomplete locator — so WP2 inherits them as
+      executable fact rather than prose.
+- [x] Commit. **Record the SHA** — every worktree branches from exactly this commit.
+
+      **C0 = `ec29cd2fdc`** on `channels-research`, off `release/v0.110.0`.
 
 If C0 is wrong, every worktree inherits the error. It is worth reviewing properly
 even though it does nothing.
