@@ -12,14 +12,17 @@ shape and are not pre-planned in detail, because C1's outcome changes them.
 on the base branch, and everything else waits for it. It is small — declarations
 only — and it is the reason nothing else has to wait afterwards.
 
-- [ ] Create the base branch from the **current upstream release branch** on
-      `Agenta-AI/agenta` (`release/v0.110.0` at the time of writing) — see
-      `README.md` "The base". Not `main`, not `big-agents`, not a fork.
-      Verify the migration head reads `oss000000020` before continuing.
+- [x] Base branch created from the **current upstream release branch** on
+      `Agenta-AI/agenta` (`release/v0.110.0`) — see `README.md` "The base". Not
+      `main`, not `big-agents`, not a fork. Migration head verified at
+      `oss000000020`, so WP1 takes `oss000000021`.
 - [ ] Write `core/channels/{dtos,types,interfaces}.py` and
       `core/channels/adapters/interface.py`, complete, every body
       `raise NotImplementedError`. Verbatim from `entities.md` §4–§7 and
       `capabilities.md`.
+
+      Run `ruff format` then `ruff check --fix` in `api/` before committing —
+      pre-commit enforces both (root `AGENTS.md`).
 
       Exceptions go in **`types.py`**, following `sessions` rather than
       `triggers` — `entities.md` §5 states the choice and the reason. Getting
