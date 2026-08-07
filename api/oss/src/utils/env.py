@@ -1254,6 +1254,9 @@ class PostgresConfig(BaseModel):
 
     user: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
+    # Compose service name in-network; set POSTGRES_HOST=localhost to reach the
+    # published port from the host (tests run outside the network).
+    host: str = os.getenv("POSTGRES_HOST") or "postgres"
     # The bundled Postgres always listens on 5432 inside the Docker network.
     # POSTGRES_PORT only remaps the host-published port (compose
     # "${POSTGRES_PORT:-5432}:5432") and must NOT feed the in-network URIs below.
@@ -1271,13 +1274,13 @@ class PostgresConfig(BaseModel):
     )
 
     uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
-        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_core"
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_core"
     )
     uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or (
-        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_tracing"
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_tracing"
     )
     uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
-        f"postgresql://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_supertokens"
+        f"postgresql://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_supertokens"
     )
 
     # Stable signed-64-bit advisory-lock key for this deployment. We mix
