@@ -124,8 +124,10 @@ export function normalizeDesiredState(
   });
 
   // WORKSPACE FILES: the managed files the runner writes and OWNS. Instructions and skills only.
-  // This is the one workspace facet that may be refreshed in place on a live sandbox, so it is
-  // deliberately the narrowest of the four the old `workspace` facet used to contain.
+  // It is deliberately the narrowest of the four the old `workspace` facet used to contain,
+  // because it is the one whose files the runner may rewrite on a live sandbox. Rewriting them is
+  // NOT enough to make a running harness observe them, so the facet escalates today; see the
+  // capability table in `reconciliation-router.ts`.
   const workspaceFiles = canonical({
     agentsMd: request.agentsMd ?? null,
     skills: request.skills ?? null,
