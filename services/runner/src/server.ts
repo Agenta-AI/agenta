@@ -461,6 +461,35 @@ export async function runWithKeepalive(
         ? "aborted"
         : "failed-turn";
 
+  /**
+   * Turn a dispatch mismatch label into the teardown reason that names the FAILING LAYER.
+   *
+   * LIFECYCLE MIGRATION, STEP 1. Every mismatch used to tear down with one
+   * `compatibility-mismatch` reason, so every mismatch deleted the sandbox. The mapping below
+   * says which layer is actually wrong, and `teardownDisposition` then parks only the layers
+   * whose daemon is still sound.
+   *
+   * The mapping is conservative on purpose. Anything that might have baked material into the
+   * DAEMON maps to `runtime-incompatible`, which deletes. Only a wrong CONVERSATION or a wrong
+   * harness SESSION parks, because neither says anything is stale inside the sandbox.
+   */
+  const mismatchTeardownReason = (mismatch: string): TeardownReason => {
+    // A conversation problem. The environment is fine; the transcript is not.
+    if (mismatch === "history" || mismatch === "tail") return "continuity-invalid";
+    // Credentials live in the daemon's environment on Daytona, and Pi's runtime assets are
+    // installed at start. A parked sandbox would resume with the stale material still in place,
+    // so these must delete. This is the case the lifecycle design warns about by name.
+    if (mismatch.startsWith("credentials")) return "runtime-incompatible";
+    // A parked approval gate the runner can no longer answer. Nothing inside the sandbox is
+    // stale, so the sandbox may park.
+    if (mismatch === "no-parked-gate" || mismatch === "unrecognized-gate-type")
+      return "session-incompatible";
+    // `config` covers every remaining configuration change, including a changed model connection
+    // or MCP credential shape. Until the reconciliation router can say which facet moved, treat
+    // it as runtime-level and delete. Delete is always sound; it only costs a rebuild.
+    return "runtime-incompatible";
+  };
+
   const notifyParkedLive = async (env: SessionEnvironment): Promise<void> => {
     if (resolveKeepaliveProvider(request) !== "daytona") return;
     // Best-effort: the session is already parked, so an activity-refresh failure must not turn
@@ -560,7 +589,7 @@ export async function runWithKeepalive(
     const input = {
       key,
       environment: env,
-      configFingerprint: cfgFp,
+      // No `configFingerprint`. The environment owns it (lifecycle migration, step 2).
       historyFingerprint: nextHistoryFp(env),
       historyAsserted,
       credentialEpoch: parkedEpoch(env, incomingEpoch.secrets),
@@ -600,7 +629,9 @@ export async function runWithKeepalive(
     const env = live.environment;
     env.clearTurn();
     const update = {
-      configFingerprint: cfgFp,
+      // No `configFingerprint`. THIS is where the stale-config bug lived: the approval-resume
+      // path reached here with the INCOMING request's fingerprint and stamped it onto an
+      // environment that had never applied it. The field is gone, so the bug cannot be written.
       historyFingerprint: nextHistoryFp(env),
       historyAsserted,
       credentialEpoch: parkedEpoch(env, live.credentialEpoch.secrets),
@@ -704,7 +735,11 @@ export async function runWithKeepalive(
       klog(`mismatch (${mismatch}) key=${key}; evict + cold`);
       // Await: the old teardown unmounts the same durable cwd the cold acquire is about to
       // mount — they must never overlap.
-      await pool.evict(key, `mismatch:${mismatch}`, "compatibility-mismatch");
+      await pool.evict(
+        key,
+        `mismatch:${mismatch}`,
+        mismatchTeardownReason(mismatch),
+      );
       return coldAndPark();
     }
 
@@ -860,7 +895,9 @@ export async function runWithKeepalive(
       await pool.evict(
         key,
         `approval-mismatch:${mismatch ?? "unknown"}`,
-        "compatibility-mismatch",
+        // An unanswered approval with no recorded mismatch is a session-level problem: the
+        // request carried no decision this parked gate could consume.
+        mismatchTeardownReason(mismatch ?? "no-parked-gate"),
       );
       return coldAndPark();
     }
