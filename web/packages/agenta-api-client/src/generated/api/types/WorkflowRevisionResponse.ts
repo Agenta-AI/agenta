@@ -7,8 +7,20 @@ export interface WorkflowRevisionResponse {
     count?: number | undefined;
     /** The workflow revision. */
     workflow_revision?: (AgentaApi.WorkflowRevisionOutput | null) | undefined;
+    /** Commit outcome. `no_change` means the change produced the stored configuration, so no revision was created and `workflow_revision` is the current head. Absent on paths that do not run the checked commit; a reader must treat absent as `committed`. */
+    status?: (WorkflowRevisionResponse.Status | null) | undefined;
+    /** Structured advisories about the commit; never an error. */
+    warnings?: (AgentaApi.CommitWarning[] | null) | undefined;
     /** Reference-resolution metadata; populated when `resolve=true` on retrieve. */
     resolution_info?: (AgentaApi.ResolutionInfo | null) | undefined;
     /** References used to retrieve the top-level revision. */
     retrieval_info?: (AgentaApi.RetrievalInfo | null) | undefined;
+}
+
+export namespace WorkflowRevisionResponse {
+    export const Status = {
+        Committed: "committed",
+        NoChange: "no_change",
+    } as const;
+    export type Status = (typeof Status)[keyof typeof Status];
 }

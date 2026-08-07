@@ -1,0 +1,257 @@
+{
+  "class": "skills",
+  "about": [
+    "Adding, changing and removing a skill. Three of these are ordinary item operations. The",
+    "fourth, `skill-04-rename`, is the one worth watching: the contract makes a rename a refusal",
+    "(`item_rename_not_allowed`) whose next step is 'remove_item then add_item'. A model that",
+    "reads the tool description gets it in one commit with two operations; a model that does not",
+    "burns a refusal to learn it. The one-shot-versus-eventual gap on that row is a direct",
+    "measurement of whether the tool description carries its own recovery."
+  ],
+  "scenarios": [
+    {
+      "id": "skill-01-add-inline",
+      "title": "add a skill described in the message itself",
+      "turns": [
+        {
+          "prompt": "can you add an incident-review skill? it should say to collect the timeline first, then name the root cause, then file a follow-up issue."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 4
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "incident-review"
+            }
+          ]
+        },
+        {
+          "check": "stored_matches",
+          "path": [
+            {
+              "list": "skills",
+              "key": "incident-review"
+            },
+            "body"
+          ],
+          "pattern": "(?i)root cause"
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            }
+          ]
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        },
+        {
+          "check": "no_stored_marker"
+        }
+      ]
+    },
+    {
+      "id": "skill-02-edit-body",
+      "title": "change one line inside a skill body",
+      "turns": [
+        {
+          "prompt": "the smoke marker got renamed. my release qa skill should run `pytest -m release` now, not `pytest -m smoke`. just that line."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_not_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "pytest -m smoke"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "pytest -m release"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "Escalate to the on-call engineer"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "1. Pull the release branch."
+        },
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 3
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        },
+        {
+          "check": "no_stored_marker"
+        }
+      ]
+    },
+    {
+      "id": "skill-03-remove",
+      "title": "remove one skill",
+      "turns": [
+        {
+          "prompt": "i don't need the triage skill any more, get rid of it please."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 2
+        },
+        {
+          "check": "stored_absent",
+          "path": [
+            {
+              "list": "skills",
+              "key": "triage"
+            }
+          ]
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            }
+          ]
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "changelog-writer"
+            }
+          ]
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ]
+    },
+    {
+      "id": "skill-04-rename",
+      "title": "rename a skill, keeping its content",
+      "prompt_note": "A rename is a refusal by design. One-shot means the model sends remove_item + add_item in one delta rather than learning it from a rejected commit.",
+      "turns": [
+        {
+          "prompt": "rename my triage skill to issue-triage. keep what it says exactly as it is."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 3
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "issue-triage"
+            }
+          ]
+        },
+        {
+          "check": "stored_absent",
+          "path": [
+            {
+              "list": "skills",
+              "key": "triage"
+            }
+          ]
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "issue-triage"
+            },
+            "body"
+          ],
+          "text": "Label the issue. Assign a priority."
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ]
+    }
+  ]
+}

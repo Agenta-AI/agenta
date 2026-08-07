@@ -205,30 +205,70 @@ export async function callAgentaTool(
   // ToolCallResponse -> { call: { data: { content }, status } }. `content` is the
   // execution result serialized as a JSON string; hand it to the model, capped (an
   // uncapped result — e.g. a discover_tools dump — is otherwise handed back verbatim).
+  //
+  // THE TRY WRAPS THE PARSE AND NOTHING ELSE, ON PURPOSE. It used to wrap the whole block, so a
+  // `throw` below would have been caught by its own fallback and turned back into a success. The
+  // narrow scope is what lets a failure leave this function as a failure.
+  let parsed: any;
   try {
-    const parsed = JSON.parse(bodyText);
-    const content = parsed?.call?.data?.content;
-    // A business-level tool failure rides a 200 as STATUS_CODE_ERROR with the upstream
-    // message in `status.message` (api .../tools/router.py `call_tool`). It is gateway-shaped,
-    // not an opaque upstream body, and it is what lets the model fix a bad argument — so
-    // surface it BY DESIGN rather than relying on it happening to ride `content`.
-    const status = parsed?.call?.status;
-    const statusMessage =
-      status?.code === "STATUS_CODE_ERROR" && typeof status?.message === "string"
-        ? status.message
-        : undefined;
-    if (statusMessage) {
-      const detail = typeof content === "string" ? content : "";
-      return capToolResultText(
-        detail
-          ? `tool call ${callRef} failed: ${statusMessage}\n${detail}`
-          : `tool call ${callRef} failed: ${statusMessage}`,
-      );
-    }
-    if (typeof content === "string") return capToolResultText(content);
-    if (content != null) return capToolResultText(JSON.stringify(content));
-    return capToolResultText(bodyText);
+    parsed = JSON.parse(bodyText);
   } catch {
     return capToolResultText(bodyText);
   }
+
+  const content = parsed?.call?.data?.content;
+  const status = parsed?.call?.status;
+  const detail =
+    typeof content === "string"
+      ? content
+      : content != null
+        ? JSON.stringify(content)
+        : "";
+
+  // A business-level tool failure rides a 200 as STATUS_CODE_ERROR (api .../tools/router.py
+  // `call_tool`). It is gateway-shaped, not an opaque upstream body, and it is what lets the
+  // model fix a bad argument.
+  //
+  // CONTRACT: THIS THROWS, AND IT USED TO RETURN. Every caller turns a throw into a tool ERROR,
+  // so the model reads a failed call as failed. Returning made `startToolRelay` write
+  // `{ok: true, text}`, which the MCP shim renders as `isError: false`: the model was told its
+  // call SUCCEEDED and handed the failure text as the result. On Codex that is the blank-success
+  // shape that makes a model invent an explanation and tell the user to try again. Measured in
+  // all three arms before this change; every one of them returned.
+  //
+  // `status.code` ALONE decides. The old test also required `status.message` to be a string, so a
+  // failure whose message was absent or null fell through to the success return below. That arm is
+  // not hypothetical: it is the shape a handler-mode op produces when its error envelope lives in
+  // `content`.
+  //
+  // `detail` is passed through rather than redacted, and the reason is a SYMMETRY INVARIANT rather
+  // than an argument about what can reach this line.
+  //
+  // Every producer of a `ToolResult` in the tools router serializes ONE content expression and
+  // branches only on `status.code`. The Composio arm sends `json.dumps(execution_result...)`, the
+  // workflow arm `json.dumps(outputs)`, the handler seam whatever the handler returned. So the
+  // failure branch hands the model exactly what the success branch hands it, from the same
+  // expression. Redacting on failure would strip a value we give away freely one branch earlier:
+  // if that content can leak a secret, it leaks on SUCCESS, where nothing redacts it. The failure
+  // branch is not where that question lives, and scrubbing third-party output, if it is ever
+  // wanted, is both-branches work needing its own justification.
+  //
+  // WHAT A REVIEWER SHOULD NOTICE: a new producer that serializes DIFFERENT content on its two
+  // branches. None does today. The handler seam varies its content (an envelope on failure, the
+  // op's payload on success), but it does so INSIDE the handler, above the router's single
+  // expression, and that is the sanctioned case rather than the surprising one.
+  //
+  // The narrower guards are untouched and still carry their own weight: a proxy's HTML error page
+  // fails the JSON parse above, and a non-2xx is redacted to its status code further up.
+  if (status?.code === "STATUS_CODE_ERROR") {
+    const reason =
+      typeof status?.message === "string" && status.message
+        ? `tool call ${callRef} failed: ${status.message}`
+        : `tool call ${callRef} failed`;
+    throw new Error(capToolResultText(detail ? `${reason}\n${detail}` : reason));
+  }
+
+  if (typeof content === "string") return capToolResultText(content);
+  if (content != null) return capToolResultText(detail);
+  return capToolResultText(bodyText);
 }

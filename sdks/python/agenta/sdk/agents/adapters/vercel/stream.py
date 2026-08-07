@@ -726,6 +726,22 @@ def _interaction_parts(
                     "toolName": tool_name,
                     "input": real_input,
                 }
+        # Workspace content the runner resolved and froze for this gate (imported files, and the
+        # diff for a field replaced from one). It rides its OWN data part because
+        # `tool-approval-request` is a strict object with an exact key set, and because it is
+        # runner-derived metadata, not the model's arguments — putting it in `input` would show
+        # the human a payload the model never wrote.
+        manifest = payload.get("manifest")
+        if manifest is not None:
+            yield {
+                "type": "data-approval-manifest",
+                "id": tool_call_id,
+                "data": {
+                    "toolCallId": tool_call_id,
+                    "approvalId": data.get("id"),
+                    "manifest": manifest,
+                },
+            }
         yield {
             "type": TOOL_APPROVAL_REQUEST,
             "approvalId": data.get("id"),
@@ -846,7 +862,15 @@ def _committed_revision_data(tool_name: Any, output: Any) -> Optional[Dict[str, 
             payload = json.loads(payload)
         except json.JSONDecodeError:
             return None
-    if not isinstance(payload, dict) or not payload.get("count"):
+    if not isinstance(payload, dict):
+        return None
+    # Two success shapes exist. The handler-mode commit (the migration) answers
+    # {"status": "committed", "workflow_revision": {...}} and carries no "count";
+    # the legacy route shape carried {"count": N, ...}. Gate on either, because a
+    # projector that recognizes only one silently drops the playground's refresh
+    # signal for the other (live incident, session b024a6b0: commits stored fine
+    # and the playground never switched to the new version).
+    if payload.get("status") != "committed" and not payload.get("count"):
         return None
 
     revision = payload.get("workflow_revision")

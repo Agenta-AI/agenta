@@ -73,6 +73,20 @@ COPY skills ./skills
 # src/extensions/agenta.ts or the tracer.
 RUN pnpm run build:extension
 
+# Name the offending key when Pi rejects a tool call for an unexpected property. Pi validates tool
+# arguments against the advertised schema before it dispatches, and typebox's stock message names
+# the OBJECT that has an extra property but never the property itself, so a model has to guess
+# which of the keys it sent is the extra one (seen in live QA on `workflow_revision`). The patch is
+# message formatting only: it changes no validation logic, and it exits non-zero if Pi's formatter
+# no longer matches, so a pi-ai bump breaks the build rather than silently restoring the
+# unactionable message. Retires when upstream Pi names the key itself.
+#
+# Runs here, still root, because `@earendil-works/pi-ai` came in via the `pnpm install` above
+# (also root). Below this point the image drops to `USER node`, and that user cannot write into a
+# root-owned node_modules — unlike the codex-acp patches, which target a package `node` itself
+# installs later.
+RUN node_modules/.bin/tsx scripts/patch-pi-validation-message.ts
+
 ENV NODE_ENV=production \
     AGENTA_RUNNER_PORT=8765
 
