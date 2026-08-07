@@ -319,6 +319,27 @@ class ChannelsDAOInterface(ABC):
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelThread]: ...
 
+    @abstractmethod
+    async def close_thread(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        thread_id: UUID,
+    ) -> Optional[ChannelThread]:
+        """Flip flags.is_active on THIS row, in place — never inserts (D12).
+
+        GAP NOTE (flagged per WP1's brief): entities.md §8 assigns
+        ChannelsService.close_thread a real WP1 implementation, but the frozen
+        §7 method list has no write path over an existing thread row — threads
+        are append-only and get no edit_thread. Added minimally, mirroring
+        transition_inbox_trigger's "update in place by id, never insert" shape,
+        so close_thread is not left calling a route that does not exist. Flag
+        at the WP1→WP2/WP3 checkpoint if this should move or be renamed.
+        """
+        ...
+
     # --- inbox: the log ----------------------------------------------------- #
 
     @abstractmethod
