@@ -16,7 +16,9 @@ import {
   capToolResultText,
   readBoundedResponseText,
   MAX_BODY_BYTES,
+  MAX_GATEWAY_RESULT_BYTES,
   MAX_RAW_RESPONSE_BYTES,
+  GATEWAY_RESULT_STEERING_MESSAGE,
 } from "../../src/tools/callback.ts";
 
 const realFetch = globalThis.fetch;
@@ -45,6 +47,16 @@ describe("capToolResultText", () => {
   it("respects a custom byte cap", () => {
     const capped = capToolResultText("abcdefghij", 4);
     assert.equal(capped, "abcd [... 6 bytes omitted]");
+  });
+
+  it("appends the steering message after the omitted-count marker when provided", () => {
+    const capped = capToolResultText("abcdefghij", 4, "narrow your query");
+    assert.equal(capped, "abcd [... 6 bytes omitted]\n\nnarrow your query");
+  });
+
+  it("omits the steering message entirely when text is not truncated", () => {
+    const capped = capToolResultText("hi", 100, "narrow your query");
+    assert.equal(capped, "hi");
   });
 
   it("truncates at a UTF-8 character boundary instead of splitting a multibyte sequence", () => {
@@ -147,8 +159,10 @@ describe("readBoundedResponseText (RUN-TOOLCAP-2: cap before materializing the w
 });
 
 describe("callAgentaTool result capping (RUN-TOOLCAP-1)", () => {
-  it("caps an oversized string `content` before returning it to the model", async () => {
-    const huge = "x".repeat(MAX_BODY_BYTES + 1000);
+  it("caps an oversized string `content` at the gateway budget, well below the raw transport cap", async () => {
+    // A get_pull_request-shaped result: comfortably under the 1 MB raw transport cap, but well
+    // over the much tighter model-facing gateway budget (issue #5341).
+    const huge = "x".repeat(MAX_GATEWAY_RESULT_BYTES + 1000);
     stubFetch(
       200,
       JSON.stringify({ call: { data: { content: huge }, status: "done" } }),
@@ -160,12 +174,16 @@ describe("callAgentaTool result capping (RUN-TOOLCAP-1)", () => {
       "call-1",
       {},
     );
-    assert.ok(Buffer.byteLength(result, "utf-8") <= MAX_BODY_BYTES + 200);
+    assert.ok(Buffer.byteLength(result, "utf-8") < MAX_BODY_BYTES);
     assert.ok(result.includes("bytes omitted"));
+    assert.ok(
+      result.includes(GATEWAY_RESULT_STEERING_MESSAGE),
+      "an oversized gateway result must carry the steering message telling the model to narrow/paginate",
+    );
   });
 
-  it("caps an oversized non-string `content` (JSON.stringify'd) before returning it", async () => {
-    const huge = { data: "y".repeat(MAX_BODY_BYTES + 1000) };
+  it("caps an oversized non-string `content` (JSON.stringify'd) before returning it, with the steering message", async () => {
+    const huge = { data: "y".repeat(MAX_GATEWAY_RESULT_BYTES + 1000) };
     stubFetch(
       200,
       JSON.stringify({ call: { data: { content: huge }, status: "done" } }),
@@ -178,10 +196,11 @@ describe("callAgentaTool result capping (RUN-TOOLCAP-1)", () => {
       {},
     );
     assert.ok(result.includes("bytes omitted"));
+    assert.ok(result.includes(GATEWAY_RESULT_STEERING_MESSAGE));
   });
 
   it("caps a raw oversized body when the response is not the expected envelope shape", async () => {
-    stubFetch(200, "z".repeat(MAX_BODY_BYTES + 1000));
+    stubFetch(200, "z".repeat(MAX_GATEWAY_RESULT_BYTES + 1000));
     const result = await callAgentaTool(
       "http://agenta.local/tools/call",
       "Bearer tok",
@@ -190,9 +209,10 @@ describe("callAgentaTool result capping (RUN-TOOLCAP-1)", () => {
       {},
     );
     assert.ok(result.includes("bytes omitted"));
+    assert.ok(result.includes(GATEWAY_RESULT_STEERING_MESSAGE));
   });
 
-  it("leaves a small result untouched", async () => {
+  it("leaves a small result untouched, without the steering message", async () => {
     stubFetch(
       200,
       JSON.stringify({ call: { data: { content: "ok" }, status: "done" } }),
