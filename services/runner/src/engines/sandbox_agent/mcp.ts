@@ -198,7 +198,58 @@ export async function validateUserMcpUrl(
   return undefined;
 }
 
-/** Convert external HTTP MCP servers into Claude ACP session entries. */
+/**
+ * Structural validation of user-declared HTTP MCP servers: public headers and typed secret
+ * header credentials must be well-formed (non-empty names and values, `header` bindings with
+ * `opaque_http` usage, no duplicate header name across the public and secret sets), and the
+ * URL must pass the SSRF guard. Called early in acquire — BEFORE any sandbox or Daytona Secret
+ * is created — and again per server at ACP materialization (`toAcpMcpServers`).
+ */
+export async function validateUserMcpServers(
+  servers: McpServerConfig[] | undefined,
+): Promise<void> {
+  for (const server of servers ?? []) {
+    const url = server.connection?.url;
+    if (!url) throw new Error("http MCP server requires url");
+    const names = new Set<string>();
+    for (const [name, value] of Object.entries(
+      server.connection.headers ?? {},
+    )) {
+      if (!name.trim() || !value) {
+        throw new Error("HTTP MCP headers require non-empty names and values");
+      }
+      names.add(name.toLowerCase());
+    }
+    for (const credential of server.connection.credentials ?? []) {
+      const name = credential?.binding?.name;
+      if (
+        credential?.binding?.kind !== "header" ||
+        !name?.trim() ||
+        !credential.value ||
+        credential.usage !== "opaque_http"
+      ) {
+        throw new Error(
+          "HTTP MCP credential binding, value, or usage is invalid",
+        );
+      }
+      const normalized = name.toLowerCase();
+      if (names.has(normalized)) {
+        throw new Error(`duplicate HTTP MCP header binding '${name}'`);
+      }
+      names.add(normalized);
+    }
+    const urlError = await validateUserMcpUrl(url);
+    if (urlError) throw new Error(urlError);
+  }
+}
+
+/**
+ * Convert external HTTP MCP servers into Claude ACP session entries. Public headers and typed
+ * secret header credentials stay separate until this final ACP materialization boundary, where
+ * each credential is emitted as a request header. On a Daytona run the caller has already
+ * swapped credential values for Daytona Secret placeholders (`materializeDaytonaMcpServers`),
+ * so no plaintext secret reaches the sandbox creation request there.
+ */
 export async function toAcpMcpServers(
   servers: McpServerConfig[] | undefined,
   log: Log = () => {},
@@ -210,15 +261,21 @@ export async function toAcpMcpServers(
       log(`skipping HTTP MCP server '${s?.name ?? "?"}' (no URL)`);
       continue;
     }
-    const urlError = await validateUserMcpUrl(url);
-    if (urlError) throw new Error(urlError);
+    await validateUserMcpServers([s]);
     out.push({
       type: "http",
       name: s.name,
       url,
-      headers: Object.entries(s.connection.headers ?? {}).map(
-        ([name, value]) => ({ name, value }),
-      ),
+      headers: [
+        ...Object.entries(s.connection.headers ?? {}).map(([name, value]) => ({
+          name,
+          value,
+        })),
+        ...(s.connection.credentials ?? []).map((credential) => ({
+          name: credential.binding.name,
+          value: credential.value,
+        })),
+      ],
     });
   }
   return out;

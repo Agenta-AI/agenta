@@ -16,7 +16,6 @@ import {
     Vault,
     Wrench,
 } from "@phosphor-icons/react"
-import {Divider} from "antd"
 import {useAtom} from "jotai"
 
 import {
@@ -31,7 +30,7 @@ import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettin
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {settingsTabAtom} from "@/oss/state/settings"
 
-import ListOfOrgs from "../components/ListOfOrgs"
+import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
 import SidebarBackButton from "../components/SidebarBackButton"
 import type {
     SidebarConfig,
@@ -160,19 +159,18 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
 }
 
 const SettingsSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
-    <>
-        <div
-            className={[
-                "w-full h-[44px] flex items-center",
-                collapsed ? "justify-center" : "mx-1.5",
-            ].join(" ")}
-        >
-            <SidebarBackButton collapsed={collapsed} lastPath={lastPath} className="mt-2" />
-        </div>
+    <div
+        className={[
+            "w-full h-[48px] shrink-0 flex items-center mb-1",
+            collapsed ? "justify-center" : "px-1.5",
+        ].join(" ")}
+    >
+        <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
+    </div>
+)
 
-        <ListOfOrgs collapsed={collapsed} buttonProps={{type: "text"}} />
-        <Divider className="-mt-[3.5px] mb-3" />
-    </>
+const SettingsSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => (
+    <ProjectOrgSwitcher collapsed={collapsed} />
 )
 
 export const createSettingsSidebarScope = ({lastPath}: SettingsScopeOptions): SidebarScope => ({
@@ -181,4 +179,5 @@ export const createSettingsSidebarScope = ({lastPath}: SettingsScopeOptions): Si
     useSelection: useSettingsSidebarSelection,
     useSections: useSettingsSidebarSections,
     header: SettingsSidebarHeader,
+    afterBottom: SettingsSidebarAfterBottom,
 })

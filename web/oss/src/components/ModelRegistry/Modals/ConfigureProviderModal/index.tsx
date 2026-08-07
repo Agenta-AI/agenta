@@ -2,9 +2,8 @@ import {useEffect, useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import dynamic from "next/dynamic"
-
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 
 import {ConfigureProviderModalProps} from "./assets/types"
 

@@ -44,8 +44,8 @@ import type {
 import {SmartCellContent} from "@agenta/ui/cell-renderers"
 import {
     CollapsibleGroupHeader,
+    LoadingSkeleton,
     TableEmptyState,
-    TableLoadingState,
 } from "@agenta/ui/components/presentational"
 import {useSelectionState} from "@agenta/ui/hooks"
 import {bgColors, cn} from "@agenta/ui/styles"
@@ -57,8 +57,8 @@ import {
     type TableScopeConfig,
     type TypeChipConfig,
 } from "@agenta/ui/table"
+import {Checkbox, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import type {GroupColumnsOptions} from "@agenta/ui/utils"
-import {Checkbox, Radio} from "antd"
 import type {ColumnType, ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
@@ -423,12 +423,16 @@ export function EntityTable<
             key: "__selection",
             title: multiSelect ? (
                 <Checkbox
-                    checked={isAllSelected}
-                    indeterminate={isSomeSelected}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    checked={isSomeSelected ? "indeterminate" : isAllSelected}
+                    onCheckedChange={(checked) => handleSelectAll(checked === true)}
                     disabled={selectionDisabled}
+                    aria-label="Select all rows"
                 />
-            ) : null,
+            ) : (
+                // Single-select has no select-all, but a header cell must not be empty
+                // (axe empty-table-header). sr-only is absolute, so it takes no space.
+                <span className="sr-only">Select</span>
+            ),
             width: SELECTION_COLUMN_WIDTH,
             fixed: "left",
             render: (_, record) => {
@@ -437,28 +441,33 @@ export function EntityTable<
                     return (
                         <Checkbox
                             checked={checked}
-                            onChange={(e) => handleRowSelect(record.id, e.target.checked)}
+                            onCheckedChange={(next) => handleRowSelect(record.id, next === true)}
                             disabled={selectionDisabled}
                             onClick={(e) => e.stopPropagation()}
+                            aria-label="Select row"
                         />
                     )
                 }
-                // Single-select: render a Radio. Clicking an unchecked radio
+                // Single-select: render a radio. Clicking an unchecked radio
                 // selects (and replaces the previous selection via the
                 // `multiSelect ? … : [rowId]` branch in `handleRowSelect`).
-                // Clicking a checked radio is a no-op in antd by default —
-                // we don't try to "uncheck" because single-select tables
-                // are semantically "pick one"; the user can pick a
-                // different row instead.
+                // Clicking a checked radio is a no-op (Radix only fires
+                // `onValueChange` on an actual change) — we don't try to
+                // "uncheck" because single-select tables are semantically
+                // "pick one"; the user can pick a different row instead.
+                // Each row is its own single-item RadioGroup: rows render in
+                // independent cells, so a shared Radix group root can't wrap them.
                 return (
-                    <Radio
-                        checked={checked}
-                        onChange={() => {
+                    <RadioGroup
+                        value={checked ? record.id : ""}
+                        onValueChange={() => {
                             if (!checked) handleRowSelect(record.id, true)
                         }}
                         disabled={selectionDisabled}
                         onClick={(e) => e.stopPropagation()}
-                    />
+                    >
+                        <RadioGroupItem value={record.id} aria-label="Select row" />
+                    </RadioGroup>
                 )
             },
         }
@@ -520,7 +529,7 @@ export function EntityTable<
 
     // Loading state
     if (isLoading && rows.length === 0) {
-        return <TableLoadingState rows={loadingRows} />
+        return <LoadingSkeleton variant="paragraph" rows={loadingRows} />
     }
 
     // Empty state

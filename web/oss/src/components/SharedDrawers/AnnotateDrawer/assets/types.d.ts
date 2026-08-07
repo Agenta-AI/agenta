@@ -1,6 +1,6 @@
+import type {EnhancedButtonProps} from "@agenta/ui/components/presentational"
 import {DrawerProps} from "antd"
 
-import {EnhancedButtonProps} from "@/oss/components/EnhancedUIs/Button/types"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {EvaluatorPreviewDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 

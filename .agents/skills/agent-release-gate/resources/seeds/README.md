@@ -11,5 +11,6 @@ shape a healthy run produces, and a baseline to diff a future run against.
 These are captured evidence, not fixtures a test loads. Live runs write to `./qa-gate-runs/`.
 
 The canary tokens the probes plant and read back (the `QA-MEM-*`, `QA-CONC*`, `QA-MOUNT-*`,
-`QA-BASH-*` values) are replaced here with the fixed placeholder `QA-TOKEN-SANITIZED`. The JSON
+`QA-BASH-*`, `QA-CWD-*`, `QA-STORE-*` values) are replaced here with the fixed placeholder
+`QA-TOKEN-SANITIZED`. The JSON
 structure is untouched — only those per-run random token values were scrubbed.

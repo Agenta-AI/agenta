@@ -12,8 +12,8 @@
  */
 import {useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/ui/ui"
 import {CaretDown, CaretRight, Plus, Wrench} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 import {RowRemoveButton} from "../../../drawers/shared/MasterDetailRail"
 
@@ -339,12 +339,12 @@ export function ParameterTree({
                     Parameters
                 </span>
                 <Button
-                    type="link"
-                    className="!h-auto !p-0"
-                    icon={<Plus size={13} />}
+                    variant="link"
+                    className="h-auto p-0"
                     onClick={onAddRoot}
                     disabled={disabled}
                 >
+                    <Plus size={13} />
                     Add
                 </Button>
             </div>

@@ -613,7 +613,8 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         const all = get(sessionsByAppAtom)
         const session = (all[key] ?? []).find((s) => s.id === id)
         if (!session || session.title?.trim()) return
-        const title = trimmed.slice(0, AUTO_TITLE_MAX_CHARS)
+        // Cut on code points, not UTF-16 units, so an emoji straddling the cap isn't halved.
+        const title = Array.from(trimmed).slice(0, AUTO_TITLE_MAX_CHARS).join("")
         set(sessionsByAppAtom, {
             ...all,
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, title} : s)),
@@ -827,6 +828,22 @@ export const sessionLabel = (
  */
 export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
     selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
+)
+
+/** Active tab title without subscribing to streamed assistant content. */
+export const activeSessionTitleAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const sessions = get(sessionsListAtomFamily(key))
+        const rawActiveId = get(activeSessionIdAtomFamily(key))
+        const activeSession =
+            sessions.find((session) => session.id === rawActiveId) ?? sessions[0] ?? null
+        if (!activeSession) return {title: "", firstUserMessage: ""}
+
+        return {
+            title: activeSession.title?.trim() ?? "",
+            firstUserMessage: get(sessionFirstUserTextAtomFamily(activeSession.id)),
+        }
+    }),
 )
 
 /**

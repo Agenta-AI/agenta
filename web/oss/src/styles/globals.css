@@ -111,12 +111,33 @@ body {
     margin: 0 auto;
 }
 
+/* Stay under @agenta/ui's Dialog/Sheet/Popover/Tooltip/DropdownMenu z-index scale (z-40/z-50,
+   all portalled to <body>) — antd's own Modal/Drawer used to sit at z-index 1000+, so 100 was
+   safely below them; the migrated Radix overlays sit lower, and 100 would bleed through them. */
 .playground-splitter .ant-splitter-bar,
 .playground-splitter .ant-splitter-trigger,
 .playground-splitter .ant-splitter-bar-dragger,
 .playground-splitter .ant-splitter-bar::before,
 .playground-splitter .ant-splitter-bar::after {
-    z-index: 100;
+    z-index: 5;
+}
+
+/* Any still-antd overlay (Dropdown, Select, Popover, Tooltip, Cascader, DatePicker, Mentions)
+   portals straight to <body>, outside the DOM subtree of any @agenta/ui Dialog/Sheet that
+   might be open (those are Radix, modal by default). Radix's modal mode sets
+   `pointer-events: none` on everything it doesn't recognize as its own to enforce its focus
+   trap, and antd's portal inherits that block — it stays fully visible (this doesn't touch
+   z-index) but every click passes through to whatever's behind it instead. Force these back
+   on unconditionally: an *open* antd overlay is never legitimately non-interactive — when
+   closed, antd hides it via `display: none`/`-hidden` classes, not via pointer-events. */
+.ant-dropdown,
+.ant-select-dropdown,
+.ant-popover,
+.ant-tooltip,
+.ant-picker-dropdown,
+.ant-cascader-dropdown,
+.ant-mentions-dropdown {
+    pointer-events: auto !important;
 }
 
 /* Splitter handle look & feel.

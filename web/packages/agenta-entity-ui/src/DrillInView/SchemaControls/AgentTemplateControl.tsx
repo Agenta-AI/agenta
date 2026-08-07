@@ -30,23 +30,10 @@ import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/comm
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/components"
-import {
-    ConfigAccordionSection,
-    useRecentFlag,
-    type SectionIndicatorTone,
-} from "@agenta/ui/components/presentational"
+import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {
-    Cpu,
-    FileText,
-    GraduationCap,
-    Plugs,
-    Plus,
-    SlidersHorizontal,
-    Wrench,
-} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Cpu, FileText, GraduationCap, Plugs, SlidersHorizontal, Wrench} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
@@ -56,17 +43,23 @@ import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 import {AddTextLink} from "./AddTextLink"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
+import {
+    AgentTemplateSectionList,
+    type AgentTemplateSectionDescriptor,
+} from "./agentTemplate/AgentTemplateSectionList"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
+import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
     revertPathsTo,
     useAgentSectionChanges,
     type PanelSectionKey,
 } from "./agentTemplate/sectionChanges"
+import {SectionTitleBadge} from "./agentTemplate/SectionTitleBadge"
 import {ToolManagementList} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
@@ -723,28 +716,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
         return undefined
     }
-    // A short pill rendered next to a section title for the blocking cases the user must resolve,
-    // matching the header indicator's tone. Kept terse so it never crowds the title (the section
-    // shell truncates the title and keeps the pill `shrink-0`).
-    const sectionBadge = (key: string): React.ReactNode => {
-        if (key !== "model-harness") return null
-        const pill = (label: string, tone: "warning" | "error") => (
-            <span
-                className={cn(
-                    "whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium leading-none",
-                    tone === "error"
-                        ? "bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorError)]"
-                        : "bg-[var(--ag-colorWarningBg)] text-[var(--ag-colorWarning)]",
-                )}
-            >
-                {label}
-            </span>
-        )
-        if (mh.hasModelOrHarness && !modelIdFromConfig(config.llm)) return pill("No model", "error")
-        if (mh.modelUnsupported) return pill("Unavailable", "error")
-        if (mh.needsProviderKey) return pill("Connect key", "warning")
-        return null
-    }
+    // Final header indicator for a section: validation/draft state, falling back to the agent's
+    // self-commit mark, with the cross-pane draft pulse layered on. One place so the drawers, the
+    // marks, and the header can never disagree.
+    const sectionIndicator = (key: string) =>
+        withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
+
+    // The blocking cases the user must resolve, as a short pill next to the Model & harness title.
+    const modelHarnessBadge: React.ReactNode =
+        mh.hasModelOrHarness && !modelIdFromConfig(config.llm) ? (
+            <SectionTitleBadge label="No model" tone="error" />
+        ) : mh.modelUnsupported ? (
+            <SectionTitleBadge label="Unavailable" tone="error" />
+        ) : mh.needsProviderKey ? (
+            <SectionTitleBadge label="Connect key" tone="warning" />
+        ) : null
 
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
         ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
@@ -772,13 +758,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         onOpenIntegration: gatewayTools?.enabled ? openIntegration : undefined,
     }
 
-    // Compact "+" for a section header's `extra` slot (stops propagation, so it never toggles open).
-    // The header keeps a uniform height regardless of this button — ConfigAccordionSection collapses
-    // the extra slot's vertical footprint (see its `-my-2`), so no per-button sizing is needed here.
+    // Compact "+" for a section header's `extra` slot. The header keeps a uniform height regardless
+    // of this button — ConfigAccordionSection collapses the extra slot's vertical footprint (see its
+    // `-my-2`), so no per-button sizing is needed here.
     const headerAddButton = (label: string, onClick: () => void) => (
-        <Tooltip title={label}>
-            <Button type="text" icon={<Plus size={16} />} onClick={onClick} aria-label={label} />
-        </Tooltip>
+        <SectionAddButton label={label} onClick={onClick} />
     )
 
     // The inline "what changed" bodies for the two drawer-backed sections. Null when the section is
@@ -823,8 +807,9 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             key: "model-harness",
             icon: <Cpu size={16} />,
             title: "Model & harness",
+            titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,
-            indicator: headerIndicator("model-harness"),
+            indicator: sectionIndicator("model-harness"),
             defaultOpen: needsProviderKeyInline,
             // What the section surfaces inline, in precedence order. Dropping `onOpen` is what makes
             // a section expand inline instead of routing to the drawer.
@@ -862,20 +847,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
             summary: countSummary(1, "file"),
-            indicator: headerIndicator("instructions"),
+            indicator: sectionIndicator("instructions"),
             // The + is inert until the backend stores multiple instruction files; the section is
             // already a list so it lights up with no rework when that lands.
             extra: !disabled ? (
-                <Tooltip title="Multiple instruction files coming soon">
-                    <span>
-                        <Button
-                            type="text"
-                            icon={<Plus size={16} />}
-                            disabled
-                            aria-label="Add instruction file"
-                        />
-                    </span>
-                </Tooltip>
+                <SectionAddButton
+                    label="Add instruction file"
+                    tooltip="Multiple instruction files coming soon"
+                    disabled
+                />
             ) : undefined,
             defaultOpen: true,
             content: (
@@ -894,20 +874,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             icon: <Wrench size={16} />,
             title: fieldTitle("tools", "Tools"),
             summary: countSummary(visibleToolCount, "tool"),
-            indicator: headerIndicator("tools"),
+            indicator: sectionIndicator("tools"),
             extra: !disabled ? (
                 <AgentToolSelectorPopover
                     {...toolSelectorProps}
-                    trigger={
-                        <Tooltip title="Add tool">
-                            <Button
-                                type="text"
-                                icon={<Plus size={16} />}
-                                disabled={disabled}
-                                aria-label="Add tool"
-                            />
-                        </Tooltip>
-                    }
+                    trigger={<SectionAddButton label="Add tool" disabled={disabled} />}
                 />
             ) : undefined,
             defaultOpen: visibleToolCount > 0,
@@ -936,7 +907,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             icon: <Plugs size={16} />,
             title: fieldTitle("mcps", "MCPs"),
             summary: countSummary(mcpServers.length, "server"),
-            indicator: headerIndicator("mcp"),
+            indicator: sectionIndicator("mcp"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
@@ -957,7 +928,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             icon: <GraduationCap size={16} />,
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
-            indicator: headerIndicator("skills"),
+            indicator: sectionIndicator("skills"),
             extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
             defaultOpen: skills.length > 0,
             content: (
@@ -977,7 +948,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             key: "advanced",
             icon: <SlidersHorizontal size={16} />,
             title: "Advanced",
-            indicator: headerIndicator("advanced"),
+            indicator: sectionIndicator("advanced"),
             // Never self-opening: nothing in Advanced blocks a run (see `needsProviderKeyInline`).
             defaultOpen: false,
             summary: mh.advancedSummary,
@@ -990,18 +961,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       content: mh.advancedDrawerBody,
                   }),
         },
-    ].filter(Boolean) as {
-        key: string
-        icon: React.ReactNode
-        title: React.ReactNode
-        summary?: React.ReactNode
-        extra?: React.ReactNode
-        indicator?: {tone: SectionIndicatorTone; tooltip?: string}
-        defaultOpen?: boolean
-        onOpen?: () => void
-        bodyClassName?: string
-        content: React.ReactNode
-    }[]
+    ].filter(Boolean) as AgentTemplateSectionDescriptor[]
 
     // Keep the item + instruction drawers MOUNTED while they animate closed. Their editing state
     // goes null on close; retaining the last value and driving `open` off the live state lets the
@@ -1015,48 +975,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     return (
         <div className={cn("flex flex-col", className)}>
-            {sections.length === 0 ? (
-                <Typography.Text type="secondary" className="text-xs">
-                    No agent configuration fields are available for this schema.
-                </Typography.Text>
-            ) : (
-                sections.map((s, index) => {
-                    // Controlled keys drive `open`/`onOpenChange` so the agent can auto-expand them;
-                    // everything else keeps the mount-collapsed-then-unfold `defaultOpen` behaviour.
-                    const controlled = CONTROLLED_SECTION_KEYS.has(s.key)
-                    return (
-                        <ConfigAccordionSection
-                            key={s.key}
-                            icon={s.icon}
-                            title={s.title}
-                            titleBadge={sectionBadge(s.key)}
-                            summary={s.summary}
-                            extra={s.extra}
-                            indicator={withDraftPulse(
-                                s.key,
-                                s.indicator ?? agentChangeIndicator(s.key),
-                            )}
-                            onOpen={s.onOpen}
-                            bodyClassName={s.bodyClassName}
-                            // The panel body sits in the config section's `px-4` field wrapper
-                            // (PlaygroundConfigSection), so the expanded header's fill bleeds 16px
-                            // each side to the panel edges while its text stays aligned with the
-                            // content below.
-                            headerBand="-mx-4 px-4"
-                            noDivider={index === sections.length - 1}
-                            {...(controlled
-                                ? {
-                                      open: sectionOpen[s.key] ?? s.defaultOpen ?? false,
-                                      onOpenChange: (open: boolean) =>
-                                          setSectionOpenByKey(s.key, open),
-                                  }
-                                : {defaultOpen: s.defaultOpen, animateInitialOpen: true})}
-                        >
-                            {s.content}
-                        </ConfigAccordionSection>
-                    )
-                })
-            )}
+            <AgentTemplateSectionList
+                sections={sections}
+                controlledKeys={CONTROLLED_SECTION_KEYS}
+                openByKey={sectionOpen}
+                onOpenChange={setSectionOpenByKey}
+            />
 
             {shownEditing
                 ? (() => {
