@@ -726,6 +726,22 @@ def _interaction_parts(
                     "toolName": tool_name,
                     "input": real_input,
                 }
+        # Workspace content the runner resolved and froze for this gate (imported files, and the
+        # diff for a field replaced from one). It rides its OWN data part because
+        # `tool-approval-request` is a strict object with an exact key set, and because it is
+        # runner-derived metadata, not the model's arguments — putting it in `input` would show
+        # the human a payload the model never wrote.
+        manifest = payload.get("manifest")
+        if manifest is not None:
+            yield {
+                "type": "data-approval-manifest",
+                "id": tool_call_id,
+                "data": {
+                    "toolCallId": tool_call_id,
+                    "approvalId": data.get("id"),
+                    "manifest": manifest,
+                },
+            }
         yield {
             "type": TOOL_APPROVAL_REQUEST,
             "approvalId": data.get("id"),

@@ -56,8 +56,9 @@ config (not markers); `resolve_tools` owns the tool-specific mapping.
 // A callback spec carries exactly one of `call_ref` (gateway) or `call` (direct).
 { "kind": "callback", "name": "discover_tools", "description": "...", "input_schema": {},
   "call": { "method": "POST", "path": "/api/tools/discover" } }
-// e.g. self-update commit_revision:
-// "call": { "method": "POST", "path": "/api/workflows/revisions/commit",
+// e.g. self-update commit_revision (the /agent route is the scoped sibling of the human
+// commit endpoint; the path is load-bearing, it is what applies the agent scope policy):
+// "call": { "method": "POST", "path": "/api/workflows/revisions/commit/agent",
 //           "context": { "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id" } }
 // callback (handler mode, flag-gated): a handler-backed platform op (e.g. test_run). Carries a
 // reserved call_ref plus spec-level contextBindings/timeoutMs; routes through /tools/call to the
