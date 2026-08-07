@@ -26,6 +26,11 @@ class WorkflowRevisionCommit(UniversalBaseModel):
     message: typing.Optional[str] = None
     revision_id: typing.Optional[str] = None
     delta: typing.Optional[WorkflowRevisionDelta] = None
+    base_revision_id: typing.Optional[str] = pydantic.Field(default=None)
+    """
+    The revision this change was built on. Omit it to keep today's last-write-wins behavior. Send it on a legacy delta and the commit is refused with `409` when the variant's head has moved since: sending the field is how a caller asks for that check. An ordered delta requires it.
+    """
+    
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

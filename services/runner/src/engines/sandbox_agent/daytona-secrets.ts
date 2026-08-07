@@ -2,9 +2,14 @@ import { randomBytes } from "node:crypto";
 
 import { DaytonaNotFoundError } from "@daytonaio/sdk";
 
-import type {
-  DaytonaSecretCandidate,
-  DaytonaSecretPlan,
+import {
+  slotKey,
+  type CredentialSlotKey,
+} from "../../providers/credential-delivery-port.ts";
+import {
+  credentialSlotFor,
+  type DaytonaSecretCandidate,
+  type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
 
 export interface DaytonaSecretRecord {
@@ -21,6 +26,18 @@ export interface DaytonaSecretApi {
     description?: string;
     hosts: string[];
   }): Promise<DaytonaSecretRecord>;
+  /**
+   * Replace the stored value on an EXISTING record, leaving id, name, placeholder and hosts alone.
+   *
+   * This is what makes a rotation cheaper than a rebuild: the sandbox holds the placeholder, not
+   * the value, so replacing the value behind a stable placeholder changes nothing the sandbox can
+   * observe. The SDK's `secret.update(id, {value})` returns the updated record, and the caller
+   * MUST check that the identity did not move — see `deliverDaytonaRotation`.
+   */
+  update(
+    id: string,
+    input: { value: string },
+  ): Promise<Pick<DaytonaSecretRecord, "id" | "placeholder">>;
   delete(id: string): Promise<void>;
 }
 
@@ -28,6 +45,16 @@ export interface DaytonaSecretAllocation {
   attachments: Record<string, string>;
   mcpHeaderPlaceholders: Record<string, Record<string, string>>;
   created: DaytonaSecretRecord[];
+  /**
+   * Which provider record backs which credential SLOT.
+   *
+   * `created` alone cannot answer that: it is an ordered list kept for reverse-order compensation,
+   * and it says nothing about which candidate produced which record. A delivery needs the record
+   * HANDLE for a named slot, so the allocation retains the association at the one moment it is
+   * known for free. Handles are secret-equivalent (a handle is how a value is updated and deleted),
+   * so this map never leaves the provider layer and nothing in it is ever logged.
+   */
+  bySlot: ReadonlyMap<CredentialSlotKey, DaytonaSecretRecord>;
 }
 
 /**
@@ -125,6 +152,7 @@ export async function allocateDaytonaSecrets(
   const created: DaytonaSecretRecord[] = [];
   const attachments: Record<string, string> = {};
   const mcpHeaderPlaceholders: Record<string, Record<string, string>> = {};
+  const bySlot = new Map<CredentialSlotKey, DaytonaSecretRecord>();
   try {
     for (const candidate of plan.candidates) {
       const name = nameFor(candidate);
@@ -148,6 +176,7 @@ export async function allocateDaytonaSecrets(
       // malformed placeholder or host list, compensation must still delete the record it made.
       if (rawSecret.id) created.push(rawSecret);
       const secret = assertCreatedSecret(rawSecret, name, candidate);
+      bySlot.set(slotKey(credentialSlotFor(candidate)), secret);
       if (candidate.consumer.kind === "model") {
         attachments[candidate.binding.name] = secret.name;
       } else {
@@ -157,7 +186,7 @@ export async function allocateDaytonaSecrets(
         ] = secret.placeholder;
       }
     }
-    return { attachments, mcpHeaderPlaceholders, created };
+    return { attachments, mcpHeaderPlaceholders, created, bySlot };
   } catch (cause) {
     const cleanupFailures: unknown[] = [];
     for (const secret of [...created].reverse()) {

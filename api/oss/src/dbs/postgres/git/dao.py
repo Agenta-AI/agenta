@@ -1,14 +1,22 @@
-from typing import Optional, List, TypeVar, Type
+from typing import Callable, Optional, List, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select, func, update
+from sqlalchemy import or_, select, func, text, update
 from sqlalchemy.orm import selectinload
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.git.types import is_identifying, InitialRevisionConflict
+from oss.src.core.git.types import (
+    is_identifying,
+    CommitLockTimeout,
+    InitialRevisionConflict,
+    RevisionConflict,
+    RevisionUnchanged,
+    VariantNotFound,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.git.types import VariantForkError
@@ -49,6 +57,30 @@ log = get_module_logger(__name__)
 
 
 T = TypeVar("T")
+
+
+# Postgres reports `lock_timeout` expiry as `lock_not_available`.
+LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
+
+
+def _raise_on_lock_timeout(
+    exception: Exception,
+    *,
+    variant_id=None,
+) -> None:
+    """Translate an expired `lock_timeout` into `CommitLockTimeout`.
+
+    The SQLSTATE travels on the driver error that SQLAlchemy wraps, so walk the chain
+    rather than trusting one wrapper's shape. Left untranslated, generic suppression turns
+    the timeout into `None` and the caller reports a commit that never happened.
+    """
+    seen = exception
+    for _ in range(4):
+        if seen is None:
+            return
+        if getattr(seen, "sqlstate", None) == LOCK_NOT_AVAILABLE_SQLSTATE:
+            raise CommitLockTimeout(variant_id=variant_id) from exception
+        seen = getattr(seen, "orig", None) or getattr(seen, "__cause__", None)
 
 
 class GitDAO(GitDAOInterface):
@@ -1561,7 +1593,17 @@ class GitDAO(GitDAOInterface):
 
     # --------------------------------------------------------------------------
 
-    @suppress_exceptions(exclude=[InitialRevisionConflict])
+    # A refusal is an ANSWER, not a failure: suppression would turn a 409, a 503, or a 404
+    # into `None`, and the caller would report "nothing committed" with no reason.
+    @suppress_exceptions(
+        exclude=[
+            InitialRevisionConflict,
+            RevisionConflict,
+            RevisionUnchanged,
+            CommitLockTimeout,
+            VariantNotFound,
+        ]
+    )
     async def commit_revision(
         self,
         *,
@@ -1571,7 +1613,19 @@ class GitDAO(GitDAOInterface):
         revision_commit: RevisionCommit,
         #
         initial: bool = False,
+        #
+        expected_head_revision_id: Optional[UUID] = None,
+        #
+        no_change_check: Optional[Callable[[Optional[Revision]], bool]] = None,
     ) -> Optional[Revision]:
+        """Append a revision to a variant's history.
+
+        ``no_change_check`` decides, against the head as it stands UNDER the lock, whether
+        this commit would store what is already stored. It is a callback rather than a
+        comparison the caller makes first, because a decision made before the lock is a
+        decision about a head another writer can still move. It runs after the
+        expected-head check, so a moved head is a conflict and never a no-change answer.
+        """
         now = datetime.now(timezone.utc)
         revision = Revision(
             project_id=project_id,
@@ -1603,12 +1657,32 @@ class GitDAO(GitDAOInterface):
             dto=revision,
         )
 
+        # Both guards need the same serialization, so they share one lock condition. A
+        # caller that passes neither takes no lock and behaves exactly as before.
+        needs_lock = bool(
+            (
+                initial
+                or expected_head_revision_id is not None
+                or no_change_check is not None
+            )
+            and revision_commit.variant_id
+        )
+
         try:
             async with self.engine.session() as session:
-                if initial and revision_commit.variant_id:
-                    # Lock the variant row so concurrent initial commits queue up rather
-                    # than racing through the count check below.
+                if needs_lock:
+                    # A waiter must fail loudly rather than hold a connection forever;
+                    # the contract requires the wait to be bounded.
+                    # SET LOCAL cannot take a bind parameter (Postgres rejects `$1` here);
+                    # the int() cast keeps the interpolation injection-free.
                     await session.execute(
+                        text(
+                            f"SET LOCAL lock_timeout = '{int(env.postgres.commit_lock_timeout_ms)}ms'"
+                        )
+                    )
+                    # Lock the variant row so concurrent commits queue up rather than
+                    # racing through the guards below.
+                    lock_result = await session.execute(
                         select(self.VariantDBE)  # type: ignore
                         .where(
                             self.VariantDBE.project_id == project_id,  # type: ignore
@@ -1616,6 +1690,12 @@ class GitDAO(GitDAOInterface):
                         )
                         .with_for_update()
                     )
+                    # A row that is missing, or owned by another project, locks nothing and
+                    # reports nothing. Continuing would run every guard below unprotected.
+                    if lock_result.scalar_one_or_none() is None:
+                        raise VariantNotFound(variant_id=revision_commit.variant_id)
+
+                if initial and revision_commit.variant_id:
                     guard_stmt = (
                         select(func.count())  # pylint: disable=not-callable
                         .select_from(self.RevisionDBE)  # type: ignore
@@ -1628,6 +1708,71 @@ class GitDAO(GitDAOInterface):
                     if guard_result.scalar_one() > 0:
                         raise InitialRevisionConflict(
                             "An initial revision already exists for this variant."
+                        )
+
+                if expected_head_revision_id is not None:
+                    # The head must be re-read HERE, under the lock. A comparison the
+                    # caller made before calling is not enough: two writers can both read
+                    # the same head, both pass, and both insert.
+                    head_stmt = (
+                        select(self.RevisionDBE.id)  # type: ignore
+                        .where(
+                            self.RevisionDBE.project_id == project_id,  # type: ignore
+                            self.RevisionDBE.variant_id == revision_commit.variant_id,  # type: ignore
+                            self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                        )
+                        # Same ordering as every other head read, or two callers can
+                        # disagree about which revision is the head.
+                        .order_by(
+                            self.RevisionDBE.created_at.desc(),  # type: ignore
+                            self.RevisionDBE.id.desc(),  # type: ignore
+                        )
+                        .limit(1)
+                    )
+                    head_result = await session.execute(head_stmt)
+                    current_head = head_result.scalar_one_or_none()
+                    # Exact equality, absence included: an expectation against a variant
+                    # with no head means the caller read a revision that this variant does
+                    # not have.
+                    if current_head is None or str(current_head) != str(
+                        expected_head_revision_id
+                    ):
+                        raise RevisionConflict(
+                            expected_head_revision_id=str(expected_head_revision_id),
+                            current_head_revision_id=(
+                                str(current_head) if current_head is not None else None
+                            ),
+                        )
+
+                if no_change_check is not None:
+                    # AFTER the expected-head check on purpose: a caller whose base has
+                    # moved is stale, and a stale caller can produce a result that happens
+                    # to equal the new head. It gets the conflict, never `no_change`.
+                    head_row_stmt = (
+                        select(self.RevisionDBE)  # type: ignore
+                        .where(
+                            self.RevisionDBE.project_id == project_id,  # type: ignore
+                            self.RevisionDBE.variant_id == revision_commit.variant_id,  # type: ignore
+                            self.RevisionDBE.deleted_at.is_(None),  # type: ignore
+                        )
+                        .order_by(
+                            self.RevisionDBE.created_at.desc(),  # type: ignore
+                            self.RevisionDBE.id.desc(),  # type: ignore
+                        )
+                        .limit(1)
+                    )
+                    head_row_result = await session.execute(head_row_stmt)
+                    head_row = head_row_result.scalar_one_or_none()
+                    stored_head = (
+                        map_dbe_to_dto(DTO=Revision, dbe=head_row)  # type: ignore
+                        if head_row is not None
+                        else None
+                    )
+                    if no_change_check(stored_head):
+                        raise RevisionUnchanged(
+                            head_revision_id=(
+                                stored_head.id if stored_head is not None else None
+                            )
                         )
 
                 session.add(revision_dbe)
@@ -1665,7 +1810,19 @@ class GitDAO(GitDAOInterface):
                     version=revision.version,
                 )
 
-                if revision.version == "0":
+                # Version 0 is the empty placeholder a variant is seeded with, and its
+                # fields are nulled so a reader can tell "not configured yet" from
+                # "configured empty".
+                #
+                # A first commit that CARRIES content is not that placeholder. Nulling it
+                # discarded what the caller sent: the endpoint answered 200, the stored row
+                # held NULL, and the next read reported no revision at all. Every flow that
+                # commits twice hid this, because the second commit is version 1.
+                carries_content = any(
+                    getattr(revision_commit, field, None) is not None
+                    for field in ("data", "flags", "tags", "meta")
+                )
+                if revision.version == "0" and not carries_content:
                     await self._null_revision_fields(
                         project_id=project_id,
                         revision_id=revision.id,  # type: ignore
@@ -1678,6 +1835,8 @@ class GitDAO(GitDAOInterface):
                 return revision
 
         except Exception as e:
+            _raise_on_lock_timeout(e, variant_id=revision_commit.variant_id)
+
             check_entity_creation_conflict(e)
 
             raise

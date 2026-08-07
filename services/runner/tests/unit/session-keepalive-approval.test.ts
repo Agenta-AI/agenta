@@ -13,6 +13,9 @@
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
+
 import type {
   AgentEvent,
   AgentRunRequest,
@@ -28,10 +31,16 @@ import {
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
   computeCredentialEpoch,
+  configFingerprint,
   mountExpiryMs,
   type InstalledMountExpiries,
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  appliedStateForRequest,
+  AppliedState,
+  type AppliedEnvironmentState,
+} from "../../src/engines/sandbox_agent/applied-state.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import {
   acquireEnvironment,
@@ -97,6 +106,9 @@ interface TurnScript {
 
 interface DispatchFakeEnv {
   id: number;
+  /** The environment owns what it applied (lifecycle migration, step 2). The pool reads it. */
+  readonly appliedState: AppliedEnvironmentState;
+  commitApplied: (result: AppliedCommit) => void;
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
@@ -135,9 +147,16 @@ function makeApprovalEngine(
   const holds = new Map<number, () => void>();
 
   let nextEnvId = 1;
-  const makeEnv = (): DispatchFakeEnv => {
+  // Seeded from the acquiring request, exactly as `prepareEnvironmentSetup` does. The approval
+  // tests care about this most: a resume must NOT be able to move it.
+  const makeEnv = (request: AgentRunRequest): DispatchFakeEnv => {
+    const applied = appliedStateForRequest(request);
     const env: DispatchFakeEnv = {
       id: nextEnvId++,
+      get appliedState() {
+        return applied.appliedState;
+      },
+      commitApplied: (result) => applied.commitApplied(result),
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
@@ -248,9 +267,9 @@ function makeApprovalEngine(
       calls.resolveMount += 1;
       return signedMount();
     },
-    async acquireEnvironment(_request, _signal, _presigned) {
+    async acquireEnvironment(request, _signal, _presigned) {
       calls.acquire += 1;
-      const env = makeEnv();
+      const env = makeEnv(request);
       const expiry = mountExpiryMs(mountOpts.expiresAt);
       if (expiry !== undefined) env.installedMountExpiries.cwd = expiry;
       calls.acquiredEnvs.push(env);

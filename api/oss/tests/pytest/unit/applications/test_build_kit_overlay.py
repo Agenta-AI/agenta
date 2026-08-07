@@ -1,3 +1,4 @@
+from os import environ
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -31,7 +32,12 @@ from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
-EXPECTED_DEFAULT_BUILD_KIT_OPS = (
+# The build kit has two shapes, one per state of the ordered-operations switch: with the
+# switch on, the catalog defines `read_config` and the kit carries the read half of the
+# read-then-edit loop. Both are written out in full, and the switch is read here rather
+# than through the catalog, so this stays a statement about the flag instead of a copy of
+# the code it checks.
+EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "discover_tools",
     "commit_revision",
     "annotate_trace",
@@ -45,6 +51,48 @@ EXPECTED_DEFAULT_BUILD_KIT_OPS = (
     "test_subscription",
     "remove_schedule",
     "remove_subscription",
+)
+
+EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
+    "discover_tools",
+    "read_config",
+    "commit_revision",
+    "annotate_trace",
+    "query_spans",
+    "test_run",
+    "discover_triggers",
+    "create_schedule",
+    "create_subscription",
+    "list_schedules",
+    "list_deliveries",
+    "test_subscription",
+    "remove_schedule",
+    "remove_subscription",
+)
+
+
+def _ordered_operations_enabled() -> bool:
+    # Spelled out rather than imported, so the expectation cannot move with the code under
+    # test. The accepted spellings are pinned equal in
+    # `unit/workflows/test_ordered_operations_flag.py`.
+    return environ.get(
+        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", ""
+    ).strip().lower() in {
+        "true",
+        "1",
+        "t",
+        "y",
+        "yes",
+        "on",
+        "enable",
+        "enabled",
+    }
+
+
+EXPECTED_DEFAULT_BUILD_KIT_OPS = (
+    EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
+    if _ordered_operations_enabled()
+    else EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG
 )
 
 CUT_BUILD_KIT_OPS = (

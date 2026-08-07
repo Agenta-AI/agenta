@@ -8,6 +8,7 @@ import type {ConfigItemView} from "../ConfigItemDrawer"
 
 import {cloneItem} from "./agentTemplateUtils"
 import {ITEM_KINDS, type ItemKind, type ItemKindDef} from "./itemKinds"
+import {applyItemToList, removeItemFromList} from "./itemListOps"
 
 export interface EditingState {
     kind: ItemKind
@@ -58,13 +59,11 @@ export function useConfigItemDrawer({
     )
 
     // Apply the drawer's draft to the config: append (create) or replace at index (edit).
+    // The list transform is `itemListOps` so its preservation guarantee is unit-tested.
     const commitDraft = useCallback(() => {
         if (!editing) return
         const {field} = ITEM_KINDS[editing.kind]
-        const next = [...fieldArray(field)]
-        if (editing.mode === "create") next.push(draft)
-        else next[editing.index] = draft
-        onChange({...config, [field]: next})
+        onChange({...config, [field]: applyItemToList(fieldArray(field), editing, draft)})
         setEditing(null)
     }, [editing, draft, config, onChange, fieldArray])
 
@@ -72,7 +71,7 @@ export function useConfigItemDrawer({
     const removeItem = useCallback(
         (kind: ItemKind, index: number) => {
             const {field} = ITEM_KINDS[kind]
-            onChange({...config, [field]: fieldArray(field).filter((_, i) => i !== index)})
+            onChange({...config, [field]: removeItemFromList(fieldArray(field), index)})
         },
         [config, onChange, fieldArray],
     )

@@ -1,0 +1,102 @@
+{
+  "C2": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "daytona",
+      "model": "sonnet",
+      "provider": "anthropic",
+      "connection": {
+        "mode": "agenta",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "park": {
+        "pass": true,
+        "why": "park: the session idled past the pool TTL so the sandbox was PARKED, and the next turn reconnected to the SAME sandbox rather than rebuilding one (same sandbox across turns=True, versus two sandbox ids on cold1); the cwd token came back (in reply=True) and the store-only file was readable (True). On Daytona this is the one tier that proves a credential Secret still resolves after the sandbox was stopped and started again",
+        "session_id": "6075e462-52e9-4bc5-9580-a62f1500de5c",
+        "cwd_token": "QA-CWD-f0fc97fe-f186-46ce-ada8-843fb418855a-1786046126",
+        "evidence": {
+          "tier": "park",
+          "transition": "165s idle, so the session pool expires the session and PARKS the sandbox (stop, not delete); the next turn must reconnect to it",
+          "mount_id": "019fd8a4-e4c8-7a93-bf7b-910f8be4d2ef",
+          "cwd_token_in_store": true,
+          "times_ms": {
+            "first": 15683,
+            "last": 15336
+          },
+          "agent_session_ids": [
+            "ddb67254-955f-4a4d-a19c-8bbd0a630967"
+          ],
+          "sandbox_ids": [
+            "daytona/f0fc97fe-f186-46ce-ada8-843fb418855a"
+          ],
+          "zero_byte_objects_in_cwd": [],
+          "runner_log_grep": "[keepalive] evict ... reason=expire, then `reconnected sandbox=<id>`",
+          "ledger_available": true,
+          "reconnected_same_sandbox": true
+        },
+        "turn_write": {
+          "http": 200,
+          "ms": 15683,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "ToolSearch",
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 15336,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "reasoning-start",
+            "reasoning-delta",
+            "reasoning-end",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-CWD-f0fc97fe-f186-46ce-ada8-843fb418855a-1786046126\nQA-STORE-5228f718d18d"
+        }
+      }
+    }
+  }
+}

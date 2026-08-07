@@ -549,7 +549,8 @@ A few ops worth naming:
 | `discover_tools` | `POST /api/tools/discover` | read (auto-allow) | Tool discovery; turns plain-language use cases into Agenta-shaped tools (see below). Renamed from `find_capabilities` (hard migrate, no alias). |
 | `discover_triggers` | `POST /api/triggers/discover` | read (auto-allow) | Trigger discovery. Renamed from `find_triggers` (hard migrate, no alias). |
 | `query_spans` | `POST /api/spans/query` | read (auto-allow) | Read spans from past runs, so the builder can verify its own work. The op schema mirrors `SpansQueryRequest`; a drift contract test pins the two together. |
-| `commit_revision` | `POST /api/workflows/revisions/commit` | mutating (approval) | "Update yourself": binds `workflow_revision.workflow_variant_id` ← `$ctx.workflow.variant.id`, so the agent can only ever commit a revision to its own variant. |
+| `commit_revision` | handler `tools.agenta.commit_revision` via `POST /tools/call` | mutating (approval) | "Update yourself": binds `workflow_revision.workflow_variant_id` ← `$ctx.workflow.variant.id`, so the agent can only ever commit a revision to its own variant. The handler hard-applies the agent scope policy (no writes to `harness.kind`, `harness.permissions`, `runner.permissions`, `sandbox.kind`, `sandbox.permissions`) and refuses full-data commits. Enforcement design: `docs/design/agent-config-editing/contracts/read-config.md` §11.2. |
+| `read_config` | handler `tools.agenta.read_config` via `POST /tools/call` | read (auto-allow) | Read the agent's own stored configuration, whole or a named part, so an edit can anchor on real current text. Binds the variant id and draft state from run context. Present in the catalog only when `AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED` is on. Contract: `docs/design/agent-config-editing/contracts/read-config.md`. |
 | `test_run` | handler `tools.agenta.test_run` | mutating (approval) | Run the agent's own variant once and return a digest + verdict. Handler mode, flag-gated off, not in the overlay yet (see below). |
 
 This mirrors the evaluators catalog pattern (`api/oss/src/resources/evaluators/evaluators.py`,
@@ -574,9 +575,11 @@ with a server-minted token, digests the transcript and spans, and returns a verd
 terminal result wins). It carries a recursion marker (inert until the runner half lands) and a
 120s ceiling.
 
-**Status:** the server half only. Resolution of handler-mode ops is gated off by
-`AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off) until the runner learns to dispatch a
-reserved `call_ref` with spec-level context injection and `timeoutMs`; `test_run` joins the
+**Status:** both halves ship. The runner dispatches a reserved `call_ref` with spec-level
+context injection and `timeoutMs`, and `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` defaults ON
+(unset means enabled). Disabling it skips OPTIONAL handler ops such as `test_run`, but
+`read_config` and `commit_revision` have no other transport, so disabling it there fails
+loudly at resolution rather than removing config editing in silence; `test_run` joins the
 overlay when that flips. Contract and slice plan:
 [build-kit-tools-cleanup api-design](../projects/build-kit-tools-cleanup/api-design.md).
 
@@ -712,9 +715,12 @@ never drift from the files that exist. The canonical playbook format lives in th
   catalog opt-ins. More ops are a data add to the catalog. The reference tool still executes
   through the `/tools/call` `workflow.*` route; moving it to a direct `call` and removing that
   route is a later phase.
-- **Handler-mode ops are server-half only.** `test_run` exists behind
-  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` (default off) and is not in the overlay; the runner
-  half (reserved `call_ref` dispatch, spec-level context injection, `timeoutMs`) is deferred.
+- **Handler mode is how the agent reaches its own configuration.** `read_config` and
+  `commit_revision` are handler ops alongside `test_run`; the two public routes they used to
+  have (`/workflows/revisions/read-config` and `/workflows/revisions/commit/agent`) are
+  deleted, because every detail of both was agent-shaped and neither had a second consumer.
+  `AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS` defaults on; disabling it fails loudly for the two
+  config ops rather than silently removing the capability.
   See the [build-kit-tools-cleanup workspace](../projects/build-kit-tools-cleanup/status.md).
 - **Old op names are gone, hard.** `find_capabilities` and `find_triggers` no longer resolve;
   a committed revision that still carries them fails loud (`UnknownPlatformOpError`) until the
