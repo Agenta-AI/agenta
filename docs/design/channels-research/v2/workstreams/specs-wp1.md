@@ -4,7 +4,7 @@ Delivers the channels domain's data model end to end: the seven new tables (plus
 WP7's two identity tables, riding the same migration) and the full stack around
 them — dbas, dbes, dtos, types, dao, service — following the `triggers` domain's
 layering exactly. Includes the one core function that composes an `external_key`
-from a structured locator, and `resolve_policy`, the pure intersection function
+(a `uuid5`) from a structured locator, and `resolve_policy`, the pure intersection function
 that computes a `ChannelEffectivePolicy` from the capability declaration, the
 channel defaults, and the agent/space/grant policy documents. Excludes routers
 (WP8) and anything adapter-shaped (WP2).
@@ -18,7 +18,7 @@ New:
   this file with WP2's `ChannelAdapterInterface` per the seed commit — WP1 owns
   the file, WP2's half is frozen after C0 and edited only at a checkpoint
 - `api/oss/src/core/channels/service.py` — `ChannelsService`, `resolve_policy` (§8)
-- `api/oss/src/core/channels/utils.py` — `compose_external_key` (§2.2)
+- `api/oss/src/core/channels/utils.py` — `compose_external_key`, `ChannelKeyGrain` (§2.2)
 - `api/oss/src/dbs/postgres/channels/dbas.py` — abstract mixins (§2)
 - `api/oss/src/dbs/postgres/channels/dbes.py` — concrete entities + constraints (§3)
 - `api/oss/src/dbs/postgres/channels/dao.py` — `ChannelsDAO` (§7)
@@ -61,6 +61,11 @@ class ChannelSessionScope(str, Enum):
     MESSAGE = "message"
 
 SESSION_SCOPE_ORDER = [ChannelSessionScope.THREAD, ChannelSessionScope.MESSAGE]
+
+class ChannelKeyGrain(str, Enum):
+    """The two grains `external_key` is composed at (§2.2)."""
+    SPACE  = "space"
+    THREAD = "thread"
 
 class ChannelPolicyLevel(str, Enum):
     CAPABILITY = "capability"
@@ -182,7 +187,7 @@ class ChannelSpaceDBA(ProjectScopeDBA, LifecycleDBA, IdentifierDBA,
     __abstract__ = True
     connection_id = Column(UUID, nullable=False)
     kind          = Column(Enum(ChannelSpaceKind), nullable=False)
-    external_key  = Column(String, nullable=False)
+    external_key  = Column(UUID, nullable=False)
 
 class ChannelGrantDBA(ProjectScopeDBA, LifecycleDBA, IdentifierDBA,
                        HeaderDBA, DataDBA, FlagsDBA, TagsDBA, MetaDBA):
@@ -195,7 +200,7 @@ class ChannelThreadDBA(ProjectScopeDBA, LifecycleDBA, IdentifierDBA,
     __abstract__ = True
     space_id     = Column(UUID,   nullable=False)
     agent_id     = Column(UUID,   nullable=False)
-    external_key = Column(String, nullable=True)
+    external_key = Column(UUID,   nullable=True)
     session_id   = Column(String, nullable=False)
 
 class ChannelInboxEventDBA(ProjectScopeDBA, LifecycleDBA, IdentifierDBA,
@@ -253,7 +258,7 @@ class ChannelNotSupported(ChannelsError):
     def __init__(self, *, channel: str): ...
 
 class ChannelSpaceNotFound(ChannelsError):
-    def __init__(self, *, space_id: Optional[UUID] = None, external_key: Optional[str] = None): ...
+    def __init__(self, *, space_id: Optional[UUID] = None, external_key: Optional[UUID] = None): ...
 
 class ChannelAgentNotFound(ChannelsError):
     def __init__(self, *, agent_id: Optional[UUID] = None, slug: Optional[str] = None): ...
@@ -272,11 +277,17 @@ class ChannelConnectionNotFound(ChannelsError):
 
 class ChannelPolicyDenied(ChannelsError):
     def __init__(self, *, field: str, level: ChannelPolicyLevel): ...
+
+class ChannelLocatorIncomplete(ChannelsError):
+    def __init__(self, *, channel: str, grain: ChannelKeyGrain, missing: List[str]): ...
 ```
 
 Every subclass sets `self.message` plus its identifying attribute(s) in
 `__init__`, per D31. `ChannelSignatureInvalid` carries nothing else — no byte
-diff, no timestamp detail.
+diff, no timestamp detail. `ChannelLocatorIncomplete` is raised by
+`compose_external_key` when a locator is missing a field the capability
+declaration names in `identity.key_fields` for that grain — it must never
+compose a key over what happens to be present.
 
 ### interfaces.py — `ChannelsDAOInterface` (§7)
 
@@ -413,15 +424,29 @@ def resolve_policy(
 
 ### utils.py — `compose_external_key` (§2.2)
 
-One function, no exceptions — every space/thread `external_key` column is
-built by calling this, and nothing else composes a key:
+One function — every space/thread `external_key` column is built by calling
+this, and nothing else composes a key. It takes the **capabilities**, not the
+locator's shape alone, because the field set that identifies a place is
+declared per adapter (`capabilities.md`'s `identity.key_fields`), not known by
+this function:
 
 ```python
-def compose_external_key(locator: Dict[str, Any], *, grain: str) -> str:
-    """Derive the comparable identity string from a structured locator.
+def compose_external_key(
+    capabilities: ChannelCapabilities,
+    grain: ChannelKeyGrain,
+    locator: Dict[str, Any],
+) -> Optional[UUID]:
+    """Derive `uuid5(_CHANNELS, canonical_json(subset))`, where `subset` is
+    `locator` restricted to `capabilities.identity.key_fields[grain]`.
 
-    `grain` distinguishes a space-level locator from a thread-level one; the
-    function is the single place either grain's key is built.
+    Returns `None` at `THREAD` grain when the adapter declares no thread key
+    fields (`"thread": []`) — the platform-has-no-threads case, not an error.
+
+    Raises `ChannelLocatorIncomplete(channel=..., grain=..., missing=...)`
+    when a field named in `key_fields[grain]` is absent from `locator` — never
+    composes a key over what happens to be present (a too-small effective
+    field set is the failure that silently merges two conversations, so a
+    missing field must raise rather than key over the rest).
     """
     ...
 ```
@@ -550,7 +575,13 @@ def compose_external_key(locator: Dict[str, Any], *, grain: str) -> str:
     one result come from two different levels.
 - `compose_external_key` is exercised for at least two distinct locator shapes
   (e.g. a Slack-shaped thread locator and a Slack-shaped space locator) and
-  produces different, stable keys — same input, same output, called twice.
+  produces different, stable `UUID` keys — same input, same output, called
+  twice.
+- `compose_external_key` at `THREAD` grain against capabilities declaring
+  `"thread": []` returns `None`, not an exception.
+- `compose_external_key` against a locator missing a field named in
+  `key_fields[grain]` raises `ChannelLocatorIncomplete`, naming the missing
+  field(s).
 - Migration: `alembic upgrade head` then `alembic downgrade -1` round-trips
   cleanly against a throwaway database; every index and constraint named in
   §3 exists after `upgrade` and is gone after `downgrade`.

@@ -24,7 +24,10 @@ the base branch.
       `ChannelFilesCapability` (`receive: bool, send: bool, max_bytes: int`),
       `ChannelRenderingCapability` (all four plus `message_update: bool,
       ephemeral: bool`).
-- [ ] Add `ChannelIdentityCapability` (`scope: str, stable: bool`).
+- [ ] Add `ChannelIdentityCapability` (`scope: str, stable: bool, key_fields:
+      Dict[str, List[str]]` — grain name to ordered locator field names,
+      e.g. `{"space": ["team", "channel"], "thread": ["team", "channel",
+      "thread_ts"]}`; an adapter with no threads declares `"thread": []`).
 - [ ] Add `ChannelCapabilities` (`channel: str, protocol_versions:
       List[str]`, one field per block above, `commands: List[str]`).
 - [ ] Unit test: construct a `ChannelCapabilities` instance from the exact
@@ -100,6 +103,10 @@ the base branch.
 - [ ] Missing-block defaulting: a raw payload omitting an entire optional
       block (e.g. no `identity` key) still normalises to a valid
       `ChannelCapabilities` via each block's own field defaults.
+- [ ] `identity.key_fields` passes through unchanged — it is data the
+      declaration commits to, not a block normalisation may clamp, reorder,
+      or drop entries from; an adapter declaring `"thread": []` must survive
+      normalisation as `[]`, never defaulted to a non-empty list.
 - [ ] Test: `buttons.max: 0` in, non-zero default out.
 - [ ] Test: `max_chars: 999999999` in, clamped value out (assert the exact
       ceiling chosen).
@@ -112,6 +119,10 @@ the base branch.
       shape as normalising a hypothetical in-process adapter's raw dict with
       equivalent content — same function, same output shape, regardless of
       source.
+- [ ] Test: `identity.key_fields` with `"thread": []` normalises to `[]`
+      unchanged (not defaulted to a non-empty list by the missing-block or
+      zero-clamping paths above — `[]` is a meaningful declared value here,
+      not an absent one).
 
 ## contract suite
 
@@ -120,7 +131,12 @@ the base branch.
       adapter that actually tracks posted/edited messages (a dict keyed by a
       fake locator), actually enforces its own declared `buttons.max` by
       truncating/rejecting extra buttons, and actually edits in place when
-      `edit_message` is called with a locator it already holds.
+      `edit_message` is called with a locator it already holds. Declares
+      `identity.key_fields = {"space": ["team", "channel"], "thread":
+      ["team", "channel", "thread_ts"]}` and ships at least two fixture
+      thread locators that share `team`/`channel` but differ in `thread_ts`,
+      plus one locator missing a declared field, for the identity suite
+      assertions below.
 - [ ] Implement `LyingFakeAdapter(ChannelAdapterInterface)` — declares
       `rendering.message_update: true` but `edit_message` always creates a
       new locator instead of reusing the given one (the silent-no-op failure
@@ -128,6 +144,11 @@ the base branch.
 - [ ] Implement a second lying variant (or a constructor flag on the same
       class) that declares `rendering.buttons.max: 5` but accepts and returns
       success for a 6-button `post_message` call without truncating.
+- [ ] Implement a third lying variant that declares
+      `identity.key_fields["thread"] = ["team", "channel"]` (omitting
+      `thread_ts`) against fixture locators that actually vary only in
+      `thread_ts` — the too-small-field-set case (`capabilities.md` §3,
+      `entities.md` §2.2's "worse than a wrong key" failure).
 - [ ] `test_channel_adapter_contract.py`: write a pytest fixture/parametrize
       hook that takes an adapter instance and runs the full suite below
       against it — this is what WP6/WP11/WP12 later reuse, so keep the entry
@@ -152,13 +173,36 @@ the base branch.
       body/headers pair with no valid signature.
 - [ ] Suite assertion: `parse_event` on a well-formed body returns a
       `ChannelInboundEvent` with `addressed` set to a `bool` (never `None`).
+- [ ] Suite assertion (identity, distinctness): using the adapter's own two
+      thread fixture locators, call `compose_external_key(capabilities,
+      ChannelKeyGrain.THREAD, locator)` for each and assert the two resulting
+      keys are distinct. This is the flagship assertion —
+      `capabilities.md` §3: "Too few fields — two distinct threads composing
+      to one key... Worse than a wrong key, and the reason distinctness is
+      asserted rather than assumed."
+- [ ] Suite assertion (identity, canonicalisation): compose the same fixture
+      locator twice, once with its keys in declared order and once with them
+      shuffled, and assert the two `external_key`s are identical.
+- [ ] Suite assertion (identity, incompleteness): compose the adapter's
+      fixture locator that is missing a declared field and assert
+      `compose_external_key` raises `ChannelLocatorIncomplete` — never
+      returns a key computed over the remaining fields.
+- [ ] Suite assertion (identity, no-threads): if
+      `capabilities.identity.key_fields["thread"] == []`, assert
+      `compose_external_key(capabilities, ChannelKeyGrain.THREAD, locator)`
+      returns `None` for any locator, never raises.
 - [ ] Run the suite against `WellBehavedFakeAdapter`: every assertion passes.
 - [ ] Run the suite against `LyingFakeAdapter` (the edit-is-actually-a-new-post
       variant): assert the suite raises an `AssertionError` whose message
       names `message_update` or `edit_message`.
 - [ ] Run the suite against the buttons-lying variant: assert the suite
       raises an `AssertionError` whose message names `buttons.max`.
-- [ ] These last two tests are themselves pytest tests that assert
+- [ ] Run the suite against the too-small-`key_fields`-lying variant: assert
+      the suite raises an `AssertionError` whose message names
+      `key_fields`/`thread` and reports two locators colliding on one key —
+      this is the meta-proof that the suite catches the too-small-field-set
+      failure, not just the too-generous-declaration failures above.
+- [ ] These last three tests are themselves pytest tests that assert
       `pytest.raises(AssertionError)` around invoking the suite — the meta-
       test that proves the suite has teeth, per `plan.md`'s WP2 exit
       condition.

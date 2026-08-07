@@ -88,7 +88,14 @@ declares. The categories below are load-bearing regardless of final naming:
       "files": { "receive": true, "send": true, "max_bytes": 1073741824 },
       "ephemeral": true
     },
-    "identity": { "scope": "workspace", "stable": true },
+    "identity": {
+      "scope": "workspace",
+      "stable": true,
+      "key_fields": {
+        "space":  ["team", "channel"],
+        "thread": ["team", "channel", "thread_ts"]
+      }
+    },
     "commands": ["new", "sessions", "use"]
   }
   ```
@@ -135,11 +142,14 @@ declares. The categories below are load-bearing regardless of final naming:
   choice, it is the only mechanism that survives Slack's client-side rewrite.
 - **Slack's native threads are the thread unit.** `thread_ts` is orthogonal to
   `channel` — a thread is not a fifth container type (`channels.md` §3 Slack,
-  "Containers"). The adapter's `external_key` composition for a thread is
-  `(team, channel, thread_ts)` (`entities.md` §2.2), composed once, by the
-  adapter, never reconstructed by core. `conversation.default_unit` is
-  `thread`, matching U3 (`channels.md` §1) — the universal default every
-  studied vendor ships.
+  "Containers"). The adapter declares `identity.key_fields.thread =
+  ["team", "channel", "thread_ts"]` and `identity.key_fields.space = ["team",
+  "channel"]` (`entities.md` §2.2, `capabilities.md`'s identity section) —
+  the adapter's job stops at supplying the locator and this declared field
+  set; **core composes `external_key`** by calling
+  `compose_external_key(capabilities, grain, locator)`, never the adapter.
+  `conversation.default_unit` is `thread`, matching U3 (`channels.md` §1) —
+  the universal default every studied vendor ships.
 - **Slack's permission model makes backfill a per-attempt question, not a
   per-channel constant.** `channels:history` gates both `conversations.replies`
   (backfill) and `message.channels` (forwardfill) identically — there is no
@@ -168,8 +178,17 @@ declares. The categories below are load-bearing regardless of final naming:
   rewritten mention tokens alongside them.
 - A DM (`is_im`), a group DM (`is_mpim`), a private channel and a public
   channel each classify to the correct `ChannelSpaceKind`.
-- A message inside an existing thread resolves to that thread's
-  `external_key`; a message with no `thread_ts` resolves to the space unit.
+- A message inside an existing thread produces a locator carrying `team`,
+  `channel`, `thread_ts`; a message with no `thread_ts` produces a locator at
+  the space unit — the adapter hands core the locator, and calling
+  `compose_external_key` with the declared `key_fields` against each
+  produces the correct grain's key (composition itself is core's, not this
+  package's, per §Interfaces).
+- Two distinct Slack threads in the same channel (same `team`/`channel`,
+  different `thread_ts`) compose to two distinct `external_key`s via
+  `compose_external_key` and this adapter's declared `key_fields.thread` —
+  proof that `["team", "channel", "thread_ts"]` is not too small a field set
+  for Slack's own locator shape.
 - Backfill against a install with `channels:history` denied returns a refusal
   the caller can distinguish from "fetched and empty" — the adapter's own
   detection of a 403, never inferred from an empty page (`channels.md` §4

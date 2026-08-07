@@ -55,11 +55,24 @@ carrying the same declaration shape every first-party adapter answers
       "text": { "format": "plain", "max_chars": 2048 },
       "files": { "receive": true, "send": false, "max_bytes": 10485760 }
     },
-    "identity": { "scope": "tenant", "stable": true },
+    "identity": {
+      "scope": "tenant",
+      "stable": true,
+      "key_fields": { "space": ["chat_id"], "thread": [] }
+    },
     "commands": ["new", "sessions"]
   }
 }
 ```
+
+`key_fields.thread: []` matches `conversation.units: ["space"]` above — this
+bridge has no thread grain, so thread-grain composition returns `None`
+(§Interfaces "addressed", below, and `entities.md` §2.2). `key_fields` is a
+declaration from the bridge like any other adapter's, normalised at the
+boundary like every other block (`contract.md` §4 "normalised, never
+trusted") — this package does not compose `external_key` itself, and does
+not trust the bridge's field set without running it through WP2's
+normalisation and contract suite.
 
 **The versioned event envelope, inbound** (`contract.md` §5) — a CloudEvents-
 shaped wrapper around the activity schema core uses internally:
@@ -72,7 +85,7 @@ shaped wrapper around the activity schema core uses internally:
   "source": "bridge/acme-wecom",
   "time": "2026-07-20T10:00:00Z",
   "data": {
-    "space": { "external_key": "grp_456", "type": "group" },
+    "space": { "locator": { "chat_id": "grp_456" }, "type": "group" },
     "sender": { "id": "wecom-user-1", "display_name": "Wei" },
     "content": [ { "type": "text", "text": "@agent deploy v2" } ],
     "addressed": true,
@@ -80,6 +93,14 @@ shaped wrapper around the activity schema core uses internally:
   }
 }
 ```
+
+**A bridge sends `locator`, never `external_key`** (`contract.md` §5). The wire
+field was renamed for exactly this reason: `external_key` now means a core-composed
+`uuid5`, and a bridge sending a raw platform string under that name would be putting
+a value of the wrong type into a uniquely-indexed column. The bridge sends its
+platform's own fields; core composes the key from the subset the bridge declared in
+`identity.key_fields`. That is what keeps §2.2's *"one function composes it, no
+exceptions"* true across the wire.
 
 `addressed` is the bridge's own answer to "trigger or fill" (D9) — the bridge
 knows its platform's addressing conventions; core does not, and this package
@@ -157,6 +178,17 @@ These rules are the deliverable, not documentation of it (`contract.md` §6,
   `capabilities.md` §4 specifies — a declared zero becomes the default,
   absurd values clamp, unknown keys are dropped, trust-bearing flags are
   never read from the wire.
+- `bridge.hello`'s `identity.key_fields` survives normalisation unchanged
+  (`{"space": ["chat_id"], "thread": []}` in, same out) — WP2's contract
+  suite, run against this package's registered bridge adapter, passes the
+  no-threads assertion (`compose_external_key` at `THREAD` grain returns
+  `None`) and the distinctness/canonicalisation/incompleteness assertions
+  using this bridge's own fixture locators.
+- An inbound envelope's `data.space.external_key` (the bridge's native space
+  id, a string) is mapped into the locator this package hands to core, never
+  written directly to a `channel_spaces.external_key`/
+  `channel_threads.external_key` column and never passed to
+  `compose_external_key` as anything other than one field of the locator.
 - An inbound envelope with an unknown extra top-level field is accepted and
   the field is ignored.
 - An inbound envelope of an unrecognised `type` is ignored rather than

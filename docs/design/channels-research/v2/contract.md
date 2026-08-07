@@ -85,7 +85,7 @@ Inbound:
   "source": "bridge/acme-wecom",
   "time": "2026-07-20T10:00:00Z",
   "data": {
-    "space": { "external_key": "grp_456", "type": "group" },
+    "space": { "locator": { "chat_id": "grp_456" }, "type": "group" },
     "sender": { "id": "wecom-user-1", "display_name": "Wei" },
     "content": [ { "type": "text", "text": "@agent deploy v2" } ],
     "addressed": true,
@@ -96,6 +96,14 @@ Inbound:
 
 `addressed` is the bridge's answer to "was this a trigger or is it fill" (D9) —
 the bridge knows its own platform's addressing conventions; core does not.
+
+**A bridge sends a `locator`, never an `external_key`.** The locator is the
+platform's own fields, and core composes `external_key` from the subset the bridge
+declared in `identity.key_fields` (`entities.md` §2.2). The distinction is not
+pedantic: `external_key` is a `uuid5` that core owns, and a bridge that sent a raw
+platform string under that name would be writing a value of the wrong type into a
+uniquely-indexed column. Sending the locator and letting core key it is also what
+keeps *"one function composes it, no exceptions"* true across the wire.
 
 Outbound the two directions of identity meet, and the contract must keep them
 apart (`entities.md` §2.6):

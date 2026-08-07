@@ -278,7 +278,7 @@ class ChannelSpaceDBA(
     __abstract__ = True
     connection_id = Column(UUID,   nullable=False)
     kind          = Column(Enum(ChannelSpaceKind), nullable=False)
-    external_key  = Column(String, nullable=False)  # derived; unique per connection
+    external_key  = Column(UUID,   nullable=False)  # uuid5 of the locator (§2.2)
     # data: { external_locator: {...}, policy: {...} }
     # no default agent here — that is a fact about the pair, so it is a grant flag
 
@@ -298,7 +298,7 @@ class ChannelThreadDBA(
     __abstract__ = True
     space_id     = Column(UUID,   nullable=False)
     agent_id     = Column(UUID,   nullable=False)
-    external_key = Column(String, nullable=True)  # derived; null when scope is the space
+    external_key = Column(UUID,   nullable=True)  # uuid5 (§2.2); null when scope is the space
     session_id   = Column(String, nullable=False)  # opaque — theirs, not ours
     # data: { external_locator: {...} }   — is_active lives in flags
 
@@ -469,21 +469,61 @@ fields, typed per channel, exactly as reported.
 lookup act on it. That is the whole reason it exists as a separate field: an index
 wants one comparable value, not a JSONB shape.
 
-**`_key`, not `_slug`.** The house `Slug` type validates against
-`URL_SAFE_SLUG = ^[a-zA-Z0-9_\-][a-zA-Z0-9_.\-]*$`, so naming these slugs would
-invite that validation onto values that legitimately fail it: a Slack `thread_ts`
-is `1719849600.123456`, and a Teams `conversation.id` carries `:` and `=`. A slug
-is *chosen* — url-safe, human-typed, meaningful; these are *composed* from whatever
-the platform hands us. `channel_agents.slug` is a genuine slug (someone types
-`~triage`); these are opaque keys.
+**It is a `UUID`, not a string** — `uuid5(_CHANNELS, canonical_json(subset))`, where
+`subset` is the adapter's declared key fields for that grain (below). Three reasons,
+in the order they bite:
+
+- **No delimiter to collide on.** A Teams `conversation.id` carries `:` and `=`, so a
+  joined key would need an escaping rule, and an untested escaping rule is a latent
+  collision: `(a:b, c)` and `(a, b:c)` composing to one key is "one place maps to two
+  threads" running backwards.
+- **Fixed width on a uniquely-indexed column**, with no opinion required about how
+  long a platform id can get.
+- **Field order stops mattering** — canonicalisation settles it, rather than a
+  convention someone has to remember.
+
+The cost is real and worth naming: **the key is opaque.** With the row in hand that
+costs nothing, since `external_locator` sits beside it in `data`. It costs something
+in a log line, and in the unique-violation error when a get-or-create collides —
+which is exactly the moment this section exists to help with. So **log the locator
+wherever the key appears without its row.**
+
+**This is not D27's `key`, and conflating them is a real bug.** Both are `uuid5`;
+their lifecycles are opposite. `channel_outbox_events.key` is derived at send and
+**never stored**. `external_key` is **stored and uniquely indexed**. Recomputing one
+the way you would the other is what D28 exists to prevent.
+
+**`_key`, not `_slug`.** A slug is *chosen* — url-safe, human-typed, meaningful, and
+validated against the house `URL_SAFE_SLUG`. These are *derived* from whatever the
+platform hands us and are not human-facing at all. `channel_agents.slug` is a genuine
+slug (someone types `~triage`); these are opaque keys.
 
 On a thread, `external_key` is null when the configured scope is the space itself,
 which is also the platform-has-no-threads case degrading to the same shape.
 
-**One function composes it, no exceptions.** Adapters hand over the locator and
-never compose keys. Every open-source gateway studied arrived at this rule, and
-usually after the same bug: the moment two code paths build keys, one place maps
-to two threads and an agent answers itself in a fork nobody can see.
+### Adapters declare their key fields; core composes
+
+**One function composes the key, and adapters never call it.** Every open-source
+gateway studied arrived at that rule, usually after the same bug: the moment two code
+paths build keys, one place maps to two threads and an agent answers itself in a fork
+nobody can see.
+
+What an adapter supplies is the locator, plus a declaration of **which of its fields
+identify a place at each grain** (`capabilities.md`). Core does the composing, the
+same way every time.
+
+The declaration is the load-bearing part. Hash or join, the fragile thing is the
+**field set**: change which fields identify a place and every existing row re-keys,
+forking every live conversation. Hashing makes that failure *invisible* rather than
+merely quiet — so the field set belongs somewhere it can be checked, and a
+declaration is checkable where a convention in someone's head is not. WP2's contract
+suite holds an adapter to it, and a change to declared key fields is a visible
+declaration diff rather than a silent code edit.
+
+The failure a declaration invites in return is a **too-small** field set: two distinct
+threads collapsing onto one key. That is worse than a mismatched key, because it is
+silent and it merges conversations. So the contract suite tests it directly — two
+distinct threads must produce two distinct keys.
 
 ### 2.3 Where backfill state lives
 
@@ -1238,7 +1278,7 @@ class ChannelAgentQuery(BaseModel):
 class ChannelSpace(Identifier, Lifecycle, Header, Metadata):
     connection_id: UUID
     kind: ChannelSpaceKind
-    external_key: str
+    external_key: UUID
     #
     data:  ChannelSpaceData
     flags: ChannelSpaceFlags = Field(default_factory=ChannelSpaceFlags)
@@ -1246,7 +1286,7 @@ class ChannelSpace(Identifier, Lifecycle, Header, Metadata):
 class ChannelSpaceCreate(Header, Metadata):
     connection_id: UUID
     kind: ChannelSpaceKind
-    external_key: str
+    external_key: UUID
     #
     data:  ChannelSpaceData
     flags: ChannelSpaceFlags = Field(default_factory=ChannelSpaceFlags)
@@ -1259,13 +1299,13 @@ class ChannelSpaceQuery(BaseModel):
     name: Optional[str] = None
     connection_id: Optional[UUID] = None
     kind: Optional[ChannelSpaceKind] = None
-    external_key: Optional[str] = None
+    external_key: Optional[UUID] = None
 
 class ChannelSpaceCandidate(BaseModel):
     """A place the app can see but nobody has configured — discover_spaces (§8).
     Not an entity: no id, no lifecycle, nothing persisted until chosen."""
     kind: ChannelSpaceKind
-    external_key: str
+    external_key: UUID
     external_locator: Dict[str, Any]
     name: Optional[str] = None
     is_configured: bool = False
@@ -1299,7 +1339,7 @@ class ChannelGrantQuery(BaseModel):
 class ChannelThread(Identifier, Lifecycle):
     space_id: UUID
     agent_id: UUID
-    external_key: Optional[str] = None
+    external_key: Optional[UUID] = None
     session_id: str
     #
     data:  ChannelThreadData
@@ -1308,7 +1348,7 @@ class ChannelThread(Identifier, Lifecycle):
 class ChannelThreadCreate(BaseModel):
     space_id: UUID
     agent_id: UUID
-    external_key: Optional[str] = None
+    external_key: Optional[UUID] = None
     session_id: str
     #
     data:  ChannelThreadData
@@ -1317,7 +1357,7 @@ class ChannelThreadCreate(BaseModel):
 class ChannelThreadQuery(BaseModel):
     space_id: Optional[UUID] = None
     agent_id: Optional[UUID] = None
-    external_key: Optional[str] = None
+    external_key: Optional[UUID] = None
     session_id: Optional[str] = None
 
 # --- inbox events (no Edit either; append-only log) ------------------------ #
@@ -1468,10 +1508,23 @@ class ChannelNotSupported(ChannelsError):
 
 
 class ChannelSpaceNotFound(ChannelsError):
-    def __init__(self, *, space_id: Optional[UUID] = None, external_key: Optional[str] = None):
+    def __init__(self, *, space_id: Optional[UUID] = None, external_key: Optional[UUID] = None):
         self.space_id = space_id
         self.external_key = external_key
         super().__init__(f"Channel space not found: {space_id or external_key}")
+
+
+class ChannelLocatorIncomplete(ChannelsError):
+    """A declared key field is missing from the locator (§2.2). Raised rather than
+    composing over what is present, which would key a different conversation."""
+
+    def __init__(self, *, channel: str, grain: str, missing: str):
+        self.channel = channel
+        self.grain = grain
+        self.missing = missing
+        super().__init__(
+            f"Locator for {channel} is missing declared {grain} key field: {missing}"
+        )
 
 
 class ChannelAgentNotFound(ChannelsError):
@@ -1815,7 +1868,7 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         connection_id: UUID,
         #
-        external_key: str,
+        external_key: UUID,
     ) -> Optional[ChannelSpace]:
         """The routing lookup — default-deny, so None means "not configured here".
 
@@ -1970,7 +2023,7 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         #
         space_id: UUID,
-        external_key: Optional[str],
+        external_key: Optional[UUID],
         agent_id: UUID,
     ) -> Optional[ChannelThread]:
         """The most recent thread row for this (space, key, agent) triple.
@@ -2466,7 +2519,8 @@ async def resolve(self, *, connection_id, event) -> Optional[Resolution]:
                             grant.data.policy if grant else None)
 
     thread = await self.get_or_create_thread(
-        space, compose_external_key(event.external_locator),
+        space,
+        compose_external_key(caps, ChannelKeyGrain.THREAD, event.external_locator),
         agent, policy.session_scope,
     )
     return Resolution(space, agent, thread, policy)
@@ -2492,6 +2546,49 @@ def resolve_policy(capabilities, channel_defaults, *levels) -> ChannelEffectiveP
     # enums:    the narrowest stated value, by SESSION_SCOPE_ORDER
     # unstated at every level: fall through to the channel defaults
 ```
+
+`compose_external_key` is the other pure function, and the one §2.2 means by *"one
+function composes it, no exceptions"*:
+
+```python
+class ChannelKeyGrain(str, Enum):
+    SPACE  = "space"
+    THREAD = "thread"
+
+def compose_external_key(
+    capabilities: ChannelCapabilities,
+    grain: ChannelKeyGrain,
+    locator: Dict[str, Any],
+) -> Optional[UUID]:
+    """uuid5 over the adapter's declared key fields for this grain (§2.2).
+
+    Returns None at THREAD grain when the declaration names no thread fields —
+    the platform-has-no-threads case, which degrades to the space's own scope.
+    Raises ChannelLocatorIncomplete when a declared field is missing from the
+    locator: a key composed from a partial locator is a silent thread fork.
+    """
+    fields = capabilities.identity.key_fields[grain]   # declared, ordered
+    if not fields:
+        return None
+    subset = {f: locator[f] for f in fields}           # KeyError → incomplete
+    return uuid5(_CHANNELS, canonical_json(subset))
+```
+
+Three properties, each load-bearing:
+
+- **It takes the capabilities**, so the field set comes from the declaration rather
+  than from this function knowing anything about Slack. That is D16 at the one place
+  it would be most tempting to break.
+- **It is total over grains.** A `None` at thread grain is a legitimate answer, not an
+  error — it is what makes the platform-has-no-threads case the same code path as
+  scope-is-the-space, rather than a branch somewhere upstream.
+- **A missing declared field raises.** Composing over whatever happens to be present
+  would produce a well-formed key for a different conversation, which is the exact
+  silent fork this function exists to prevent.
+
+`canonical_json` sorts keys and uses a fixed separator/encoding, so the key does not
+depend on dict ordering. Both are pure: no I/O, no storage, fully unit testable, and
+the interesting cases are all conflicts or absences.
 
 Everything downstream reads `policy`, never a raw column — so a rule stated on
 the agent and a rule stated on the space reach the worker the same way. Note it

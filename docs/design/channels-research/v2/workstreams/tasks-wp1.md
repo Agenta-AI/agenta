@@ -11,12 +11,12 @@ already existing on the base branch.
       TagsDBA, MetaDBA` plus `connection_id: UUID, nullable=False`.
 - [ ] Add `ChannelSpaceDBA` — same base mixins minus `SlugDBA`, plus
       `connection_id`, `kind: Enum(ChannelSpaceKind), nullable=False`,
-      `external_key: String, nullable=False`.
+      `external_key: UUID, nullable=False`.
 - [ ] Add `ChannelGrantDBA` — same shape as space minus `kind`/`external_key`,
       plus `agent_id: UUID, nullable=False`, `space_id: UUID, nullable=False`.
 - [ ] Add `ChannelThreadDBA` — `ProjectScopeDBA, LifecycleDBA, IdentifierDBA,
       DataDBA, FlagsDBA, TagsDBA, MetaDBA` (no `HeaderDBA`), plus `space_id`,
-      `agent_id` (both `UUID, nullable=False`), `external_key: String,
+      `agent_id` (both `UUID, nullable=False`), `external_key: UUID,
       nullable=True`, `session_id: String, nullable=False`.
 - [ ] Add `ChannelInboxEventDBA` — `ProjectScopeDBA, LifecycleDBA,
       IdentifierDBA, DataDBA, StatusDBA, FlagsDBA, TagsDBA, MetaDBA`, plus
@@ -117,7 +117,8 @@ already existing on the base branch.
 
 - [ ] `core/channels/types.py`: `ChannelsError` base, setting `self.message`.
 - [ ] `ChannelNotSupported(*, channel: str)`.
-- [ ] `ChannelSpaceNotFound(*, space_id=None, external_key=None)`.
+- [ ] `ChannelSpaceNotFound(*, space_id: Optional[UUID] = None, external_key:
+      Optional[UUID] = None)`.
 - [ ] `ChannelAgentNotFound(*, agent_id=None, slug=None)`.
 - [ ] `ChannelAgentNotGranted(*, agent_id: UUID, space_id: UUID)`.
 - [ ] `ChannelThreadNotFound(*, thread_id: UUID)`.
@@ -125,6 +126,10 @@ already existing on the base branch.
       field (no byte diff, no timestamp).
 - [ ] `ChannelConnectionNotFound(*, connection_id: UUID)`.
 - [ ] `ChannelPolicyDenied(*, field: str, level: ChannelPolicyLevel)`.
+- [ ] `ChannelLocatorIncomplete(*, channel: str, grain: ChannelKeyGrain,
+      missing: List[str])` — raised by `compose_external_key` when a locator
+      is missing a field the capability declaration names in
+      `identity.key_fields` for that grain.
 - [ ] Unit test: each exception's `.message` is set and non-empty after
       construction with minimal args.
 
@@ -161,12 +166,32 @@ already existing on the base branch.
 
 ## models (utils.py)
 
-- [ ] `core/channels/utils.py`: implement `compose_external_key(locator, *,
-      grain)` as the single function that derives a comparable key string
-      from a structured locator. No other function in the codebase may build
-      an `external_key`.
-- [ ] Unit test: two distinct locator shapes produce two distinct keys; the
-      same locator produces the same key on repeat calls (determinism).
+- [ ] `core/channels/utils.py`: add `ChannelKeyGrain(str, Enum)` with members
+      `SPACE = "space"`, `THREAD = "thread"`.
+- [ ] Implement `compose_external_key(capabilities: ChannelCapabilities,
+      grain: ChannelKeyGrain, locator: Dict[str, Any]) -> Optional[UUID]` as
+      the single function that derives `external_key`. It reads the field set
+      from `capabilities.identity.key_fields[grain]` — never from a hardcoded
+      per-channel list — restricts `locator` to those fields, and returns
+      `uuid5(_CHANNELS, canonical_json(subset))`. No other function in the
+      codebase may build an `external_key`.
+- [ ] At `THREAD` grain, when `capabilities.identity.key_fields["thread"]` is
+      `[]`, return `None` rather than raising (the platform-has-no-threads
+      case).
+- [ ] When a field named in `key_fields[grain]` is absent from `locator`,
+      raise `ChannelLocatorIncomplete(channel=..., grain=..., missing=...)`
+      naming every missing field — never compose a key over what is present.
+- [ ] Unit test: two distinct locator shapes (differing only in a
+      declared-but-not-obviously-distinguishing field, e.g. two different
+      `thread_ts` with the same `team`/`channel`) produce two distinct
+      `UUID` keys; the same locator produces the same key on repeat calls
+      (determinism); the same locator with its keys reordered in the input
+      dict produces the identical key (canonicalisation).
+- [ ] Unit test: `grain=THREAD` against capabilities declaring `"thread": []`
+      returns `None`.
+- [ ] Unit test: a locator missing a declared field raises
+      `ChannelLocatorIncomplete` naming the missing field, and no key is
+      returned.
 
 ## dao
 
@@ -351,7 +376,9 @@ already existing on the base branch.
 - [ ] `api/oss/tests/pytest/unit/channels/test_channels_resolve_policy.py` —
       every `resolve_policy` case listed in `specs-wp1.md`'s Tests section.
 - [ ] `api/oss/tests/pytest/unit/channels/test_channels_compose_external_key.py`
-      — determinism and distinctness assertions.
+      — determinism, distinctness, canonicalisation, `THREAD`-grain-with-no-
+      declared-fields returns `None`, and missing-field raises
+      `ChannelLocatorIncomplete`.
 - [ ] DAO round-trip tests for every entity's create/fetch pair (agents,
       spaces, grants, threads at minimum — inbox/outbox already covered
       above).

@@ -61,7 +61,11 @@ it belongs in the declaration first.
 
   "identity": {
     "scope": "workspace",
-    "stable": true
+    "stable": true,
+    "key_fields": {
+      "space":  ["team", "channel"],
+      "thread": ["team", "channel", "thread_ts"]
+    }
   },
 
   "commands": ["new", "sessions", "use"]
@@ -137,6 +141,26 @@ tenant, and whether it is stable. This drives the identity-link key shape —
 embedding a workspace id is correct on some platforms and noise on others — and
 `stable: false` flags platforms where the key can change under an existing link
 and needs a rebinding path.
+
+**`key_fields` names which locator fields identify a place**, at each grain, and it
+is how `external_key` is composed (`entities.md` §2.2). The adapter supplies the
+locator and declares which of its fields matter; **core composes the key and the
+adapter never does**. A platform with no threads declares `"thread": []`, and thread
+grain composes to null — the same code path as scope-is-the-space.
+
+This block is declared rather than conventional because the field *set* is the
+fragile part. `external_key` is a `uuid5` over these fields, so changing which ones
+are named re-keys every existing row and forks every live conversation — silently,
+because a hash gives no hint that it used to be computed differently. A declaration
+makes that a visible diff and something the contract suite can hold an adapter to.
+
+Two failures the contract suite tests directly:
+
+- **Too few fields** — two distinct threads composing to one key, which merges
+  conversations rather than splitting them. Worse than a wrong key, and the reason
+  distinctness is asserted rather than assumed.
+- **A declared field absent from a real locator** — composition raises
+  `ChannelLocatorIncomplete` rather than keying over what happens to be present.
 
 ### commands
 

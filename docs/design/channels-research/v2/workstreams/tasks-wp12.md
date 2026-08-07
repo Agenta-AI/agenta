@@ -9,24 +9,35 @@
   read any trust-bearing flag from the wire (`capabilities.md` §4).
 - [ ] Pin a protocol version for this package's first cut (`"1.0"`) and
   reject a `bridge.hello` that does not include it in `protocol_versions`.
-- [ ] Test: the worked `bridge.hello` example from `contract.md` §4
-  registers correctly and its declaration round-trips through normalisation
-  unchanged (it is already within bounds).
+- [ ] Test: the worked `bridge.hello` example from `contract.md` §4 — with
+  `identity.key_fields: {"space": ["chat_id"], "thread": []}` added per
+  `specs-wp12.md` — registers correctly and its declaration round-trips
+  through normalisation unchanged (it is already within bounds).
 - [ ] Test: a declaration with an absurd value (e.g. `buttons.max: 999999`)
   clamps; a declared `0` for something clamp-worthy takes the default; an
   unknown key is dropped without error.
+- [ ] Test: register this bridge's declaration and run WP2's contract suite's
+  identity assertions against it — distinctness and canonicalisation using
+  the bridge's own fixture locators, incompleteness on a locator missing
+  `chat_id`, and the no-threads assertion returning `None` at `THREAD` grain
+  (since this bridge declares `"thread": []`).
 
 ## Inbound envelope
 
 - [ ] Implement `envelope.py` inbound: parse the CloudEvents-shaped wrapper,
   extract `data.space`, `data.sender`, `data.content`, `data.addressed`,
   `data.native`.
+- [ ] Map `data.space.locator` (the bridge's own platform fields, e.g.
+  `{"chat_id": "grp_456"}`) straight onto the `ChannelInboundEvent` locator.
+  Never write it into core's `external_key` column — that column holds the
+  `uuid5` `compose_external_key` derives from the declared `key_fields` subset.
 - [ ] Implement the must-ignore rule: an unrecognised top-level field is
   dropped silently; an unrecognised `type` is ignored rather than raising.
 - [ ] Wire `addressed` straight through as the bridge's own trigger/fill
   answer (D9) — no reinterpretation on this package's side.
-- [ ] Test: the worked inbound example from `contract.md` §5 parses
-  correctly.
+- [ ] Test: the worked inbound example from `contract.md` §5 parses correctly, and
+  its `data.space.locator` lands in the locator, with nothing string-typed reaching
+  a `UUID` field.
 - [ ] Test: an envelope with an added unknown field parses and the field is
   discarded, not surfaced as an error.
 - [ ] Test: an envelope with an unrecognised `type` is ignored, not raised.
