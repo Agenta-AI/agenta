@@ -3,9 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from oss.src.core.channels.dtos import (
     ChannelDeliveryState,
-    ChannelEventKind,
     ChannelEventOrigin,
-    ChannelSpaceKind,
     ChannelTriggerState,
 )
 from oss.src.dbs.postgres.shared.dbas import (
@@ -51,7 +49,9 @@ class ChannelSpaceDBA(
     __abstract__ = True
 
     connection_id = Column(UUID(as_uuid=True), nullable=False)
-    kind = Column(Enum(ChannelSpaceKind), nullable=False)
+    # String, not Enum: a new platform brings new space kinds (forums, teams),
+    # and widening a DB enum needs a migration. Pydantic still validates.
+    kind = Column(String, nullable=False)
     external_key = Column(UUID(as_uuid=True), nullable=False)
 
 
@@ -102,7 +102,10 @@ class ChannelInboxEventDBA(
 
     connection_id = Column(UUID(as_uuid=True), nullable=False)
     external_id = Column(String, nullable=False)
-    kind = Column(Enum(ChannelEventKind), nullable=False)
+    # String: platforms keep inventing addressing kinds. `origin` stays an Enum
+    # — query_events_since orders by it, and only declaration order is a
+    # guarantee; String's alphabetical order merely happens to agree today.
+    kind = Column(String, nullable=False)
     origin = Column(Enum(ChannelEventOrigin), nullable=False)
     space_id = Column(UUID(as_uuid=True), nullable=True)
 

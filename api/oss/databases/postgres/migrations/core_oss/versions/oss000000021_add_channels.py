@@ -69,11 +69,9 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("connection_id", sa.UUID(as_uuid=True), nullable=False),
-        sa.Column(
-            "kind",
-            sa.Enum("PRIVATE", "GROUP", "TOPIC", name="channelspacekind"),
-            nullable=False,
-        ),
+        # String, not Enum: space kinds grow with each platform, and widening a
+        # DB enum needs a migration. Pydantic validates the vocabulary.
+        sa.Column("kind", sa.String(), nullable=False),
         sa.Column("external_key", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("description", sa.String(), nullable=True),
@@ -186,11 +184,9 @@ def upgrade() -> None:
         sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("connection_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("external_id", sa.String(), nullable=False),
-        sa.Column(
-            "kind",
-            sa.Enum("MESSAGE", "ACTION", name="channeleventkind"),
-            nullable=False,
-        ),
+        sa.Column("kind", sa.String(), nullable=False),
+        # origin stays an Enum: query_events_since orders by it, and only
+        # declaration order guarantees PULLED before PUSHED.
         sa.Column(
             "origin",
             sa.Enum("PULLED", "PUSHED", name="channeleventorigin"),
@@ -366,7 +362,6 @@ def downgrade() -> None:
     )
     op.drop_table("channel_inbox_events")
     op.execute("DROP TYPE IF EXISTS channeleventorigin")
-    op.execute("DROP TYPE IF EXISTS channeleventkind")
 
     op.drop_index(
         "ix_channel_threads_current",
@@ -385,7 +380,6 @@ def downgrade() -> None:
         table_name="channel_spaces",
     )
     op.drop_table("channel_spaces")
-    op.execute("DROP TYPE IF EXISTS channelspacekind")
 
     op.drop_index(
         "uq_channel_agents_default",

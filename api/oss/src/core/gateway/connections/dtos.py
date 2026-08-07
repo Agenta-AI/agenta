@@ -20,7 +20,8 @@ from oss.src.core.shared.dtos import (
 class ConnectionProviderKind(str, Enum):
     COMPOSIO = "composio"
     AGENTA = "agenta"
-    # channels reach the same connections table keyed by channel (F4)
+    # channels share this table, keyed by channel (F4). Only keys the ingress
+    # can route belong here — see _PUBLIC_ENDPOINTS in middlewares/auth.py.
     SLACK = "slack"
 
 
