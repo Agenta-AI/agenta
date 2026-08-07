@@ -386,6 +386,18 @@ export interface ManifestEntry {
 }
 
 /**
+ * The `-printf` format the manifest walk asks `find` for.
+ *
+ * Written as find's own `\0` ESCAPE (backslash, zero), not as a NUL byte in the argument.
+ * `find` expands it to a real NUL in its output, so the framing below is unchanged — but the
+ * argument itself stays NUL-free, and it has to: the Daytona sandbox transport rejects a NUL
+ * inside a command argument and fails the whole request with an opaque `Stream Error`, which on
+ * the fail-closed approval path silently denied every workspace-file commit on Daytona. A NUL in
+ * the RESPONSE travels fine, which is what makes the escape a fix rather than a workaround.
+ */
+const MANIFEST_PRINTF = "%y\\0%m\\0%s\\0%P\\0";
+
+/**
  * Parse `find -printf '%y\0%m\0%s\0%P\0'`.
  *
  * NUL is the only safe separator: a file name may hold a newline, a tab, a quote, or a
@@ -428,7 +440,7 @@ export class DaytonaWorkspaceReader implements WorkspaceReader {
       "-maxdepth",
       "1",
       "-printf",
-      "%y\0%m\0%s\0%P\0",
+      MANIFEST_PRINTF,
     ]);
     if (result.exitCode !== 0) return [];
     return parseManifest(result.stdout)
@@ -605,7 +617,7 @@ export class DaytonaWorkspaceReader implements WorkspaceReader {
       "-maxdepth",
       "0",
       "-printf",
-      "%y\0%m\0%s\0%P\0",
+      MANIFEST_PRINTF,
     ]);
     if (result.exitCode !== 0) return null;
     return parseManifest(result.stdout);

@@ -38,6 +38,10 @@ import {
   type ApprovedExecutionGrants,
 } from "../../responder.ts";
 import {
+  declinedByUserText,
+  deniedByPolicyText,
+} from "../../tools/denial-text.ts";
+import {
   redactContextBoundArgs,
   type RelayExecutionGuard,
 } from "../../tools/relay.ts";
@@ -80,10 +84,9 @@ export function buildRelayExecutionGuard(
     );
     if (verdict.kind === "allow") return { allow: true };
     if (verdict.kind === "deny") {
-      return {
-        allow: false,
-        reason: `Tool '${spec.name}' is denied by the permission policy.`,
-      };
+      // `decide` runs here against an EMPTY stored-decision store, so a deny is always the
+      // policy's, never a human's replayed answer.
+      return { allow: false, reason: deniedByPolicyText(spec.name) };
     }
     // `ask`. Non-Pi: the harness's own dialog is the ask gate (see the module comment for the
     // rationale and the stated residual); pass without touching the grant ledger.
@@ -98,8 +101,10 @@ export function buildRelayExecutionGuard(
     )
       ? { allow: true }
       : {
+          // No grant means the dialog was answered no, or the record was forged. The first is the
+          // case a model needs to act on.
           allow: false,
-          reason: `Tool '${spec.name}' was not approved via the permission dialog.`,
+          reason: declinedByUserText(spec.name),
         };
   };
 }

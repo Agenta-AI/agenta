@@ -49,7 +49,7 @@ export type HarnessKind = "pi" | "claude" | "codex" | "unknown";
 export interface HarnessLifecycleCapabilities {
   /** `setModel` on the running session. LIVE in v1. */
   readonly model: ActionKind;
-  /** Instructions and skills, rewritten in place. LIVE in v1. */
+  /** Instructions and skills. Never live: the harness reads them once, at session start. */
   readonly workspaceFiles: ActionKind;
   /** System and append prompts. Never live: observation is not guaranteed. */
   readonly prompts: ActionKind;
@@ -61,14 +61,42 @@ export interface HarnessLifecycleCapabilities {
   readonly toolCatalog: ActionKind;
 }
 
+/**
+ * WHY `workspaceFiles` IS `rebuild-sandbox` AND NOT `refresh-workspace`.
+ *
+ * It was `refresh-workspace` and that was a live route: an instructions edit rewrote `AGENTS.md`
+ * on the running sandbox and kept the session. Live QA cell `matrix_l5_live_route_observed.py`
+ * proved the route is a SILENT LIE. Every harness reads its instruction file ONCE, when the
+ * session starts. So the refresh wrote the new file, `applyReconcilePlan` committed the incoming
+ * configuration as applied, the pool then reported the NEW fingerprint — so every later turn
+ * matched and continued warm — while the model went on answering from the instructions it was
+ * started with. The user's edit had no effect until something else evicted the session.
+ *
+ * That is the exact failure the whole applied-state design exists to make unrepresentable, and
+ * `desired-state.ts` already refuses it for the `prompts` facet in these words: "a running process
+ * may have captured their location or content already. Refreshing them and claiming the model saw
+ * the change would be a lie". The same argument always applied to instructions. This table simply
+ * says so now.
+ *
+ * REBUILD RATHER THAN REOPEN. A reopen is the mechanism this facet will eventually want, but
+ * `env.reopenSession` closes over the session init the environment was BUILT with and writes no
+ * files, so routing here would install nothing while reporting the new configuration as applied —
+ * the same lie in a cheaper costume. A rebuild is wasteful and always sound, and it is exactly
+ * what an instructions edit cost before the live route existed.
+ *
+ * THE FOLLOW-UP, when someone takes it: refresh the workspace and THEN reopen the session, so the
+ * new files are on disk before the harness reads them. That needs the reopen to rebuild its
+ * session init from the incoming request first (`adapter-matrix.md` section 8, steps 1 and 2),
+ * and it needs proving on a live cell, not asserting.
+ */
 const V1_CAPABILITIES: Readonly<
   Record<HarnessKind, HarnessLifecycleCapabilities>
 > = {
-  // The two LIVE routes are `model` and `workspaceFiles`, uniformly across harnesses. Everything
-  // else escalates. See the module comment for why the tool catalog is uniform rather than split.
+  // ONE live route remains: `model`. Everything else escalates. See the module comment for why the
+  // tool catalog is uniform rather than split, and the block above for why the workspace escalates.
   pi: {
     model: "apply-live",
-    workspaceFiles: "refresh-workspace",
+    workspaceFiles: "rebuild-sandbox",
     prompts: "reopen-session",
     harnessFiles: "reopen-session",
     harnessSession: "reopen-session",
@@ -76,7 +104,7 @@ const V1_CAPABILITIES: Readonly<
   },
   claude: {
     model: "apply-live",
-    workspaceFiles: "refresh-workspace",
+    workspaceFiles: "rebuild-sandbox",
     prompts: "reopen-session",
     harnessFiles: "reopen-session",
     harnessSession: "reopen-session",
@@ -84,7 +112,7 @@ const V1_CAPABILITIES: Readonly<
   },
   codex: {
     model: "apply-live",
-    workspaceFiles: "refresh-workspace",
+    workspaceFiles: "rebuild-sandbox",
     prompts: "reopen-session",
     harnessFiles: "reopen-session",
     harnessSession: "reopen-session",
@@ -137,7 +165,9 @@ function actionForFacet(
         reason: "daemon environment or credential shape changed",
       };
     case "workspaceFiles":
-      // Instructions and skills. The one workspace facet the runner may rewrite in place.
+      // Instructions and skills. The runner CAN rewrite these in place; what it cannot do is make
+      // a running harness read them again. See the capability table for the live-QA cell that
+      // caught the difference.
       return {
         facet,
         kind: capabilities.workspaceFiles,
@@ -524,20 +554,32 @@ export function appliedDigestsFrom(
 /**
  * The action kinds the runner may perform on a LIVE environment.
  *
- * THREE, and this constant is the single place that says so. The comment once said "exactly two"
+ * TWO, and this constant is the single place that says so. The comment once said "exactly two"
  * long after the set had grown, which an external security review caught: a stale count in the one
  * place that claims to be authoritative is worse than no count, because it is what a reviewer
  * checks against. `no-op` is here because an empty plan is trivially satisfiable without touching
  * anything.
  *
- * `reopen-session` was a member and is NOT one now. A reopen recreates the ACP session from the
- * session init the environment was BUILT with (`env.reopenSession` closes over it), so it
- * reinstalls the old MCP list, the old prompts and the old harness files, while the turn keeps
- * serving the old tool catalog from `env.plan`. Routing prompts, harness files, the harness
- * session or the tool catalog through it would commit the incoming configuration as applied after
- * installing none of it. `adapter-matrix.md` section 8 steps 1 and 2 are the prerequisite: until
- * the turn builds its catalog and session init from the incoming request, those facets rebuild,
- * which is always sound.
+ * TWO KINDS WERE MEMBERS AND ARE NOT NOW. Both left for the same reason, and it is the reason this
+ * set exists: they changed the environment in a way the running harness never observed, while
+ * `applyReconcilePlan` committed the incoming configuration as applied.
+ *
+ *  - `reopen-session`. A reopen recreates the ACP session from the session init the environment
+ *    was BUILT with (`env.reopenSession` closes over it), so it reinstalls the old MCP list, the
+ *    old prompts and the old harness files, while the turn keeps serving the old tool catalog from
+ *    `env.plan`. `adapter-matrix.md` section 8 steps 1 and 2 are the prerequisite.
+ *  - `refresh-workspace`. The refresh really does rewrite `AGENTS.md` on the running sandbox, but
+ *    every harness reads that file once, at session start, so the model kept answering from the
+ *    instructions it was started with. Live cell `matrix_l5_live_route_observed.py` caught it. The
+ *    capability table carries the full account.
+ *
+ * The kind stays in the vocabulary and `apply-plan.ts` keeps the applier, because a
+ * refresh-then-reopen route is what this facet eventually wants. It is not live until a live cell
+ * proves the harness observed the change.
+ *
+ * NOTHING ROUTES TO `refresh-workspace` TODAY, and this membership is still the thing to change,
+ * not the only one. Removing it means a capability table flipped back to `refresh-workspace` fails
+ * CLOSED — the plan escalates and this guard's test fires — rather than quietly going live again.
  *
  * Adding an entry is the whole decision to make another route live. It must not happen by
  * accident, so a test counts this set and the capability table is checked against it.
@@ -545,7 +587,6 @@ export function appliedDigestsFrom(
 export const LIVE_ACTION_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind>([
   "no-op",
   "apply-live",
-  "refresh-workspace",
 ]);
 
 /**

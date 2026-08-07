@@ -351,6 +351,39 @@ describe("ExecutionAuthorizationStore", () => {
       assert.equal(find({ requiredMarkers: [MARKER_A] }), undefined);
     });
 
+    it("still offers an approved set after its IDENTICAL sibling was denied", () => {
+      // THE COMBINATION NOBODY HAD PINNED: the model raises two gates for the SAME tool with
+      // byte-identical arguments, and the human approves one and denies the other.
+      //
+      // A deny discards the denied call's own records (`discardAll`, keyed by tool-call id), but
+      // `findSetByCall` matches on tool name + args digest and deliberately ignores the id — see
+      // its header, which argues the id is correlation and the args digest is the binding. With
+      // identical arguments the two calls are indistinguishable to that lookup, so an execution
+      // arriving under the DENIED id matches the APPROVED sibling's set and runs.
+      //
+      // Why this is bounded rather than an escalation: the bytes that execute are the frozen
+      // bytes the human approved, and the set is single-use, so N approvals still permit exactly
+      // N executions (the second assertion below). What is NOT preserved is WHICH call ran: the
+      // user denied a call and can watch it succeed, while the one they approved then fails
+      // closed. That is a denial-not-honoured problem, and it is a product decision whether the
+      // deny should also poison identical siblings — this test pins today's behaviour so the
+      // decision is made deliberately rather than discovered.
+      mint(); // call-1, approved
+      mint(MARKER_A, { toolCallId: "call-2" }); // call-2, the identical sibling
+      store.discardAll("call-2"); // the human denies call-2
+
+      assert.equal(
+        find(),
+        "call-1",
+        "the denial removed only its own records; the approved sibling is still matchable by " +
+          "an execution reporting any id, including the denied one",
+      );
+
+      // Single use still holds, so the denial cannot be used to double-spend the approval.
+      store.consumeAll("call-1", [MARKER_A]);
+      assert.equal(find(), undefined);
+    });
+
     it("hands out one set at a time when two identical commits are approved", () => {
       mint();
       mint(MARKER_A, { toolCallId: "call-2" });

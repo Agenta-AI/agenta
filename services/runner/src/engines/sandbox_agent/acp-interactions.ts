@@ -12,6 +12,7 @@ import {
 import {
   piBuiltinIdentity,
   type GateDescriptor,
+  type Verdict,
 } from "../../permission-plan.ts";
 import {
   parsePiGateEnvelope,
@@ -116,6 +117,67 @@ export interface AttachPermissionResponderInput {
     args: unknown;
   }) => void;
   /**
+   * Resolve and freeze the workspace content a gated call references, returning the manifest
+   * the approval card renders (paths, sizes, digests, executable bits, and the diff for a field
+   * replaced from one file).
+   *
+   * Called ONLY after a non-deny verdict, and only for a gate that is about to pause. That
+   * ordering is a security property, not a nicety: a denied call must perform ZERO workspace
+   * reads, because reading a file for a call that will never run leaks its existence and its
+   * content into runner memory, spends the turn's byte budget, and on Daytona runs a process
+   * inside the sandbox for a call the policy already refused.
+   *
+   * A failure fails the gate CLOSED: no card is shown, no authorization is minted, and nothing
+   * executes. The human must never be asked to approve a change the runner could not render in
+   * full — in particular a replacement whose old side could not be fetched, since approving a
+   * new text without the text it replaces is the one thing the card exists to prevent.
+   */
+  onResolveApprovedContent?: (input: {
+    toolName: string | undefined;
+    toolCallId: string | undefined;
+    args: unknown;
+  }) => Promise<
+    | { ok: true; manifest?: unknown }
+    | {
+        ok: false;
+        reason: string;
+        /**
+         * The structured account of WHY, when the failure was a marker that could not resolve.
+         *
+         * `MarkerResolutionError.toDetail()`: the failure code, the path the model named, the
+         * operation it sat in, a next step, and `available` — the entries that DO exist under the
+         * import root. The reader computes all of it and the resolver used to keep only
+         * `error.message`, so the one thing that names the correction was discarded one frame
+         * before anyone could use it.
+         *
+         * READ THE CEILING ON THIS BEFORE BUILDING ON IT: `PermissionReply` is `"once" | "always"
+         * | "reject"`, a bare enum with no text, so answering the gate cannot carry any of this to
+         * the MODEL. Today it reaches the operator log. Delivering it to the model needs a channel
+         * that does not exist on this path; see the block above `resolveApprovedContent`.
+         */
+        detail?: Record<string, unknown>;
+      }
+  >;
+  /**
+   * Whether a REPLAYED approval must not answer this gate, so the gate asks again.
+   *
+   * A cold resume destroys the environment, and with it the frozen bytes the human approved. The
+   * conversation still carries their `{approved: true}`, and `decide()` will hand it back as an
+   * `allow`. Executing on the strength of it would run content nobody saw, so
+   * `execution-authorization.md` 7.2 says the runner must ignore that answer, resolve the source
+   * again, and present a NEW card. Without this the call proceeds to the relay and dies there with
+   * `authorization_missing`, which spends the human's approval and shows them a failed tool call.
+   *
+   * Consulted for every `allow`, and the callback decides. It has the permission plan, which is
+   * what separates the two kinds of allow: a policy allow is section 4's explicit exception and
+   * must still resolve inline, while an allow under an `ask` permission can only have come from a
+   * stored answer.
+   */
+  shouldRegateStaleApproval?: (input: {
+    gate: GateDescriptor;
+    toolCallId: string | undefined;
+  }) => boolean;
+  /**
    * Resolved tool specs by name for the Pi gates. PRESENCE marks a Pi run and turns Pi gate
    * envelope detection on; it must stay absent for Claude. The pre-filter is the dialog TITLE,
    * and a Claude gate whose ACP title happens to be the literal dialog title (editing a file
@@ -154,6 +216,8 @@ export function attachPermissionResponder({
   onUserApprovalGate,
   onPiGateAllowed,
   onExecutableGateAllowed,
+  onResolveApprovedContent,
+  shouldRegateStaleApproval,
   piToolSpecsByName,
   toolSpecsByName,
 }: AttachPermissionResponderInput): void {
@@ -198,6 +262,7 @@ export function attachPermissionResponder({
     id: string,
     gate: GateDescriptor,
     gateType: ParkedApprovalGateType,
+    manifest?: unknown,
   ): void => {
     // Signal the parkable gate so a keep-alive resume can record the pending permission id and
     // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
@@ -222,6 +287,11 @@ export function attachPermissionResponder({
         toolCall: stampResolvedName(req?.toolCall, gate),
         availableReplies: stringArray(req?.availableReplies),
         options: req?.options,
+        // The manifest rides the LIVE event only. It carries the readable substance of the
+        // change (a diff, file digests), and the durable interaction row below deliberately
+        // keeps only the model's own arguments: the resolved content must not be persisted
+        // into an interaction row on every gated commit.
+        ...(manifest === undefined ? {} : { manifest }),
       },
     });
     createdInteractionIds.add(eventId);
@@ -233,6 +303,77 @@ export function attachPermissionResponder({
       toolCallId,
     );
     onPause?.();
+  };
+
+  /**
+   * Whether an `allow` is a replayed answer with nothing behind it, so the gate must ask again.
+   */
+  const isStaleApproval = (
+    verdict: Verdict,
+    gate: GateDescriptor,
+    toolCallId: string | undefined,
+  ): boolean => {
+    if (verdict.kind !== "allow") return false;
+    if (!shouldRegateStaleApproval?.({ gate, toolCallId })) return false;
+    log?.(
+      `[HITL] a replayed approval cannot answer this gate tool=${gate.toolName}; ` +
+        `resolving again and asking once more`,
+    );
+    return true;
+  };
+
+  /**
+   * Pause a gate that is about to ask a human, resolving any approved content first.
+   *
+   * Ordering: the verdict is already known to be non-deny when this runs, so a denied call
+   * never reaches a workspace read. A resolution failure denies the gate rather than showing a
+   * card, because a card the runner could not build in full would ask for an approval that
+   * means less than it appears to.
+   */
+  const pauseWithApprovedContent = async (
+    req: any,
+    id: string,
+    gate: GateDescriptor,
+    gateType: ParkedApprovalGateType,
+    availableReplies: string[],
+    toolCallId: string | undefined,
+  ): Promise<void> => {
+    if (!onResolveApprovedContent) {
+      pauseUserApproval(req, id, gate, gateType);
+      return;
+    }
+    const outcome = await onResolveApprovedContent({
+      toolName: gate.toolName,
+      toolCallId,
+      args: gate.args,
+    });
+    if (outcome.ok) {
+      pauseUserApproval(req, id, gate, gateType, outcome.manifest);
+      return;
+    }
+    // The structured detail, when the failure was an unresolvable marker. `available` is the
+    // useful field: a wrong path is nearly always a near miss, and this names what is really
+    // there. It used to be computed by the reader and dropped here.
+    //
+    // WHAT THIS LINE CANNOT DO, STATED SO NOBODY BUILDS ON A WRONG ASSUMPTION. It reaches the
+    // OPERATOR, not the model. Answering a gate is `session.respondPermission(id, reply)` where
+    // `PermissionReply` is `"once" | "always" | "reject"` — a bare enum with no room for text —
+    // so the model is told only that its call was rejected, and the harness authors even that
+    // wording. A model that mistyped a path is therefore informed that its change was DENIED,
+    // which reads as a human refusing rather than a file being absent, and it has no way to tell
+    // the difference. That is the same class `denial-text.ts` exists for, one layer up, and it
+    // cannot be closed from this call site.
+    const detail = outcome.detail;
+    log?.(
+      `[HITL] approved-content resolution failed id=${id} tool=${gate.toolName}: ` +
+        `${outcome.reason}${detail ? ` ${formatResolutionDetail(detail)}` : ""}` +
+        `; deny (fail closed)`,
+    );
+    if (!id) {
+      onPause?.();
+      return;
+    }
+    await replyPermission(id, "deny", availableReplies, toolCallId);
   };
 
   const pauseClientTool = (
@@ -417,8 +558,19 @@ export function attachPermissionResponder({
       gate,
       raw: req,
     });
-    if (verdict.kind === "pendingApproval" || !id) {
-      pauseUserApproval(req, id, gate, "pi-acp-permission");
+    if (
+      verdict.kind === "pendingApproval" ||
+      isStaleApproval(verdict, gate, envelope.toolCallId) ||
+      !id
+    ) {
+      await pauseWithApprovedContent(
+        req,
+        id,
+        gate,
+        "pi-acp-permission",
+        availableReplies,
+        envelope.toolCallId,
+      );
       return;
     }
     // The grant must exist BEFORE the harness reply: the extension writes the execute record
@@ -463,6 +615,12 @@ export function attachPermissionResponder({
     }
 
     const toolCall = req?.toolCall;
+    // Codex sends the approval BEFORE the `tool_call` frame that carries the arguments, so the
+    // gate has to let that frame land or it mints an authorization for a call it cannot see. Only
+    // a frame that arrived WITHOUT arguments waits, so every other harness is untouched.
+    if (isCodex && toolCall?.rawInput === undefined && toolCall?.input === undefined) {
+      await awaitRecordedToolCallArgs(run, toolCall?.toolCallId, log);
+    }
     const { gate, spec } = buildGateDescriptor(
       req,
       toolCall,
@@ -475,7 +633,7 @@ export function attachPermissionResponder({
     // The stable anchor (gate.toolName) vs the drift-prone display fields is what a live
     // session needs to diagnose a resume-key mismatch; keep this greppable via `[HITL]`.
     if (log) {
-      const args = toolCall?.rawInput ?? toolCall?.input;
+      const args = gate.args;
       log(
         `[HITL] ACP gate id=${id} ` +
           JSON.stringify({
@@ -514,12 +672,19 @@ export function attachPermissionResponder({
       gate,
       raw: req,
     });
-    if (verdict.kind === "pendingApproval" || !id) {
-      pauseUserApproval(
+    const toolCallId = stringValue(toolCall?.toolCallId);
+    if (
+      verdict.kind === "pendingApproval" ||
+      isStaleApproval(verdict, gate, toolCallId) ||
+      !id
+    ) {
+      await pauseWithApprovedContent(
         req,
         id,
         gate,
         isCodex ? "codex-acp-permission" : "claude-acp-permission",
+        availableReplies,
+        toolCallId,
       );
       return;
     }
@@ -533,7 +698,7 @@ export function attachPermissionResponder({
       id,
       verdict.kind,
       availableReplies,
-      stringValue(toolCall?.toolCallId),
+      toolCallId,
       verdict.interactionToken,
     );
   }
@@ -586,6 +751,74 @@ export function buildPiGateDescriptor(
  * The identity the runner already recorded for this tool-call id via the `session/update`
  * `tool_call` event. Used when the ACP permission frame omits or drifts its own identity.
  */
+/**
+ * How long a gate waits for the harness's own `tool_call` event before giving up on it.
+ *
+ * Codex sends the permission request BEFORE the matching `tool_call` frame. Measured on the
+ * preview stack the gap was 28 ms, and the gate ran first every time. Since the frame is the ONLY
+ * source of arguments for a Codex MCP approval, a gate that does not wait for it has no arguments
+ * at all, which is not a display problem: `mintForGate` finds no `@ag.file` markers in undefined
+ * arguments, mints nothing, and the human then approves a card whose commit can never execute.
+ *
+ * The budget is generous against the observed gap and still short against a human. It is spent
+ * only on a Codex frame that arrived without arguments, so no other harness pays for it.
+ */
+const RECORDED_TOOL_CALL_WAIT_MS = 750;
+const RECORDED_TOOL_CALL_POLL_MS = 10;
+
+/**
+ * Wait, briefly, for the recorded `tool_call` to carry arguments.
+ *
+ * Bounded and fail-open on purpose. If the frame never arrives the gate proceeds exactly as it
+ * does today, with no arguments, because a HITL gate that hangs is worse than one that asks about
+ * a call it cannot fully describe. The timeout is logged so the failure is visible rather than
+ * inferred from a downstream `authorization_missing`.
+ */
+async function awaitRecordedToolCallArgs(
+  run: { events?: () => AgentEvent[] },
+  toolCallId: unknown,
+  log?: (msg: string) => void,
+): Promise<void> {
+  if (typeof toolCallId !== "string" || !toolCallId || !run.events) return;
+  const deadline = Date.now() + RECORDED_TOOL_CALL_WAIT_MS;
+  while (Date.now() < deadline) {
+    if (recordedToolCall(run, toolCallId)?.args !== undefined) return;
+    await new Promise((resolve) =>
+      setTimeout(resolve, RECORDED_TOOL_CALL_POLL_MS),
+    );
+  }
+  log?.(
+    `[HITL] no recorded tool_call arguments for ${toolCallId} after ` +
+      `${RECORDED_TOOL_CALL_WAIT_MS}ms; the gate proceeds without arguments`,
+  );
+}
+
+/**
+ * Unwrap a Codex MCP `tool_call` input to the tool's OWN arguments.
+ *
+ * Codex records an MCP call's input as the JSON-RPC envelope `{tool, server, arguments}`, where
+ * Claude records the arguments directly. Everything downstream of the gate reads the Claude
+ * shape: `findAllMarkers` looks for `workflow_revision.delta.operations` at the TOP level, so on
+ * an envelope it finds no `@ag.file` markers, `mintForGate` mints nothing, and the commit the
+ * human just approved dies with `authorization_missing`. `substitute` and the execution-time
+ * digest match on the same top-level shape, so minting the envelope would not have worked
+ * either — the gate has to see what the tool will actually be called with.
+ *
+ * Anything that is not exactly that envelope passes through untouched, so a tool whose own
+ * arguments happen to include a `tool` field is not mistaken for one.
+ */
+function unwrapMcpEnvelope(args: unknown): unknown {
+  if (!isPlainObject(args)) return args;
+  if (typeof args.tool !== "string" || typeof args.server !== "string") {
+    return args;
+  }
+  return isPlainObject(args.arguments) ? args.arguments : args;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function recordedToolCall(
   run: { events?: () => AgentEvent[] },
   toolCallId: unknown,
@@ -645,11 +878,12 @@ export function buildGateDescriptor(
   const toolName = spec?.name ?? displayName;
   const specPermission = toolPermission(spec?.permission);
   // Codex MCP approval frames omit rawInput, so the matching tool_call event is the only source
-  // for both the approval card and the stored-decision key.
+  // for both the approval card and the stored-decision key. That event records the JSON-RPC
+  // ENVELOPE, so it has to be unwrapped before anyone downstream reads it.
   const args =
     toolCall?.rawInput ??
     toolCall?.input ??
-    (codexMcpApproval ? recorded?.args : undefined);
+    (codexMcpApproval ? unwrapMcpEnvelope(recorded?.args) : undefined);
   const gate: GateDescriptor = {
     executor: spec?.kind === "client" ? "client" : spec ? "relay" : "harness",
     toolName,
@@ -721,4 +955,27 @@ function clientToolReply(
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * One greppable line from a marker-resolution detail. Operator-facing.
+ *
+ * Only the fields that help someone answer "why did this call not run": the failure code, the
+ * path the model named, and what is really under the import root. No file CONTENT, because this
+ * goes to a log and the whole point of the import root is that its bytes are the user's.
+ *
+ * `available` lists TOP-LEVEL entries only, which is what `listImportRoot` returns. That is
+ * enough for the common miss (a directory copied in, then referenced by the wrong path) and it
+ * is NOT enough for a path that is wrong INSIDE a directory, e.g. the wrong case on a file name.
+ * Recorded here rather than fixed, because deepening the listing is a bigger change than the
+ * class it would serve.
+ */
+export function formatResolutionDetail(detail: Record<string, unknown>): string {
+  const parts: string[] = [];
+  if (typeof detail.code === "string") parts.push(`code=${detail.code}`);
+  if (typeof detail.value_pointer === "string")
+    parts.push(`at=${detail.value_pointer}`);
+  if (Array.isArray(detail.available))
+    parts.push(`available=[${detail.available.join(", ")}]`);
+  return parts.length ? `(${parts.join(" ")})` : "";
 }
