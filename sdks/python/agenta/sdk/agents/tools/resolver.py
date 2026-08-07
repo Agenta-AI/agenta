@@ -10,6 +10,7 @@ from agenta.sdk.utils.logging import get_module_logger
 
 from .errors import (
     DuplicateToolNameError,
+    GatewayToolResolutionError,
     MissingToolSecretError,
     ReservedToolNameError,
     UnsupportedToolProviderError,
@@ -135,6 +136,19 @@ def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
         _check_tool_name(tool_spec.name, seen)
 
 
+def _dropped_gateway_tool_warning(
+    tool_config: GatewayToolConfig, error: GatewayToolResolutionError
+) -> str:
+    """Message for a gateway tool dropped because it failed to resolve.
+
+    Names the tool (its declared name, else its full reference) and carries the resolver's
+    own reason string, which already names the failing action for the stale-action (404)
+    case. Surfaced as a warning so a dropped tool is never silent.
+    """
+    label = tool_config.name or tool_config.reference
+    return f"gateway tool '{label}' failed to resolve and was dropped: {error}"
+
+
 class ToolResolver:
     """Resolve canonical tool configuration through injected secret and gateway adapters."""
 
@@ -203,6 +217,7 @@ class ToolResolver:
         )
 
         tool_specs: list[ToolSpec] = []
+        warnings: list[str] = []
         for tool_config in code_configs:
             missing = [
                 secret_name
@@ -257,14 +272,30 @@ class ToolResolver:
         if gateway_configs:
             if self._gateway_resolver is None:
                 raise UnsupportedToolProviderError(gateway_configs[0].provider)
-            gateway_resolution = await self._gateway_resolver.resolve(gateway_configs)
-            tool_specs = [*gateway_resolution.tool_specs, *tool_specs]
-            # Gateway, workflow, and platform callbacks all point at ``{api}/tools/call`` with the
-            # same per-request auth, so the single shared callback is identical; keep one.
-            tool_callback = gateway_resolution.tool_callback or tool_callback
+            # Resolve each gateway tool independently so one dead tool (e.g. a Composio action
+            # that has left the catalog and now 404s) is dropped with a named warning instead of
+            # bricking the whole run. The tools that do resolve are kept and the run proceeds.
+            gateway_specs: list[ToolSpec] = []
+            for gateway_config in gateway_configs:
+                try:
+                    gateway_resolution = await self._gateway_resolver.resolve(
+                        [gateway_config]
+                    )
+                except GatewayToolResolutionError as error:
+                    warning = _dropped_gateway_tool_warning(gateway_config, error)
+                    log.warning("agent: %s", warning)
+                    warnings.append(warning)
+                    continue
+                gateway_specs.extend(gateway_resolution.tool_specs)
+                # Gateway, workflow, and platform callbacks all point at ``{api}/tools/call``
+                # with the same per-request auth, so the single shared callback is identical;
+                # keep one.
+                tool_callback = gateway_resolution.tool_callback or tool_callback
+            tool_specs = [*gateway_specs, *tool_specs]
 
         _validate_unique_names(tool_specs)
         return ResolvedToolSet(
             tool_specs=tool_specs,
             tool_callback=tool_callback,
+            warnings=warnings,
         )
