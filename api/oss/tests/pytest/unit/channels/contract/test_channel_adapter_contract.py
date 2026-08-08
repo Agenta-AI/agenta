@@ -42,11 +42,15 @@ async def _fake_connection():
     from oss.src.core.channels.dtos import ChannelConnection
     from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
+    # `data` carries whatever credentials an adapter needs; an adapter that
+    # validates them must not fail the suite for a connection the suite itself
+    # left half-configured.
     return ChannelConnection(
         id=uuid4(),
         slug="contract-suite-connection",
         provider_key=ConnectionProviderKind.AGENTA,
         integration_key="fake",
+        data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
     )
 
 

@@ -69,42 +69,61 @@ package would either hit as a wall or build on wrongly.
 - [ ] Either way, pin it: WP16's fake can now assert the posted block, so assert
   against the fake's stored message rather than a request log.
 
-## CU-A-2 — `F34`: a missing `bot_token` sends `Bearer None`
+## CU-A-2 — `F34`: a missing `bot_token` sends `Bearer None` — **DONE**
 
-- [ ] `_bot_token` returns `None` and the adapter interpolates it anyway. Fail fast
-  locally, the way `_signing_secret` already raises when its key is absent.
-- [ ] Reachable today because nothing writes `connection.data` (`F6`), so a
-  half-configured connection currently fails with a misleading Slack error.
+- [x] `_bot_token` now returns `str` and raises `ChannelConnectionIncomplete`
+  (new, in `core/channels/types.py`) when the token is absent, matching
+  `_signing_secret`. A new exception type rather than reusing
+  `ChannelSignatureInvalid`, which would have named the wrong cause.
+- [x] The test that pinned the old behaviour asserted `invalid_auth` from the
+  fake; it now asserts the local failure and that nothing reached the fake.
+- [x] **This fix surfaced `F39`** — the shared contract suite was driving every
+  adapter with no credentials at all, and passed only because Slack tolerated it.
 
-## CU-A-3 — `F30`: two implementations of the forwardfill range read
+## CU-A-3 — `F30`: two implementations of the forwardfill range read — **DONE**
 
-- [ ] `select_forwardfill_range` duplicates `compose_input`'s inline read, and **not
-  faithfully**: `compose_input` branches on `resolution.policy.forwardfill` and the
-  helper does not. **Not a substitution** — swapping one for the other as-is changes
-  behaviour when forwardfill is off.
-- [ ] Either delete the helper and keep the inline read, or move the policy branch
-  into the helper and have `compose_input` call it. Decide, do not leave both.
-- [ ] WP18 wires fill, so settling this first avoids wiring the wrong one.
+- [x] Kept the helper as the shared range read; `compose_input` now calls it and
+  keeps the policy branch, narrowing the range to the addressing event when
+  forwardfill is off. The helper stays policy-free, which is what makes it
+  reusable by the fill path WP18 wires.
+- [x] No cycle: `fill.py` imports only interfaces and dtos, never `service.py`.
+- [x] Both branches still covered; `test_forwardfill_off_returns_addressing_event_alone`
+  is the guard. **No test count changed**, so this refactor rests on that named
+  test rather than on arithmetic — worth stating, since an unchanged count is not
+  by itself evidence.
 
-## CU-A-4 — `F35`: `_StubTransport` and its five tests
+## CU-A-4 — `F35`: `_StubTransport` and its five tests — **DONE, 3 of 5**
 
-- [ ] WP16 reports five of WP6's stub-backed tests as subsumed by fake-backed
-  equivalents. **Confidence on that finding is `medium` deliberately** — it is
-  WP16's reading of its own work. Check each of the five side by side before
-  deleting anything.
-- [ ] If a stub test asserts something the fake does not, keep it and say which.
+- [x] Checked all five side by side. **Three were subsumed, two were not** — the
+  `medium` confidence was right, and deleting all five would have lost coverage.
+- [x] Deleted: post-then-edit, refusal-vs-empty-page, empty-page-not-a-refusal.
+  Each has a fake-backed equivalent asserting held state.
+- [x] **Kept**: content splitting over `MAX_CHARS` and page-size clamping. No
+  fake test references the 4001-char split or asserts the outbound `limit`;
+  verified by grep, not by reading. `_StubTransport` stays for these two.
+- [x] Arithmetic exact: 2702 → 2699 on the full unit layer, the three deletions
+  and nothing else.
 
-## CU-A-5 — `F27`: the composition root cannot be imported outside a container
+## CU-A-5 — `F27`: the composition root cannot be imported outside a container — **DEFERRED by decision**
 
-- [ ] `entrypoints/routers.py` fails at import: `env.alembic.cfg_path_core` defaults
-  to `/app/...` and the ini hardcodes `script_location = /app/...`, so overriding the
-  env var alone is not enough.
-- [ ] Make `script_location` relative to the ini, or resolve it from the package.
-- [ ] **This is why `F1` and `F36` were both missable.** No test can assert the
-  composition root's wiring while nothing can import it. Fixing it is what lets
-  WP18's work be guarded by a test rather than by inspection.
+- [x] **Diagnosis corrected.** The recorded error was wrong: the failure is
+  `No 'script_location' key found in configuration`, because `Config('/app/...')`
+  finds no file outside a container and returns an empty config. The ini's own
+  absolute `script_location` is a *second*, independent problem that only bites
+  once the first is fixed. `findings.md` now records both.
+- [x] Both fixes were prototyped and verified — the composition root imported
+  cleanly and reported `adapters: ['slack']`, i.e. `F36` visible as data — then
+  **reverted**. Migration config is not wave-4 scope, and `%(here)s` plus a
+  package-relative env default is a change for its owners to make deliberately,
+  not a side effect of channels work. (It is provably inert in production:
+  `WORKDIR /app` with `api/oss` copied to `/app/oss` makes `%(here)s` resolve to
+  the identical path under both Dockerfiles.)
+- [ ] **Consequence for WP18, which must be stated plainly:** its wiring cannot be
+  guarded by a test that imports the composition root. `F1` and `F36` were both
+  missable for this reason and the third recurrence is still possible. WP18 must
+  assert as close to the seam as it can reach and say what it could not prove.
 
-## CU-A-6 — `F14`: 30 misfiled unit tests
+## CU-A-6 — `F14`: 30 misfiled unit tests — **DEFERRED, symptom gone**
 
 - [ ] **Re-measure before acting: the symptom is already gone.** With nothing running,
   the unit layer is 2443 passed / 52 skipped — the Postgres-dependent tests skip
@@ -113,22 +132,25 @@ package would either hit as a wall or build on wrongly.
 - [ ] What remains is placement, not breakage: a unit test should not need a Postgres
   probe at all. Move them to `integration/`, or make them hermetic. No markers — the
   layer is decided by folder.
-- [ ] **Lowest priority item in this ledger.** They came from `main`, they are not
-  channels' tests, nothing is failing. If checking with the owners stalls, defer it
-  rather than holding wave 4.
+- [x] **Re-measured at CU-A: deferred, not done.** 52 clean skips, all from two
+  `conftest.py` files under `sessions/` and `git/` — neither channels'. Nothing
+  fails and nothing is order-dependent. Moving other teams' tests mid-wave buys
+  nothing and risks their suites, so this stays open for its owners.
 
-## CU-A-7 — `CU-2` missed the gateway DTO
+## CU-A-7 — `CU-2` missed the gateway DTO — **DONE**
 
-- [ ] `core/gateway/connections/dtos.py:23` still carries `(F4)`. The wave-3 sweep
-  scoped itself to the channels paths, and channels' own additions to a *shared*
-  gateway file fell outside them. Strip the citation, keep the constraint.
-- [ ] Grep once for design citations in channels' edits to shared files, not only in
-  `core/channels/**` — that is the gap this one slipped through.
+- [x] Swept the **full** wave-3 diff (342 changed code files) rather than the
+  channels paths. Found and stripped **five** citations, not one: the gateway DTO
+  `(F4)`, a `WP7`/`specs-wp7.md` comment plus a `workstreams/README.md` docstring
+  in the channels migration, and `specs-wp1.md`/`specs-wp6.md` in three test
+  docstrings. Constraints kept, references dropped.
+- [x] Verified zero remain across all 342 files, and AST-verified comment-only
+  with docstring nodes stripped.
 
-## CU-A-8 — housekeeping
+## CU-A-8 — housekeeping — **DONE**
 
-- [ ] `findings.md` header still says `Branch: channels-c2` and "at checkpoint C2".
-  Update it to C3.
+- [x] `findings.md` header now reads `channels-c3`, carried through C3, and the
+  Sources list names the wave-3 packages and the C3 merge.
 - [ ] `F10` is deferred by decision (the doubled catalog path is now baked into both
   regenerated clients). Leave it open, and note that fixing it means a second client
   regeneration.

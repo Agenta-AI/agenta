@@ -1,7 +1,7 @@
 # Findings: Channels
 
-> Branch: `channels-c2`
-> Opened on: `2026-08-07` at checkpoint C2
+> Branch: `channels-c3`
+> Opened on: `2026-08-07` at checkpoint C2, carried through C3
 > Effective path: `docs/design/channels-research/v2`
 
 ## Sources
@@ -9,6 +9,7 @@
 - Wave-1 merge defects: `workstreams/c1-merge-notes.md`
 - Per-package ledgers: `workstreams/tasks-wp{1..8}.md`
 - Wave-2 package reports (WP4, WP5, WP6, WP7, WP8), C2 merge
+- Wave-3 package reports (WP0, WP9, WP10, WP13, WP15, WP16), C3 merge
 - Local implementation under `api/oss/src/core/channels/`,
   `api/oss/src/apis/fastapi/channels/`, `api/oss/src/tasks/*/channels/`
 
@@ -370,6 +371,33 @@
 - Suggested Fix: Bless it in the spec or rename it. Low stakes; the point is
   that it entered the tree undocumented.
 
+### F39. The shared adapter contract suite hands every adapter a credential-less connection
+
+- ID: `F39`
+- Origin: `wave-4 CU-A`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `resolved`
+- Category: `Test design`
+- Summary: `_fake_connection()` in the shared contract suite built a
+  `ChannelConnection` with no `data` at all, so every adapter's suite run drove
+  egress with no credentials. It passed only because the Slack adapter tolerated
+  a missing `bot_token`. Any adapter that validates its own credentials — which
+  is the correct behaviour — fails this suite for a reason that is the suite's
+  fault, not the adapter's.
+- Evidence: fixing `F34` immediately broke
+  `test_slack_adapter_passes_wp2_contract_suite`, raising
+  `ChannelConnectionIncomplete` from `_call`. The suite's own Slack-specific
+  `_connection()` did set `bot_token`; the shared one did not.
+- Files: `api/oss/tests/pytest/unit/channels/contract/test_channel_adapter_contract.py:41`
+- Resolution: the shared connection now carries `signing_secret` and
+  `bot_token`. Fixed at CU-A of wave 4.
+- Notes: This is the seam shape the wave model predicts — a faked collaborator
+  whose asserted interface was weaker than the real one. It matters beyond the
+  fix because the suite is the contract every future adapter is held to,
+  including WP12's bridge adapter: as written it would have taught the next
+  adapter that credential validation is optional.
+
 ### F38. Nothing parses a button click: `ChannelEventKind.ACTION` is unreachable
 
 - ID: `F38`
@@ -650,23 +678,35 @@
 - Origin: `pre-existing`
 - Severity: `P3`
 - Confidence: `high`
-- Status: `open`
+- Status: `open (deferred by decision — out of wave-4 scope)`
 - Category: `Testability`
 - Summary: Importing `entrypoints.routers` outside the container fails at
   module scope. `env.alembic.cfg_path_core` defaults to `/app/...`, and the
   ini it points at hardcodes `script_location = /app/oss/databases/...`, so
   even overriding the env var is not enough — the ini's own path must be
   rewritten too.
-- Evidence: `alembic.util.exc.CommandError: Path doesn't exist:
-  /app/oss/databases/postgres/migrations/core`, raised from
+- Evidence: **corrected at CU-A of wave 4 — the error first recorded here was
+  not the real one.** Reproduced: `alembic.util.exc.CommandError: No
+  'script_location' key found in configuration`, raised from
   `oss/databases/postgres/migrations/core/utils.py:23`, which runs
-  `ScriptDirectory.from_config` at import time.
+  `ScriptDirectory.from_config` at import time. The cause is that
+  `Config('/app/...')` finds **no file at all** outside a container, so the
+  config is empty and `script_location` is *absent* rather than wrong. The ini's
+  own absolute `script_location` is a second, independent problem that only
+  surfaces once the first is fixed.
 - Files: `api/oss/databases/postgres/migrations/core/alembic.ini:5`,
   `api/oss/src/utils/env.py:616-620`,
   `api/oss/databases/postgres/migrations/core/utils.py:23`
-- Suggested Fix: Make `script_location` relative to the ini, or resolve it from
-  the package location. A repo-relative default would let the composition root
-  be imported — and therefore asserted — without a container.
+- Suggested Fix: Resolve the env default from the package location rather than
+  `/app` (this alone fixes the import), and separately make `script_location`
+  ini-relative via alembic's `%(here)s`. Both were prototyped and verified at
+  CU-A — the composition root imported cleanly and reported
+  `adapters: ['slack']`, i.e. `F36` as data — then **reverted**: migration config
+  is not wave-4 scope and carries deployment risk disproportionate to a
+  test-ergonomics gain. `%(here)s` resolves to the same `/app/...` path under
+  both Dockerfiles (`WORKDIR /app`, `api/oss` copied to `/app/oss`), so the
+  change is inert in production, but it stays a deliberate decision for its
+  owners rather than a side effect of channels work.
 - Notes: Found while verifying CU-1. Worked around with a rewritten ini in a
   scratch directory; the repo was not changed. The cost is that no test can
   assert the composition root's wiring, which is exactly the class of defect
@@ -804,12 +844,19 @@
 - Origin: `wave-3`
 - Severity: `P3`
 - Confidence: `medium`
-- Status: `open`
+- Status: `resolved (partly refuted)`
 - Category: `Simplification`
 - Summary: WP6's `_StubTransport` answers any request with the next canned body.
-  Five of its tests — post-then-edit, content splitting, refusal-vs-empty-page
-  (twice) and page-size clamping — now have fake-backed equivalents that assert
-  against held state rather than a request log.
+  Five of its tests were reported as subsumed by fake-backed equivalents.
+  **Three were; two were not.** Checked side by side at CU-A: post-then-edit and
+  both refusal-vs-empty-page tests have fake equivalents asserting held state,
+  and were deleted. Content splitting and page-size clamping have **no**
+  fake-backed equivalent — no fake test references `MAX_CHARS`/the 4001-char
+  split, and none asserts the outbound `limit` — so both were kept, and
+  `_StubTransport` stays for them.
+- Resolution: three tests deleted, two kept, at CU-A of wave 4. The `medium`
+  confidence was correct: the finding was a package's reading of its own work,
+  and 2 of 5 claims did not hold.
 - Files: `api/oss/tests/pytest/unit/channels/slack/` (WP6's stub tests and
   WP16's `test_slack_over_fake.py`)
 - Suggested Fix: Remove `_StubTransport` and those five tests at a cleanup pass.
@@ -851,7 +898,7 @@
 - Origin: `wave-3`
 - Severity: `P3`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Correctness`
 - Summary: `_bot_token` returns `None` when `connection.data` has no
   `bot_token`, and the adapter interpolates it into the header anyway, sending
@@ -859,6 +906,10 @@
   wrong token — rather than anything naming the real cause.
 - Evidence: WP16's fake classifies it as `invalid_auth`, not `not_authed`,
   because the header is present and syntactically valid.
+- Resolution: fixed at CU-A of wave 4. `_bot_token` now returns `str` and raises
+  the new `ChannelConnectionIncomplete(channel, field)` when the token is absent,
+  matching how `_signing_secret` already fails. The test that pinned the old
+  behaviour now asserts the local failure and that nothing reached the fake.
 - Files: `api/oss/src/core/channels/adapters/slack/adapter.py`
 - Suggested Fix: Fail fast locally when `bot_token` is absent, the way
   `_signing_secret` already raises `ChannelSignatureInvalid` when its key is
@@ -983,9 +1034,9 @@
 - Origin: `wave-3`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Simplification`
-- Summary: `specs-wp10.md` asks for a forwardfill range-select helper "called
+- Summary: A forwardfill range-select helper was asked for "called
   from WP4's `compose_input` path". `compose_input` already implements that read
   inline, so the tree now holds two implementations — and they are **not
   equivalent**: `compose_input` branches on `resolution.policy.forwardfill`,
@@ -1000,6 +1051,11 @@
   policy branch into the helper and have `compose_input` call it. Not a
   substitution: swapping one for the other as-is would change behaviour when
   forwardfill is off.
+- Resolution: fixed at CU-A of wave 4, by the second option. `compose_input`
+  now calls `select_forwardfill_range` and keeps the policy branch, narrowing
+  the returned range to the addressing event when forwardfill is off. Both
+  branches stay covered; no test count changed, so the guard is
+  `test_forwardfill_off_returns_addressing_event_alone` rather than arithmetic.
 - Notes: WP10 built to the spec's literal ask and reported the duplication
   rather than editing `service.py`, which it does not own — the right call. The
   spec is the thing that was stale, not the implementation.

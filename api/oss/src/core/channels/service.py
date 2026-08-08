@@ -31,6 +31,7 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
     ChannelTurnInput,
 )
+from oss.src.core.channels.fill import select_forwardfill_range
 from oss.src.core.channels.interfaces import ChannelsDAOInterface
 from oss.src.core.channels.types import (
     ChannelAgentNotFound,
@@ -730,28 +731,16 @@ class ChannelsService:
         Forwardfill off skips the range read, not the log write.
         """
 
-        latest_trigger = await self.channels_dao.fetch_latest_trigger(
+        events = await select_forwardfill_range(
             project_id=project_id,
+            channels_dao=self.channels_dao,
             thread_id=resolution.thread.id,
+            space_id=resolution.space.id,
         )
 
         if not resolution.policy.forwardfill:
             # the turn takes the addressing event alone
-            events = [
-                stored
-                for stored in await self.channels_dao.query_events_since(
-                    project_id=project_id,
-                    space_id=resolution.space.id,
-                    after_event_id=latest_trigger.event_id if latest_trigger else None,
-                )
-                if stored.id == event_id
-            ]
-        else:
-            events = await self.channels_dao.query_events_since(
-                project_id=project_id,
-                space_id=resolution.space.id,
-                after_event_id=latest_trigger.event_id if latest_trigger else None,
-            )
+            events = [stored for stored in events if stored.id == event_id]
 
         content: List[dict] = []
         for stored in events:

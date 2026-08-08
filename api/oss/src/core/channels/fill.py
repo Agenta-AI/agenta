@@ -8,11 +8,10 @@ addressed there. It is guarded by `flags.is_backfilled` rather than a count
 of `PULLED` rows, because a successful fetch can legitimately return
 nothing, and that must stay distinguishable from never having fetched.
 
-`select_forwardfill_range` mirrors the range read `compose_input` needs:
-this thread's latest trigger for the offset, then the space's events after
-it, ordered `(origin, id)`. It exists as a standalone helper because
-`entities.md` describes forwardfill as a range read composed from two DAO
-calls, not as private logic inside the caller.
+`select_forwardfill_range` is the range read `compose_input` performs: this
+thread's latest trigger for the offset, then the space's events after it,
+ordered `(origin, id)`. The caller keeps the forwardfill policy branch —
+with forwardfill off it narrows this range to the addressing event alone.
 """
 
 from typing import List, Optional
@@ -121,11 +120,11 @@ async def select_forwardfill_range(
     space_id: UUID,
 ) -> List[ChannelInboxEvent]:
     """This thread's latest trigger for the offset, then the space's events
-    after it, ordered `(origin, id)` — D21's drain as a range query.
+    after it, ordered `(origin, id)` — the drain as a range query.
 
     No trigger row yet reads as "from the beginning", which is what makes
     the first turn in a thread see the backfilled rows ahead of anything
-    pushed since.
+    pushed since. Applying the forwardfill policy is the caller's.
     """
 
     latest_trigger = await channels_dao.fetch_latest_trigger(

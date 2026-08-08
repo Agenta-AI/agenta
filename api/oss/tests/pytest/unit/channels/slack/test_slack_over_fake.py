@@ -17,7 +17,10 @@ from oss.src.core.channels.adapters.slack.adapter import (
     SlackAdapter,
 )
 from oss.src.core.channels.dtos import ChannelConnection
-from oss.src.core.channels.types import ChannelSignatureInvalid
+from oss.src.core.channels.types import (
+    ChannelConnectionIncomplete,
+    ChannelSignatureInvalid,
+)
 from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 from oss.tests.pytest.unit.channels.slack.fake_slack import (
@@ -65,15 +68,14 @@ async def test_no_bearer_header_at_all_is_rejected_as_not_authed():
     assert body == {"ok": False, "error": "not_authed"}
 
 
-async def test_adapter_with_no_bot_token_configured_is_rejected_as_invalid_auth():
-    # The adapter never omits the header — `_bot_token` returning None still
-    # sends "Authorization: Bearer None" — so the fake sees a well-formed but
-    # wrong token, not an absent one. invalid_auth is what Slack actually
-    # returns for that.
+async def test_adapter_with_no_bot_token_configured_fails_before_calling_slack():
+    # A half-configured connection is our error, not Slack's: fail locally
+    # rather than sending "Bearer None" and reading back invalid_auth, which is
+    # indistinguishable from a genuinely wrong token.
     adapter, workspace, transport = make_adapter_and_workspace()
     connection = _connection(bot_token=None)
 
-    with pytest.raises(Exception) as excinfo:
+    with pytest.raises(ChannelConnectionIncomplete) as excinfo:
         await adapter.post_message(
             connection=connection,
             locator={"channel": "C1"},
@@ -81,7 +83,8 @@ async def test_adapter_with_no_bot_token_configured_is_rejected_as_invalid_auth(
             idempotency_key=uuid4(),
         )
 
-    assert excinfo.value.error == "invalid_auth"
+    assert excinfo.value.field == "bot_token"
+    assert workspace.messages == {}
 
 
 async def test_wrong_bearer_token_is_rejected_as_invalid_auth():

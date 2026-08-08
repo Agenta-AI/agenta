@@ -129,9 +129,8 @@ async def test_slack_adapter_passes_wp2_contract_suite():
 
 
 async def test_slack_declared_identity_keys_thread_field_set_is_not_too_small():
-    """specs-wp6.md's own worked assertion: two Slack threads differing only
-    in thread_ts must not collapse to the same external_key under this
-    adapter's declared identity.keys['thread']."""
+    """Two Slack threads differing only in thread_ts must not collapse to the
+    same external_key under this adapter's declared identity.keys['thread']."""
 
     from oss.src.core.channels.adapters.slack.capabilities import (
         fetch_slack_capabilities,

@@ -1,4 +1,4 @@
-"""resolve_policy: pure, no DB — every conflict case from specs-wp1.md."""
+"""resolve_policy: pure, no DB — every conflict case."""
 
 import pytest
 

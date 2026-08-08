@@ -2,8 +2,8 @@
 
 test_channels_seed.py already exercises the SPACE/THREAD grain distinction and
 the missing-field/no-threads cases against a single fixed locator; this file
-covers the property tests from specs-wp1.md's Tests section: two distinct
-locator SHAPES (not just two grains of the same one) and dict key reordering.
+covers two distinct locator SHAPES (not just two grains of the same one) and
+dict key reordering.
 """
 
 from oss.src.core.channels.dtos import ChannelCapabilities

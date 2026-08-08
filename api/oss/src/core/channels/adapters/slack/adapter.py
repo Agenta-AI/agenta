@@ -27,7 +27,10 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceCandidate,
     ChannelSpaceKind,
 )
-from oss.src.core.channels.types import ChannelSignatureInvalid
+from oss.src.core.channels.types import (
+    ChannelConnectionIncomplete,
+    ChannelSignatureInvalid,
+)
 
 _SLACK_API_BASE = "https://slack.com/api"
 
@@ -53,9 +56,12 @@ def _signing_secret(connection: ChannelConnection) -> str:
     return secret
 
 
-def _bot_token(connection: ChannelConnection) -> Optional[str]:
+def _bot_token(connection: ChannelConnection) -> str:
     data = connection.data if isinstance(connection.data, dict) else {}
-    return data.get("bot_token")
+    token = data.get("bot_token")
+    if not token:
+        raise ChannelConnectionIncomplete(channel="slack", field="bot_token")
+    return token
 
 
 def _bot_user_id(connection: ChannelConnection) -> Optional[str]:

@@ -86,6 +86,15 @@ class ChannelConnectionNotFound(ChannelsError):
         super().__init__(f"Connection not found: {connection_id}")
 
 
+class ChannelConnectionIncomplete(ChannelsError):
+    """Raised when a connection exists but lacks credentials it needs."""
+
+    def __init__(self, *, channel: str, field: str):
+        self.channel = channel
+        self.field = field
+        super().__init__(f"Connection for channel {channel} is missing: {field}")
+
+
 class ChannelPolicyDenied(ChannelsError):
     """Raised when the effective policy forbids what was asked."""
 

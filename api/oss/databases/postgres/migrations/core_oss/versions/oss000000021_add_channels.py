@@ -4,10 +4,9 @@ Revision ID: oss000000021
 Revises: oss000000020
 Create Date: 2026-08-07 00:00:00.000000
 
-WP7 (identity links) rides this same revision per workstreams/README.md's
-collision table ("One migration, owned by WP1, containing WP7's tables too").
-`channel_identity_links` was added by WP7 in a follow-up commit on this same
-revision, never a new revision.
+Every channels table lands in this one revision, `channel_identity_links`
+included: parallel work adding a second revision would have collided on the
+down-revision chain.
 """
 
 from typing import Sequence, Union
@@ -309,7 +308,7 @@ def upgrade() -> None:
         ["project_id", "state", "created_at"],
     )
 
-    # WP7 (identity links): platform user -> Agenta account, per specs-wp7.md.
+    # identity links: platform user -> Agenta account.
     op.create_table(
         "channel_identity_links",
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False),

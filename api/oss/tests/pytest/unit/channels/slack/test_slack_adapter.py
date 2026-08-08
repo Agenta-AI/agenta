@@ -9,7 +9,6 @@ import httpx
 import pytest
 
 from oss.src.core.channels.adapters.slack.adapter import (
-    ChannelBackfillRefused,
     SlackAdapter,
 )
 from oss.src.core.channels.dtos import ChannelConnection, ChannelSpaceKind
@@ -235,34 +234,6 @@ def _adapter_with_stub(responses: List[Dict[str, Any]]):
     return SlackAdapter(http_client=client), transport
 
 
-async def test_post_then_edit_produces_one_message_edited_in_place():
-    adapter, transport = _adapter_with_stub(
-        [
-            {"ok": True, "channel": "C1", "ts": "1000.1"},
-            {"ok": True, "channel": "C1", "ts": "1000.1"},
-        ]
-    )
-    connection = _connection()
-
-    receipt = await adapter.post_message(
-        connection=connection,
-        locator={"channel": "C1"},
-        content=[{"type": "text", "text": "working..."}],
-        idempotency_key=uuid4(),
-    )
-    edited = await adapter.edit_message(
-        connection=connection,
-        external_locator=receipt,
-        content=[{"type": "text", "text": "done"}],
-        idempotency_key=uuid4(),
-    )
-
-    assert receipt == {"channel": "C1", "ts": "1000.1"}
-    assert edited == receipt
-    methods = [r.url.path for r in transport.requests]
-    assert methods == ["/api/chat.postMessage", "/api/chat.update"]
-
-
 async def test_content_over_max_chars_splits_into_multiple_posts():
     long_text = "x" * 4001
     adapter, transport = _adapter_with_stub(
@@ -284,27 +255,8 @@ async def test_content_over_max_chars_splits_into_multiple_posts():
 
 
 # --- fetch_history / backfill refusal ---------------------------------------- #
-
-
-async def test_backfill_refusal_is_distinguishable_from_empty_page():
-    adapter, _ = _adapter_with_stub([{"ok": False, "error": "missing_scope"}])
-    connection = _connection()
-
-    with pytest.raises(ChannelBackfillRefused):
-        await adapter.fetch_history(
-            connection=connection, locator={"team": "T1", "channel": "C1"}, limit=50
-        )
-
-
-async def test_backfill_empty_page_returns_empty_list_not_a_refusal():
-    adapter, _ = _adapter_with_stub([{"ok": True, "messages": []}])
-    connection = _connection()
-
-    result = await adapter.fetch_history(
-        connection=connection, locator={"team": "T1", "channel": "C1"}, limit=50
-    )
-
-    assert result == []
+# Refusal-vs-empty-page and post-then-edit are asserted against the fake
+# workspace instead, which sees stored state rather than only the request log.
 
 
 async def test_backfill_page_size_clamps_to_configured_default(monkeypatch):
