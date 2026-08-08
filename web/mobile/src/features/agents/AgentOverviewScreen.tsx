@@ -2,20 +2,17 @@ import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentConfigSummaryCard, agentAvatar, NextTriggersSection} from "@agenta/entity-ui/agent"
-import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {useAtomValue} from "jotai"
-import {ChevronLeft} from "lucide-react"
-import Link from "next/link"
-import {useRouter} from "next/router"
 
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {ICON_LINK} from "@/lib/interactive"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
+import {NavDrawer} from "../nav/NavDrawer"
+import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {AgentOverviewSection} from "./AgentOverviewSection"
 
@@ -47,8 +44,7 @@ export const AgentOverviewScreen = ({
         [agents],
     )
 
-    const router = useRouter()
-    const openRow = (vm: SessionRowVm) => void router.push(`${base}/sessions/${vm.id}`)
+    const sessionMenu = useSessionRowMenu(base)
 
     return (
         <>
@@ -58,13 +54,9 @@ export const AgentOverviewScreen = ({
                     header={
                         <div className="border-border shrink-0 border-b px-2 pb-3 pt-2">
                             <ContentRail className="flex items-center gap-2">
-                                <Link
-                                    href={`${base}/apps`}
-                                    aria-label="Back to home"
-                                    className={`text-foreground flex size-8 items-center justify-center ${ICON_LINK}`}
-                                >
-                                    <ChevronLeft className="size-5" />
-                                </Link>
+                                {/* Nav is the drawer, as on every other screen — not a per-screen
+                                    back button. Home is one drawer entry away. */}
+                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
                                 <span
                                     className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[11px] font-semibold text-white"
                                     style={{backgroundColor: avatar.color}}
@@ -86,7 +78,9 @@ export const AgentOverviewScreen = ({
                                     agentId={agentId}
                                     limit={6}
                                     emptyText="Conversations with this agent will show up here."
-                                    onOpenRow={openRow}
+                                    onOpenRow={sessionMenu.open}
+                                    menuFor={sessionMenu.menuFor}
+                                    onMenuSelect={sessionMenu.onMenuSelect}
                                     alwaysShowPin
                                 />
                             </div>
@@ -99,7 +93,9 @@ export const AgentOverviewScreen = ({
                                     agentId={agentId}
                                     limit={5}
                                     emptyText="Runs from automations bound to this agent will show up here."
-                                    onOpenRow={openRow}
+                                    onOpenRow={sessionMenu.open}
+                                    menuFor={sessionMenu.menuFor}
+                                    onMenuSelect={sessionMenu.onMenuSelect}
                                     alwaysShowPin
                                 />
                             </div>

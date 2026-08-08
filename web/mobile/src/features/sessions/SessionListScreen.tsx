@@ -3,11 +3,11 @@ import {useMemo} from "react"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {useSessionsList} from "@agenta/sessions/state"
-import {SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
+import {SessionFiltersBar, SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
+import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
@@ -49,28 +49,37 @@ export const SessionListScreen = ({
         <>
             <PageTitle parts={["Sessions", project?.project_name]} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
+                {/* Two shells over the same filter atoms, swapped at `lg`: the rail beside the
+                    results where there is room, the compact bar on a phone — where the rail's
+                    stacked facets are most of the viewport and the list starts below the fold. */}
                 <ScreenScaffold
+                    fill
                     header={
-                        <div className="border-border shrink-0 border-b px-4 pb-3 pt-2 lg:hidden">
-                            <ContentRail className="flex items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 text-sm font-semibold">Sessions</h1>
-                            </ContentRail>
-                        </div>
-                    }
-                >
-                    <div className="flex min-h-0 w-full flex-1 flex-col lg:flex-row">
-                        <SessionFiltersPanel
+                        <SessionFiltersBar
+                            className="lg:hidden"
+                            leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
                             title="Sessions"
                             waitingCount={list.waitingCount}
                             agents={agents}
                         />
+                    }
+                >
+                    <FilterRailLayout
+                        railClassName="hidden lg:flex"
+                        rail={
+                            <SessionFiltersPanel
+                                title="Sessions"
+                                waitingCount={list.waitingCount}
+                                agents={agents}
+                            />
+                        }
+                    >
                         <SessionsListView
                             onOpenRow={openRow}
                             revealActionsOnHover={false}
-                            className="min-h-0 flex-1 px-4 pb-6 lg:overflow-y-auto lg:px-6"
+                            className="min-h-0 flex-1 overflow-y-auto px-4 pb-6 lg:px-6"
                         />
-                    </div>
+                    </FilterRailLayout>
                 </ScreenScaffold>
             </AppShell>
         </>
