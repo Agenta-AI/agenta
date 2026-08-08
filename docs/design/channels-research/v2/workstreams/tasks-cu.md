@@ -76,7 +76,7 @@ things that must end up true.
   stays open; the schema now confirms the doubled segment
   (`/channels/catalog/channels/`) rather than inferring it.
 
-### Done when
+### CU-1 done when
 
 - [x] `registry.get("slack")` resolves; `dispatch_task` is not `None`; the broker
   map has channels entries.
@@ -99,6 +99,9 @@ things that must end up true.
 
 ## CU-2 — `F25`: the comment sweep
 
+**Status: done.** Zero citations remain in channels source and tests; the unit layer
+is unchanged at 2344 passed / 52 skipped.
+
 77 comment lines document the *project* rather than the code. Useful while packages
 were built in isolation; noise now, and false in places.
 
@@ -117,43 +120,60 @@ naive diff read misses a real edit buried in reflowed prose.
 
 ### Rules
 
-- [ ] **Design-process identifiers → drop.** `WP4`, `WP7`, `(F18)`, `(D17)`, `(D9)`,
+- [x] **Design-process identifiers → drop.** `WP4`, `WP7`, `(F18)`, `(D17)`, `(D9)`,
   `§2.4`. Where the comment states a real constraint, **keep the constraint and drop
   the citation** — do not delete the sentence with the reference.
-- [ ] **Stale dev/test state → drop.** Two known:
+- [x] **Stale dev/test state → drop.** Two known:
   `core/channels/service.py:46` ("a module that does not exist yet in this
   worktree") and `apis/fastapi/channels/ingress.py:20` ("WP1's service and WP2's
   registry — not yet implemented in this worktree"). Both modules are merged in the
   same tree; both comments are now false. CU-1 may make more of these stale — sweep
   after it, not before.
-- [ ] **Fixed-bug commentary → keep the mechanism, drop the story.** "the ingress
+- [x] **Fixed-bug commentary → keep the mechanism, drop the story.** "the ingress
   wrote this row before any space existed; attach it now" earns its place. "(F18).
   Before the refusal paths below" does not.
-- [ ] **Verbose comments restating the code → drop or trim to one line.** House rule
+- [x] **Verbose comments restating the code → drop or trim to one line.** House rule
   is one terse line; rationale belongs in the PR or in `findings.md`.
-- [ ] Test docstrings are in scope. A docstring naming the package that wrote the
+- [x] Test docstrings are in scope. A docstring naming the package that wrote the
   test ages the same way the source comments do.
 
-### Done when
+### CU-2 done when
 
-- [ ] No `WP\d`, `(F\d`, `(D\d` or `§` citation remains in channels source or tests.
+- [x] No `WP\d`, `(F\d`, `(D\d` or `§` citation remains in channels source or tests.
   Grep for each and report the count as zero rather than asserting it.
-- [ ] No comment claims something is unimplemented, absent, or "not yet" when it is
+- [x] No comment claims something is unimplemented, absent, or "not yet" when it is
   present in the tree.
-- [ ] Canonical run still green — a comment sweep should change no behaviour, so any
+- [x] Canonical run still green — a comment sweep should change no behaviour, so any
   test that moves is a signal something real was deleted.
+  Unit layer identical before and after: 2344 passed, 52 skipped.
+
+### What the sweep turned up
+
+Two files were **not** comment-only, and the AST check is what caught them — both
+legitimate, because the citation sat inside a string the code evaluates: a Slack
+message body in the live acceptance test, and an assertion message in the contract
+suite. A diff read would have skipped past both.
+
+It also found a real defect by reading rather than by testing: `F28`, where
+`fetch_history` gives every backfilled event the *request's* locator instead of
+deriving one per message. That is `WP10`'s ground, so it is in that package's
+coordination points now rather than waiting for C4.
+
+Two design docs disagreed with the tree and were corrected: `launch.md` still had a
+section headed "WP0 — not ours", and `plan.md` still described `F1` as three held
+diffs when it was four gaps.
 
 ---
 
 ## After CU: fan out
 
-Six worktrees already exist at `2cbdeba3e8`, `origin` only, baseline verified
-(259 channels unit tests pass with nothing running).
+**Done.** All six fast-forwarded to `d2bb2f0b6c` (CU-1 + CU-2), `origin` only,
+baseline re-verified after the move: 259 channels unit tests pass with nothing
+running.
 
-**They branch from before CU.** Once CU-1 and CU-2 land in `channels-c2`, either
-fast-forward each worktree onto the new head or note that C3's merge absorbs the
-difference — do not launch six agents against a tree that lacks the wiring their
-work assumes.
+They had branched from `2cbdeba3e8`, before CU. Launching six agents against a
+tree lacking the wiring their work assumes would have wasted the wave, so the
+fast-forward is a precondition, not a tidy-up.
 
 | Order | Worktree | Package |
 | --- | --- | --- |
