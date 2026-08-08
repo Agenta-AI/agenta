@@ -654,6 +654,130 @@
   `WP10`'s subject matter, so settle it before WP10 builds on the backfill
   path.
 
+### F29. Backfill has never run: nothing in the dispatch chain calls `fetch_history`
+
+- ID: `F29`
+- Origin: `wave-3`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `run_backfill` exists (WP10) and `SlackAdapter.fetch_history` exists
+  (WP6), but no code path connects them. Grepping the whole of
+  `api/oss/src/` for `run_backfill`, `select_forwardfill_range` or any import of
+  `core/channels/fill.py` returns **nothing outside the module itself**, and
+  neither `service.py` nor `inbox.py` ever calls `fetch_history` or
+  `mark_space_backfilled`. So `space.flags.is_backfilled` is read but never set,
+  and no space has ever been backfilled.
+- Evidence: `grep -rn "run_backfill\|select_forwardfill_range" api/oss/src/`
+  matches only `core/channels/fill.py`. `grep -n "fetch_history\|
+  mark_space_backfilled" service.py inbox.py` returns no hits; the only
+  `is_backfilled` reference is a read at `service.py:762`.
+- Files: `api/oss/src/core/channels/fill.py`,
+  `api/oss/src/tasks/asyncio/channels/inbox.py`,
+  `api/oss/src/core/channels/service.py`
+- Suggested Fix: Call `run_backfill` from the dispatch chain after `resolve()`
+  and before `open_turn`. There is a real ordering tension to settle first:
+  backfill must run before the turn opens, but its refusal `Status` wants a
+  trigger row that does not exist yet. Decide whether to open the trigger first
+  or hold the status.
+- Notes: The same shape as `F1` — a package built, green in isolation, and never
+  connected. `F1` was found by inspecting the composition root; this one was
+  found because WP10 reported its own code as uncalled rather than assuming
+  someone else would wire it. Worth stating plainly: a passing suite for
+  `fill.py` proves the function works, not that backfill happens.
+
+### F32. `!use:<id>` cannot switch threads: the service exposes no way to create one
+
+- ID: `F32`
+- Origin: `wave-3`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The `!use:<id>` command is specified to point a new thread row at a
+  named earlier session. `ChannelsService` exposes only `query_threads`,
+  `close_thread` and `enqueue_output` for threads — `create_thread` exists on the
+  **DAO interface** but has no service method in front of it, and `commands.py`
+  may not call a DAO directly (layering). So WP9 could implement the validation
+  half (refusing an id outside the caller's own scope) and not the switch.
+- Evidence: `grep -n "def .*thread" core/channels/service.py` returns
+  `query_threads` (430), `close_thread` (446), `enqueue_output` (809) — no
+  create. `core/channels/interfaces.py:300` declares `create_thread` on the DAO.
+- Files: `api/oss/src/core/channels/service.py`,
+  `api/oss/src/core/channels/interfaces.py:300`,
+  `api/oss/src/core/channels/commands.py`
+- Suggested Fix: Add the missing service method (a `switch_thread`, or widen
+  `close_thread`) in WP1's file. Note `!new` works only because closing the
+  current row makes the next `resolve()` open a fresh one — that indirection is
+  unavailable for `!use`, which must target a *specific* prior session.
+- Notes: WP9 reported the gap instead of reaching into the DAO or inventing a
+  service method, which is the behaviour the ownership rule is for. It also
+  corrects a briefing error of mine: `_parse_sigil` lives in
+  `core/channels/service.py:859` (parsing the **agent** sigil), not in the inbox
+  worker. The command sigil is a separate vocabulary, so the two parses stay
+  separate functions run in sequence — agent sigil first, since it decides which
+  thread exists at all.
+
+### F31. `streams:sessions` has no registered consumer, so turn events are published into nothing
+
+- ID: `F31`
+- Origin: `wave-3`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: WP0 publishes `turn_started` / `turn_ended` to `streams:sessions`, but
+  `worker_streams.py`'s `ALL_STREAMS` is `("records", "events", "spans")` — no
+  `sessions` entry — and `SessionEventsWorker` is referenced by nothing outside
+  its own module and tests. The events are written and never read.
+- Evidence: `api/entrypoints/worker_streams.py:52` for `ALL_STREAMS`; the three
+  `stream_name=` registrations at lines 75/84/116 cover spans, records and
+  events only. `grep -rn "SessionEventsWorker" api/` matches only the class
+  definition.
+- Files: `api/entrypoints/worker_streams.py`,
+  `api/oss/src/tasks/asyncio/sessions/events_worker.py`
+- Suggested Fix: A checkpoint edit, like `F1` — `worker_streams.py` is a
+  composition-root file no package owns. Add the `sessions` builder and stream
+  entry. Note WP0's consumer is explicitly a proof-of-observability scaffold,
+  not the production consumer: the real consumer is WP5's, replacing its poll
+  tick.
+- Notes: Two distinct things must both happen before WP5's `poll_turn` can be
+  deleted — the stream needs a registered consumer group (this finding), and WP5
+  must subscribe instead of polling. WP0 unblocked the dependency; it did not
+  complete the swap, and said so.
+- Also: WP0's payload is **not** zlib-compressed, while the sibling `records`
+  and `events` streams are. A consumer that copies a sibling's
+  `zlib.decompress` will fail on this stream. Worth pinning before WP5 writes
+  its consumer.
+
+### F30. `select_forwardfill_range` duplicates `compose_input`'s range read, and not faithfully
+
+- ID: `F30`
+- Origin: `wave-3`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Simplification`
+- Summary: `specs-wp10.md` asks for a forwardfill range-select helper "called
+  from WP4's `compose_input` path". `compose_input` already implements that read
+  inline, so the tree now holds two implementations — and they are **not
+  equivalent**: `compose_input` branches on `resolution.policy.forwardfill`,
+  taking the addressing event alone when forwardfill is off, whereas
+  `select_forwardfill_range` always returns the full range.
+- Evidence: `service.py:733-754` calls `fetch_latest_trigger` then
+  `query_events_since` directly, with the `if not resolution.policy.forwardfill`
+  branch. `fill.py`'s helper has no such branch.
+- Files: `api/oss/src/core/channels/service.py:733`,
+  `api/oss/src/core/channels/fill.py`
+- Suggested Fix: Either delete the helper and keep the inline read, or move the
+  policy branch into the helper and have `compose_input` call it. Not a
+  substitution: swapping one for the other as-is would change behaviour when
+  forwardfill is off.
+- Notes: WP10 built to the spec's literal ask and reported the duplication
+  rather than editing `service.py`, which it does not own — the right call. The
+  spec is the thing that was stale, not the implementation.
+
 ## Closed Findings
 
 ### [CLOSED] F1. Nothing connected the ingress, the workers, the registry or the configuration router
