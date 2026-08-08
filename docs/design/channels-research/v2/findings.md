@@ -405,7 +405,7 @@
 - Origin: `wave-4 WP17`
 - Severity: `P0` — blocks C4's exit condition, and Slack ingress is broken today
 - Confidence: `high`
-- Status: `open`
+- Status: `partly resolved` — verification fixed; per-connection capabilities open
 - Category: `Correctness`
 - Summary: The adapter registry holds **one instance per channel key**, with
   capabilities baked in at construction, and nothing threads a per-request
@@ -447,6 +447,30 @@
   composition root never builds. That is the `F1`/`F36` shape a third time, and its
   sharpest form yet: not an unreachable function, but a **reachable** one tested
   only in a shape nothing constructs.
+- Resolution (verification half): the ingress now resolves a **candidate**
+  connection from the body's unverified installation claim, then verifies against
+  that connection's secret and requires the verified id to match it. Both adapters
+  gained `installation_hint(body)`, defaulted on the interface so no adapter
+  breaks. An unresolvable claim raises `ChannelSignatureInvalid`, identical to a
+  bad signature, so the route is not an oracle for which installations exist.
+  Proven: two real bridge subprocesses, two credentials, interleaved signed events
+  behind the one route, each authenticating to its own connection — that test was
+  strict-xfail and is now a passing assertion.
+- **Still open (capabilities half):** `fetch_capabilities` keys on the channel
+  string, so a second bridge's space is validated against the first's declared
+  locator fields. Six call sites across three files, and it only bites with a
+  second bridge installed, so it was left out of the verification fix rather than
+  widened into it. The second two-bridge test stays strict-xfail and is the guard.
+- Three fixtures had to change, and that is the finding within the finding: two
+  built the adapter **with** a connection while production builds it without, and
+  a third set `provider_key="agenta"`/`integration_key="slack"` when the lookup
+  queries `provider_key == channel AND integration_key == external_id` — inverted.
+  All three now mirror the composition root, which is what makes them guards.
+- One security regression was introduced and caught mid-fix: acking an
+  unresolvable claim with `detail="No connection found"` before verifying leaked
+  exactly what the contract forbids. The pre-existing ack was reachable only
+  *after* verification; moving the lookup earlier changed its meaning. Caught by
+  a mismatch test expecting 401.
 - Notes: The adapter and the contract decision are each correct in isolation; what
   is missing is the composition wiring that lets them serve any installation at
   all, let alone two. It took a real out-of-process counterpart to surface it,
