@@ -1,5 +1,6 @@
 import {useCallback, useEffect} from "react"
 
+import {AgentOverviewLayout} from "@agenta/entity-ui/agent"
 import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
@@ -73,8 +74,10 @@ const AgentOverview = ({appId, agentName}: Props) => {
         // Below `lg` the columns stack and the page itself scrolls; at `lg` each column takes the
         // frame's height and scrolls on its own, so reading a long session list never carries the
         // configuration rail off screen with it.
-        <div className="flex min-h-0 w-full flex-1 flex-col items-start gap-10 overflow-y-auto lg:flex-row lg:overflow-hidden">
-            <div className="flex w-full min-w-0 flex-col gap-6 lg:h-full lg:flex-1 lg:overflow-y-auto lg:pr-4">
+        <AgentOverviewLayout
+            scroll
+            main={
+                <>
                 <RichChatInput
                     // The column scrolls, so every child of it is shrinkable by default and this
                     // one collapsed to a hairline under the title once the lists overflowed.
@@ -133,9 +136,9 @@ const AgentOverview = ({appId, agentName}: Props) => {
                         viewAllHref={sessionsHref}
                     />
                 </div>
-            </div>
-
-            <div className="flex min-h-0 w-full shrink-0 grow-0 flex-col lg:h-full lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:pr-1">
+                </>
+            }
+            rail={
                 <PanelSurface className="flex max-h-full min-h-0 flex-col">
                     <PanelScroll>
                         <AgentConfigurationCard appId={appId} />
@@ -149,8 +152,8 @@ const AgentOverview = ({appId, agentName}: Props) => {
                         <UsageSummary variant="strip" />
                     </PanelScroll>
                 </PanelSurface>
-            </div>
-        </div>
+            }
+        />
     )
 }
 

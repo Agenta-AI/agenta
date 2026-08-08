@@ -1,7 +1,12 @@
 import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {AgentConfigSummaryCard, agentAvatar, NextTriggersSection} from "@agenta/entity-ui/agent"
+import {
+    AgentConfigSummaryCard,
+    agentAvatar,
+    AgentOverviewLayout,
+    NextTriggersSection,
+} from "@agenta/entity-ui/agent"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {useAtomValue} from "jotai"
 
@@ -53,7 +58,7 @@ export const AgentOverviewScreen = ({
                 <ScreenScaffold
                     header={
                         <div className="border-border shrink-0 border-b px-2 pb-3 pt-2">
-                            <ContentRail className="flex items-center gap-2">
+                            <ContentRail className="flex items-center gap-2 lg:max-w-none">
                                 {/* Nav is the drawer, as on every other screen — not a per-screen
                                     back button. Home is one drawer entry away. */}
                                 <NavDrawer workspaceId={workspaceId} projectId={projectId} />
@@ -70,45 +75,64 @@ export const AgentOverviewScreen = ({
                         </div>
                     }
                 >
-                    <ContentRail>
-                        <AgentOverviewSection title="Sessions" viewAllHref={`${base}/sessions`}>
-                            <div className="px-2">
-                                <SessionCardList
-                                    withPinned
-                                    agentId={agentId}
-                                    limit={6}
-                                    emptyText="Conversations with this agent will show up here."
-                                    onOpenRow={sessionMenu.open}
-                                    menuFor={sessionMenu.menuFor}
-                                    onMenuSelect={sessionMenu.onMenuSelect}
-                                    alwaysShowPin
-                                />
-                            </div>
-                        </AgentOverviewSection>
+                    {/* The SHARED arrangement the desktop overview uses — activity left, the
+                        agent's own state as a rail. `gap-0` below lg keeps the phone's stacked
+                        rhythm, which the sections already own through their own padding. */}
+                    <ContentRail className="lg:max-w-none">
+                        <AgentOverviewLayout
+                            className="gap-0 lg:gap-6"
+                            main={
+                                <>
+                                    <AgentOverviewSection
+                                        title="Sessions"
+                                        viewAllHref={`${base}/sessions`}
+                                    >
+                                        <div className="px-2">
+                                            <SessionCardList
+                                                withPinned
+                                                agentId={agentId}
+                                                limit={6}
+                                                emptyText="Conversations with this agent will show up here."
+                                                onOpenRow={sessionMenu.open}
+                                                menuFor={sessionMenu.menuFor}
+                                                onMenuSelect={sessionMenu.onMenuSelect}
+                                                alwaysShowPin
+                                            />
+                                        </div>
+                                    </AgentOverviewSection>
 
-                        <AgentOverviewSection title="Automation runs">
-                            <div className="px-2">
-                                <SessionCardList
-                                    origin="trigger"
-                                    agentId={agentId}
-                                    limit={5}
-                                    emptyText="Runs from automations bound to this agent will show up here."
-                                    onOpenRow={sessionMenu.open}
-                                    menuFor={sessionMenu.menuFor}
-                                    onMenuSelect={sessionMenu.onMenuSelect}
-                                    alwaysShowPin
-                                />
-                            </div>
-                        </AgentOverviewSection>
+                                    <AgentOverviewSection title="Automation runs">
+                                        <div className="px-2">
+                                            <SessionCardList
+                                                origin="trigger"
+                                                agentId={agentId}
+                                                limit={5}
+                                                emptyText="Runs from automations bound to this agent will show up here."
+                                                onOpenRow={sessionMenu.open}
+                                                menuFor={sessionMenu.menuFor}
+                                                onMenuSelect={sessionMenu.onMenuSelect}
+                                                alwaysShowPin
+                                            />
+                                        </div>
+                                    </AgentOverviewSection>
+                                </>
+                            }
+                            rail={
+                                <>
+                                    {/* Scoped to this agent; automation RUNS say what already happened. */}
+                                    <div className="px-2 pt-2 lg:pt-0">
+                                        <NextTriggersSection
+                                            agentId={agentId}
+                                            agentNames={agentNames}
+                                        />
+                                    </div>
 
-                        {/* Scoped to this agent; automation RUNS above say what already happened. */}
-                        <div className="px-2 pt-2">
-                            <NextTriggersSection agentId={agentId} agentNames={agentNames} />
-                        </div>
-
-                        <div className="px-2 pb-6 pt-2">
-                            <AgentConfigSummaryCard appId={agentId} />
-                        </div>
+                                    <div className="px-2 pb-6 pt-2">
+                                        <AgentConfigSummaryCard appId={agentId} />
+                                    </div>
+                                </>
+                            }
+                        />
                     </ContentRail>
                 </ScreenScaffold>
             </AppShell>
