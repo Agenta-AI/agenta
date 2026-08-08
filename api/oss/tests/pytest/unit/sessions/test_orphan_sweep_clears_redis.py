@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 
 import pytest
 
-from oss.src.dbs.redis.sessions.locks import get_session_liveness
+from oss.src.dbs.redis.sessions.locks import get_session_liveness, is_turn_superseded
 from oss.src.core.sessions.streams.types import SessionTurnInUse
 from oss.src.tasks.asyncio.sessions.orphan_sweep import run_orphan_sweep
 
@@ -48,10 +48,12 @@ class _FakeResult:
 
 
 class _FakePgSession:
-    def __init__(self, rows):
+    def __init__(self, rows, seen):
         self._rows = rows
+        self._seen = seen
 
-    async def execute(self, _stmt):
+    async def execute(self, stmt):
+        self._seen.append(stmt)
         return _FakeResult(self._rows)
 
     async def commit(self):
@@ -63,10 +65,11 @@ class _FakeTransactionsEngine:
 
     def __init__(self, rows):
         self._rows = rows
+        self.statements = []
 
     @asynccontextmanager
     async def session(self):
-        yield _FakePgSession(self._rows)
+        yield _FakePgSession(self._rows, self.statements)
 
 
 class _FakeRedis:
@@ -145,3 +148,56 @@ async def test_orphan_sweep_clears_alive_lock_and_unblocks_send(anyio_backend):
             raise SessionTurnInUse(session_id=_SESSION_ID, liveness=liveness)
 
     _send_gate(liveness_after)  # must not raise
+
+
+@pytest.mark.anyio
+async def test_orphan_sweep_tombstones_the_turn_it_swept(anyio_backend):
+    """A swept turn is declared dead. Without a tombstone its next beat would find the nest
+    empty, re-acquire `alive` under its own id, and put the session straight back into the
+    orphaned state the sweep just cleaned up.
+    """
+    assert anyio_backend == "asyncio"
+
+    lock_engine = _FakeRedis()
+    await lock_engine.set(
+        f"alive:{_PROJECT_ID}:session:{_SESSION_ID}", b"turn-1", ex=3600
+    )
+    await lock_engine.set(
+        f"running:{_PROJECT_ID}:session:{_SESSION_ID}", b"turn-1", ex=3600
+    )
+    stale_row = _FakeRow(
+        session_id=_SESSION_ID,
+        updated_at=datetime.now(timezone.utc) - timedelta(seconds=600),
+    )
+
+    await run_orphan_sweep(_FakeTransactionsEngine([stale_row]), lock_engine)
+
+    assert (
+        await is_turn_superseded(
+            lock_engine,
+            project_id=_PROJECT_ID,
+            session_id=_SESSION_ID,
+            turn_id="turn-1",
+        )
+    ) is True
+
+
+@pytest.mark.anyio
+async def test_orphan_sweep_selects_rows_never_updated_since_creation(anyio_backend):
+    """A row whose heartbeat never wrote it has `updated_at` NULL, and `NULL < threshold`
+    is NULL — so a bare `updated_at <` predicate can never reclaim it, however long it has
+    claimed to be alive. The sweep must compare on coalesce(updated_at, created_at), and
+    cap the pass so a large backlog drains over several passes.
+    """
+    assert anyio_backend == "asyncio"
+
+    pg_engine = _FakeTransactionsEngine([])
+    await run_orphan_sweep(pg_engine, _FakeRedis())
+
+    assert pg_engine.statements, "the sweep must issue its select"
+    sql = str(
+        pg_engine.statements[0].compile(compile_kwargs={"literal_binds": False})
+    ).lower()
+    assert "coalesce" in sql, "a NULL updated_at must fall back to created_at"
+    assert "session_streams.created_at" in sql
+    assert "limit" in sql, "one pass must be bounded"

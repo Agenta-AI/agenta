@@ -43,6 +43,11 @@ class SessionInteractionData(BaseModel):
     references: Optional[Dict[str, Reference]] = None
     selector: Optional[Selector] = None
     resolution: Optional[Dict[str, Any]] = None
+    # The effective config the gated turn was running, stamped by the runner. Replaying it as
+    # the resume's `data.parameters` suppresses reference hydration and reproduces the turn
+    # (tool permissions included) instead of running the referenced variant's HEAD revision.
+    # Absent on rows written before this field existed; those resume via `references` alone.
+    parameters: Optional[Dict[str, Any]] = None
 
 
 class SessionInteractionFlags(BaseModel):

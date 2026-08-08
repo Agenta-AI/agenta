@@ -1410,6 +1410,27 @@ class SessionsRedisConfig(BaseModel):
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
     )
+    # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
+    # runner golden fixture; safe to tune without touching the TS side.
+    watch_heartbeat_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_HEARTBEAT_SECONDS")
+        or 15
+    )
+    # SSE `retry:` preamble — the browser's OWN auto-reconnect delay after a
+    # server-side drop (restart/deploy). Without it the interval is
+    # implementation-defined, and a restart reconnect-storms the API.
+    watch_retry_milliseconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_RETRY_MILLISECONDS")
+        or 5000
+    )
+    # API-side only (turn-supersession tombstones) — NOT part of the runner golden
+    # fixture; the runner never reads this key, it learns supersession from
+    # `is_current_turn`. Defaults to the alive TTL so a tombstone always outlives the
+    # lock whose displacement created it.
+    superseded_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_SUPERSEDED_TTL_SECONDS")
+        or 3600
+    )
 
     model_config = ConfigDict(extra="ignore")
 

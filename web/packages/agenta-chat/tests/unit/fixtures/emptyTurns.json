@@ -1,0 +1,6 @@
+[
+    {"id": "u1", "role": "user", "parts": [{"type": "text", "text": "hi"}]},
+    {"id": "a1", "role": "assistant", "parts": []},
+    {"id": "a2", "role": "assistant", "parts": [{"type": "reasoning", "text": "   "}]},
+    {"id": "a3", "role": "assistant", "parts": [{"type": "text", "text": "hello"}]}
+]
