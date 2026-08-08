@@ -1,9 +1,9 @@
 """
 worker_streams - list-parameterized entrypoint hosting the stream consumer
-loops (records, events, spans) in one process.
+loops (records, events, spans, sessions) in one process.
 
-Reads AGENTA_WORKER_STREAMS (subset of {records, events, spans}); empty or
-unset selects all three. Each selected loop keeps its own stream name,
+Reads AGENTA_WORKER_STREAMS (subset of {records, events, spans, sessions});
+empty or unset selects all four. Each selected loop keeps its own stream name,
 consumer group, and StreamConsumer subclass unchanged (see
 oss/src/tasks/asyncio/shared/consumer.py) — this entrypoint only decides which
 loops share this process, via asyncio.gather.
@@ -23,15 +23,33 @@ from oss.src.tasks.taskiq.shared.broker import (
     prune_idle_consumers,
 )
 
+from oss.src.core.channels.adapters.mock.adapter import MockAdapter
+from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
+from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
+from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.tracing.service import TracingService
+from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.events.dao import EventsDAO
+from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+from oss.src.dbs.postgres.shared.engine import (
+    get_analytics_engine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
+from oss.src.tasks.asyncio.channels.outbox import (
+    ChannelsOutboxStreamWorker,
+    ChannelsOutboxWorker,
+)
 from oss.src.tasks.asyncio.events.worker import EventsWorker
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
@@ -49,7 +67,7 @@ if is_ee():
 
 log = get_module_logger(__name__)
 
-ALL_STREAMS = ("records", "events", "spans")
+ALL_STREAMS = ("records", "events", "spans", "sessions")
 
 # Bound the stream so acked entries are trimmed; without this it grows unbounded.
 MAXLEN_QUEUES_WEBHOOKS = 100_000
@@ -119,6 +137,39 @@ async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
     )
 
 
+async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
+    transactions_engine = get_transactions_engine()
+
+    connections_service = ConnectionsService(
+        connections_dao=ConnectionsDAO(engine=transactions_engine),
+        adapter_registry=ConnectionsGatewayRegistry(adapters={}),
+    )
+    channels_service = ChannelsService(
+        channels_dao=ChannelsDAO(engine=transactions_engine),
+        adapter_registry=ChannelAdapterRegistry(
+            adapters={"slack": SlackAdapter(), "mock": MockAdapter()}
+        ),
+        connections_service=connections_service,
+    )
+
+    outbox = ChannelsOutboxWorker(
+        channels_service=channels_service,
+        turns_service=SessionTurnsService(
+            turns_dao=SessionTurnsDAO(engine=transactions_engine)
+        ),
+        records_service=RecordsService(
+            records_dao=RecordsDAO(engine=get_analytics_engine())
+        ),
+    )
+
+    return ChannelsOutboxStreamWorker(
+        outbox=outbox,
+        redis_client=redis_client,
+        stream_name="streams:sessions",
+        consumer_group="worker-sessions-channels-outbox",
+    )
+
+
 async def main_async() -> int:
     try:
         streams = _selected_streams()
@@ -141,6 +192,7 @@ async def main_async() -> int:
             "spans": _build_spans_worker,
             "records": _build_records_worker,
             "events": _build_events_worker,
+            "sessions": _build_sessions_worker,
         }
 
         consumers: List[StreamConsumer] = [

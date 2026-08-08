@@ -14,6 +14,12 @@ import asyncio
 from typing import Awaitable, Callable, Optional
 from uuid import UUID, uuid4
 
+from oss.src.core.channels.commands import (
+    CommandArgumentInvalid,
+    CommandNotOffered,
+    dispatch_command,
+    parse_command,
+)
 from oss.src.core.channels.dtos import (
     ChannelInboxEvent,
     ChannelInboxEventQuery,
@@ -22,12 +28,15 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
     ChannelTurnInput,
 )
+from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
+from oss.src.core.channels.types import ChannelThreadNotFound
 from oss.src.core.shared.dtos import Status
 from oss.src.core.channels.identity import (
     ChannelIdentityService,
     compose_external_user_key,
 )
+from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -63,12 +72,16 @@ class InboxDispatcher:
         channels_service: ChannelsService,
         workflows_service: Optional[WorkflowsService] = None,
         identity_service: Optional[ChannelIdentityService] = None,
+        streams_service: Optional[SessionStreamsService] = None,
         invoke_fn: Optional[InvokeFn] = None,
     ):
         self.channels_service = channels_service
         self.workflows_service = workflows_service
         # None means the turn runs as the agent's creator, not the sender.
         self.identity_service = identity_service
+        # None means `!stop` is not offered; commands.dispatch_command raises
+        # CommandNotOffered before ever touching this attribute either way.
+        self.streams_service = streams_service
         # `invoke_fn` overrides the default entirely (tests inject a fake
         # here); otherwise the default closes over `workflows_service`.
         self._invoke_fn = invoke_fn or self._invoke_via_workflows_service
@@ -152,6 +165,110 @@ class InboxDispatcher:
 
         return link.user_id if link is not None else None
 
+    async def _dispatch_command(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+        resolution: ChannelResolution,
+        capabilities,
+        parsed,
+    ) -> None:
+        """Routes an already-parsed command; never opens a turn.
+
+        `user_id` falls back to the agent's creator exactly like the invoke
+        path, since a command still needs an actor for audit (`close_thread`)
+        and for `SessionStreamsService.command`.
+        """
+
+        user_id = await self._invoking_user_id(
+            project_id=project_id,
+            connection_id=connection_id,
+            event=event,
+            resolution=resolution,
+        )
+        user_id = user_id or resolution.agent.created_by_id
+
+        try:
+            await dispatch_command(
+                channels_service=self.channels_service,
+                streams_service=self.streams_service,
+                project_id=project_id,
+                user_id=user_id,
+                thread=resolution.thread,
+                capabilities=capabilities,
+                parsed=parsed,
+            )
+        except (CommandNotOffered, CommandArgumentInvalid, ChannelThreadNotFound) as e:
+            # not a turn, and not silently dropped either — the addressing
+            # event's own log row is the record of the attempt.
+            log.info(
+                "[INBOX DISPATCHER] command=%s rejected for event=%s: %s",
+                parsed.command,
+                event.id,
+                e,
+            )
+
+    async def _run_backfill(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        resolution: ChannelResolution,
+        capabilities,
+    ) -> None:
+        """Fetches this space's history once, ahead of composing the turn.
+
+        A refusal is logged and never reaches the trigger row — no trigger
+        exists yet at this point, and a backfill refusal is a per-space
+        capability fact, not this turn's outcome. `is_backfilled` stays
+        false, so the next addressing retries. On success this mutates
+        `resolution.space.flags.is_backfilled` in place so the same
+        `compose_input` call downstream sees it without a re-fetch.
+
+        `run_backfill` returns `None` for "already backfilled", "not
+        supported" and "success" alike, so whether to set the local flag is
+        decided here from the capability declaration, not from that return
+        value alone. `capabilities` is the caller's — same connection,
+        already fetched for the command parse — so a not-supported channel
+        never even reaches `connections_service`.
+        """
+
+        space = resolution.space
+        if space.flags.is_backfilled:
+            return
+
+        if not capabilities.fill.backfill.supported:
+            return
+
+        connection = await self.channels_service.connections_service.get_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            return
+
+        adapter = self.channels_service.adapter_registry.get(connection.provider_key)
+
+        status = await run_backfill(
+            project_id=project_id,
+            channels_dao=self.channels_service.channels_dao,
+            adapter=adapter,
+            connection=connection,
+            space=space,
+            capabilities=capabilities,
+        )
+        if status is not None:
+            log.info(
+                "[INBOX DISPATCHER] backfill refused for space=%s: %s",
+                space.id,
+                status.message,
+            )
+            return
+
+        space.flags.is_backfilled = True
+
     async def dispatch_event(
         self,
         *,
@@ -159,8 +276,15 @@ class InboxDispatcher:
         connection_id: UUID,
         event: ChannelInboxEvent,
     ) -> None:
-        """Resolve, compose, open, and invoke for one event. Takes an
-        already-fetched row so tests can drive it directly, without a DB."""
+        """Resolve, dispatch-or-compose, open, and invoke for one event.
+        Takes an already-fetched row so tests can drive it directly, without
+        a DB.
+
+        Two parses run in sequence, neither owning the other: the agent sigil
+        (inside `resolve()`, deciding which thread exists at all) runs first,
+        the command sigil second — a message carrying both is unambiguous
+        under that order. A matched command never opens a turn.
+        """
 
         resolution = await self.channels_service.resolve(
             project_id=project_id,
@@ -175,6 +299,34 @@ class InboxDispatcher:
                 event.id,
             )
             return
+
+        channel = await self.channels_service.resolve_channel(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        capabilities = await self.channels_service.fetch_capabilities(channel=channel)
+
+        parsed = parse_command(
+            content=event.data.processed.content,
+            capabilities=capabilities,
+        )
+        if parsed is not None:
+            await self._dispatch_command(
+                project_id=project_id,
+                connection_id=connection_id,
+                event=event,
+                resolution=resolution,
+                capabilities=capabilities,
+                parsed=parsed,
+            )
+            return
+
+        await self._run_backfill(
+            project_id=project_id,
+            connection_id=connection_id,
+            resolution=resolution,
+            capabilities=capabilities,
+        )
 
         turn_input = await self.channels_service.compose_input(
             project_id=project_id,
