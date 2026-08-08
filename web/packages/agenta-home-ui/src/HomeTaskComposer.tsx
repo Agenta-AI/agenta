@@ -19,6 +19,13 @@ export interface HomeTaskComposerProps {
     onStart: (input: {agentId: string; text: string}) => void | Promise<void>
     /** Host extras left of the paperclip (voice mic, context budget). */
     extraPrefix?: ReactNode
+    /**
+     * Pin the composer to one agent and drop the picker — an agent's own page already answers
+     * "which agent", and a picker there would let you send from it to a different one.
+     */
+    fixedAgentId?: string
+    /** Placeholder override; a pinned host names the agent it is talking to. */
+    placeholder?: string
 }
 
 /**
@@ -38,11 +45,13 @@ export const HomeTaskComposer = ({
     attachments,
     onStart,
     extraPrefix,
+    fixedAgentId,
+    placeholder = "Describe the task, or start the conversation…",
 }: HomeTaskComposerProps) => {
     const [agentId, setAgentId] = useState<string | null>(null)
 
     // Default to the most recently touched agent — the one you're most likely to want next.
-    const effectiveAgentId = agentId ?? agents[0]?.id ?? null
+    const effectiveAgentId = fixedAgentId ?? agentId ?? agents[0]?.id ?? null
     const selectedName = useMemo(
         () => agents.find((agent) => agent.id === effectiveAgentId)?.name,
         [agents, effectiveAgentId],
@@ -55,10 +64,13 @@ export const HomeTaskComposer = ({
                 await onStart({agentId: effectiveAgentId, text})
             }}
             attachments={attachments}
-            placeholder="Describe the task, or start the conversation…"
+            placeholder={placeholder}
             disabled={!effectiveAgentId}
             extraPrefix={
-                <span className="flex items-center gap-1">
+                fixedAgentId ? (
+                    extraPrefix
+                ) : (
+                    <span className="flex items-center gap-1">
                     <Select value={effectiveAgentId ?? undefined} onValueChange={setAgentId}>
                         <SelectTrigger
                             aria-label="Agent"
@@ -79,8 +91,9 @@ export const HomeTaskComposer = ({
                             ))}
                         </SelectContent>
                     </Select>
-                    {extraPrefix}
-                </span>
+                        {extraPrefix}
+                    </span>
+                )
             }
         />
     )

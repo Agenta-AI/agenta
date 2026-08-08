@@ -13,6 +13,8 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {AgentComposer} from "./AgentComposer"
+
 /**
  * One agent's overview — the mobile face of the desktop agent overview page: this agent's
  * sessions and automation runs from the same shared card hooks, and the shared read-only
@@ -74,6 +76,9 @@ export const AgentOverviewScreen = ({
                     <ContentRail className="min-h-0 flex-1 px-2 lg:max-w-none">
                         <AgentOverviewBody
                             alwaysShowPin
+                            composer={
+                                <AgentComposer agentId={agentId} agentName={name} base={base} />
+                            }
                             agentId={agentId}
                             agentNames={agentNames}
                             sessionsHref={`${base}/sessions`}
