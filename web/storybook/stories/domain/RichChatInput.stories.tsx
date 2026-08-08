@@ -1,8 +1,8 @@
 import {useRef, useState} from "react"
 
 import {permissionPolicyLabel, type PermissionPolicy} from "@agenta/entity-ui/drill-in"
-import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/HarnessPickerPanel"
-import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/PermissionsPickerPanel"
+import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/HarnessPickerPanel"
+import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/PermissionsPickerPanel"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {Cpu, Cube, GraduationCap, Paperclip, ShieldCheck, Wrench} from "@phosphor-icons/react"
@@ -367,10 +367,6 @@ export const SlashCommands: Story = {
                             onSubmit={setLast}
                             placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                             slashCommands={sections}
-                            slashEmptyAction={{
-                                label: "Add a skill to this agent",
-                                onSelect: () => setApplied("add-skill"),
-                            }}
                         />
                     </div>
                     <div className="text-xs text-colorTextSecondary">

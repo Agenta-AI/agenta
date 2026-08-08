@@ -41,19 +41,12 @@ interface SlashCommandPluginProps {
     anchorRef: React.RefObject<HTMLElement | null>
     /** Suppresses the menu without unmounting it (e.g. while dictating). */
     disabled?: boolean
-    /** Footer of the empty state — the host's escape hatch when nothing matched. */
-    emptyAction?: {label: string; onSelect: () => void}
 }
 
 /** A command run: the `/` plus everything up to the caret, with no whitespace in it. */
 const COMMAND_RUN = /^\/([^\s/]*)$/
 
-export function SlashCommandPlugin({
-    sections,
-    anchorRef,
-    disabled,
-    emptyAction,
-}: SlashCommandPluginProps) {
+export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommandPluginProps) {
     const [editor] = useLexicalComposerContext()
     const [query, setQuery] = useState<string | null>(null)
     const [activeIndex, setActiveIndex] = useState(0)
@@ -233,22 +226,6 @@ export function SlashCommandPlugin({
                         <div className="text-xs text-[var(--ag-colorTextSecondary)]">
                             No command, skill or tool matches “{query}”
                         </div>
-                        <div className="mt-[5px] text-[11.5px] text-[var(--ag-colorTextTertiary)]">
-                            Press ↵ to send it as plain text.
-                        </div>
-                        {emptyAction ? (
-                            <button
-                                type="button"
-                                onMouseDown={(e) => {
-                                    e.preventDefault()
-                                    close()
-                                    emptyAction.onSelect()
-                                }}
-                                className="mt-3 cursor-pointer border-none bg-transparent p-0 text-[11px] text-[var(--ag-colorPrimary)]"
-                            >
-                                + {emptyAction.label}
-                            </button>
-                        ) : null}
                     </div>
                 ) : (
                     visibleSections.map((section) => (
