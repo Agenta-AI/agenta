@@ -1,5 +1,11 @@
 # WP17 — A bridge process, at test level
 
+> **Rescoped for wave 4, and ordered last.** This is no longer only a bridge harness:
+> it is **the process that drives channels end to end**, and therefore the only honest
+> driver for the commands, fill and mock capabilities WP18 wires. It also hosts WP11's
+> differential. Depends on WP18 (the wiring it exercises), WP19 (the protocol it
+> asserts) and WP12 (the adapter it talks to).
+
 A **real out-of-process bridge**, run as a test fixture, that speaks the wire
 contract over HTTP and drives channels end to end. Where WP12 implements the
 core-side adapter that talks *to* a bridge, this implements the other end of the
@@ -45,10 +51,8 @@ identifying fields — `"source": "bridge/acme-wecom"` inbound, and
 `bridge.name` in `bridge.hello` — but **never says what core does with them**,
 which is `F37`. Nothing in the code reads `source`.
 
-**Settle the contract before writing the test.** Whether `source` is
-authoritative, or the credential is, or the credential is authoritative and
-`source` a cross-check, changes what this package asserts. That decision is a
-checkpoint conversation; this package then holds the implementation to it.
+**WP19 settles that decision before this package starts**, and WP12 implements it.
+This package holds them to it — it does not decide, and it does not guess.
 
 Its central test is **two bridges at once**:
 
@@ -93,8 +97,9 @@ protection testable — inject it rather than reading the clock.
   readiness wait, signed-request helpers
 - `tests/.../channels/bridge_process/` tests alongside
 
-No source file changes. If core cannot support two bridges, or cannot resolve a
-channel from a credential, that is a finding — not a licence to edit the ingress.
+No source file changes. By the time this runs, WP19 has restructured the ingress and
+WP12 has built the adapter — so a failure here is a finding about *their* work, and
+belongs in a report rather than in a patch to their files.
 
 ## Test layer
 
@@ -109,9 +114,14 @@ environment must provide.
 
 ## Depends on
 
-**WP12.** Core needs a `BridgeAdapter` before anything can talk to a bridge; this
-package supplies the counterpart, not the adapter. Ordered after it, the way
-WP16 is ordered after WP15.
+- **WP19** — the `source` decision, which determines what the two-bridge test asserts.
+- **WP12** — core needs a `BridgeAdapter` before anything can talk to a bridge; this
+  package supplies the counterpart, not the adapter.
+- **WP18** — the wiring this process exercises. Without it, commands, fill and the mock
+  adapter have no callers and driving them proves nothing.
+
+It also **hosts WP11's differential**: in-process Slack against bridged Slack, both
+pointed at WP16's fake. WP11 lands after this one.
 
 ## Done when
 
@@ -128,7 +138,8 @@ WP16 is ordered after WP15.
 
 ## Out of scope
 
-- WP12's adapter, and WP11's differential harness — this is their counterpart.
+- WP12's adapter — this is its counterpart, not a second copy of it.
+- Deciding the `source` protocol; that is WP19's, and this package asserts it.
 - A production bridge, or any bridge for a named platform. This is the reference
   implementation a bridge author would read, living in tests.
 - Fixing `F37`. Prove it, report it.

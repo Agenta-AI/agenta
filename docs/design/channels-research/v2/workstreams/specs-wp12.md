@@ -1,5 +1,11 @@
 # WP12 — Bridge
 
+> **Wave 4, ordered after WP19.** `F37` left the wire contract silent on what core
+> does with `source` / `bridge.name`, so this adapter cannot resolve a channel until
+> WP19 decides that. Build against WP19's decision, not against this spec's silence.
+> Also note `_ingest` currently looks the adapter up *before* verifying, which does
+> not work for a credential-derived channel — WP19 restructures that arm.
+
 Makes the wire contract in `contract.md` real: HTTP both directions, signed;
 `bridge.hello` answering the same capability declaration a first-party
 adapter answers; the versioned event envelope inbound; the delivery command

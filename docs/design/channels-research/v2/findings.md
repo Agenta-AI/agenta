@@ -94,7 +94,11 @@
 - Origin: `checkpoint`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `closed`
+- Closed by: `CU-2`. 109 citation lines across 43 files — not the 77 estimated here,
+  which counted source only and missed the test tree. Zero remain; verified
+  comment-only by AST comparison with docstring nodes stripped, and the unit layer
+  was unchanged at 2344 passed / 52 skipped.
 - Category: `Maintainability`
 - Summary: The channels source carries comments that document the *project* rather
   than the code. They were useful while packages were built in isolation and are
@@ -129,29 +133,6 @@
   `service.py`, `interfaces.py` and `dao.py`, and the identity wiring added
   "Public since C2: WP4's dispatcher needs...". Those go first.
 
-### F1. Nothing enqueues inbox events or schedules the outbox poll
-
-- ID: `F1`
-- Origin: `checkpoint`
-- Severity: `P0`
-- Confidence: `high`
-- Status: `open`
-- Category: `Completeness`, `Functionality`
-- Summary: WP4, WP5 and WP8 each need edits to `api/entrypoints/routers.py`,
-  and WP4/WP5 also to `api/entrypoints/worker_queues.py`. All three were
-  instructed to hand the diffs back rather than apply them, so the merged tree
-  has an ingress that logs events, a dispatcher that would route them, and a
-  worker that would answer — none connected.
-- Evidence:
-  - `git diff --name-status cff139770a channels-wp{4,5,8}` shows no entry for
-    either entrypoint file.
-  - `apis/fastapi/channels/ingress.py` takes `dispatch_task: Optional[Any] =
-    None`; nothing sets it.
-- Files: `api/entrypoints/routers.py`, `api/entrypoints/worker_queues.py`
-- Suggested Fix: Apply the three diffs serially (they are quoted verbatim in
-  the WP4, WP5 and WP8 reports), WP4 first since it defines the ingress
-  dispatch task WP3's router consumes.
-- Blocks: any acceptance test that drives a signed event through to an answer.
 
 ### F2. No scheduler drives `channels.outbox.poll`
 
@@ -159,7 +140,10 @@
 - Origin: `WP5`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `superseded`
+- Superseded by: `F31` and `WP18` — the answer is the third option this finding
+  listed. The outbox subscribes to `streams:sessions` and `poll_turn` is deleted,
+  so no scheduler is ever needed.
 - Category: `Completeness`
 - Summary: The outbox worker exposes a poll entry point, but nothing invokes it
   repeatedly. WP5 searched for a taskiq periodic-task primitive to copy and
@@ -172,6 +156,8 @@
 
 ### F3. WP0 (session events) is unowned and blocks WP5's final form
 
+- **Resolved in part:** WP0 is built and merged (wave 3) — it is no longer unowned.
+  What remains is `F31`: the stream has no registered consumer, which is `WP18`.
 - ID: `F3`
 - Origin: `planning`
 - Severity: `P1`

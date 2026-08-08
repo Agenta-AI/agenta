@@ -1,5 +1,14 @@
 # WP11 — Slack over the bridge
 
+> **Rescoped for wave 4.** The differential now runs **through WP17's test-drive
+> process against WP16's fake Slack**, not against a live workspace. The claim is
+> unchanged — the in-process run is the oracle — but the fake makes it testable: this
+> spec demands the posted content match byte-for-byte "modulo nothing", and real
+> Slack's `ts` varies per run, so a live differential needs allowances that weaken
+> exactly what it proves. WP16's fake draws `ts` from a seeded counter. Read every
+> "real Slack install" below as "the fake, driven by WP17"; the live acceptance test
+> stays as acceptance, not as the oracle. Real Slack is checkpoint C6.
+
 A differential test, not a second channel. WP6's Slack adapter is run twice
 against the same real Slack install — once in process, once out of process
 behind WP12's wire contract — and the two runs are held to the same

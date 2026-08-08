@@ -10,7 +10,9 @@ add what was missed. Neither carries history; the design documents in `v2/` rema
 the source of truth and a spec that disagrees with them is a bug in the spec.
 
 Clean-up work that belongs to no package — a collision file, a cross-cutting
-sweep — goes in `tasks-cu.md` and is done at the checkpoint, not in a worktree.
+sweep — goes in a `tasks-cu*.md` ledger and is done at the checkpoint, not in a
+worktree. [`tasks-cu.md`](tasks-cu.md) covered wave 3 and is closed;
+[`tasks-cu2.md`](tasks-cu2.md) is wave 4's.
 
 Anything that outlives a single package — a cross-package seam, a pre-existing
 defect, something blocked on a checkpoint — goes in [`../findings.md`](../findings.md),
@@ -93,6 +95,8 @@ see the collision list below.
 | WP15 | `core/channels/adapters/mock/` |
 | WP16 | `tests/.../channels/slack/fake_slack.py` + its tests (no source files) |
 | WP17 | `tests/.../channels/bridge_process/` + its tests (no source files) |
+| WP18 | `api/entrypoints/{routers,worker_streams}.py`, `tasks/asyncio/channels/{inbox,outbox}.py` |
+| WP19 | `contract.md`, `apis/fastapi/channels/ingress.py` (the bridge arm) |
 
 ### Known collisions, and how each is handled
 
@@ -150,7 +154,10 @@ and the checklist that says C1 has actually been reached.
 | [specs-wp15.md](specs-wp15.md) | [tasks-wp15.md](tasks-wp15.md) | Mock channel |
 | [specs-wp16.md](specs-wp16.md) | [tasks-wp16.md](tasks-wp16.md) | Slack over mock |
 | [specs-wp17.md](specs-wp17.md) | [tasks-wp17.md](tasks-wp17.md) | A bridge process, at test level |
-| — | [tasks-cu.md](tasks-cu.md) | Clean-up (no package owns it) |
+| [specs-wp18.md](specs-wp18.md) | [tasks-wp18.md](tasks-wp18.md) | Connect what wave 3 built |
+| [specs-wp19.md](specs-wp19.md) | [tasks-wp19.md](tasks-wp19.md) | The bridge `source` contract |
+| — | [tasks-cu.md](tasks-cu.md) | Clean-up before wave 3 (closed) |
+| — | [tasks-cu2.md](tasks-cu2.md) | Clean-up before wave 4 |
 
 ## Migrations are never verified by pytest
 
