@@ -181,7 +181,9 @@ export function SplitPane({
         <div
             data-slot="split-pane-pane"
             className={cn(
-                "box-border min-h-0 shrink-0 grow-0 overflow-hidden",
+                // min-w-0: a flex item floors at min-content otherwise, so a pane whose content has
+                // an intrinsic width would refuse to follow `paneSize` down. The basis is the truth.
+                "box-border min-h-0 min-w-0 shrink-0 grow-0 overflow-hidden",
                 animate && !dragging && SLIDE,
                 paneClassName,
             )}

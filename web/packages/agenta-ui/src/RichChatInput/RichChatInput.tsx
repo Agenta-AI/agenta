@@ -244,10 +244,13 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 minHeightClassName,
                             )}
                             placeholder={
+                                // Mirrors the editor's own box exactly — same padding, same
+                                // leading. A different line-height sits the placeholder off the
+                                // caret's baseline by a couple of pixels.
                                 <div
                                     className={clsx(
-                                        "pointer-events-none absolute select-none text-[var(--ag-composer-placeholder)]",
-                                        comfortable ? "left-5 top-4" : "left-3 top-2.5",
+                                        "pointer-events-none absolute inset-0 select-none break-words leading-relaxed text-[var(--ag-composer-placeholder)]",
+                                        comfortable ? "px-5 py-4" : "px-3 py-2.5",
                                         textSizeClassName,
                                     )}
                                 >
