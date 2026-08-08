@@ -1,36 +1,28 @@
-import {memo, useCallback, useEffect, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    Button,
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-    ContextMenuTrigger,
-    SimpleTooltip,
-} from "@agenta/ui/ui"
-import {PencilSimple, Plus, X} from "@phosphor-icons/react"
+    SessionRowContextMenu,
+    SessionTab,
+    SessionTabDragItem,
+    SessionTabStrip,
+} from "@agenta/sessions-ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {PencilSimple, X} from "@phosphor-icons/react"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {AnimatePresence, MotionConfig, motion} from "motion/react"
+import {useAtomValue, useSetAtom} from "jotai"
+import {AnimatePresence, MotionConfig} from "motion/react"
 
 import {SESSION_SPRING, TAG_VARIANTS} from "../assets/sessionMotion"
 import {useSessionActions, type SessionMenuItem} from "../hooks/useSessionActions"
 import {type SessionDotStatus, sessionDotStatusAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
-import {type AgentChatSession, sessionFirstUserTextAtomFamily} from "../state/sessions"
+import {
+    type AgentChatSession,
+    reorderSessionsAtomFamily,
+    sessionFirstUserTextAtomFamily,
+} from "../state/sessions"
 
 import SessionTabLabel, {type SessionTabLabelHandle} from "./SessionTabLabel"
-
-/** Slight left/right edge fade so tabs dissolve into the strip edges instead of a hard cut when
- * they overflow. Applied per-side ONLY where content is actually clipped (scrolled past) — a strip
- * that fits (e.g. a single tab) gets no fade, so its lone item isn't dimmed at the edges. */
-const EDGE_FADE_PX = 20
-const fadeMask = (left: boolean, right: boolean): string => {
-    const start = left ? `transparent 0, #000 ${EDGE_FADE_PX}px` : "#000 0"
-    const end = right ? `#000 calc(100% - ${EDGE_FADE_PX}px), transparent 100%` : "#000 100%"
-    return `linear-gradient(to right, ${start}, ${end})`
-}
 
 /** `attention` states need the user (approval / input) or flag a failure — their semantic colour
  * outranks the active tab's clean white dot, so it's never masked on the session you're viewing.
@@ -127,19 +119,9 @@ const SessionTag = memo(function SessionTag({
     const label = session.title || text || `Chat ${index + 1}`
     const tabRef = useRef<HTMLDivElement>(null)
     const labelRef = useRef<SessionTabLabelHandle>(null)
-    // Hide the hover actions while the inline rename input owns the row.
+    // Hide the hover actions while the inline rename input owns the row. The chip itself owns the
+    // hover/focus state that decides whether they're mounted at all (see SessionTab).
     const [renaming, setRenaming] = useState(false)
-    // Mount the hover actions on hover/focus rather than rendering them behind `opacity-0` — see
-    // the matching note in SessionRail: each button carries a Tooltip + Trigger + icon subtree.
-    const [hot, setHot] = useState(false)
-    const onEnter = useCallback(() => setHot(true), [])
-    const onLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-        // Don't unmount the cluster out from under keyboard focus (symmetric with onBlurChip).
-        if (!e.currentTarget.contains(document.activeElement)) setHot(false)
-    }, [])
-    const onBlurChip = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHot(false)
-    }, [])
     const sessionId = session.id
     const handleSelect = useCallback(() => onSelect(sessionId), [onSelect, sessionId])
     const handleRename = useCallback(
@@ -156,15 +138,6 @@ const SessionTag = memo(function SessionTag({
             onClose(sessionId)
         },
         [onClose, sessionId],
-    )
-    const onKeyDown = useCallback(
-        (e: React.KeyboardEvent) => {
-            if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault()
-                handleSelect()
-            }
-        },
-        [handleSelect],
     )
     // Keep the active tab visible. Jump INSTANTLY only on the bar's initial reveal of a session that
     // was already present at mount (reload restoring a far-away active tab) — the strip's scroll-smooth
@@ -185,8 +158,10 @@ const SessionTag = memo(function SessionTag({
         mountedRef.current = true
     }, [active])
     return (
-        // Wrapper collapses its width + gap margin on enter/exit so neighbours close up with no snap.
-        <motion.div
+        // Wrapper collapses its width + gap margin on enter/exit so neighbours close up with no snap,
+        // and doubles as the tab's drag slot (arranging tabs writes the scope's open-ids order).
+        <SessionTabDragItem
+            id={session.id}
             ref={tabRef}
             variants={TAG_VARIANTS}
             initial="initial"
@@ -209,31 +184,12 @@ const SessionTag = memo(function SessionTag({
             }}
             className="shrink-0 overflow-hidden"
         >
-            <ContextMenu>
-                <ContextMenuTrigger asChild>
-                    <div
-                        role="tab"
-                        aria-selected={active}
-                        tabIndex={0}
-                        onClick={handleSelect}
-                        onKeyDown={onKeyDown}
-                        onMouseEnter={onEnter}
-                        onMouseLeave={onLeave}
-                        onFocus={onEnter}
-                        onBlur={onBlurChip}
-                        className={clsx(
-                            // Floor the width so short labels ("hi") still leave a clickable label zone to the
-                            // left of the hover actions (rename/close overlay the right ~58px) — otherwise a
-                            // tiny chip is fully covered on hover and the click lands on a button, not select.
-                            "group relative flex h-7 min-w-[112px] max-w-[180px] cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 text-xs transition-colors",
-                            // White pill on the recessed chat canvas (raised); the active tab keeps the
-                            // primary text + a 2px accent underline so it's unmistakable against neighbours.
-                            active
-                                ? "border-colorBorder border-b-2 border-b-[var(--ag-surface-accent)] bg-colorBgContainer text-colorText"
-                                : "border-colorBorderSecondary bg-colorBgContainer text-colorTextSecondary hover:border-colorBorder",
-                        )}
-                    >
-                        <SessionStatusDot sessionId={session.id} active={active} />
+            <SessionRowContextMenu entries={menu.items} onSelect={(key) => menu.onClick({key})}>
+                <SessionTab
+                    active={active}
+                    onSelect={handleSelect}
+                    statusDot={<SessionStatusDot sessionId={session.id} active={active} />}
+                    label={
                         <SessionTabLabel
                             ref={labelRef}
                             label={label}
@@ -241,61 +197,38 @@ const SessionTag = memo(function SessionTag({
                             onEditingChange={setRenaming}
                             className="block min-w-0 flex-1 truncate"
                         />
-                        {/* Hover actions overlay the label's tail — absolutely positioned so no width is
-                    reserved at rest (no pixel shift). The gradient fades the covered text out under
-                    the buttons instead of hard-clipping it. */}
-                        {hot && !renaming && (
-                            <div className="absolute inset-y-0 right-0 flex items-center">
-                                <span
-                                    aria-hidden
-                                    className="h-full w-3 bg-gradient-to-l from-colorBgContainer to-transparent"
-                                />
-                                <span className="flex h-full items-center gap-0.5 rounded-r-md bg-colorBgContainer pr-1">
-                                    <SimpleTooltip title="Rename session">
-                                        <Button
-                                            variant="ghost"
-                                            size="icon-sm"
-                                            aria-label="Rename session"
-                                            onClick={startRename}
-                                            className="h-5 w-5 shrink-0 p-0"
-                                        >
-                                            {PENCIL_ICON}
-                                        </Button>
-                                    </SimpleTooltip>
-                                    {closable && (
-                                        <Button
-                                            variant="ghost"
-                                            size="icon-sm"
-                                            aria-label="Close session"
-                                            onClick={handleClose}
-                                            className="h-5 w-5 shrink-0 p-0"
-                                        >
-                                            {X_ICON}
-                                        </Button>
-                                    )}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                </ContextMenuTrigger>
-                <ContextMenuContent>
-                    {menu.items.map((item, i) =>
-                        "type" in item ? (
-                            <ContextMenuSeparator key={`divider-${i}`} />
-                        ) : (
-                            <ContextMenuItem
-                                key={item.key}
-                                disabled={item.disabled}
-                                variant={item.danger ? "destructive" : "default"}
-                                onSelect={() => menu.onClick({key: item.key})}
-                            >
-                                {item.label}
-                            </ContextMenuItem>
-                        ),
-                    )}
-                </ContextMenuContent>
-            </ContextMenu>
-        </motion.div>
+                    }
+                    renderActions={() =>
+                        renaming ? null : (
+                            <>
+                                <SimpleTooltip title="Rename session">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Rename session"
+                                        onClick={startRename}
+                                        className="h-5 w-5 shrink-0 p-0"
+                                    >
+                                        {PENCIL_ICON}
+                                    </Button>
+                                </SimpleTooltip>
+                                {closable && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Close session"
+                                        onClick={handleClose}
+                                        className="h-5 w-5 shrink-0 p-0"
+                                    >
+                                        {X_ICON}
+                                    </Button>
+                                )}
+                            </>
+                        )
+                    }
+                />
+            </SessionRowContextMenu>
+        </SessionTabDragItem>
     )
 })
 
@@ -336,6 +269,8 @@ const SessionTagBar = ({
     // Right-click a chip for the same verbs the sessions list offers. Scope IS the owning agent,
     // so the local tab cache and the server stay in step.
     const scope = useChatScopeKey()
+    const reorderSessions = useSetAtom(reorderSessionsAtomFamily(scope))
+    const tabIds = useMemo(() => sessions.map((session) => session.id), [sessions])
     const {menuItems, onMenuClick} = useSessionActions()
     const menuFor = useCallback(
         (session: AgentChatSession) => {
@@ -357,124 +292,36 @@ const SessionTagBar = ({
         seededRef.current = true
         sessions.forEach((s) => presentAtMountRef.current.add(s.id))
     }
-    // Edge fade is applied per side only where the strip is actually scrolled past its content, so
-    // a strip that fits (single tab, no scroll) shows no fade on either edge.
-    const [fade, setFade] = useState({left: false, right: false})
-    const stripElRef = useRef<HTMLDivElement | null>(null)
-    const measureFade = useCallback(() => {
-        const el = stripElRef.current
-        if (!el) return
-        const overflow = el.scrollWidth - el.clientWidth > 1
-        setFade({
-            left: overflow && el.scrollLeft > 1,
-            right: overflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
-        })
-    }, [])
-    // React 19 registers onWheel as passive, so preventDefault would be a no-op. Attach a native
-    // non-passive listener that maps vertical wheel delta to horizontal scroll; also track scroll +
-    // resize to recompute the edge fade.
-    const stripCleanupRef = useRef<(() => void) | null>(null)
-    const scrollStripRef = useCallback(
-        (el: HTMLDivElement | null) => {
-            stripCleanupRef.current?.()
-            stripCleanupRef.current = null
-            stripElRef.current = el
-            if (!el) return
-            const onWheel = (e: WheelEvent) => {
-                if (el.scrollWidth <= el.clientWidth) return
-                const axis = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX
-                if (axis === 0) return
-                // Wheels report deltaMode=LINE (tiny integers) and the strip has scroll-smooth —
-                // together they crawl. Normalize to px, scroll instantly.
-                const delta =
-                    e.deltaMode === 1 ? axis * 16 : e.deltaMode === 2 ? axis * el.clientWidth : axis
-                e.preventDefault()
-                const prev = el.style.scrollBehavior
-                el.style.scrollBehavior = "auto"
-                el.scrollLeft += delta
-                el.style.scrollBehavior = prev
-            }
-            el.addEventListener("wheel", onWheel, {passive: false})
-            el.addEventListener("scroll", measureFade, {passive: true})
-            const ro = new ResizeObserver(() => measureFade())
-            ro.observe(el)
-            measureFade()
-            stripCleanupRef.current = () => {
-                el.removeEventListener("wheel", onWheel)
-                el.removeEventListener("scroll", measureFade)
-                ro.disconnect()
-            }
-        },
-        [measureFade],
-    )
-    // A ResizeObserver watches the element box, not its content — remeasure when the tab set changes.
-    useEffect(() => {
-        measureFade()
-    }, [sessions, measureFade])
     return (
         <MotionConfig reducedMotion="user">
-            <div className="flex h-[48px] min-w-0 w-full shrink-0 items-center gap-2 overflow-hidden border-0 border-b border-solid border-[var(--ag-surface-card-border)] bg-[var(--ag-surface-canvas)] px-3">
-                {showSessions ? (
-                    <div
-                        ref={scrollStripRef}
-                        className="flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                        style={{
-                            maskImage: fadeMask(fade.left, fade.right),
-                            WebkitMaskImage: fadeMask(fade.left, fade.right),
-                        }}
-                    >
-                        <AnimatePresence initial={false}>
-                            {sessions.map((session, index) => (
-                                <SessionTag
-                                    key={session.id}
-                                    session={session}
-                                    index={index}
-                                    active={session.id === activeId}
-                                    closable={closable}
-                                    presentAtMount={presentAtMountRef.current.has(session.id)}
-                                    onSelect={onSelect}
-                                    onClose={onClose}
-                                    onRename={onRename}
-                                    menu={menuFor(session)}
-                                />
-                            ))}
-                        </AnimatePresence>
-                    </div>
-                ) : (
-                    <div className="min-w-0 flex-1" />
-                )}
-                {/* Fixed session-actions cluster — pinned outside the scroll area so New session (+) sits
-                at the end of the tab strip without scrolling away, grouped with the inspect/history
-                controls. */}
-                {(showSessions || extra) && (
-                    <div className="flex shrink-0 items-center gap-1">
-                        {showSessions && (
-                            <SimpleTooltip
-                                title={
-                                    addDisabled
-                                        ? "Available after your agent's first response"
-                                        : "New session"
-                                }
-                            >
-                                {/* Non-disabled span trigger: tooltips don't fire on a disabled button. */}
-                                <span className="inline-flex">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="New session"
-                                        onClick={onAdd}
-                                        disabled={addDisabled}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <Plus size={14} />
-                                    </Button>
-                                </span>
-                            </SimpleTooltip>
-                        )}
-                        {extra}
-                    </div>
-                )}
-            </div>
+            <SessionTabStrip
+                showTabs={showSessions}
+                onAdd={onAdd}
+                addDisabled={addDisabled}
+                addTooltip={
+                    addDisabled ? "Available after your agent's first response" : "New session"
+                }
+                extra={extra}
+                remeasureKey={sessions}
+                reorder={{ids: tabIds, onReorder: reorderSessions}}
+            >
+                <AnimatePresence initial={false}>
+                    {sessions.map((session, index) => (
+                        <SessionTag
+                            key={session.id}
+                            session={session}
+                            index={index}
+                            active={session.id === activeId}
+                            closable={closable}
+                            presentAtMount={presentAtMountRef.current.has(session.id)}
+                            onSelect={onSelect}
+                            onClose={onClose}
+                            onRename={onRename}
+                            menu={menuFor(session)}
+                        />
+                    ))}
+                </AnimatePresence>
+            </SessionTabStrip>
         </MotionConfig>
     )
 }

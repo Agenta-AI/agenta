@@ -5,7 +5,7 @@ import {math} from "@streamdown/math"
 import {useAtomValue} from "jotai"
 import {Streamdown, type Components, type ThemeInput} from "streamdown"
 
-import {useDriveSessionId} from "@/oss/components/Drives/driveSessionContext"
+import {useDriveSessionId} from "@agenta/entity-ui/drive"
 
 import {chatFileLinkAtomFamily} from "../state/fileLinks"
 
