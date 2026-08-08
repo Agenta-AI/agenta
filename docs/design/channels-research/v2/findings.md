@@ -664,6 +664,41 @@
   same change — they are the regression guard, and a fix that leaves them green
   has not fixed anything.
 
+### F36. C3 merges green with four of five new capabilities unreachable
+
+- ID: `F36`
+- Origin: `C3`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The five-way merge produced 2443 passing tests, zero conflicts and
+  zero failures — and **nothing outside its own module calls** `run_backfill`,
+  `select_forwardfill_range`, `parse_command` or `dispatch_command`.
+  `core/channels/commands.py` is imported by nothing at all, and `MockAdapter`
+  appears nowhere in `api/entrypoints/`. Only WP0's publisher is wired, and
+  `F31` records that its stream has no consumer.
+- Evidence: per-symbol grep across `api/oss/src/` and `api/entrypoints/`
+  excluding each symbol's own definition and module: `run_backfill` 0,
+  `select_forwardfill_range` 0, `parse_command` 0, `dispatch_command` 0,
+  `publish_turn_started` 2. `grep -rn "MockAdapter" api/entrypoints/` → 0.
+  `channels_adapter_registry` at `routers.py:1072` lists `slack` only.
+- Files: `api/entrypoints/routers.py`,
+  `api/oss/src/tasks/asyncio/channels/inbox.py`,
+  `api/oss/src/core/channels/{commands,fill}.py`
+- Suggested Fix: A checkpoint wiring pass, the same shape as `CU-1` — the call
+  sites live in `inbox.py` and `routers.py`, files no package owns. Registering
+  `mock` is one line; the command and backfill call sites need the ordering
+  decisions in `F29` and `F32` settled first.
+- Notes: **The test arithmetic is exactly right** — 2344 + 26 + 21 + 25 + 11 +
+  16 = 2443 — so no test was shadowed or lost, and every package genuinely works
+  in isolation. That is the point worth keeping: a green merge measured
+  reachability nowhere, and the per-package suites cannot measure it by
+  construction, because each one calls its own entry point directly. `F1` was
+  this defect for wave 2 and was found by inspecting the composition root, not
+  by a suite; the same inspection is now a required step at every checkpoint
+  rather than something remembered.
+
 ### F35. `_StubTransport` and its five tests are now subsumed
 
 - ID: `F35`
