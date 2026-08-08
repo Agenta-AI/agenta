@@ -186,9 +186,26 @@ could not extend a backlog that resolved to nothing.
 | Worktree | Package | Owns |
 | --- | --- | --- |
 | `channels-wp15` | Mock channel — an in-process adapter for a channel that does not exist | `core/channels/adapters/mock/` |
+| `channels-wp16` | Slack over mock — a fake Slack API the real adapter runs against | `tests/.../channels/slack/fake_slack.py` + tests |
+| `channels-wp0` | Session events — two publishes off the turns service | `core/sessions/turns/service.py`, `tasks/asyncio/sessions/` |
 | `channels-wp9` | Commands — `!new`, `!stop`, `!sessions`, `!use:<id>` | command parsing + dispatch |
 | `channels-wp10` | Fill — backfill range read, forwardfill one-time fetch | `core/channels/` fill paths |
 | `channels-wp13` | Web app — the configuration surface over WP8 | `web/` only |
+
+**WP15 → WP16 are ordered, like WP12 → WP11 at C5.** Each pair is a
+channel-shaped harness plus a real adapter run through it: `mock` proves the port
+is a port, then `slack-over-mock` proves the Slack adapter matches Slack's own
+contract using the same scripted-workspace technique. Separate packages — one
+ships an adapter, the other a fake platform and tests — but done together.
+
+**WP0 is in this wave.** It was listed for three waves as "not ours" while every
+plan for C4 required it: the exit condition is *"WP5's polling is deleted, not
+disabled"*, which needs session events. It is also small — `append_turn` and
+`complete_turn` are five- and eight-line DAO passthroughs, `publish_record` is the
+template (fail-open Redis included), and the consumer goes in a directory that
+already holds three `StreamConsumer` subclasses. It edits
+`core/sessions/turns/service.py`, which channels does not own, so it needs the
+sessions owner's review — a smaller ask than requesting they build it.
 
 **WP15 is new and goes first.** Slack was built before any mock, so several
 capability paths are proved only against a test fixture (`WellBehavedFakeAdapter`)
@@ -225,11 +242,15 @@ because none sits on another's critical path. WP13 is the only one touching
   suite, WP6's Slack adapter must still pass it — the suite is shared, so a change
   made for `mock` is a change to Slack's acceptance criteria too.
 
-### Still not ours
+### Deferred to the very end
 
-WP0 (session events) gates WP10's final form. WP11/WP12 (the bridge) are C5;
-note that `mock` over the bridge is a cheaper first bridged channel than Slack,
-since it removes the platform as a variable — see `plan.md`'s WP12 ordering note.
+**WP14** (input sequencing) and the further channels (Telegram, Discord, then
+Teams and WhatsApp). Nothing structural waits on any of them; WP14 improves C2's
+behaviour whenever it lands and needs no revisit of anything.
+
+WP11/WP12 (the bridge) remain C5 — but note `mock` over the bridge is a cheaper
+first bridged channel than Slack, since it removes the platform as a variable.
+See `plan.md`'s WP12 ordering note.
 
 ## Rules for anyone working a package
 

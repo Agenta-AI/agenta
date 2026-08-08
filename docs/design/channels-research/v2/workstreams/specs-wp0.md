@@ -1,9 +1,10 @@
 # WP0 — Session events
 
-**This is not channels work.** It is owned by whoever owns sessions, not by the
-channels team. It is listed and specced here only because channels cannot reach
-its final form without it — WP5 (the outbox worker) depends on it to stop
-polling.
+**Not channels code, but channels' work to do.** It touches the sessions turns
+service, so it needs the sessions owner's review — but channels is its only
+consumer, and C4 cannot complete without it: the exit condition is that WP5's
+polling is *deleted*. This was listed as an external dependency for three waves
+while every plan for C4 required it; that framing is withdrawn. It is in wave 3.
 
 **Nothing in the runner changes.** `SessionTurnsService.append_turn` and
 `complete_turn` already exist, are already thin DAO passthroughs, and the

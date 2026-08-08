@@ -1,8 +1,15 @@
 # WP0 tasks — Session events
 
-Not channels work. Owned by whoever owns sessions. Nothing in the runner
-changes; `append_turn` and `complete_turn` already exist and are already
-called by the runner at turn start/end.
+**Not channels code, but channels' work to do** — in wave 3, C4. Channels is its
+only consumer and C4's exit condition ("WP5's polling is deleted, not disabled")
+cannot be met without it.
+
+It edits `core/sessions/turns/service.py`, which channels does not own: that needs
+the sessions owner's review before merge. Flag it early rather than at the
+checkpoint.
+
+Nothing in the runner changes; `append_turn` and `complete_turn` already exist and
+are already called by the runner at turn start/end.
 
 ## Publish plumbing
 

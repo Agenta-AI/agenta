@@ -33,6 +33,7 @@ flowchart LR
     WP13["WP13<br/>web app"]
     WP14["WP14<br/>input sequencing"]
     WP15["WP15<br/>mock channel"]
+    WP16["WP16<br/>Slack over<br/>mock"]
 
     WP1 --> WP3
     WP1 --> WP4
@@ -51,6 +52,7 @@ flowchart LR
     WP4 --> WP10
     WP2 --> WP15
     WP15 --> WP12
+    WP6 --> WP16
     WP2 --> WP12
     WP6 --> WP11
     WP12 --> WP11
@@ -63,21 +65,26 @@ flowchart LR
     classDef apart fill:#e6e6e6,stroke:#b3b3b3,color:#333333
 
     class WP1,WP2,WP3,WP4,WP5,WP6,WP7,WP8 done
-    class WP15,WP9,WP10,WP13 next
+    class WP0,WP15,WP16,WP9,WP10,WP13 next
     class WP11,WP12 later
-    class WP0,WP14 apart
+    class WP14 apart
 ```
 
-Green is merged (through C2), blue is the next wave, yellow is later, grey is not
-channels work.
+Green is merged (through C2), blue is the next wave, yellow is later, grey is
+deferred to the very end.
 
 **WP1** and **WP2** — the domain and the port — have no dependencies and gate most
 of the rest. Everything else follows.
 
-Two packages are **not channels work**: **WP0** (session events) and **WP14**
-(input sequencing). WP0 is a hard edge — WP5 polls without it and must not ship
-that way. WP14 is the dashed edge: channels works without it and WP4 needs no
-revisit when it lands.
+**WP0** (session events) is a hard edge — WP5 polls without it and must not ship
+that way — and it is **in C4**, not adjacent to it: C4's exit condition is that
+polling is deleted, which requires the events. It touches the sessions turns
+service rather than any channels path, so it needs the sessions owner's review,
+but building it here is a smaller ask than requesting someone else build it.
+
+**WP14** (input sequencing) is the dashed edge and the one genuinely deferred
+package: channels works without it and WP4 needs no revisit when it lands. It goes
+last, with Telegram and Discord.
 
 **WP15** (mock channel) depends only on the port, and the bridge depends on it
 rather than on Slack. That edge was `WP6 --> WP12` while Slack was the only
@@ -186,12 +193,30 @@ operator can configure a connection end to end over the API.
 
 ### C4 — It is pleasant
 
-**Merges:** WP15 first, then WP9, WP10, WP13. **Needs:** C3, and WP0 for WP5's
-final form.
+**Merges:** WP15, then WP16; and WP0, WP9, WP10, WP13. **Needs:** C3.
 
-WP15 leads: a mock channel is what lets the capability matrix be exercised without
-credentials, and the arms no real platform reaches (no threads, no buttons, no
-history) have no other home.
+**WP15 → WP16 is ordered within the checkpoint**, the same way WP12 → WP11 is at
+C5, and for the same reason: each pair is a channel-shaped harness plus the real
+Slack adapter run through it. `mock` proves the port is a port; `slack-over-mock`
+then proves the Slack adapter is correct against Slack's own contract, reusing the
+scripted-workspace technique WP15 establishes. Separate packages because the
+deliverables differ — one is an adapter, the other a fake platform plus tests — but
+done together, since the second is the first pointed at a real adapter.
+
+WP15 leads the checkpoint: a mock channel is what lets the capability matrix be
+exercised without credentials, and the arms no real platform reaches (no threads,
+no buttons, no history) have no other home.
+
+**WP0 is in this checkpoint, not outside it.** C4's exit condition is "WP5's
+polling is deleted, not disabled", which cannot be met without session events — so
+listing WP0 as an external dependency while planning the checkpoint that requires
+it was incoherent. It is also small: `append_turn` and `complete_turn` are five-
+and eight-line DAO passthroughs, `publish_record` is the template to copy
+(fail-open Redis included), and `records_worker.py` already sits in the directory
+the consumer goes in, beside three other `StreamConsumer` subclasses. It edits
+`core/sessions/turns/service.py`, which channels does not own — that is a review
+conversation with the sessions owner, and a smaller ask than requesting they build
+it.
 
 Everything that makes the difference between working and usable: commands, fill,
 and the configuration UI. Grouped because none of them is on anyone else's critical
@@ -220,16 +245,23 @@ which is a follow-up rather than a package.
 
 ### What is not a checkpoint
 
-**WP14** (input sequencing) and **WP0** (session events) are not our code and gate
-nothing structurally. WP0 is needed *inside* C4 to delete WP5's polling. WP14
-improves C2's behaviour whenever it lands and requires no revisit of anything.
+**WP14** (input sequencing) gates nothing structurally: it improves C2's behaviour
+whenever it lands and requires no revisit of anything. It is deferred to the very
+end, with Telegram and Discord.
+
+**WP0** was listed here too, on the grounds that it is not our code. That reading
+is withdrawn — it merges *inside* C4, because C4's exit condition is deleting
+WP5's polling and that is impossible without the events.
 
 ---
 
 ## WP0 — Session events
 
-**Not channels work.** Owned by whoever owns sessions; listed here because
-channels cannot finish without it.
+**Not channels code, but channels' work to do.** It touches the sessions turns
+service, so it needs the sessions owner's review — but channels is its only
+consumer, C4 cannot complete without it, and it is two publish calls against a
+pattern (`publish_record`) that already exists beside a consumer directory that
+already holds three `StreamConsumer` subclasses.
 
 Publish two events from `SessionTurnsService`:
 
@@ -552,6 +584,41 @@ both its supported and unsupported arm.
 
 ---
 
+## WP16 — Slack over mock
+
+A **fake Slack API**: an `httpx` transport that answers `chat.postMessage`,
+`chat.update`, `conversations.list`, `conversations.replies` and
+`conversations.history` the way Slack does, including the failure shapes —
+`ok: false` with `error: "missing_scope"`, `channel_not_found`,
+`ratelimited` with `Retry-After`, and a 403. The real `SlackAdapter` runs against
+it unchanged, since it already accepts an injected `http_client`.
+
+**What this is not.** WP6 already stubs the transport in its unit tests
+(`_StubTransport`, which pops scripted response bodies in call order). That proves
+the adapter *sends* a request; it cannot prove the adapter survives Slack, because
+the stub answers anything with the next canned body. It never rejects a malformed
+call, never enforces a scope, never returns an error the adapter has to handle.
+
+**Why it is a rung of its own.** The ladder is: `mock` (WP15) proves the port is a
+port; **`slack-over-mock` proves the Slack adapter is correct against Slack's
+contract**; the bridge (WP12) proves the wire; bridged Slack (WP11) proves the two
+agree. Each isolates one variable. Today there is no test that would catch a Slack
+adapter that posts a well-formed request to the wrong endpoint, mishandles
+`missing_scope`, or ignores `Retry-After` — the live acceptance test would, but it
+needs a workspace and is skipped by default.
+
+**Files.** `api/oss/tests/pytest/unit/channels/slack/fake_slack.py` — the transport
+and its scripted workspace state — plus the tests that drive it. No source file
+changes: the adapter already has the seam.
+
+**Done when:** every `SlackAdapter` method has a test against the fake covering its
+success path and at least one Slack error shape; `fetch_history` raising
+`ChannelBackfillRefused` is driven by a real `missing_scope` body rather than a
+hand-raised exception; and the fake rejects a request Slack would reject rather
+than answering it.
+
+---
+
 ## WP11 — Slack over the bridge
 
 The Slack adapter of WP6, run **out of process behind the wire contract**, held
@@ -679,7 +746,9 @@ invent one. Worth stating once: WP10 is likely what eventually forces it, and wh
 it arrives it should look like Agenta's existing model, not a per-row TTL.
 
 **Further channels** — Telegram, Discord, then Teams and WhatsApp. All four are
-modelled and verified in `channels.md`; none is a package here.
+modelled and verified in `channels.md`; none is a package here. **WP14** (input
+sequencing) sits in this same bucket: deferred to the very end, after every
+checkpoint, since nothing structural waits on it.
 
 Each is the same shape of work: an adapter behind WP2's port, in process or bridged.
 They are follow-ups rather than packages because WP6 plus WP11 establish both paths,
