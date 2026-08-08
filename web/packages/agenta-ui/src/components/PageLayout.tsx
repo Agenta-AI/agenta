@@ -38,6 +38,16 @@ export interface PageLayoutProps {
     headerClassName?: string
 }
 
+/** antd's heading ramp as literals (`fontSizeHeading*` / `lineHeightHeading*` from
+ * antd-themeConfig.json), used only as fallbacks for hosts that never generate the vars. */
+const HEADING_SCALE: Record<1 | 2 | 3 | 4 | 5, {fontSize: string; lineHeight: number}> = {
+    1: {fontSize: "32px", lineHeight: 1.25},
+    2: {fontSize: "26px", lineHeight: 1.3076923076923077},
+    3: {fontSize: "20px", lineHeight: 1.4},
+    4: {fontSize: "16px", lineHeight: 1.5},
+    5: {fontSize: "14px", lineHeight: 1.5714285714285714},
+}
+
 const PageLayout = ({
     title,
     titleLevel = 3,
@@ -103,13 +113,16 @@ const PageLayout = ({
                         {/* antd Title replacement: a real heading sized off antd's own heading
                             tokens so it flips/scales with the theme; `m-0` kills the UA margin
                             (preflight is off). Weight is fontWeightStrong — antd's own Title rule
-                            won over the prior `font-medium` className, so 600 IS the baseline. */}
+                            won over the prior `font-medium` className, so 600 IS the baseline.
+                            The literals are fallbacks, not decoration: antd generates the
+                            `--ant-*` vars, so on a host without it (the mobile app) every page
+                            title silently fell back to body text. */}
                         <HeadingTag
                             className="m-0 truncate"
                             style={{
-                                fontSize: `var(--ant-font-size-heading-${titleLevel})`,
-                                lineHeight: `var(--ant-line-height-heading-${titleLevel})`,
-                                fontWeight: "var(--ant-font-weight-strong)",
+                                fontSize: `var(--ant-font-size-heading-${titleLevel}, ${HEADING_SCALE[titleLevel].fontSize})`,
+                                lineHeight: `var(--ant-line-height-heading-${titleLevel}, ${HEADING_SCALE[titleLevel].lineHeight})`,
+                                fontWeight: "var(--ant-font-weight-strong, 600)",
                             }}
                             title={titleText || undefined}
                         >

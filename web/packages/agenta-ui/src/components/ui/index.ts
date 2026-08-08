@@ -30,6 +30,7 @@ export {
 } from "./select"
 export {Popover, PopoverTrigger, PopoverAnchor, PopoverContent} from "./popover"
 export {Tooltip, TooltipTrigger, TooltipContent, TooltipProvider} from "./tooltip"
+export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
 export {RadioGroup, RadioGroupItem, type RadioGroupProps} from "./radio-group"
 export {
     Combobox,
@@ -70,6 +71,14 @@ export {
     DropdownMenuSubContent,
     DropdownMenuPortal,
 } from "./dropdown-menu"
+export {
+    ContextMenu,
+    ContextMenuTrigger,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+} from "./context-menu"
+export {SplitPane, type SplitPaneProps} from "./split-pane"
 export {Accordion, AccordionItem, AccordionTrigger, AccordionContent} from "./accordion"
 export {
     Skeleton,

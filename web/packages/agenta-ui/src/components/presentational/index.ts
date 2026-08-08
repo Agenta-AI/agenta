@@ -272,3 +272,13 @@ export {
     type UseCollapseToggleOptions,
     type UseCollapseToggleReturn,
 } from "./buttons"
+export {HeightCollapse} from "../HeightCollapse"
+export {
+    ChatActionIconButton,
+    ChatAttachmentCard,
+    ChatBubble,
+    ChatBubbleAvatar,
+    ChatTypingDots,
+    type ChatAttachmentCardProps,
+    type ChatBubbleProps,
+} from "./chat"
