@@ -43,14 +43,33 @@
   never produced a row with a null `updated_at`. This is the strongest evidence
   yet for the rule in `c1-merge-notes.md` — a faked collaborator is an asserted
   interface, and the assertion is only tested when something real replaces it.
-- Runner suite: 19 failures across three TypeScript files
-  (`commit-authorization`, `sandbox-agent-acp-interactions`, `workspace-import`).
-  Unchanged since before wave 1 and untouched by channels, which ships no
-  TypeScript. Not tracked here.
+- **Verified state at `5d6af1f774`, against a from-scratch EE deployment** —
+  all four suites, every layer:
+
+  | Suite | Unit | Integration | Acceptance |
+  | --- | --- | --- | --- |
+  | api | 2372 pass (4 fail, `F14`) | 40 pass, **1 fail (`F18`)** | 751 pass |
+  | sdk | 1974 pass | 146 pass | 124 pass |
+  | services | 100 pass | 15 pass | 145 pass |
+  | runner | 2070 pass (19 fail, `F21`) | — | — |
+
+  `F18` is the only channels failure anywhere. Acceptance needs
+  `AGENTA_API_URL=http://localhost/api` (the `/api` prefix — bare `http://localhost`
+  reaches the web app and returns HTML 500s) and `AGENTA_AUTH_KEY`, readable
+  from the running api container.
+- The C2 redeploy confirmed the enum change end to end: `oss000000021` applied
+  clean, both `kind` columns are `varchar`, `origin` and the two `state`
+  columns kept their enum types, and `channelspacekind`/`channeleventkind` no
+  longer exist. All 40 channels integration tests pass against it.
 
 ## Decisions
 
 - Test layer is decided by folder, never by marker.
+- **A unit test may use nothing external — no database, no object store, no
+  broker, no HTTP.** Values read from the environment are fine; a *connection*
+  is not. Anything needing one external dependency but still testing a single
+  unit is an **integration** test. Anything point-like or flow-like end to end
+  is an **acceptance** test. This is what `F14` violates.
 - Migrations are verified by hand against local Docker Postgres. No pytest test
   runs `alembic upgrade`/`downgrade`, and no checklist tracks that as a gap.
 - Deployment happens at checkpoints only, never per work package.
@@ -370,24 +389,59 @@
 - Suggested Fix: Confirm the interaction path reads `id` back, and add a
   round-trip test. Revisit when the button-click ingress lands.
 
-### F14. 45 DB-dependent tests are misfiled under `unit/`
+### F14. 30 unit tests open external connections, and collide over them
 
 - ID: `F14`
+- Origin: `pre-existing`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Test-design`
+- Summary: A unit test may read env values but must not open a connection to
+  anything (see `Decisions`). 30 files under `oss/tests/pytest/unit/` construct
+  a `TransactionsEngine`, an async engine, an `ObjectStore`, or a Redis client.
+  They pass when selected alone and fail in a full-layer run, because they
+  share one database with no per-test isolation — so the layer is not just
+  mislabelled, it is order-dependent.
+- Evidence:
+  - 30 files match `TransactionsEngine|create_async_engine|engine.session()|ObjectStore|redis`
+    under `unit/`: 18 in `sessions/`, 3 in `events/`, 2 in `triggers/`, 2 in
+    `git/`, the rest in `mounts/`, `utils/` and evaluation.
+  - `unit/git/` alone: 31 passed on both `channels-c1` and `channels-c2`.
+  - Full `--layer unit`: 4 failed on **both** branches (C1 with 5 errors, C2
+    with 3) — the failures track the run mode, not the branch.
+  - The failure is `asyncpg.exceptions.ForeignKeyViolationError`: rows another
+    test removed.
+- Files: 30 under `api/oss/tests/pytest/unit/`, mostly `sessions/`
+- Suggested Fix: Move each to `integration/` (one external dependency, still
+  unit-like) or `acceptance/` (point-like or flow-like end to end). Outside
+  channels' scope — raise with the owners rather than fixing here.
+- Notes: **Corrects an earlier diagnosis in this record**, twice over. These
+  were first reported as erroring for want of a reachable Postgres — wrong,
+  they reach one fine and collide over shared state. And the scope was given as
+  `git/` + `sessions/`; it is 30 files across seven areas. **No channels unit
+  test is among them** — verified, all 259 use fakes.
+
+### F21. 19 runner tests fail, unrelated to channels
+
+- ID: `F21`
 - Origin: `pre-existing`
 - Severity: `P3`
 - Confidence: `high`
 - Status: `open`
-- Category: `Test-design`
-- Summary: Tests under `unit/git/` and `unit/sessions/` error without a
-  reachable Postgres. The unit layer is defined as needing no environment, so
-  these are integration tests in the wrong folder.
-- Evidence: The same 7 failures and 45 errors reproduce on the untouched C1
-  baseline — verified by running the same selection in `channels-c1`.
-- Files: `api/oss/tests/pytest/unit/git/`, `api/oss/tests/pytest/unit/sessions/`
-- Suggested Fix: Move them to `integration/`. Outside channels' scope — raise
-  with the owners rather than fixing here.
-- Notes: Unrelated to channels; recorded so the next person reading a red unit
-  run does not attribute it to this feature.
+- Category: `Test-coverage`
+- Summary: `ts-run-tests --runner -ui` reports 19 failures across three files:
+  `commit-authorization.test.ts`, `sandbox-agent-acp-interactions.test.ts`,
+  `workspace-import.test.ts`. 2070 pass.
+- Evidence: The same three files, at the same count, before wave 1 and after
+  the C2 redeploy. Channels ships no TypeScript — no branch in this feature
+  touches `services/runner/`.
+- Files: `services/runner/tests/unit/`
+- Suggested Fix: Not ours. Raise with the runner owners.
+- Notes: Recorded only so a red runner suite is not read as channels
+  regression. One observed failure logs `ownership claim failed
+  session=sess-1: network unreachable`, which suggests these also want an
+  environment they do not declare — same family as `F14`.
 
 ## Closed Findings
 

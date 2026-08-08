@@ -146,6 +146,62 @@ C1 is a gate and not a formality:
 **Instead of rebasing the package worktrees**, C1 carries the whole result: the
 three ledgers are closed here, and wave 2 branches from `channels-c1`.
 
+## Wave 3 — three packages, launched from C2
+
+All three branch from `channels-c2`, which carries the five wave-2 packages plus
+the C2 fixes (identity wiring, the `provider_key` member, the idempotency-key
+null guard, and the open-vocabulary enum change).
+
+**The checkpoint numbering in `plan.md` has drifted from what happened.** That
+document assigns WP6 and WP8 to C3, but both merged at C2 — the packages were
+ready together and there was no reason to hold them. So C3's exit condition
+("Slack works") is now a *verification* checkpoint over code already merged,
+not a merge of new packages. Wave 3 is `plan.md`'s C4 set.
+
+| Worktree | Package | Owns |
+| --- | --- | --- |
+| `channels-wp9` | Commands — `!new`, `!stop`, `!sessions`, `!use:<id>` | command parsing + dispatch |
+| `channels-wp10` | Fill — backfill range read, forwardfill one-time fetch | `core/channels/` fill paths |
+| `channels-wp13` | Web app — the configuration surface over WP8 | `web/` only |
+
+The three are independent by construction: `plan.md` groups them precisely
+because none sits on another's critical path. WP13 is the only one touching
+`web/`, so it cannot collide with the other two at all.
+
+### F18 comes first, and it is not a package
+
+**`F18` blocks every one of these.** The ingress writes each inbound event with
+`space_id=None` (it cannot do otherwise — the space is resolved afterwards),
+while `compose_input` queries events *by* `space_id`. So the agent is invoked
+with empty content on every turn. Commands cannot be parsed from content that is
+never read, and fill cannot extend a backlog that resolves to nothing.
+
+Fix it at the checkpoint, before launching wave 3 — it needs a write path on
+WP1's DAO, which no package owns. See `findings.md`.
+
+### Coordination points, not blockers
+
+- **WP9 and WP4 both parse the message.** WP4 already ships `_parse_sigil` for
+  addressing; WP9 owns the `!command[:arg]` grammar. One of them should end up
+  owning both, and the checkpoint decides which — not WP9 unilaterally.
+- **WP10 deletes WP5's polling, but only once WP0 lands.** WP0 is not ours and
+  not scheduled. Until then WP10's forwardfill and WP5's poll loop coexist;
+  `plan.md`'s C4 exit condition ("WP5's polling is deleted, not disabled")
+  cannot be met without it. Raise it with the sessions owner now.
+- **WP13 consumes WP8's routes as merged, including their open questions.**
+  `F10` (the catalog path contradiction), `F11` (wire DTOs in the core module)
+  and `F12` (an invented request model) are all in WP13's surface. Settle them
+  before WP13 builds against a shape that then moves.
+- **WP13 is the first package to write `connection.data`.** `F6` records that
+  nothing currently does, and that the four key names WP6 reads
+  (`signing_secret`, `bot_token`, `bot_user_id`, `team_id`) have no design-doc
+  basis. Pin them in a document before writing the form that fills them.
+
+### Still not ours
+
+WP0 (session events) and WP11/WP12 (the bridge) are outside wave 3. The bridge
+is `plan.md`'s C5 and needs WP12 before WP11; WP0 gates WP10's final form.
+
 ## Rules for anyone working a package
 
 1. **Own your paths.** If the task needs a file you do not own, that is a

@@ -2,6 +2,16 @@
 
 This directory specifies the testing strategy for the Agenta monorepo, covering all system interfaces: API, SDK, Web, Services, and Docs. The strategy uses orthogonal documents: principles describe the philosophy, boundaries describe architectural layers, dimensions describe filtering, structure describes folder layout, and interface documents describe per-component specifics.
 
+**The folder decides the layer, and the rule is about dependencies.** A `unit/`
+test may read values from the environment but must not open a connection to
+anything — no database, object store, broker, or HTTP. A test needing one
+external dependency while still exercising a single unit is an `integration/`
+test; a point-like or flow-like end-to-end test is an `acceptance/` test. This
+is not stylistic: a unit test that reaches a shared database becomes
+order-dependent, passing alone and failing in a full-layer run when another test
+removes a row it assumed — which reads as a regression in whatever branch is
+checked out.
+
 ---
 
 ## Quick Reference
@@ -34,6 +44,20 @@ This directory specifies the testing strategy for the Agenta monorepo, covering 
 | [rtm/web-acceptance-rtm.md](rtm/web-acceptance-rtm.md) | Web acceptance requirements traceability matrix for the current OSS Playwright suite |
 
 ---
+
+## Which layer a test belongs to
+
+**The folder decides the layer, not a marker.** Put a test where its
+dependencies say it belongs:
+
+| Layer | May use | Must not use |
+| ----- | ------- | ------------ |
+| `unit/` | values read from the environment | **any external resource** — no database, object store, broker, or HTTP. Not a connection of any kind. |
+| `integration/` | one or more external dependencies | — (but it still tests a unit, not a flow) |
+| `acceptance/` | a running deployment | — (point-like or flow-like, end to end) |
+
+Reading `POSTGRES_HOST` is fine in a unit test; opening a connection with it is
+not.
 
 ## Status Matrix
 
