@@ -371,6 +371,94 @@
 - Suggested Fix: Bless it in the spec or rename it. Low stakes; the point is
   that it entered the tree undocumented.
 
+### F44. The contract suite's egress connection was hardcoded to one platform's credential names
+
+- ID: `F44`
+- Origin: `wave-4 WP12`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `resolved`
+- Category: `Test design`
+- Summary: `F39` fixed the suite's credential-less connection by supplying
+  credentials — but named them `signing_secret`/`bot_token`, Slack's own fields,
+  from a private non-parameterised helper. So an adapter whose credentials are
+  named differently still could not satisfy the egress assertions, and the
+  comment left behind claimed `data` "carries whatever credentials an adapter
+  needs", which was false for every adapter but one.
+- Evidence: the bridge adapter had to declare `controls.update` and
+  `buttons.max` **false** for its suite run and assert both separately, because
+  its credentials are `secret`/`delivery_url`. Its only alternatives were to
+  adopt Slack's field names as its own (a lie) or read a
+  constructor-held connection instead of the one passed at call time — a
+  cross-installation credential leak the contract forbids.
+- Files: `api/oss/tests/pytest/unit/channels/contract/test_channel_adapter_contract.py:41`
+- Resolution: the connection is now a keyword parameter on
+  `run_contract_suite`, defaulting to the previous value via
+  `default_suite_connection()`, and threaded through all three egress
+  assertions. A test drives the suite with an adapter reading a differently-named
+  credential and asserts it arrives.
+- Notes: **This was my own fix at CU-A, half-done.** `F39` was diagnosed as "the
+  suite supplies no credentials" when it was really "the suite dictates the
+  credential shape" — supplying Slack's names satisfied Slack and nothing else.
+  The package that hit it refused to weaken the suite or contort its adapter, and
+  reported it instead: the correct call, and the reason the gap surfaced at all.
+
+### F43. `worker_queues.py` still builds a `channels-outbox` queue with no producer
+
+- ID: `F43`
+- Origin: `wave-4 WP18`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Simplification`
+- Summary: With `poll_turn` deleted, nothing enqueues onto `queues:channels-outbox`;
+  the taskiq wrapper is kept importable but registers nothing, so the broker is
+  provably inert rather than gone.
+- Files: `api/entrypoints/worker_queues.py:129-136`, `:142`, `:274-294`, `:429`
+- Suggested Fix: delete `_build_channels_outbox_broker`, drop `channels-outbox`
+  from `ALL_QUEUES` and `_BUILDERS`, drop `MAXLEN_QUEUES_CHANNELS_OUTBOX`, and the
+  now-unused worker imports.
+- Notes: Left unfixed because the file is outside the package's owned paths — the
+  right call. The exact removal is recorded so it is a deletion, not a rediscovery.
+
+### F42. `worker_queues.py`'s adapter registry never got the mock adapter
+
+- ID: `F42`
+- Origin: `wave-4 WP18`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `_build_channels_service()` in the queue-worker composition path still
+  registers only `{"slack": SlackAdapter()}`, while the API composition root and
+  the stream-worker builder both register `mock` too. Nothing in the queue path
+  needs `mock` today, so it is inconsistent rather than broken.
+- Files: `api/entrypoints/worker_queues.py:227`
+- Notes: **There are three composition roots, and they drift independently.** That
+  is the structural cause of `F1` and `F36`, restated: a registry built in one
+  place and not another is exactly the defect a green per-package suite cannot
+  see. Worth treating as one fixture rather than three literals.
+
+### F41. The Redis stream round trip for turn events is unproven
+
+- ID: `F41`
+- Origin: `wave-4 WP18`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Testability`
+- Summary: The outbox now consumes `streams:sessions` via a registered
+  `StreamConsumer`, and both halves are tested — payload routing at unit level,
+  thread lookup against real Postgres — but the actual
+  `publish_turn_started()` → `XADD` → `XREADGROUP` → consumer path has never run.
+- Evidence: Redis has no host-published port in this environment, and no existing
+  channels test touches Redis directly; every one drives worker methods.
+- Files: `api/entrypoints/worker_streams.py`, `api/oss/src/tasks/asyncio/channels/outbox.py`
+- Notes: Same shape as `F1`, `F36` and `F31` — each half works, and nothing proves
+  they meet. This is the honest residue of `F31` rather than its closure, and it is
+  a deployment-verification item: the queue and stream consumers logging their
+  subscriptions is exactly what `CU-C-1` checks.
+
 ### F40. `ConnectionProviderKind` has no `BRIDGE` member, so a bridged connection cannot exist
 
 - ID: `F40`
@@ -1027,6 +1115,9 @@
   thread exists at all.
 
 ### F31. `streams:sessions` has no registered consumer, so turn events are published into nothing
+
+> **Superseded by `F41`.** A consumer is registered now; what remains unproven is
+> the wire round trip, which `F41` states precisely.
 
 - ID: `F31`
 - Origin: `wave-3`
