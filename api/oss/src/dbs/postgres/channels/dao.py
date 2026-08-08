@@ -481,6 +481,45 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_space_dbe_to_dto(space_dbe=space_dbe)
 
+    async def attach_event_to_space(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+        space_id: UUID,
+    ) -> Optional[ChannelInboxEvent]:
+        """Set the log coordinate the ingress could not know.
+
+        The ingress writes an event before any space is resolved, so `space_id`
+        starts null and `query_events_since` — keyed on it — cannot see the row.
+        Idempotent: a redelivery re-resolving the same space is a no-op.
+        """
+        async with self.engine.session() as session:
+            stmt = select(ChannelInboxEventDBE).where(
+                ChannelInboxEventDBE.project_id == project_id,
+                ChannelInboxEventDBE.id == event_id,
+            )
+
+            result = await session.execute(stmt)
+
+            event_dbe = result.scalar_one_or_none()
+
+            if not event_dbe:
+                return None
+
+            if event_dbe.space_id == space_id:
+                return map_inbox_event_dbe_to_dto(event_dbe=event_dbe)
+
+            event_dbe.space_id = space_id
+            event_dbe.updated_at = datetime.now(timezone.utc)
+
+            await session.commit()
+
+            await session.refresh(event_dbe)
+
+            return map_inbox_event_dbe_to_dto(event_dbe=event_dbe)
+
     # --- grants ------------------------------------------------------------- #
 
     async def create_grant(

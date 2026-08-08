@@ -593,6 +593,14 @@ class ChannelsService:
             # means the agent may not answer here, regardless of addressing.
             return None
 
+        # the ingress wrote this row before any space existed; attach it before
+        # the refusal paths, so an unanswered message still belongs to its space
+        await self.channels_dao.attach_event_to_space(
+            project_id=project_id,
+            event_id=event.id,
+            space_id=space.id,
+        )
+
         agent = await self._addressed_agent(
             project_id=project_id,
             connection_id=connection_id,
@@ -836,8 +844,7 @@ class ChannelsService:
     # --- helpers ------------------------------------------------------------ #
 
     async def resolve_channel(self, *, project_id: UUID, connection_id: UUID) -> str:
-        """Public since C2: WP4's dispatcher needs the channel key to fetch
-        capabilities for identity-key composition."""
+        """The connection's channel key, for callers that need capabilities."""
 
         return await self._resolve_channel(
             project_id=project_id,

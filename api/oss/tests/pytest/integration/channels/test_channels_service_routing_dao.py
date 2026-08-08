@@ -342,3 +342,101 @@ async def test_grant_restricted_agent_not_in_this_space_refuses(channels_scope):
     )
 
     assert result is None
+
+
+async def test_resolve_attaches_the_event_to_its_space(channels_scope):
+    """F18: the ingress writes an event before any space is resolved, so
+    `space_id` starts null. `compose_input` reads the log *by* `space_id`
+    (`ix_channel_inbox_events_log` is keyed on it), so an unattached row is
+    invisible and the agent is invoked with empty content. resolve() closes that
+    gap; this pins the mechanism, not just the symptom.
+    """
+
+    adapter = WellBehavedFakeAdapter()
+    service, dao = await _make_service(channels_scope, adapter=adapter)
+
+    space = await _make_configured_space(
+        dao,
+        project_id=channels_scope["project_id"],
+        connection_id=channels_scope["connection_id"],
+        adapter=adapter,
+    )
+    await dao.create_agent(
+        project_id=channels_scope["project_id"],
+        user_id=channels_scope["user_id"],
+        agent=ChannelAgentCreate(
+            connection_id=channels_scope["connection_id"],
+            slug="triage",
+            data=ChannelAgentData(
+                references={"workflow_revision": {"id": str(uuid.uuid4())}}
+            ),
+        ),
+    )
+
+    event = await _make_inbox_event(
+        dao,
+        project_id=channels_scope["project_id"],
+        connection_id=channels_scope["connection_id"],
+        external_id="ev-attach",
+        text="~triage attach me",
+    )
+    assert event.space_id is None  # the ingress could not know it
+
+    resolution = await service.resolve(
+        project_id=channels_scope["project_id"],
+        connection_id=channels_scope["connection_id"],
+        event=event,
+    )
+    assert resolution is not None
+
+    events = await dao.query_events_since(
+        project_id=channels_scope["project_id"],
+        space_id=space.id,
+        after_event_id=None,
+    )
+    assert [stored.id for stored in events] == [event.id]
+
+
+async def test_attaching_the_same_event_twice_is_idempotent(channels_scope):
+    """A platform redelivery re-resolves the same space; the second attach must
+    be a no-op rather than a second row or a thrashed timestamp."""
+
+    adapter = WellBehavedFakeAdapter()
+    _, dao = await _make_service(channels_scope, adapter=adapter)
+
+    space = await _make_configured_space(
+        dao,
+        project_id=channels_scope["project_id"],
+        connection_id=channels_scope["connection_id"],
+        adapter=adapter,
+    )
+
+    event = await _make_inbox_event(
+        dao,
+        project_id=channels_scope["project_id"],
+        connection_id=channels_scope["connection_id"],
+        external_id="ev-idempotent",
+        text="~triage twice",
+    )
+
+    first = await dao.attach_event_to_space(
+        project_id=channels_scope["project_id"],
+        event_id=event.id,
+        space_id=space.id,
+    )
+    second = await dao.attach_event_to_space(
+        project_id=channels_scope["project_id"],
+        event_id=event.id,
+        space_id=space.id,
+    )
+
+    assert first.space_id == space.id
+    assert second.space_id == space.id
+    assert second.updated_at == first.updated_at  # no write on the second call
+
+    events = await dao.query_events_since(
+        project_id=channels_scope["project_id"],
+        space_id=space.id,
+        after_event_id=None,
+    )
+    assert [stored.id for stored in events].count(event.id) == 1

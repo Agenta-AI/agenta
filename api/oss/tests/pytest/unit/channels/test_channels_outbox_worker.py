@@ -173,6 +173,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def mark_space_backfilled(self, **kwargs):
         raise NotImplementedError
 
+    async def attach_event_to_space(self, **kwargs):
+        raise NotImplementedError  # inbound only; the outbox never resolves
+
     async def create_grant(self, **kwargs):
         raise NotImplementedError
 

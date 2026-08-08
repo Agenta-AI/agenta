@@ -58,6 +58,8 @@ def _make_fake_dao():
     dao.count_grants = AsyncMock(return_value=0)
     dao.fetch_current_thread = AsyncMock(return_value=None)
     dao.create_thread = AsyncMock()
+    # F18: resolve() attaches the event to its space before any refusal path
+    dao.attach_event_to_space = AsyncMock(return_value=None)
     dao.fetch_latest_trigger = AsyncMock(return_value=None)
     dao.query_events_since = AsyncMock(return_value=[])
     dao.record_inbox_trigger = AsyncMock()

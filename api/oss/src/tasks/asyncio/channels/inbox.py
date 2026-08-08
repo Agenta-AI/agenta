@@ -72,7 +72,7 @@ class InboxDispatcher:
     ):
         self.channels_service = channels_service
         self.workflows_service = workflows_service
-        # None keeps the pre-C2 fallback: the turn runs as the agent's creator.
+        # None means the turn runs as the agent's creator, not the sender.
         self.identity_service = identity_service
         # `invoke_fn` overrides the default entirely (tests inject a fake
         # here); otherwise the default closes over `workflows_service`.
@@ -305,14 +305,13 @@ class InboxDispatcher:
         """The real invoke: `WorkflowsService.invoke_workflow_detached` over
         the agent's bound references, on the thread's session.
 
-        ASSUMPTION (final report): `invoke_workflow_detached` has no
-        caller-honoured `turnId` wire field today — only `run_id` (threaded
-        into `meta["run_id"]`) and `session_id`. This worker mints one id and
-        passes it as `run_id`; if the runner-level `turnId` field is wired
-        through `WorkflowsService` later, this is the one call site to update.
+        `invoke_workflow_detached` honours no caller-supplied `turnId` — only
+        `run_id` and `session_id` reach the wire — so the minted turn id travels
+        as `run_id`. If a distinct `turnId` is ever threaded through
+        `WorkflowsService`, this is the one call site to update.
 
-        `user_id` is the platform sender's linked account when C2's identity
-        service resolved one (`architecture.md` §5), else the agent's creator.
+        `user_id` is the platform sender's linked account when identity resolved
+        one, else the agent's creator.
         """
 
         if self.workflows_service is None:

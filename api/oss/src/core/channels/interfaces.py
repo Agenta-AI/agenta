@@ -197,6 +197,22 @@ class ChannelsDAOInterface(ABC):
         """
         ...
 
+    @abstractmethod
+    async def attach_event_to_space(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+        space_id: UUID,
+    ) -> Optional[ChannelInboxEvent]:
+        """Set the log coordinate the ingress could not know.
+
+        An inbound event is written before any space is resolved, so `space_id`
+        is null until resolve() knows which space the locator names. Idempotent.
+        """
+        ...
+
     # --- grants ------------------------------------------------------------- #
 
     @abstractmethod

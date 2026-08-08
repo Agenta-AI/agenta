@@ -43,20 +43,26 @@
   never produced a row with a null `updated_at`. This is the strongest evidence
   yet for the rule in `c1-merge-notes.md` — a faked collaborator is an asserted
   interface, and the assertion is only tested when something real replaces it.
-- **Verified state at `5d6af1f774`, against a from-scratch EE deployment** —
-  all four suites, every layer:
+- **Verified state at `3ce4be3465`, against a from-scratch EE deployment, under
+  the canonical configuration** — `load-env hosting/docker-compose/ee/.env.ee.dev`
+  then `py-run-tests --logs --{sdk,api,services} -uia` and
+  `ts-run-tests --logs --runner -ui`:
 
   | Suite | Unit | Integration | Acceptance |
   | --- | --- | --- | --- |
-  | api | 2372 pass (4 fail, `F14`) | 40 pass, **1 fail (`F18`)** | 751 pass |
-  | sdk | 1974 pass | 146 pass | 124 pass |
+  | api | 2655 pass | 43 pass | 802 pass |
+  | sdk | 1974 pass | 146 pass | 118 pass |
   | services | 100 pass | 15 pass | 145 pass |
   | runner | 2070 pass (19 fail, `F21`) | — | — |
 
-  `F18` is the only channels failure anywhere. Acceptance needs
-  `AGENTA_API_URL=http://localhost/api` (the `/api` prefix — bare `http://localhost`
-  reaches the web app and returns HTML 500s) and `AGENTA_AUTH_KEY`, readable
-  from the running api container.
+  `F21` (runner, not channels) is now the only failure anywhere; `F18` was fixed
+  after this run and the api integration count rose 41 → 43. **That env file plus the two wrappers is the configuration of record** —
+  it needs no hand-set variables, and any figure measured otherwise is not
+  evidence. Several numbers earlier in this record were taken under an ad-hoc env
+  and were wrong in both directions: the api unit layer was reported with 4
+  failures (it has none here) and acceptance was said to need `AGENTA_API_URL` +
+  `AGENTA_AUTH_KEY` (it does not — the file supplies them, and it runs 802 rather
+  than the 751 a hand-set URL produced).
 - The C2 redeploy confirmed the enum change end to end: `oss000000021` applied
   clean, both `kind` columns are `varchar`, `origin` and the two `state`
   columns kept their enum types, and `channelspacekind`/`channeleventkind` no
@@ -72,49 +78,56 @@
   is an **acceptance** test. This is what `F14` violates.
 - Migrations are verified by hand against local Docker Postgres. No pytest test
   runs `alembic upgrade`/`downgrade`, and no checklist tracks that as a gap.
+- **The canonical test configuration is `load-env hosting/docker-compose/ee/.env.ee.dev`
+  followed by the `py-run-tests` / `ts-run-tests` wrappers, with no hand-set
+  variables.** A result measured under any other env is not evidence — a failure
+  seen there may be an artifact of the invocation, and a pass there may hide one.
+  Commented-out lines in that file are not a defect to route around; the wrappers
+  supply what is missing.
 - Deployment happens at checkpoints only, never per work package.
 
 ## Open Findings
 
-### F18. An addressing event is never attached to its space, so the agent sees empty input
+### F25. In-code comments need a review pass before C3
 
-- ID: `F18`
-- Origin: `first integration run`
-- Severity: `P0`
+- ID: `F25`
+- Origin: `checkpoint`
+- Severity: `P2`
 - Confidence: `high`
 - Status: `open`
-- Category: `Correctness`
-- Summary: `compose_input` builds the turn's content from
-  `query_events_since(space_id=...)`, but the ingress writes every inbound event
-  with `space_id=None` — it cannot do otherwise, since the space is resolved
-  later, during `resolve()`. Nothing ever back-fills the column, so the query
-  matches no rows and the agent is invoked with empty content.
-- Evidence:
-  - `apis/fastapi/channels/ingress.py:143-151` constructs
-    `ChannelInboxEventCreate` with no `space_id`; the field defaults to `None`
-    (`core/channels/dtos.py:475`).
-  - `core/channels/service.py:736-757` — `compose_input` reads via
-    `query_events_since`.
-  - `dbs/postgres/channels/dao.py:932-935` — that query filters
-    `space_id == space_id`.
-  - `test_resolve_sigil_creates_thread_and_open_turn_writes_started_row` fails
-    `assert turn_input.content == event.data.processed.content` with `[] ==
-    [{'type': 'text', ...}]`.
-- Files: `api/oss/src/core/channels/service.py`,
-  `api/oss/src/apis/fastapi/channels/ingress.py`,
-  `api/oss/src/dbs/postgres/channels/dao.py`
-- Cause: The event row is written before the space exists, and no write path
-  attaches the two afterwards. Every unit test covering this used a fake DAO
-  whose query ignored `space_id`, so the gap was invisible until a real table.
-- Suggested Fix: Have `resolve()` attach the resolved space to the addressing
-  event (a new DAO write), or have `compose_input` locate events by
-  `connection_id` + locator rather than `space_id`. The first keeps the query
-  cheap and the column meaningful; it needs a method on WP1's DAO.
-- Notes: Not fixed at C2 — adding a write path to the frozen DAO mid-checkpoint,
-  against a live deployment, is a bigger change than a checkpoint fix should
-  make unilaterally. It blocks any end-to-end turn, so it should lead C3.
-- Related: `F1` — until the entrypoints are wired, no production path reaches
-  this code, which is why it surfaced in a test rather than a deployment.
+- Category: `Maintainability`
+- Summary: The channels source carries comments that document the *project* rather
+  than the code. They were useful while packages were built in isolation and are
+  now noise at best and false at worst. Four categories, each with a different
+  disposition:
+
+  1. **Design-process identifiers → drop.** `WP4`, `WP7`, `(F18)`, `(D17)`, `(D9)`,
+     `§2.4` and similar mean nothing to a reader of the merged tree. 77 comment
+     lines across `core/channels/` (51), `dbs/postgres/channels/` (12),
+     `tasks/asyncio/channels/` (9) and `apis/fastapi/channels/` (5). Where the
+     comment states a real constraint, keep the constraint and drop the citation.
+  2. **Stale dev/test-level state → drop.** Claims that were true in one worktree
+     and are false now, e.g. `service.py:46` "a module that does not exist yet in
+     this worktree" and `ingress.py:20` "WP1's service and WP2's registry — not yet
+     implemented in this worktree". Both modules are merged in the same tree.
+  3. **Fixed-bug commentary → keep the mechanism, drop the story.** A comment
+     explaining *why* the code must be this way earns its place; the history of
+     how it was got wrong does not. "the ingress wrote this row before any space
+     existed; attach it now" is mechanism. "(F18). Before the refusal paths below"
+     is storytelling.
+  4. **Verbose comments that restate the code → drop or trim to one line.** The
+     house rule is one terse line maximum, with rationale in the PR or here.
+
+- Files: all of `api/oss/src/core/channels/`,
+  `api/oss/src/dbs/postgres/channels/`, `api/oss/src/apis/fastapi/channels/`,
+  `api/oss/src/tasks/{asyncio,taskiq}/channels/`
+- Suggested Fix: One sweep before C3, while the merge is fresh. Test files are in
+  scope too — a docstring naming the package that wrote the test ages the same
+  way. Do not weaken a comment that records a real constraint just because it
+  cites a document; rewrite it to state the constraint directly.
+- Notes: Partly self-inflicted — the C2 fixes added `(F18)` citations in
+  `service.py`, `interfaces.py` and `dao.py`, and the identity wiring added
+  "Public since C2: WP4's dispatcher needs...". Those go first.
 
 ### F1. Nothing enqueues inbox events or schedules the outbox poll
 
@@ -397,30 +410,35 @@
 - Confidence: `high`
 - Status: `open`
 - Category: `Test-design`
-- Summary: A unit test may read env values but must not open a connection to
-  anything (see `Decisions`). 30 files under `oss/tests/pytest/unit/` construct
-  a `TransactionsEngine`, an async engine, an `ObjectStore`, or a Redis client.
-  They pass when selected alone and fail in a full-layer run, because they
-  share one database with no per-test isolation — so the layer is not just
-  mislabelled, it is order-dependent.
+- Summary: A unit test must need nothing running (see `Decisions`). 30 files
+  under `oss/tests/pytest/unit/` construct a `TransactionsEngine`, an async
+  engine, an `ObjectStore`, or a Redis client — so they are integration tests
+  filed as unit tests. **They pass under the canonical configuration**; the
+  finding is the latent fragility, not a current failure.
 - Evidence:
   - 30 files match `TransactionsEngine|create_async_engine|engine.session()|ObjectStore|redis`
     under `unit/`: 18 in `sessions/`, 3 in `events/`, 2 in `triggers/`, 2 in
     `git/`, the rest in `mounts/`, `utils/` and evaluation.
-  - `unit/git/` alone: 31 passed on both `channels-c1` and `channels-c2`.
-  - Full `--layer unit`: 4 failed on **both** branches (C1 with 5 errors, C2
-    with 3) — the failures track the run mode, not the branch.
-  - The failure is `asyncpg.exceptions.ForeignKeyViolationError`: rows another
-    test removed.
+  - Canonical run (`load-env hosting/docker-compose/ee/.env.ee.dev` then
+    `py-run-tests --api -uia`): **2655 pass, 0 fail** in the unit layer.
+  - Ad-hoc runs with hand-set `POSTGRES_URI_*` did fail — 4 in `unit/git/` on
+    **both** `channels-c1` and `channels-c2`, with
+    `asyncpg.exceptions.ForeignKeyViolationError`. Same on both branches, so
+    never channels; but also not reproducible under the real configuration.
 - Files: 30 under `api/oss/tests/pytest/unit/`, mostly `sessions/`
-- Suggested Fix: Move each to `integration/` (one external dependency, still
+- Suggested Fix: Move each to `integration/` (needs one runtime dep, still
   unit-like) or `acceptance/` (point-like or flow-like end to end). Outside
   channels' scope — raise with the owners rather than fixing here.
-- Notes: **Corrects an earlier diagnosis in this record**, twice over. These
-  were first reported as erroring for want of a reachable Postgres — wrong,
-  they reach one fine and collide over shared state. And the scope was given as
-  `git/` + `sessions/`; it is 30 files across seven areas. **No channels unit
-  test is among them** — verified, all 259 use fakes.
+- Notes: **Corrects earlier diagnoses in this record, three times over.** First
+  reported as erroring for want of a reachable Postgres — wrong, they reach one
+  fine. Then as colliding over shared state and failing in any full-layer run —
+  also wrong: that only happened under my own ad-hoc env, and the canonical
+  configuration is green. The scope was also given as `git/` + `sessions/`; it is
+  30 files across seven areas. What survives all three corrections: these tests
+  open connections, which makes them misfiled by the rule, and misfiling is why a
+  wrong invocation could produce failures that read as a branch regression.
+  **No channels unit test is among them** — verified empirically: 259 pass with
+  Postgres, Redis and the api all stopped.
 
 ### F22. Channels integration tests error instead of skipping without Postgres
 
@@ -543,6 +561,41 @@
   environment they do not declare — same family as `F14`.
 
 ## Closed Findings
+
+### [CLOSED] F18. An addressing event was never attached to its space
+
+- ID: `F18`
+- Origin: `first integration run`
+- Severity: `P0`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: `compose_input` builds the turn's content from
+  `query_events_since(space_id=...)`, but the ingress writes every inbound event
+  with `space_id=None` — it cannot do otherwise, since the space is resolved
+  later. Nothing back-filled the column, so the query matched no rows and the
+  agent was invoked with empty content on every turn.
+- Evidence:
+  - `apis/fastapi/channels/ingress.py:143-151` constructs
+    `ChannelInboxEventCreate` with no `space_id`; the field defaults to `None`.
+  - `dbs/postgres/channels/dao.py` — `query_events_since` filters on `space_id`,
+    and `ix_channel_inbox_events_log` is keyed `(project_id, space_id, origin,
+    id)`, so querying by locator instead would have abandoned the index.
+  - `test_resolve_sigil_creates_thread_and_open_turn_writes_started_row` failed
+    `assert turn_input.content == event.data.processed.content` with `[] == [...]`.
+- Fix: `resolve()` now attaches the event to the space it resolved, via a new
+  `attach_event_to_space` on the DAO (declared on `ChannelsDAOInterface`,
+  idempotent — a redelivery re-resolving the same space is a no-op and does not
+  touch `updated_at`). Placed **before** the refusal paths: an unanswered message
+  still belongs to its space.
+- Verified: api integration 41 → 43 pass (two new tests pin the mechanism and its
+  idempotency, not just the symptom); full api suite 2655 / 43 / 802, zero
+  failures.
+- Notes: Two fakes broke when the interface widened — a `MagicMock` returning a
+  non-awaitable, and `FakeChannelsDAO` refusing to instantiate as an abstract
+  class. Both are the *good* failure mode: the fake that implements the real
+  interface told us immediately, which is exactly what `c1-merge-notes.md` argues
+  for.
 
 ### [CLOSED] F19. `compose_idempotency_key` crashed on every first send
 
