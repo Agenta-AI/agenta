@@ -130,8 +130,7 @@ export function SlashCommandPlugin({
                 close()
                 return
             }
-            // `open` items leave the typed command in place: the host's picker shows it as the
-            // breadcrumb of how it was opened, and clears the composer once it applies.
+            // The host clears the typed command when its picker opens.
             close()
             item.onSelect?.()
         },
@@ -141,8 +140,10 @@ export function SlashCommandPlugin({
     // Keyboard. Registered above SubmitPlugin's HIGH so a selection never leaks through as a send.
     useEffect(() => {
         if (!open) return
-        const move = (delta: number) => {
+        // preventDefault too: returning true only stops Lexical, the caret still moves natively.
+        const move = (event: KeyboardEvent | null, delta: number) => {
             if (!items.length) return false
+            event?.preventDefault()
             setActiveIndex((i) => (i + delta + items.length) % items.length)
             requestAnimationFrame(() => activeRowRef.current?.scrollIntoView({block: "nearest"}))
             return true
@@ -150,10 +151,14 @@ export function SlashCommandPlugin({
         const unregister = [
             editor.registerCommand(
                 KEY_ARROW_DOWN_COMMAND,
-                () => move(1),
+                (event) => move(event, 1),
                 COMMAND_PRIORITY_CRITICAL,
             ),
-            editor.registerCommand(KEY_ARROW_UP_COMMAND, () => move(-1), COMMAND_PRIORITY_CRITICAL),
+            editor.registerCommand(
+                KEY_ARROW_UP_COMMAND,
+                (event) => move(event, -1),
+                COMMAND_PRIORITY_CRITICAL,
+            ),
             editor.registerCommand(
                 KEY_ESCAPE_COMMAND,
                 () => {
@@ -219,7 +224,8 @@ export function SlashCommandPlugin({
             style={floatingStyles}
             role="listbox"
             aria-label="Commands"
-            className="z-[1050] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-[0_14px_36px_rgba(28,44,61,.14),0_2px_6px_rgba(28,44,61,.06)]"
+            // font-portal: portaled to <body>, escaping the app font scope (preflight off).
+            className="z-[1050] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] font-portal shadow-[0_14px_36px_rgba(28,44,61,.14),0_2px_6px_rgba(28,44,61,.06)]"
         >
             <div className="max-h-[286px] overflow-y-auto pb-1">
                 {items.length === 0 ? (

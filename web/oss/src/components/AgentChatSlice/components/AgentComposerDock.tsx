@@ -1,4 +1,4 @@
-import {type RefObject, Suspense, lazy, useRef} from "react"
+import {type RefObject, Suspense, lazy, useCallback, useRef} from "react"
 
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
@@ -35,11 +35,11 @@ import ContextBudgetIndicator from "./ContextBudgetIndicator"
 import HarnessPickerPanel from "./HarnessPickerPanel"
 import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
 import MicPermissionNotice from "./MicPermissionNotice"
+import PermissionsPickerPanel from "./PermissionsPickerPanel"
 import QueuedMessages from "./QueuedMessages"
 import RecordingBar from "./RecordingBar"
 import RevealCollapse from "./RevealCollapse"
 import RunningElsewhereStrip from "./RunningElsewhereStrip"
-import SlashConfirmationPill from "./SlashConfirmationPill"
 import VoiceInputButton from "./VoiceInputButton"
 
 // The composer carries Lexical — the heaviest dependency of this chunk — out of the
@@ -168,26 +168,40 @@ const AgentComposerDock = ({
     const composerBoxRef = useRef<HTMLDivElement | null>(null)
     const openConfigSection = useSetAtom(openAgentConfigSectionAtom)
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
-    const slash = useChatSlashCommands({entityId, suspended: onboardingActive})
-    const openModelHarnessConfig = () => {
-        slash.closePicker()
-        setChatMaximized(false)
-        openConfigSection("model-harness")
-    }
-    // The typed `/model` stays in the composer while its picker is open (it reads as the
-    // breadcrumb of how you got there); applying is what clears it, and the caret goes back so the
-    // user can keep typing their actual message.
-    const clearComposerCommand = () => {
+    const clearDraft = composer.clearDraft
+    const clearComposerCommand = useCallback(() => {
         richInputRef.current?.clear()
-        composer.clearDraft()
+        clearDraft()
+        richInputRef.current?.focus()
+    }, [clearDraft, richInputRef])
+    const slash = useChatSlashCommands({
+        entityId,
+        suspended: onboardingActive,
+        // The command has served its purpose once the picker is up; leaving it behind just reads
+        // as text the user now has to delete before typing a message. Blur first — the picker
+        // autofocuses its search, and a still-focused editor takes focus back on the next
+        // reconcile, which Radix reads as an outside interaction and dismisses on.
+        onPickerOpen: useCallback(() => {
+            richInputRef.current?.blur()
+            richInputRef.current?.clear()
+            clearDraft()
+        }, [clearDraft, richInputRef]),
+    })
+    // Step back one level. The picker consumed the `/` that opened it, so returning to the palette
+    // means putting it back — typing it again is what "back to commands" exists to avoid.
+    const backToCommands = () => {
+        slash.closePicker()
+        richInputRef.current?.setMarkdown("/")
         richInputRef.current?.focus()
     }
-    // A picker belongs to the command that opened it. Erase the command and the picker goes with
-    // it — otherwise it hangs over an empty composer with nothing explaining why it is there.
-    const handleComposerChange = (text: string) => {
-        composer.handleComposerChange(text)
-        if (slash.picker && !text.trimStart().startsWith("/")) slash.closePicker()
+    const openConfigFor = (section: "model-harness" | "advanced") => {
+        slash.closePicker()
+        setChatMaximized(false)
+        openConfigSection(section)
     }
+    const openModelHarnessConfig = () => openConfigFor("model-harness")
+    // Permission rules live in the Advanced accordion's Permissions group.
+    const openPermissionsConfig = () => openConfigFor("advanced")
 
     return (
         <>
@@ -287,18 +301,16 @@ const AgentComposerDock = ({
                         onDismiss={dismissMicError}
                     />
                 ) : null}
-                {/* Confirms a `/model` or `/harness` change where the command was typed. */}
-                <div className={CHAT_COLUMN}>
-                    <SlashConfirmationPill pill={slash.pill} onDismiss={slash.dismissPill} />
-                </div>
                 {/* `mb-3` lives here, not on the input, so the recording overlay
                 (inset-0) covers the composer box exactly. */}
                 <div className="relative mb-3" ref={composerBoxRef}>
                     {/* Drilled into from the palette: same anchor, so the panel replaces the menu
                         in place rather than opening somewhere else on screen. */}
                     {slash.picker === "harness" ? (
+                        // `origin-bottom`: the panel is docked to the composer's top edge, so it
+                        // grows out of that edge rather than from its own middle.
                         <div
-                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 ${CHAT_COLUMN}`}
+                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
                         >
                             <HarnessPickerPanel
                                 harnessIds={slash.harnessIds}
@@ -309,8 +321,25 @@ const AgentComposerDock = ({
                                     slash.applyHarness(kind)
                                     clearComposerCommand()
                                 }}
-                                onBack={slash.closePicker}
+                                onDismiss={slash.closePicker}
+                                onBackToCommands={backToCommands}
                                 onOpenConfig={openModelHarnessConfig}
+                            />
+                        </div>
+                    ) : null}
+                    {slash.picker === "permissions" ? (
+                        <div
+                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
+                        >
+                            <PermissionsPickerPanel
+                                current={slash.currentPermission}
+                                onApply={(policy) => {
+                                    slash.applyPermission(policy)
+                                    richInputRef.current?.focus()
+                                }}
+                                onDismiss={slash.closePicker}
+                                onBackToCommands={backToCommands}
+                                onOpenConfig={openPermissionsConfig}
                             />
                         </div>
                     ) : null}
@@ -343,7 +372,7 @@ const AgentComposerDock = ({
                                 </button>
                                 <button
                                     type="button"
-                                    onClick={slash.closePicker}
+                                    onClick={backToCommands}
                                     className="ml-auto cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
                                 >
                                     ← back to commands
@@ -382,7 +411,7 @@ const AgentComposerDock = ({
                                 label: "Add a skill to this agent",
                                 onSelect: () => setChatMaximized(false),
                             }}
-                            onChange={handleComposerChange}
+                            onChange={composer.handleComposerChange}
                             onPasteFile={(pasted) => {
                                 if (!attachmentsBlocked()) addFiles(Array.from(pasted))
                             }}

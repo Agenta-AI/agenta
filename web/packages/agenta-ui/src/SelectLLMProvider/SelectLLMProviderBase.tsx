@@ -449,6 +449,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     // antd's `popupMatchSelectWidth`: the cascade sizes itself, everything else
                     // tracks the trigger.
                     shouldUseProviderPanels ? "w-auto" : "w-[var(--radix-popover-trigger-width)]",
+                    // Anchored mode only. A triggered dropdown has the click that opened it to
+                    // explain where it came from; this one has none, so it grows out of its
+                    // anchor edge (Radix's own origin) instead of appearing there.
+                    anchorRef &&
+                        "origin-[var(--radix-popover-content-transform-origin)] animate-command-panel-in motion-reduce:animate-command-panel-fade",
                 )}
             >
                 <div
