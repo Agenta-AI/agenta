@@ -237,6 +237,10 @@
 
 ### F6. No route writes the `connection.data` keys the Slack adapter reads
 
+> **Widened by `F47`.** This is not only Slack's four keys nor only a missing
+> route: no channel declares a credential schema, and no channel has an
+> onboarding flow. Read `F47` first.
+
 - ID: `F6`
 - Origin: `C2 merge`
 - Severity: `P1`
@@ -370,6 +374,55 @@
 - Files: `api/oss/src/apis/fastapi/channels/models.py`
 - Suggested Fix: Bless it in the spec or rename it. Low stakes; the point is
   that it entered the tree undocumented.
+
+### F47. No channel declares its credential schema, and no channel has an onboarding flow
+
+- ID: `F47`
+- Origin: `wave-4 review`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: **`F6` understates this.** It reads as "no route writes four Slack
+  keys" — a plumbing gap. The real gap is two structural ones, and they apply to
+  every channel, in-process and bridged alike:
+  1. **No channel declares what credentials it needs.** `ChannelCapabilities`
+     declares `fill`, `rendering` and `identity` — what a channel can *do* — and
+     nothing about what it must be *given*. Each adapter reads private keys off
+     `connection.data` that exist only in its own source.
+  2. **No channel has an onboarding flow.** Nothing creates a connection with
+     credentials in it, for any channel.
+- Evidence:
+  - Slack reads `signing_secret`, `bot_token`, `bot_user_id`, `team_id`; the
+    bridge reads `secret` and `delivery_url`. **Six key names, zero documented.**
+    The bridge package stated plainly that it invented its two.
+  - `api/oss/src/core/channels/adapters/slack/manifest.py` exists and builds a
+    real Slack app manifest — and **nothing calls `build_slack_manifest`**. A
+    generator written for a flow that was never built.
+  - The contract suite had to hardcode one platform's credential field names
+    because there is no schema to consult (`F44`).
+- Files: `api/oss/src/core/channels/dtos.py` (no credential declaration),
+  `api/oss/src/core/channels/adapters/slack/manifest.py` (uncalled),
+  `api/oss/src/apis/fastapi/channels/models.py` (no create/edit route)
+- Suggested Fix: two distinct pieces, and the first blocks the second.
+  - **A declared credential schema per channel**, alongside the capability
+    declaration and normalised the same way: field name, whether it is secret,
+    and whether it is required. Then `connection.data` has a contract, a config
+    UI can be generated from it, and the contract suite can build a valid
+    connection for any adapter rather than for one.
+  - **Per-channel onboarding, which does not generalise.** Slack is an app
+    manifest plus OAuth; Telegram is a bot token from a chat with BotFather, no
+    OAuth at all; Discord is an application with a bot user and a gateway intent;
+    a bridge is a shared secret and a delivery URL the operator holds on both
+    ends. A single "connect a channel" flow cannot cover these — what generalises
+    is the *schema*, not the ceremony.
+- Notes: **This is the difference between the two transports, correctly located.**
+  A bridge is self-hosted, so its operator can be handed a secret and a URL and
+  set both env-side; that is why it appears to need no onboarding. A first-party
+  channel cannot work that way — the credential comes from the platform, through
+  a flow only the platform defines. The *ingress* mechanism is uniform (one
+  `_ingest`, no branch on channel); **provisioning is where they genuinely
+  differ**, and nothing in the design covers it for either.
 
 ### F46. `integration_key` must be globally unique, because its lookup is unscoped
 
