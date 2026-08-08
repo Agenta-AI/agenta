@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {AgentOverviewBody, agentAvatar} from "@agenta/entity-ui/agent"
+import {AgentActionsMenu, AgentOverviewBody, agentAvatar} from "@agenta/entity-ui/agent"
 import {UsageCard} from "@agenta/home-ui"
 import {useAtomValue} from "jotai"
 
@@ -67,6 +67,10 @@ export const AgentOverviewScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-sm font-semibold">
                                     {name}
                                 </h1>
+                                {/* The same verbs the desktop header offers; rename and delete
+                                    fall through to the shared implementations here, since /m has
+                                    no app-management modals of its own. */}
+                                <AgentActionsMenu agent={{id: agentId, name, slug: agent?.slug}} />
                             </ContentRail>
                         </div>
                     }
