@@ -1,10 +1,12 @@
 """
 worker_queues - list-parameterized entrypoint hosting the TaskIQ queue
-consumers (webhooks, triggers, interactions, evaluations) in one process.
+consumers (webhooks, triggers, interactions, evaluations, channels-inbox,
+channels-outbox) in one process.
 
 Reads AGENTA_WORKER_QUEUES (subset of {webhooks, triggers, interactions,
-evaluations}); empty or unset selects all four. Each selected broker keeps its
-own queue_name/consumer_group_name/maxlen/retry config unchanged.
+evaluations, channels-inbox, channels-outbox}); empty or unset selects all
+six. Each selected broker keeps its own
+queue_name/consumer_group_name/maxlen/retry config unchanged.
 
 Why this bypasses taskiq.cli.worker.run.run_worker: run_worker's
 ProcessManager forks a new OS process per broker (spawn on darwin) and
@@ -67,7 +69,12 @@ from oss.src.dbs.postgres.queries.dbes import (
     QueryVariantDBE,
 )
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
-from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+from oss.src.dbs.postgres.shared.engine import (
+    get_analytics_engine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
 from oss.src.dbs.postgres.testsets.dbes import (
     TestsetArtifactDBE,
@@ -82,10 +89,25 @@ from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowRevisionDBE,
     WorkflowVariantDBE,
 )
+from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
+from oss.src.core.channels.identity import ChannelIdentityService
+from oss.src.core.channels.service import ChannelsService
+from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+from oss.src.core.sessions.records.service import RecordsService
+from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.dbs.postgres.channels.dao import ChannelsDAO
+from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
+from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
+from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
+from oss.src.tasks.asyncio.channels.outbox import ChannelsOutboxWorker
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
+from oss.src.tasks.taskiq.channels.outbox_worker import ChannelsOutboxTaskWorker
 from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
@@ -104,11 +126,20 @@ log = get_module_logger(__name__)
 
 ag.init(api_url=env.agenta.api_url)
 
-ALL_QUEUES = ("webhooks", "triggers", "interactions", "evaluations")
+ALL_QUEUES = (
+    "webhooks",
+    "triggers",
+    "interactions",
+    "evaluations",
+    "channels-inbox",
+    "channels-outbox",
+)
 
 MAXLEN_QUEUES_WEBHOOKS = 100_000
 MAXLEN_QUEUES_TRIGGERS = 100_000
 MAXLEN_QUEUES_INTERACTIONS = 100_000
+MAXLEN_QUEUES_CHANNELS_INBOX = 100_000
+MAXLEN_QUEUES_CHANNELS_OUTBOX = 100_000
 
 _WORKER_ID = str(uuid4())
 _worker_heartbeat_task: "asyncio.Task | None" = None
@@ -178,6 +209,88 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     TriggersWorker(
         broker=broker, dispatcher=triggers_dispatcher, triggers_dao=triggers_dao
     )
+    return broker, 50  # max_async_tasks
+
+
+def _build_channels_service() -> ChannelsService:
+    transactions_engine = get_transactions_engine()
+
+    # Empty adapter registry: channel connections are stored locally, so the
+    # gateway's provider adapters are not on this path.
+    connections_service = ConnectionsService(
+        connections_dao=ConnectionsDAO(engine=transactions_engine),
+        adapter_registry=ConnectionsGatewayRegistry(adapters={}),
+    )
+
+    return ChannelsService(
+        channels_dao=ChannelsDAO(engine=transactions_engine),
+        adapter_registry=ChannelAdapterRegistry(adapters={"slack": SlackAdapter()}),
+        connections_service=connections_service,
+    )
+
+
+def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
+    broker = TrimOnAckRedisStreamBroker(
+        url=env.redis.uri_durable,
+        queue_name="queues:channels-inbox",
+        consumer_group_name="worker-channels-inbox",
+        consumer_name=stable_consumer_name("worker-channels-inbox"),
+        maxlen=MAXLEN_QUEUES_CHANNELS_INBOX,
+        approximate=True,
+    )
+
+    transactions_engine = get_transactions_engine()
+    workflows_dao = GitDAO(
+        ArtifactDBE=WorkflowArtifactDBE,
+        VariantDBE=WorkflowVariantDBE,
+        RevisionDBE=WorkflowRevisionDBE,
+    )
+    environments_dao = GitDAO(
+        ArtifactDBE=EnvironmentArtifactDBE,
+        VariantDBE=EnvironmentVariantDBE,
+        RevisionDBE=EnvironmentRevisionDBE,
+    )
+    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    environments_service = EnvironmentsService(environments_dao=environments_dao)
+    embeds_service = EmbedsService(
+        workflows_service=workflows_service,
+        environments_service=environments_service,
+    )
+    workflows_service.environments_service = environments_service
+    workflows_service.embeds_service = embeds_service
+    environments_service.embeds_service = embeds_service
+
+    dispatcher = InboxDispatcher(
+        channels_service=_build_channels_service(),
+        workflows_service=workflows_service,
+        identity_service=ChannelIdentityService(
+            identity_dao=ChannelIdentityDAO(engine=transactions_engine),
+        ),
+    )
+    ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
+    return broker, 50  # max_async_tasks
+
+
+def _build_channels_outbox_broker() -> tuple[AsyncBroker, int]:
+    broker = TrimOnAckRedisStreamBroker(
+        url=env.redis.uri_durable,
+        queue_name="queues:channels-outbox",
+        consumer_group_name="worker-channels-outbox",
+        consumer_name=stable_consumer_name("worker-channels-outbox"),
+        maxlen=MAXLEN_QUEUES_CHANNELS_OUTBOX,
+        approximate=True,
+    )
+
+    outbox = ChannelsOutboxWorker(
+        channels_service=_build_channels_service(),
+        turns_service=SessionTurnsService(
+            turns_dao=SessionTurnsDAO(engine=get_transactions_engine()),
+        ),
+        records_service=RecordsService(
+            records_dao=RecordsDAO(engine=get_analytics_engine()),
+        ),
+    )
+    ChannelsOutboxTaskWorker(broker=broker, outbox=outbox)
     return broker, 50  # max_async_tasks
 
 
@@ -312,6 +425,8 @@ _BUILDERS = {
     "triggers": _build_triggers_broker,
     "interactions": _build_interactions_broker,
     "evaluations": _build_evaluations_broker,
+    "channels-inbox": _build_channels_inbox_broker,
+    "channels-outbox": _build_channels_outbox_broker,
 }
 
 

@@ -565,7 +565,103 @@
   session=sess-1: network unreachable`, which suggests these also want an
   environment they do not declare — same family as `F14`.
 
+### F26. The bridge ingress route is public and mounted, but no bridge adapter exists
+
+- ID: `F26`
+- Origin: `wave-2`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Security`
+- Summary: `/channels/bridge/events/` is registered as a route and listed in
+  `_PUBLIC_ENDPOINTS` (four entries, as designed), but WP12 — the bridge
+  adapter — is not built. An unauthenticated POST therefore reaches a channel
+  the registry cannot resolve.
+- Evidence: The route appears in the OpenAPI schema after the CU-1 wiring
+  (22 channels paths). `registry.keys()` returns `['slack']` only. `_ingest`
+  calls `self.adapter_registry.get(channel)` before reading the body, so the
+  request fails at resolution.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py`,
+  `api/oss/src/middlewares/auth.py`
+- Suggested Fix: None needed for safety. Close it when WP12 lands by pointing a
+  test at the route; until then leave the entry in place rather than
+  churning `_PUBLIC_ENDPOINTS` twice.
+- Notes: Verified benign rather than assumed benign: `ChannelNotSupported` is
+  raised before `verify_signature`, before `parse_event` and before any DAO
+  call, and `handle_channel_adapter_exceptions` maps it to 404. So the exposure
+  is an unauthenticated 404 on an unimplemented channel — no write, no
+  signature oracle, no 500. Recorded because "public route, no adapter" is the
+  kind of pairing that stops being harmless the moment someone registers a
+  permissive default adapter.
+
+### F27. The alembic config paths are container-absolute, so `entrypoints.routers` cannot be imported locally
+
+- ID: `F27`
+- Origin: `pre-existing`
+- Severity: `P3`
+- Confidence: `high`
+- Status: `open`
+- Category: `Testability`
+- Summary: Importing `entrypoints.routers` outside the container fails at
+  module scope. `env.alembic.cfg_path_core` defaults to `/app/...`, and the
+  ini it points at hardcodes `script_location = /app/oss/databases/...`, so
+  even overriding the env var is not enough — the ini's own path must be
+  rewritten too.
+- Evidence: `alembic.util.exc.CommandError: Path doesn't exist:
+  /app/oss/databases/postgres/migrations/core`, raised from
+  `oss/databases/postgres/migrations/core/utils.py:23`, which runs
+  `ScriptDirectory.from_config` at import time.
+- Files: `api/oss/databases/postgres/migrations/core/alembic.ini:5`,
+  `api/oss/src/utils/env.py:616-620`,
+  `api/oss/databases/postgres/migrations/core/utils.py:23`
+- Suggested Fix: Make `script_location` relative to the ini, or resolve it from
+  the package location. A repo-relative default would let the composition root
+  be imported — and therefore asserted — without a container.
+- Notes: Found while verifying CU-1. Worked around with a rewritten ini in a
+  scratch directory; the repo was not changed. The cost is that no test can
+  assert the composition root's wiring, which is exactly the class of defect
+  `F1` was: four disconnections that every green suite missed because nothing
+  imports this module.
+
 ## Closed Findings
+
+### [CLOSED] F1. Nothing connected the ingress, the workers, the registry or the configuration router
+
+- ID: `F1`
+- Origin: `C1`
+- Severity: `P0`
+- Confidence: `high`
+- Status: `closed`
+- Category: `Correctness`
+- Summary: The merged tree had an ingress that logged events, a dispatcher that
+  would route them, a worker that would answer, and an adapter that could talk
+  to Slack — none connected. Four gaps, not the three originally recorded.
+- Evidence, before the fix: `ChannelAdapterRegistry(adapters={})` at
+  `routers.py:1058` (so `registry.get("slack")` raised `ChannelNotSupported`);
+  `dispatch_task=None` at `routers.py:1071`; no channels entry in
+  `worker_queues.py`'s broker map; and `ChannelsRouter` — the whole
+  configuration surface — was never imported or mounted. Only the ingress
+  router was.
+- Files: `api/entrypoints/routers.py`, `api/entrypoints/worker_queues.py`
+- Fix: The Slack adapter is registered (stateless; the connection is passed per
+  call). Two `ProducerOnlyRedisStreamBroker`s enqueue `channels.inbox.dispatch`
+  and `channels.outbox.poll`; `_build_channels_inbox_broker` and
+  `_build_channels_outbox_broker` consume them, mirroring
+  `_build_triggers_broker`. `ChannelsRouter` is mounted under `/channels` and
+  `/preview/channels`, authenticated. `ALL_QUEUES` gained the two queue names.
+- Verification: `registry.keys() == ['slack']`; `dispatch_task` is
+  `AsyncTaskiqDecoratedTask(channels.inbox.dispatch)`; both queues resolve; and
+  22 channels paths appear in the **OpenAPI schema** — checked there, not in
+  `app.routes`, which does not expand an included router.
+- Notes: **Wired, not exercised.** No message has travelled the path; the
+  verification is structural. That distinction is the point — the four gaps
+  closed here were invisible to every green per-package suite, and a fifth
+  would be too. Also worth noting no hosting change was needed: every compose
+  file and the Helm chart set `AGENTA_WORKER_QUEUES` empty, which selects all
+  queues, so the two new consumers start on the next deploy.
+- Follow-ups: `F26` (public bridge route, no adapter) and `F27` (the
+  composition root cannot be imported outside a container, which is why this
+  was missable at all).
 
 ### [CLOSED] F18. An addressing event was never attached to its space
 

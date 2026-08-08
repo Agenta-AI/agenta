@@ -163,9 +163,17 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
+from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
+from oss.src.core.channels.identity import ChannelIdentityService
 from oss.src.core.channels.service import ChannelsService
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
+from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
+from oss.src.tasks.asyncio.channels.outbox import ChannelsOutboxWorker
+from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
+from oss.src.tasks.taskiq.channels.outbox_worker import ChannelsOutboxTaskWorker
 
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
@@ -268,6 +276,8 @@ async def lifespan(*args, **kwargs):
     validate_required_env_vars()
 
     await _triggers_broker.startup()
+    await _channels_inbox_broker.startup()
+    await _channels_outbox_broker.startup()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -314,6 +324,8 @@ async def lifespan(*args, **kwargs):
     )
 
     await _triggers_broker.shutdown()
+    await _channels_inbox_broker.shutdown()
+    await _channels_outbox_broker.shutdown()
 
     for adapter in _composio_adapters.values():
         await adapter.close()
@@ -1055,7 +1067,12 @@ triggers = TriggersRouter(
 )
 
 # Adapters register as each ships; the bridge route resolves its own at runtime.
-channels_adapter_registry = ChannelAdapterRegistry(adapters={})
+# Stateless: the connection is passed per call, not held.
+channels_adapter_registry = ChannelAdapterRegistry(
+    adapters={
+        "slack": SlackAdapter(),
+    }
+)
 
 channels_dao = ChannelsDAO(engine=_transactions_engine)
 
@@ -1065,10 +1082,61 @@ channels_service = ChannelsService(
     connections_service=connections_service,
 )
 
+channels_identity_dao = ChannelIdentityDAO(engine=_transactions_engine)
+
+channels_identity_service = ChannelIdentityService(
+    identity_dao=channels_identity_dao,
+)
+
+# Producer side of the inbound chain: the ingress route enqueues
+# `channels.inbox.dispatch` here; entrypoints/worker_queues.py consumes it.
+_channels_inbox_broker = ProducerOnlyRedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:channels-inbox",
+    consumer_group_name="api-channels-inbox-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_channels_inbox_dispatcher = InboxDispatcher(
+    channels_service=channels_service,
+    workflows_service=workflows_service,
+    identity_service=channels_identity_service,
+)
+
+_channels_inbox_worker = ChannelsInboxWorker(
+    broker=_channels_inbox_broker,
+    dispatcher=_channels_inbox_dispatcher,
+)
+
+_channels_outbox_broker = ProducerOnlyRedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:channels-outbox",
+    consumer_group_name="api-channels-outbox-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+_channels_outbox = ChannelsOutboxWorker(
+    channels_service=channels_service,
+    turns_service=session_turns_service,
+    records_service=records_service,
+)
+
+_channels_outbox_worker = ChannelsOutboxTaskWorker(
+    broker=_channels_outbox_broker,
+    outbox=_channels_outbox,
+)
+
 channels_ingress = ChannelsIngressRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
-    dispatch_task=None,  # WP4's inbox dispatch
+    dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
+)
+
+channels = ChannelsRouter(
+    channels_service=channels_service,
+    adapter_registry=channels_adapter_registry,
 )
 
 simple_traces = SimpleTracesRouter(
@@ -1486,8 +1554,8 @@ app.include_router(
 
 # --- channels ---
 # Ingress paths are literal per channel (/channels/slack/events/), never a path
-# parameter: _PUBLIC_ENDPOINTS matches by prefix. WP8's configuration router
-# mounts under the same prefix.
+# parameter: _PUBLIC_ENDPOINTS matches by prefix. The configuration router
+# mounts under the same prefix and stays authenticated.
 app.include_router(
     router=channels_ingress.router,
     prefix="/channels",
@@ -1496,6 +1564,19 @@ app.include_router(
 
 app.include_router(
     router=channels_ingress.router,
+    prefix="/preview/channels",
+    tags=["Channels"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=channels.router,
+    prefix="/channels",
+    tags=["Channels"],
+)
+
+app.include_router(
+    router=channels.router,
     prefix="/preview/channels",
     tags=["Channels"],
     include_in_schema=False,

@@ -26,6 +26,8 @@ not recoverable from a later session's context — re-derive each edit from the 
 rather than trusting a remembered diff, and treat the three facts below as the
 things that must end up true.
 
+**Status: done.** Four gaps, not three — see `F1` (closed) for the as-built record.
+
 ### Current state, verified
 
 - `api/entrypoints/routers.py:1058` — `ChannelAdapterRegistry(adapters={})`. **The
@@ -36,48 +38,62 @@ things that must end up true.
 - `api/entrypoints/worker_queues.py:311-314` — the broker map has four entries
   (`webhooks`, `triggers`, `interactions`, `evaluations`) and no channels entry.
   Neither the inbox nor the outbox worker is consumed.
+- **A fourth gap, not in `F1`'s original description:** `ChannelsRouter` — WP8's
+  entire configuration surface — was never imported or mounted. Only
+  `ChannelsIngressRouter` was.
 
 ### Tasks
 
-- [ ] Register the Slack adapter into `channels_adapter_registry` (or construct the
+- [x] Register the Slack adapter into `channels_adapter_registry` (or construct the
   registry with it). Confirm `registry.get("slack")` resolves after the change.
-- [ ] Build the channels-inbox producer broker and set
+- [x] Build the channels-inbox producer broker and set
   `channels_ingress.dispatch_task` to the inbox worker's dispatch entry point.
   Mirror the `_triggers_dispatcher` / `_triggers_worker` block already in this
   file — do not invent a new pattern.
-- [ ] Build the channels-outbox producer broker and construct the outbox worker.
-- [ ] Add `_build_channels_inbox_broker()` and `_build_channels_outbox_broker()` to
+- [x] Build the channels-outbox producer broker and construct the outbox worker.
+- [x] Add `_build_channels_inbox_broker()` and `_build_channels_outbox_broker()` to
   `worker_queues.py`, and register both in the broker map beside the existing four.
   Use `TrimOnAckRedisStreamBroker` and `stable_consumer_name(...)` as
   `_build_triggers_broker` does.
-- [ ] Confirm every `MAXLEN_QUEUES_*`-style constant the new brokers need exists;
+- [x] Confirm every `MAXLEN_QUEUES_*`-style constant the new brokers need exists;
   add it where the others live rather than inlining a literal.
-- [ ] Apply the three edits **serially**, verifying after each: WP4's inbox first
+- [x] Apply the three edits **serially**, verifying after each: WP4's inbox first
   (it defines the dispatch task WP3's router consumes), then WP5's outbox, then
   WP8's router registration.
-- [ ] WP8's configuration router must be mounted. Check the OpenAPI schema, **not**
+- [x] WP8's configuration router must be mounted. Check the OpenAPI schema, **not**
   `app.routes` — FastAPI defers expansion behind `_IncludedRouter`, so `app.routes`
   will not show an included router.
-- [ ] Confirm nothing was added to `_PUBLIC_ENDPOINTS`. WP8's routes are
+- [x] Confirm nothing was added to `_PUBLIC_ENDPOINTS`. WP8's routes are
   authenticated; only WP3's literal per-channel ingress paths belong there.
-- [ ] Fix the catalog path while in this file if it is the cheaper moment (`F10`:
+- [x] Fix the catalog path while in this file if it is the cheaper moment (`F10`:
   `specs-wp8.md` says `/catalog/channels/`, `entities.md` §9 says `/catalog/`, and
   the router already mounts under `/channels` — so the spec's version reads
   `/channels/catalog/channels/`). If it turns out to be more than a one-line
   change, leave it and say so.
+  **Left as-is:** it is not a one-line change in this file. The path is built in
+  `apis/fastapi/channels/router.py` (WP8's file, two routes), so fixing it here
+  is impossible and fixing it there is a spec decision, not a wiring edit. `F10`
+  stays open; the schema now confirms the doubled segment
+  (`/channels/catalog/channels/`) rather than inferring it.
 
 ### Done when
 
-- [ ] `registry.get("slack")` resolves; `dispatch_task` is not `None`; the broker
+- [x] `registry.get("slack")` resolves; `dispatch_task` is not `None`; the broker
   map has channels entries.
-- [ ] WP8's routes appear in the OpenAPI schema.
-- [ ] Canonical run green: api unit / integration / acceptance, sdk, services. The
+- [x] WP8's routes appear in the OpenAPI schema. 22 channels paths, up from the 2
+  ingress routes.
+- [x] Canonical run green: api unit / integration / acceptance, sdk, services. The
   one known error is `unit/sessions/test_turns_dao.py` (`F14`, arrived from main,
   passes in isolation) and the 19 runner failures (`F21`).
-- [ ] **An end-to-end path exists for the first time.** Say plainly in the report
+- [x] **An end-to-end path exists for the first time.** Say plainly in the report
   whether it was actually exercised or only wired — "wired" is not "works", and
   claiming the latter without evidence is the failure mode this project keeps
   hitting.
+  **Wired, not exercised.** No message has travelled the path. The evidence is
+  structural: the registry resolves, the dispatch task is a real
+  `AsyncTaskiqDecoratedTask`, both queues exist, the routes are in the schema.
+  Nothing here proves a Slack event produces a reply — that needs a deployment
+  and a real event, or WP15/WP16's harnesses.
 
 ---
 
