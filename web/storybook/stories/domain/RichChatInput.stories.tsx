@@ -1,7 +1,9 @@
-import {useState} from "react"
+import {useRef, useState} from "react"
 
-import {RichChatInput} from "@agenta/ui/rich-chat-input"
-import {Paperclip} from "@phosphor-icons/react"
+import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/HarnessPickerPanel"
+import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
+import {BookOpen, Cube, Paperclip, Plug, Sparkle} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
@@ -101,4 +103,254 @@ export const Disabled: Story = {
             <RichChatInput onSubmit={() => {}} disabled placeholder="Composer disabled" />
         </div>
     ),
+}
+
+const SLASH_SECTIONS = [
+    {
+        key: "commands",
+        title: "Commands",
+        items: [
+            {
+                key: "model",
+                label: "/model",
+                description: "Switch the model for this agent",
+                tail: "DeepSeek V4 Flash ›",
+                icon: <Sparkle size={13} />,
+                kind: "open" as const,
+            },
+            {
+                key: "harness",
+                label: "/harness",
+                description: "Switch the runtime that executes this agent",
+                tail: "Pi ›",
+                icon: <Cube size={13} />,
+                kind: "open" as const,
+            },
+        ],
+    },
+    {
+        key: "skills",
+        title: "Skills",
+        items: [
+            {
+                key: "diagnose",
+                label: "/diagnose",
+                description: "Disciplined diagnosis loop for hard bugs and regressions",
+                icon: <BookOpen size={13} />,
+                kind: "insert" as const,
+            },
+            {
+                key: "handoff",
+                label: "/handoff",
+                description: "Compact this conversation into a handoff document",
+                icon: <BookOpen size={13} />,
+                kind: "insert" as const,
+            },
+        ],
+    },
+    {
+        key: "tools",
+        title: "Tools",
+        items: [
+            {
+                key: "list",
+                label: "/list_connections",
+                tail: "platform",
+                icon: <Plug size={13} />,
+                kind: "insert" as const,
+            },
+            {
+                key: "weather",
+                label: "/get_weather",
+                tail: "custom",
+                icon: <Plug size={13} />,
+                kind: "insert" as const,
+            },
+            {
+                key: "notion",
+                label: "/notion.move_page",
+                tail: "integration",
+                icon: <Plug size={13} />,
+                kind: "insert" as const,
+            },
+        ],
+    },
+]
+
+/** Mocked harness catalog — the same shape `/inspect` publishes as `harness_capabilities`. */
+const MOCK_CAPABILITIES = {
+    pi_core: {
+        providers: ["openai", "anthropic", "gemini", "mistral", "deepseek"],
+        deployments: ["direct", "custom"],
+        connection_modes: ["agenta", "self_managed"],
+        model_catalog: [
+            {id: "deepseek-v4-flash", provider: "deepseek", label: "DeepSeek V4 Flash"},
+            {id: "gpt-5", provider: "openai", label: "GPT-5"},
+            {id: "gpt-4o", provider: "openai", label: "GPT-4o"},
+            {id: "claude-sonnet-4-6", provider: "anthropic", label: "Claude Sonnet 4.6"},
+        ],
+    },
+    claude: {
+        providers: ["anthropic", "bedrock", "vertex"],
+        deployments: ["direct", "custom"],
+        connection_modes: ["agenta"],
+        model_catalog: [
+            {id: "claude-sonnet-4-6", provider: "anthropic", label: "Claude Sonnet 4.6"},
+            {id: "claude-opus-4-1", provider: "anthropic", label: "Claude Opus 4.1"},
+        ],
+    },
+    codex: {
+        providers: ["openai", "openai_codex"],
+        deployments: ["direct"],
+        connection_modes: ["agenta"],
+        model_catalog: [{id: "gpt-5", provider: "openai", label: "GPT-5"}],
+    },
+} as never
+
+const MODEL_GROUPS = [
+    {
+        label: "DeepSeek",
+        options: [
+            {label: "DeepSeek V4 Flash", value: "deepseek-v4-flash"},
+            {label: "DeepSeek R2", value: "deepseek-r2"},
+        ],
+    },
+    {
+        label: "OpenAI",
+        options: [
+            {label: "GPT-5", value: "gpt-5"},
+            {label: "GPT-4o", value: "gpt-4o"},
+            {label: "GPT-4o mini", value: "gpt-4o-mini"},
+        ],
+    },
+    {
+        label: "Anthropic",
+        options: [{label: "Claude Sonnet 4.6", value: "claude-sonnet-4-6"}],
+    },
+]
+
+/**
+ * The full `/` flow. Type `/` to open the palette, `/mo` to filter (the match highlights inside the
+ * name), `/xyz` for the empty state — Enter there sends the text instead of selecting.
+ * `/model` and `/harness` drill into the real pickers, anchored over the composer exactly as the
+ * chat dock mounts them.
+ */
+export const SlashCommands: Story = {
+    render: () => {
+        const Demo = () => {
+            const [last, setLast] = useState<string>("")
+            const [picker, setPicker] = useState<"model" | "harness" | null>(null)
+            const [model, setModel] = useState("deepseek-v4-flash")
+            const [harness, setHarness] = useState("pi_core")
+            const [applied, setApplied] = useState<string>("")
+            const boxRef = useRef<HTMLDivElement | null>(null)
+            const inputRef = useRef<RichChatInputHandle | null>(null)
+            // The dock clears the typed command once a picker applies; mirror it so the story
+            // behaves like the real composer.
+            const clearCommand = () => {
+                inputRef.current?.clear()
+                inputRef.current?.focus()
+            }
+
+            const sections = SLASH_SECTIONS.map((section) => ({
+                ...section,
+                items: section.items.map((item) => ({
+                    ...item,
+                    tail:
+                        item.key === "model"
+                            ? `${model} ›`
+                            : item.key === "harness"
+                              ? `${harness} ›`
+                              : item.tail,
+                    onSelect:
+                        item.key === "model"
+                            ? () => setPicker("model")
+                            : item.key === "harness"
+                              ? () => setPicker("harness")
+                              : undefined,
+                })),
+            }))
+
+            const footer = (
+                <div className="flex items-center gap-1.5 text-[10.5px] text-colorTextTertiary">
+                    <span>Changes this agent&apos;s draft config.</span>
+                    <span className="text-colorPrimary">Open config →</span>
+                    <span
+                        className="ml-auto cursor-pointer"
+                        onClick={() => setPicker(null)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={() => setPicker(null)}
+                    >
+                        ← back to commands
+                    </span>
+                </div>
+            )
+
+            return (
+                <div className="flex w-[720px] flex-col gap-3 pt-[380px]">
+                    <div className="relative" ref={boxRef}>
+                        {picker === "harness" ? (
+                            <div className="absolute bottom-full left-0 right-0 z-[1050] mb-2">
+                                <HarnessPickerPanel
+                                    harnessIds={["pi_core", "claude", "codex"]}
+                                    capabilities={MOCK_CAPABILITIES}
+                                    currentHarness={harness}
+                                    currentModel={model}
+                                    onApply={(kind) => {
+                                        setHarness(kind)
+                                        setApplied(`harness → ${kind}`)
+                                        setPicker(null)
+                                        clearCommand()
+                                    }}
+                                    onBack={() => setPicker(null)}
+                                    onOpenConfig={() => setApplied("open config")}
+                                />
+                            </div>
+                        ) : null}
+                        <SelectLLMProviderBase
+                            open={picker === "model"}
+                            onOpenChange={(next) => {
+                                if (!next) setPicker(null)
+                            }}
+                            anchorRef={boxRef}
+                            hideTrigger
+                            showGroup
+                            showSearch
+                            options={MODEL_GROUPS}
+                            value={model}
+                            onChange={(next) => {
+                                setModel(next)
+                                setApplied(`model → ${next}`)
+                                setPicker(null)
+                                clearCommand()
+                            }}
+                            searchSuffix="/model"
+                            panelFooter={footer}
+                        />
+                        <RichChatInput
+                            ref={inputRef}
+                            onSubmit={setLast}
+                            // Erasing the command closes the picker it opened — same tie the chat
+                            // dock makes.
+                            onChange={(text) => {
+                                if (picker && !text.trimStart().startsWith("/")) setPicker(null)
+                            }}
+                            placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                            slashCommands={sections}
+                            slashEmptyAction={{
+                                label: "Add a skill to this agent",
+                                onSelect: () => setApplied("add-skill"),
+                            }}
+                        />
+                    </div>
+                    <div className="text-xs text-colorTextSecondary">
+                        Submitted: <code>{last || "—"}</code> · Applied:{" "}
+                        <code>{applied || "—"}</code>
+                    </div>
+                </div>
+            )
+        }
+        return <Demo />
+    },
 }
