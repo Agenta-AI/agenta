@@ -3,7 +3,7 @@ import {describe, expect, it} from "vitest"
 import * as channelsApi from "./api"
 
 /**
- * WP8 exposes no create route for threads, inbox events, or outbox events
+ * The API exposes no create route for threads, inbox events, or outbox events
  * (they are written only by routing and by workers). This package must not
  * invent a client-side workaround — pinned here as the absence of any
  * create-shaped export for these three entities.
@@ -26,7 +26,7 @@ describe("no create routes for read-only debugging surfaces", () => {
     })
 
     it("never re-derives an effective policy client-side — only resolveChannelPolicy talks to the API", () => {
-        // WP13 never re-implements the D25 intersection; it always calls
+        // The client never re-implements the intersection; it always calls
         // resolve_channel_policy. Pinned as: no local "resolvePolicy"/"intersect"
         // helper exists in the api module alongside the real network call.
         expect(typeof channelsApi.resolveChannelPolicy).toBe("function")

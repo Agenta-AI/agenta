@@ -14,7 +14,7 @@ import {ChannelsEmptyState, ChannelsSectionHeader} from "./ChannelsSection"
 /**
  * Read-only thread browser (debugging surface, D24) plus the one write this
  * domain exposes for threads: "close" (`!new`'s web equivalent). No create
- * action anywhere here — WP8 exposes no create route for threads.
+ * action anywhere here — the API exposes no create route for threads.
  */
 export default function ThreadsSection() {
     const [spaceId, setSpaceId] = useState("")

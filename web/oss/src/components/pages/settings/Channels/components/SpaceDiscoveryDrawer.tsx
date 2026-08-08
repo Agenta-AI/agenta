@@ -51,7 +51,7 @@ export default function SpaceDiscoveryDrawer({open, onClose}: SpaceDiscoveryDraw
                 connection_id: connectionId,
                 kind: candidate.kind,
                 // The service always overwrites this with a derived uuid5 from
-                // the locator (entities.md §2.2) — the wire schema requires a
+                // the locator — the wire schema requires a
                 // syntactically valid UUID here, but the value is discarded.
                 external_key: crypto.randomUUID(),
                 data: {external_locator: candidate.external_locator},

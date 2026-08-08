@@ -12,7 +12,7 @@ import {ChannelsEmptyState, ChannelsSectionHeader} from "./ChannelsSection"
 
 /**
  * Read-only list over the shared `gateway_connections` rows, channel-scoped.
- * Install is the platform's existing connection-creation flow (WP6) — this
+ * Install is the platform's existing connection-creation flow — this
  * package never builds a second one.
  */
 export default function ConnectionsSection() {

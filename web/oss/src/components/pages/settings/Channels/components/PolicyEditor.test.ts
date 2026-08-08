@@ -37,7 +37,7 @@ describe("tri-state boolean round-trip", () => {
     })
 
     it("clearing back to 'unstated' produces undefined, never false", () => {
-        // This is the exact fixture from specs-wp13.md: clearing a boolean field
+        // Clearing a boolean field
         // must round-trip as absent/None in the PUT body, not false.
         expect(fromTriStateSelectValue("unstated")).toBeUndefined()
         expect(fromTriStateSelectValue("unstated")).not.toBe(false)

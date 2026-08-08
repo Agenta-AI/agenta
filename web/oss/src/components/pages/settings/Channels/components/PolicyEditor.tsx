@@ -59,7 +59,7 @@ interface DecidedByBadgeProps {
 }
 
 /**
- * Names the level that decided a field (D25's central requirement): every
+ * Names the level that decided a field: every
  * policy control is paired with an indicator, not a bare checkbox. Disabled
  * + reasoned when capability denies it; enabled-but-annotated when a level
  * other than the one being edited decided it.

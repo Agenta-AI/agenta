@@ -1,75 +1,577 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuites name="vitest tests" tests="30" failures="0" errors="0" time="0.032288188">
-    <testsuite name="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" timestamp="2026-08-01T11:09:33.230Z" hostname="hetznerdev" tests="11" failures="0" errors="0" skipped="0" time="0.010121087">
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; posts the multipart fields and returns a validated response" time="0.003471653">
+<testsuites name="vitest tests" tests="252" failures="0" errors="0" time="0.307941292">
+    <testsuite name="src/components/Drives/dropEntries.test.ts" timestamp="2026-08-08T07:26:28.277Z" hostname="MacBookPro.fritz.box" tests="9" failures="0" errors="0" skipped="0" time="0.005393166">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="collectDropEntry &gt; passes a plain file entry through with a bare relative path" time="0.002252125">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; reports upload progress" time="0.000814108">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="collectDropEntry &gt; yields nothing for an empty directory" time="0.00021675">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; forwards the abort signal and preserves cancellation" time="0.000653035">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="collectDropEntry &gt; flattens a directory tree, reading every batch the reader returns" time="0.00035125">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; turns a network failure into a retryable user-safe error" time="0.000686211">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="collectDropEntry &gt; skips a file entry the browser refuses to read" time="0.000142">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 413 to a short non-retryable error" time="0.000424088">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="readDroppedFiles &gt; expands a dropped folder while passing a sibling file through" time="0.000342125">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 422 to a short non-retryable error" time="0.000196312">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="readDroppedFiles &gt; falls back to the plain file when the item has no filesystem entry" time="0.000161875">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 429 to a short non-retryable error" time="0.000154228">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="uploadMountFile path composition &gt; nests a dropped folder&apos;s file under the destination folder" time="0.000833583">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 404 to a short non-retryable error" time="0.000152516">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="uploadMountFile path composition &gt; keeps the relative path at the drive root" time="0.000137542">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; honours Retry-After for an upload already in flight" time="0.000302608">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; logs schema drift and throws a controlled retryable error" time="0.001929139">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; rejects uppercase attachment ids emitted outside the canonical server contract" time="0.000383141">
+        <testcase classname="src/components/Drives/dropEntries.test.ts" name="uploadMountFile path composition &gt; falls back to the filename when no destName is given" time="0.000122833">
         </testcase>
     </testsuite>
-    <testsuite name="src/components/AgentChatSlice/assets/attachments.test.ts" timestamp="2026-08-01T11:09:33.231Z" hostname="hetznerdev" tests="3" failures="0" errors="0" skipped="0" time="0.00468596">
-        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; accepts an unrecognized media type through the other bucket" time="0.00267367">
+    <testsuite name="src/components/PageTitle/utils.test.ts" timestamp="2026-08-08T07:26:28.278Z" hostname="MacBookPro.fritz.box" tests="7" failures="0" errors="0" skipped="0" time="0.005971916">
+        <testcase classname="src/components/PageTitle/utils.test.ts" name="formatPageTitle &gt; falls back when no semantic title is available" time="0.001120125">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; enforces the 10 MB cap for the other bucket" time="0.000485362">
+        <testcase classname="src/components/PageTitle/utils.test.ts" name="formatPageTitle &gt; normalizes parts and adds one separator" time="0.000106417">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; enforces the per-message count cap" time="0.000246304">
+        <testcase classname="src/components/PageTitle/utils.test.ts" name="formatPageTitle &gt; uses Agenta when the context is missing" time="0.00007825">
         </testcase>
-    </testsuite>
-    <testsuite name="src/components/AgentChatSlice/assets/files.test.ts" timestamp="2026-08-01T11:09:33.232Z" hostname="hetznerdev" tests="2" failures="0" errors="0" skipped="0" time="0.002946947">
-        <testcase classname="src/components/AgentChatSlice/assets/files.test.ts" name="attachment file parts &gt; stores size under providerMetadata.agenta" time="0.001929868">
+        <testcase classname="src/components/PageTitle/utils.test.ts" name="truncateTitlePart &gt; keeps an exact 60-character title" time="0.000198834">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/files.test.ts" name="attachment file parts &gt; uses attachment when a replayed part has no filename" time="0.000179434">
+        <testcase classname="src/components/PageTitle/utils.test.ts" name="truncateTitlePart &gt; caps a longer title at 60 characters with an ellipsis" time="0.000527375">
         </testcase>
-    </testsuite>
-    <testsuite name="src/components/AgentChatSlice/assets/inFlightSubmit.test.ts" timestamp="2026-08-01T11:09:33.232Z" hostname="hetznerdev" tests="1" failures="0" errors="0" skipped="0" time="0.004511831">
-        <testcase classname="src/components/AgentChatSlice/assets/inFlightSubmit.test.ts" name="in-flight submit guard &gt; drops a second submit while the first await is unresolved" time="0.003093821">
+        <testcase classname="src/components/PageTitle/utils.test.ts" name="truncateTitlePart &gt; does not split a surrogate pair at the truncation boundary" time="0.000114291">
+        </testcase>
+        <testcase classname="src/components/PageTitle/utils.test.ts" name="truncateTitlePart &gt; drops a trailing lone surrogate left by an upstream UTF-16 cut" time="0.000082416">
         </testcase>
     </testsuite>
-    <testsuite name="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" timestamp="2026-08-01T11:09:33.232Z" hostname="hetznerdev" tests="11" failures="0" errors="0" skipped="0" time="0.005936531">
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; overlays a persisted approval response with the live response shape" time="0.001695614">
+    <testsuite name="src/components/SessionInspector/api.test.ts" timestamp="2026-08-08T07:26:28.279Z" hostname="MacBookPro.fritz.box" tests="3" failures="0" errors="0" skipped="0" time="0.003434209">
+        <testcase classname="src/components/SessionInspector/api.test.ts" name="fetchAgentMount &gt; posts the artifact id and returns the found mount" time="0.002269458">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; keeps an unanswered request pending" time="0.000248943">
+        <testcase classname="src/components/SessionInspector/api.test.ts" name="fetchAgentMount &gt; omits the project id when it is absent" time="0.00022475">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; lets an executed tool result supersede a later approval response" time="0.00020205">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; falls back to the interaction id when the response omits the tool-call id" time="0.00017115">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; reopens deferred call b when its turn-2 approval request arrives" time="0.00078471">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; keeps a real tool error closed when a late approval request arrives" time="0.000160332">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; merges a paused turn with its resume into one message and settles the re-emitted call once" time="0.000819154">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages paused end-marker &gt; flags the message whose turn ended paused (done.stopReason)" time="0.000186444">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages paused end-marker &gt; does not flag a normally completed turn" time="0.00014934">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages attachments &gt; rebuilds user attachment references as file parts with filenames" time="0.000353669">
-        </testcase>
-        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages attachments &gt; ignores an attachment delivery record instead of rendering a part" time="0.000128959">
+        <testcase classname="src/components/SessionInspector/api.test.ts" name="fetchAgentMount &gt; returns null when the query envelope is empty" time="0.000163541">
         </testcase>
     </testsuite>
-    <testsuite name="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" timestamp="2026-08-01T11:09:33.232Z" hostname="hetznerdev" tests="2" failures="0" errors="0" skipped="0" time="0.004085832">
-        <testcase classname="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" name="attachment upload controls &gt; aborts an in-flight upload before removing its chip" time="0.002586717">
+    <testsuite name="src/lib/navigation/projectSwitchHref.test.ts" timestamp="2026-08-08T07:26:28.279Z" hostname="MacBookPro.fritz.box" tests="13" failures="0" errors="0" skipped="0" time="0.00269075">
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; drops the evaluation id and lands on the evaluations list" time="0.000954375">
         </testcase>
-        <testcase classname="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" name="attachment upload controls &gt; holds retry until the Retry-After deadline" time="0.000224426">
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; drops the single-model-test evaluation id" time="0.000168667">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; drops the app id and any deep playground sub-route to the apps list" time="0.000083833">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; drops the testset id and lands on the testsets list" time="0.000074334">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; keeps the top-level playground section as-is" time="0.000070958">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; keeps the top-level observability section as-is" time="0.000065708">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; falls back to apps when there is no section in the path" time="0.000060584">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; strips query params from non-settings pages" time="0.000062959">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; preserves the settings tab query param" time="0.000081667">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; ignores the default &apos;workspace&apos; settings tab and falls back to the query tab" time="0.000091958">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; uses the first value when the settings tab query is repeated" time="0.000058084">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; does not add a tab param for non-settings pages even if a tab is present" time="0.000046041">
+        </testcase>
+        <testcase classname="src/lib/navigation/projectSwitchHref.test.ts" name="buildProjectSwitchHref &gt; normalizes deep org-switch routes the same way as project switches" time="0.000041209">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/state/channels/api.test.ts" timestamp="2026-08-08T07:26:28.280Z" hostname="MacBookPro.fritz.box" tests="7" failures="0" errors="0" skipped="0" time="0.007071958">
+        <testcase classname="src/state/channels/api.test.ts" name="editChannelAgent — full-PUT discipline &gt; sends the full ChannelAgentEdit document (data and flags both present), not a partial patch" time="0.003768334">
+        </testcase>
+        <testcase classname="src/state/channels/api.test.ts" name="editChannelSpace / editChannelGrant — full-PUT discipline &gt; space edit carries data and flags both present" time="0.000278542">
+        </testcase>
+        <testcase classname="src/state/channels/api.test.ts" name="editChannelSpace / editChannelGrant — full-PUT discipline &gt; grant edit carries data and flags both present" time="0.000150166">
+        </testcase>
+        <testcase classname="src/state/channels/api.test.ts" name="space discovery vs create &gt; discoverChannelSpaces calls the discover route, not create" time="0.000339542">
+        </testcase>
+        <testcase classname="src/state/channels/api.test.ts" name="space discovery vs create &gt; choosing an unconfigured candidate calls createChannelSpace, never editChannelSpace" time="0.000179791">
+        </testcase>
+        <testcase classname="src/state/channels/api.test.ts" name="default-setting is a dedicated action, never a generic edit &gt; setChannelAgentDefault calls the dedicated route, not editChannelAgent" time="0.00061425">
+        </testcase>
+        <testcase classname="src/state/channels/api.test.ts" name="default-setting is a dedicated action, never a generic edit &gt; setChannelGrantDefault calls the dedicated route, not editChannelGrant" time="0.000590583">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/state/channels/noCreateRoutes.test.ts" timestamp="2026-08-08T07:26:28.280Z" hostname="MacBookPro.fritz.box" tests="5" failures="0" errors="0" skipped="0" time="0.001872208">
+        <testcase classname="src/state/channels/noCreateRoutes.test.ts" name="no create routes for read-only debugging surfaces &gt; exposes no createChannelThread" time="0.000794333">
+        </testcase>
+        <testcase classname="src/state/channels/noCreateRoutes.test.ts" name="no create routes for read-only debugging surfaces &gt; exposes no createChannelInboxEvent" time="0.000086084">
+        </testcase>
+        <testcase classname="src/state/channels/noCreateRoutes.test.ts" name="no create routes for read-only debugging surfaces &gt; exposes no createChannelOutboxEvent" time="0.000069125">
+        </testcase>
+        <testcase classname="src/state/channels/noCreateRoutes.test.ts" name="no create routes for read-only debugging surfaces &gt; exposes exactly the one write threads get: closeChannelThread" time="0.000118292">
+        </testcase>
+        <testcase classname="src/state/channels/noCreateRoutes.test.ts" name="no create routes for read-only debugging surfaces &gt; never re-derives an effective policy client-side — only resolveChannelPolicy talks to the API" time="0.000101542">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/state/url/template.test.ts" timestamp="2026-08-08T07:26:28.281Z" hostname="MacBookPro.fritz.box" tests="17" failures="0" errors="0" skipped="0" time="0.009512542">
+        <testcase classname="src/state/url/template.test.ts" name="parseTemplateFromUrl &gt; returns the key when the template param is present" time="0.001796167">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="parseTemplateFromUrl &gt; returns null when the template param is absent" time="0.00021425">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="parseTemplateFromUrl &gt; trims surrounding whitespace and treats blank as absent" time="0.0002725">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="registry validation &gt; resolves a known key to its template and validates it" time="0.00019175">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="registry validation &gt; rejects an unknown or stale key without falling back to another template" time="0.000142042">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="storage round-trip and TTL &gt; persists then reads back the key" time="0.000787584">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="storage round-trip and TTL &gt; treats a key past its expiry as absent and removes it" time="0.000323125">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="captureTemplateFromUrl &gt; captures the key from the URL and mirrors it into the atom" time="0.000404958">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="captureTemplateFromUrl &gt; stamps the capture time once and does not reset it on a later capture" time="0.000952">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="captureTemplateFromUrl &gt; does not renew an expired key while the stale parameter remains in the URL" time="0.000567541">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="captureTemplateFromUrl &gt; falls back to the stored key when the URL has none (region recapture leaves storage intact)" time="0.000154666">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="clearTemplate &gt; removes storage, the atom, and the template URL param so it cannot resurrect" time="0.000257">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="claimTemplate (at-most-once) &gt; best-effort fallback: only the first caller wins when Web Locks is absent" time="0.000386167">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="claimTemplate (at-most-once) &gt; Web Locks path: the lock serialises the claim so only one caller wins" time="0.000291916">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="claimTemplate (at-most-once) &gt; keeps a completed generation unavailable to a late tab after pending state clears" time="0.000244167">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="claimTemplate (at-most-once) &gt; allows a newly captured generation of the same key" time="0.000604458">
+        </testcase>
+        <testcase classname="src/state/url/template.test.ts" name="claimTemplate (at-most-once) &gt; expires an abandoned claim before a later visit with the same key" time="0.000271">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" timestamp="2026-08-08T07:26:28.282Z" hostname="MacBookPro.fritz.box" tests="11" failures="0" errors="0" skipped="0" time="0.017396041">
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; posts the multipart fields and returns a validated response" time="0.004033625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; reports upload progress" time="0.001016584">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; forwards the abort signal and preserves cancellation" time="0.0007325">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; turns a network failure into a retryable user-safe error" time="0.001495625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 413 to a short non-retryable error" time="0.0004065">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 422 to a short non-retryable error" time="0.000175625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 429 to a short non-retryable error" time="0.000130542">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; maps HTTP 404 to a short non-retryable error" time="0.00070525">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; honours Retry-After for an upload already in flight" time="0.000650958">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; logs schema drift and throws a controlled retryable error" time="0.003676084">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachmentTransport.test.ts" name="uploadAttachment &gt; rejects uppercase attachment ids emitted outside the canonical server contract" time="0.0033015">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/assets/attachments.test.ts" timestamp="2026-08-08T07:26:28.282Z" hostname="MacBookPro.fritz.box" tests="3" failures="0" errors="0" skipped="0" time="0.004031334">
+        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; accepts an unrecognized media type through the other bucket" time="0.002297041">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; enforces the 10 MB cap for the other bucket" time="0.000191292">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/attachments.test.ts" name="attachment validation &gt; enforces the per-message count cap" time="0.000143084">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/assets/constants.test.ts" timestamp="2026-08-08T07:26:28.283Z" hostname="MacBookPro.fritz.box" tests="3" failures="0" errors="0" skipped="0" time="0.004933542">
+        <testcase classname="src/components/AgentChatSlice/assets/constants.test.ts" name="voice input gating &gt; stays off when neither the setting nor the env flag is on" time="0.002955334">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/constants.test.ts" name="voice input gating &gt; turns on from the per-user setting alone" time="0.000137792">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/constants.test.ts" name="voice input gating &gt; turns on from the env flag alone, so dev stacks keep working" time="0.00010475">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/assets/files.test.ts" timestamp="2026-08-08T07:26:28.283Z" hostname="MacBookPro.fritz.box" tests="2" failures="0" errors="0" skipped="0" time="0.002489417">
+        <testcase classname="src/components/AgentChatSlice/assets/files.test.ts" name="attachment file parts &gt; stores size under providerMetadata.agenta" time="0.001691958">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/files.test.ts" name="attachment file parts &gt; uses attachment when a replayed part has no filename" time="0.000135875">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/assets/inFlightSubmit.test.ts" timestamp="2026-08-08T07:26:28.283Z" hostname="MacBookPro.fritz.box" tests="1" failures="0" errors="0" skipped="0" time="0.002130958">
+        <testcase classname="src/components/AgentChatSlice/assets/inFlightSubmit.test.ts" name="in-flight submit guard &gt; drops a second submit while the first await is unresolved" time="0.001465292">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/assets/pageTitle.test.ts" timestamp="2026-08-08T07:26:28.283Z" hostname="MacBookPro.fritz.box" tests="5" failures="0" errors="0" skipped="0" time="0.002755875">
+        <testcase classname="src/components/AgentChatSlice/assets/pageTitle.test.ts" name="selectAgentChatTitlePart &gt; uses the agent name for an empty session" time="0.000887208">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/pageTitle.test.ts" name="selectAgentChatTitlePart &gt; uses the durable session title after chat starts" time="0.000128167">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/pageTitle.test.ts" name="selectAgentChatTitlePart &gt; falls back to the first user message before the title persists" time="0.000098375">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/pageTitle.test.ts" name="selectAgentChatTitlePart &gt; caps a long session title" time="0.000082792">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/pageTitle.test.ts" name="selectAgentChatTitlePart &gt; reflects the currently selected session input" time="0.000071875">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/assets/toolDisplay.test.ts" timestamp="2026-08-08T07:26:28.284Z" hostname="MacBookPro.fritz.box" tests="17" failures="0" errors="0" skipped="0" time="0.004681958">
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; reads the agent&apos;s note off the call input" time="0.001543834">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; returns null when the agent wrote no note" time="0.000142417">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; treats a blank note as no note" time="0.000107667">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; trims surrounding whitespace" time="0.000141167">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; ignores a non-string description" time="0.000099375">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; survives inputs that are not objects" time="0.00011675">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; cuts an over-long note and says it cut it" time="0.000476959">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; does not mark a note at exactly the limit as cut" time="0.000100709">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; cuts on a code-point boundary when an emoji straddles the limit" time="0.000346083">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="extractCallDescription &gt; counts an all-emoji note in code points, matching the catalog cap" time="0.000117625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="partToolName &gt; strips the tool- prefix from a typed part" time="0.000085">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="partToolName &gt; reads toolName off a dynamic part" time="0.000049875">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="canonicalToolName &gt; unwraps our own MCP server so both harnesses key the same" time="0.00006725">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="canonicalToolName &gt; leaves another server&apos;s tool wrapped, so it cannot collide with a platform tool" time="0.00005875">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="canonicalToolName &gt; never returns an empty name" time="0.00004525">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="resolveToolDisplay under an MCP wrapper &gt; applies the platform tool&apos;s override to the wrapped name" time="0.00018025">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/toolDisplay.test.ts" name="resolveToolDisplay under an MCP wrapper &gt; still presents it as an MCP tool, and keeps the raw name reachable" time="0.000056167">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" timestamp="2026-08-08T07:26:28.285Z" hostname="MacBookPro.fritz.box" tests="18" failures="0" errors="0" skipped="0" time="0.006913834">
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; replays the approved-content manifest as the egress&apos;s sibling data part" time="0.00172925">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; emits no manifest part when the gate carries none" time="0.000137875">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; overlays a persisted approval response with the live response shape" time="0.000268583">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; keeps an unanswered request pending" time="0.000124625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; lets an executed tool result supersede a later approval response" time="0.000151167">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; falls back to the interaction id when the response omits the tool-call id" time="0.000139291">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; reopens deferred call b when its turn-2 approval request arrives" time="0.00066475">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; keeps a real tool error closed when a late approval request arrives" time="0.000122958">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages approval hydration &gt; merges a paused turn with its resume into one message and settles the re-emitted call once" time="0.000721042">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages cold approval resume (re-raised tool call id) &gt; settles the gated part when the response arrives before the re-raised result" time="0.000260667">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages cold approval resume (re-raised tool call id) &gt; settles the gated part when the re-raised result arrives before the response" time="0.00015325">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages cold approval resume (re-raised tool call id) &gt; resolves a denied re-raised call to output-denied" time="0.000154208">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages paused end-marker &gt; flags the message whose turn ended paused (done.stopReason)" time="0.000073042">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages paused end-marker &gt; does not flag a normally completed turn" time="0.000065833">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages turn growth is invisible to a message count &gt; renders the same number of messages before and after the turn finishes" time="0.000166708">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages turn growth is invisible to a message count &gt; carries strictly more content in the completed turn" time="0.000048458">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages attachments &gt; rebuilds user attachment references as file parts with filenames" time="0.000247958">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/assets/transcriptToMessages.test.ts" name="transcriptToMessages attachments &gt; ignores an attachment delivery record instead of rendering a part" time="0.000090375">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/state/sessions.pageTitle.test.ts" timestamp="2026-08-08T07:26:28.286Z" hostname="MacBookPro.fritz.box" tests="1" failures="0" errors="0" skipped="0" time="0.0024415">
+        <testcase classname="src/components/AgentChatSlice/state/sessions.pageTitle.test.ts" name="activeSessionTitleAtomFamily &gt; reacts to active-session switches and renames" time="0.001817416">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/components/AgentChatEmptyState.test.ts" timestamp="2026-08-08T07:26:28.287Z" hostname="MacBookPro.fritz.box" tests="4" failures="0" errors="0" skipped="0" time="0.001879625">
+        <testcase classname="src/components/AgentChatSlice/components/AgentChatEmptyState.test.ts" name="capabilityLabel &gt; ignores legacy harness built-in entries" time="0.000854166">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/AgentChatEmptyState.test.ts" name="capabilityLabel &gt; counts only the custom tools of a mixed config" time="0.000147833">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/AgentChatEmptyState.test.ts" name="capabilityLabel &gt; counts custom tools and skills" time="0.000090042">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/AgentChatEmptyState.test.ts" name="capabilityLabel &gt; returns null when there is nothing to show" time="0.000092833">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" timestamp="2026-08-08T07:26:28.287Z" hostname="MacBookPro.fritz.box" tests="11" failures="0" errors="0" skipped="0" time="0.020523417">
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Build mode &gt; shows the frozen content and diff, with the exact payload still reachable" time="0.007331625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Build mode &gt; keeps showing it when the host has no revision to diff against" time="0.001288125">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Build mode &gt; offers Approve only once the content is on screen" time="0.001338292">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Build mode &gt; renders no manifest block when the gate carries none" time="0.001208">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Build mode &gt; ignores a malformed manifest rather than rendering an empty block" time="0.0009405">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Build mode, commit with a committed base to diff against &gt; renders the change and the labelled intent, not a raw JSON blob" time="0.001204666">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Build mode, commit with a committed base to diff against &gt; keeps the raw tool name that Build-mode debuggers steer by" time="0.000899667">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Build mode, commit with a committed base to diff against &gt; still shows the imported content when the commit imports files" time="0.00119675">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Chat mode &gt; renders the manifest exactly once, through the specialized body" time="0.001163042">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Chat mode &gt; renders the intent and the message once each, in the two-pane shape" time="0.001091625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.test.tsx" name="Chat mode &gt; still renders it once when the delta cannot be previewed" time="0.001805167">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" timestamp="2026-08-08T07:26:28.288Z" hostname="MacBookPro.fritz.box" tests="9" failures="0" errors="0" skipped="0" time="0.097064084">
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="the transcript to dock hand-off &gt; finds the gate and joins it to the runner&apos;s sibling manifest part" time="0.069591041">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="an ordered-operations commit, through the real classifier &gt; renders the change and the intent in Build mode, never a bare payload" time="0.003949834">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="an ordered-operations commit, through the real classifier &gt; renders the change and the intent in Chat mode, never a bare payload" time="0.002193625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="an ordered-operations commit, through the real classifier &gt; still renders the imported content beside the change" time="0.0028725">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="a legacy set delta, through the real classifier &gt; still renders the classified summary, and asks for it expanded" time="0.0029165">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="the same commit under the Claude harness &gt; renders the specialized body in Build mode, like the Pi-named call" time="0.003979875">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="the same commit under the Claude harness &gt; renders the specialized body in Chat mode, like the Pi-named call" time="0.00366925">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="the same commit under the Claude harness &gt; leaves a third-party MCP tool on the generic card" time="0.004656333">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/ApprovalDock.wiring.test.tsx" name="a delta neither arm can read &gt; keeps the exact payload rather than inventing a change" time="0.002093125">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" timestamp="2026-08-08T07:26:28.288Z" hostname="MacBookPro.fritz.box" tests="2" failures="0" errors="0" skipped="0" time="0.004421791">
+        <testcase classname="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" name="attachment upload controls &gt; aborts an in-flight upload before removing its chip" time="0.0020835">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/hooks/useAttachmentUploads.test.ts" name="attachment upload controls &gt; holds retry until the Retry-After deadline" time="0.000166583">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/TemplateStrip/assets/codingAgentClipboard.test.ts" timestamp="2026-08-08T07:26:28.289Z" hostname="MacBookPro.fritz.box" tests="4" failures="0" errors="0" skipped="0" time="0.002122875">
+        <testcase classname="src/components/TemplateStrip/assets/codingAgentClipboard.test.ts" name="buildCodingAgentClipboard &gt; joins the install command, the instruction line, and the text" time="0.000895291">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/codingAgentClipboard.test.ts" name="buildCodingAgentClipboard &gt; trims the text" time="0.000139459">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/codingAgentClipboard.test.ts" name="buildCodingAgentClipboard &gt; falls back to the placeholder when empty" time="0.000090583">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/codingAgentClipboard.test.ts" name="buildCodingAgentClipboard &gt; falls back to the placeholder when whitespace-only" time="0.000088208">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/TemplateStrip/assets/pagerMath.test.ts" timestamp="2026-08-08T07:26:28.289Z" hostname="MacBookPro.fritz.box" tests="12" failures="0" errors="0" skipped="0" time="0.005377417">
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; is atStart within the 4px tolerance" time="0.002488417">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; is atEnd within the 4px tolerance of max scroll" time="0.000203208">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; treats a non-scrollable row as both atStart and atEnd" time="0.000091292">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; labels the counter at start, middle, and end" time="0.00010725">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; clamps first so the window never runs past the last card" time="0.00008175">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; floors first at 1 for a transient negative scrollLeft (Safari elastic overscroll)" time="0.000059333">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; shows the pager only above three cards" time="0.000069291">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; wide viewport (more than 3 cards visible) &gt; counts the true last window at the end of the scroll" time="0.000066666">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; wide viewport (more than 3 cards visible) &gt; labels the start window from the viewport, not a constant" time="0.000077416">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; wide viewport (more than 3 cards visible) &gt; sizes the window to the viewport when 4+ cards fit" time="0.000108542">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="computePagerState &gt; wide viewport (more than 3 cards visible) &gt; hides the pager when every card already fits" time="0.000064333">
+        </testcase>
+        <testcase classname="src/components/TemplateStrip/assets/pagerMath.test.ts" name="pageDelta &gt; pages by three cards in either direction" time="0.000100958">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/state/org/selectors/orgsDemoFilter.test.ts" timestamp="2026-08-08T07:26:28.290Z" hostname="MacBookPro.fritz.box" tests="4" failures="0" errors="0" skipped="0" time="0.001962167">
+        <testcase classname="src/state/org/selectors/orgsDemoFilter.test.ts" name="filterOutDemoOrgs &gt; filters demo orgs out when the user has at least one non-demo org" time="0.001038625">
+        </testcase>
+        <testcase classname="src/state/org/selectors/orgsDemoFilter.test.ts" name="filterOutDemoOrgs &gt; keeps demo orgs when they are the user&apos;s only orgs" time="0.00010175">
+        </testcase>
+        <testcase classname="src/state/org/selectors/orgsDemoFilter.test.ts" name="filterOutDemoOrgs &gt; returns non-demo orgs unchanged" time="0.000085541">
+        </testcase>
+        <testcase classname="src/state/org/selectors/orgsDemoFilter.test.ts" name="filterOutDemoOrgs &gt; returns an empty list unchanged" time="0.000074875">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/state/project/selectors/projectAtom.race.test.ts" timestamp="2026-08-08T07:26:28.290Z" hostname="MacBookPro.fritz.box" tests="4" failures="0" errors="0" skipped="0" time="0.0059995">
+        <testcase classname="src/state/project/selectors/projectAtom.race.test.ts" name="pickPreferredProject &gt; documents the legacy bug: with workspaceId=null, falls through to the cross-org default and returns the demo project" time="0.003124125">
+        </testcase>
+        <testcase classname="src/state/project/selectors/projectAtom.race.test.ts" name="pickPreferredProject &gt; with workspaceId = own org UUID, scopes the pick to that org and returns the own project" time="0.000971792">
+        </testcase>
+        <testcase classname="src/state/project/selectors/projectAtom.race.test.ts" name="pickPreferredProject &gt; with workspaceId = demo org UUID, returns the demo project (still scoped, not cross-org)" time="0.000132708">
+        </testcase>
+        <testcase classname="src/state/project/selectors/projectAtom.race.test.ts" name="pickPreferredProject &gt; returns null when projects list is empty" time="0.000076875">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/state/project/selectors/projectsDemoFilter.test.ts" timestamp="2026-08-08T07:26:28.291Z" hostname="MacBookPro.fritz.box" tests="4" failures="0" errors="0" skipped="0" time="0.003542125">
+        <testcase classname="src/state/project/selectors/projectsDemoFilter.test.ts" name="filterOutDemoProjects &gt; filters demo projects out when a non-demo project exists" time="0.001997">
+        </testcase>
+        <testcase classname="src/state/project/selectors/projectsDemoFilter.test.ts" name="filterOutDemoProjects &gt; keeps demo projects when they are all the user has" time="0.000126291">
+        </testcase>
+        <testcase classname="src/state/project/selectors/projectsDemoFilter.test.ts" name="filterOutDemoProjects &gt; treats is_demo=null as non-demo" time="0.000121333">
+        </testcase>
+        <testcase classname="src/state/project/selectors/projectsDemoFilter.test.ts" name="filterOutDemoProjects &gt; returns an empty list unchanged" time="0.000111834">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/state/workflow/hooks/workflowRouteGuard.test.ts" timestamp="2026-08-08T07:26:28.291Z" hostname="MacBookPro.fritz.box" tests="5" failures="0" errors="0" skipped="0" time="0.0027255">
+        <testcase classname="src/state/workflow/hooks/workflowRouteGuard.test.ts" name="shouldRunWorkflowRouteGuard &gt; stops guarding after navigation reaches the unknown layer" time="0.000877333">
+        </testcase>
+        <testcase classname="src/state/workflow/hooks/workflowRouteGuard.test.ts" name="shouldRunWorkflowRouteGuard &gt; stops guarding after navigation reaches the root layer" time="0.000083041">
+        </testcase>
+        <testcase classname="src/state/workflow/hooks/workflowRouteGuard.test.ts" name="shouldRunWorkflowRouteGuard &gt; stops guarding after navigation reaches the workspace layer" time="0.000066583">
+        </testcase>
+        <testcase classname="src/state/workflow/hooks/workflowRouteGuard.test.ts" name="shouldRunWorkflowRouteGuard &gt; stops guarding after navigation reaches the project layer" time="0.000060209">
+        </testcase>
+        <testcase classname="src/state/workflow/hooks/workflowRouteGuard.test.ts" name="shouldRunWorkflowRouteGuard &gt; keeps guarding app-to-app navigation" time="0.000069167">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/components/clientTools/meta.test.ts" timestamp="2026-08-08T07:26:28.292Z" hostname="MacBookPro.fritz.box" tests="5" failures="0" errors="0" skipped="0" time="0.002183042">
+        <testcase classname="src/components/AgentChatSlice/components/clientTools/meta.test.ts" name="isClientToolPart &gt; does NOT claim a denied approval part (output-denied)" time="0.0009195">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/clientTools/meta.test.ts" name="isClientToolPart &gt; does NOT claim any part carrying approval metadata, whatever its state" time="0.000135333">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/clientTools/meta.test.ts" name="isClientToolPart &gt; still claims a parked unknown client tool so the fallback settles it" time="0.000201125">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/clientTools/meta.test.ts" name="isClientToolPart &gt; does NOT claim an unsettled tool while the turn is still streaming" time="0.000108875">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/clientTools/meta.test.ts" name="isClientToolPart &gt; claims a known client tool in every state" time="0.000083291">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" timestamp="2026-08-08T07:26:28.292Z" hostname="MacBookPro.fritz.box" tests="15" failures="0" errors="0" skipped="0" time="0.031214875">
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="parseApprovedContentManifest &gt; returns null for anything that is not a manifest" time="0.000912709">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="parseApprovedContentManifest &gt; returns null when the manifest carries neither files nor diffs" time="0.000101791">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="parseApprovedContentManifest &gt; keeps files, diffs, totals, and the digest" time="0.000628708">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="parseApprovedContentManifest &gt; defaults a missing total and digest rather than dropping the manifest" time="0.000113875">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the imported file list &gt; shows each file&apos;s path, size, and digest" time="0.008632042">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the imported file list &gt; labels the file digest and the whole-change digest as different things" time="0.001606917">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the imported file list &gt; flags an executable file, and says nothing for a plain one" time="0.0018855">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the imported file list &gt; totals the imported bytes in the section header" time="0.001072792">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the imported file list &gt; states that the digest covers the FULL content, not the shown view" time="0.000925125">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the single-text diff &gt; renders the unified diff, its counts, and the size change" time="0.001928375">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the single-text diff &gt; offers the full diff when the preview clips a long one" time="0.00461625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the single-text diff &gt; does not offer a full-diff toggle for a short diff" time="0.001853833">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the single-text diff &gt; says so when the runner shortened the diff at its cap" time="0.001493292">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the single-text diff &gt; renders every diff when one commit replaces several fields" time="0.003582583">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/ApprovedContentManifest.test.tsx" name="the single-text diff &gt; renders a diff-only manifest with no file section" time="0.000888375">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" timestamp="2026-08-08T07:26:28.293Z" hostname="MacBookPro.fritz.box" tests="9" failures="0" errors="0" skipped="0" time="0.012422375">
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="with a committed base to preview against &gt; renders the changes summary and the imported content together" time="0.007107667">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="with a committed base to preview against &gt; renders the summary alone when the commit imports nothing" time="0.000389125">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="with no previewable base &gt; still renders the imported content, which is what the approval binds" time="0.000960208">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="with no previewable base &gt; renders only the raw payload when the commit imports nothing" time="0.000268084">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="the agent&apos;s stated intent &gt; renders beside the commit message, each labelled as what it is" time="0.000673125">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="the agent&apos;s stated intent &gt; renders on the fallback branch too, where the preview is hidden" time="0.0003325">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="the agent&apos;s stated intent &gt; marks a description cut at the catalog&apos;s 500-character cap" time="0.000957667">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="the agent&apos;s stated intent &gt; is absent when the agent wrote none" time="0.000500416">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/CommitRevisionApproval.test.tsx" name="a malformed manifest &gt; is ignored rather than rendered as an empty block" time="0.000295291">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" timestamp="2026-08-08T07:26:28.294Z" hostname="MacBookPro.fritz.box" tests="10" failures="0" errors="0" skipped="0" time="0.0061445">
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="parseRevisionOperations &gt; returns null for a legacy delta so the existing classifier keeps it" time="0.000917791">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="parseRevisionOperations &gt; returns null for a malformed delta rather than an empty change list" time="0.0002895">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="parseRevisionOperations &gt; reads a literal set and pairs it with the text already at the target" time="0.001663417">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="parseRevisionOperations &gt; omits the old side when the target does not resolve, instead of guessing one" time="0.000344708">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="parseRevisionOperations &gt; marks a value the runner will read from the workspace" time="0.000114125">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="parseRevisionOperations &gt; carries the structural verbs without applying them" time="0.000260208">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="readableTarget &gt; drops the addressing scaffolding and names keyed items" time="0.000212">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="resolveCurrentText &gt; reads through a keyed selector" time="0.00013025">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="resolveCurrentText &gt; returns undefined rather than a non-string node" time="0.000084625">
+        </testcase>
+        <testcase classname="src/components/AgentChatSlice/components/approvals/operationsPreview.test.ts" name="operationLabel &gt; falls back to the raw verb for anything it does not know" time="0.000110458">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" timestamp="2026-08-08T07:26:28.294Z" hostname="MacBookPro.fritz.box" tests="5" failures="0" errors="0" skipped="0" time="0.004394333">
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; uses the workflow resolved from the current route first" time="0.001881417">
+        </testcase>
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; resolves the current route workflow id before falling back to recents" time="0.000367042">
+        </testcase>
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; falls back to recents when the current route workflow id is stale" time="0.0006285">
+        </testcase>
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; prefers the recent app on project-level routes" time="0.000193125">
+        </testcase>
+        <testcase classname="src/components/Sidebar/components/assets/workflowEntitySelection.test.ts" name="resolveWorkflowEntitySelection &gt; falls back to the recent evaluator when there is no recent app" time="0.000108083">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/pages/agent-home/assets/templates.test.ts" timestamp="2026-08-08T07:26:28.295Z" hostname="MacBookPro.fritz.box" tests="6" failures="0" errors="0" skipped="0" time="0.005698333">
+        <testcase classname="src/components/pages/agent-home/assets/templates.test.ts" name="AGENT_TEMPLATES &gt; has exactly 28 entries" time="0.001358834">
+        </testcase>
+        <testcase classname="src/components/pages/agent-home/assets/templates.test.ts" name="AGENT_TEMPLATES &gt; has unique keys" time="0.000179583">
+        </testcase>
+        <testcase classname="src/components/pages/agent-home/assets/templates.test.ts" name="AGENT_TEMPLATES &gt; every category is in TEMPLATE_CATEGORY_ORDER" time="0.000888542">
+        </testcase>
+        <testcase classname="src/components/pages/agent-home/assets/templates.test.ts" name="AGENT_TEMPLATES &gt; every logoSlugs and requiredIntegrations slug exists in PROVIDERS" time="0.001316583">
+        </testcase>
+        <testcase classname="src/components/pages/agent-home/assets/templates.test.ts" name="AGENT_TEMPLATES &gt; has a builderMessage that starts with &apos;Build a&apos; or &apos;Build an&apos; and is under 140 chars" time="0.000867583">
+        </testcase>
+        <testcase classname="src/components/pages/agent-home/assets/templates.test.ts" name="AGENT_TEMPLATES &gt; has seedMessage equal to builderMessage" time="0.000253625">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/pages/auth/assets/lastAuthMethod.test.ts" timestamp="2026-08-08T07:26:28.295Z" hostname="MacBookPro.fritz.box" tests="4" failures="0" errors="0" skipped="0" time="0.002926209">
+        <testcase classname="src/components/pages/auth/assets/lastAuthMethod.test.ts" name="lastAuthMethod &gt; returns null when nothing is stored (first visit)" time="0.001586292">
+        </testcase>
+        <testcase classname="src/components/pages/auth/assets/lastAuthMethod.test.ts" name="lastAuthMethod &gt; round-trips an email method" time="0.000299083">
+        </testcase>
+        <testcase classname="src/components/pages/auth/assets/lastAuthMethod.test.ts" name="lastAuthMethod &gt; round-trips an arbitrary provider id" time="0.000164709">
+        </testcase>
+        <testcase classname="src/components/pages/auth/assets/lastAuthMethod.test.ts" name="lastAuthMethod &gt; ignores empty writes" time="0.000083084">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/pages/settings/assets/navigation.test.ts" timestamp="2026-08-08T07:26:28.295Z" hostname="MacBookPro.fritz.box" tests="8" failures="0" errors="0" skipped="0" time="0.003818583">
+        <testcase classname="src/components/pages/settings/assets/navigation.test.ts" name="resolveSettingsTab &gt; falls back to workspace for unknown tabs" time="0.001613333">
+        </testcase>
+        <testcase classname="src/components/pages/settings/assets/navigation.test.ts" name="resolveSettingsTab &gt; falls back to workspace when a tab is hidden" time="0.000128333">
+        </testcase>
+        <testcase classname="src/components/pages/settings/assets/navigation.test.ts" name="resolveSettingsTab &gt; requires organization owner access consistently" time="0.0000805">
+        </testcase>
+        <testcase classname="src/components/pages/settings/assets/navigation.test.ts" name="resolveSettingsTab &gt; keeps the projects tab reachable" time="0.000066417">
+        </testcase>
+        <testcase classname="src/components/pages/settings/assets/navigation.test.ts" name="resolveSettingsTab &gt; gives organization owners the general tab in both editions" time="0.000084125">
+        </testcase>
+        <testcase classname="src/components/pages/settings/assets/navigation.test.ts" name="resolveSettingsTab &gt; gates tools and triggers independently" time="0.000080834">
+        </testcase>
+        <testcase classname="src/components/pages/settings/assets/navigation.test.ts" name="resolveSettingsTab &gt; keeps personal feature flags available in OSS" time="0.00008475">
+        </testcase>
+        <testcase classname="src/components/pages/settings/assets/navigation.test.ts" name="settings sidebar scopes &gt; groups tabs by project, organization, and personal scope" time="0.000542709">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" timestamp="2026-08-08T07:26:28.296Z" hostname="MacBookPro.fritz.box" tests="9" failures="0" errors="0" skipped="0" time="0.009799333">
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="decidedByAnnotation &gt; renders disabled-with-reason when decided_by is capability, regardless of the level being edited" time="0.001580791">
+        </testcase>
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="decidedByAnnotation &gt; renders enabled-but-inert when decided_by names a level other than the one being edited" time="0.000453667">
+        </testcase>
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="decidedByAnnotation &gt; renders decided-here when the editing level itself decided the field" time="0.000092">
+        </testcase>
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="decidedByAnnotation &gt; renders nothing when no level is given" time="0.000072875">
+        </testcase>
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="tri-state boolean round-trip &gt; unstated (undefined/null) maps to the &apos;unstated&apos; select value" time="0.002277917">
+        </testcase>
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="tri-state boolean round-trip &gt; true/false map to their own select values" time="0.001215">
+        </testcase>
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="tri-state boolean round-trip &gt; clearing back to &apos;unstated&apos; produces undefined, never false" time="0.001884875">
+        </testcase>
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="tri-state boolean round-trip &gt; &apos;true&apos;/&apos;false&apos; select values map back to real booleans" time="0.000403708">
+        </testcase>
+        <testcase classname="src/components/pages/settings/Channels/components/PolicyEditor.test.ts" name="tri-state boolean round-trip &gt; round-trips true -&gt; select -&gt; true, and unstated -&gt; select -&gt; undefined" time="0.000117458">
         </testcase>
     </testsuite>
 </testsuites>
