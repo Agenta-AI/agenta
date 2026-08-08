@@ -27,13 +27,28 @@ side of it), then `specs-wp12.md` (the near side), then `c1-merge-notes.md`.
 
 ## The two-bridge test — the reason this package exists
 
-- [ ] Two processes, two credentials, two **different** declared capability sets.
+**One route, many bridges.** All of this happens behind the single
+`POST /channels/bridge/events/`; there is no second endpoint and there should
+never be one. The demultiplexing is a wire-contract property.
+
+- [ ] **First, read `F37` and check whether the contract question is settled.**
+  The envelope carries `source` (`"bridge/acme-wecom"`) and `bridge.hello`
+  carries `bridge.name`, but the contract never says what core does with either,
+  and nothing reads `source`. Whether `source` is authoritative, or the
+  credential is, or the credential wins with `source` as a cross-check, changes
+  what these tests assert. **If it is still open, say so and stop** — write the
+  process and the single-bridge coverage, and leave the two-bridge assertions
+  until the decision exists. Guessing here invents protocol.
+- [ ] Two processes, two credentials, two **different** declared capability sets,
+  two different `source` values.
 - [ ] An event from each, interleaved, each resolving to its own connection,
   agent and thread.
 - [ ] An outbound delivery for each arriving at the right bridge and no other.
-- [ ] **Expect this to fail today.** `F37`: the ingress passes the literal
-  `channel="bridge"`, so the registry and connection lookups both key on that
-  string and all bridges collapse into one. If it fails, report the failing
+- [ ] A bridge whose `source` disagrees with its credential — assert whatever the
+  settled contract says, refusal or credential-wins.
+- [ ] **Expect this to fail today.** The ingress passes the literal
+  `channel="bridge"`, so the registry and connection lookups key on that string
+  and all bridges collapse into one channel. If it fails, report the failing
   assertion as the evidence — do **not** edit `ingress.py` to make it pass.
 - [ ] If it unexpectedly passes, say so and explain what makes it work, because
   the code read says it should not.

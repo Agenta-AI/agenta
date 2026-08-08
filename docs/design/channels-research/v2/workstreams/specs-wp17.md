@@ -33,22 +33,33 @@ the failure modes a bridge actually has. A separate process restores them:
 - **It is the first consumer of the contract that is not us.** A contract only
   one side implements is a data structure, not a contract.
 
-## Many bridges is the point
+## Many bridges is the point, and it is a wire-contract property
 
-`contract.md` §3: every bridge shares the one route, and the channel is resolved
-from the **bridge credential**, because a bridge's channel key is not known when
-the route table is built. Two bridges registering different platforms must
-therefore coexist behind `POST /channels/bridge/events/` and stay distinct.
+One route for every bridge is correct and deliberate: `POST
+/channels/bridge/events/` is the only bridge endpoint there will ever be. The
+multiplicity lives in **the wire contract**, not in the route table — a bridged
+platform has no literal path of its own, which is exactly what makes it a bridge.
 
-**This is currently broken — see `F37`.** The ingress hardcodes
-`channel="bridge"`, so the registry lookup and the connection lookup both key on
-that literal and every bridged platform collapses into one channel. This package
-is what makes that visible, and its central test is **two bridges at once**:
+So the demultiplexing happens on the envelope. The contract already carries the
+identifying fields — `"source": "bridge/acme-wecom"` inbound, and
+`bridge.name` in `bridge.hello` — but **never says what core does with them**,
+which is `F37`. Nothing in the code reads `source`.
 
-- two bridge processes, two credentials, two different declared capability sets
+**Settle the contract before writing the test.** Whether `source` is
+authoritative, or the credential is, or the credential is authoritative and
+`source` a cross-check, changes what this package asserts. That decision is a
+checkpoint conversation; this package then holds the implementation to it.
+
+Its central test is **two bridges at once**:
+
+- two bridge processes, two credentials, two different declared capability sets,
+  two different `source` values — **behind the one route**
 - an event from each, interleaved
 - each resolving to its own connection, its own agent, its own thread
 - an outbound delivery for each arriving at the right bridge and no other
+- a bridge whose `source` disagrees with its credential: refused, or the
+  credential wins and `source` is ignored — whichever the contract decides, the
+  behaviour is asserted rather than left to chance
 
 If that test cannot pass without a core change, the finding is the deliverable
 and the fix is a checkpoint conversation — not something this package patches

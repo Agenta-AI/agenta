@@ -244,11 +244,14 @@ things: WP11 runs WP6's adapter behind the wire and compares it to the in-proces
 run; WP17 stands up a real bridge **process** on the far side of the wire, so the
 contract has a counterpart that is not us.
 
-**WP17 is where `F37` gets settled.** `contract.md` §3 says every bridge shares the
-one route and the channel comes from the credential; the ingress hardcodes
-`channel="bridge"`, so today all bridges collapse into a single channel key. WP17's
-two-bridge test is what proves it, and the fix is a checkpoint edit to `ingress.py`
-— a file no package owns.
+**`F37` must be settled in the contract before WP17 is written.** One route for
+every bridge is right; the multiplicity is a **wire-contract** property, and the
+contract already carries the identifying fields — `source` inbound, `bridge.name`
+at `hello` — without ever saying what core does with them. Nothing reads `source`.
+Decide there first (is `source` authoritative, or the credential, or the credential
+with `source` as a cross-check?), because that decision is the protocol a
+third-party bridge author implements against. The `ingress.py` change follows and
+is small; the specification is the work.
 
 **Exit condition:** the bridged Slack adapter and the in-process one are
 observationally indistinguishable on the same install — same thread, same content,

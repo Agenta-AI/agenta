@@ -664,42 +664,54 @@
   same change — they are the regression guard, and a fix that leaves them green
   has not fixed anything.
 
-### F37. The bridge ingress collapses every bridged platform into one channel key
+### F37. The wire contract identifies which bridge called, and nothing consumes it
 
 - ID: `F37`
 - Origin: `C3`
 - Severity: `P1`
 - Confidence: `high`
 - Status: `open`
-- Category: `Correctness`
-- Summary: `contract.md` §3 says every bridge shares the one route and **the
-  channel is resolved from the bridge credential**, because a bridge's channel
-  key is not known when the route table is built. The implementation instead
-  passes the literal `channel="bridge"` into `_ingest`, which then does
-  `adapter_registry.get("bridge")` and
-  `get_project_and_connection_by_external_id(channel="bridge", ...)`. So
-  `"bridge"` becomes a single channel key and all bridged platforms —
-  WeCom, Telegram, Discord, any third-party — collapse into it. Two bridges
-  cannot coexist.
-- Evidence: `ingress.py:104` hardcodes `_ingest(channel="bridge", ...)`;
-  `ingress.py:112` looks the adapter up by that literal; `service.py:518`
-  resolves the connection by `(channel, external_id)`. Contrast `contract.md`
-  §3: "the channel is resolved from the **bridge credential**, which the
-  receiver must verify anyway, and verifying it is the same act as identifying
-  which bridge is calling."
-- Files: `api/oss/src/apis/fastapi/channels/ingress.py:104`,
+- Category: `Design`
+- Summary: One `/channels/bridge/events/` route for every bridge is correct and
+  deliberate — the multiplicity belongs in the **wire contract**, and the
+  contract already carries it: the inbound envelope has
+  `"source": "bridge/acme-wecom"`, and `bridge.hello` declares
+  `bridge.name: "acme-wecom"`. What is missing is any statement of what core
+  *does* with either. The contract never says `source` selects the connection,
+  never says how a bridge name maps to a channel key, and nothing in the code
+  reads `source` at all. So the single route is right and the demultiplexing
+  step behind it is unspecified.
+- Evidence: `source` appears in `contract.md` only twice — the CloudEvents field
+  list at line 91 and the example at line 116 — with no semantics attached.
+  `grep -rn source` across the channels core finds one comment, no read. The
+  ingress consequently passes the literal `channel="bridge"`
+  (`ingress.py:104`), so `registry.get("bridge")` and
+  `get_project_and_connection_by_external_id(channel="bridge", ...)`
+  (`service.py:518`) both key on that constant — which is the *symptom*, not the
+  defect.
+- Files: `docs/design/channels-research/v2/contract.md` (§3, §5),
+  `api/oss/src/apis/fastapi/channels/ingress.py:104`,
   `api/oss/src/core/channels/service.py:518`
-- Suggested Fix: Resolve the channel from the verified credential rather than
-  from a path constant — verification must return *which* bridge called, not
-  just that the signature held. That likely means the bridge arm cannot reuse
-  `_ingest`'s "registry lookup first, verify second" order, since the registry
-  key is not known until after verification. Inverting that order for the bridge
-  arm is the design question to settle.
-- Notes: Found by asking whether the design supports many bridges — it does,
-  explicitly, and the code does not. Not currently reachable in production
-  because no bridge adapter exists (`F26`), so this is cheap to fix now and
-  expensive after the first bridge ships. `routers.py`'s comment "the bridge
-  route resolves its own at runtime" describes the intent, not the code.
+- Suggested Fix: **Specify it in the contract first**, then implement. The
+  contract must answer: is `source` authoritative for demultiplexing, or is the
+  credential? What is the channel key for a bridged platform — `bridge/<name>`,
+  or a key the bridge declares at `hello`? Is `source` trusted, or verified
+  against the credential (it arrives in the signed body, so it is
+  tamper-evident but self-asserted)? Only then does the ingress change follow,
+  and it is a small one.
+- Notes: The ordering matters and is the whole point of this finding. Resolving
+  the channel from the credential is one design; keying on `source` is another;
+  making the credential authoritative and `source` a cross-check is a third.
+  Picking one in `ingress.py` without writing it down means the first
+  third-party bridge author has to read our code to discover the protocol.
+  **A second constraint that rules out the naive fix:** `_ingest` looks the
+  adapter up *before* verifying, but a credential-derived channel is not known
+  *until* verification — so the bridge arm cannot keep that order regardless of
+  which design wins.
+  Not reachable in production today because no bridge adapter exists (`F26`), so
+  this is cheap now and expensive after the first bridge ships. `routers.py`'s
+  comment "the bridge route resolves its own at runtime" describes the intent,
+  not the code.
 
 ### F36. C3 merges green with four of five new capabilities unreachable
 

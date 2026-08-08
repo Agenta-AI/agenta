@@ -88,6 +88,32 @@ how a wire contract becomes unevolvable.** They are:
 | `protocol.versions` | this contract as a whole, in `bridge.hello` | us, at a checkpoint |
 | `.v1` in `type` | one event's `data` shape | us, per event type |
 
+### OPEN: what `source` is for
+
+`source` is the only field that says **which bridge** sent an event, and this
+contract does not yet state what core does with it. One route serves every bridge
+by design, so something must demultiplex — and the candidates behave differently:
+
+- **`source` is authoritative.** Simple, but `source` is self-asserted: it arrives
+  inside the signed body, so it is tamper-evident yet not *verified*. A bridge
+  could name another bridge's source and only the signature would disagree.
+- **The credential is authoritative.** Verifying it is already mandatory, and
+  identifying the caller is the same act — so nothing extra is trusted. Then
+  `source` is documentation, and core must say whether a mismatch is an error.
+- **The credential decides, `source` cross-checks.** A mismatch is a hard refusal.
+  Strictest, and it makes a misconfigured bridge fail loudly rather than silently
+  writing into another bridge's connection.
+
+Also undecided: **the channel key for a bridged platform.** `bridge/<name>`, or a
+key the bridge declares at `hello`? It is what `gateway_connections.provider_key`
+stores and what the adapter registry is keyed on, so it is a persisted value, not
+an implementation detail.
+
+Until this is settled the implementation keys everything on the literal string
+`"bridge"`, which collapses all bridged platforms into one channel — see `F37`.
+Settle it here, then implement; a decision made only in `ingress.py` is a protocol
+a third-party bridge author has to read our source to discover.
+
 **`specversion`, `id`, `type`, `source`, `time` and `data` are CloudEvents' own
 field names** and are spelled its way, `specversion` included. Renaming it to
 `version` would forfeit the interop and every off-the-shelf validator for
