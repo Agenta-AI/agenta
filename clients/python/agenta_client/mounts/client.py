@@ -5,7 +5,7 @@ import typing
 from .. import core
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
-from ..types.mount_create import MountCreate
+from ..types.archive_mount import ArchiveMount
 from ..types.mount_credentials_response import MountCredentialsResponse
 from ..types.mount_edit import MountEdit
 from ..types.mount_file_deleted_response import MountFileDeletedResponse
@@ -14,8 +14,10 @@ from ..types.mount_folder_created_response import MountFolderCreatedResponse
 from ..types.mount_query import MountQuery
 from ..types.mount_response import MountResponse
 from ..types.mounts_response import MountsResponse
+from ..types.public_mount_create import PublicMountCreate
 from ..types.windowing import Windowing
 from .raw_client import AsyncRawMountsClient, RawMountsClient
+from .types.get_mount_files_request_order import GetMountFilesRequestOrder
 
 # this is used as the default value for optional parameters
 OMIT = typing.cast(typing.Any, ...)
@@ -34,11 +36,11 @@ class MountsClient:
         """
         return self._raw_client
     
-    def create_mount(self, *, mount: MountCreate, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
+    def create_mount(self, *, mount: PublicMountCreate, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
         """
         Parameters
         ----------
-        mount : MountCreate
+        mount : PublicMountCreate
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -50,13 +52,13 @@ class MountsClient:
         
         Examples
         --------
-        from agenta import AgentaApi, MountCreate
+        from agenta import AgentaApi, PublicMountCreate
         
         client = AgentaApi(
             api_key="YOUR_API_KEY",
         )
         client.mounts.create_mount(
-            mount=MountCreate(),
+            mount=PublicMountCreate(),
         )
         """
         _response = self._raw_client.create_mount(mount=mount, request_options=request_options)
@@ -243,6 +245,34 @@ class MountsClient:
         _response = self._raw_client.sign_mount_credentials(mount_id, request_options=request_options)
         return _response.data
     
+    def export_mount_files(self, *, mounts: typing.Optional[typing.Sequence[ArchiveMount]] = OMIT, filename: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Iterator[bytes]:
+        """
+        Parameters
+        ----------
+        mounts : typing.Optional[typing.Sequence[ArchiveMount]]
+        
+        filename : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration. You can pass in configuration such as `chunk_size`, and more to customize the request and response.
+        
+        Returns
+        -------
+        typing.Iterator[bytes]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.mounts.export_mount_files()
+        """
+        with self._raw_client.export_mount_files(mounts=mounts, filename=filename, request_options=request_options) as r:
+            yield from r.data
+    
     def archive_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
         """
         Parameters
@@ -363,7 +393,7 @@ class MountsClient:
         _response = self._raw_client.upload_mount_file(mount_id, file=file, path=path, request_options=request_options)
         return _response.data
     
-    def download_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def download_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Iterator[bytes]:
         """
         Parameters
         ----------
@@ -372,11 +402,11 @@ class MountsClient:
         path : str
         
         request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
+            Request-specific configuration. You can pass in configuration such as `chunk_size`, and more to customize the request and response.
         
         Returns
         -------
-        typing.Any
+        typing.Iterator[bytes]
             Successful Response
         
         Examples
@@ -391,10 +421,10 @@ class MountsClient:
             path="path",
         )
         """
-        _response = self._raw_client.download_mount_file(mount_id, path=path, request_options=request_options)
-        return _response.data
+        with self._raw_client.download_mount_file(mount_id, path=path, request_options=request_options) as r:
+            yield from r.data
     
-    def get_mount_files(self, mount_id: str, *, path: typing.Optional[str] = None, read: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    def get_mount_files(self, mount_id: str, *, path: typing.Optional[str] = None, read: typing.Optional[str] = None, order: typing.Optional[GetMountFilesRequestOrder] = None, limit: typing.Optional[int] = None, depth: typing.Optional[int] = None, with_counts: typing.Optional[bool] = None, git_aware: typing.Optional[bool] = None, include_gitignored: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -403,6 +433,18 @@ class MountsClient:
         path : typing.Optional[str]
         
         read : typing.Optional[str]
+        
+        order : typing.Optional[GetMountFilesRequestOrder]
+        
+        limit : typing.Optional[int]
+        
+        depth : typing.Optional[int]
+        
+        with_counts : typing.Optional[bool]
+        
+        git_aware : typing.Optional[bool]
+        
+        include_gitignored : typing.Optional[bool]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -423,7 +465,7 @@ class MountsClient:
             mount_id="mount_id",
         )
         """
-        _response = self._raw_client.get_mount_files(mount_id, path=path, read=read, request_options=request_options)
+        _response = self._raw_client.get_mount_files(mount_id, path=path, read=read, order=order, limit=limit, depth=depth, with_counts=with_counts, git_aware=git_aware, include_gitignored=include_gitignored, request_options=request_options)
         return _response.data
     
     def write_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> MountFileWrittenResponse:
@@ -502,11 +544,11 @@ class AsyncMountsClient:
         """
         return self._raw_client
     
-    async def create_mount(self, *, mount: MountCreate, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
+    async def create_mount(self, *, mount: PublicMountCreate, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
         """
         Parameters
         ----------
-        mount : MountCreate
+        mount : PublicMountCreate
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -520,7 +562,7 @@ class AsyncMountsClient:
         --------
         import asyncio
         
-        from agenta import AsyncAgentaApi, MountCreate
+        from agenta import AsyncAgentaApi, PublicMountCreate
         
         client = AsyncAgentaApi(
             api_key="YOUR_API_KEY",
@@ -529,7 +571,7 @@ class AsyncMountsClient:
         
         async def main() -> None:
             await client.mounts.create_mount(
-                mount=MountCreate(),
+                mount=PublicMountCreate(),
             )
         
         
@@ -767,6 +809,43 @@ class AsyncMountsClient:
         _response = await self._raw_client.sign_mount_credentials(mount_id, request_options=request_options)
         return _response.data
     
+    async def export_mount_files(self, *, mounts: typing.Optional[typing.Sequence[ArchiveMount]] = OMIT, filename: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.AsyncIterator[bytes]:
+        """
+        Parameters
+        ----------
+        mounts : typing.Optional[typing.Sequence[ArchiveMount]]
+        
+        filename : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration. You can pass in configuration such as `chunk_size`, and more to customize the request and response.
+        
+        Returns
+        -------
+        typing.AsyncIterator[bytes]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.mounts.export_mount_files()
+        
+        
+        asyncio.run(main())
+        """
+        async with self._raw_client.export_mount_files(mounts=mounts, filename=filename, request_options=request_options) as r:
+            async for _chunk in r.data:
+                yield _chunk
+    
     async def archive_mount(self, mount_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> MountResponse:
         """
         Parameters
@@ -919,7 +998,7 @@ class AsyncMountsClient:
         _response = await self._raw_client.upload_mount_file(mount_id, file=file, path=path, request_options=request_options)
         return _response.data
     
-    async def download_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def download_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> typing.AsyncIterator[bytes]:
         """
         Parameters
         ----------
@@ -928,11 +1007,11 @@ class AsyncMountsClient:
         path : str
         
         request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
+            Request-specific configuration. You can pass in configuration such as `chunk_size`, and more to customize the request and response.
         
         Returns
         -------
-        typing.Any
+        typing.AsyncIterator[bytes]
             Successful Response
         
         Examples
@@ -955,10 +1034,11 @@ class AsyncMountsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.download_mount_file(mount_id, path=path, request_options=request_options)
-        return _response.data
+        async with self._raw_client.download_mount_file(mount_id, path=path, request_options=request_options) as r:
+            async for _chunk in r.data:
+                yield _chunk
     
-    async def get_mount_files(self, mount_id: str, *, path: typing.Optional[str] = None, read: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+    async def get_mount_files(self, mount_id: str, *, path: typing.Optional[str] = None, read: typing.Optional[str] = None, order: typing.Optional[GetMountFilesRequestOrder] = None, limit: typing.Optional[int] = None, depth: typing.Optional[int] = None, with_counts: typing.Optional[bool] = None, git_aware: typing.Optional[bool] = None, include_gitignored: typing.Optional[bool] = None, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Parameters
         ----------
@@ -967,6 +1047,18 @@ class AsyncMountsClient:
         path : typing.Optional[str]
         
         read : typing.Optional[str]
+        
+        order : typing.Optional[GetMountFilesRequestOrder]
+        
+        limit : typing.Optional[int]
+        
+        depth : typing.Optional[int]
+        
+        with_counts : typing.Optional[bool]
+        
+        git_aware : typing.Optional[bool]
+        
+        include_gitignored : typing.Optional[bool]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -995,7 +1087,7 @@ class AsyncMountsClient:
         
         asyncio.run(main())
         """
-        _response = await self._raw_client.get_mount_files(mount_id, path=path, read=read, request_options=request_options)
+        _response = await self._raw_client.get_mount_files(mount_id, path=path, read=read, order=order, limit=limit, depth=depth, with_counts=with_counts, git_aware=git_aware, include_gitignored=include_gitignored, request_options=request_options)
         return _response.data
     
     async def write_mount_file(self, mount_id: str, *, path: str, request_options: typing.Optional[RequestOptions] = None) -> MountFileWrittenResponse:

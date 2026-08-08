@@ -153,6 +153,15 @@ export interface ResolvedToolSpec {
     context?: Record<string, string>;
     args_into?: string;
   };
+  /**
+   * Top-level argument names the model may write but the request must NOT carry. The runner
+   * deletes them from the model's arguments before it builds either request (direct or gateway),
+   * so the field reaches the human — the recorded call and the approval card keep it — and never
+   * reaches the API. Today the list holds one name, `description`: the ephemeral per-call note the
+   * agent writes to explain what it is doing (R12). Executor-private, like `contextBindings`: it
+   * never goes to a harness child process.
+   */
+  ephemeralArgs?: string[];
   kind?: "callback" | "code" | "client";
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
@@ -680,6 +689,18 @@ export interface AgentRunRequest {
    * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.
    */
   projectId?: string;
+  /**
+   * The post-hydration config this turn runs, produced by the SDK (`agents/utils/wire.py`) and
+   * OPAQUE here: the runner never reads inside it and never derives behavior from it. It is
+   * echoed verbatim onto the `data.parameters` of every interaction row this turn writes, so a
+   * client that answers the gate without being able to reproduce the config (mobile, the M2
+   * dispatcher) can replay the exact turn instead of hydrating the referenced variant's HEAD.
+   *
+   * Deliberately NOT part of `configFingerprint` (`session-identity.ts`): it is a projection of
+   * fields already in the fingerprint, so hashing it would let a cosmetic config-serialization
+   * change evict warm sessions. Session runs only; absent otherwise.
+   */
+  effectiveParameters?: Record<string, unknown>;
   /**
    * The session's `session_streams` row id, captured for free from the alive-watchdog's
    * heartbeat response (`sessions/alive.ts`) and threaded here before the engine runs. Present

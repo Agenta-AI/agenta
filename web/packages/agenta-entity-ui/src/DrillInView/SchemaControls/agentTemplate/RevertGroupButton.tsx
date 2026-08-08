@@ -55,8 +55,10 @@ export function RevertGroupButton({
                     // The header is a toggle — don't collapse the group while undoing inside it.
                     onClick={(e) => e.stopPropagation()}
                     disabled={disabled}
-                    // Size class must not fight the colour class in tailwind-merge, so the
-                    // colour comes from a named token, not an arbitrary var() text class.
+                    // text-[11px] must not fight the colour class in tailwind-merge, so the
+                    // colour comes from the named token, not an arbitrary var() text class.
+                    // (Tailwind scans comments too: a bracketed class token written out here
+                    // would be emitted into globals.css as invalid CSS and break the build.)
                     className="!h-auto !px-1 !py-0.5 !text-[11px] !text-colorTextSecondary"
                 >
                     <ArrowCounterClockwise size={13} />

@@ -71,6 +71,8 @@ class SessionStreamQuery(BaseModel):
     # Include archived (deliberately-hidden) rows — off by default so archive hides; on for the
     # archived view. Orthogonal to `include_ended` (a row can be killed OR archived).
     include_archived: bool = False
+    # Case-insensitive substring match over `name` (the session title).
+    search: Optional[str] = None
 
 
 class CommandMode(str, Enum):

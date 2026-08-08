@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.109.1",
+    "version": "0.111.0",
     "private": true,
     "engines": {
         "node": "24.x"
@@ -21,6 +21,7 @@
     "dependencies": {
         "@agenta/annotation": "workspace:../packages/agenta-annotation",
         "@agenta/annotation-ui": "workspace:../packages/agenta-annotation-ui",
+        "@agenta/chat": "workspace:../packages/agenta-chat",
         "@agenta/entities": "workspace:../packages/agenta-entities",
         "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
         "@agenta/oss": "workspace:../oss",

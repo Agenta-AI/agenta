@@ -994,17 +994,36 @@ def _continuity(cell: dict, tier: str) -> dict:
         msgs = msgs + [t_mid.assistant_message()]
         transition = "none (same daemon, same live mount)"
     elif tier == "cold1":
-        # Force the eviction from the CLIENT, with byte-faithful history: `agentsMd` is a
-        # configFingerprint input (session-identity.ts), so changing the instructions makes the
-        # next turn mismatch on `config` -> `evict + cold`. The teardown unmounts the durable cwd
-        # and the cold acquire remounts it — a real store round trip, driven by a real product
-        # action (editing an agent's instructions mid-session). Editing the TRANSCRIPT instead
-        # would trip the history guard, which is a different (and deliberately hostile) path.
+        # Force the eviction from the CLIENT, with byte-faithful history, by moving a facet that
+        # CANNOT be applied to a running environment.
+        #
+        # THIS USED TO EDIT `instructions.agents_md`, AND THAT STOPPED WORKING FOR A WHILE. The v1
+        # lifecycle work made `agentsMd` (the `workspaceFiles` facet) a LIVE route, so an
+        # instructions edit was satisfied in place: the sandbox was never torn down, the durable
+        # cwd was never unmounted, and this tier would have gone on passing while measuring warm
+        # reuse — a false green, and one that also dissolves `park`'s rationale, since park's "one
+        # sandbox id is meaningful" argument rests on cold1 reporting two on the same deployment.
+        #
+        # That live route has since been withdrawn (no harness re-reads its instruction file, so
+        # the edit never took effect — see `matrix_l5_live_route_observed.py`), which means an
+        # instructions edit would force an eviction again today. The forcing function stays on
+        # `harness.permissions` anyway: it is the `harnessSession` facet -> `reopen-session`, which
+        # is deliberately NOT live and can never BECOME live, because a permission change must
+        # never be routed through an in-place refresh. A tier that depends on a route staying
+        # escalated should depend on the one that is escalated by policy, not by capability.
+        #
+        # A rule naming a tool this journey never calls moves the facet without changing what the
+        # turn may do, so the transition cannot be confused with a behaviour change.
         params = json.loads(json.dumps(params))
-        params["instructions"]["agents_md"] += (
-            f" (qa-continuity {uuid.uuid4().hex[:8]})"
+        params.setdefault("harness", {})["permissions"] = {
+            "allow": [],
+            "ask": [f"QaNeverCalledTool{uuid.uuid4().hex[:8]}"],
+            "deny": [],
+        }
+        transition = (
+            "harnessSession facet change (a permission rule) -> not live-applicable, so the "
+            "runner evicts the pooled session and rebuilds cold"
         )
-        transition = "config-fingerprint change -> the runner evicts the pooled session and rebuilds cold"
     elif tier == "park":
         # Change NOTHING and simply wait. That is the whole point: a config change makes the
         # runner delete the sandbox and build a fresh one (that is `cold1`), whereas an idle
@@ -1170,6 +1189,24 @@ def _continuity(cell: dict, tier: str) -> dict:
         evidence["reconnected_same_sandbox"] = same_sandbox
         ok = ok and ledger_available and same_sandbox
 
+    if tier == "cold1":
+        # ASSERT the rebuild, do not merely report it.
+        #
+        # This tier only means something if the transition actually evicted the session: the whole
+        # point is that the durable cwd was unmounted and remounted, which is where #5692 lives. A
+        # reply carrying the token proves nothing on its own, because a session that was never
+        # evicted answers exactly the same way — that is how the old `agents_md` forcing function
+        # could rot into a warm-reuse test without anyone noticing. TWO distinct sandbox ids is
+        # the stored witness that the sandbox really was replaced.
+        #
+        # An empty ledger fails here for the same reason it fails in `warm` and `park`: missing
+        # evidence is not evidence.
+        ledger_available = bool(agents or sandboxes)
+        rebuilt = len(sandboxes) >= 2
+        evidence["ledger_available"] = ledger_available
+        evidence["rebuilt_sandbox"] = rebuilt
+        ok = ok and ledger_available and rebuilt
+
     if tier == "warm":
         # A warm continuation cannot have rebuilt the harness session or the sandbox. More than
         # one distinct id across the ledger means the turn was NOT served warm, so the cell did
@@ -1197,7 +1234,9 @@ def _continuity(cell: dict, tier: str) -> dict:
             + ")"
         ),
         "cold1": (
-            f"cold 1: the pooled session was evicted and rebuilt on the same runner; the cwd token "
+            f"cold 1: the pooled session was evicted and rebuilt on the same runner "
+            f"(two sandbox ids in the ledger={evidence.get('rebuilt_sandbox')} — one id would mean "
+            f"the change was applied in place and this tier measured warm reuse); the cwd token "
             f"came back from the store (in reply={cwd_back}) and the agent read a file that only "
             f"ever existed as an object (store-only file readable={store_back})"
         ),
