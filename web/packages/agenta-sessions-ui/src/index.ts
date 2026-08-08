@@ -31,3 +31,4 @@ export {
 export {SessionsListView, type SessionsListViewProps} from "./SessionsListView"
 export {SessionFiltersPanel, type SessionFiltersPanelProps} from "./SessionFiltersPanel"
 export {SessionFiltersBar, type SessionFiltersBarProps} from "./SessionFiltersBar"
+export {SessionListCard, type SessionListCardProps} from "./SessionListCard"

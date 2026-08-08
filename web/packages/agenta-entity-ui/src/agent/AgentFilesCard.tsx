@@ -2,13 +2,13 @@ import {useMemo, useState} from "react"
 
 import {latestMountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
+import {SkeletonBlock, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {FileIcon, FolderIcon} from "@phosphor-icons/react"
-import {Skeleton, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {timeAgo} from "@/oss/components/AgentChatSlice/state/sessions"
 import {AGENT_FILES_DIR, agentMountQueryFamily, useSessionDrive} from "@agenta/entities/drive"
+import {timeAgo} from "@agenta/shared/utils"
 
 // The whole drive explorer, pulled in only once the drawer is actually opened.
 const FilesDrawer = dynamic(
@@ -31,7 +31,7 @@ const formatSize = (bytes: number | null | undefined): string | null => {
  * not a session's scratch mount. Read-only here: the card says what is there and how recently it
  * changed; the drive itself is browsed and edited where drives are browsed and edited.
  */
-const AgentFilesCard = ({appId}: {appId: string}) => {
+export const AgentFilesCard = ({appId}: {appId: string}) => {
     const [openPath, setOpenPath] = useState<string | null>(null)
     const [open, setOpen] = useState(false)
 
@@ -84,7 +84,11 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
             }
         >
             {isPending ? (
-                <Skeleton active paragraph={{rows: 3}} title={false} />
+                <div className="flex flex-col gap-2 px-2 py-2">
+                    <SkeletonBlock active className="h-4 w-full" />
+                    <SkeletonBlock active className="h-4 w-5/6" />
+                    <SkeletonBlock active className="h-4 w-2/3" />
+                </div>
             ) : rows.length === 0 ? (
                 <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
                     {mountId
@@ -117,11 +121,16 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                             ) : (
                                 <FileIcon size={14} className="shrink-0 text-colorTextTertiary" />
                             )}
-                            <Tooltip title={file.path}>
-                                <span className="min-w-0 flex-1 truncate text-sm text-colorText">
-                                    {name}
-                                </span>
-                            </Tooltip>
+                            <TooltipProvider delayDuration={600}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                                            {name}
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{file.path}</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                             {/* Fixed column: shrink-to-fit left "1.3 KB" and "293 B" without a shared edge. */}
                             <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
                                 {detail}
@@ -156,5 +165,3 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
         </PanelSection>
     )
 }
-
-export default AgentFilesCard

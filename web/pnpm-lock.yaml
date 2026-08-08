@@ -1298,6 +1298,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/sessions-ui':
+        specifier: workspace:../agenta-sessions-ui
+        version: link:../agenta-sessions-ui
       '@agenta/shared':
         specifier: workspace:../agenta-shared
         version: link:../agenta-shared
