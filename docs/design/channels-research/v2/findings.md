@@ -390,10 +390,39 @@
   regardless.
 - Files: `api/oss/src/core/channels/adapters/slack/adapter.py:125`,
   `api/oss/src/core/channels/dtos.py:39`
-- Suggested Fix: A package, not a clean-up item — it needs a parse path, a route or
-  branch for Slack's interactivity endpoint (which posts form-encoded, not JSON), and
-  a decision about how an action resolves against an open approval. Scope it before
-  wave 4 ends, because C6 depends on it.
+- Suggested Fix: A package, not a clean-up item. But the shape is small, because **an
+  action is a message whose text the agent pre-wrote**, and the existing pipeline
+  already carries everything it needs:
+
+  - `ChannelInboxEventProcessed` is `{content, sender}`. A click normalises to exactly
+    that: `content` is the button's payload, `sender` is the clicker. The event enters
+    the same inbox log, the same dedup, the same `dispatch_event`.
+  - **The click is already addressed** — the agent that posted the button is known from
+    the thread the message sits in, so no sigil is needed. That is the one asymmetry
+    with a text message: addressing comes from the *locator*, not the content.
+  - So the button's `value` is a **pre-written message body**. Everything the turn needs
+    — which agent, which thread, which prior message, which command — is either in the
+    locator (agent, thread, message) or in the value (the intent).
+
+  What that leaves genuinely new:
+
+  1. **A parse branch for `block_actions`.** Slack posts interactivity form-encoded
+     (`payload=<json>`), not as JSON — a different decode from the events path.
+  2. **A route decision.** Slack sends interactions to a separately-configured URL. It
+     can share `/channels/slack/events/` or take its own literal path; either way it is
+     a `_PUBLIC_ENDPOINTS` line.
+  3. **What the value means.** If the value is a message body, a click needs no new
+     concept at all — it composes a turn like any message. If it is instead an
+     *answer to an open approval*, it must resolve against something the outbox is
+     waiting on. **That mechanism already exists** — `SessionInteractionsService`
+     (`core/sessions/interactions/service.py`) has `create_interaction`,
+     `transition_interaction` and `cancel_session_pending`, and WP9's `!stop` already
+     reaches into that domain. So this is a *transition call*, not a new subsystem, and
+     the answer to "small or large" is small.
+  4. **`external_id` for dedup.** Slack retries interactions; the click needs a stable
+     id so the ledger drops the second one.
+
+  Scope it before wave 4 ends, because C6 depends on it.
 - Notes: **This blocks C6's exit condition** — "an approval resolves from a button
   click without opening a browser" cannot be met, and no fake would have caught it
   because outbound rendering is complete and correct. Found by chasing `F13`, which
