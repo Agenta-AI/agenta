@@ -214,6 +214,12 @@ that makes configuration worth having a UI-shaped API for.
 same thread; an approval resolves from a button click without opening a browser; an
 operator can configure a connection end to end over the API.
 
+**The button clause was never achievable and is now deferred.** `F38`: nothing parses
+a button click — `parse_event` returns `None` for anything that is not
+`event_callback`, and a click arrives as `block_actions`. It is `WP20` at C7. This
+clause is left in place as written rather than quietly edited, because it is what C3
+promised; C6 meets it minus interactivity.
+
 **Serialised here:** WP8's router registration and its `check_action_access` wiring.
 
 #### Status: deployed and green, exit condition NOT met
@@ -435,10 +441,15 @@ real workspace, a real bot install. That dependency is a scheduling fact, not a
 design one — which is why it earns its own checkpoint rather than blocking the work
 that can be proved without it.
 
-**Exit condition:** the C3 exit condition, finally met. A mention in a real
-workspace produces an answer in the same thread; a button approval resolves without
-opening a browser; and the bridged run agrees with the in-process one on the same
-real install.
+**Exit condition:** a mention in a real workspace produces an answer in the same
+thread, and the bridged run agrees with the in-process one on the same real install.
+
+**Not the button clause.** C3's original exit condition also asked that "an approval
+resolves from a button click without opening a browser" — that is `F38`, deferred to
+C7 as **WP20**, because nothing parses a button click today. C6 therefore meets C3's
+condition *minus* interactivity, and saying so is better than carrying a clause no
+checkpoint can pass. Buttons are still *posted* correctly; they are simply not yet
+*clickable*.
 
 **What this catches that C5 cannot:** everything the fake was built from our own
 reading of Slack's behaviour rather than from Slack. A fake encodes assumptions, and
@@ -451,6 +462,23 @@ this is where they are checked.
 - **WP14 — input sequencing.** Deferred to the very end throughout this plan, and
   still: nothing structural waits on it, and it improves C2's behaviour whenever it
   lands.
+- **WP20 — inbound actions (`F38`).** A button click is silently dropped today:
+  `ChannelEventKind.ACTION` exists and the Slack manifest requests `interactivity`,
+  but `parse_event` returns `None` for anything that is not `event_callback`, and a
+  click arrives as `block_actions`.
+
+  Small, because **an action is a message whose text the agent pre-wrote** — it
+  normalises to the same `{content, sender}` the inbox already carries, and it is
+  addressed by its *locator* rather than a sigil, since the agent that posted the
+  button is known from the thread. What is new: a `block_actions` parse branch (Slack
+  posts interactivity form-encoded as `payload=<json>`, not JSON), a route decision, a
+  stable `external_id` so a retried click deduplicates, and a `transition_interaction`
+  call — for which `SessionInteractionsService` already exists, so it is a call and not
+  a subsystem.
+
+  **`F13` is blocked on it** and must not be attempted first: whether a button should
+  carry WP5's `value` or its `id` is decided by whatever the inbound path reads, and
+  there is no inbound path to be consistent with.
 - **Telegram and Discord**, then Teams and WhatsApp. All modelled in `channels.md`,
   none a package here.
 
