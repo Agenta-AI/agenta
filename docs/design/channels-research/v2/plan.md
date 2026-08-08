@@ -32,6 +32,7 @@ flowchart LR
     WP12["WP12<br/>bridge"]
     WP13["WP13<br/>web app"]
     WP14["WP14<br/>input sequencing"]
+    WP15["WP15<br/>mock channel"]
 
     WP1 --> WP3
     WP1 --> WP4
@@ -48,10 +49,11 @@ flowchart LR
     WP1 --> WP8
     WP4 --> WP9
     WP4 --> WP10
+    WP2 --> WP15
+    WP15 --> WP12
     WP2 --> WP12
-    WP6 --> WP12
-    WP12 --> WP11
     WP6 --> WP11
+    WP12 --> WP11
     WP8 --> WP13
     WP14 -.->|improves| WP4
 ```
@@ -63,6 +65,13 @@ Two packages are **not channels work**: **WP0** (session events) and **WP14**
 (input sequencing). WP0 is a hard edge — WP5 polls without it and must not ship
 that way. WP14 is the dashed edge: channels works without it and WP4 needs no
 revisit when it lands.
+
+**WP15** (mock channel) depends only on the port, and the bridge depends on it
+rather than on Slack. That edge was `WP6 --> WP12` while Slack was the only
+adapter; `mock` is the better first bridged channel because it removes the
+platform as a variable — a divergence over the wire can then only be the
+transport's. WP11 keeps both edges: it holds real Slack against its in-process
+twin, so it needs WP6 and WP12 both.
 
 ---
 
@@ -146,7 +155,11 @@ merged as one edit rather than two.
 
 ### C3 — Slack works
 
-**Merges:** WP6, WP8. **Needs:** C2.
+**Merges:** nothing — WP6 and WP8 landed at C2, ready together with the rest of
+wave 2. **Needs:** C2, and `F1` applied (the three held entrypoint diffs; nothing
+runs end to end until they are).
+
+C3 is therefore a **verification** checkpoint over merged code, not a merge.
 
 The first real platform, and the first checkpoint a person outside the team could
 use. WP8 joins here rather than earlier because a real channel is the first thing
@@ -160,7 +173,12 @@ operator can configure a connection end to end over the API.
 
 ### C4 — It is pleasant
 
-**Merges:** WP9, WP10, WP13. **Needs:** C3, and WP0 for WP5's final form.
+**Merges:** WP15 first, then WP9, WP10, WP13. **Needs:** C3, and WP0 for WP5's
+final form.
+
+WP15 leads: a mock channel is what lets the capability matrix be exercised without
+credentials, and the arms no real platform reaches (no threads, no buttons, no
+history) have no other home.
 
 Everything that makes the difference between working and usable: commands, fill,
 and the configuration UI. Grouped because none of them is on anyone else's critical
@@ -173,7 +191,8 @@ polling is deleted, not disabled.
 
 ### C5 — The bridge is proved
 
-**Merges:** WP12, then WP11. **Needs:** C3.
+**Merges:** WP12, then WP11. **Needs:** C4 — the bridge's first channel is `mock`
+(WP15), which lands there, so this no longer hangs off C3.
 
 Ordered within the checkpoint, because WP11 runs WP6's adapter behind WP12's wire
 and cannot start until it exists.
