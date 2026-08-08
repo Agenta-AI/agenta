@@ -2,14 +2,30 @@
 
 This directory specifies the testing strategy for the Agenta monorepo, covering all system interfaces: API, SDK, Web, Services, and Docs. The strategy uses orthogonal documents: principles describe the philosophy, boundaries describe architectural layers, dimensions describe filtering, structure describes folder layout, and interface documents describe per-component specifics.
 
-**The folder decides the layer, and the rule is about dependencies.** A `unit/`
-test may read values from the environment but must not open a connection to
-anything — no database, object store, broker, or HTTP. A test needing one
-external dependency while still exercising a single unit is an `integration/`
-test; a point-like or flow-like end-to-end test is an `acceptance/` test. This
-is not stylistic: a unit test that reaches a shared database becomes
-order-dependent, passing alone and failing in a full-layer run when another test
-removes a row it assumed — which reads as a regression in whatever branch is
+**The folder decides the layer, and the rule is about RUNTIME dependencies.** It
+applies to every part of the repo — api, sdks, services, runner, web, packages —
+in both Python and TypeScript.
+
+The distinction is runtime, not code. Importing a module, a package, or another
+workspace's library is a **code** dependency and stays unit — import as much as
+you like. What moves a test out of `unit/` is needing something **running**: a
+database, an object store, a broker, an HTTP server, a browser, a spawned
+process, a container. Reading `POSTGRES_HOST` from the environment is fine;
+connecting to it is not. One runtime dependency, still exercising a single unit →
+`integration/`. Point-like or flow-like end to end → `acceptance/`.
+
+A runtime dependency is **relative to the part you are testing**, so the same
+thing changes layer depending on which side of it you sit. Postgres is a runtime
+dep of the api; the api is a runtime dep of web and of the sdks; a sandbox
+provider is one of the runner. A web test that calls a running api is not a unit
+test even though it opens no database, and an sdk test hitting a live endpoint is
+not a unit test even though it is one function call. Conversely a web test that
+imports `@agenta/entities` and drives it with fixtures is a unit test, however
+many packages it pulls in.
+
+This is not stylistic. A unit test that reaches a shared running resource becomes
+order-dependent — green alone, red in a full-layer run once another test mutates
+state it assumed — and that failure reads as a regression in whatever branch is
 checked out.
 
 ---
@@ -47,17 +63,31 @@ checked out.
 
 ## Which layer a test belongs to
 
-**The folder decides the layer, not a marker.** Put a test where its
-dependencies say it belongs:
+**The folder decides the layer, not a marker**, and the question is what must be
+**running** — not what is imported.
 
-| Layer | May use | Must not use |
-| ----- | ------- | ------------ |
-| `unit/` | values read from the environment | **any external resource** — no database, object store, broker, or HTTP. Not a connection of any kind. |
-| `integration/` | one or more external dependencies | — (but it still tests a unit, not a flow) |
-| `acceptance/` | a running deployment | — (point-like or flow-like, end to end) |
+| Layer | May use | Needs running |
+| ----- | ------- | ------------- |
+| `unit/` | any import; env values; fixtures, fakes, in-memory doubles | **nothing** |
+| `integration/` | one or more runtime deps, still exercising a single unit | e.g. Postgres, Redis, the api, a browser |
+| `acceptance/` | a deployment, point-like or flow-like end to end | the stack |
 
-Reading `POSTGRES_HOST` is fine in a unit test; opening a connection with it is
-not.
+A code dependency never moves a test out of `unit/`; a runtime dependency always
+does. What counts as a runtime dep is relative to the part under test:
+
+| Part | Typical runtime deps |
+| ---- | -------------------- |
+| `api/` | Postgres, Redis, object store, the workers |
+| `sdks/` | a running api |
+| `services/` | the api, plus whatever the service brokers |
+| `services/runner/` | sandbox providers, spawned agent processes, the api |
+| `web/` | the api; a browser for Playwright |
+| `web/packages/` | the api, for the packages that reach it (e.g. `agenta-entities`, `agenta-annotation` both have `tests/integration/`); nothing for pure-logic and component tests |
+
+A package having its own `integration/` folder is normal, not a smell:
+`web/packages/agenta-entities/tests/` holds both, with the integration side
+gated on `AGENTA_API_URL` + `AGENTA_AUTH_KEY` and skipping when they are absent.
+That is the shape to copy — split by what must be running, in the same package.
 
 ## Status Matrix
 
