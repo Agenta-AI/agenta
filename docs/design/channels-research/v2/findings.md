@@ -371,6 +371,35 @@
 - Suggested Fix: Bless it in the spec or rename it. Low stakes; the point is
   that it entered the tree undocumented.
 
+### F40. `ConnectionProviderKind` has no `BRIDGE` member, so a bridged connection cannot exist
+
+- ID: `F40`
+- Origin: `wave-4 WP19 review`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The bridge `source` decision settles the channel key for a bridged
+  platform as the single fixed literal `bridge`, with the bridge's own identity
+  carried in `integration_key`. That reasoning holds, but the key cannot be
+  constructed: `provider_key` is typed `ConnectionProviderKind`, a three-member
+  enum (`COMPOSIO`, `AGENTA`, `SLACK`) with no `BRIDGE`.
+- Evidence: `ChannelConnection(provider_key="bridge", ...)` raises
+  `ValidationError: Input should be 'composio', 'agenta' or 'slack'`. Verified
+  directly against the tree at `481b5a2672`.
+- Files: `api/oss/src/core/gateway/connections/dtos.py:20`
+- Suggested Fix: Add `BRIDGE = "bridge"`, then re-check every `.value` call site
+  and confirm a new member cannot leak into the *connections* provider registry
+  (composio/agenta), which is a different registry from channels'. The DB column
+  is `String`, not `Enum(...)`, so no migration follows.
+- Notes: **The package reported "No change needed" and its tests passed**, because
+  the new ingress tests fake the service and never construct a real
+  `ChannelConnection` — zero references to it or to `provider_key` in that file.
+  This is the project's recurring shape: an interface asserted about a faked
+  collaborator that differs from the real one. It is also why the seam rule asks
+  for the assertion to be recorded *even when tests pass* — the passing suite is
+  what made the gap invisible. Returned to the package to fix.
+
 ### F39. The shared adapter contract suite hands every adapter a credential-less connection
 
 - ID: `F39`
