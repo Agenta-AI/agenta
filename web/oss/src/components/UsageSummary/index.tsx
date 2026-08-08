@@ -1,8 +1,7 @@
 import {useMemo, useState} from "react"
 
+import {UsageCard} from "@agenta/home-ui"
 import {formatNumber} from "@agenta/shared/utils"
-import {HeightCollapse} from "@agenta/ui"
-import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
 import {CaretDown, CaretUp, ChartLineIcon} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtom} from "jotai"
@@ -52,55 +51,15 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
         [data],
     )
 
+    // The rail card is the SHARED one (mobile renders it too); this app supplies the range
+    // picker and the expanded dashboard, neither of which is portable yet.
     if (variant === "strip") {
-        // Rail card: a header row, then a 2×2 grid of label-over-value. The original one-liner
-        // was laid out for the full page width — in a narrow column its stats wrapped mid-row and
-        // stranded the expand control, which read as a broken grid rather than a compact summary.
         return (
-            // The rail's flex item here is this section, not the card inside it, so it carries
-            // the no-shrink itself.
-            <PanelSection
-                title="Usage"
-                bodyClassName="flex flex-col gap-3 px-4 pb-4"
-                titleExtra={
-                    <Sort
-                        type="text"
-                        onSortApply={setTimeRange}
-                        defaultSortValue={timeRange.label || "1 month"}
-                        exclude={["all time"]}
-                        ariaLabel="Usage date range"
-                    />
-                }
-                extra={
-                    <button
-                        type="button"
-                        onClick={() => setExpanded((prev) => !prev)}
-                        className={PANEL_ACTION_CLASS}
-                    >
-                        {expanded ? "Collapse" : "Expand"}
-                        {expanded ? <CaretUp size={14} /> : <CaretDown size={14} />}
-                    </button>
-                }
-            >
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                    {stats.map((stat) => (
-                        <div key={stat.label} className="flex flex-col gap-0.5">
-                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                                {stat.label}
-                            </span>
-                            <span className="text-xs font-semibold text-[var(--ag-colorText)]">
-                                {stat.value}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Stacked, not gridded: the grid's breakpoints read the viewport, and this
-                    column is 340px on any of them. */}
-                <HeightCollapse open={expanded}>
+            <UsageCard
+                expandedContent={
                     <AnalyticsDashboard layout="stack" showTimeRangeSelector={false} />
-                </HeightCollapse>
-            </PanelSection>
+                }
+            />
         )
     }
 
