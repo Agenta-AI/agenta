@@ -120,6 +120,14 @@ jobs:
             echo "::error::image_tag is longer than 128 characters"
             exit 1
           fi
+          # Dropping the `push_latest` input is not enough on its own: `image_tag` is free text,
+          # so `image_tag=latest` reaches the same `imagetools create -t "${IMAGE}:${TAG}"` and
+          # takes the tag anyway. The release path owns `:latest` (`43 - Release to GHCR` in
+          # agenta_cloud); a manual build must not be able to claim it by either route.
+          if [ "$TAG" = "latest" ]; then
+            echo "::error::image_tag cannot be 'latest' — the release workflow owns that tag"
+            exit 1
+          fi
 
           echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "cache_scope=${CACHE_SCOPE}" >> "$GITHUB_OUTPUT"
@@ -132,8 +140,8 @@ jobs:
     name: build-image
     # Also `typecheck`, not just `prepare`: `web/mobile/next.config.ts` sets
     # `typescript.ignoreBuildErrors: true`, so the build and the smoke test can both pass while
-    # the dedicated typecheck fails. Without this, a dispatch with `push=true` publishes that
-    # tag and `merge-manifests` can move `latest` onto it.
+    # the dedicated typecheck fails. Without this, a dispatch with `push=true` would still
+    # publish an image with unchecked types — it just can no longer be tagged `latest`.
     needs: [prepare, typecheck]
     runs-on: ${{ matrix.runner }}
     strategy:
