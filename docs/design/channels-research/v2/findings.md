@@ -399,11 +399,11 @@
   key. It is worth an explicit constraint rather than a convention, since a
   third-party bridge author chooses the value.
 
-### F45. One adapter instance per channel key, so two bridges cannot coexist
+### F45. The stateless adapter registration refuses every request, Slack included
 
 - ID: `F45`
 - Origin: `wave-4 WP17`
-- Severity: `P0` — blocks C4's exit condition
+- Severity: `P0` — blocks C4's exit condition, and Slack ingress is broken today
 - Confidence: `high`
 - Status: `open`
 - Category: `Correctness`
@@ -432,12 +432,26 @@
   connection is known, so either the credential carries enough to resolve it
   first, or the bridge arm resolves a candidate connection before verifying. The
   Slack arm must not be forced through whichever order is chosen.
+- **Widened after review: this is not bridge-specific — Slack has it too.**
+  `routers.py:1070` registers `SlackAdapter()` with no connection, so
+  `self._connection is None` and `verify_signature` raises **before reading any
+  header**. Proven directly against the adapter as the composition root builds it:
+  `SlackAdapter().verify_signature(...)` → `ChannelSignatureInvalid`, unconditional.
+  No correctly-signed Slack request can pass either. The deployed endpoint answers
+  401, which is indistinguishable from a genuine bad-signature refusal — which is
+  why nothing caught it.
+- **Why every test missed it, which is the transferable part:** the Slack ingress
+  seam test constructs `SlackAdapter(connection=connection, ...)` — *with* a
+  connection — while production registers it *without* one
+  (`test_channels_ingress_slack_seam.py:103`). The test proves a configuration the
+  composition root never builds. That is the `F1`/`F36` shape a third time, and its
+  sharpest form yet: not an unreachable function, but a **reachable** one tested
+  only in a shape nothing constructs.
 - Notes: The adapter and the contract decision are each correct in isolation; what
-  is missing is the composition wiring that lets them serve more than one
-  installation. **Exactly the `F1`/`F36` shape a third time** — every piece passes
-  its own suite, and nothing proved they meet under more than one caller. It took
-  a real out-of-process counterpart to surface it, which is the argument for that
-  package existing.
+  is missing is the composition wiring that lets them serve any installation at
+  all, let alone two. It took a real out-of-process counterpart to surface it,
+  which is the argument for that package existing — and the Slack half fell out
+  only on review, because the same registration was never questioned.
 
 ### F44. The contract suite's egress connection was hardcoded to one platform's credential names
 
