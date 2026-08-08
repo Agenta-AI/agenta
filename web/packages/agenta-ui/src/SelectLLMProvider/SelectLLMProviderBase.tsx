@@ -5,7 +5,7 @@ import clsx from "clsx"
 import {ChevronDown} from "lucide-react"
 
 import {Input} from "../components/ui/input"
-import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
+import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from "../components/ui/popover"
 import {selectTriggerVariants} from "../components/ui/select"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
 import {LLMIconMap} from "../LLMIcons"
@@ -57,7 +57,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     className,
     footerContent,
     onSelectValue,
-    providerDropdownWidth = DEFAULT_PROVIDER_DROPDOWN_WIDTH,
+    providerDropdownWidth,
     modelListWidth,
     emptyText = "No data",
     container,
@@ -71,8 +71,25 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     id,
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledby,
+    open: controlledOpen,
+    onOpenChange,
+    anchorRef,
+    hideTrigger = false,
+    searchSuffix,
+    panelFooter,
 }) => {
-    const [open, setOpen] = useState(false)
+    const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+    const isControlled = controlledOpen !== undefined
+    const open = isControlled ? controlledOpen : uncontrolledOpen
+    // One writer for both modes: the internal callers (`closeDropdown`, the trigger) keep calling
+    // `setOpen`, and a controlled parent hears about it through `onOpenChange`.
+    const setOpen = useCallback(
+        (next: boolean) => {
+            if (!isControlled) setUncontrolledOpen(next)
+            onOpenChange?.(next)
+        },
+        [isControlled, onOpenChange],
+    )
     const [searchTerm, setSearchTerm] = useState("")
     const [hoveredProvider, setHoveredProvider] = useState<string | null>(null)
     // null = focus sits in the provider column; a number = the highlighted model row.
@@ -152,10 +169,20 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         () => filteredProviders.find((group) => group.label === hoveredProvider) ?? null,
         [filteredProviders, hoveredProvider],
     )
-    const providerDropdownWidthCss = toCssSize(providerDropdownWidth)
+    // Anchored to a caller's element (the composer's `/model`), the panel spans that element —
+    // a fixed 400px hanging off a full-width composer reads as a stray dropdown. Radix publishes
+    // the anchor's width as `--radix-popover-trigger-width`.
+    const resolvedDropdownWidth =
+        providerDropdownWidth ??
+        (anchorRef
+            ? // Minus PopoverContent's own `p-1` on both sides, so the outer panel lands flush
+              // with the anchor rather than overhanging it by 8px.
+              "calc(var(--radix-popover-trigger-width) - 0.5rem)"
+            : DEFAULT_PROVIDER_DROPDOWN_WIDTH)
+    const providerDropdownWidthCss = toCssSize(resolvedDropdownWidth)
     const resolvedModelListWidth =
         modelListWidth ??
-        (typeof providerDropdownWidth === "number" ? providerDropdownWidth / 2 : "50%")
+        (typeof resolvedDropdownWidth === "number" ? resolvedDropdownWidth / 2 : "50%")
     const modelListWidthCss = toCssSize(resolvedModelListWidth)
     const providerPanelWidth = hoveredGroup ? `calc(100% - ${modelListWidthCss})` : "100%"
 
@@ -180,7 +207,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         setSearchTerm("")
         setHoveredProvider(null)
         setActiveModelIndex(null)
-    }, [])
+    }, [setOpen])
 
     const handleSelect = useCallback(
         (optionValue: string, metadata?: Record<string, unknown>) => {
@@ -367,38 +394,46 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 else closeDropdown()
             }}
         >
-            <PopoverTrigger asChild>
-                <button
-                    type="button"
-                    id={id}
-                    // Not `role=combobox`: the search field inside the panel owns the
-                    // combobox/listbox relationship, this is the disclosure button.
-                    // Radix supplies aria-expanded / aria-controls.
-                    aria-haspopup="listbox"
-                    aria-label={ariaLabel}
-                    aria-labelledby={ariaLabelledby}
-                    aria-invalid={invalid || undefined}
-                    disabled={disabled}
-                    data-placeholder={selectedOption || value ? undefined : ""}
-                    className={clsx(
-                        selectTriggerVariants({size: TRIGGER_SIZE[size]}),
-                        "text-left",
-                        className,
-                    )}
-                    style={{width: "100%", ...style}}
-                >
-                    <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-                        {selectedOption ? (
-                            renderOptionContent(selectedOption)
-                        ) : value ? (
-                            <span className="truncate">{value}</span>
-                        ) : (
-                            <span className={clsx("truncate", adornmentColor)}>{placeholder}</span>
+            {/* Anchored mode: the panel positions against the caller's element and renders no
+                trigger of its own (the composer's `/model` opens it with nothing to click). */}
+            {anchorRef ? <PopoverAnchor virtualRef={anchorRef} /> : null}
+
+            {hideTrigger ? null : (
+                <PopoverTrigger asChild>
+                    <button
+                        type="button"
+                        id={id}
+                        // Not `role=combobox`: the search field inside the panel owns the
+                        // combobox/listbox relationship, this is the disclosure button.
+                        // Radix supplies aria-expanded / aria-controls.
+                        aria-haspopup="listbox"
+                        aria-label={ariaLabel}
+                        aria-labelledby={ariaLabelledby}
+                        aria-invalid={invalid || undefined}
+                        disabled={disabled}
+                        data-placeholder={selectedOption || value ? undefined : ""}
+                        className={clsx(
+                            selectTriggerVariants({size: TRIGGER_SIZE[size]}),
+                            "text-left",
+                            className,
                         )}
-                    </span>
-                    <ChevronDown className={clsx("size-3 shrink-0", adornmentColor)} />
-                </button>
-            </PopoverTrigger>
+                        style={{width: "100%", ...style}}
+                    >
+                        <span className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
+                            {selectedOption ? (
+                                renderOptionContent(selectedOption)
+                            ) : value ? (
+                                <span className="truncate">{value}</span>
+                            ) : (
+                                <span className={clsx("truncate", adornmentColor)}>
+                                    {placeholder}
+                                </span>
+                            )}
+                        </span>
+                        <ChevronDown className={clsx("size-3 shrink-0", adornmentColor)} />
+                    </button>
+                </PopoverTrigger>
+            )}
 
             <PopoverContent
                 align="start"
@@ -414,6 +449,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     // antd's `popupMatchSelectWidth`: the cascade sizes itself, everything else
                     // tracks the trigger.
                     shouldUseProviderPanels ? "w-auto" : "w-[var(--radix-popover-trigger-width)]",
+                    // Anchored mode only. A triggered dropdown has the click that opened it to
+                    // explain where it came from; this one has none, so it grows out of its
+                    // anchor edge (Radix's own origin) instead of appearing there.
+                    anchorRef &&
+                        "origin-[var(--radix-popover-content-transform-origin)] animate-command-panel-in motion-reduce:animate-command-panel-fade",
                 )}
             >
                 <div
@@ -436,7 +476,10 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 variant="ghost"
-                                className="rounded-none py-1.5 pr-8"
+                                className={clsx(
+                                    "rounded-none py-1.5",
+                                    searchSuffix ? "pr-20" : "pr-8",
+                                )}
                             />
                             {searchTerm && (
                                 <button
@@ -446,11 +489,19 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         setSearchTerm("")
                                         inputRef.current?.focus()
                                     }}
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded border-none bg-transparent p-1 hover:bg-muted"
+                                    className={clsx(
+                                        "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded border-none bg-transparent p-1 hover:bg-muted",
+                                        searchSuffix ? "right-14" : "right-2",
+                                    )}
                                 >
                                     <X size={12} className="text-placeholder" />
                                 </button>
                             )}
+                            {searchSuffix ? (
+                                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-field-sm text-placeholder">
+                                    {searchSuffix}
+                                </span>
+                            ) : null}
                         </div>
                     )}
 
@@ -585,6 +636,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                             )}
                         </div>
                     )}
+
+                    {panelFooter ? (
+                        <div className="-mx-1 -mb-1 mt-1 border-0 border-t border-solid border-border bg-muted/40 px-3 py-1.5">
+                            {panelFooter}
+                        </div>
+                    ) : null}
                 </div>
             </PopoverContent>
         </Popover>

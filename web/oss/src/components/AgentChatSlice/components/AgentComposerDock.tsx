@@ -1,10 +1,13 @@
-import {type RefObject, Suspense, lazy} from "react"
+import {type RefObject, Suspense, lazy, useCallback, useRef} from "react"
 
+import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {ArrowRight, Code, Paperclip} from "@phosphor-icons/react"
 import {type UIMessage} from "ai"
 import {Button, Tooltip} from "antd"
+import {useSetAtom} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
@@ -16,10 +19,12 @@ import AgentIntentActions from "@/oss/components/TemplateStrip/components/AgentI
 import {CHAT_COLUMN} from "../assets/conversationLayout"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 import {type QueuedMessage} from "../hooks/useAgentChatQueue"
+import {useChatSlashCommands} from "../hooks/useChatSlashCommands"
 import {type useComposerAttachments} from "../hooks/useComposerAttachments"
 import {type useComposerDraft} from "../hooks/useComposerDraft"
 import {type useOnboardingChat} from "../hooks/useOnboardingChat"
 import {type useVoiceComposer} from "../hooks/useVoiceComposer"
+import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock, {type getPendingApprovals} from "./ApprovalDock"
@@ -33,6 +38,8 @@ import QueuedMessages from "./QueuedMessages"
 import RecordingBar from "./RecordingBar"
 import RevealCollapse from "./RevealCollapse"
 import RunningElsewhereStrip from "./RunningElsewhereStrip"
+import HarnessPickerPanel from "./SlashCommand/HarnessPickerPanel"
+import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 import VoiceInputButton from "./VoiceInputButton"
 
 // The composer carries Lexical — the heaviest dependency of this chunk — out of the
@@ -155,6 +162,47 @@ const AgentComposerDock = ({
         micError,
         dismissMicError,
     } = voice
+
+    // The `/` palette and its two pickers. Both pickers anchor to the composer box below, so they
+    // sit exactly where the palette was — one place the user looks.
+    const composerBoxRef = useRef<HTMLDivElement | null>(null)
+    const openConfigSection = useSetAtom(openAgentConfigSectionAtom)
+    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
+    const clearDraft = composer.clearDraft
+    const clearComposerCommand = useCallback(() => {
+        richInputRef.current?.clear()
+        clearDraft()
+        richInputRef.current?.focus()
+    }, [clearDraft, richInputRef])
+    const slash = useChatSlashCommands({
+        entityId,
+        suspended: onboardingActive,
+        // The command has served its purpose once the picker is up; leaving it behind just reads
+        // as text the user now has to delete before typing a message. Blur first — the picker
+        // autofocuses its search, and a still-focused editor takes focus back on the next
+        // reconcile, which Radix reads as an outside interaction and dismisses on.
+        onPickerOpen: useCallback(() => {
+            richInputRef.current?.blur()
+            richInputRef.current?.clear()
+            clearDraft()
+        }, [clearDraft, richInputRef]),
+    })
+    // Step back one level. The picker consumed the `/` that opened it, so returning to the palette
+    // means putting it back — typing it again is what "back to commands" exists to avoid.
+    const backToCommands = () => {
+        slash.closePicker()
+        richInputRef.current?.setMarkdown("/")
+        richInputRef.current?.focus()
+    }
+    const openConfigFor = (section: "model-harness" | "advanced") => {
+        slash.closePicker()
+        setChatMaximized(false)
+        openConfigSection(section)
+    }
+    const openModelHarnessConfig = () => openConfigFor("model-harness")
+    // Permission rules live in the Advanced accordion's Permissions group.
+    const openPermissionsConfig = () => openConfigFor("advanced")
+
     return (
         <>
             {/* Queue sits BETWEEN the messages and the composer, so showing it never shifts the
@@ -255,7 +303,83 @@ const AgentComposerDock = ({
                 ) : null}
                 {/* `mb-3` lives here, not on the input, so the recording overlay
                 (inset-0) covers the composer box exactly. */}
-                <div className="relative mb-3">
+                <div className="relative mb-3" ref={composerBoxRef}>
+                    {/* Drilled into from the palette: same anchor, so the panel replaces the menu
+                        in place rather than opening somewhere else on screen. */}
+                    {slash.picker === "harness" ? (
+                        // `origin-bottom`: the panel is docked to the composer's top edge, so it
+                        // grows out of that edge rather than from its own middle.
+                        <div
+                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
+                        >
+                            <HarnessPickerPanel
+                                harnessIds={slash.harnessIds}
+                                capabilities={slash.capabilities}
+                                currentHarness={slash.currentHarness}
+                                currentModel={slash.currentModel}
+                                onApply={(kind) => {
+                                    slash.applyHarness(kind)
+                                    clearComposerCommand()
+                                }}
+                                onDismiss={slash.closePicker}
+                                onBackToCommands={backToCommands}
+                                onOpenConfig={openModelHarnessConfig}
+                            />
+                        </div>
+                    ) : null}
+                    {slash.picker === "permissions" ? (
+                        <div
+                            className={`absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade ${CHAT_COLUMN}`}
+                        >
+                            <PermissionsPickerPanel
+                                current={slash.currentPermission}
+                                onApply={(policy) => {
+                                    slash.applyPermission(policy)
+                                    richInputRef.current?.focus()
+                                }}
+                                onDismiss={slash.closePicker}
+                                onBackToCommands={backToCommands}
+                                onOpenConfig={openPermissionsConfig}
+                            />
+                        </div>
+                    ) : null}
+                    {/* The catalog picker itself — controlled open, no trigger of its own. */}
+                    <SelectLLMProviderBase
+                        open={slash.picker === "model"}
+                        onOpenChange={(next) => {
+                            if (!next) slash.closePicker()
+                        }}
+                        anchorRef={composerBoxRef}
+                        hideTrigger
+                        showGroup
+                        showSearch
+                        options={slash.modelGroups}
+                        value={slash.currentModel}
+                        onChange={(next) => {
+                            slash.applyModel(next)
+                            clearComposerCommand()
+                        }}
+                        searchSuffix="/model"
+                        panelFooter={
+                            <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--ag-colorTextTertiary)]">
+                                <span>Changes this agent&apos;s draft config.</span>
+                                <button
+                                    type="button"
+                                    onClick={openModelHarnessConfig}
+                                    className="cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorPrimary)]"
+                                >
+                                    Open config →
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={backToCommands}
+                                    className="ml-auto cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
+                                >
+                                    ← back to commands
+                                </button>
+                            </div>
+                        }
+                    />
                     <Suspense fallback={<ComposerSkeleton className={CHAT_COLUMN} />}>
                         <RichChatInput
                             ref={richInputRef}
@@ -280,6 +404,7 @@ const AgentComposerDock = ({
                                         : "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                             }
                             initialMarkdown={composer.initialDraft}
+                            slashCommands={slash.sections}
                             onChange={composer.handleComposerChange}
                             onPasteFile={(pasted) => {
                                 if (!attachmentsBlocked()) addFiles(Array.from(pasted))

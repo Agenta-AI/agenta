@@ -45,7 +45,13 @@ import {
 } from "../connectionUtils"
 import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
+import {selectableHarnesses} from "../harnessMeta"
 import {HarnessSelectControl} from "../HarnessSelectControl"
+import {
+    isPermissionPolicy,
+    PERMISSION_POLICY_OPTIONS,
+    permissionPolicyLabel,
+} from "../permissionPolicy"
 import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
@@ -61,23 +67,7 @@ import {useBuildKit} from "./useBuildKit"
 // flash a false "Connect key" warning on the section, rail item, and config-panel row.
 const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
-type PermissionPolicy = "allow_reads" | "allow" | "ask" | "deny"
-
-const PERMISSION_POLICY_OPTIONS: {value: PermissionPolicy; label: string; help: string}[] = [
-    {value: "allow_reads", label: "Allow reads", help: "Reads run, writes ask; default"},
-    {value: "allow", label: "Allow all", help: "Every tool runs without asking"},
-    {value: "ask", label: "Ask", help: "A human approves every tool call"},
-    {value: "deny", label: "Deny all", help: "Every tool call is refused"},
-]
-const PERMISSION_POLICY_VALUES = new Set<string>(
-    PERMISSION_POLICY_OPTIONS.map((option) => option.value),
-)
-
-const HIDDEN_HARNESSES = new Set(["pi_agenta"])
-
-function isPermissionPolicy(value: unknown): value is PermissionPolicy {
-    return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
-}
+// Shared with the chat composer's `/harness` palette so a hidden harness stays hidden everywhere.
 
 export function useModelHarness({
     schema,
@@ -380,9 +370,7 @@ export function useModelHarness({
         ).map((option) => ({value: option.value, title: option.label, help: option.help}))
     }, [runnerPermissionSchema])
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
-    const runnerPermissionSummary = PERMISSION_POLICY_OPTIONS.find(
-        (option) => option.value === currentRunnerPermission,
-    )?.label
+    const runnerPermissionSummary = permissionPolicyLabel(currentRunnerPermission)
 
     // Playground-only "build kit" overlay (read-only) shown at the top of Advanced. It also flags
     // sandbox-permission keys the overlay overrides for the user's own permission control below.
@@ -564,8 +552,8 @@ export function useModelHarness({
     const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
         ? (harnessProps.kind.enum as unknown[]).map(String)
         : []
-    const harnessList = (capabilities ? Object.keys(capabilities) : schemaHarnesses).filter(
-        (harnessId) => !HIDDEN_HARNESSES.has(harnessId),
+    const harnessList = selectableHarnesses(
+        capabilities ? Object.keys(capabilities) : schemaHarnesses,
     )
 
     // Harness as a `[rail │ detail]` (experiment): the harness list on the rail with a model-compat dot,
