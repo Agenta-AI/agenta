@@ -4,7 +4,7 @@ import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {createWorkflowRevisionAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController} from "@agenta/playground"
-import {SimpleTooltip} from "@agenta/ui/ui"
+import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -24,13 +24,9 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
     const isProjectScoped = !appId
 
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
-    const isDirty = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
     const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
 
     const _variantId = runnableData?.id ?? null
-    const variantRevision = (runnableData?.version as number | null) ?? null
-    const commitMessage = runnableData?.message?.trim() || null
-    const hasChanges = isDirty
 
     // App browse picker (project-scoped only) — skip-variant, non-evaluator.
     const appOnlyAdapter = useMemo(
@@ -64,42 +60,7 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
                 value={_variantId ?? undefined}
                 borderlessTrigger
             />
-            {variantRevision !== null && variantRevision !== undefined && (
-                <SimpleTooltip
-                    className="max-w-[360px]"
-                    title={
-                        commitMessage ? (
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[12px] font-medium uppercase tracking-wide opacity-65">
-                                    Commit message
-                                </span>
-                                <div className="max-h-[240px] overflow-y-auto overscroll-contain whitespace-pre-wrap break-words text-xs leading-relaxed">
-                                    {commitMessage}
-                                </div>
-                            </div>
-                        ) : (
-                            <span className="text-xs italic">No commit message</span>
-                        )
-                    }
-                >
-                    <span className="cursor-default rounded bg-[var(--ant-color-fill-secondary)] px-1.5 py-0.5 text-xs text-[var(--ant-color-text-secondary)]">
-                        v{variantRevision}
-                    </span>
-                </SimpleTooltip>
-            )}
-            <SimpleTooltip title={hasChanges ? "Draft — unsaved changes" : "Saved"}>
-                <span className="flex items-center gap-1.5 text-xs text-[var(--ant-color-text-tertiary)]">
-                    <span
-                        className="h-[7px] w-[7px] rounded-full"
-                        style={{
-                            backgroundColor: hasChanges
-                                ? "var(--ant-color-warning)"
-                                : "var(--ant-color-success)",
-                        }}
-                    />
-                    {hasChanges ? "Draft" : "Saved"}
-                </span>
-            </SimpleTooltip>
+            <AgentRevisionStatus revisionId={variantId} />
         </div>
     )
 }
