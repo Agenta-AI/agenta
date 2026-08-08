@@ -6,6 +6,7 @@ export type SettingsTabKey =
     | "llms"
     | "tools"
     | "triggers"
+    | "channels"
     | "webhooks"
     | "workspace"
     | "projects"
@@ -41,6 +42,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {key: "llms", scope: "project"},
     {key: "tools", scope: "project"},
     {key: "triggers", scope: "project"},
+    {key: "channels", scope: "project"},
     {key: "webhooks", scope: "project"},
     {key: "organizationGeneral", scope: "organization"},
     {key: "workspace", scope: "organization"},
@@ -68,6 +70,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     llms: "LLMs",
     tools: "Tools",
     triggers: "Triggers",
+    channels: "Channels",
     webhooks: "Webhooks",
     workspace: "Members",
     projects: "Projects",
