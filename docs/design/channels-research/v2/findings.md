@@ -653,6 +653,85 @@
   backfilled event cannot be addressed or threaded individually — which is
   `WP10`'s subject matter, so settle it before WP10 builds on the backfill
   path.
+- **Now confirmed by test, not by reading.** WP16's stateful fake seeds two
+  messages with distinct `ts`, calls `fetch_history` once, and asserts both
+  returned events carry an identical `external_locator` *and* an identical
+  `thread_locator` while `first_ts != second_ts`. Two tests pin it:
+  `test_fetch_history_external_locator_is_the_call_locator_not_per_message` and
+  `test_fetch_history_thread_locator_does_not_vary_per_reply`, in
+  `tests/pytest/unit/channels/slack/test_slack_over_fake.py`. **Those tests
+  currently assert the bug**, so fixing the adapter means updating them in the
+  same change — they are the regression guard, and a fix that leaves them green
+  has not fixed anything.
+
+### F35. `_StubTransport` and its five tests are now subsumed
+
+- ID: `F35`
+- Origin: `wave-3`
+- Severity: `P3`
+- Confidence: `medium`
+- Status: `open`
+- Category: `Simplification`
+- Summary: WP6's `_StubTransport` answers any request with the next canned body.
+  Five of its tests — post-then-edit, content splitting, refusal-vs-empty-page
+  (twice) and page-size clamping — now have fake-backed equivalents that assert
+  against held state rather than a request log.
+- Files: `api/oss/tests/pytest/unit/channels/slack/` (WP6's stub tests and
+  WP16's `test_slack_over_fake.py`)
+- Suggested Fix: Remove `_StubTransport` and those five tests at a cleanup pass.
+  Confidence is `medium` deliberately: "subsumed" is WP16's reading of its own
+  work, and the claim deserves a side-by-side check per test before anything is
+  deleted. WP16 did not delete them, which was correct — it does not own them.
+- Notes: The reason to prefer the fake is not coverage count. A stub that
+  answers anything passes a call to the wrong endpoint with the wrong payload in
+  the wrong order; that is what let `F28` live undetected in a green suite.
+
+### F33. The Slack adapter ignores `Retry-After` entirely
+
+- ID: `F33`
+- Origin: `wave-3`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: On a `429` with `ratelimited` and a `Retry-After` header, the adapter
+  raises immediately. `_call` reads only `response.json()` and raises on
+  `ok: false`; it never inspects headers, so the retry hint is dropped. There is
+  no backoff and no retry anywhere on the egress path.
+- Evidence: `adapter.py:288-303`. WP16's
+  `test_ratelimited_with_retry_after_propagates_as_an_error_with_no_retry`
+  forces the response and asserts exactly **one** request was sent.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py:288`
+- Suggested Fix: Decide where retry belongs. The taskiq outbox worker already
+  retries a failed task, so honouring `Retry-After` in-adapter may be the wrong
+  layer — but dropping the header silently means the broker retries on its own
+  schedule against a platform that told us exactly when to come back.
+- Notes: The test asserts current behaviour deliberately rather than pretending
+  a retry exists. Under sustained rate limiting the outbox will burn its retry
+  budget at the wrong cadence; whether that is acceptable is a decision, not an
+  oversight to leave unrecorded.
+
+### F34. A missing `bot_token` sends the literal header `Bearer None`
+
+- ID: `F34`
+- Origin: `wave-3`
+- Severity: `P3`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `_bot_token` returns `None` when `connection.data` has no
+  `bot_token`, and the adapter interpolates it into the header anyway, sending
+  `Authorization: Bearer None`. Slack answers `invalid_auth` — a well-formed but
+  wrong token — rather than anything naming the real cause.
+- Evidence: WP16's fake classifies it as `invalid_auth`, not `not_authed`,
+  because the header is present and syntactically valid.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py`
+- Suggested Fix: Fail fast locally when `bot_token` is absent, the way
+  `_signing_secret` already raises `ChannelSignatureInvalid` when its key is
+  missing.
+- Notes: Reachable today because nothing yet writes `connection.data` (`F6`), so
+  the first operator to configure a connection incompletely gets a misleading
+  Slack error instead of a local one. Cheap to fix while `F6` is still open.
 
 ### F29. Backfill has never run: nothing in the dispatch chain calls `fetch_history`
 
