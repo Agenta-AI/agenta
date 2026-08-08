@@ -270,8 +270,10 @@ const membersTests = () => {
             await scenarios.and("the user clicks Remove and confirms", async () => {
                 await page.locator(".ant-dropdown-menu-item").filter({hasText: "Remove"}).click()
 
-                // AlertPopup renders as a modal.confirm dialog — title "Remove member"
-                const confirmDialog = page.getByRole("dialog", {name: "Remove member"})
+                // `AlertPopup` calls `modal.confirm` from `@agenta/ui/app-message`, which
+                // renders a Radix `AlertDialog`. Its content carries role="alertdialog",
+                // a distinct role from "dialog" — so `getByRole("dialog")` never matches.
+                const confirmDialog = page.getByRole("alertdialog", {name: "Remove member"})
                 await expect(confirmDialog).toBeVisible({timeout: 10000})
                 await Promise.all([
                     waitForRemoveResponse(page),
