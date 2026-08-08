@@ -254,6 +254,44 @@ cross-package defect in this project so far.
 drop the reference. `CU-2` removed 109 such lines; four of five wave-3 briefs omitted
 this rule and every one of them reintroduced them.
 
+# C4 merge — done, verified
+
+Merged into `channels-c4` as one non-fast-forward merge: the packages had already
+been stacked in dependency order, so the tip carried all four plus the checkpoint
+fix. **Zero conflicts.**
+
+Verified from the repo root against the running deployment:
+
+| Layer | Result |
+| --- | --- |
+| api unit | 2806 passed |
+| api integration | 46 passed |
+| api acceptance | 813 passed, 18 skipped, 1 xfailed |
+
+Zero `FAILED`, zero `ERROR`. Channels unit arithmetic exact: 393 on the package
+tip + 1 for the contract-suite injection test added here = **394**.
+
+The one `xfail` is deliberate and `strict`: per-connection capability
+declarations are unfixed, so a second bridge's space is still validated against
+the first's declared locator fields. It turns red the moment that lands.
+
+## What C4's exit condition actually says, clause by clause
+
+No partial credit, so each clause gets its own verdict:
+
+| Clause | Verdict |
+| --- | --- |
+| a message enters through a channel the platform does not know about | **met** — real signed events, two bridge subprocesses |
+| becomes a turn, and an answer comes back out | **met** for the inbound half against real Postgres; the Redis round trip is unproven (`F41`) |
+| a command works | **met** — driven end to end against real Postgres |
+| fill supplies context | **met** — backfills once, refusal leaves the flag false |
+| `poll_turn` is gone from the tree | **met** — zero hits in any `.py` |
+| two bridges coexist behind the one route | **met for authentication**; not for capability resolution (`F45`, half open) |
+| **with no credentials of any kind** | **met** — the mock adapter needs none; and that is exactly what `F47` shows we have been avoiding |
+
+**So C4 is reached, with two named gaps rather than a clean pass** — and both are
+recorded as findings with the failing assertion or the mechanism, not as prose.
+
 # CU-B — after the merge, before deploying
 
 Merge in the order above into a `channels-c4` worktree. **These items cannot be written
