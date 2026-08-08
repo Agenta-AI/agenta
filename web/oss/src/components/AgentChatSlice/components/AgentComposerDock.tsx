@@ -32,14 +32,14 @@ import type {ClientToolOutputHandler} from "./clientTools"
 import ComposerAttachments from "./ComposerAttachments"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
-import HarnessPickerPanel from "./HarnessPickerPanel"
 import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
 import MicPermissionNotice from "./MicPermissionNotice"
-import PermissionsPickerPanel from "./PermissionsPickerPanel"
 import QueuedMessages from "./QueuedMessages"
 import RecordingBar from "./RecordingBar"
 import RevealCollapse from "./RevealCollapse"
 import RunningElsewhereStrip from "./RunningElsewhereStrip"
+import HarnessPickerPanel from "./SlashCommand/HarnessPickerPanel"
+import PermissionsPickerPanel from "./SlashCommand/PermissionsPickerPanel"
 import VoiceInputButton from "./VoiceInputButton"
 
 // The composer carries Lexical — the heaviest dependency of this chunk — out of the
@@ -404,12 +404,6 @@ const AgentComposerDock = ({
                             }
                             initialMarkdown={composer.initialDraft}
                             slashCommands={slash.sections}
-                            // No skills drawer to deep-link to, so reveal the config panel — where
-                            // the skills list lives — by leaving maximized chat.
-                            slashEmptyAction={{
-                                label: "Add a skill to this agent",
-                                onSelect: () => setChatMaximized(false),
-                            }}
                             onChange={composer.handleComposerChange}
                             onPasteFile={(pasted) => {
                                 if (!attachmentsBlocked()) addFiles(Array.from(pasted))

@@ -102,8 +102,6 @@ export interface RichChatInputProps {
      * are untouched. See `assets/slashCommands`.
      */
     slashCommands?: SlashCommandSection[]
-    /** Footer of the palette's empty state (e.g. "Add a skill to this agent"). */
-    slashEmptyAction?: {label: string; onSelect: () => void}
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -155,7 +153,6 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             onChange,
             initialMarkdown,
             slashCommands,
-            slashEmptyAction,
         },
         ref,
     ) {
@@ -347,7 +344,6 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             sections={slashCommands}
                             anchorRef={boxRef}
                             disabled={disabled || dictating}
-                            emptyAction={slashEmptyAction}
                         />
                     ) : null}
                 </div>
