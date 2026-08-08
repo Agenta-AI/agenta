@@ -11,9 +11,9 @@ import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
-import {MoreOutlined} from "@ant-design/icons"
-import {Trash} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {SimpleTooltip} from "@agenta/ui/ui"
+import {DotsThree, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -32,7 +32,7 @@ const PlaygroundVariantHeaderMenu = dynamic(
         ssr: false,
         // Reserve the kebab's 32px footprint while the chunk loads so it doesn't pop in and
         // shift Commit/Deploy leftward on the (skeletonized) agent config header.
-        loading: () => <Button type="text" icon={<MoreOutlined size={14} />} disabled />,
+        loading: () => <EnhancedButton type="text" icon={<DotsThree size={14} />} disabled />,
     },
 )
 
@@ -270,9 +270,9 @@ const PlaygroundVariantConfigHeader = ({
             <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
                 {extraActions}
                 {hasPresets && onLoadPreset && (
-                    <Button size="small" onClick={onLoadPreset}>
+                    <EnhancedButton size="small" onClick={onLoadPreset}>
                         Load Preset
-                    </Button>
+                    </EnhancedButton>
                 )}
                 {isLocalDraftVariant ? (
                     <>
@@ -283,15 +283,15 @@ const PlaygroundVariantConfigHeader = ({
                             size="small"
                         />
                         {!rawEntity?.meta?.__ephemeral && (
-                            <Tooltip title="Discard draft">
-                                <Button
+                            <SimpleTooltip title="Discard draft">
+                                <EnhancedButton
                                     type="text"
                                     size="small"
                                     danger
                                     icon={<Trash size={16} />}
                                     onClick={handleDiscardLocalDraft}
                                 />
-                            </Tooltip>
+                            </SimpleTooltip>
                         )}
                     </>
                 ) : (

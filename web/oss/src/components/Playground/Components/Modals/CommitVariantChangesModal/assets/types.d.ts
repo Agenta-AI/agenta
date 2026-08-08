@@ -1,5 +1,5 @@
-import {ButtonProps} from "antd"
-import {ModalProps} from "antd"
+import type {EnhancedButtonProps as ButtonProps} from "@agenta/ui/components/presentational"
+import type {EnhancedModalProps as ModalProps} from "@agenta/ui"
 
 export interface CommitVariantChangesModalProps extends ModalProps {
     variantId: string

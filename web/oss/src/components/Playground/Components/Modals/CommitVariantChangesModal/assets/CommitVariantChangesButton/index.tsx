@@ -1,8 +1,8 @@
 import {cloneElement, isValidElement, useCallback, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {FloppyDiskBack, Plus} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -50,7 +50,7 @@ const CommitVariantChangesButton = ({
                     },
                 )
             ) : (
-                <Button
+                <EnhancedButton
                     type="text"
                     icon={icon && resolvedIcon}
                     onClick={() => setIsDeployModalOpen(true)}
@@ -58,7 +58,7 @@ const CommitVariantChangesButton = ({
                     {...props}
                 >
                     {resolvedLabel}
-                </Button>
+                </EnhancedButton>
             )}
 
             <CommitVariantChangesModal

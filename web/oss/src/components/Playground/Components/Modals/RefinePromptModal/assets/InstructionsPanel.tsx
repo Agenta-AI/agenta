@@ -1,14 +1,15 @@
 /**
- * InstructionsPanel - Left panel for entering refinement guidelines
+ * InstructionsPanel - Left panel for entering refinement guidelines.
  *
- * Uses @ant-design/x Bubble for conversation display, Sender for input,
- * and Prompts for predefined quick-actions.
+ * The conversation renders with the shared `ChatBubble` chrome; the quick-action chip and the
+ * guideline composer are small local pieces (Enter sends, Shift+Enter breaks the line) — the
+ * previous @ant-design/x Bubble/Prompts/Sender trio without the extra dependency.
  */
 
-import {type MutableRefObject, useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
-import {BulbOutlined} from "@ant-design/icons"
-import {Bubble, Prompts, Sender} from "@ant-design/x"
+import {ChatBubble} from "@agenta/ui/components/presentational"
+import {Lightbulb, PaperPlaneRight} from "@phosphor-icons/react"
 import {Spin} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -25,13 +26,7 @@ interface InstructionsPanelProps {
     submitRef: MutableRefObject<(() => void) | null>
 }
 
-const PREDEFINED_PROMPTS = [
-    {
-        key: "optimize",
-        icon: <BulbOutlined />,
-        label: "Optimize the prompt using best practices",
-    },
-]
+const OPTIMIZE_PROMPT = "Optimize the prompt using best practices"
 
 const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
     revisionId,
@@ -83,55 +78,7 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
         }
     }, [handleCmdEnterSubmit, submitRef])
 
-    const handlePromptClick = useCallback(
-        (info: {data: {key: string; label?: React.ReactNode}}) => {
-            if (isLoading) return
-            const text = typeof info.data.label === "string" ? info.data.label : ""
-            if (text) {
-                handleSubmit(text)
-            }
-        },
-        [isLoading, handleSubmit],
-    )
-
-    // Memoize bubble items to avoid re-creation on every render
-    const bubbleItems = useMemo(() => {
-        const items: {
-            key: string
-            role: string
-            content: string
-            variant?: "filled" | "outlined" | "shadow" | "borderless"
-        }[] = []
-
-        for (const iteration of iterations) {
-            items.push({
-                key: `${iteration.id}-guidelines`,
-                role: "user",
-                content: iteration.guidelines,
-                variant: "filled",
-            })
-            items.push({
-                key: `${iteration.id}-explanation`,
-                role: "assistant",
-                content: iteration.explanation,
-                variant: "outlined",
-            })
-        }
-
-        // Add pending guidelines while waiting for response
-        if (pendingGuidelines) {
-            items.push({
-                key: "pending-guidelines",
-                role: "user",
-                content: pendingGuidelines,
-                variant: "filled",
-            })
-        }
-
-        return items
-    }, [iterations, pendingGuidelines])
-
-    const hasContent = bubbleItems.length > 0 || isLoading
+    const hasContent = iterations.length > 0 || !!pendingGuidelines || isLoading
 
     return (
         <div className="flex h-full flex-col">
@@ -147,20 +94,34 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
                         </div>
                     </div>
                 ) : (
-                    <Bubble.List
-                        items={bubbleItems}
-                        style={{fontSize: 12}}
-                        role={{
-                            user: {
-                                placement: "end",
-                                variant: "filled",
-                            },
-                            assistant: {
-                                placement: "start",
-                                variant: "outlined",
-                            },
-                        }}
-                    />
+                    <div className="flex flex-col gap-3">
+                        {iterations.map((iteration) => (
+                            <div key={iteration.id} className="flex flex-col gap-3">
+                                <ChatBubble
+                                    placement="end"
+                                    variant="filled"
+                                    className="justify-end"
+                                    classNames={{content: "!text-xs whitespace-pre-wrap"}}
+                                    content={iteration.guidelines}
+                                />
+                                <ChatBubble
+                                    placement="start"
+                                    variant="outlined"
+                                    classNames={{content: "!text-xs whitespace-pre-wrap"}}
+                                    content={iteration.explanation}
+                                />
+                            </div>
+                        ))}
+                        {pendingGuidelines ? (
+                            <ChatBubble
+                                placement="end"
+                                variant="filled"
+                                className="justify-end"
+                                classNames={{content: "!text-xs whitespace-pre-wrap"}}
+                                content={pendingGuidelines}
+                            />
+                        ) : null}
+                    </div>
                 )}
 
                 {/* Loading indicator */}
@@ -172,36 +133,46 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
                 ) : null}
             </div>
 
-            {/* Predefined prompts + Sender input */}
+            {/* Predefined prompt + composer */}
             <div className="border-t border-[var(--ag-rgba-051729-06)] px-3 pb-3 pt-2">
-                {/* Predefined prompts */}
                 <div className="mb-2">
-                    <Prompts
-                        items={PREDEFINED_PROMPTS}
-                        onItemClick={handlePromptClick}
-                        styles={{
-                            item: {
-                                fontSize: 11,
-                                padding: "4px 10px",
-                            },
-                        }}
-                    />
+                    <button
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => handleSubmit(OPTIMIZE_PROMPT)}
+                        className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer px-2.5 py-1 text-[11px] text-colorTextSecondary transition-colors hover:bg-colorFillTertiary hover:text-colorText disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <Lightbulb size={12} />
+                        {OPTIMIZE_PROMPT}
+                    </button>
                 </div>
 
-                {/* Sender input */}
-                <Sender
-                    value={inputValue}
-                    onChange={setInputValue}
-                    onSubmit={handleSubmit}
-                    placeholder="Describe how to refine your prompt…"
-                    loading={isLoading}
-                    disabled={isLoading}
-                    style={{fontSize: 12}}
-                    styles={{
-                        input: {minHeight: 0, padding: "2px 0"},
-                        suffix: {alignSelf: "flex-end"},
-                    }}
-                />
+                <div className="flex items-end gap-1.5 rounded-lg border border-solid border-colorBorder bg-colorBgContainer px-2.5 py-1.5 focus-within:border-colorPrimary">
+                    <textarea
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        onKeyDown={(e) => {
+                            // Enter sends; Shift+Enter breaks the line (the Sender's contract).
+                            if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault()
+                                handleSubmit(inputValue)
+                            }
+                        }}
+                        placeholder="Describe how to refine your prompt…"
+                        disabled={isLoading}
+                        rows={2}
+                        className="min-w-0 flex-1 resize-none border-0 bg-transparent p-0 py-0.5 text-xs text-colorText outline-none placeholder:text-colorTextQuaternary"
+                    />
+                    <button
+                        type="button"
+                        aria-label="Send"
+                        disabled={isLoading || !inputValue.trim()}
+                        onClick={() => handleSubmit(inputValue)}
+                        className="flex size-6 shrink-0 cursor-pointer items-center justify-center self-end rounded-full border-0 bg-colorPrimary text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                        {isLoading ? <Spin size="small" /> : <PaperPlaneRight size={13} />}
+                    </button>
+                </div>
             </div>
         </div>
     )

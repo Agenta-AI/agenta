@@ -1,8 +1,16 @@
 import React, {useCallback, useState} from "react"
 
 import {executeToolCall} from "@agenta/entities/gatewayTool"
+import {message} from "@agenta/ui/app-message"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    LoadingButton,
+} from "@agenta/ui/ui"
 import {CaretDown, Lightning} from "@phosphor-icons/react"
-import {Dropdown, message as antMessage} from "antd"
 import {v4 as uuidv4} from "uuid"
 
 // Gateway tool function name format: tools__{provider}__{integration}__{action}__{connection}
@@ -57,7 +65,7 @@ const GatewayToolExecuteButton: React.FC<Props> = ({
                     onExecuteAndSendToChat?.()
                 }
             } catch {
-                antMessage.error("Tool execution failed")
+                message.error("Tool execution failed")
             } finally {
                 setExecutingId(null)
             }
@@ -71,25 +79,36 @@ const GatewayToolExecuteButton: React.FC<Props> = ({
     return (
         <div className="flex flex-col gap-1">
             {gatewayPayloads.map((p) => (
-                <Dropdown.Button
-                    key={p.callId || p.name}
-                    size="small"
-                    icon={<CaretDown size={12} />}
-                    loading={executingId === (p.callId || p.name || "default")}
-                    onClick={() => handleExecute(p, true)}
-                    menu={{
-                        items: [
-                            {
-                                key: "call-and-send",
-                                label: "Call tool",
-                            },
-                        ],
-                        onClick: () => handleExecute(p, false),
-                    }}
-                >
-                    <Lightning size={12} />
-                    Call tool and send to chat
-                </Dropdown.Button>
+                // Split button: the primary click calls AND sends; the caret offers the plain call.
+                <span key={p.callId || p.name} className="inline-flex">
+                    <LoadingButton
+                        variant="outline"
+                        size="sm"
+                        loading={executingId === (p.callId || p.name || "default")}
+                        onClick={() => handleExecute(p, true)}
+                        className="rounded-r-none"
+                    >
+                        <Lightning size={12} />
+                        Call tool and send to chat
+                    </LoadingButton>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="icon-sm"
+                                aria-label="Tool call options"
+                                className="-ml-px rounded-l-none"
+                            >
+                                <CaretDown size={12} />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => handleExecute(p, false)}>
+                                Call tool
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </span>
             ))}
         </div>
     )
