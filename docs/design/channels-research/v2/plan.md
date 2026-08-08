@@ -193,6 +193,30 @@ operator can configure a connection end to end over the API.
 
 **Serialised here:** WP8's router registration and its `check_action_access` wiring.
 
+#### Status: deployed and green, exit condition NOT met
+
+The stack was deployed from scratch (`--nuke`) and the canonical suite run against
+it: api 2754 unit / 43 integration / 802 acceptance; sdk 2003 / 145 / 118; services
+100 / 15 / 145; runner 2070 pass with the 19 known `F21` failures in their three
+usual files. Zero new failures anywhere. Both Python and TypeScript clients were
+regenerated and verified — 30-for-30 against the deployed schema, every EE resource
+intact, and the api acceptance layer ran against the rebuilt `agenta-client`.
+
+What the deployment newly established, beyond the offline checks:
+
+- both channels queues consume from a real Redis, with no config change
+- all eight channels tables build from an empty database, WP7's identity table
+  included — the single-migration decision held
+- `kind` columns are `varchar` while `origin` and `state` are real Postgres enum
+  types, so a new channel kind needs no migration and `query_events_since`'s
+  declaration-order sort still holds
+- 449 paths / 22 channels paths served, matching the in-process dump exactly
+
+**None of that is the exit condition.** No message has travelled the path: no Slack
+mention, no button approval, no turn. `F36` is why — commands, fill and the mock
+adapter have no callers, and `F31` leaves `streams:sessions` unconsumed. C3 is
+*deployable and verified*, not *proved*.
+
 ### C4 — It is pleasant
 
 **Merges:** WP15, then WP16; and WP0, WP9, WP10, WP13. **Needs:** C3.

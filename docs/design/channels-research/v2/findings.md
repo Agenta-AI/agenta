@@ -977,6 +977,13 @@
   would be too. Also worth noting no hosting change was needed: every compose
   file and the Helm chart set `AGENTA_WORKER_QUEUES` empty, which selects all
   queues, so the two new consumers start on the next deploy.
+- **Confirmed on a deployed stack at C3**, which is more than the structural
+  check above: `worker-queues` logs
+  `selected=[webhooks, triggers, interactions, evaluations, channels-inbox,
+  channels-outbox]` and `Listening on queue=` for both new queues, against a
+  real Redis, with no config change. The predicted "starts on the next deploy"
+  held. Still not exercised — no message has travelled the path even now, which
+  is what `F36` is about.
 - Follow-ups: `F26` (public bridge route, no adapter) and `F27` (the
   composition root cannot be imported outside a container, which is why this
   was missable at all).
