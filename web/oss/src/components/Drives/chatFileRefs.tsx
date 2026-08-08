@@ -25,11 +25,11 @@ import {
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {agentMountQueryFamily} from "./agentDrive"
-import {DriveFileInlineRef} from "./DriveFileCard"
-import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
-import {cleanPath} from "./driveTree"
-import {AGENT_FILES_DIR} from "./useSessionDrive"
+import {agentMountQueryFamily} from "@agenta/entities/drive"
+import {DriveFileInlineRef} from "@agenta/entity-ui/drive"
+import {useDriveArtifactId, useDriveSessionId} from "@agenta/entity-ui/drive"
+import {cleanPath} from "@agenta/entities/drive"
+import {AGENT_FILES_DIR} from "@agenta/entities/drive"
 
 /** A span that could NAME a file; strip a leading `./` and require a path-ish shape: a slash, or a
  * letter-led trailing extension (`.ts`, `.tar.gz`). A bare `/[./]/` matched any dotted token —
