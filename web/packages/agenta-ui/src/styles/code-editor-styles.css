@@ -204,10 +204,21 @@
         position: relative;
 
         z-index: 1;
-        @apply scrollbar scrollbar-h-0 scrollbar-thumb-[#ddd] scrollbar-track-[#f0f0f0];
+        /* Plain CSS, not `@apply scrollbar-*`: that plugin exists only in the desktop app's
+           Tailwind v3 config, and one unknown utility makes the WHOLE stylesheet unparsable
+           wherever it is imported. Same rendering, no plugin dependency. */
+        &::-webkit-scrollbar {
+            height: 0;
+        }
+        &::-webkit-scrollbar-thumb {
+            background-color: #ddd;
+        }
+        &::-webkit-scrollbar-track {
+            background-color: #f0f0f0;
+        }
 
-        &:hover {
-            @apply scrollbar-h-[2px];
+        &:hover::-webkit-scrollbar {
+            height: 2px;
         }
         white-space: pre-wrap;
 

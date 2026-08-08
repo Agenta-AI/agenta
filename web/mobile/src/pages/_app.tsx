@@ -1,3 +1,4 @@
+import AppMessageContext from "@agenta/ui/app-message"
 import type {AppProps} from "next/app"
 import Head from "next/head"
 
@@ -20,6 +21,10 @@ export default function App({Component, pageProps}: AppProps) {
             </Head>
             <AppProviders>
                 <Component {...pageProps} />
+                {/* The imperative message/modal outlet the SHARED session verbs render their
+                    confirms into (rename, delete). Antd-free — it is the kit's own
+                    reimplementation of that API, not antd's App context. */}
+                <AppMessageContext />
             </AppProviders>
         </>
     )

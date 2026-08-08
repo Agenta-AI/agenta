@@ -9,7 +9,10 @@
  *
  * SAFETY: writes to $GEN_OUT (default: a scratch dir), never the live
  * theme-variables.css, so it can't collide with in-flight edits. Pass
- * GEN_OUT=oss/src/styles to actually regenerate (Phase 3, when the tree is quiet).
+ * GEN_OUT=packages/agenta-ui/src/styles to actually regenerate (Phase 3, when the tree is
+ * quiet). theme-variables.css moved there so BOTH apps import one generated token layer —
+ * shared components reference `--ag-*` literally, and mobile silently had 98 of them undefined
+ * while it lived under oss/.
  *
  * Run: pnpm --filter web exec tsx scripts/generate-tailwind-tokens.ts   (from web/)
  */
