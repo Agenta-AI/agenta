@@ -88,31 +88,76 @@ how a wire contract becomes unevolvable.** They are:
 | `protocol.versions` | this contract as a whole, in `bridge.hello` | us, at a checkpoint |
 | `.v1` in `type` | one event's `data` shape | us, per event type |
 
-### OPEN: what `source` is for
+### What demultiplexes a bridge, and what `source` is for
 
-`source` is the only field that says **which bridge** sent an event, and this
-contract does not yet state what core does with it. One route serves every bridge
-by design, so something must demultiplex — and the candidates behave differently:
+One route serves every bridge by design (§3). Something has to recover *which*
+bridge, and therefore which connection, an inbound event belongs to. Two
+signals are on the wire that could answer that: the **bridge credential**
+presented on the request, and the **`source`** field inside the signed body.
+They are not equally trustworthy, and the contract commits to one rule:
 
-- **`source` is authoritative.** Simple, but `source` is self-asserted: it arrives
-  inside the signed body, so it is tamper-evident yet not *verified*. A bridge
-  could name another bridge's source and only the signature would disagree.
-- **The credential is authoritative.** Verifying it is already mandatory, and
-  identifying the caller is the same act — so nothing extra is trusted. Then
-  `source` is documentation, and core must say whether a mismatch is an error.
-- **The credential decides, `source` cross-checks.** A mismatch is a hard refusal.
-  Strictest, and it makes a misconfigured bridge fail loudly rather than silently
-  writing into another bridge's connection.
+**The credential is authoritative. `source` is a required cross-check, and a
+mismatch is a hard refusal.**
 
-Also undecided: **the channel key for a bridged platform.** `bridge/<name>`, or a
-key the bridge declares at `hello`? It is what `gateway_connections.provider_key`
-stores and what the adapter registry is keyed on, so it is a persisted value, not
-an implementation detail.
+Why the credential and not `source`: verifying the credential is already
+mandatory — every inbound request is rejected if it does not carry a valid
+signature — and *identifying which bridge is calling* is the same act as
+*verifying that a bridge is allowed to call at all*. Trusting the credential
+for identity adds nothing beyond what verification already establishes.
+`source`, by contrast, is a value the bridge writes into its own request body.
+Signing the body proves the bytes were not altered in transit; it does not
+prove the bridge told the truth about which bridge it is. A bridge — by bug or
+by compromise — can sign a body that names a different installation's `source`
+and the signature alone will not catch it.
 
-Until this is settled the implementation keys everything on the literal string
-`"bridge"`, which collapses all bridged platforms into one channel — see `F37`.
-Settle it here, then implement; a decision made only in `ingress.py` is a protocol
-a third-party bridge author has to read our source to discover.
+So resolution always proceeds from the credential, never from `source`. But
+`source` is not therefore decorative: every inbound event's `source` MUST equal
+the identity the credential resolves to. If it does not, core refuses the event
+outright — the same discipline as an invalid signature: no partial acceptance,
+no "trust the credential and ignore the mismatch." A receiver that logged and
+continued would let a bridge silently address another installation's
+connection, which is exactly the failure mode a bridge author cannot detect
+from their own side. Concretely: reject with the same shape and the same lack
+of diagnostic detail as a bad signature (do not reveal which side — the
+credential or the claimed `source` — a real attacker could exploit that to
+enumerate valid credentials or valid `source` values). A bridge that only ever
+speaks for itself and copies `bridge.name` into `source` verbatim will never
+see this path; it exists for the case that indicates a bug or an attack.
+
+`source` therefore remains **required** on the wire, but its role is
+diagnostic and cross-checking, not identifying: it lets a human reading logs or
+a bridge author debugging their own integration see which installation an
+event claims to be, and it gives core a cheap consistency check for free.
+Making it optional once it stops being authoritative would invite a bridge to
+fill it carelessly or drop it, discarding that check for no benefit — so the
+field stays mandatory and MUST match what the credential resolves to.
+
+### The channel key for a bridged platform
+
+A bridged platform's channel key is **not** `bridge/<name>` or any other
+per-bridge value invented from `bridge.name` or `source`. It is the single,
+fixed key `bridge`, shared by every bridge that ever registers — the same key
+already used to dispatch to the one generic bridge adapter, regardless of
+which platform is on the other end.
+
+This is forced, not stylistic. The channel key is `provider_key` on
+`ConnectionProviderKind`, a fixed three-member enumeration a third party
+cannot extend — nothing outside this codebase can add a member to a Python
+enum, so a scheme that mints one channel key per bridge does not scale past
+the first external bridge author. The bridge's own identity — the value in
+`bridge.name` / `source` — is **not** discarded; it is carried as the
+connection's `integration_key`, the same field that already holds a first-party
+Slack installation's team id. `(provider_key, integration_key)` is already the
+lookup pair a connection resolves through, so one bridge and a hundred bridges
+key identically: `provider_key="bridge"` selects the one bridge adapter,
+`integration_key` selects the specific installation the credential belongs to,
+and every bridge author reads the same rule regardless of how many other
+bridges are installed alongside them.
+
+A consequence worth stating plainly: two bridges never collide on the channel
+key, because they never share an `integration_key` — the credential each was
+issued resolves to its own connection row, keyed on its own installation
+identity, not on a name the bridge chose for itself.
 
 **`specversion`, `id`, `type`, `source`, `time` and `data` are CloudEvents' own
 field names** and are spelled its way, `specversion` included. Renaming it to

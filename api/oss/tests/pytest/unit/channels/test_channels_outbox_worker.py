@@ -28,7 +28,10 @@ from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.sessions.turns.service import SessionTurnsService
-from oss.src.tasks.asyncio.channels.outbox import ChannelsOutboxWorker
+from oss.src.tasks.asyncio.channels.outbox import (
+    ChannelsOutboxStreamWorker,
+    ChannelsOutboxWorker,
+)
 
 from .contract.fakes import WellBehavedFakeAdapter
 
@@ -567,3 +570,183 @@ async def test_idempotency_key_differs_between_post_and_edit_but_is_stable_on_re
         key=row_after_edit.key, updated_at=row_after_edit.updated_at
     )
     assert retry_key == edit_key
+
+
+@pytest.mark.asyncio
+async def test_handle_turn_event_routes_started_by_kind_alone(
+    worker, channels_dao, connections_service
+):
+    """No `latest_turn` re-read: `kind` alone decides the branch, so a
+    concurrent second turn on the same session can never be mistaken for
+    this one."""
+
+    session_id = "sess-7"
+    _, thread = await _seed_connection_and_thread(
+        channels_dao, connections_service, session_id
+    )
+
+    await worker.handle_turn_event(
+        project_id=PROJECT_ID,
+        session_id=session_id,
+        turn_id="turn-7",
+        kind="turn_started",
+    )
+
+    assert len(channels_dao.outbox) == 1
+    assert next(iter(channels_dao.outbox.values())).state == ChannelDeliveryState.SENT
+
+
+@pytest.mark.asyncio
+async def test_handle_turn_event_routes_ended_by_kind_alone(
+    worker, channels_dao, connections_service, records_dao
+):
+    session_id = "sess-8"
+    _, thread = await _seed_connection_and_thread(
+        channels_dao, connections_service, session_id
+    )
+
+    await worker.handle_turn_event(
+        project_id=PROJECT_ID,
+        session_id=session_id,
+        turn_id="turn-8",
+        kind="turn_started",
+    )
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-8",
+        record_type="message",
+        attributes={"text": "the answer"},
+    )
+
+    await worker.handle_turn_event(
+        project_id=PROJECT_ID,
+        session_id=session_id,
+        turn_id="turn-8",
+        kind="turn_ended",
+    )
+
+    assert len(channels_dao.outbox) == 1  # edited in place, same as on_turn_ended
+    row = next(iter(channels_dao.outbox.values()))
+    content = row.data.processed["content"]
+    assert any("the answer" in part.get("text", "") for part in content)
+
+
+@pytest.mark.asyncio
+async def test_handle_turn_event_with_no_channel_thread_is_a_silent_no_op(worker):
+    """A session with no channel_threads row (an ordinary, non-channel
+    session) must not raise — most turns are not addressed from a channel."""
+
+    await worker.handle_turn_event(
+        project_id=PROJECT_ID,
+        session_id="sess-not-a-channel-thread",
+        turn_id="turn-9",
+        kind="turn_started",
+    )
+
+
+def _turn_event_payload(*, kind, project_id, session_id, turn_id):
+    from orjson import dumps
+
+    return dumps(
+        {
+            "kind": kind,
+            "project_id": str(project_id),
+            "session_id": session_id,
+            "turn_id": turn_id,
+        }
+    )
+
+
+class TestChannelsOutboxStreamWorker:
+    """`process_batch`: deserialize, route by `kind`, ack — the
+    `streams:sessions` consumer that replaces the poll."""
+
+    @pytest.mark.asyncio
+    async def test_process_batch_drives_the_outbox_from_the_events_own_kind(
+        self, worker, channels_dao, connections_service
+    ):
+        session_id = "sess-stream-1"
+        _, thread = await _seed_connection_and_thread(
+            channels_dao, connections_service, session_id
+        )
+
+        stream_worker = ChannelsOutboxStreamWorker(
+            outbox=worker,
+            redis_client=None,
+            stream_name="streams:sessions",
+            consumer_group="worker-sessions-channels-outbox",
+        )
+
+        batch = [
+            (
+                b"1-0",
+                {
+                    b"data": _turn_event_payload(
+                        kind="turn_started",
+                        project_id=PROJECT_ID,
+                        session_id=session_id,
+                        turn_id="turn-stream-1",
+                    )
+                },
+            )
+        ]
+
+        total, processed_ids = await stream_worker.process_batch(batch)
+
+        assert total == 1
+        assert processed_ids == [b"1-0"]
+        assert len(channels_dao.outbox) == 1
+
+    @pytest.mark.asyncio
+    async def test_process_batch_acks_unparseable_messages_without_raising(
+        self, worker
+    ):
+        stream_worker = ChannelsOutboxStreamWorker(
+            outbox=worker,
+            redis_client=None,
+            stream_name="streams:sessions",
+            consumer_group="worker-sessions-channels-outbox",
+        )
+
+        total, processed_ids = await stream_worker.process_batch(
+            [(b"1-0", {b"data": b"not-json"})]
+        )
+
+        assert total == 1
+        assert processed_ids == [b"1-0"]  # acked, not left to pile up in the PEL
+
+    @pytest.mark.asyncio
+    async def test_process_batch_leaves_a_handler_failure_unacked(self, worker):
+        """A real failure is retried, unlike a malformed payload: the
+        message stays pending rather than being acked away."""
+
+        async def _raising_query_threads(*, project_id, thread=None, windowing=None):
+            raise RuntimeError("db unavailable")
+
+        worker.channels_service.channels_dao.query_threads = _raising_query_threads
+
+        stream_worker = ChannelsOutboxStreamWorker(
+            outbox=worker,
+            redis_client=None,
+            stream_name="streams:sessions",
+            consumer_group="worker-sessions-channels-outbox",
+        )
+
+        batch = [
+            (
+                b"1-0",
+                {
+                    b"data": _turn_event_payload(
+                        kind="turn_started",
+                        project_id=PROJECT_ID,
+                        session_id="sess-any",
+                        turn_id="turn-x",
+                    )
+                },
+            )
+        ]
+
+        total, processed_ids = await stream_worker.process_batch(batch)
+
+        assert total == 0
+        assert processed_ids == []

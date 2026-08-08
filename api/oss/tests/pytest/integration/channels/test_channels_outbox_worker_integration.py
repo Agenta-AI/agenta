@@ -2,12 +2,11 @@
 
 `RecordsService` is faked here because records live on the analytics engine
 (a separate connection this fixture does not stand up); everything the
-outbox worker actually owns — the outbox row lifecycle and the turns lookup
+outbox worker actually owns — the outbox row lifecycle and the thread lookup
 — goes through the real DAOs.
 """
 
 import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -34,7 +33,6 @@ from oss.src.core.channels.service import ChannelsService
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
@@ -73,6 +71,9 @@ class _LocalFakeAdapter(ChannelAdapterInterface):
 
     async def fetch_capabilities(self) -> ChannelCapabilities:
         return self._capabilities
+
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        raise NotImplementedError
 
     async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
         raise NotImplementedError
@@ -376,34 +377,21 @@ async def test_turn_ended_edits_the_same_row_across_a_real_transition(outbox_sco
     assert rows[0].id == started_id
 
 
-async def test_polling_finds_the_channel_thread_by_session_id(outbox_scope):
-    """poll_turn's own thread lookup (query_threads by session_id) against a
-    real channel_threads row, with a real session_turns row for the same
-    session — the two indexed lookups this exercises."""
-
-    turns_dao = SessionTurnsDAO(engine=None)
-    await turns_dao.append(
-        project_id=outbox_scope["project_id"],
-        user_id=outbox_scope["user_id"],
-        turn=SessionTurnCreate(
-            session_id=outbox_scope["session_id"],
-            turn_id=uuid.uuid4(),
-            stream_id=outbox_scope["stream_id"],
-            turn_index=0,
-            harness_kind=HarnessKind.CLAUDE,
-            start_time=datetime.now(timezone.utc),
-        ),
-    )
+async def test_turn_event_finds_the_channel_thread_by_session_id(outbox_scope):
+    """`handle_turn_event`'s own thread lookup (query_threads by session_id)
+    against a real channel_threads row — driven by the event's own `kind`,
+    not a `session_turns` re-read."""
 
     records_dao = _FakeRecordsDAO()
     worker = _worker(outbox_scope, records_dao)
 
-    await worker.poll_turn(
+    await worker.handle_turn_event(
         project_id=outbox_scope["project_id"],
         session_id=outbox_scope["session_id"],
+        turn_id="turn-int-3",
+        kind="turn_started",
     )
 
-    # end_time is still null -> this poll tick took the turn-started branch
     rows = await outbox_scope["channels_dao"].query_outbox_events(
         project_id=outbox_scope["project_id"]
     )

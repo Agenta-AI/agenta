@@ -24,6 +24,7 @@ from sqlalchemy import text
 
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.dtos import (
+    ChannelConnection,
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
@@ -31,6 +32,7 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
+from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 
 pytestmark = pytest.mark.integration
@@ -48,7 +50,12 @@ class _FakeSlackAdapter:
         self.installation_id = installation_id
         self.external_id = external_id
 
-    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        return self.installation_id
+
+    async def verify_signature(
+        self, *, headers: Dict[str, str], body: bytes, connection=None
+    ) -> str:
         if headers.get("x-fake-signature") != "valid":
             raise ChannelSignatureInvalid(channel=self.channel)
         return self.installation_id
@@ -104,10 +111,22 @@ async def seam(channels_scope):
     )
     registry = _Registry({"slack": adapter})
 
+    # The ingress fetches the connection to get the secret its signature is
+    # verified against, so this is on the path now.
+    class _Connections:
+        async def get_connection(self, *, project_id, connection_id):
+            return ChannelConnection(
+                id=connection_id,
+                slug="seam-connection",
+                provider_key=ConnectionProviderKind.SLACK,
+                integration_key=channels_scope["external_id"],
+                data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
+            )
+
     service = ChannelsService(
         channels_dao=ChannelsDAO(engine=engine),
         adapter_registry=registry,
-        connections_service=None,  # untouched on the ingress path
+        connections_service=_Connections(),
     )
 
     app = FastAPI()

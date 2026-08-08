@@ -25,10 +25,31 @@ class ChannelAdapterInterface(ABC):
     # --- ingress ---
 
     @abstractmethod
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        """The installation this body claims to come from, read without any
+        secret, so the caller can look up which connection to verify against.
+
+        Unverified and untrusted: it only selects the secret the signature is
+        then checked with. A wrong or forged hint resolves to no connection, or
+        to one whose secret fails — refused either way, so the signature stays
+        the only thing that decides.
+
+        Abstract rather than defaulted: returning None here means the ingress
+        resolves no connection and refuses every event for that channel, which
+        is silent. An adapter must say what its claim is, even if it is fixed.
+        """
+
+    @abstractmethod
     async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
         """Verify HMAC with timestamp replay protection; return the platform's own
         installation id. Verification and identification are one act — the caller
-        maps that id to a connection. Raises ChannelSignatureInvalid."""
+        maps that id to a connection. Raises ChannelSignatureInvalid.
+
+        Where the payload also carries a self-asserted sender identity (a
+        bridge's envelope `source`), that value is a cross-check against the
+        id derived here, never a substitute for it: a mismatch must raise
+        ChannelSignatureInvalid rather than resolve against the unverified
+        value."""
 
     @abstractmethod
     async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:

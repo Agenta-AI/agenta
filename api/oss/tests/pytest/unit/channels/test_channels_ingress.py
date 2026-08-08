@@ -5,6 +5,7 @@ answer 202. No DB, no real adapter -- ChannelsService and
 ChannelAdapterRegistry are faked here to the shape they declare.
 """
 
+import json
 from typing import Dict, Optional
 from uuid import UUID, uuid4
 
@@ -14,12 +15,14 @@ from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.dtos import (
+    ChannelConnection,
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
     ChannelSpaceKind,
 )
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
+from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 
 LOCATOR = {"team": "T1", "channel": "C1"}
@@ -36,7 +39,16 @@ class FakeAdapter:
         self.verify_calls = 0
         self.parse_calls = 0
 
-    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        return self.installation_id
+
+    async def verify_signature(
+        self,
+        *,
+        headers: Dict[str, str],
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+    ) -> str:
         self.verify_calls += 1
         if headers.get("x-fake-signature") != "valid":
             raise ChannelSignatureInvalid(channel=self.channel)
@@ -72,16 +84,42 @@ class FakeAdapterRegistry:
         return self._adapters[channel]
 
 
-class FakeChannelsService:
-    """Stands in for ChannelsService -- just the two ingress-facing methods:
-    resolve a connection, and append to the log with the dedup contract
-    (None on an already-recorded external_id)."""
+class FakeConnectionsService:
+    """Stands in for ConnectionsService -- the one method the ingress needs, to
+    fetch the connection whose secret the signature is verified against."""
 
-    def __init__(self, *, project_id: UUID, connection_id: UUID):
+    def __init__(self, *, connection: ChannelConnection):
+        self.connection = connection
+
+    async def get_connection(self, *, project_id: UUID, connection_id: UUID):
+        return self.connection
+
+
+class FakeChannelsService:
+    """Stands in for ChannelsService -- just the ingress-facing methods:
+    resolve a connection, fetch it, and append to the log with the dedup
+    contract (None on an already-recorded external_id)."""
+
+    def __init__(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        integration_key: str = "T1",
+    ):
         self.project_id = project_id
         self.connection_id = connection_id
         self.recorded = []
         self.seen_external_ids = set()
+        self.connections_service = FakeConnectionsService(
+            connection=ChannelConnection(
+                id=connection_id,
+                slug="fake-connection",
+                provider_key=ConnectionProviderKind.SLACK,
+                integration_key=integration_key,
+                data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
+            )
+        )
 
     async def get_project_and_connection_by_external_id(self, *, channel, external_id):
         if external_id != "T1":
@@ -177,6 +215,99 @@ def test_bridge_route_is_registered_and_reachable(service):
 
 
 # ---------------------------------------------------------------------------
+# The bridge's credential-vs-source cross-check.
+#
+# BridgeAdapter itself does not exist yet -- these fake the adapter to the
+# shape its verify_signature must have: it reads the envelope's claimed
+# sender out of the body, resolves its own identity from the credential, and
+# raises ChannelSignatureInvalid on a mismatch. That behaviour is asserted
+# through the same route both arms share, exactly like every other adapter
+# failure mode in this module.
+# ---------------------------------------------------------------------------
+
+
+class FakeCrossCheckingBridgeAdapter(FakeAdapter):
+    """Resolves an installation id from the credential header, then refuses
+    if the body's declared `source` disagrees with it."""
+
+    channel = "bridge"
+
+    def __init__(self, *, installation_id: str = "acme-wecom"):
+        super().__init__(installation_id=installation_id)
+
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        return json.loads(body).get("source") if body else None
+
+    async def verify_signature(self, *, headers, body, connection=None):
+        if headers.get("x-fake-signature") != "valid":
+            raise ChannelSignatureInvalid(channel=self.channel)
+
+        claimed_source = json.loads(body).get("source") if body else None
+        if claimed_source is not None and claimed_source != self.installation_id:
+            raise ChannelSignatureInvalid(channel=self.channel)
+
+        return self.installation_id
+
+
+def _bridge_client(service, *, installation_id: str = "acme-wecom"):
+    adapter = FakeCrossCheckingBridgeAdapter(installation_id=installation_id)
+    registry = FakeAdapterRegistry({"bridge": adapter})
+    app, _ = _make_app(service=service, registry=registry)
+    return TestClient(app), adapter
+
+
+def test_bridge_event_resolves_from_the_verified_credential(service):
+    client, _ = _bridge_client(service, installation_id="T1")
+
+    response = client.post(
+        "/channels/bridge/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b'{"source": "T1"}',
+    )
+
+    assert response.status_code == 202, response.text
+    assert len(service.recorded) == 1
+
+
+def test_bridge_source_credential_mismatch_is_refused(service):
+    client, _ = _bridge_client(service, installation_id="T1")
+
+    response = client.post(
+        "/channels/bridge/events/",
+        headers={"x-fake-signature": "valid"},
+        content=b'{"source": "some-other-bridge"}',
+    )
+
+    assert response.status_code == 401, response.text
+    assert service.recorded == []
+    # Same discipline as any other signature failure: no detail on which
+    # side -- credential or claimed source -- disagreed.
+    body_text = response.text.lower()
+    assert "source" not in body_text
+    assert "t1" not in body_text
+    assert "some-other-bridge" not in body_text
+
+
+def test_unknown_bridge_credential_is_refused_identically_to_a_bad_signature(
+    service,
+):
+    """An unrecognised credential and a source/credential mismatch must be
+    indistinguishable from outside -- both are ChannelSignatureInvalid, both
+    401, both silent."""
+
+    client, _ = _bridge_client(service, installation_id="T1")
+
+    response = client.post(
+        "/channels/bridge/events/",
+        headers={"x-fake-signature": "forged"},
+        content=b'{"source": "T1"}',
+    )
+
+    assert response.status_code == 401, response.text
+    assert service.recorded == []
+
+
+# ---------------------------------------------------------------------------
 # Rejections: no signature, bad signature, stale timestamp (adapter's job,
 # exercised through the route).
 # ---------------------------------------------------------------------------
@@ -213,10 +344,12 @@ def test_stale_timestamp_rejected_even_with_structurally_valid_signature(
     calls it."""
 
     class ReplayGuardedAdapter(FakeAdapter):
-        async def verify_signature(self, *, headers, body):
+        async def verify_signature(self, *, headers, body, connection=None):
             if headers.get("x-fake-timestamp") == "stale":
                 raise ChannelSignatureInvalid(channel=self.channel)
-            return await super().verify_signature(headers=headers, body=body)
+            return await super().verify_signature(
+                headers=headers, body=body, connection=connection
+            )
 
     guarded = ReplayGuardedAdapter()
     app, _ = _make_app(

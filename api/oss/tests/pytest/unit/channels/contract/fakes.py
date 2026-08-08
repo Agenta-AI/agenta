@@ -99,7 +99,16 @@ class WellBehavedFakeAdapter(ChannelAdapterInterface):
     async def fetch_capabilities(self) -> ChannelCapabilities:
         return ChannelCapabilities.model_validate(self._capabilities)
 
-    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        return INSTALLATION_ID
+
+    async def verify_signature(
+        self,
+        *,
+        headers: Dict[str, str],
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+    ) -> str:
         if headers.get(VALID_SIGNATURE_HEADER) != VALID_SIGNATURE_VALUE:
             raise ChannelSignatureInvalid(channel=self.channel)
         return INSTALLATION_ID

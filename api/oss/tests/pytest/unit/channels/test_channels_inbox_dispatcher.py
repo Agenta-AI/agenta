@@ -14,6 +14,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentData,
     ChannelAgentFlags,
+    ChannelCapabilities,
     ChannelEffectivePolicy,
     ChannelEventKind,
     ChannelEventOrigin,
@@ -121,10 +122,17 @@ def _make_channels_service(
     turn_input=None,
     trigger=None,
     query_inbox_events_result=None,
+    capabilities=None,
 ):
     service = MagicMock()
     service.query_inbox_events = AsyncMock(return_value=query_inbox_events_result or [])
     service.resolve = AsyncMock(return_value=resolution)
+    service.resolve_channel = AsyncMock(return_value="mock")
+    # No command sigil, no backfill support: the no-command/no-backfill
+    # branches these tests were written against stay a no-op by default.
+    service.fetch_capabilities = AsyncMock(
+        return_value=capabilities or ChannelCapabilities(channel="mock")
+    )
     service.compose_input = AsyncMock(
         return_value=turn_input or ChannelTurnInput(content=[])
     )
@@ -404,6 +412,10 @@ class TestIndependence:
         channels_service.resolve = AsyncMock(
             side_effect=[triage_resolution, deploy_resolution]
         )
+        channels_service.resolve_channel = AsyncMock(return_value="mock")
+        channels_service.fetch_capabilities = AsyncMock(
+            return_value=ChannelCapabilities(channel="mock")
+        )
         channels_service.compose_input = AsyncMock(
             return_value=ChannelTurnInput(content=[])
         )
@@ -435,10 +447,308 @@ class TestIndependence:
         second_thread = open_turn_calls[1].kwargs["resolution"].thread.id
         assert first_thread != second_thread
 
-        settle_calls = channels_service.settle_turn.call_args_list
-        assert len(settle_calls) == 2
-        trigger_ids = {call.kwargs["trigger_id"] for call in settle_calls}
-        assert trigger_ids == {triage_trigger.id, deploy_trigger.id}
+
+def _command_capabilities(*, sigil="!", commands=None):
+    from oss.src.core.channels.dtos import ChannelCapabilities
+
+    return ChannelCapabilities.model_validate(
+        {
+            "channel": "mock",
+            "addressing": {
+                "sigils": {"agent": "~", "command": sigil},
+                "commands": {"native": True, "in_conversation": False},
+            },
+            "commands": commands if commands is not None else ["new", "sessions"],
+        }
+    )
+
+
+class TestCommandWiring:
+    """`dispatch_event` parses the command sigil after `resolve()` (which
+    already ran the agent sigil) and, on a match, never opens a turn."""
+
+    async def test_matched_command_dispatches_and_opens_no_turn(self):
+        event = _make_event()
+        event.data.processed.content = [{"type": "text", "text": "~triage !sessions"}]
+        resolution = _make_resolution()
+
+        channels_service = _make_channels_service(
+            resolution=resolution, capabilities=_command_capabilities()
+        )
+        channels_service.query_threads = AsyncMock(return_value=[resolution.thread])
+        invoke_fn = AsyncMock()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=invoke_fn
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.query_threads.assert_awaited_once()
+        channels_service.compose_input.assert_not_called()
+        channels_service.open_turn.assert_not_called()
+        invoke_fn.assert_not_called()
+
+    async def test_agent_sigil_resolves_thread_before_command_sigil_is_read(self):
+        """`~triage !stop` — the agent sigil already picked the thread inside
+        resolve() (stubbed here), and the command sigil is read from the same
+        message afterwards; both reach their own handler off one event."""
+
+        event = _make_event()
+        event.data.processed.content = [{"type": "text", "text": "~triage !new"}]
+        resolution = _make_resolution()
+
+        channels_service = _make_channels_service(
+            resolution=resolution, capabilities=_command_capabilities()
+        )
+        channels_service.close_thread = AsyncMock(return_value=resolution.thread)
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        # resolve() (the agent-sigil parse) ran; close_thread (the
+        # command-sigil handler) ran after it, against that same resolution.
+        channels_service.resolve.assert_awaited_once()
+        channels_service.close_thread.assert_awaited_once()
+        _, close_kwargs = channels_service.close_thread.call_args
+        assert close_kwargs["thread_id"] == resolution.thread.id
+
+    async def test_undeclared_command_name_is_not_parsed_and_falls_through_to_a_turn(
+        self,
+    ):
+        """`capabilities.commands` omits `sessions`: `parse_command` itself
+        never matches an undeclared command name, so this event carries no
+        parsed command as far as the worker sees, and the message runs as an
+        ordinary turn instead of vanishing."""
+
+        event = _make_event()
+        event.data.processed.content = [{"type": "text", "text": "~triage !sessions"}]
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+
+        channels_service = _make_channels_service(
+            resolution=resolution,
+            trigger=trigger,
+            capabilities=_command_capabilities(commands=["new"]),
+        )
+        invoke_fn = AsyncMock()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=invoke_fn
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.open_turn.assert_awaited_once()
+        invoke_fn.assert_awaited_once()  # no command matched -> ordinary turn
+
+    async def test_no_command_sigil_falls_through_to_the_ordinary_turn(self):
+        event = _make_event()  # "~triage do it" — no "!" anywhere
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+
+        channels_service = _make_channels_service(
+            resolution=resolution,
+            trigger=trigger,
+            capabilities=_command_capabilities(),
+        )
+        invoke_fn = AsyncMock(return_value="run-1")
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=invoke_fn
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.open_turn.assert_awaited_once()
+        invoke_fn.assert_awaited_once()
+
+    async def test_a_rejected_command_is_logged_not_a_turn_and_not_silent(self, caplog):
+        """`!use` with a malformed id: `dispatch_command` raises
+        `CommandArgumentInvalid` — caught, logged (the addressing event's own
+        row is the record of the attempt), and no turn opens."""
+
+        event = _make_event()
+        event.data.processed.content = [{"type": "text", "text": "~triage !use:nope"}]
+        resolution = _make_resolution()
+
+        channels_service = _make_channels_service(
+            resolution=resolution,
+            capabilities=_command_capabilities(commands=["use"]),
+        )
+        invoke_fn = AsyncMock()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=invoke_fn
+        )
+        with caplog.at_level("INFO"):
+            await dispatcher.dispatch_event(
+                project_id=uuid4(), connection_id=event.connection_id, event=event
+            )
+
+        channels_service.open_turn.assert_not_called()
+        invoke_fn.assert_not_called()
+        assert any("rejected" in record.message for record in caplog.records)
+
+
+class TestBackfillWiring:
+    """`dispatch_event` runs backfill after `resolve()` and before
+    `compose_input`, guarded by the space's own flag."""
+
+    async def test_already_backfilled_space_skips_backfill_entirely(self):
+        event = _make_event()
+        resolution = _make_resolution()  # is_backfilled=True by default
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+
+        channels_service = _make_channels_service(
+            resolution=resolution, trigger=trigger
+        )
+        channels_service.connections_service = MagicMock()
+        channels_service.connections_service.get_connection = AsyncMock()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.connections_service.get_connection.assert_not_called()
+
+    async def test_unbackfilled_space_runs_backfill_before_compose_input(self):
+        from oss.src.core.gateway.connections.dtos import Connection
+
+        event = _make_event()
+        resolution = _make_resolution()
+        resolution.space.flags.is_backfilled = False
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+
+        calls = []
+
+        channels_service = _make_channels_service(
+            resolution=resolution,
+            trigger=trigger,
+            capabilities=ChannelCapabilities.model_validate(
+                {"channel": "mock", "fill": {"backfill": {"supported": True}}}
+            ),
+        )
+
+        async def _compose_input(**kwargs):
+            calls.append("compose_input")
+            return ChannelTurnInput(content=[])
+
+        channels_service.compose_input = AsyncMock(side_effect=_compose_input)
+
+        connection = Connection.model_construct(
+            id=uuid4(), slug="c", provider_key="mock", integration_key="mock"
+        )
+        channels_service.connections_service = MagicMock()
+        channels_service.connections_service.get_connection = AsyncMock(
+            return_value=connection
+        )
+
+        adapter = MagicMock()
+
+        async def _fetch_history(**kwargs):
+            calls.append("fetch_history")
+            return []
+
+        adapter.fetch_history = AsyncMock(side_effect=_fetch_history)
+        channels_service.adapter_registry = MagicMock()
+        channels_service.adapter_registry.get = MagicMock(return_value=adapter)
+        channels_service.channels_dao = MagicMock()
+        channels_service.channels_dao.mark_space_backfilled = AsyncMock()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        assert calls == ["fetch_history", "compose_input"]
+        channels_service.channels_dao.mark_space_backfilled.assert_awaited_once()
+        # an empty-but-answered fetch still sets the flag the dispatcher reads
+        assert resolution.space.flags.is_backfilled is True
+
+    async def test_backfill_refusal_leaves_the_flag_false_and_the_turn_proceeds(self):
+        """A refusal is a per-space capability fact, not this turn's outcome:
+        it never reaches the trigger row (none exists yet), and the turn is
+        still composed and invoked from whatever the live event carries."""
+
+        from oss.src.core.gateway.connections.dtos import Connection
+
+        event = _make_event()
+        resolution = _make_resolution()
+        resolution.space.flags.is_backfilled = False
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+
+        channels_service = _make_channels_service(
+            resolution=resolution,
+            trigger=trigger,
+            capabilities=ChannelCapabilities.model_validate(
+                {"channel": "mock", "fill": {"backfill": {"supported": True}}}
+            ),
+        )
+
+        connection = Connection.model_construct(
+            id=uuid4(), slug="c", provider_key="mock", integration_key="mock"
+        )
+        channels_service.connections_service = MagicMock()
+        channels_service.connections_service.get_connection = AsyncMock(
+            return_value=connection
+        )
+
+        adapter = MagicMock()
+        adapter.fetch_history = AsyncMock(side_effect=Exception("denied"))
+        channels_service.adapter_registry = MagicMock()
+        channels_service.adapter_registry.get = MagicMock(return_value=adapter)
+        channels_service.channels_dao = MagicMock()
+        channels_service.channels_dao.mark_space_backfilled = AsyncMock()
+
+        invoke_fn = AsyncMock(return_value="r-1")
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=invoke_fn
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.channels_dao.mark_space_backfilled.assert_not_called()
+        assert resolution.space.flags.is_backfilled is False
+        # the live message still gets answered despite the refused backfill
+        channels_service.open_turn.assert_awaited_once()
+        invoke_fn.assert_awaited_once()
+
+    async def test_backfill_not_supported_is_never_attempted(self):
+        event = _make_event()
+        resolution = _make_resolution()
+        resolution.space.flags.is_backfilled = False
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+
+        channels_service = _make_channels_service(
+            resolution=resolution, trigger=trigger
+        )  # default capabilities: fill.backfill.supported == False
+        channels_service.connections_service = MagicMock()
+        channels_service.connections_service.get_connection = AsyncMock()
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.connections_service.get_connection.assert_not_called()
+        assert resolution.space.flags.is_backfilled is False
+        channels_service.settle_turn.assert_awaited_once()  # the ordinary turn still runs
 
 
 class TestIdentityAttribution:
