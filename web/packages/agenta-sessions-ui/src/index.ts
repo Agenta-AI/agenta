@@ -6,10 +6,23 @@
  * (eslint-enforced, see eslint.config.mjs).
  */
 export {SessionRow, type SessionRowProps} from "./SessionRow"
+export {SessionCardList, type SessionCardListProps} from "./SessionCardList"
+export {SessionTab, type SessionTabProps} from "./SessionTab"
+export {SessionTabStrip, type SessionTabStripProps} from "./SessionTabStrip"
+export {SessionTabDragItem, type SessionTabDragItemProps} from "./SessionTabDragItem"
+export {SessionTabRail, type SessionTabRailProps} from "./SessionTabRail"
+export {SessionListPanel, type SessionListPanelProps} from "./SessionListPanel"
 export {SessionAgentName} from "./SessionAgentName"
 export {SessionPinButton} from "./SessionPinButton"
 export {SessionStatusIcon} from "./SessionStatusIcon"
 export {type SessionMenuEntry, isMenuDivider} from "./menu"
+export {SessionRowContextMenu, type SessionRowContextMenuProps} from "./SessionRowContextMenu"
+export {
+    useSessionActions,
+    type SessionActionTarget,
+    type SessionLocalCache,
+    type UseSessionActionsOptions,
+} from "./useSessionActions"
 export {
     SessionListSkeleton,
     SessionListEmpty,
@@ -23,3 +36,5 @@ export {
     SessionModeControl,
     SessionArchivedControl,
 } from "./controls/SessionFilterControls"
+export {SessionsListView, type SessionsListViewProps} from "./SessionsListView"
+export {SessionFiltersPanel, type SessionFiltersPanelProps} from "./SessionFiltersPanel"

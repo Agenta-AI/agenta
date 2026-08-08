@@ -33,11 +33,8 @@ const HomeTaskComposer = () => {
     const [pickerOpen, setPickerOpen] = useState(false)
     const attachments = useSeedAttachments()
 
-    // Default to the most recently touched agent; a picked agent that left the roster
-    // (archived, deleted) falls back too, so send never fires with a dead id.
-    const pickedAgentId =
-        agentId && agents.some((agent) => agent.workflowId === agentId) ? agentId : null
-    const effectiveAgentId = pickedAgentId ?? agents[0]?.workflowId ?? null
+    // Default to the most recently touched agent — the one you're most likely to want next.
+    const effectiveAgentId = agentId ?? agents[0]?.workflowId ?? null
 
     const options = useMemo(
         () => agents.map((agent) => ({value: agent.workflowId, label: agent.name})),

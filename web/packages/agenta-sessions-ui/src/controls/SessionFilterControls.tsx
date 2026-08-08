@@ -94,6 +94,41 @@ export const SessionStatusControl = ({waitingCount}: {waitingCount?: number}) =>
     )
 }
 
+const STATUSES: {value: SessionStatusFilter; label: string}[] = [
+    {value: "all", label: "All sessions"},
+    {value: "live", label: "Live"},
+    {value: "waiting", label: "Waiting on you"},
+]
+
+/** The status choice as a list you read, not a segmented control you decode. The toolbar uses
+ * {@link SessionStatusControl}; this is the shape a rail or a mobile filter sheet needs. */
+export const SessionStatusListControl = ({waitingCount}: {waitingCount?: number}) => {
+    const {status, setStatus} = useSessionFilters()
+    return (
+        <nav className="flex flex-col gap-0.5">
+            {STATUSES.map((option) => (
+                <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setStatus(option.value)}
+                    className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors ${
+                        option.value === status
+                            ? "bg-colorFillSecondary text-colorText"
+                            : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
+                    }`}
+                >
+                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                    {option.value === "waiting" && waitingCount ? (
+                        <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText">
+                            {waitingCount}
+                        </span>
+                    ) : null}
+                </button>
+            ))}
+        </nav>
+    )
+}
+
 const ToggleRow = ({
     checked,
     onChange,

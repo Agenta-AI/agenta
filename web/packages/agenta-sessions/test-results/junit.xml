@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="21" failures="0" errors="0" time="0.012510875">
+    <testsuite name="tests/unit/sessionPreview.test.ts" timestamp="2026-08-06T05:27:01.475Z" hostname="Ardas-MacBook-Pro.local" tests="5" failures="0" errors="0" skipped="0" time="0.0045445">
+        <testcase classname="tests/unit/sessionPreview.test.ts" name="sessionPreviewText &gt; shows an agent message as it stands" time="0.002015209">
+        </testcase>
+        <testcase classname="tests/unit/sessionPreview.test.ts" name="sessionPreviewText &gt; marks the human side, which the agent name beside it would otherwise claim" time="0.000163917">
+        </testcase>
+        <testcase classname="tests/unit/sessionPreview.test.ts" name="sessionPreviewText &gt; flattens newlines so a pasted spec stays one line" time="0.000131084">
+        </testcase>
+        <testcase classname="tests/unit/sessionPreview.test.ts" name="sessionPreviewText &gt; truncates on length with an ellipsis" time="0.000764834">
+        </testcase>
+        <testcase classname="tests/unit/sessionPreview.test.ts" name="sessionPreviewText &gt; has nothing to show for a session with no message" time="0.000160083">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sessionRowStatus.test.ts" timestamp="2026-08-06T05:27:01.477Z" hostname="Ardas-MacBook-Pro.local" tests="10" failures="0" errors="0" skipped="0" time="0.004431292">
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="sessionRowStatus &gt; reports a pending gate ahead of a live run" time="0.001621084">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="sessionRowStatus &gt; reports a gate even after the run that raised it finished" time="0.0001315">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="sessionRowStatus &gt; separates a running turn from a merely warm sandbox" time="0.00013975">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="sessionRowStatus &gt; prefers archived over ended, since archiving is the deliberate act" time="0.000129125">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="sessionRowStatus &gt; falls back to idle for a session that has simply gone quiet" time="0.000090292">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="sessionRowStatus &gt; only pulses for states that need attention" time="0.000174708">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="pendingGateLabel &gt; names what the session is asking for" time="0.000144334">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="pendingGateLabel &gt; names a state rather than commanding one, because the chip does not act" time="0.00039025">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="pendingGateLabel &gt; falls back to the generic label when the kind is unknown or absent" time="0.0002175">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowStatus.test.ts" name="pendingGateLabel &gt; does not claim one action when several are open" time="0.0001455">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/sessionRowTitle.test.ts" timestamp="2026-08-06T05:27:01.478Z" hostname="Ardas-MacBook-Pro.local" tests="6" failures="0" errors="0" skipped="0" time="0.003535083">
+        <testcase classname="tests/unit/sessionRowTitle.test.ts" name="sessionRowTitle &gt; leads with the name when there is one" time="0.001655709">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowTitle.test.ts" name="sessionRowTitle &gt; names the automation when one fired the run" time="0.000182666">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowTitle.test.ts" name="sessionRowTitle &gt; prefers a typed name over the automation&apos;s" time="0.000139916">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowTitle.test.ts" name="sessionRowTitle &gt; leads with the message when nobody named the session" time="0.00013125">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowTitle.test.ts" name="sessionRowTitle &gt; does not print the message twice" time="0.000129166">
+        </testcase>
+        <testcase classname="tests/unit/sessionRowTitle.test.ts" name="sessionRowTitle &gt; falls back only when there is nothing to say" time="0.000115917">
+        </testcase>
+    </testsuite>
+</testsuites>

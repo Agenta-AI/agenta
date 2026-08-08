@@ -1,6 +1,6 @@
 import {memo, type ReactNode} from "react"
 
-import {type SessionRowVm} from "@agenta/sessions/row"
+import {pendingGateLabel, type SessionRowVm} from "@agenta/sessions/row"
 import {timeAgo} from "@agenta/shared/utils"
 import {
     Button,
@@ -94,7 +94,7 @@ const SessionRowImpl = ({
                             row.status.chipClassName,
                         )}
                     >
-                        {row.status.chipLabel}
+                        {pendingGateLabel(row.pending?.kinds)}
                     </span>
                 ) : null}
 

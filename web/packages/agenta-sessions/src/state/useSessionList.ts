@@ -20,7 +20,7 @@ export {SESSIONS_PAGE_SIZE}
  * per-row "waiting" badge, and the id set the "Waiting" filter pushes down to the server.
  *
  * Cadence mirrors mobile: 15s while anything is pending (a running turn is what mints new gates),
- * 30s when idle, re-checked on focus.
+ * stopped when idle, re-checked on focus.
  */
 export const useActionableInteractions = (projectId: string) =>
     useQuery<SessionInteraction[] | null>({

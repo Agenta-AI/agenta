@@ -136,7 +136,7 @@ const AgentOverview = ({appId, agentName}: Props) => {
             </div>
 
             <div className="flex min-h-0 w-full shrink-0 grow-0 flex-col lg:h-full lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px] lg:pr-1">
-                <PanelSurface>
+                <PanelSurface className="flex max-h-full min-h-0 flex-col">
                     <PanelScroll>
                         <AgentConfigurationCard appId={appId} />
 

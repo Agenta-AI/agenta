@@ -49,7 +49,7 @@ export interface AgentTemplate {
     category: string
     /** Monogram shown in the colored tile. */
     initials: string
-    /** Tile accent (inline style). Monograms render WHITE initials on it — keep it dark enough. */
+    /** Tile accent color (data-driven → inline style). */
     color: string
     /** Short one-liner (card). */
     description: string

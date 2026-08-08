@@ -85,87 +85,64 @@ export const useSessionCardList = ({
     })
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
-    // Memoized: `rowsFromPages` mints a new array per call, and an unstable array here would
-    // re-derive every row VM (and re-render every memoized row) on every render.
-    const listRows = useMemo(() => rowsFromPages(listQuery.data?.pages), [listQuery.data?.pages])
-    const waitingRowsAll = useMemo(
-        () => (useWaiting ? rowsFromPages(waitingQuery.data?.pages) : []),
-        [useWaiting, waitingQuery.data?.pages],
-    )
+    const listRows = rowsFromPages(listQuery.data?.pages)
+    const waitingRowsAll = useWaiting ? rowsFromPages(waitingQuery.data?.pages) : []
     const waitingSet = useMemo(
         () => new Set(waitingRowsAll.map((row) => row.session_id)),
         [waitingRowsAll],
     )
-    const pinnedRowsAll = useMemo(
-        () => (usePins ? rowsFromPages(pinnedQuery.data?.pages) : []),
-        [usePins, pinnedQuery.data?.pages],
-    )
     const knownById = useMemo(() => {
         const byId = new Map<string, SessionStream>()
-        for (const row of [...pinnedRowsAll, ...listRows]) byId.set(row.session_id, row)
+        for (const row of [...(usePins ? rowsFromPages(pinnedQuery.data?.pages) : []), ...listRows])
+            byId.set(row.session_id, row)
         return byId
-    }, [pinnedRowsAll, listRows])
+    }, [pinnedQuery.data?.pages, listRows, usePins])
 
     const shownLimit = limit + extraRows
-    const {groups, isEmpty, shownCount} = useMemo(() => {
-        const waitingRows = waitingRowsAll.slice(0, shownLimit)
-        const allPinned = usePins
-            ? pinnedIds.flatMap((id) => {
-                  const row = knownById.get(id)
-                  return row && !waitingSet.has(id) ? [row] : []
-              })
-            : []
-        const pinnedRows = allPinned.slice(0, Math.max(0, shownLimit - waitingRows.length))
-        const recentRows = listRows
-            // Only a card that RENDERS a pinned group may withhold pinned rows from here. Automation
-            // runs doesn't, so filtering them out unconditionally made pinning one delete it from view.
-            .filter(
-                (row) =>
-                    (!withPinned || !pinnedSet.has(row.session_id)) &&
-                    !waitingSet.has(row.session_id),
-            )
-            .slice(0, Math.max(0, shownLimit - waitingRows.length - pinnedRows.length))
+    const waitingRows = waitingRowsAll.slice(0, shownLimit)
+    const allPinned = usePins
+        ? pinnedIds.flatMap((id) => {
+              const row = knownById.get(id)
+              return row && !waitingSet.has(id) ? [row] : []
+          })
+        : []
+    const pinnedRows = allPinned.slice(0, Math.max(0, shownLimit - waitingRows.length))
+    const recentRows = listRows
+        // Only a card that RENDERS a pinned group may withhold pinned rows from here. Automation
+        // runs doesn't, so filtering them out unconditionally made pinning one delete it from view.
+        .filter(
+            (row) =>
+                (!withPinned || !pinnedSet.has(row.session_id)) && !waitingSet.has(row.session_id),
+        )
+        .slice(0, Math.max(0, shownLimit - waitingRows.length - pinnedRows.length))
 
-        const grouped = waitingRows.length > 0 || pinnedRows.length > 0
-        const vm = (row: SessionStream) =>
-            sessionRowVm(row, {
-                pinned: pinnedSet.has(row.session_id),
-                pending: pendingBySession?.get(row.session_id),
-            })
-        const result: SessionCardGroup[] = []
-        if (waitingRows.length > 0)
-            result.push({key: "waiting", label: "Waiting on you", rows: waitingRows.map(vm)})
-        if (pinnedRows.length > 0)
-            result.push({key: "pinned", label: "Pinned", rows: pinnedRows.map(vm)})
-        result.push({
-            key: "recent",
-            label: grouped && recentRows.length > 0 ? "Recent" : undefined,
-            rows: recentRows.map(vm),
+    const isEmpty = recentRows.length === 0 && pinnedRows.length === 0 && waitingRows.length === 0
+    const grouped = waitingRows.length > 0 || pinnedRows.length > 0
+
+    const vm = (row: SessionStream) =>
+        sessionRowVm(row, {
+            pinned: pinnedSet.has(row.session_id),
+            pending: pendingBySession?.get(row.session_id),
         })
-        return {
-            groups: result,
-            isEmpty: recentRows.length === 0 && pinnedRows.length === 0 && waitingRows.length === 0,
-            shownCount: recentRows.length + pinnedRows.length + waitingRows.length,
-        }
-    }, [
-        waitingRowsAll,
-        shownLimit,
-        usePins,
-        pinnedIds,
-        knownById,
-        waitingSet,
-        listRows,
-        withPinned,
-        pinnedSet,
-        pendingBySession,
-    ])
+    const groups: SessionCardGroup[] = []
+    if (waitingRows.length > 0)
+        groups.push({key: "waiting", label: "Waiting on you", rows: waitingRows.map(vm)})
+    if (pinnedRows.length > 0)
+        groups.push({key: "pinned", label: "Pinned", rows: pinnedRows.map(vm)})
+    groups.push({
+        key: "recent",
+        label: grouped && recentRows.length > 0 ? "Recent" : undefined,
+        rows: recentRows.map(vm),
+    })
 
-    const canShowMore = !isEmpty && (listRows.length > shownCount || Boolean(listQuery.hasNextPage))
-    const {hasNextPage, isFetchingNextPage, fetchNextPage} = listQuery
+    const canShowMore =
+        !isEmpty &&
+        (listRows.length > recentRows.length + pinnedRows.length + waitingRows.length ||
+            Boolean(listQuery.hasNextPage))
     const showMore = useCallback(() => {
         setExtraRows((shown) => shown + limit)
-        if (hasNextPage && !isFetchingNextPage) void fetchNextPage()
-    }, [limit, hasNextPage, isFetchingNextPage, fetchNextPage])
+        if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) void listQuery.fetchNextPage()
+    }, [limit, listQuery])
 
     return {
         groups,

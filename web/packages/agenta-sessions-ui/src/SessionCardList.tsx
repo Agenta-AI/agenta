@@ -1,0 +1,261 @@
+/**
+ * THE session card list — the designed rows from the desktop Home card (status glyph + dot,
+ * title, pending chip, agent name, activity, pin, context menu, subtitle), extracted so every
+ * surface renders the same list with WORKING pinning instead of a lookalike. Data and grouping
+ * come from `useSessionCardList` (waiting → pinned → recent) and `useSessionPins`; the host
+ * supplies only its verbs: how a row opens, and its context-menu entries.
+ */
+import {useMemo, type ReactNode} from "react"
+
+import {pendingGateLabel, type SessionRowVm} from "@agenta/sessions/row"
+import {
+    useSessionCardList,
+    useSessionPins,
+    type UseSessionCardListArgs,
+} from "@agenta/sessions/state"
+import {timeAgo} from "@agenta/shared/utils"
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
+    SimpleTooltip,
+    Skeleton,
+} from "@agenta/ui/ui"
+import {ArrowRightIcon, ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
+import {AnimatePresence, MotionConfig, motion} from "motion/react"
+
+import {ROW_VARIANTS, SESSION_SPRING} from "./assets/motion"
+import {isMenuDivider, type SessionMenuEntry} from "./menu"
+import {SessionAgentName} from "./SessionAgentName"
+
+export interface SessionCardListProps extends UseSessionCardListArgs {
+    emptyText: string
+    /** Open a row (host routing: playground session, mobile chat route…). */
+    onOpenRow: (vm: SessionRowVm) => void
+    /** The host's context-menu verbs for a row; omit for no menu (e.g. touch surfaces). */
+    menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
+    onMenuSelect?: (vm: SessionRowVm, key: string) => void
+    /** Hide the per-row agent name (an agent-scoped list restates its heading otherwise). */
+    showAgent?: boolean
+    /** Touch surfaces have no hover — keep the pin always visible there. */
+    alwaysShowPin?: boolean
+}
+
+/** One row. The pin toggles in place; everything else is the host's verb. */
+const Row = ({
+    vm,
+    origin,
+    showAgent,
+    alwaysShowPin,
+    onOpenRow,
+    onTogglePin,
+    menuFor,
+    onMenuSelect,
+}: {
+    vm: SessionRowVm
+    origin?: string
+    showAgent: boolean
+    alwaysShowPin: boolean
+    onOpenRow: (vm: SessionRowVm) => void
+    onTogglePin: (id: string) => void
+    menuFor?: (vm: SessionRowVm) => SessionMenuEntry[]
+    onMenuSelect?: (vm: SessionRowVm, key: string) => void
+}) => {
+    const entries = menuFor?.(vm)
+    const row = (
+        <button
+            type="button"
+            onClick={() => onOpenRow(vm)}
+            className="group box-border flex w-full cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
+        >
+            {/* A glyph for the KIND of row, with the status as a dot on its shoulder — the clock
+                and the chat bubble separate automation runs from conversations without a heading. */}
+            <SimpleTooltip title={vm.status.label}>
+                <span className="relative mt-0.5 flex shrink-0 text-colorTextTertiary">
+                    {origin ? <ClockIcon size={18} /> : <ChatCircleIcon size={18} />}
+                    <span
+                        className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-solid border-colorBgContainer ${vm.status.dotClassName} ${
+                            vm.status.pulse ? "motion-safe:animate-pulse" : ""
+                        }`}
+                    />
+                </span>
+            </SimpleTooltip>
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="flex w-full items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm text-colorText">
+                        {vm.title}
+                    </span>
+                    {/* Quiet chip: the amber urgency lives on the dot; this states WHAT is asked. */}
+                    {vm.status.chipLabel ? (
+                        <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-xs leading-none text-colorTextSecondary">
+                            {pendingGateLabel(vm.pending?.kinds)}
+                        </span>
+                    ) : null}
+                    {showAgent ? (
+                        <span className="w-24 shrink-0 truncate text-right">
+                            <SessionAgentName agentId={vm.agentId} />
+                        </span>
+                    ) : null}
+                    <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
+                        {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
+                    </span>
+                    <SimpleTooltip title={vm.isPinned ? "Unpin" : "Pin"}>
+                        <span
+                            role="button"
+                            tabIndex={-1}
+                            aria-label={vm.isPinned ? "Unpin session" : "Pin session"}
+                            onClick={(event) => {
+                                event.stopPropagation()
+                                onTogglePin(vm.id)
+                            }}
+                            className={`shrink-0 text-colorTextTertiary ${
+                                vm.isPinned || alwaysShowPin
+                                    ? ""
+                                    : "opacity-0 group-hover:opacity-100"
+                            }`}
+                        >
+                            <PushPinIcon size={14} weight={vm.isPinned ? "fill" : "regular"} />
+                        </span>
+                    </SimpleTooltip>
+                </span>
+                {/* What actually happened, so deciding whether to reopen a session doesn't mean
+                    opening it. Absent when the title is already the message. */}
+                {vm.subtitle ? (
+                    <span className="min-w-0 truncate text-[13px] text-colorTextTertiary">
+                        {vm.subtitle}
+                    </span>
+                ) : null}
+            </span>
+        </button>
+    )
+
+    return (
+        <motion.div
+            layout
+            variants={ROW_VARIANTS}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            className="overflow-hidden"
+        >
+            {entries && entries.length > 0 ? (
+                <ContextMenu>
+                    <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+                    <ContextMenuContent>
+                        {entries.map((entry, index) =>
+                            isMenuDivider(entry) ? (
+                                <ContextMenuSeparator key={`divider-${index}`} />
+                            ) : (
+                                <ContextMenuItem
+                                    key={entry.key}
+                                    disabled={entry.disabled}
+                                    variant={entry.danger ? "destructive" : undefined}
+                                    onSelect={() => onMenuSelect?.(vm, entry.key)}
+                                >
+                                    {entry.label}
+                                </ContextMenuItem>
+                            ),
+                        )}
+                    </ContextMenuContent>
+                </ContextMenu>
+            ) : (
+                row
+            )}
+        </motion.div>
+    )
+}
+
+export const SessionCardList = ({
+    emptyText,
+    onOpenRow,
+    menuFor,
+    onMenuSelect,
+    showAgent,
+    alwaysShowPin = false,
+    ...listArgs
+}: SessionCardListProps) => {
+    const list = useSessionCardList(listArgs)
+    const {toggle: togglePin} = useSessionPins()
+    // An agent-scoped list is already one agent's — naming it on every row restates the heading.
+    const resolvedShowAgent = showAgent ?? !listArgs.agentId
+    const flat = useMemo(
+        () =>
+            list.groups.flatMap((group): ReactNode[] => [
+                ...(group.label
+                    ? [
+                          <motion.p
+                              key={`${group.key}-heading`}
+                              layout
+                              variants={ROW_VARIANTS}
+                              initial="initial"
+                              animate="animate"
+                              exit="exit"
+                              className="m-0 overflow-hidden px-2 pt-1 text-[11px] uppercase tracking-wide text-colorTextTertiary"
+                          >
+                              {group.label}
+                          </motion.p>,
+                      ]
+                    : []),
+                ...group.rows.map((vm) => (
+                    <Row
+                        key={vm.id}
+                        vm={vm}
+                        origin={listArgs.origin}
+                        showAgent={resolvedShowAgent}
+                        alwaysShowPin={alwaysShowPin}
+                        onOpenRow={onOpenRow}
+                        onTogglePin={togglePin}
+                        menuFor={menuFor}
+                        onMenuSelect={onMenuSelect}
+                    />
+                )),
+            ]),
+        [
+            list.groups,
+            listArgs.origin,
+            resolvedShowAgent,
+            alwaysShowPin,
+            onOpenRow,
+            togglePin,
+            menuFor,
+            onMenuSelect,
+        ],
+    )
+
+    if (list.isPending) {
+        return (
+            <div className="flex flex-col gap-2 px-2 py-2">
+                {[0, 1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-6 w-full" />
+                ))}
+            </div>
+        )
+    }
+
+    return (
+        <MotionConfig transition={SESSION_SPRING} reducedMotion="user">
+            <div className="flex grow flex-col">
+                {/* Flat children: AnimatePresence tracks direct keyed children, so the headings
+                    and rows must not hide inside fragments or exits are lost. */}
+                <AnimatePresence initial={false}>{flat}</AnimatePresence>
+                {list.isEmpty ? (
+                    <p className="m-0 flex grow items-center px-2 py-3 text-[13px] text-colorTextTertiary">
+                        {emptyText}
+                    </p>
+                ) : null}
+                {list.canShowMore ? (
+                    <button
+                        type="button"
+                        onClick={list.showMore}
+                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent px-2 py-2 text-left text-xs text-colorPrimary"
+                    >
+                        Show more
+                        <ArrowRightIcon size={12} />
+                    </button>
+                ) : null}
+            </div>
+        </MotionConfig>
+    )
+}

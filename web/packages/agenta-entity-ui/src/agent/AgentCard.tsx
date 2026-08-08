@@ -31,8 +31,7 @@ const AVATAR_COLORS = [
  * avatar exists to solve. */
 export const agentAvatar = (name: string, id: string) => {
     const words = name.trim().split(/\s+/).filter(Boolean)
-    const initials =
-        (words.length > 1 ? `${words[0][0]}${words[1][0]}` : (words[0] ?? "").slice(0, 2)) || "?"
+    const initials = (words.length > 1 ? `${words[0][0]}${words[1][0]}` : name.slice(0, 2)) || "?"
     let hash = 0
     for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
     return {initials: initials.toUpperCase(), color: AVATAR_COLORS[hash % AVATAR_COLORS.length]}
@@ -172,13 +171,7 @@ export const AgentCard = ({
             tabIndex={0}
             onClick={onOpenPlayground}
             onKeyDown={(event) => {
-                // Only the card itself: the menu trigger is a child, and its Enter/Space must
-                // not also open the playground.
-                if (event.target !== event.currentTarget) return
-                if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault()
-                    onOpenPlayground()
-                }
+                if (event.key === "Enter" || event.key === " ") onOpenPlayground()
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
                 isGrid
