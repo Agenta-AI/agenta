@@ -56,7 +56,20 @@ flowchart LR
     WP12 --> WP11
     WP8 --> WP13
     WP14 -.->|improves| WP4
+
+    classDef done fill:#d7ecd9,stroke:#8fbf96,color:#1f3d24
+    classDef next fill:#d6e4f7,stroke:#93b4dd,color:#1c3352
+    classDef later fill:#fdf0cd,stroke:#dcc274,color:#4a3b12
+    classDef apart fill:#e6e6e6,stroke:#b3b3b3,color:#333333
+
+    class WP1,WP2,WP3,WP4,WP5,WP6,WP7,WP8 done
+    class WP15,WP9,WP10,WP13 next
+    class WP11,WP12 later
+    class WP0,WP14 apart
 ```
+
+Green is merged (through C2), blue is the next wave, yellow is later, grey is not
+channels work.
 
 **WP1** and **WP2** — the domain and the port — have no dependencies and gate most
 of the rest. Everything else follows.
