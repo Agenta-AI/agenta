@@ -77,7 +77,10 @@ const ThemeFlyout = () => {
 
     return (
         <Popover
-            trigger="hover"
+            // "click" alongside "hover" keeps the fly-out reachable by keyboard: the trigger
+            // library only wires focus handling when "focus" is in the action set, so a
+            // hover-only trigger left Enter/Space on the button inert.
+            trigger={["hover", "click"]}
             placement="rightBottom"
             arrow={false}
             styles={{
