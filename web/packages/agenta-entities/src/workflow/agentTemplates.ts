@@ -42,7 +42,7 @@ export interface TemplateExampleSession {
     status?: string
 }
 
-export interface AgentTemplate {
+export interface AgentStarterTemplate {
     key: string
     name: string
     /** Primary category for the Home filter chips. */
@@ -120,13 +120,13 @@ export const PROVIDERS: Record<string, {label: string; logo: string}> = {
 
 /** Integration slugs a template touches (card provider marks). Prefers display logos; falls
  * back to the required-to-run slugs so a template without `logoSlugs` still renders marks. */
-export const templateProviderSlugs = (template: AgentTemplate): string[] =>
+export const templateProviderSlugs = (template: AgentStarterTemplate): string[] =>
     template.logoSlugs?.length
         ? template.logoSlugs
         : template.requiredIntegrations.map((integration) => integration.slug)
 
 /** Total tool count across a template's integrations (drawer Tools count). */
-export const templateToolCount = (template: AgentTemplate): number =>
+export const templateToolCount = (template: AgentStarterTemplate): number =>
     template.requiredIntegrations.reduce((n, integration) => n + integration.tools.length, 0)
 
 /**
@@ -135,9 +135,28 @@ export const templateToolCount = (template: AgentTemplate): number =>
  * directly. Uses the template's explicit `builderMessage` when set, else derives a build request from
  * its name + overview.
  */
-export const templateBuilderMessage = (template: AgentTemplate): string =>
+export const templateBuilderMessage = (template: AgentStarterTemplate): string =>
     template.builderMessage?.trim() ||
     `Create an agent that ${template.overview.charAt(0).toLowerCase()}${template.overview.slice(1)}`
+
+/**
+ * What picking a template MEANS, for every surface that offers one: create an agent under the
+ * template's name, seeded with its builder instruction.
+ *
+ * Only the seed's DELIVERY is per-app (the desktop stashes a first-run seed and lands in the
+ * playground; mobile stashes a pending task and lands in the session), so that stays with the host.
+ * Deciding what the new agent is called and what it is told must not.
+ */
+export const agentTemplateSeed = (
+    template: AgentStarterTemplate,
+): {name: string; seedMessage: string} => ({
+    name: template.name,
+    seedMessage: templateBuilderMessage(template),
+})
+
+/** Look a template up by key — surfaces receive a key from a menu, a URL or a card. */
+export const agentTemplateByKey = (key: string | undefined): AgentStarterTemplate | undefined =>
+    key ? AGENT_TEMPLATES.find((template) => template.key === key) : undefined
 
 /** Canonical chip order; only categories present in the templates render. Five visible categories
  * (Monitoring folds into Engineering) — see open-questions.md #1; revisit once there's click data. */
@@ -166,7 +185,7 @@ export const categoryFromSlug = (slug: string | undefined): string =>
 
 const DEFAULT_MODEL = "claude-sonnet-4-5"
 
-export const AGENT_TEMPLATES: AgentTemplate[] = [
+export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     // Engineering (dev-workflow automation)
     {
         key: "pr-reviewer",

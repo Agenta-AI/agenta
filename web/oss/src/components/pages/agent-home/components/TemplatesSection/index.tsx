@@ -1,22 +1,21 @@
 import {useMemo, useState} from "react"
 
-import {SectionRail, type SectionRailItem} from "@agenta/entity-ui"
-import {Typography} from "antd"
-import {ArrowRight} from "lucide-react"
-
-import {TEMPLATES_SECTION} from "../../assets/constants"
 import {
     AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
     templateCategories,
-    type AgentTemplate,
-} from "../../assets/templates"
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
+import {SectionRail, type SectionRailItem} from "@agenta/entity-ui"
+import {TemplateCard} from "@agenta/home-ui"
+import {Typography} from "antd"
+import {ArrowRight} from "lucide-react"
 
-import TemplateCard from "./TemplateCard"
+import {TEMPLATES_SECTION} from "../../assets/constants"
 
 interface TemplatesSectionProps {
     /** Open the setup drawer for a template. */
-    onSelectTemplate: (template: AgentTemplate) => void
+    onSelectTemplate: (template: AgentStarterTemplate) => void
     /** Open the full template gallery. Wired in a later phase. */
     onBrowseAll?: () => void
     /** Drop the title + Browse-all header row (the caller supplies its own, e.g. onboarding's Back). */
