@@ -186,7 +186,7 @@ value needs its own place, give it its own column.
 | `title` | `ReactNode` | Rendered at heading-3 size |
 | `description` | `ReactNode` | Required |
 | `docs` | `{label, href}` | Optional; opens in a new tab |
-| `variant` | `"table" \| "form"` | Caps content at 1120 or 640. Default `table` |
+| `variant` | `"full" \| "table" \| "form"` | Caps content at 1120 or 640. Default `full` |
 | `fullHeight` | `boolean` | Bounds the page so an internally-scrolling table does not grow it |
 
 ### `SettingsToolbar`

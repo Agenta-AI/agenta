@@ -80,6 +80,12 @@ interface SettingsProps {
 /** Tabs that render a form rather than a table, so they cap at 640 instead of 1120. */
 const FORM_TABS = new Set<SettingsTabKey>(["account", "preferences"])
 
+/**
+ * Tabs that render nothing but a virtualized table needing the full page to scroll
+ * internally. Everything else that isn't a form gets the 1120 table cap.
+ */
+const FULL_WIDTH_TABS = new Set<SettingsTabKey>(["auditLog"])
+
 export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const [tabQuery] = useQueryParam("tab", undefined, "replace")
     const settingsTab = useAtomValue(settingsTabAtom)
@@ -185,7 +191,13 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                 title={title}
                 description={getSettingsTabDescription(resolvedTab, settingsAccess)}
                 docs={getSettingsTabDocs(resolvedTab)}
-                variant={FORM_TABS.has(resolvedTab) ? "form" : "full"}
+                variant={
+                    FORM_TABS.has(resolvedTab)
+                        ? "form"
+                        : FULL_WIDTH_TABS.has(resolvedTab)
+                          ? "full"
+                          : "table"
+                }
                 // Audit Log's virtual table needs a bounded parent to scroll internally.
                 fullHeight={resolvedTab === "auditLog"}
             >

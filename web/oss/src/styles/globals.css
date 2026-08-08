@@ -719,6 +719,15 @@ body {
     padding-left: 0 !important;
 }
 
+/* org-domains-table and org-providers-table are not yet migrated to SettingsPageShell's
+   table shell (Organization/index.tsx still renders plain antd Tables for them), so their
+   percentage column widths below still need table-layout: fixed to be honoured. Drop this
+   rule once those two tables move onto InfiniteVirtualTableFeatureShell. */
+.org-domains-table .ant-table,
+.org-providers-table .ant-table {
+    table-layout: fixed;
+}
+
 .org-domains-table .ant-table-thead > tr > th:nth-child(1),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(1),
 .org-providers-table .ant-table-thead > tr > th:nth-child(1),
