@@ -1,24 +1,10 @@
 import React, {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
-import {Divider, Layout} from "antd"
+import {NavMenu} from "@agenta/navigation-ui"
 import {useAtom} from "jotai"
 
-import SidebarMenu from "./SidebarMenu"
 import type {SidebarConfig, SidebarScope, SidebarSection, SidebarShellProps} from "./types"
 import {filterVisibleSections} from "./visibility"
-
-const {Sider} = Layout
-
-const MENU_CLASS_NAME =
-    "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium"
-
-// The menu paints its own container background, which would break the rail into two
-// shades. Transparent lets the rail colour run edge to edge.
-const MENU_SURFACE_CLASS_NAME = "!bg-transparent"
-
-// antd hardcodes a 80px width on collapsed inline menus; the rail is narrower than that,
-// so let the menu fill the rail and keep antd's own centering math working off that width.
-const COLLAPSED_MENU_CLASS_NAME = "[&.ant-menu-inline-collapsed]:!w-full"
 
 class SidebarErrorBoundary extends React.Component<React.PropsWithChildren, {hasError: boolean}> {
     state = {hasError: false}
@@ -246,45 +232,29 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     )
 
     const renderSection = (section: SidebarSection) => {
-        const isBottomSection = section.placement === "bottom"
         const isInlineSection = (section.mode ?? "inline") === "inline"
 
         return (
             <React.Fragment key={section.key}>
-                {section.dividerBefore && <Divider className="my-1" />}
+                {section.dividerBefore && (
+                    <hr className="my-1 w-full border-0 border-t border-solid border-colorBorderSecondary" />
+                )}
                 {renderSlot(section.before, collapsed)}
-                <SidebarMenu
-                    menuProps={{
-                        className: [
-                            isBottomSection ? "" : MENU_CLASS_NAME,
-                            MENU_SURFACE_CLASS_NAME,
-                            COLLAPSED_MENU_CLASS_NAME,
-                        ]
-                            .filter(Boolean)
-                            .join(" "),
-                        selectedKeys,
-                        ...(isInlineSection
-                            ? {
-                                  openKeys,
-                                  onOpenChange: (keys) => handleOpenChange(keys as string[]),
-                              }
-                            : {}),
-                        onClick:
-                            selection.mode === "controlled"
-                                ? ({domEvent, key}) => {
-                                      domEvent.preventDefault()
-                                      if (key !== selection.selectedKey) {
-                                          selection.onSelect(key)
-                                      }
-                                  }
-                                : undefined,
-                    }}
+                <NavMenu
                     items={section.items}
                     collapsed={collapsed}
                     mode={section.mode}
+                    selectedKeys={selectedKeys}
                     openKeys={isInlineSection ? openKeys : []}
                     onToggleOpenKey={isInlineSection ? handleToggleOpenKey : undefined}
                     onPopupOpenChange={onPopupOpenChange}
+                    onItemSelect={
+                        selection.mode === "controlled"
+                            ? (key) => {
+                                  if (key !== selection.selectedKey) selection.onSelect(key)
+                              }
+                            : undefined
+                    }
                 />
             </React.Fragment>
         )
@@ -295,14 +265,12 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
 
     return (
         <div className="border-0 border-r border-solid border-[var(--ag-shell-line)]">
-            <Sider
-                theme={theme}
-                // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
-                // document-scrolling routes; 0px everywhere else.
-                className="sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] bg-[var(--ag-sidebar-bg)]"
-                collapsible
-                width={collapsed ? 48 : 236}
-                trigger={null}
+            <aside
+                data-theme={theme}
+                className={[
+                    "sticky top-0 bottom-0 h-screen bg-[var(--ag-sidebar-bg)] transition-all duration-300",
+                    collapsed ? "w-[48px]" : "w-[236px]",
+                ].join(" ")}
             >
                 <div
                     className={[
@@ -324,7 +292,7 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                         </div>
                     </SidebarErrorBoundary>
                 </div>
-            </Sider>
+            </aside>
         </div>
     )
 }

@@ -5,8 +5,6 @@ import type {WorkspaceGroup} from "./workspaceGroups"
 export interface ContextTargetInput {
     /** False until the router has parsed the query string. */
     ready: boolean
-    /** `?switch=1` — the user asked for the picker, so every shortcut is off. */
-    switching: boolean
     /** Pair remembered from a previous visit. */
     shortcut: LastContext | null
     groups: WorkspaceGroup[]
@@ -15,26 +13,20 @@ export interface ContextTargetInput {
 }
 
 /**
- * Which project `/m/` should forward to, or `null` to show the picker.
- *
- * Ordering is the whole point: `ready` gates everything because a forward decided before the
- * query string is parsed would blow straight past `?switch=1`, making the picker unreachable
- * once any context is stored.
+ * Which project `/m/` forwards to. Mirrors the desktop: remembered pair, then desktop
+ * continuity, then the first project — switching happens in the drawer, never on a page,
+ * so there is no picker to fall back to. `null` only while unresolvable (not ready, or the
+ * account has no projects).
  */
 export const selectContextTarget = ({
     ready,
-    switching,
     shortcut,
     groups,
     desktopLastUsed,
 }: ContextTargetInput): LastContext | null => {
-    if (!ready || switching) return null
+    if (!ready) return null
     if (shortcut) return shortcut
     if (groups.length === 0) return null
-    // Nothing to choose between.
-    if (groups.length === 1 && groups[0].projects.length === 1) {
-        return {workspaceId: groups[0].workspaceId, projectId: groups[0].projects[0].project_id}
-    }
     // Desktop continuity: the desktop's last-used pair, when it still exists in the fetched tree.
     for (const group of groups) {
         const projectId = desktopLastUsed[group.workspaceId]
@@ -42,5 +34,6 @@ export const selectContextTarget = ({
             return {workspaceId: group.workspaceId, projectId}
         }
     }
-    return null
+    const first = groups[0]
+    return {workspaceId: first.workspaceId, projectId: first.projects[0]?.project_id ?? ""}
 }
