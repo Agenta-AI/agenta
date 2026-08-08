@@ -1,22 +1,16 @@
 import {memo, useMemo} from "react"
 
-import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {Sidebar} from "@phosphor-icons/react"
-import {Breadcrumb, Typography} from "antd"
+import {Breadcrumb} from "antd"
 import clsx from "clsx"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtomValue} from "jotai"
 import Link from "next/link"
 
 import {breadcrumbAtom, type BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb"
-import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 import {useAppState} from "@/oss/state/appState"
 
-import packageJsonData from "../../../../package.json"
-
 import {useStyles, type StyleProps} from "./styles"
-import ThemeSwitcher from "./ThemeSwitcher"
 
 const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.ReactNode}[] => {
     if (!breadcrumbs) return []
@@ -71,7 +65,6 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
 const BreadcrumbContainer = memo(({appTheme}: {appTheme: string; appName?: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const breadcrumbs = useAtomValue(breadcrumbAtom)
-    const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
     const _appState = useAppState()
     const breadcrumbItems = useMemo(
         () => breadcrumbItemsGenerator(breadcrumbs || {}),
@@ -89,21 +82,6 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string; appName?: strin
             )}
         >
             <div className="flex flex-nowrap items-center shrink-1 min-w-0">
-                <EnhancedButton
-                    type="text"
-                    className="-ml-1 shrink-0"
-                    icon={
-                        <Sidebar
-                            size={14}
-                            className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
-                        />
-                    }
-                    onClick={() => setCollapsed(!collapsed)}
-                    tooltipProps={{
-                        title: "Toggle sidebar",
-                        mouseEnterDelay: 1,
-                    }}
-                />
                 <div className="min-w-0 flex-1 overflow-hidden">
                     <Breadcrumb
                         items={breadcrumbItems}
@@ -124,11 +102,6 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string; appName?: strin
                         )}
                     />
                 </div>
-            </div>
-
-            <div className={clsx(classes.topRightBar, "shrink-0 flex items-center gap-3")}>
-                <ThemeSwitcher />
-                <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>
     )

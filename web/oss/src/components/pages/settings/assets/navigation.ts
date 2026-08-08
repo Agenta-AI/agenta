@@ -14,7 +14,7 @@ export type SettingsTabKey =
     | "auditLog"
     | "billing"
     | "account"
-    | "featureFlags"
+    | "preferences"
 
 export type SettingsScopeKey = "project" | "organization" | "personal"
 
@@ -53,7 +53,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         getLabel: ({billingEnabled}) => (billingEnabled ? "Usage & Billing" : "Usage"),
     },
     {key: "account", scope: "personal"},
-    {key: "featureFlags", scope: "personal"},
+    {key: "preferences", scope: "personal"},
 ]
 
 export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
@@ -75,7 +75,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     organization: "Access & Security",
     auditLog: "Audit Log",
     account: "Account",
-    featureFlags: "Feature flags",
+    preferences: "Preferences",
 }
 
 export const isSettingsTabKey = (value: string | null | undefined): value is SettingsTabKey =>

@@ -3,13 +3,13 @@ import {useEffect, useMemo} from "react"
 import {
     Buildings,
     ClockCounterClockwise,
-    Flag,
     FolderSimple,
     Key,
     Lightning,
     Link,
     Receipt,
     ShieldCheck,
+    SlidersHorizontal,
     Sparkle,
     User,
     UsersThree,
@@ -32,6 +32,7 @@ import {settingsTabAtom} from "@/oss/state/settings"
 
 import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
 import SidebarBackButton from "../components/SidebarBackButton"
+import SidebarToggleButton from "../components/SidebarToggleButton"
 import type {
     SidebarConfig,
     SidebarScope,
@@ -73,8 +74,8 @@ const getSettingsSidebarIcon = (key: SettingsTabKey) => {
             return <Receipt size={16} className="mt-0.5" />
         case "account":
             return <User size={16} className="mt-0.5" />
-        case "featureFlags":
-            return <Flag size={16} className="mt-0.5" />
+        case "preferences":
+            return <SlidersHorizontal size={16} className="mt-0.5" />
         case "projects":
             return <FolderSimple size={16} className="mt-0.5" />
         default: {
@@ -161,11 +162,14 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
 const SettingsSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
     <div
         className={[
-            "w-full h-[48px] shrink-0 flex items-center mb-1",
-            collapsed ? "justify-center" : "px-1.5",
+            "w-full shrink-0 flex items-center mb-1",
+            // Collapsed rail is 48px wide, too narrow for the Back button and the toggle side
+            // by side, so stack them instead of squeezing both into one row.
+            collapsed ? "flex-col justify-center gap-1 py-1" : "h-[48px] justify-between px-1.5",
         ].join(" ")}
     >
         <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
+        <SidebarToggleButton />
     </div>
 )
 

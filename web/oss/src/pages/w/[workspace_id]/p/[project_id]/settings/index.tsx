@@ -68,8 +68,8 @@ const Webhooks = dynamic(() => import("@/oss/components/pages/settings/Webhooks/
     ssr: false,
 })
 
-const FeatureFlags = dynamic(
-    () => import("@/oss/components/pages/settings/FeatureFlags/FeatureFlags"),
+const Preferences = dynamic(
+    () => import("@/oss/components/pages/settings/Preferences/Preferences"),
     {ssr: false},
 )
 
@@ -192,10 +192,10 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
                     content: <DeleteAccount />,
                     title: getSettingsTabLabel("account", settingsAccess),
                 }
-            case "featureFlags":
+            case "preferences":
                 return {
-                    content: <FeatureFlags />,
-                    title: getSettingsTabLabel("featureFlags", settingsAccess),
+                    content: <Preferences />,
+                    title: getSettingsTabLabel("preferences", settingsAccess),
                 }
             default:
                 return {
