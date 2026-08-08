@@ -370,6 +370,38 @@
 - Suggested Fix: Bless it in the spec or rename it. Low stakes; the point is
   that it entered the tree undocumented.
 
+### F38. Nothing parses a button click: `ChannelEventKind.ACTION` is unreachable
+
+- ID: `F38`
+- Origin: `wave-4 prep`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: `ChannelEventKind.ACTION` exists ("button click, reaction") and the Slack
+  manifest requests `interactivity`, but no code path handles an interaction payload.
+  `SlackAdapter.parse_event` returns `None` unless
+  `payload["type"] == "event_callback"`; a Slack button click arrives as
+  `type: "block_actions"`. So every click is silently dropped, and no event of kind
+  `ACTION` can ever be produced.
+- Evidence: `adapter.py:125` — `if payload.get("type") != "event_callback": return
+  None`. `grep -rn "block_actions"` across `core/channels/` and
+  `apis/fastapi/channels/` returns nothing. `manifest.py:42` requests the scope
+  regardless.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py:125`,
+  `api/oss/src/core/channels/dtos.py:39`
+- Suggested Fix: A package, not a clean-up item — it needs a parse path, a route or
+  branch for Slack's interactivity endpoint (which posts form-encoded, not JSON), and
+  a decision about how an action resolves against an open approval. Scope it before
+  wave 4 ends, because C6 depends on it.
+- Notes: **This blocks C6's exit condition** — "an approval resolves from a button
+  click without opening a browser" cannot be met, and no fake would have caught it
+  because outbound rendering is complete and correct. Found by chasing `F13`, which
+  asks whether the button's `value` should carry WP5's `value` or its `id`: **that
+  question cannot be answered until the inbound path exists**, since the answer is
+  whatever the inbound path reads. `F13` is therefore blocked on this, not
+  independently fixable.
+
 ### F13. Slack button rendering drops WP5's `value`
 
 - ID: `F13`
@@ -378,6 +410,9 @@
 - Confidence: `high`
 - Status: `open`
 - Category: `Correctness`
+- **Blocked on `F38`.** "Self-consistent as long as the inbound action path also reads
+  `id`" assumed such a path exists. It does not — nothing parses a button click at all,
+  so there is no reader to be consistent with and no way to decide this correctly yet.
 - Summary: WP6 maps WP5's button `id` into Slack's `value` field and discards
   WP5's own `value`. Self-consistent as long as the inbound action path also
   reads `id`, but it is a lossy mapping that no test pins.

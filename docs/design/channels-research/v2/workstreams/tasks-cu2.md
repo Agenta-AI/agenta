@@ -17,12 +17,22 @@ to stderr, so a bare `> file` keeps the summary and loses every traceback.
 
 ---
 
-## CU2-1 — `F13`: Slack button rendering drops `value`
+## CU2-1 — `F13`: Slack button rendering drops `value` — **BLOCKED, do not attempt**
 
-- [ ] Read `F13`. The outbox renders a button's label but not its `value`, so a
-  click cannot carry which option was chosen. Fix in the Slack adapter's render
-  path; WP16's fake is now able to assert the posted block, so pin it with a test
-  against the fake rather than against a request log.
+- [ ] **Blocked on `F38`**: nothing parses a button click, so there is no inbound
+  reader to be consistent with and the question cannot be answered. Leave `F13` open
+  and spend no time on it. Recorded here so the next reader does not re-derive this.
+
+- [ ] **The loss is at the call site, not in the renderer.** `mapping.py:93` faithfully
+  emits `option["value"]`; `adapter.py:335` builds that options list as
+  `{"label": b.get("label", ...), "value": b.get("id", "")}` — so WP5's own `value` is
+  dropped one frame earlier and the button carries the `id` instead.
+- [ ] Decide whether that is a bug or the intended contract **before changing it**: it
+  is self-consistent as long as the inbound action path also reads `id`. Check that
+  path first. If it reads `id`, the fix may be to document the mapping and pin it with
+  a test rather than to change the payload.
+- [ ] Either way, pin it: WP16's fake can now assert the posted block, so assert
+  against the fake's stored message rather than a request log.
 
 ## CU2-2 — `F34`: a missing `bot_token` sends `Bearer None`
 
