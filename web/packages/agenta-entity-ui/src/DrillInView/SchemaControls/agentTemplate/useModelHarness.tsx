@@ -45,6 +45,7 @@ import {
 } from "../connectionUtils"
 import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
+import {selectableHarnesses} from "../harnessMeta"
 import {HarnessSelectControl} from "../HarnessSelectControl"
 import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
@@ -73,7 +74,7 @@ const PERMISSION_POLICY_VALUES = new Set<string>(
     PERMISSION_POLICY_OPTIONS.map((option) => option.value),
 )
 
-const HIDDEN_HARNESSES = new Set(["pi_agenta"])
+// Shared with the chat composer's `/harness` palette so a hidden harness stays hidden everywhere.
 
 function isPermissionPolicy(value: unknown): value is PermissionPolicy {
     return typeof value === "string" && PERMISSION_POLICY_VALUES.has(value)
@@ -564,8 +565,8 @@ export function useModelHarness({
     const schemaHarnesses = Array.isArray(harnessProps.kind?.enum)
         ? (harnessProps.kind.enum as unknown[]).map(String)
         : []
-    const harnessList = (capabilities ? Object.keys(capabilities) : schemaHarnesses).filter(
-        (harnessId) => !HIDDEN_HARNESSES.has(harnessId),
+    const harnessList = selectableHarnesses(
+        capabilities ? Object.keys(capabilities) : schemaHarnesses,
     )
 
     // Harness as a `[rail │ detail]` (experiment): the harness list on the rail with a model-compat dot,

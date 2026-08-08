@@ -85,6 +85,30 @@ export {
 } from "./toolPermission"
 export type {GrantableTool, ToolPermission, GrantableHarnessTool} from "./toolPermission"
 
+// Model / harness write-through from outside the drawer (the chat composer's `/model`, `/harness`).
+export {
+    withModel,
+    withHarnessKind,
+    readModelId,
+    readHarnessKind,
+    readAgentItems,
+} from "./agentConfigPatch"
+export type {ModelPatch} from "./agentConfigPatch"
+export {
+    allowedDeployments,
+    allowedProviders,
+    buildModelOptionGroups,
+    harnessAllowsModel,
+    modelLabel,
+    providerForModel,
+} from "./connectionUtils"
+export type {ModelOptionGroup} from "./connectionUtils"
+// Row presentation for config items (name/description/tags), shared with the `/` palette.
+export {describeMcp, describeSkill, describeTool, toolName} from "./agentTemplate/itemDescriptors"
+export type {ItemDescriptor} from "./agentTemplate/itemDescriptors"
+export {HARNESS_META, harnessMetaFor, selectableHarnesses} from "./harnessMeta"
+export type {HarnessMeta} from "./harnessMeta"
+
 export {McpServerItemControl} from "./McpServerItemControl"
 export type {McpServerItemControlProps} from "./McpServerItemControl"
 

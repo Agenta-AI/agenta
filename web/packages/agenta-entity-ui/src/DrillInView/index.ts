@@ -275,6 +275,25 @@ export {
     readHarnessAllowList,
     findGrantableHarnessTool,
     withHarnessToolAllow,
+    // Model / harness write-through + row presentation, shared with the chat composer's `/` palette.
+    withModel,
+    withHarnessKind,
+    readModelId,
+    readHarnessKind,
+    readAgentItems,
+    allowedDeployments,
+    allowedProviders,
+    buildModelOptionGroups,
+    harnessAllowsModel,
+    modelLabel,
+    providerForModel,
+    describeMcp,
+    describeSkill,
+    describeTool,
+    toolName,
+    HARNESS_META,
+    harnessMetaFor,
+    selectableHarnesses,
     type OptionGroup,
 } from "./SchemaControls"
 
@@ -304,6 +323,10 @@ export type {
     GrantableTool,
     ToolPermission,
     GrantableHarnessTool,
+    ModelPatch,
+    ModelOptionGroup,
+    ItemDescriptor,
+    HarnessMeta,
 } from "./SchemaControls"
 
 // Operational panel regions (Triggers, Mounts) — siblings of the Configuration section.

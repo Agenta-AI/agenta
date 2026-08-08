@@ -1,4 +1,4 @@
-import type {CSSProperties, ReactNode} from "react"
+import type {CSSProperties, ReactNode, RefObject} from "react"
 
 export interface ProviderOption {
     label: string
@@ -62,4 +62,22 @@ export interface SelectLLMProviderBaseProps extends SelectProps {
     emptyText?: ReactNode
     /** Portal target for the dropdown; defaults to document.body. */
     container?: HTMLElement | null
+    /**
+     * Controlled open state. When set, the component stops owning `open` — pass `onOpenChange` too.
+     * Lets a caller with no visible trigger (e.g. the composer's `/model`) drive the panel.
+     */
+    open?: boolean
+    /** Fires on every open/close request; required when `open` is controlled. */
+    onOpenChange?: (open: boolean) => void
+    /**
+     * Position the panel against this element instead of the trigger. Pair with `hideTrigger` to
+     * render the panel alone, anchored to something the caller owns.
+     */
+    anchorRef?: RefObject<HTMLElement | null>
+    /** Render no trigger button. Only meaningful with `open` + `anchorRef`. */
+    hideTrigger?: boolean
+    /** Right-aligned adornment in the search row (e.g. the `/model` command that opened it). */
+    searchSuffix?: ReactNode
+    /** Full-width bar below the panel body, under its own divider. */
+    panelFooter?: ReactNode
 }

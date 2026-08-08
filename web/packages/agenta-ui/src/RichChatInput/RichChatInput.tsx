@@ -17,6 +17,7 @@ import {RichTextExtension} from "@lexical/rich-text"
 import clsx from "clsx"
 import {$createParagraphNode, $getRoot, defineExtension, type LexicalEditor} from "lexical"
 
+import type {SlashCommandSection} from "./assets/slashCommands"
 import {chatInputTheme} from "./assets/theme"
 import {CHAT_TRANSFORMERS} from "./assets/transformers"
 import {CharacterCountPlugin} from "./plugins/CharacterCountPlugin"
@@ -27,6 +28,7 @@ import {EditorRefBridge} from "./plugins/EditorRefBridge"
 import {FocusStatePlugin} from "./plugins/FocusStatePlugin"
 import {LinkPastePlugin} from "./plugins/LinkPastePlugin"
 import {SendButton} from "./plugins/SendButton"
+import {SlashCommandPlugin} from "./plugins/SlashCommandPlugin"
 import {SubmitPlugin} from "./plugins/SubmitPlugin"
 
 /** Imperative handle for prefill / clear / focus (e.g. rewind-to-edit). */
@@ -92,6 +94,13 @@ export interface RichChatInputProps {
     onChange?: (text: string) => void
     /** Seed the editor once on mount (e.g. a restored per-session draft). Later changes ignored. */
     initialMarkdown?: string
+    /**
+     * Sections for the `/` command palette. Omitted → no palette, so the hosts that don't want one
+     * are untouched. See `assets/slashCommands`.
+     */
+    slashCommands?: SlashCommandSection[]
+    /** Footer of the palette's empty state (e.g. "Add a skill to this agent"). */
+    slashEmptyAction?: {label: string; onSelect: () => void}
 }
 
 // Static: RichText gives Cmd+B/I + block behavior, History gives undo/redo, list
@@ -142,11 +151,15 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             submitOnEnter = true,
             onChange,
             initialMarkdown,
+            slashCommands,
+            slashEmptyAction,
         },
         ref,
     ) {
         const editorRef = useRef<LexicalEditor | null>(null)
         const dictationRef = useRef<DictationSession | null>(null)
+        // The `/` palette spans this box and floats above it.
+        const boxRef = useRef<HTMLDivElement | null>(null)
         const [focused, setFocused] = useState(false)
         const [modKey, setModKey] = useState("⌘")
 
@@ -208,6 +221,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         return (
             <LexicalExtensionComposer extension={chatInputExtension} contentEditable={null}>
                 <div
+                    ref={boxRef}
                     className={clsx(
                         // Single rounded border around the whole composer; overflow-hidden clips the
                         // editor + toolbar to the rounded corners. The toolbar has no divider of its
@@ -319,6 +333,15 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     ) : null}
                     <FocusStatePlugin onFocusChange={setFocused} />
                     {onChange ? <CharacterCountPlugin onTextChange={onChange} /> : null}
+                    {/* Registers Enter above SubmitPlugin, so it must mount after it. */}
+                    {slashCommands?.length ? (
+                        <SlashCommandPlugin
+                            sections={slashCommands}
+                            anchorRef={boxRef}
+                            disabled={disabled || dictating}
+                            emptyAction={slashEmptyAction}
+                        />
+                    ) : null}
                 </div>
             </LexicalExtensionComposer>
         )
