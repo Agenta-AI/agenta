@@ -17,7 +17,9 @@ import {EntityPicker} from "@agenta/entity-ui"
 import {type WorkflowRevisionSelectionResult} from "@agenta/entity-ui/selection"
 import {useEnrichedEvaluatorOnlyAdapter as useEvaluatorOnlyAdapter} from "@agenta/entity-ui/selection"
 import {playgroundController, isAgentModeAtomFamily} from "@agenta/playground"
+import {AgentPageHeader} from "@agenta/playground-ui/agent-page-header"
 import {usePlaygroundLayout} from "@agenta/playground-ui/hooks"
+import {PlaygroundModeSwitch} from "@agenta/playground-ui/mode-switch"
 import {textColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {VersionBadge} from "@agenta/ui/components/presentational"
@@ -29,7 +31,6 @@ import {
     DropdownMenuLabel,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    Segmented,
     SimpleTooltip,
 } from "@agenta/ui/ui"
 import {
@@ -40,14 +41,11 @@ import {
     GearSix,
     PencilSimple,
     Plus,
-    Robot,
     X,
 } from "@phosphor-icons/react"
-import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom, useStore} from "jotai"
 import dynamic from "next/dynamic"
 
-import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 import {
     AGENT_CHAT_ITEM_ESTIMATE_OPTIONS,
     AGENT_CHAT_OVERSCAN_OPTIONS,
@@ -205,7 +203,7 @@ const EvaluatorTag: React.FC<{
 // ---------------------------------------------------------------------------
 // PlaygroundHeader
 // ---------------------------------------------------------------------------
-const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divProps}) => {
+const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
     // ATOM-LEVEL OPTIMIZATION: Use focused atom subscriptions instead of full playground state
     const {displayedEntities} = usePlaygroundLayout()
 
@@ -280,12 +278,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         !isAgentWorkflow &&
         (earlyAgentState === "non-agent" ||
             (hasRootNode && !nodeIsAgent && !rootEntityQuery.isPending))
-
-    // Build/Chat mode: "chat" maximizes the chat pane (config hidden, session rail shown); "build"
-    // is the 2-panel edit view. The boolean maximize atom is the single source of truth (also read
-    // by MainLayout + the chat panel), surfaced here as a persistent, labeled mode switch.
-    const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
-    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
 
     // Pre-commit onboarding: the playground is the "what do you want to build?" surface, so the
     // Build/Chat mode switch + settings cog are noise (there's nothing to configure or chat yet). They
@@ -643,235 +635,211 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
         console.warn("[PlaygroundHeader] No valid variant IDs found in selection:", value)
     }, [])
 
+    const leading = currentWorkflow?.flags?.is_custom ? (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Workflow options">
+                    <DotsThree size={16} />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[180px]">
+                <DropdownMenuItem onSelect={openModal}>
+                    <PencilSimple size={16} />
+                    Configure workflow
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    ) : undefined
+
     return (
         <>
-            <div
-                className={clsx(
-                    "flex items-center justify-between gap-4 px-2.5 py-2 bg-[var(--ag-surface-raised)] border-0 border-b border-solid border-[var(--ag-shell-line)]",
-                    className,
-                )}
-                {...divProps}
-            >
-                <div className="flex shrink-0 items-center gap-2">
-                    {currentWorkflow?.flags?.is_custom ? (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" aria-label="Workflow options">
-                                    <DotsThree size={16} />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-[180px]">
-                                <DropdownMenuItem onSelect={openModal}>
-                                    <PencilSimple size={16} />
-                                    Configure workflow
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    ) : null}
-                    {isAgentWorkflow ? (
-                        <div className="flex min-w-0 items-center gap-2">
-                            <SimpleTooltip title="Agent">
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-cyan-6">
-                                    <Robot size={15} weight="fill" />
-                                </span>
-                            </SimpleTooltip>
-                            {renameWorkflowId ? (
-                                <AgentNameInline
-                                    workflowId={renameWorkflowId}
-                                    name={agentName}
-                                    onRenamed={setDisplayAgentName}
-                                />
-                            ) : (
-                                <span className="truncate whitespace-nowrap text-[16px] font-[600] leading-[18px] text-colorText">
-                                    {agentName || "Agent"}
-                                </span>
-                            )}
-                            {rootEntityId ? (
-                                <>
-                                    <span
-                                        aria-hidden
-                                        className="mx-1 h-5 w-px shrink-0 bg-colorBorderSecondary"
-                                    />
-                                    <AgentRevisionSelector variantId={rootEntityId} />
-                                </>
-                            ) : null}
-                        </div>
-                    ) : (
-                        <span className="whitespace-nowrap text-[16px] font-[600] leading-[18px] text-colorText">
-                            Playground
-                        </span>
-                    )}
-                </div>
-
-                <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-                    {connectedEvaluatorNodes.length > 0 && (
-                        <div className="min-w-0 flex-1 overflow-x-auto">
-                            <div className="flex w-max items-center gap-1 pr-1">
-                                {connectedEvaluatorNodes.map((node) => (
-                                    <EvaluatorTag
-                                        key={node.id}
-                                        node={node}
-                                        onDisconnect={handleDisconnectSingle}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    {/* Phase 6.1.2: hide "New Evaluation" for evaluator
-                     * workflows — running an evaluation FROM an evaluator's
-                     * playground doesn't make sense (would evaluate itself).
-                     * Agent workflows hide it too (eval flow not wired yet). */}
-                    {showEvalActions && currentWorkflowCtx.workflowKind !== "evaluator" && (
-                        <RunEvaluationButton />
-                    )}
-                    {showEvalActions && (
-                        <>
-                            <span
-                                aria-hidden
-                                className="mx-0 h-5 w-px shrink-0 bg-colorBorderSecondary"
+            <AgentPageHeader
+                className={className}
+                leading={leading}
+                title={isAgentWorkflow ? undefined : "Playground"}
+                name={
+                    isAgentWorkflow ? (
+                        renameWorkflowId ? (
+                            <AgentNameInline
+                                workflowId={renameWorkflowId}
+                                name={agentName}
+                                onRenamed={setDisplayAgentName}
                             />
-                            <span
-                                className="relative inline-flex"
-                                onPointerEnter={handleActivateEvaluatorPicker}
-                                onFocus={handleActivateEvaluatorPicker}
-                            >
-                                <SimpleTooltip title="Add evaluators to automatically score outputs in the playground.">
-                                    <span>
-                                        <EntityPicker<WorkflowRevisionSelectionResult>
-                                            variant="popover-cascader"
-                                            adapter={evaluatorWorkflowAdapter}
-                                            onSelect={handleEvaluatorToggle}
-                                            size="small"
-                                            placeholder="Evaluator"
-                                            icon={<Gavel size={14} />}
-                                            disabled={!hasRootNode}
-                                            multiSelect
-                                            selectedChildIds={connectedRevisionIds}
-                                            selectionSummary
-                                            childItemLabelMode="simple"
-                                            panelWidth={320}
-                                            childPanelWidth={180}
-                                            openChildOnHover
-                                            showParentCheckboxes
-                                            selectedChildrenByParent={selectedChildrenByParent}
-                                            totalChildrenByParent={totalChildrenByParent}
-                                            onDeselectChild={handleDeselectChild}
-                                            showParentDescription
-                                            showGroupHeaders
-                                            showChildSelectAll
-                                            onClearAll={handleDisconnectAll}
-                                            onCreateNew={handleOpenTemplateDropdown}
-                                            createNewLabel="Create new"
-                                            popupFooter={
-                                                connectedEvaluatorNodes.length > 0 ? (
-                                                    <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
-                                                        <Button
-                                                            variant="destructive-outline"
-                                                            size="sm"
-                                                            className="w-full"
-                                                            onClick={handleDisconnectAll}
-                                                        >
-                                                            Disconnect all
-                                                        </Button>
-                                                    </div>
-                                                ) : undefined
-                                            }
+                        ) : (
+                            agentName || "Agent"
+                        )
+                    ) : undefined
+                }
+                revision={
+                    isAgentWorkflow && rootEntityId ? (
+                        <AgentRevisionSelector variantId={rootEntityId} />
+                    ) : undefined
+                }
+                actions={
+                    <>
+                        {connectedEvaluatorNodes.length > 0 && (
+                            <div className="min-w-0 flex-1 overflow-x-auto">
+                                <div className="flex w-max items-center gap-1 pr-1">
+                                    {connectedEvaluatorNodes.map((node) => (
+                                        <EvaluatorTag
+                                            key={node.id}
+                                            node={node}
+                                            onDisconnect={handleDisconnectSingle}
                                         />
-                                    </span>
-                                </SimpleTooltip>
-                                <EvaluatorTemplateDropdown
-                                    onSelect={handleTemplateSelect}
-                                    open={templateDropdownOpen}
-                                    onOpenChange={setTemplateDropdownOpen}
-                                    placement="bottomLeft"
-                                    className="pointer-events-none absolute inset-0"
-                                    trigger={<span className="block size-full" />}
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {/* Phase 6.1.2: hide "New Evaluation" for evaluator
+                         * workflows — running an evaluation FROM an evaluator's
+                         * playground doesn't make sense (would evaluate itself).
+                         * Agent workflows hide it too (eval flow not wired yet). */}
+                        {showEvalActions && currentWorkflowCtx.workflowKind !== "evaluator" && (
+                            <RunEvaluationButton />
+                        )}
+                        {showEvalActions && (
+                            <>
+                                <span
+                                    aria-hidden
+                                    className="mx-0 h-5 w-px shrink-0 bg-colorBorderSecondary"
                                 />
-                            </span>
-                            <TestsetDropdown />
-                            {isProjectLevelPlayground ? (
-                                <SimpleTooltip title="Compare mode is unavailable in project-level playground">
-                                    <span className="inline-flex">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled
-                                            className="rounded-r-none"
-                                        >
-                                            <Plus size={14} />
-                                            Compare
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="icon-sm"
-                                            disabled
-                                            aria-label="Compare options"
-                                            className="-ml-px rounded-l-none"
-                                        >
-                                            <CaretDown size={10} />
-                                        </Button>
-                                    </span>
-                                </SimpleTooltip>
-                            ) : (
-                                <SelectVariant
-                                    showAsCompare
-                                    multiple
-                                    onChange={(value) => onAddVariant(value)}
-                                    value={displayedEntities}
-                                />
-                            )}
-                        </>
-                    )}
-                    {isAgentWorkflow && !chromeHidden && (
-                        <>
-                            <Segmented
-                                aria-label="Playground mode"
-                                value={chatMaximized ? "chat" : "build"}
-                                onChange={(value) => setChatMaximized(value === "chat")}
-                                options={[
-                                    {label: "Build", value: "build"},
-                                    {label: "Chat", value: "chat"},
-                                ]}
-                            />
-                            {settingsMenuItems.length > 0 && (
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            aria-label="Playground settings"
-                                        >
-                                            <GearSix size={16} />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-[200px]">
-                                        {settingsMenuItems.map((group, index) => (
-                                            <React.Fragment key={group.key}>
-                                                {index > 0 ? <DropdownMenuSeparator /> : null}
-                                                <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
-                                                {group.children.map((item) => (
-                                                    <DropdownMenuItem
-                                                        key={item.key}
-                                                        disabled={item.disabled}
-                                                        onSelect={item.onClick}
-                                                    >
-                                                        {item.checked ? (
-                                                            <Check size={14} />
-                                                        ) : (
-                                                            <span className="inline-block w-[14px]" />
-                                                        )}
-                                                        {item.label}
-                                                    </DropdownMenuItem>
-                                                ))}
-                                            </React.Fragment>
-                                        ))}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            )}
-                        </>
-                    )}
-                </div>
-            </div>
+                                <span
+                                    className="relative inline-flex"
+                                    onPointerEnter={handleActivateEvaluatorPicker}
+                                    onFocus={handleActivateEvaluatorPicker}
+                                >
+                                    <SimpleTooltip title="Add evaluators to automatically score outputs in the playground.">
+                                        <span>
+                                            <EntityPicker<WorkflowRevisionSelectionResult>
+                                                variant="popover-cascader"
+                                                adapter={evaluatorWorkflowAdapter}
+                                                onSelect={handleEvaluatorToggle}
+                                                size="small"
+                                                placeholder="Evaluator"
+                                                icon={<Gavel size={14} />}
+                                                disabled={!hasRootNode}
+                                                multiSelect
+                                                selectedChildIds={connectedRevisionIds}
+                                                selectionSummary
+                                                childItemLabelMode="simple"
+                                                panelWidth={320}
+                                                childPanelWidth={180}
+                                                openChildOnHover
+                                                showParentCheckboxes
+                                                selectedChildrenByParent={selectedChildrenByParent}
+                                                totalChildrenByParent={totalChildrenByParent}
+                                                onDeselectChild={handleDeselectChild}
+                                                showParentDescription
+                                                showGroupHeaders
+                                                showChildSelectAll
+                                                onClearAll={handleDisconnectAll}
+                                                onCreateNew={handleOpenTemplateDropdown}
+                                                createNewLabel="Create new"
+                                                popupFooter={
+                                                    connectedEvaluatorNodes.length > 0 ? (
+                                                        <div className="border-0 border-t border-solid border-[var(--ag-rgba-051729-06)] p-2">
+                                                            <Button
+                                                                variant="destructive-outline"
+                                                                size="sm"
+                                                                className="w-full"
+                                                                onClick={handleDisconnectAll}
+                                                            >
+                                                                Disconnect all
+                                                            </Button>
+                                                        </div>
+                                                    ) : undefined
+                                                }
+                                            />
+                                        </span>
+                                    </SimpleTooltip>
+                                    <EvaluatorTemplateDropdown
+                                        onSelect={handleTemplateSelect}
+                                        open={templateDropdownOpen}
+                                        onOpenChange={setTemplateDropdownOpen}
+                                        placement="bottomLeft"
+                                        className="pointer-events-none absolute inset-0"
+                                        trigger={<span className="block size-full" />}
+                                    />
+                                </span>
+                                <TestsetDropdown />
+                                {isProjectLevelPlayground ? (
+                                    <SimpleTooltip title="Compare mode is unavailable in project-level playground">
+                                        <span className="inline-flex">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled
+                                                className="rounded-r-none"
+                                            >
+                                                <Plus size={14} />
+                                                Compare
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="icon-sm"
+                                                disabled
+                                                aria-label="Compare options"
+                                                className="-ml-px rounded-l-none"
+                                            >
+                                                <CaretDown size={10} />
+                                            </Button>
+                                        </span>
+                                    </SimpleTooltip>
+                                ) : (
+                                    <SelectVariant
+                                        showAsCompare
+                                        multiple
+                                        onChange={(value) => onAddVariant(value)}
+                                        value={displayedEntities}
+                                    />
+                                )}
+                            </>
+                        )}
+                        {isAgentWorkflow && !chromeHidden && (
+                            <>
+                                <PlaygroundModeSwitch />
+                                {settingsMenuItems.length > 0 && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="Playground settings"
+                                            >
+                                                <GearSix size={16} />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-[200px]">
+                                            {settingsMenuItems.map((group, index) => (
+                                                <React.Fragment key={group.key}>
+                                                    {index > 0 ? <DropdownMenuSeparator /> : null}
+                                                    <DropdownMenuLabel>
+                                                        {group.label}
+                                                    </DropdownMenuLabel>
+                                                    {group.children.map((item) => (
+                                                        <DropdownMenuItem
+                                                            key={item.key}
+                                                            disabled={item.disabled}
+                                                            onSelect={item.onClick}
+                                                        >
+                                                            {item.checked ? (
+                                                                <Check size={14} />
+                                                            ) : (
+                                                                <span className="inline-block w-[14px]" />
+                                                            )}
+                                                            {item.label}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </React.Fragment>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
+                            </>
+                        )}
+                    </>
+                }
+            />
         </>
     )
 }

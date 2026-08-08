@@ -1,73 +1,50 @@
-import {cloneElement, isValidElement, useCallback, useState} from "react"
+import {useCallback} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {FloppyDiskBack, Plus} from "@phosphor-icons/react"
-import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
+import {CommitVariantChangesButton as CommitVariantChangesButtonView} from "@agenta/playground-ui/commit"
+import type {CommitVariantChangesButtonProps} from "@agenta/playground-ui/commit"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
+import {
+    clearEvaluatorWorkflowCache,
+    evaluatorsPaginatedStore,
+} from "@/oss/components/Evaluators/store/evaluatorsPaginatedStore"
+import {
+    clearRegistryVariantNameCache,
+    registryPaginatedStore,
+} from "@/oss/components/VariantsComponents/store/registryStore"
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
+import {selectedAppIdAtom} from "@/oss/state/app"
 
-import {CommitVariantChangesButtonProps} from "../types"
-const CommitVariantChangesModal = dynamic(() => import("../.."), {ssr: false})
-
-const CommitVariantChangesButton = ({
-    variantId,
-    label,
-    icon = true,
-    children,
-    onSuccess,
-    ...props
-}: CommitVariantChangesButtonProps) => {
-    const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const hasChanges = useAtomValue(workflowMolecule.selectors.isDirty(variantId || ""))
-    const isEphemeral = useAtomValue(workflowMolecule.selectors.isEphemeral(variantId || ""))
-
-    // Ephemeral entities are always "ready" (no dirty check needed — they need to be created)
-    const disabled = !variantId || (!isEphemeral && !hasChanges)
-    const resolvedLabel = isEphemeral ? "Create" : label
-    const resolvedIcon = isEphemeral ? <Plus size={14} /> : <FloppyDiskBack size={14} />
+/**
+ * App adapter over the shared commit button: the commit itself is the package's, and what this
+ * app adds are its own out-of-band caches (the variant registry and evaluator tables, which do
+ * not live in the entities layer) plus the onboarding event.
+ */
+const CommitVariantChangesButton = (
+    props: Omit<CommitVariantChangesButtonProps, "appId" | "onAfterCommit" | "onCommitted">,
+) => {
+    const appId = useAtomValue(selectedAppIdAtom)
     const recordWidgetEvent = useSetAtom(recordWidgetEventAtom)
-    const handleSuccess = useCallback(
-        (payload?: {revisionId?: string; variantId?: string}) => {
-            recordWidgetEvent("playground_committed_change")
-            onSuccess?.(payload ?? {})
-        },
-        [recordWidgetEvent, onSuccess],
+
+    const onAfterCommit = useCallback(() => {
+        clearRegistryVariantNameCache()
+        clearEvaluatorWorkflowCache()
+        getDefaultStore().set(registryPaginatedStore.actions.refresh)
+        getDefaultStore().set(evaluatorsPaginatedStore.actions.refresh)
+    }, [])
+
+    const onCommitted = useCallback(
+        () => recordWidgetEvent("playground_committed_change"),
+        [recordWidgetEvent],
     )
 
     return (
-        <>
-            {isValidElement(children) ? (
-                cloneElement(
-                    children as React.ReactElement<{
-                        onClick: () => void
-                    }>,
-                    {
-                        onClick: () => {
-                            setIsDeployModalOpen(true)
-                        },
-                    },
-                )
-            ) : (
-                <EnhancedButton
-                    type="text"
-                    icon={icon && resolvedIcon}
-                    onClick={() => setIsDeployModalOpen(true)}
-                    disabled={disabled}
-                    {...props}
-                >
-                    {resolvedLabel}
-                </EnhancedButton>
-            )}
-
-            <CommitVariantChangesModal
-                open={isDeployModalOpen}
-                onCancel={() => setIsDeployModalOpen(false)}
-                variantId={variantId}
-                onSuccess={handleSuccess}
-            />
-        </>
+        <CommitVariantChangesButtonView
+            {...props}
+            appId={appId}
+            onAfterCommit={onAfterCommit}
+            onCommitted={onCommitted}
+        />
     )
 }
 

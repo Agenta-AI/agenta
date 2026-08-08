@@ -8,6 +8,7 @@ import {
     useEnrichedEvaluatorOnlyAdapter,
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
+import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
@@ -183,6 +184,28 @@ const PlaygroundVariantConfigHeader = ({
             console.error(e)
         }
     }, [_variantId])
+
+    // Agent playground: the whole bar is the SHARED `AgentConfigHeader` (the mobile app renders
+    // exactly this), with the two pieces that are still app-layer passed in as slots.
+    if (showAgentHeader && !embedded) {
+        return (
+            <AgentConfigHeader
+                revisionId={variantId}
+                className={className}
+                deploy={
+                    isEvaluatorEntity ? null : (
+                        <DeployVariantButton
+                            revisionId={variantId}
+                            label="Deploy"
+                            type="default"
+                            size="small"
+                        />
+                    )
+                }
+                menu={<PlaygroundVariantHeaderMenu variantId={variantId} />}
+            />
+        )
+    }
 
     return (
         <section
