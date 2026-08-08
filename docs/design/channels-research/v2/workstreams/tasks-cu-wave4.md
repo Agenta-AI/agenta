@@ -167,6 +167,67 @@ package would either hit as a wall or build on wrongly.
 
 ---
 
+## CU-A-9 — `F45`: the stateless registration refuses every request — **DECIDED, blocks C4**
+
+Found by the out-of-process bridge counterpart, then widened on review. **Slack
+ingress is broken in the deployed app today**, not only the bridge:
+`SlackAdapter()` is registered with no connection, so `verify_signature` raises
+before reading a header. The endpoint answers 401, which is indistinguishable
+from a real bad-signature refusal — that is why it survived.
+
+### Why every test missed it
+
+The seam test constructs `SlackAdapter(connection=connection, ...)`; production
+registers `SlackAdapter()`. **The test proves a configuration the composition
+root never builds.** Not an unreachable function this time — a *reachable* one,
+exercised only in a shape nothing constructs. Third instance of this family, and
+the reason `CU-B-1` reads the composition root directly rather than trusting a
+green suite.
+
+### The decision: resolve a candidate connection from the body, then verify with its secret
+
+The apparent chicken-and-egg — the secret lives in the connection, and the
+connection is found by an id that verification returns — dissolves once the two
+signals are separated. **Both arms already carry an unverified installation hint
+in the body**, and both verifiers are pure functions taking the secret as a
+parameter:
+
+| Arm | Hint in the body | Verified by |
+| --- | --- | --- |
+| Slack | `team_id` | that connection's `signing_secret` |
+| Bridge | `source`, as `bridge/<name>` normalising to the bare id | that connection's `secret` |
+
+So the order becomes: parse the hint → look the connection up → verify with its
+secret → proceed only if it holds.
+
+**The credential stays authoritative, and this does not weaken it.** The hint
+selects *which secret to check against*; it grants nothing. A forged or wrong
+hint resolves either to no connection or to one whose secret fails the HMAC, and
+both refuse identically. Nothing is trusted that was not trusted before — the
+signature is still the only thing that decides.
+
+This also fixes the second symptom for free: capabilities become per-connection
+rather than per-channel-key, because the connection is in hand before anything
+reads a declaration.
+
+- [ ] Resolve the candidate connection inside `_ingest`, before `verify_signature`,
+  and pass it in. Both adapters already accept the optional `connection` kwarg, so
+  no interface change.
+- [ ] `fetch_capabilities` must key on the connection, not the channel string —
+  otherwise a second bridge is validated against the first's declaration.
+- [ ] A hint that resolves to nothing must refuse **identically** to a bad
+  signature. Do not let the shape of the refusal distinguish "unknown installation"
+  from "bad secret": that difference is an enumeration oracle.
+- [ ] Assert the composition root's own shape — `SlackAdapter()` with no
+  connection, as `routers.py` builds it — must pass a correctly-signed request.
+  That assertion is the whole point; without it this recurs.
+- [ ] The two strict-xfail two-bridge tests must go green. They are strict, so they
+  fail loudly if the fix lands and they are not updated.
+
+**Sequencing:** this lands before the differential package, whose out-of-process
+leg runs straight through this path — it would otherwise produce a second symptom
+of a known defect instead of its own signal.
+
 # The packages
 
 Five worktrees, but **only two can start in parallel**. The rest are ordered:
