@@ -22,3 +22,4 @@ export {
     type WorkflowPickerEntry,
     type WorkflowPickerViewProps,
 } from "./WorkflowPickerView"
+export {SidebarToggleButton, type SidebarToggleButtonProps} from "./SidebarToggleButton"

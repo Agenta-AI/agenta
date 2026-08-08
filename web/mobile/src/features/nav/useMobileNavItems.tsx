@@ -9,7 +9,8 @@ import {
     type SessionSidebarRef,
     type SidebarConfig,
 } from "@agenta/navigation"
-import {useAtomValue} from "jotai"
+import {atom, useAtomValue} from "jotai"
+import {loadable} from "jotai/utils"
 import {
     Bot,
     CalendarClock,
@@ -97,8 +98,14 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
  * so both apps point at the same four places. "Invite Teammate" is omitted deliberately: it
  * deep-links into the settings workspace tab, which this app does not have yet.
  */
-export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] =>
-    useMemo(
+// Lazy-load package.json so its version stays out of the initial bundle — same as the desktop.
+const versionAtom = loadable(atom(async () => (await import("../../../package.json")).version))
+
+export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => {
+    const versionState = useAtomValue(versionAtom)
+    const version = versionState.state === "hasData" ? versionState.data : undefined
+
+    return useMemo(
         () => [
             {
                 key: "mobile-settings",
@@ -114,7 +121,15 @@ export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] =>
                     slack: createElement(Slack, {size: 14}),
                     bookCall: createElement(CalendarClock, {size: 14}),
                 },
+                suffix: version
+                    ? createElement(
+                          "span",
+                          {className: "text-[10px] leading-none text-colorTextTertiary"},
+                          `v${version}`,
+                      )
+                    : undefined,
             }),
         ],
-        [projectURL],
+        [projectURL, version],
     )
+}
