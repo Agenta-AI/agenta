@@ -1,6 +1,7 @@
 import {createElement, useMemo} from "react"
 
 import {
+    buildHelpDocsNavItem,
     defineSidebarEntity,
     resolveChildren,
     SESSIONS_SIDEBAR_KEY,
@@ -9,7 +10,19 @@ import {
     type SidebarConfig,
 } from "@agenta/navigation"
 import {useAtomValue} from "jotai"
-import {Circle, House, MessagesSquare, Pin} from "lucide-react"
+import {
+    Bot,
+    CalendarClock,
+    Circle,
+    HelpCircle,
+    Github,
+    House,
+    MessagesSquare,
+    Pin,
+    ScrollText,
+    Settings,
+    Slack,
+} from "lucide-react"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
@@ -30,7 +43,9 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         childPath: (session) => `/sessions/${session.sessionId}`,
         emptyLabel: "No sessions yet",
         showAllPath: "/sessions",
-        getGroup: (session) => (session.pinned ? "Pinned" : null),
+        // Both halves are named or neither is: a lone "Pinned" heading over an unlabelled
+        // remainder reads as a stray row. The resolver drops both when nothing is pinned.
+        getGroup: (session) => (session.pinned ? "Pinned" : "Recent"),
         getIcon: (session) =>
             session.pinned
                 ? createElement(Pin, {size: 12})
@@ -41,7 +56,11 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     },
 )
 
-/** The drawer's nav model. Entries appear here as their screens land — one list, model-driven. */
+/**
+ * The rail's nav model — the same keys, order and icon sizes the desktop rail uses, narrowed
+ * to the screens mobile has. Entries appear here as their screens land; nothing is hidden by
+ * forking a component.
+ */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const source = useAtomValue(mobileSessionsEntity.activeSourceAtom)
 
@@ -61,7 +80,41 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 defaultOpen: true,
                 submenu: resolveChildren(mobileSessionsEntity, source, projectURL),
             },
+            {
+                key: "mobile-agents",
+                title: "Agents",
+                icon: createElement(Bot, {size: 16}),
+                link: `${projectURL}/agents`,
+            },
         ],
         [source, projectURL],
     )
 }
+
+/**
+ * The pinned bottom entries — the desktop rail's, minus what has no mobile destination.
+ * Settings is a placeholder screen until its surfaces land; Help & Docs is the SHARED entry,
+ * so both apps point at the same four places. "Invite Teammate" is omitted deliberately: it
+ * deep-links into the settings workspace tab, which this app does not have yet.
+ */
+export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] =>
+    useMemo(
+        () => [
+            {
+                key: "mobile-settings",
+                title: "Settings",
+                icon: createElement(Settings, {size: 16}),
+                link: `${projectURL}/settings`,
+            },
+            buildHelpDocsNavItem({
+                icons: {
+                    help: createElement(HelpCircle, {size: 16}),
+                    docs: createElement(ScrollText, {size: 14}),
+                    github: createElement(Github, {size: 14}),
+                    slack: createElement(Slack, {size: 14}),
+                    bookCall: createElement(CalendarClock, {size: 14}),
+                },
+            }),
+        ],
+        [projectURL],
+    )

@@ -1,12 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
-import type {WorkflowPickerEntry} from "@agenta/navigation-ui"
 import {
     nonArchivedAppWorkflowsAtom,
     nonArchivedEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
+import type {WorkflowPickerEntry} from "@agenta/navigation-ui"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {
