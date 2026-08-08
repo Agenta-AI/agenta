@@ -419,8 +419,13 @@
   - 30 files match `TransactionsEngine|create_async_engine|engine.session()|ObjectStore|redis`
     under `unit/`: 18 in `sessions/`, 3 in `events/`, 2 in `triggers/`, 2 in
     `git/`, the rest in `mounts/`, `utils/` and evaluation.
-  - Canonical run (`load-env hosting/docker-compose/ee/.env.ee.dev` then
-    `py-run-tests --api -uia`): **2655 pass, 0 fail** in the unit layer.
+  - Canonical run before merging `main`: **2655 pass, 0 fail** in the unit layer.
+  - Canonical run **after** merging `main` (`e73fb2efce`, v0.110.0): **2652 pass,
+    1 error** — `unit/sessions/test_turns_dao.py::test_append_turn_persists_and_query_returns_turn_id`,
+    which opens a `TransactionsEngine` and passes in isolation. It arrived from
+    main in `a3336572b2` ("rebase session turns/streams backend onto v0.105.5").
+    So the order-dependence does surface under the canonical configuration once
+    the population shifts — the earlier clean runs were luck, not proof.
   - Ad-hoc runs with hand-set `POSTGRES_URI_*` did fail — 4 in `unit/git/` on
     **both** `channels-c1` and `channels-c2`, with
     `asyncpg.exceptions.ForeignKeyViolationError`. Same on both branches, so

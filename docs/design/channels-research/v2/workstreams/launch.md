@@ -146,61 +146,90 @@ C1 is a gate and not a formality:
 **Instead of rebasing the package worktrees**, C1 carries the whole result: the
 three ledgers are closed here, and wave 2 branches from `channels-c1`.
 
-## Wave 3 — three packages, launched from C2
+## Wave 3 — launched from C2, after two checkpoint fixes
 
-All three branch from `channels-c2`, which carries the five wave-2 packages plus
-the C2 fixes (identity wiring, the `provider_key` member, the idempotency-key
-null guard, and the open-vocabulary enum change).
+All branch from `channels-c2`, which carries the five wave-2 packages, the C2
+fixes, and a merge of `main` at `origin/main` = `e73fb2efce` (the v0.110.0
+release). Verified green on that merge: api 2652 unit / 43 integration / 802
+acceptance, sdk 2003/146/118, services 100/15/145.
 
-**The checkpoint numbering in `plan.md` has drifted from what happened.** That
-document assigns WP6 and WP8 to C3, but both merged at C2 — the packages were
-ready together and there was no reason to hold them. So C3's exit condition
-("Slack works") is now a *verification* checkpoint over code already merged,
-not a merge of new packages. Wave 3 is `plan.md`'s C4 set.
+**The checkpoint numbering in `plan.md` drifted from what happened.** It assigns
+WP6 and WP8 to C3, but both merged at C2 — they were ready together and there was
+no reason to hold them. So C3 is a *verification* checkpoint over merged code
+("Slack works"), not a merge of new packages, and wave 3 is `plan.md`'s C4 set
+plus the two items below.
+
+### Before launching: two things no package owns
+
+Both are `findings.md` items that sit in the gap between packages, and both must
+land first because wave 3 builds on them.
+
+1. **`F1` — nothing wires the entrypoints.** WP4, WP5 and WP8 each produced the
+   `api/entrypoints/routers.py` and `worker_queues.py` edits and handed them back
+   verbatim, as instructed. No package applies them, and no wave-3 spec mentions
+   either file — checked. So the merged tree has an ingress that logs events, a
+   dispatcher that would route them, and a worker that would answer, none
+   connected. Apply the three diffs serially (WP4 first: it defines the dispatch
+   task WP3's router consumes). **Until this lands, nothing runs end to end and
+   C3 cannot be verified at all.**
+2. **`F25` — the comment sweep.** 77 comment lines cite work packages, findings
+   and design sections; a few assert worktree state that is now false. Cheapest
+   while the merge is fresh, and it touches every file wave 3 will edit.
+
+`F18` was the third item here and is **done** — `resolve()` now attaches an
+inbound event to its resolved space, so `compose_input` can see it. Without that
+fix WP9 could not parse a command from content that was never read, and WP10
+could not extend a backlog that resolved to nothing.
+
+### The packages
 
 | Worktree | Package | Owns |
 | --- | --- | --- |
+| `channels-wp15` | Mock channel — an in-process adapter for a channel that does not exist | `core/channels/adapters/mock/` |
 | `channels-wp9` | Commands — `!new`, `!stop`, `!sessions`, `!use:<id>` | command parsing + dispatch |
 | `channels-wp10` | Fill — backfill range read, forwardfill one-time fetch | `core/channels/` fill paths |
 | `channels-wp13` | Web app — the configuration surface over WP8 | `web/` only |
 
-The three are independent by construction: `plan.md` groups them precisely
+**WP15 is new and goes first.** Slack was built before any mock, so several
+capability paths are proved only against a test fixture (`WellBehavedFakeAdapter`)
+rather than an adapter, and `capabilities.md`'s unsupported arms — no threads, no
+buttons, no history — have nowhere to be exercised. A `mock` adapter whose
+declaration is a test parameter is that home, and it is the second first-party
+adapter that proves the port is a port rather than Slack's shape with an interface
+drawn around it. It also unblocks `F5`: WP2's contract suite asserts signature
+behaviour with a fixed fake header scheme that no real-HMAC adapter can satisfy,
+and a `mock` adapter makes the suite's own shape the thing under discussion.
+
+WP9, WP10 and WP13 are independent by construction — `plan.md` groups them
 because none sits on another's critical path. WP13 is the only one touching
-`web/`, so it cannot collide with the other two at all.
-
-### F18 comes first, and it is not a package
-
-**`F18` blocks every one of these.** The ingress writes each inbound event with
-`space_id=None` (it cannot do otherwise — the space is resolved afterwards),
-while `compose_input` queries events *by* `space_id`. So the agent is invoked
-with empty content on every turn. Commands cannot be parsed from content that is
-never read, and fill cannot extend a backlog that resolves to nothing.
-
-Fix it at the checkpoint, before launching wave 3 — it needs a write path on
-WP1's DAO, which no package owns. See `findings.md`.
+`web/`, so it cannot collide with the others at all.
 
 ### Coordination points, not blockers
 
 - **WP9 and WP4 both parse the message.** WP4 already ships `_parse_sigil` for
-  addressing; WP9 owns the `!command[:arg]` grammar. One of them should end up
-  owning both, and the checkpoint decides which — not WP9 unilaterally.
-- **WP10 deletes WP5's polling, but only once WP0 lands.** WP0 is not ours and
-  not scheduled. Until then WP10's forwardfill and WP5's poll loop coexist;
-  `plan.md`'s C4 exit condition ("WP5's polling is deleted, not disabled")
-  cannot be met without it. Raise it with the sessions owner now.
-- **WP13 consumes WP8's routes as merged, including their open questions.**
-  `F10` (the catalog path contradiction), `F11` (wire DTOs in the core module)
-  and `F12` (an invented request model) are all in WP13's surface. Settle them
-  before WP13 builds against a shape that then moves.
+  addressing; WP9 owns the `!command[:arg]` grammar. One of them should own both,
+  and the checkpoint decides which — not WP9 unilaterally.
+- **WP10 cannot meet its stated exit condition without WP0.** "WP5's polling is
+  deleted, not disabled" needs session events, which are not ours and not
+  scheduled. Until then WP10's forwardfill and WP5's poll loop coexist. Raise it
+  with the sessions owner now rather than at the checkpoint.
+- **WP13 inherits WP8's open questions in its own surface.** `F10` (the catalog
+  path contradiction), `F11` (wire DTOs in the core module) and `F12` (an invented
+  request model) all live in the routes WP13 consumes. Settle them before WP13
+  builds against a shape that then moves.
 - **WP13 is the first package to write `connection.data`.** `F6` records that
-  nothing currently does, and that the four key names WP6 reads
+  nothing currently does, and that the four keys the Slack adapter reads
   (`signing_secret`, `bot_token`, `bot_user_id`, `team_id`) have no design-doc
   basis. Pin them in a document before writing the form that fills them.
+- **WP15 and WP6 both answer to the contract suite.** If fixing `F5` changes the
+  suite, WP6's Slack adapter must still pass it — the suite is shared, so a change
+  made for `mock` is a change to Slack's acceptance criteria too.
 
 ### Still not ours
 
-WP0 (session events) and WP11/WP12 (the bridge) are outside wave 3. The bridge
-is `plan.md`'s C5 and needs WP12 before WP11; WP0 gates WP10's final form.
+WP0 (session events) gates WP10's final form. WP11/WP12 (the bridge) are C5;
+note that `mock` over the bridge is a cheaper first bridged channel than Slack,
+since it removes the platform as a variable — see `plan.md`'s WP12 ordering note.
 
 ## Rules for anyone working a package
 

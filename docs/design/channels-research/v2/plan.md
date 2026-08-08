@@ -489,6 +489,37 @@ trigger, and a platform declaring no history support is never asked for it.
 
 ---
 
+## WP15 — Mock channel (in-process)
+
+A first-party adapter for a channel that does not exist: `mock`. It declares a
+full capability set, records what it was asked to post, and replays scripted
+inbound events. No credentials, no workspace, no network.
+
+**Why this should have come before Slack.** The capability matrix — degradation,
+buttons-vs-numbered-text, threading grains, fill, refusal text — is platform
+independent by design, and `mock` can exercise all of it in unit tests. Slack was
+built first, so several capability paths are currently proved only against
+`WellBehavedFakeAdapter` (a test fixture, not an adapter) or not at all. Two
+things followed from that ordering:
+
+- WP2's contract suite asserts signature behaviour with a fixed fake header
+  scheme, which no adapter doing real HMAC can satisfy. A `mock` adapter, whose
+  signature check is whatever the suite says it is, would have made the suite's
+  own shape obvious immediately.
+- A capability an adapter cannot reach (a platform with no threads, no buttons,
+  no history) has no home to be tested in. `mock` is that home: one adapter whose
+  declaration is a test parameter.
+
+`mock` is also the reference implementation the contract documents. A second
+first-party adapter is what proves the port is a port rather than Slack's shape
+with an interface drawn around it.
+
+**Done when:** the contract suite passes against `mock` unmodified, and every
+capability in `capabilities.md` has at least one `mock` declaration exercising
+both its supported and unsupported arm.
+
+---
+
 ## WP11 — Slack over the bridge
 
 The Slack adapter of WP6, run **out of process behind the wire contract**, held
@@ -525,6 +556,12 @@ fixed in the bridge or the contract rather than accommodated in the harness.
 ---
 
 ## WP12 — Bridge
+
+**Ordering note.** `mock` (WP15) over the bridge is a cheaper first bridged
+channel than Slack: it removes the platform as a variable entirely, so any
+divergence can only be the transport's. WP11 stays the *proof* — a real platform
+held against its in-process twin — but `mock` over the wire is the first thing to
+get working, and unlike Slack it needs no workspace, so it can run in CI.
 
 The wire contract in `contract.md` made real: HTTP both directions, signed;
 `bridge.hello` with the same declaration a first-party adapter answers; the
