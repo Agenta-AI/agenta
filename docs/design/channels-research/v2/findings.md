@@ -664,6 +664,43 @@
   same change — they are the regression guard, and a fix that leaves them green
   has not fixed anything.
 
+### F37. The bridge ingress collapses every bridged platform into one channel key
+
+- ID: `F37`
+- Origin: `C3`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `contract.md` §3 says every bridge shares the one route and **the
+  channel is resolved from the bridge credential**, because a bridge's channel
+  key is not known when the route table is built. The implementation instead
+  passes the literal `channel="bridge"` into `_ingest`, which then does
+  `adapter_registry.get("bridge")` and
+  `get_project_and_connection_by_external_id(channel="bridge", ...)`. So
+  `"bridge"` becomes a single channel key and all bridged platforms —
+  WeCom, Telegram, Discord, any third-party — collapse into it. Two bridges
+  cannot coexist.
+- Evidence: `ingress.py:104` hardcodes `_ingest(channel="bridge", ...)`;
+  `ingress.py:112` looks the adapter up by that literal; `service.py:518`
+  resolves the connection by `(channel, external_id)`. Contrast `contract.md`
+  §3: "the channel is resolved from the **bridge credential**, which the
+  receiver must verify anyway, and verifying it is the same act as identifying
+  which bridge is calling."
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py:104`,
+  `api/oss/src/core/channels/service.py:518`
+- Suggested Fix: Resolve the channel from the verified credential rather than
+  from a path constant — verification must return *which* bridge called, not
+  just that the signature held. That likely means the bridge arm cannot reuse
+  `_ingest`'s "registry lookup first, verify second" order, since the registry
+  key is not known until after verification. Inverting that order for the bridge
+  arm is the design question to settle.
+- Notes: Found by asking whether the design supports many bridges — it does,
+  explicitly, and the code does not. Not currently reachable in production
+  because no bridge adapter exists (`F26`), so this is cheap to fix now and
+  expensive after the first bridge ships. `routers.py`'s comment "the bridge
+  route resolves its own at runtime" describes the intent, not the code.
+
 ### F36. C3 merges green with four of five new capabilities unreachable
 
 - ID: `F36`

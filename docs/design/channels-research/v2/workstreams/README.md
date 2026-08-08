@@ -92,6 +92,7 @@ see the collision list below.
 | WP14 | runner + `core/sessions/` (not channels) |
 | WP15 | `core/channels/adapters/mock/` |
 | WP16 | `tests/.../channels/slack/fake_slack.py` + its tests (no source files) |
+| WP17 | `tests/.../channels/bridge_process/` + its tests (no source files) |
 
 ### Known collisions, and how each is handled
 
@@ -148,6 +149,7 @@ and the checklist that says C1 has actually been reached.
 | [specs-wp14.md](specs-wp14.md) | [tasks-wp14.md](tasks-wp14.md) | Input sequencing |
 | [specs-wp15.md](specs-wp15.md) | [tasks-wp15.md](tasks-wp15.md) | Mock channel |
 | [specs-wp16.md](specs-wp16.md) | [tasks-wp16.md](tasks-wp16.md) | Slack over mock |
+| [specs-wp17.md](specs-wp17.md) | [tasks-wp17.md](tasks-wp17.md) | A bridge process, at test level |
 | — | [tasks-cu.md](tasks-cu.md) | Clean-up (no package owns it) |
 
 ## Migrations are never verified by pytest

@@ -34,6 +34,7 @@ flowchart LR
     WP14["WP14<br/>input sequencing"]
     WP15["WP15<br/>mock channel"]
     WP16["WP16<br/>Slack over<br/>mock"]
+    WP17["WP17<br/>bridge process<br/>(test level)"]
 
     WP1 --> WP3
     WP1 --> WP4
@@ -56,17 +57,17 @@ flowchart LR
     WP2 --> WP12
     WP6 --> WP11
     WP12 --> WP11
+    WP12 --> WP17
     WP8 --> WP13
     WP14 -.->|improves| WP4
 
     classDef done fill:#d7ecd9,stroke:#8fbf96,color:#1f3d24
     classDef next fill:#d6e4f7,stroke:#93b4dd,color:#1c3352
-    classDef later fill:#fdf0cd,stroke:#dcc274,color:#4a3b12
     classDef apart fill:#e6e6e6,stroke:#b3b3b3,color:#333333
 
     class WP1,WP2,WP3,WP4,WP5,WP6,WP7,WP8 done
-    class WP0,WP15,WP16,WP9,WP10,WP13 next
-    class WP11,WP12 later
+    class WP0,WP9,WP10,WP13,WP15,WP16 done
+    class WP11,WP12,WP17 next
     class WP14 apart
 ```
 
@@ -196,6 +197,10 @@ operator can configure a connection end to end over the API.
 
 **Merges:** WP15, then WP16; and WP0, WP9, WP10, WP13. **Needs:** C3.
 
+**Merged.** All six are in `channels-c3`: api 2443 unit, web 252, zero conflicts.
+But see `F36` — commands, fill and the mock adapter have no callers, so the
+checkpoint's exit condition is not met by the merge alone.
+
 **WP15 → WP16 is ordered within the checkpoint**, the same way WP12 → WP11 is at
 C5, and for the same reason: each pair is a channel-shaped harness plus the real
 Slack adapter run through it. `mock` proves the port is a port; `slack-over-mock`
@@ -230,11 +235,20 @@ polling is deleted, not disabled.
 
 ### C5 — The bridge is proved
 
-**Merges:** WP12, then WP11. **Needs:** C4 — the bridge's first channel is `mock`
-(WP15), which lands there, so this no longer hangs off C3.
+**Merges:** WP12, then WP11 and WP17. **Needs:** C4 — the bridge's first channel is
+`mock` (WP15), which lands there, so this no longer hangs off C3.
 
-Ordered within the checkpoint, because WP11 runs WP6's adapter behind WP12's wire
-and cannot start until it exists.
+Ordered within the checkpoint, because both WP11 and WP17 need WP12's adapter to
+exist first. WP11 and WP17 are independent of each other and test different
+things: WP11 runs WP6's adapter behind the wire and compares it to the in-process
+run; WP17 stands up a real bridge **process** on the far side of the wire, so the
+contract has a counterpart that is not us.
+
+**WP17 is where `F37` gets settled.** `contract.md` §3 says every bridge shares the
+one route and the channel comes from the credential; the ingress hardcodes
+`channel="bridge"`, so today all bridges collapse into a single channel key. WP17's
+two-bridge test is what proves it, and the fix is a checkpoint edit to `ingress.py`
+— a file no package owns.
 
 **Exit condition:** the bridged Slack adapter and the in-process one are
 observationally indistinguishable on the same install — same thread, same content,
