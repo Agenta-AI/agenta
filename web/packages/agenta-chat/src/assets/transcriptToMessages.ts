@@ -248,6 +248,19 @@ function applyEvent(
                 part.state = "approval-requested"
                 part.approval = {id: str(payload.id)}
             }
+            // Mirrors the live egress's sibling data part, so a reloaded transcript renders the
+            // same card. `tool-approval-request` is a strict object and cannot carry this.
+            if (reqPayload.manifest !== undefined) {
+                draft.parts.push({
+                    type: "data-approval-manifest",
+                    id: toolCallId,
+                    data: {
+                        toolCallId,
+                        approvalId: str(payload.id),
+                        manifest: reqPayload.manifest,
+                    },
+                })
+            }
             return
         }
         case "interaction_response": {

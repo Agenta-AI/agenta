@@ -1,9 +1,9 @@
+import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
-import {Button} from "antd"
+import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {Lock} from "lucide-react"
 
-import type {AgentModelKeyStatus} from "../hooks/useAgentModelKeyStatus"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import RevealCollapse from "./RevealCollapse"
@@ -40,7 +40,7 @@ const ConnectModelBanner = ({
                     <Lock size={14} className="shrink-0" />
                     <span className="truncate">Add your model provider key to run this agent.</span>
                 </span>
-                <Button type="primary" onClick={openCredentials} className="shrink-0">
+                <Button onClick={openCredentials} className="shrink-0">
                     Set up credentials
                 </Button>
             </div>

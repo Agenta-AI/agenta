@@ -1,16 +1,35 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
 import {
+    describeAccepted,
+    filesToParts,
+    messageText,
+    sideEffectingToolsInRange,
+} from "@agenta/chat/assets"
+import {getMessageTraceId} from "@agenta/chat/assets"
+import {
+    stagedFilesToParts,
+    useComposerAttachments,
+    useAgentChatQueue,
+    type QueuedMessage,
+} from "@agenta/chat/hooks"
+import {useAgentModelKeyStatus} from "@agenta/chat/hooks"
+import {type SessionRunStatus} from "@agenta/chat/model"
+import {ignoreStreamRejection, isEmptyAssistantTurn, isVisiblePart} from "@agenta/chat/model"
+import {getPendingApprovals} from "@agenta/chat/model"
+import {sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
+import {clearSessionFresh} from "@agenta/chat/state"
+import {
     contextWindowForModel,
     harnessCapabilitiesAtomFamily,
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
+import {modal} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {UploadSimple} from "@phosphor-icons/react"
 import {type FileUIPart, type UIMessage} from "ai"
-import {Modal} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ContextRail} from "@/oss/components/Drives/ContextRail"
@@ -23,27 +42,18 @@ import {
 } from "@/oss/components/Drives/SessionFilesDrawer"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
-import {describeAccepted} from "./assets/attachments"
+import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
-import {filesToInlineParts, filesToParts} from "./assets/files"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
-import {isEmptyAssistantTurn, isVisiblePart} from "./assets/messageParts"
-import {messageText, sideEffectingToolsInRange} from "./assets/rewind"
-import {ignoreStreamRejection} from "./assets/runError"
-import {getMessageTraceId} from "./assets/trace"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
-import {getPendingApprovals} from "./components/ApprovalDock"
 import AttachmentViewerDrawer from "./components/AttachmentViewerDrawer"
 import {Inspector} from "./components/Inspector/Inspector"
 import {getPendingConnectInteraction} from "./components/InteractionDock"
 import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import TranscriptPlaceholder from "./components/TranscriptPlaceholder"
-import {useAgentChatQueue, type QueuedMessage} from "./hooks/useAgentChatQueue"
 import {useAgentChatSession} from "./hooks/useAgentChatSession"
-import {useAgentModelKeyStatus} from "./hooks/useAgentModelKeyStatus"
-import {useComposerAttachments} from "./hooks/useComposerAttachments"
 import {useComposerDraft} from "./hooks/useComposerDraft"
 import {useFirstRunSeed} from "./hooks/useFirstRunSeed"
 import {useOnboardingChat} from "./hooks/useOnboardingChat"
@@ -53,15 +63,11 @@ import {useTurnInspector} from "./hooks/useTurnInspector"
 import {useVirtuosoTranscript} from "./hooks/useVirtuosoTranscript"
 import {useVoiceComposer} from "./hooks/useVoiceComposer"
 import {useChatScopeKey} from "./state/scope"
-import {clearSessionFresh} from "./state/sessionEphemera"
 import {
-    type SessionRunStatus,
     activeSessionIdAtomFamily,
     autoTitleSessionAtomFamily,
     bumpSessionActivityAtomFamily,
     firstUserText,
-    sessionMessagesAtom,
-    setSessionStatusAtom,
 } from "./state/sessions"
 
 /**
@@ -95,12 +101,6 @@ const AgentConversation = ({
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
     // Seed once from the persisted store (read imperatively so our own writes don't feed back).
     const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
-    // Themed confirm dialogs. The static `Modal.confirm` renders detached from the app's
-    // ConfigProvider, so it loses the theme (white box in dark mode). The hook form's
-    // `contextHolder` is rendered in-tree, so its dialogs inherit the theme — same look as the
-    // declarative EnhancedModal (centered, 16px radius).
-    const [modal, modalContextHolder] = Modal.useModal()
-
     const richInputRef = useRef<RichChatInputHandle>(null)
 
     const composer = useComposerDraft({sessionId, richInputRef, revealPlayedRef})
@@ -215,7 +215,10 @@ const AgentConversation = ({
     const audioPerceivable = Boolean(modelModalities?.includes("audio"))
 
     // Pending attachments for this session + the whole-panel drop target.
-    const attachments = useComposerAttachments({sessionId})
+    const attachments = useComposerAttachments({
+        sessionId,
+        uploadsEnabled: isAgentFileUploadsEnabled(),
+    })
     const {
         uploadsEnabled,
         files,
@@ -277,7 +280,6 @@ const AgentConversation = ({
         handleSubmitRef,
         // Files picked on Home / the overview, where there was no session to upload against.
         onSeedFiles: attachments.addFiles,
-        attachmentsSettled,
     })
     const consumedRunNonceRef = useRef<number | null>(null)
 
@@ -438,13 +440,13 @@ const AgentConversation = ({
                 ]
                 let fileParts: FileUIPart[] | undefined
                 if (inlineFiles.length) {
-                    const {parts, unreadable} = await filesToInlineParts(inlineFiles)
+                    const {parts, rejections: unreadable} = await filesToParts(inlineFiles)
                     // Hold the send rather than quietly dropping bytes the user staged, and say which
                     // file failed through the same inline channel the other attachment refusals use.
                     if (unreadable.length) {
                         attachments.setRejections(
-                            unreadable.map((file) => ({
-                                name: file.name,
+                            unreadable.map(({name}) => ({
+                                name,
                                 reason: "couldn't be read — remove it and attach it again",
                             })),
                         )
@@ -464,7 +466,7 @@ const AgentConversation = ({
             if (!uploadedExtras) return
             const outboundFiles = [...files, ...uploadedExtras]
             const fileParts = outboundFiles.length
-                ? filesToParts(outboundFiles, sessionId)
+                ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
             finishSubmit(trimmed, fileParts, stagedUids)
         })
@@ -498,14 +500,13 @@ const AgentConversation = ({
                     okButtonProps: {danger: true},
                     cancelText: "Cancel",
                     centered: true,
-                    style: {borderRadius: 16},
                     onOk: run,
                 })
             } else {
                 run()
             }
         },
-        [regenerate, setMessages, modal],
+        [regenerate, setMessages],
     )
 
     // Group the ACTIVE turn (the last user message + its response) into one wrapper that carries the
@@ -588,7 +589,6 @@ const AgentConversation = ({
         <DriveSessionProvider sessionId={sessionId} artifactId={artifactId}>
             <div className="ag-canvas relative flex h-full min-h-0 w-full flex-row" {...dropTarget}>
                 {/* Themed confirm dialogs (rewind-past-a-tool) mount through this holder. */}
-                {modalContextHolder}
                 {quickLookHost}
                 {filesWindowHost}
                 {uploadsEnabled ? (

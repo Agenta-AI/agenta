@@ -1,8 +1,16 @@
 import {useEffect, useRef, type RefObject} from "react"
 
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {
+    Button,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuTrigger,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {CaretDown, Microphone, Waveform} from "@phosphor-icons/react"
-import {Button, Dropdown, Tooltip, type MenuProps} from "antd"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -135,7 +143,7 @@ const VoiceInputButton = ({
     const audioNotHeard = audioPerceivable === false
 
     // Icons in the menu too, so the mapping between a mode and the button's icon is taught here.
-    const menuItems: MenuProps["items"] = available.map((m) => ({
+    const menuItems = available.map((m) => ({
         key: m.key,
         icon: modeIcon(m.key),
         label:
@@ -166,41 +174,53 @@ const VoiceInputButton = ({
 
     return (
         <div className="flex items-center">
-            <Tooltip title={title}>
+            <SimpleTooltip title={title}>
                 <Button
-                    type="text"
-                    icon={modeIcon(effective, highlighted)}
+                    variant="ghost"
+                    size="icon"
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || audioPending || audioBlocked}
                     aria-label={dictating ? "Stop voice input" : title}
                     className={
                         dictating
-                            ? "!text-colorError animate-pulse"
+                            ? "animate-pulse text-colorError"
                             : audioPending
                               ? "animate-pulse"
                               : undefined
                     }
-                />
-            </Tooltip>
-            {available.length > 1 && !dictating && !audioPending ? (
-                <Dropdown
-                    trigger={["click"]}
-                    disabled={disabled}
-                    menu={{
-                        items: menuItems,
-                        selectable: true,
-                        selectedKeys: [effective],
-                        onClick: ({key}) => setMode(key as VoiceMode),
-                    }}
                 >
-                    <Button
-                        type="text"
-                        icon={<CaretDown size={12} />}
-                        aria-label="Voice input mode"
-                        className="!px-1"
-                    />
-                </Dropdown>
+                    {modeIcon(effective, highlighted)}
+                </Button>
+            </SimpleTooltip>
+            {available.length > 1 && !dictating && !audioPending ? (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild disabled={disabled}>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Voice input mode"
+                            className="px-1"
+                        >
+                            <CaretDown size={12} />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuRadioGroup
+                            value={effective}
+                            onValueChange={(key) => setMode(key as VoiceMode)}
+                        >
+                            {menuItems.map((item) => (
+                                <DropdownMenuRadioItem key={item.key} value={item.key}>
+                                    <span className="flex items-center gap-2">
+                                        {item.icon}
+                                        {item.label}
+                                    </span>
+                                </DropdownMenuRadioItem>
+                            ))}
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             ) : null}
         </div>
     )

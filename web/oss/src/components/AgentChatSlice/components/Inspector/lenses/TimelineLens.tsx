@@ -7,8 +7,8 @@
 import {useMemo, useState} from "react"
 
 import {sessionRecordsQueryFamily} from "@agenta/entities/session"
+import {Segmented, SimpleTooltip, Skeleton} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
-import {Badge, Segmented, Skeleton, Tooltip} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 import {EventList} from "../EventRow"
@@ -136,10 +136,9 @@ export function TimelineLens({
     return (
         <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorSplit px-2 py-1.5">
-                <Tooltip
+                <SimpleTooltip
                     title="Filter events — all, only tool calls & results, or only interactions (approvals & inputs)."
-                    placement="bottom"
-                    mouseEnterDelay={0.4}
+                    side="bottom"
                 >
                     <Segmented
                         value={filter}
@@ -152,14 +151,9 @@ export function TimelineLens({
                                     <span className="flex items-center gap-1.5">
                                         Interactions
                                         {interactionCount > 0 ? (
-                                            <Badge
-                                                count={interactionCount}
-                                                size="small"
-                                                style={{
-                                                    background: "var(--ag-colorWarning)",
-                                                    color: "var(--ag-colorTextLightSolid)",
-                                                }}
-                                            />
+                                            <span className="min-w-4 rounded-full bg-[var(--ag-colorWarning)] px-1 text-center text-[10px] leading-4 text-[var(--ag-colorTextLightSolid)]">
+                                                {interactionCount}
+                                            </span>
                                         ) : null}
                                     </span>
                                 ),
@@ -167,7 +161,7 @@ export function TimelineLens({
                             },
                         ]}
                     />
-                </Tooltip>
+                </SimpleTooltip>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">

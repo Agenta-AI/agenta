@@ -1,7 +1,9 @@
 import {useEffect, useMemo, useState} from "react"
 
+// The shared viewable-kind predicate lives with the attachment rules in @agenta/chat.
+import {isViewable} from "@agenta/chat/assets"
+import type {StagedUpload as UploadFile} from "@agenta/chat/model"
 import {type MountFile} from "@agenta/entities/session"
-import type {UploadFile} from "antd"
 
 import {type DriveFileSource, DriveFileSourceContext} from "@/oss/components/Drives/driveFileSource"
 import {FilesDrawer} from "@/oss/components/Drives/FilesDrawer"
@@ -13,13 +15,6 @@ import {type SessionDriveData} from "@/oss/components/Drives/useSessionDrive"
  * drawer an explicit file list plus a `DriveFileSourceContext` that resolves bytes from object URLs
  * (see `DriveExplorer` `explicitFiles` and `driveFileSource`).
  */
-
-/** A file kind the drawer can actually preview; audio plays inline in the tray instead. */
-const isViewable = (mediaType: string): boolean =>
-    mediaType.startsWith("image/") ||
-    mediaType === "application/pdf" ||
-    mediaType.startsWith("text/") ||
-    mediaType === "application/json"
 
 const EXT_FOR_TYPE: Record<string, string> = {
     "application/pdf": "pdf",

@@ -1,11 +1,27 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {
+    getMessageRunError,
+    getMessageTraceId,
+    getMessageUsage,
+    type MessageUsageMetrics,
+} from "@agenta/chat/assets"
+import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
+import {AudioPlayer} from "@agenta/chat/components"
+import {isToolPart, toolIdentity} from "@agenta/chat/model"
+import {errorKey, expandedValueAtomFamily, reasoningKey, setExpandedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {buildRenderMap} from "@agenta/playground"
 import {nowTickAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
-import {ExecutionMetricsDisplay} from "@agenta/ui/components/presentational"
-import {Actions, Bubble, FileCard, type ActionsProps} from "@ant-design/x"
+import {
+    ChatActionIconButton,
+    ChatAttachmentCard,
+    ChatBubble,
+    ChatBubbleAvatar,
+    ExecutionMetricsDisplay,
+} from "@agenta/ui/components/presentational"
+import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {
     ArrowUUpLeft,
     Brain,
@@ -19,34 +35,17 @@ import {
     XCircle,
 } from "@phosphor-icons/react"
 import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
-import {Avatar, Skeleton, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
-import {attachmentIdForPart, fileKind, filePartName} from "../assets/files"
 import Markdown from "../assets/markdown"
-import {
-    getMessageRunError,
-    getMessageTraceId,
-    getMessageUsage,
-    type MessageUsageMetrics,
-} from "../assets/trace"
-import {
-    errorKey,
-    expandedValueAtomFamily,
-    reasoningKey,
-    setExpandedAtom,
-} from "../state/expandState"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, timeAgo} from "../state/sessions"
 
-import AudioPlayer from "./AudioPlayer"
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"
 import ToolActivity from "./ToolActivity"
-
-const {Text} = Typography
 
 /** A trace span's `start_time` (ISO string / epoch) → ms, or undefined if absent/unparseable. */
 const parseTraceTime = (value: unknown): number | undefined => {
@@ -60,12 +59,12 @@ const parseTraceTime = (value: unknown): number | undefined => {
 const MessageTimestamp = ({createdAt}: {createdAt: number}) => {
     useAtomValue(nowTickAtom)
     return (
-        <Tooltip title={new Date(createdAt).toLocaleString()}>
-            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-xs text-colorTextTertiary">
+        <SimpleTooltip title={new Date(createdAt).toLocaleString()}>
+            <span className="flex items-center gap-1 whitespace-nowrap px-1 text-[11px] text-colorTextTertiary">
                 <Clock size={12} />
                 {timeAgo(createdAt)}
             </span>
-        </Tooltip>
+        </SimpleTooltip>
     )
 }
 
@@ -81,7 +80,7 @@ const TraceMetrics = ({traceId, usage}: {traceId: string; usage?: MessageUsageMe
     if (summary.isPending) {
         return (
             <div className="flex items-center gap-1">
-                <Skeleton.Button active size="small" style={{width: 56, height: 22}} />
+                <SkeletonBlock active className="h-[22px] w-14 rounded-control-sm" />
                 {usage ? <ExecutionMetricsDisplay metrics={usage} size="small" /> : null}
             </div>
         )
@@ -109,19 +108,6 @@ interface AgentMessageProps {
     /** The turn's trace id for a USER message (its paired assistant's trace) — lets the user turn
      * borrow the run's real start time so it dates from the trace, not this browser's first-seen. */
     turnTraceId?: string
-}
-
-const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
-
-/** Dedup key for a tool call. Stringifies its input, which can be large — call it sparingly. */
-const toolIdentity = (p: ToolUIPart): string => {
-    let inputKey = ""
-    try {
-        inputKey = JSON.stringify((p as {input?: unknown}).input ?? null)
-    } catch {
-        inputKey = ""
-    }
-    return `${p.type}::${inputKey}`
 }
 
 /**
@@ -171,7 +157,7 @@ const ReasoningPart = ({
             >
                 <div className="min-h-0 overflow-hidden">
                     <div className="mt-1 ml-5 text-colorTextTertiary">
-                        <Markdown content={text} className="!text-xs" />
+                        <Markdown content={text} className="!text-xs" streaming={streaming} />
                     </div>
                 </div>
             </div>
@@ -194,30 +180,30 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
     const big = isBigError(text)
 
     return (
-        <div className="flex items-start gap-2 rounded-md bg-[var(--ant-color-error-bg)] px-3 py-2">
+        <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
             <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
             <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <Text className="!text-xs !font-medium !text-colorError">The agent run failed</Text>
+                <span className="text-xs font-medium text-colorError">The agent run failed</span>
                 {big && expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
+                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-[11px] !text-colorErrorText">
                         {text}
                     </pre>
                 ) : (
-                    <Text
-                        className={`!text-xs whitespace-pre-wrap break-words !text-colorErrorText ${
+                    <span
+                        className={`whitespace-pre-wrap break-words text-xs text-colorErrorText ${
                             big ? "line-clamp-3" : ""
                         }`}
                         title={big ? text : undefined}
                     >
                         {text}
-                    </Text>
+                    </span>
                 )}
                 {big && (
                     <button
                         type="button"
                         onClick={() => setExpanded({key: stateKey, value: !expanded})}
                         aria-expanded={expanded}
-                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-xs font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
+                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-[11px] font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
                     >
                         {expanded ? "Show less" : "Show more"}
                     </button>
@@ -228,7 +214,7 @@ const RunErrorBody = ({text, stateKey}: {text: string; stateKey: string}) => {
 }
 
 const avatarFor = (isUser: boolean) => (
-    <Avatar size="small" icon={isUser ? <User size={16} /> : <Robot size={16} />} />
+    <ChatBubbleAvatar icon={isUser ? <User size={16} /> : <Robot size={16} />} />
 )
 
 const triggerDownload = (href: string, name: string) => {
@@ -287,15 +273,14 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
     }
 
     return (
-        <FileCard
+        <ChatAttachmentCard
             name={name}
-            type={kind}
+            kind={kind}
             src={src ?? undefined}
-            size="small"
             loading={attachmentId ? source.isPending : false}
             className="max-w-full"
-            imageProps={kind === "image" && attachmentId ? {onError: source.onError} : undefined}
-            videoProps={kind === "video" && attachmentId ? {onError: source.onError} : undefined}
+            onImageError={kind === "image" && attachmentId ? source.onError : undefined}
+            onVideoError={kind === "video" && attachmentId ? source.onError : undefined}
             description={
                 kind === "file" ? (
                     src ? (
@@ -303,12 +288,12 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
                             href={src}
                             download={name}
                             onClick={handleDownload}
-                            className="text-xs text-colorPrimary"
+                            className="truncate text-xs text-colorPrimary"
                         >
                             {file.mediaType}
                         </a>
                     ) : (
-                        <span className="text-xs text-colorTextTertiary">
+                        <span className="truncate text-xs text-colorTextTertiary">
                             {source.failed ? "Download unavailable" : file.mediaType}
                         </span>
                     )
@@ -460,13 +445,7 @@ const AgentMessage = ({
     // Only the message being generated shows the loading state, and only until it has content.
     if (!isUser && isStreaming && !hasContent) {
         return (
-            <Bubble
-                placement="start"
-                variant="borderless"
-                avatar={avatarFor(false)}
-                loading
-                content=""
-            />
+            <ChatBubble placement="start" variant="borderless" avatar={avatarFor(false)} loading />
         )
     }
 
@@ -517,8 +496,19 @@ const AgentMessage = ({
         if (part.type === "text") {
             const text = (part as {text: string}).text
             if (!text) return null
-            // Render markdown for both roles so typed markdown displays properly.
-            return <Markdown key={partKey} content={text} />
+            // Render markdown for both roles so typed markdown displays properly. Only the LAST
+            // text part of the message being generated animates — earlier parts are settled.
+            const lastTextIndex = message.parts.reduce(
+                (acc, candidate, idx) => (candidate.type === "text" ? idx : acc),
+                -1,
+            )
+            return (
+                <Markdown
+                    key={partKey}
+                    content={text}
+                    streaming={isStreaming && i === lastTextIndex}
+                />
+            )
         }
         if (part.type === "reasoning") {
             const reasoning = part as ReasoningUIPart
@@ -572,9 +562,9 @@ const AgentMessage = ({
 
             {sources.length > 0 && (
                 <div className="flex flex-col gap-0.5 pt-1">
-                    <Text type="secondary" className="!text-xs uppercase tracking-wide">
+                    <span className="text-[11px] uppercase tracking-wide text-colorTextSecondary">
                         Sources
-                    </Text>
+                    </span>
                     {sources.map((s, i) => (
                         <a
                             key={`${message.id}-source-${i}`}
@@ -590,9 +580,9 @@ const AgentMessage = ({
             )}
 
             {noResponse && (
-                <Text type="secondary" className="!text-xs italic">
+                <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
-                </Text>
+                </span>
             )}
         </div>
     )
@@ -629,16 +619,18 @@ const AgentMessage = ({
         "opacity-0 transition-opacity duration-150 pointer-events-none " +
         "group-hover:opacity-100 group-hover:pointer-events-auto " +
         "focus-within:opacity-100 focus-within:pointer-events-auto"
-    const rewindAction: ActionsProps["items"][number] = {
-        key: "rewind",
-        label: isUser
-            ? "Rewind here — edit and re-run the conversation from this message"
-            : "Rewind here — re-run this turn",
-        icon: <ArrowUUpLeft size={14} />,
-        onItemClick: () => onRewind(message),
-    }
     // Rewinding the LAST turn just re-runs the turn that's already current — redundant, so hide it.
-    const rewindItems = isLastMessage ? [] : [rewindAction]
+    const rewindButton = isLastMessage ? null : (
+        <ChatActionIconButton
+            label={
+                isUser
+                    ? "Rewind here — edit and re-run the conversation from this message"
+                    : "Rewind here — re-run this turn"
+            }
+            icon={<ArrowUUpLeft size={14} />}
+            onClick={() => onRewind(message)}
+        />
+    )
 
     // Restored turns have no first-seen stamp (a reload isn't their send time), so until their
     // trace time arrives the slot holds a placeholder — never a wrong "just now". Settled with no
@@ -646,13 +638,13 @@ const AgentMessage = ({
     const timestamp = messageTime ? (
         <MessageTimestamp createdAt={messageTime} />
     ) : timeSummary.isPending ? (
-        <Skeleton.Button active size="small" style={{width: 64, height: 16}} />
+        <SkeletonBlock active className="h-4 w-16 rounded-control-sm" />
     ) : null
 
     const toolbar = isUser ? (
         <>
             {timestamp}
-            {rewindItems.length > 0 && <Actions variant="borderless" items={rewindItems} />}
+            {rewindButton}
         </>
     ) : (
         <>
@@ -665,28 +657,19 @@ const AgentMessage = ({
             ) : usage ? (
                 <ExecutionMetricsDisplay metrics={usage} size="small" />
             ) : null}
-            <Actions
-                variant="borderless"
-                items={[
-                    {
-                        key: "copy",
-                        label: copied ? "Copied" : "Copy",
-                        icon: copied ? <Check size={14} /> : <Copy size={14} />,
-                        onItemClick: handleCopy,
-                    },
-                    ...rewindItems,
-                    ...(traceId
-                        ? [
-                              {
-                                  key: "trace",
-                                  label: "View trace",
-                                  icon: <TreeStructure size={14} />,
-                                  onItemClick: () => openTraceDrawer({traceId}),
-                              },
-                          ]
-                        : []),
-                ]}
+            <ChatActionIconButton
+                label={copied ? "Copied" : "Copy"}
+                icon={copied ? <Check size={14} /> : <Copy size={14} />}
+                onClick={handleCopy}
             />
+            {rewindButton}
+            {traceId ? (
+                <ChatActionIconButton
+                    label="View trace"
+                    icon={<TreeStructure size={14} />}
+                    onClick={() => openTraceDrawer({traceId})}
+                />
+            ) : null}
         </>
     )
 
@@ -698,7 +681,7 @@ const AgentMessage = ({
         <div
             className={`group relative flex items-start pb-10 ${isUser ? "justify-end" : "justify-start"}`}
         >
-            <Bubble<React.ReactNode>
+            <ChatBubble
                 placement={isUser ? "end" : "start"}
                 // Borderless assistant turns: content sits on the panel bg with just the avatar and
                 // spacing, so tool cards aren't wrapped in an extra outline. User stays filled.
@@ -711,7 +694,7 @@ const AgentMessage = ({
                     // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
                     // stays borderless on the canvas.
                     content: isUser
-                        ? "min-w-0 max-w-full overflow-hidden !border !border-solid !border-[var(--ag-user-bubble-border)] !bg-[var(--ag-user-bubble-bg)]"
+                        ? "min-w-0 max-w-full overflow-hidden border border-solid border-[var(--ag-user-bubble-border)] bg-[var(--ag-user-bubble-bg)]"
                         : "min-w-0 max-w-full overflow-hidden",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}

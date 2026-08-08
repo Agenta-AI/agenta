@@ -1,7 +1,6 @@
 import {memo, useState} from "react"
 
 import {PageLayout} from "@agenta/ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {MoreOutlined} from "@ant-design/icons"
 import {Copy, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Typography} from "antd"
@@ -163,10 +162,10 @@ const OverviewContent = () => {
             <WorkflowPageTitle title="Overview" />
             {/* The agent branch runs inside the layout's bounded frame (it asks for it), so the
                 page column must be allowed to shrink or its children can't take a definite
-                height and the per-column scrolls collapse back into one page scroll. It also
-                takes the shared centred column, like Home — the prompt-app/evaluator branch
-                below stays full width for its charts and evaluation tables. */}
-            <PageLayout className={clsx("gap-8", isAgent && [pageContentWidthClass, "min-h-0"])}>
+                height and the per-column scrolls collapse back into one page scroll. */}
+            {/* `!px-10` matches Home's inset (PageLayout's own p-4 plus the columns' px-6 there),
+                applied at page level so the title and the columns share one left edge. */}
+            <PageLayout className={clsx("gap-8", isAgent && "min-h-0 !pl-[4.5rem] !pr-14 !pb-0")}>
                 <AppDetailsSection />
 
                 {/* An agent's overview is its own surface. Charts move into that layout's usage

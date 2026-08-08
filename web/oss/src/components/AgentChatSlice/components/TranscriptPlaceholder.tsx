@@ -1,4 +1,4 @@
-import {Bubble} from "@ant-design/x"
+import {ChatBubble} from "@agenta/ui/components/presentational"
 import {type UIMessage} from "ai"
 
 import OnboardingBrowseTemplates from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingBrowseTemplates"
@@ -59,7 +59,7 @@ const TranscriptPlaceholder = ({
                     onRewind={onRewind}
                     onClientToolOutput={onClientToolOutput}
                 />
-                <Bubble placement="start" variant="borderless" loading content="" />
+                <ChatBubble placement="start" variant="borderless" loading />
             </MessageRow>
         )
     }

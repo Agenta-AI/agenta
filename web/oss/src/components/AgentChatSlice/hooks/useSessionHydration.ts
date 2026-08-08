@@ -1,15 +1,15 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
+import {loadSessionMessages, type SessionTranscript} from "@agenta/chat/assets"
+import {isSessionFresh} from "@agenta/chat/state"
 import {revalidateSessionRecordsAtom, shouldAdoptServerTranscript} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {sessionLivenessAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
-import {isSessionFresh} from "../state/sessionEphemera"
 import {activeSessionIdAtomFamily} from "../state/sessions"
 
 import {type ScrollIntent} from "./useScrollIntent"

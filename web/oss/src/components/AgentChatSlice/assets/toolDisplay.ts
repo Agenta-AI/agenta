@@ -1,97 +1,42 @@
 /**
  * Tool-step display foundation: the one place a raw runtime tool name (AI SDK part) becomes what
  * the chat UI shows. Resolution order: per-tool registry override → name-shape heuristics
- * (`mcp__…`, gateway double-underscore forms) → title-cased raw name. Same dispatch idea as the
- * approvals/clientTools registries — grow BY_TOOL_NAME for special cases; nothing here is
- * load-bearing for unknown tools. Raw names stay reachable via tooltips and Build mode.
+ * (`mcp__…`, gateway double-underscore forms) → title-cased raw name. The store, the parsing
+ * chain and the harness-wrapper unwrapping live in @agenta/chat/skin; this module registers the
+ * desktop's special cases at import time and re-exports the resolver under the old name. Raw
+ * names stay reachable via tooltips and Build mode.
  */
-import {parseGatewayToolName} from "@agenta/entities/workflow/commitDiff"
-import type {ToolUIPart} from "ai"
+import {
+    canonicalToolName,
+    registerChatSkin,
+    resolveToolDisplay as resolveFromSkin,
+} from "@agenta/chat/skin"
+import type {ResolvedToolDisplay, ToolKind as SkinToolKind} from "@agenta/chat/skin"
 
-/** Best-effort tool family, inferred from the wire-name shape only. */
-export type ToolKind = "gateway" | "mcp" | "platform"
+export type ToolKind = SkinToolKind
+export type ToolDisplay = ResolvedToolDisplay
 
-export interface ToolDisplay {
-    /** Humanized action label ("Fetch emails"). */
-    label: string
-    /** Where the tool comes from ("Gmail", "Linear · MCP"). */
-    source?: string
-    /** The wire name — always kept reachable (tooltips, Build mode, traces). */
-    raw: string
-    kind: ToolKind
-    /** Friendly one-liner for a settled row; null/absent falls back to the generic summary. */
-    summary?: (input: unknown, output: unknown) => string | null
-}
-
-interface ToolDisplayOverride {
-    label?: string
-    source?: string
-    summary?: (input: unknown, output: unknown) => string | null
-}
+export {canonicalToolName}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     Boolean(value && typeof value === "object" && !Array.isArray(value))
 
-/** Our in-sandbox MCP server (runner: `INTERNAL_TOOL_MCP_SERVER_NAME`). */
-const INTERNAL_MCP_PREFIX = "mcp__agenta-tools__"
-
-/**
- * The platform tool name behind a harness wrapper.
- *
- * Pi sends `commit_revision`; Claude exposes the same tool over MCP and sends
- * `mcp__agenta-tools__commit_revision`. Anything keyed BY tool name must key on this, or one call
- * renders two different ways depending on the harness.
- *
- * Only OUR server is unwrapped. A third-party MCP tool keeps its full name, so it can never
- * collide with a platform tool of the same bare name. NOT for permission rules: those must match
- * the wire name verbatim (see `useAlwaysAllowTool`).
- */
-export const canonicalToolName = (raw: string): string =>
-    raw.startsWith(INTERNAL_MCP_PREFIX) ? raw.slice(INTERNAL_MCP_PREFIX.length) || raw : raw
-
-/** Special cases, keyed by wire name. */
-const BY_TOOL_NAME: Record<string, ToolDisplayOverride> = {
-    commit_revision: {
-        summary: (input) => {
-            const commit =
-                isRecord(input) && isRecord(input.workflow_revision)
-                    ? input.workflow_revision
-                    : null
-            return typeof commit?.message === "string" && commit.message ? commit.message : null
+registerChatSkin({
+    toolDisplay: {
+        commit_revision: {
+            summary: (input) => {
+                const commit =
+                    isRecord(input) && isRecord(input.workflow_revision)
+                        ? input.workflow_revision
+                        : null
+                return typeof commit?.message === "string" && commit.message ? commit.message : null
+            },
         },
     },
-}
-
-const parseNameShape = (raw: string): {label: string; source?: string; kind: ToolKind} => {
-    // mcp__{server}__{tool} → tool from "Server · MCP".
-    if (raw.startsWith("mcp__")) {
-        const parts = raw.split("__").filter(Boolean)
-        const tool = parts[parts.length - 1]
-        const server = parts.length >= 3 ? parts[1] : undefined
-        return {
-            label: parseGatewayToolName(tool).label,
-            source: server ? `${parseGatewayToolName(server).label} · MCP` : "MCP",
-            kind: "mcp",
-        }
-    }
-    const parsed = parseGatewayToolName(raw)
-    return {...parsed, kind: parsed.source ? "gateway" : "platform"}
-}
+})
 
 /** Resolve display info for a raw runtime tool name. Pure and total — never throws. */
-export const resolveToolDisplay = (raw: string): ToolDisplay => {
-    // Canonical for the override lookup, raw for the shape: the same platform tool must get its
-    // summary under both harnesses, while an MCP-wrapped name still reads as an MCP tool.
-    const override = BY_TOOL_NAME[canonicalToolName(raw)]
-    const parsed = parseNameShape(raw)
-    return {
-        raw,
-        kind: parsed.kind,
-        label: override?.label ?? parsed.label,
-        source: override?.source ?? parsed.source,
-        summary: override?.summary,
-    }
-}
+export const resolveToolDisplay = (raw: string): ToolDisplay => resolveFromSkin(raw)
 
 /**
  * Longest call description we render, counted in CODE POINTS.
@@ -124,16 +69,4 @@ export const extractCallDescription = (input: unknown): CallDescription | null =
     const points = Array.from(text)
     if (points.length <= CALL_DESCRIPTION_MAX_LENGTH) return {text, truncated: false}
     return {text: points.slice(0, CALL_DESCRIPTION_MAX_LENGTH).join(""), truncated: true}
-}
-
-/** Wire name of a tool part. `dynamic-tool` carries it on `toolName`; typed parts encode it as
- * `tool-<name>`. */
-export const partToolName = (part: ToolUIPart): string => {
-    // `dynamic-tool` parts reach here via the grouping cast in AgentMessage but sit outside
-    // ToolUIPart's static union — read `type` as a string.
-    const type = part.type as string
-    if (type === "dynamic-tool") {
-        return (part as {toolName?: string}).toolName || "tool"
-    }
-    return type.replace(/^tool-/, "")
 }

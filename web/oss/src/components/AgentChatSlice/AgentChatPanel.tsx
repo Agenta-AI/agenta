@@ -1,8 +1,8 @@
 import {lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties} from "react"
 
+import {pendingSessionOpenAtom} from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
-import {Splitter, Tabs} from "antd"
-import clsx from "clsx"
+import {SplitPane} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
@@ -13,7 +13,6 @@ import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
-import {pendingSessionOpenAtom} from "./state/pendingSessionOpen"
 import {useReconcileServerSessions} from "./state/projectSessions"
 import {useChatScopeKey} from "./state/scope"
 import {
@@ -98,12 +97,8 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     const setPendingOpen = useSetAtom(pendingSessionOpenAtom)
     const adoptSession = useSetAtom(adoptSessionAtomFamily(scope))
     const pendingOpenForScope = pendingOpen?.appId === scope ? pendingOpen : null
-    // Strict Mode replays this effect with the same captured value; the ref stops the replay
-    // adding a second session before the atom write lands.
-    const consumedOpenRef = useRef<typeof pendingOpen>(null)
     useEffect(() => {
-        if (!pendingOpenForScope || consumedOpenRef.current === pendingOpenForScope) return
-        consumedOpenRef.current = pendingOpenForScope
+        if (!pendingOpenForScope) return
         if (pendingOpenForScope.sessionId) {
             adoptSession({id: pendingOpenForScope.sessionId, title: pendingOpenForScope.title})
         } else {
@@ -169,34 +164,34 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     }, [chatMaximized])
     const animateRailSplit = justToggled || holdAnimate
 
+    // antd Tabs semantics, hand-rolled: a pane mounts on FIRST activation and stays mounted
+    // (hidden) afterwards, so switching tabs preserves a session's live useChat stream. Rendering
+    // every session eagerly would boot every conversation at once; unmounting on switch would
+    // kill the stream — the visited set is exactly antd's lazy-then-keep contract.
+    const visitedRef = useRef<Set<string>>(new Set())
+    if (activeId) visitedRef.current.add(activeId)
+
     return (
         // The rail gets the SAME resizable splitter treatment as the build-mode config pane (gutter
         // bar + grip). It lives INSIDE the chat panel (not MainLayout's config pane) on purpose: the
         // revision drawer also hosts this panel with its own chat scope, and the rail must follow it.
-        <Splitter
-            className={clsx(
-                "h-full min-h-0 min-w-0 w-full playground-splitter playground-splitter-agent",
-                {
-                    // Build mode: rail pane pinned to 0, bar hidden — mirrors the config pane's collapse.
-                    "playground-splitter-collapsed": !chatMaximized,
-                    "playground-splitter-animated": animateRailSplit,
-                },
-            )}
-            onResize={(sizes) => {
-                if (chatMaximized) setRailSize(sizes[0])
+        <SplitPane
+            paneSide="start"
+            paneSize={chatMaximized ? railSize : 0}
+            paneMin={chatMaximized ? RAIL_MIN_WIDTH : 0}
+            paneMax={RAIL_MAX_WIDTH}
+            fillMin={320}
+            resizable={chatMaximized}
+            animate={animateRailSplit}
+            barHidden={!chatMaximized}
+            className="h-full min-h-0 min-w-0 w-full"
+            onResize={(size) => {
+                if (chatMaximized) setRailSize(size)
             }}
-        >
-            <Splitter.Panel
-                defaultSize={RAIL_WIDTH}
-                size={chatMaximized ? railSize : 0}
-                min={RAIL_MIN_WIDTH}
-                max={RAIL_MAX_WIDTH}
-                collapsible={false}
-                className="!overflow-hidden !p-0"
-            >
-                {/* `inert` drops the clipped rail from tab order + a11y while collapsed. Flex-bounded
-                    (not a plain h-full cascade) so the rail's session list actually scrolls — a bare
-                    h-full chain through the fade wrapper grew with content and never bounded. */}
+            pane={
+                /* `inert` drops the clipped rail from tab order + a11y while collapsed. Flex-bounded
+                   (not a plain h-full cascade) so the rail's session list actually scrolls — a bare
+                   h-full chain through the fade wrapper grew with content and never bounded. */
                 <div className="flex h-full min-h-0 w-full flex-col" inert={!chatMaximized}>
                     {/* Rail pane is width-0 unless maximized, so no visible fallback is needed. */}
                     <Suspense fallback={null}>
@@ -212,88 +207,88 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                         )}
                     </Suspense>
                 </div>
-            </Splitter.Panel>
-            <Splitter.Panel collapsible={false} className="!overflow-hidden !p-0">
-                <Tabs
-                    animated={false}
-                    // The session bar is an ABSOLUTE overlay (`.ant-tabs-nav` pinned top) so its
-                    // presence never reflows the content. The build↔chat motion is published as a
-                    // CSS var (`--agent-bar-inset`: 48 in build, 0 in chat) that the TRANSCRIPT column
-                    // consumes as its top padding — so only the transcript eases, not the context rail
-                    // beside it (which the shared content-holder padding used to drag up too).
+            }
+            fill={
+                <div
+                    // The session bar is an ABSOLUTE overlay pinned top, so its presence never
+                    // reflows the content. The build↔chat motion is published as a CSS var
+                    // (`--agent-bar-inset`: 48 in build, 0 in chat) that the TRANSCRIPT column
+                    // consumes as its top padding — so only the transcript eases, not the context
+                    // rail beside it.
                     style={
                         {
                             "--agent-bar-inset": chromeHidden || chatMaximized ? "0px" : "48px",
                         } as CSSProperties
                     }
-                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-nav]:!mb-0"
-                    activeKey={activeId}
-                    onChange={setActiveSession}
-                    renderTabBar={() => (
-                        // renderTabBar's node stands in for the nav, so making IT absolute (pinned top,
-                        // bounded to the pane width) takes the bar out of flow — the transcript no longer
-                        // reflows when it appears, and the strip has a bounded width so tabs scroll. It just
-                        // fades (opacity) out in chat mode / onboarding while the content padding animates.
-                        <div
-                            className="absolute inset-x-0 top-0 z-10 min-w-0 overflow-hidden motion-safe:transition-opacity motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                            style={{
-                                opacity: chromeHidden || chatMaximized ? 0 : 1,
-                                pointerEvents: chromeHidden || chatMaximized ? "none" : undefined,
-                            }}
-                            // opacity/pointerEvents hide it visually + for the mouse; `inert` also drops
-                            // the hidden tabs from keyboard tab order + a11y (mirrors the rail above).
-                            inert={chromeHidden || chatMaximized}
-                        >
-                            {/* Region fallback = the same bar skeleton the pre-confirmation gate
+                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col"
+                >
+                    {/* The bar overlay: absolute (out of flow), bounded to the pane width so tabs
+                        scroll; fades out in chat mode / onboarding while the content padding animates. */}
+                    <div
+                        className="absolute inset-x-0 top-0 z-10 min-w-0 overflow-hidden motion-safe:transition-opacity motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                        style={{
+                            opacity: chromeHidden || chatMaximized ? 0 : 1,
+                            pointerEvents: chromeHidden || chatMaximized ? "none" : undefined,
+                        }}
+                        // opacity/pointerEvents hide it visually + for the mouse; `inert` also drops
+                        // the hidden tabs from keyboard tab order + a11y (mirrors the rail above).
+                        inert={chromeHidden || chatMaximized}
+                    >
+                        {/* Region fallback = the same bar skeleton the pre-confirmation gate
                             renders, so the strip's lane holds its shape while this chunk loads; the
                             real bar eases in over it (MountFade) instead of popping. */}
-                            <Suspense fallback={<SessionBarSkeleton />}>
-                                <MountFade>
-                                    <SessionTagBar
-                                        sessions={sessions}
-                                        activeId={activeId}
-                                        onSelect={setActiveSession}
-                                        onAdd={addSession}
-                                        addDisabled={addLocked}
-                                        onClose={closeSession}
-                                        onRename={handleRename}
-                                        showSessions={!chatMaximized}
-                                        extra={
-                                            chatMaximized ? undefined : (
-                                                <>
-                                                    <InspectSessionButton
-                                                        sessionId={activeId ?? null}
-                                                    />
-                                                    <SessionHistoryMenu />
-                                                </>
-                                            )
-                                        }
-                                    />
-                                </MountFade>
-                            </Suspense>
-                        </div>
-                    )}
-                    items={sessions.map((session) => ({
-                        key: session.id,
-                        // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
-                        label: null,
-                        children: (
-                            // The heavy conversation body hydrates behind its own transcript/composer
-                            // skeleton (same shape the frame reserves) and eases in over it.
-                            <Suspense fallback={<ConversationSkeleton />}>
-                                <MountFade className="h-full min-h-0 w-full">
-                                    <AgentConversation
-                                        entityId={entityId}
-                                        sessionId={session.id}
-                                        revealPlayedRef={composerRevealPlayedRef}
-                                    />
-                                </MountFade>
-                            </Suspense>
-                        ),
-                    }))}
-                />
-            </Splitter.Panel>
-        </Splitter>
+                        <Suspense fallback={<SessionBarSkeleton />}>
+                            <MountFade>
+                                <SessionTagBar
+                                    sessions={sessions}
+                                    activeId={activeId}
+                                    onSelect={setActiveSession}
+                                    onAdd={addSession}
+                                    addDisabled={addLocked}
+                                    onClose={closeSession}
+                                    onRename={handleRename}
+                                    showSessions={!chatMaximized}
+                                    extra={
+                                        chatMaximized ? undefined : (
+                                            <>
+                                                <InspectSessionButton
+                                                    sessionId={activeId ?? null}
+                                                />
+                                                <SessionHistoryMenu />
+                                            </>
+                                        )
+                                    }
+                                />
+                            </MountFade>
+                        </Suspense>
+                    </div>
+                    <div className="min-h-0 w-full flex-1">
+                        {sessions.map((session) => {
+                            if (!visitedRef.current.has(session.id)) return null
+                            const active = session.id === activeId
+                            return (
+                                <div
+                                    key={session.id}
+                                    className={active ? "h-full min-h-0 w-full" : "hidden"}
+                                >
+                                    {/* The heavy conversation body hydrates behind its own
+                                        transcript/composer skeleton and eases in over it. */}
+                                    <Suspense fallback={<ConversationSkeleton />}>
+                                        <MountFade className="h-full min-h-0 w-full">
+                                            <AgentConversation
+                                                entityId={entityId}
+                                                sessionId={session.id}
+                                                revealPlayedRef={composerRevealPlayedRef}
+                                            />
+                                        </MountFade>
+                                    </Suspense>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            }
+        />
     )
 }
 

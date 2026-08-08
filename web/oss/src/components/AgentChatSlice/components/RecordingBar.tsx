@@ -1,8 +1,8 @@
 import {useEffect, useState} from "react"
 
 import {ComposerSendButton} from "@agenta/ui/rich-chat-input"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Check, X} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 import {AnimatePresence, motion} from "motion/react"
 
 import {SESSION_SPRING} from "../assets/sessionMotion"
@@ -105,20 +105,22 @@ const RecordingBar = ({
             </AnimatePresence>
 
             <div className="flex shrink-0 items-center gap-1">
-                <Tooltip title="Delete recording (Esc)">
+                <SimpleTooltip title="Delete recording (Esc)">
                     <Button
-                        type="text"
-                        icon={<X size={18} />}
+                        variant="ghost"
+                        size="icon"
                         onClick={cancel}
                         aria-label="Delete recording"
-                    />
-                </Tooltip>
+                    >
+                        <X size={18} />
+                    </Button>
+                </SimpleTooltip>
                 <motion.div
                     initial={{opacity: 0, scale: 0.8}}
                     animate={{opacity: 1, scale: 1}}
                     transition={SESSION_SPRING}
                 >
-                    <Tooltip title={willSend ? "Send voice message" : "Attach to message"}>
+                    <SimpleTooltip title={willSend ? "Send voice message" : "Attach to message"}>
                         {/* The composer's own send control — sending is one affordance, wherever
                         it is triggered from. Only the glyph changes when the take is being
                         attached to a message in progress rather than sent outright. */}
@@ -131,7 +133,7 @@ const RecordingBar = ({
                                     : "Stop recording and attach it to the message"
                             }
                         />
-                    </Tooltip>
+                    </SimpleTooltip>
                 </motion.div>
             </div>
         </div>

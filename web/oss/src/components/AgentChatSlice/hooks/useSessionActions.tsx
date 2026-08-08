@@ -1,4 +1,5 @@
 import {useCallback, useMemo} from "react"
+import type {ReactNode} from "react"
 
 import {
     archiveSessionRemote,
@@ -7,9 +8,9 @@ import {
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
 import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {message, modal} from "@agenta/ui/app-message"
+import {Input} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
-import {App, Input} from "antd"
-import type {MenuProps} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
@@ -22,6 +23,11 @@ import {
     sessionHistoryAtomFamily,
     unarchiveSessionAtomFamily,
 } from "../state/sessions"
+
+/** The one menu-entry shape both surfaces render (structurally antd-compatible). */
+export type SessionMenuItem =
+    | {key: string; label: ReactNode; disabled?: boolean; danger?: boolean}
+    | {type: "divider"}
 
 export interface SessionActionTarget {
     sessionId: string
@@ -44,7 +50,6 @@ export interface SessionActionTarget {
  * Never both: the atoms already call the API, so doing both would fire every mutation twice.
  */
 export const useSessionActions = () => {
-    const {modal, message} = App.useApp()
     const store = useStore()
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -165,7 +170,7 @@ export const useSessionActions = () => {
 
     /** The one menu both surfaces render. `onOpen` is omitted where the session is already open. */
     const menuItems = useCallback(
-        (target: SessionActionTarget, options?: {onOpen?: () => void}): MenuProps["items"] => [
+        (target: SessionActionTarget, options?: {onOpen?: () => void}): SessionMenuItem[] => [
             ...(options?.onOpen
                 ? [{key: "open", label: "Open in playground", disabled: !target.appId}]
                 : []),

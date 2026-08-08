@@ -17,16 +17,14 @@
  */
 import {memo, useCallback, useRef} from "react"
 
+import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
+import {Button} from "@agenta/ui/ui"
 import {Plugs, Spinner} from "@phosphor-icons/react"
 import type {ToolUIPart, UIMessage} from "ai"
-import {Button, Typography} from "antd"
 
-import {clientToolMeta, type ClientToolMeta, type ClientToolOutputHandler} from "./clientTools"
-import type {SettleClientTool} from "./clientTools/types"
+import {clientToolMeta, type ClientToolOutputHandler} from "./clientTools"
 import {useConnectFlow} from "./clientTools/useConnectFlow"
-
-const {Text} = Typography
 
 /** Whether this client-tool meta is the connect interaction (registry's two dispatch axes). */
 const isConnectInteraction = (meta: ClientToolMeta): boolean =>
@@ -91,34 +89,40 @@ const ConnectCard = ({
             {/* Header: a quiet primary cue, same visual language as the approval dock's header. */}
             <div className="flex items-center gap-2">
                 <Plugs size={15} weight="fill" className="shrink-0 text-colorPrimary" />
-                <Text className="!text-xs !font-medium">The agent is waiting for you</Text>
+                <span className="text-xs font-medium text-colorText">
+                    The agent is waiting for you
+                </span>
             </div>
 
             {phase === "connecting" ? (
                 <div className="flex items-center gap-2">
                     <Spinner size={13} className="shrink-0 animate-spin text-colorPrimary" />
-                    <Text type="secondary" className="!text-xs">
+                    <span className="text-xs text-colorTextSecondary">
                         Connecting {label}… finish signing in from the popup window.
-                    </Text>
+                    </span>
                 </div>
             ) : phase === "error" ? (
-                <Text type="danger" className="!text-xs" title={errorText ?? undefined}>
+                <span className="text-xs text-colorError" title={errorText ?? undefined}>
                     {errorText ?? "Connection failed."}
-                </Text>
+                </span>
             ) : (
-                <Text type="secondary" className="!text-xs">
+                <span className="text-xs text-colorTextSecondary">
                     Connect <span className="font-medium text-colorText">{label}</span> to let the
                     agent continue, or continue without the connection.
-                </Text>
+                </span>
             )}
 
             <div className="flex items-center justify-end gap-1.5">
                 {phase === "connecting" ? (
-                    <Button onClick={cancel}>Cancel</Button>
+                    <Button variant="outline" onClick={cancel}>
+                        Cancel
+                    </Button>
                 ) : (
                     <>
-                        <Button onClick={decline}>Not now</Button>
-                        <Button type="primary" onClick={() => runConnect(true)}>
+                        <Button variant="outline" onClick={decline}>
+                            Not now
+                        </Button>
+                        <Button onClick={() => runConnect(true)}>
                             {phase === "error" ? "Retry" : `Connect ${label}`}
                         </Button>
                     </>

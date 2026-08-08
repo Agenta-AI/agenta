@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import AppMessageContext from "@agenta/ui/app-message"
 import {ConfigProvider, Layout, Modal, theme} from "antd"
 import clsx from "clsx"
 import {atom} from "jotai"
@@ -414,6 +415,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     return (
         <>
             <PostHogThemeCapture />
+            <AppMessageContext />
             {typeof window === "undefined" ? null : isAuthRoute ? (
                 <Layout className={classes.layout}>
                     <ErrorBoundary FallbackComponent={ErrorFallback}>
