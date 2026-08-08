@@ -377,7 +377,7 @@
 - Origin: `wave-4 WP19 review`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Correctness`
 - Summary: The bridge `source` decision settles the channel key for a bridged
   platform as the single fixed literal `bridge`, with the bridge's own identity
@@ -398,7 +398,21 @@
   This is the project's recurring shape: an interface asserted about a faked
   collaborator that differs from the real one. It is also why the seam rule asks
   for the assertion to be recorded *even when tests pass* — the passing suite is
-  what made the gap invisible. Returned to the package to fix.
+  what made the gap invisible.
+- Resolution: `BRIDGE = "bridge"` added, with a comment recording that the
+  specific bridge lives in `integration_key` rather than in a per-bridge member.
+  All **eight** `.value` call sites re-checked (the first pass had found four):
+  two in the tools router, three in the triggers service, three in the
+  connections service. None is reachable with a bridge connection today, because
+  connection creation runs only through the Composio OAuth path — and the failure
+  mode if one ever were is a typed `ProviderNotFoundError`, not a silent `None`,
+  which is now pinned by a test. Column confirmed `String`, not `Enum(...)`, so
+  no migration. Channels unit 339 → 345; tools + triggers green at 232.
+- Notes on the fake that hid it, worth generalising: the fakes asserted a
+  **behavioural** interface — method names and return shapes — but never the
+  **data** interface, the validated Pydantic field the value must pass through.
+  A fake built from the same method signatures as the real collaborator can still
+  diverge on a field type it never touches.
 
 ### F39. The shared adapter contract suite hands every adapter a credential-less connection
 
