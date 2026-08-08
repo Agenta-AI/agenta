@@ -9,6 +9,9 @@ context than `v2/`.
 add what was missed. Neither carries history; the design documents in `v2/` remain
 the source of truth and a spec that disagrees with them is a bug in the spec.
 
+Clean-up work that belongs to no package — a collision file, a cross-cutting
+sweep — goes in `tasks-cu.md` and is done at the checkpoint, not in a worktree.
+
 Anything that outlives a single package — a cross-package seam, a pre-existing
 defect, something blocked on a checkpoint — goes in [`../findings.md`](../findings.md),
 not in a `tasks-*` ledger. A finding records what was *verified*, with file and
@@ -87,6 +90,8 @@ see the collision list below.
 | WP12 | `core/channels/adapters/bridge/` |
 | WP13 | `web/oss/src/…` (own repo area entirely) |
 | WP14 | runner + `core/sessions/` (not channels) |
+| WP15 | `core/channels/adapters/mock/` |
+| WP16 | `tests/.../channels/slack/fake_slack.py` + its tests (no source files) |
 
 ### Known collisions, and how each is handled
 
@@ -141,6 +146,9 @@ and the checklist that says C1 has actually been reached.
 | [specs-wp12.md](specs-wp12.md) | [tasks-wp12.md](tasks-wp12.md) | Bridge |
 | [specs-wp13.md](specs-wp13.md) | [tasks-wp13.md](tasks-wp13.md) | Web app |
 | [specs-wp14.md](specs-wp14.md) | [tasks-wp14.md](tasks-wp14.md) | Input sequencing |
+| [specs-wp15.md](specs-wp15.md) | [tasks-wp15.md](tasks-wp15.md) | Mock channel |
+| [specs-wp16.md](specs-wp16.md) | [tasks-wp16.md](tasks-wp16.md) | Slack over mock |
+| — | [tasks-cu.md](tasks-cu.md) | Clean-up (no package owns it) |
 
 ## Migrations are never verified by pytest
 

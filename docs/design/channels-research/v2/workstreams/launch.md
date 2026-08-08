@@ -161,6 +161,9 @@ plus the two items below.
 
 ### Before launching: two things no package owns
 
+Tracked in **[`tasks-cu.md`](tasks-cu.md)** — the clean-up ledger. Both land in
+`channels-c2` before any wave-3 worktree is launched, CU-1 before CU-2.
+
 Both are `findings.md` items that sit in the gap between packages, and both must
 land first because wave 3 builds on them.
 
