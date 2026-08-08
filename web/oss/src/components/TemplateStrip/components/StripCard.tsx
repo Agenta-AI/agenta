@@ -1,9 +1,5 @@
+import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {CircleNotchIcon} from "@phosphor-icons/react"
-
-import {
-    templateProviderSlugs,
-    type AgentTemplate,
-} from "@/oss/components/pages/agent-home/assets/templates"
 
 import IntegrationBadges from "./IntegrationBadges"
 
@@ -20,9 +16,9 @@ const StripCard = ({
     loading = false,
     disabled = false,
 }: {
-    template: AgentTemplate
+    template: AgentStarterTemplate
     selected: boolean
-    onPick: (template: AgentTemplate) => void
+    onPick: (template: AgentStarterTemplate) => void
     fluid?: boolean
     /** This card's agent is being created — spins its monogram and blocks re-clicks. */
     loading?: boolean

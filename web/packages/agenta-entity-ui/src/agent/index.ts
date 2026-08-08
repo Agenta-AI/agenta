@@ -9,3 +9,4 @@ export {AgentConfigSummaryCard, type AgentConfigSummaryCardProps} from "./AgentC
 export {agentConfigSummary, prettifyKind, type AgentConfigSummary} from "./agentConfigSummary"
 export {agentLatestRevisionAtomFamily} from "./state"
 export {AgentCardGrid, type AgentCardGridProps} from "./AgentCardGrid"
+export {AgentRosterGrid, type AgentRosterEntry, type AgentRosterGridProps} from "./AgentRosterGrid"

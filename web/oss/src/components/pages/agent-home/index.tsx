@@ -1,6 +1,7 @@
 import {useCallback, useRef, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
+import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Tag, Typography} from "antd"
@@ -14,7 +15,6 @@ import {urlAtom} from "@/oss/state/url"
 
 import {HERO, TEMPLATE_STRIP_MODE, TUTORIAL_VIDEO} from "./assets/constants"
 import {captureFirstAgentIntent} from "./assets/onboardingAnalytics"
-import type {AgentTemplate} from "./assets/templates"
 import AgentComposer from "./components/AgentComposer"
 import OnRamps from "./components/OnRamps"
 import TemplateSetupDrawer, {type TemplateSetupResult} from "./components/TemplateSetupDrawer"
@@ -69,7 +69,7 @@ const ClassicAgentHome: React.FC = () => {
 
     // Template card click: builder mode → straight to a seeded playground; else open the setup
     // drawer (review + connect before Create). Gated by NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER.
-    const [setupTemplate, setSetupTemplate] = useState<AgentTemplate | null>(null)
+    const [setupTemplate, setSetupTemplate] = useState<AgentStarterTemplate | null>(null)
     const handleSelectTemplate = useTemplateSelect(setSetupTemplate)
 
     // Create the agent from the template and land in its playground (no drawer). The template's

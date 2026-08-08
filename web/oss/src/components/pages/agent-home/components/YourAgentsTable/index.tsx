@@ -1,19 +1,16 @@
 import {useCallback, useMemo} from "react"
 
-import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
+import {AgentsPanel, type AgentsPanelEntry} from "@agenta/home-ui"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
     type TableScopeConfig,
 } from "@agenta/ui/table"
-import {ArrowRightIcon} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import type {TableProps} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
-import Link from "next/link"
 import {useRouter} from "next/router"
 
-import AgentCard from "@/oss/components/AgentCard"
 import {
     agentsWorkflowsAtom,
     agentsWorkflowsLoadingAtom,
@@ -22,6 +19,7 @@ import {
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
+import UserReference from "@/oss/components/References/UserReference"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
@@ -106,20 +104,6 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
         [actions, waitingByAgent],
     )
 
-    // Recency is re-derived from updatedAt rather than trusted from the query, whose descending
-    // window follows creation.
-    const recentRows = useMemo(
-        () =>
-            [...rows]
-                .sort(
-                    (a, b) =>
-                        Date.parse(b.updatedAt ?? b.createdAt ?? "") -
-                        Date.parse(a.updatedAt ?? a.createdAt ?? ""),
-                )
-                .slice(0, RAIL_AGENT_LIMIT),
-        [rows],
-    )
-
     const tableScope = useMemo<TableScopeConfig>(
         () => ({
             scopeId: "agent-home-agents",
@@ -158,35 +142,41 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
 
     const showEmpty = forceEmpty || (!isLoading && rows.length === 0)
 
+    // The rail card's rows, in the package's neutral shape. The two data-connected cells stay
+    // app-side and ride along as slots.
+    const agentEntries = useMemo<AgentsPanelEntry[]>(
+        () =>
+            rows.map((record) => ({
+                agent: {
+                    id: record.workflowId,
+                    name: record.name,
+                    description: record.description,
+                    updatedAt: record.updatedAt,
+                },
+                createdAt: record.createdAt,
+                owner: record.createdById ? (
+                    <UserReference userId={record.createdById} className="truncate" />
+                ) : null,
+                onOpenOverview: () => actions.onOpen(record),
+                onOpenPlayground: () => actions.onOpenPlayground(record),
+                onRename: () => actions.onRename(record),
+                onArchive: () => actions.onArchive(record),
+            })),
+        [rows, actions],
+    )
+
     if (variant === "list") {
+        // The rail card is the SHARED one (mobile renders the same panel); only the data-connected
+        // cells and the app's verbs are ours.
         return (
-            <PanelSection
-                sticky
-                title="Your agents"
-                bodyClassName="flex flex-col gap-1 px-2 pb-3"
-                extra={
-                    // One action only: the page header already carries "New agent", so a second
-                    // one here was noise. An arrow means the action leaves the page; in-place
-                    // reveals ("View all 28", "Expand") deliberately don't carry one.
-                    <Link href={`${projectURL}/agents`} className={PANEL_ACTION_CLASS}>
-                        All agents
-                        <ArrowRightIcon size={12} />
-                    </Link>
-                }
-            >
-                {showEmpty ? (
-                    <EmptyAgents />
-                ) : (
-                    recentRows.map((record) => (
-                        <AgentCard
-                            key={record.key}
-                            record={record}
-                            waiting={waitingByAgent.get(record.workflowId) ?? 0}
-                            actions={actions}
-                        />
-                    ))
-                )}
-            </PanelSection>
+            <AgentsPanel
+                entries={showEmpty ? [] : agentEntries}
+                loading={isLoading && rows.length === 0}
+                allAgentsHref={`${projectURL}/agents`}
+                onNewAgent={() => router.push(`${baseAppURL}?new=1`)}
+                empty={<EmptyAgents />}
+                limit={RAIL_AGENT_LIMIT}
+            />
         )
     }
 
