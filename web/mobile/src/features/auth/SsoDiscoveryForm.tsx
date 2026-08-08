@@ -1,9 +1,7 @@
 import {useState, type FormEvent} from "react"
 
 import {startOidcSignIn} from "@/lib/auth"
-import {discoverSsoProviders, type DiscoveredSsoProvider} from "@/lib/auth/discover"
-
-import {authFieldClass, authPrimaryButtonClass, authQuietButtonClass} from "./authStyles"
+import {discoverSsoProviders, type DiscoveredSsoProvider} from "@/lib/auth"
 
 type Phase = "idle" | "asking" | "checking" | "results"
 
@@ -50,11 +48,7 @@ export const SsoDiscoveryForm = () => {
 
     if (phase === "idle") {
         return (
-            <button
-                type="button"
-                onClick={() => setPhase("asking")}
-                className={authQuietButtonClass}
-            >
+            <button type="button" onClick={() => setPhase("asking")} className="auth-quiet-btn">
                 Sign in with organization SSO
             </button>
         )
@@ -69,7 +63,7 @@ export const SsoDiscoveryForm = () => {
                         type="button"
                         onClick={() => start(provider.thirdPartyId)}
                         disabled={Boolean(redirecting)}
-                        className={authPrimaryButtonClass}
+                        className="auth-surface-btn"
                     >
                         {redirecting === provider.thirdPartyId
                             ? `Opening ${provider.label}…`
@@ -81,11 +75,7 @@ export const SsoDiscoveryForm = () => {
                         {error}
                     </p>
                 ) : null}
-                <button
-                    type="button"
-                    onClick={() => setPhase("asking")}
-                    className={authQuietButtonClass}
-                >
+                <button type="button" onClick={() => setPhase("asking")} className="auth-quiet-btn">
                     Use a different email
                 </button>
             </div>
@@ -101,18 +91,14 @@ export const SsoDiscoveryForm = () => {
                 placeholder="Work email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className={authFieldClass}
+                className="auth-input"
             />
             {error ? (
                 <p className="text-destructive text-xs" role="alert">
                     {error}
                 </p>
             ) : null}
-            <button
-                type="submit"
-                disabled={phase === "checking"}
-                className={authPrimaryButtonClass}
-            >
+            <button type="submit" disabled={phase === "checking"} className="auth-surface-btn">
                 {phase === "checking" ? "Checking…" : "Continue with SSO"}
             </button>
         </form>

@@ -6,9 +6,10 @@
  *
  * No SuperTokens import on purpose: this is the unit-tested half.
  */
-import {getEnv} from "../env"
+import {authEnv} from "./runtime"
+import type {EnvReader} from "./runtime"
 
-export type EnvReader = (key: string) => string
+export type {EnvReader}
 
 export type EmailSignInMode = "password" | "otp" | "disabled"
 
@@ -47,14 +48,14 @@ export const OIDC_PROVIDER_META: readonly {id: string; envKey: string; label: st
 ]
 
 /** A provider is offered iff the deployment configured its OAuth client id. */
-export function listOidcProviders(read: EnvReader = getEnv): OidcProvider[] {
+export function listOidcProviders(read: EnvReader = authEnv): OidcProvider[] {
     return OIDC_PROVIDER_META.filter((provider) => Boolean(read(provider.envKey))).map(
         ({id, label}) => ({id, label}),
     )
 }
 
 /** Desktop parity: the OIDC block is on when flagged OR any client id is set. */
-export function isOidcEnabled(read: EnvReader = getEnv): boolean {
+export function isOidcEnabled(read: EnvReader = authEnv): boolean {
     if (read("NEXT_PUBLIC_AGENTA_AUTH_OIDC_ENABLED").toLowerCase() === "true") return true
     return listOidcProviders(read).length > 0
 }
@@ -64,7 +65,7 @@ export function isOidcEnabled(read: EnvReader = getEnv): boolean {
  * defaults to "password" only when no OIDC provider is enabled (otherwise the
  * deployment is SSO-only and email must stay hidden).
  */
-export function getEmailSignInMode(read: EnvReader = getEnv): EmailSignInMode {
+export function getEmailSignInMode(read: EnvReader = authEnv): EmailSignInMode {
     const authnEmail =
         read("NEXT_PUBLIC_AGENTA_AUTHN_EMAIL") || (isOidcEnabled(read) ? "" : "password")
     if (authnEmail === "password" || authnEmail === "otp") return authnEmail

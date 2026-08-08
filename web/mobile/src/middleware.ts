@@ -12,7 +12,8 @@ import {NextRequest, NextResponse} from "next/server"
  * docs/design/agenta-mobile/README.md "Open items"). When WP2 lands, replace
  * these copies with the @agenta/shared import and delete the twins.
  * Declared adaptations vs the canonical source: none (verbatim functions);
- * this file adds only the NextRequest adapter and basePath handling.
+ * this file adds only the NextRequest adapter, basePath handling, and the
+ * AGENTA_MOBILE_REVERSE_GATE read (the canonical source takes it as input).
  * Canonical tests: web/packages/agenta-shared/tests/unit/mobileGate.test.ts.
  */
 
@@ -89,6 +90,10 @@ export function middleware(request: NextRequest) {
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(pathname)) return NextResponse.next()
         if (request.cookies.get(MOBILE_OPTIN_COOKIE)?.value) return NextResponse.next()
+        // Reverse gate off: keep the forward gate, but let anything reach /m (tablets and
+        // desktop-UA browsers read as non-mobile). Checked after ?view=mobile so the opt-in
+        // cookie is still set if the bounce is re-enabled.
+        if (process.env.AGENTA_MOBILE_REVERSE_GATE === "false") return NextResponse.next()
         if (isMobileDevice(header)) return NextResponse.next()
 
         return NextResponse.redirect(new URL(mapMobileToDesktop(pathname), request.url), 307)
