@@ -22,8 +22,12 @@ export {
 export {
     SessionSearchControl,
     SessionStatusControl,
+    SessionStatusListControl,
+    SessionStatusChipsControl,
+    SessionAgentControl,
     SessionModeControl,
     SessionArchivedControl,
 } from "./controls/SessionFilterControls"
 export {SessionsListView, type SessionsListViewProps} from "./SessionsListView"
 export {SessionFiltersPanel, type SessionFiltersPanelProps} from "./SessionFiltersPanel"
+export {SessionFiltersBar, type SessionFiltersBarProps} from "./SessionFiltersBar"

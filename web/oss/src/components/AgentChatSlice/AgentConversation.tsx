@@ -32,16 +32,18 @@ import {UploadSimple} from "@phosphor-icons/react"
 import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
-import {ContextRail} from "@/oss/components/Drives/ContextRail"
+import {ContextRail} from "@agenta/entity-ui/drive"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
-import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
+import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {
     SessionFilesDrawer,
     filesDrawerOpenAtomFamily,
     filesDrawerStagedAtomFamily,
-} from "@/oss/components/Drives/SessionFilesDrawer"
+} from "@agenta/entity-ui/drive"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
+import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
@@ -738,6 +740,14 @@ const AgentConversation = ({
                         />
                     </div>
                 </RightPanelSplit>
+
+                {TEMPLATE_STRIP_MODE ? (
+                    <CopiedToast
+                        open={onboardingChat.copiedToastOpen}
+                        text={STRIP_COPY.copiedToast}
+                        onDone={() => onboardingChat.setCopiedToastOpen(false)}
+                    />
+                ) : null}
             </div>
         </DriveSessionProvider>
     )

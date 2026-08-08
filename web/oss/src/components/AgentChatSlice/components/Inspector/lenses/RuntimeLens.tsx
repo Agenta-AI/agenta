@@ -16,13 +16,13 @@ import {
     DriveRetryButton,
     DriveWarningBadge,
     SKELETON_ROW_COUNT,
-} from "@/oss/components/Drives/DriveFileRow"
-import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@/oss/components/Drives/driveMotion"
-import {useDriveArtifactId} from "@/oss/components/Drives/driveSessionContext"
-import {humanSize} from "@/oss/components/Drives/driveTree"
-import {driveQuickLookAtomFamily} from "@/oss/components/Drives/quickLook"
-import {filesDrawerOpenAtomFamily} from "@/oss/components/Drives/SessionFilesDrawer"
-import {driveHasMixedOrigins, useSessionDriveSummary} from "@/oss/components/Drives/useSessionDrive"
+} from "@agenta/entity-ui/drive"
+import {FILE_ITEM_VARIANTS, FILE_SPRING} from "@agenta/entities/drive"
+import {useDriveArtifactId} from "@agenta/entity-ui/drive"
+import {humanSize} from "@agenta/entities/drive"
+import {driveQuickLookAtomFamily} from "@agenta/entity-ui/drive"
+import {filesDrawerOpenAtomFamily} from "@agenta/entity-ui/drive"
+import {driveHasMixedOrigins, useSessionDriveSummary} from "@agenta/entities/drive"
 import StatesTab from "@/oss/components/SessionInspector/tabs/StatesTab"
 import StreamsTab from "@/oss/components/SessionInspector/tabs/StreamsTab"
 

@@ -124,7 +124,12 @@ const Row = ({
 
     return (
         <motion.div
-            layout
+            // Position only, never size: these rows live in a resizable pane, and a full `layout`
+            // projects each row's box from a stale snapshot on every resize tick — children get
+            // scale-corrected and this wrapper's `overflow-hidden` then CLIPS them at the old
+            // width. Width has to come straight from CSS; the enter/exit height + gap collapse
+            // below is what the animation is actually for.
+            layout="position"
             variants={ROW_VARIANTS}
             initial="initial"
             animate="animate"

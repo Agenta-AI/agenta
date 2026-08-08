@@ -27,7 +27,7 @@ import {
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {DriveFileCard} from "@/oss/components/Drives/DriveFileCard"
+import {DriveFileCard} from "@agenta/entity-ui/drive"
 
 import {
     extractCallDescription,

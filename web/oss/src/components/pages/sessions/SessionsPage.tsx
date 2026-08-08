@@ -4,6 +4,7 @@ import {type SessionRowVm} from "@agenta/sessions/row"
 import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
 import {SessionFiltersPanel, SessionsListView} from "@agenta/sessions-ui"
 import {PageLayout} from "@agenta/ui"
+import {FilterRailLayout} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
@@ -79,13 +80,18 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
 
     return (
         <PageLayout className="grow min-h-0 !p-0">
-            <div className="flex min-h-0 w-full flex-1 flex-col lg:flex-row">
-                <SessionFiltersPanel
-                    title={title}
-                    waitingCount={list.waitingCount}
-                    agents={agentOptions}
-                    hideAgentFilter={Boolean(scopedAgentId)}
-                />
+            {/* The shared browse frame: filters live in the rail, so search never scrolls away
+                with the list. */}
+            <FilterRailLayout
+                rail={
+                    <SessionFiltersPanel
+                        title={title}
+                        waitingCount={list.waitingCount}
+                        agents={agentOptions}
+                        hideAgentFilter={Boolean(scopedAgentId)}
+                    />
+                }
+            >
                 <SessionsListView
                     scopedAgentId={scopedAgentId}
                     onOpenRow={handleOpen}
@@ -93,7 +99,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
                     onMenuSelect={onMenuSelect}
                     className="min-h-0 flex-1 overflow-y-auto px-6 pb-4"
                 />
-            </div>
+            </FilterRailLayout>
         </PageLayout>
     )
 }
