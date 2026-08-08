@@ -38,13 +38,19 @@ from .fakes import (
 )
 
 
-async def _fake_connection():
+def default_suite_connection():
+    """The egress connection the suite drives adapters with.
+
+    `data` holds Slack's credential field names, so an adapter naming its
+    credentials differently must pass its own connection to
+    `run_contract_suite` — otherwise it cannot satisfy the egress assertions
+    without either adopting field names that are not its own or reading
+    credentials the caller did not supply.
+    """
+
     from oss.src.core.channels.dtos import ChannelConnection
     from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
-    # `data` carries whatever credentials an adapter needs; an adapter that
-    # validates them must not fail the suite for a connection the suite itself
-    # left half-configured.
     return ChannelConnection(
         id=uuid4(),
         slug="contract-suite-connection",
@@ -55,12 +61,11 @@ async def _fake_connection():
 
 
 async def _assert_controls_update(
-    adapter: ChannelAdapterInterface, capabilities
+    adapter: ChannelAdapterInterface, capabilities, connection
 ) -> None:
     if not capabilities.rendering.controls.update:
         return
 
-    connection = await _fake_connection()
     receipt = await adapter.post_message(
         connection=connection,
         locator={"team": "T1", "channel": "C1"},
@@ -83,12 +88,13 @@ async def _assert_controls_update(
     )
 
 
-async def _assert_buttons_max(adapter: ChannelAdapterInterface, capabilities) -> None:
+async def _assert_buttons_max(
+    adapter: ChannelAdapterInterface, capabilities, connection
+) -> None:
     if not capabilities.rendering.buttons.supported:
         return
 
     buttons_max = capabilities.rendering.buttons.max
-    connection = await _fake_connection()
     content = [{"type": "button", "id": str(i)} for i in range(buttons_max + 1)]
 
     try:
@@ -120,11 +126,12 @@ async def _assert_buttons_max(adapter: ChannelAdapterInterface, capabilities) ->
     )
 
 
-async def _assert_backfill(adapter: ChannelAdapterInterface, capabilities) -> None:
+async def _assert_backfill(
+    adapter: ChannelAdapterInterface, capabilities, connection
+) -> None:
     if not capabilities.fill.backfill.supported:
         return  # asserted by the caller that fetch_history is never invoked
 
-    connection = await _fake_connection()
     result = await adapter.fetch_history(
         connection=connection, locator={"team": "T1", "channel": "C1"}, limit=50
     )
@@ -231,19 +238,26 @@ def _assert_identity_no_threads(capabilities, adapter: ChannelAdapterInterface) 
     )
 
 
-async def run_contract_suite(adapter: ChannelAdapterInterface) -> None:
+async def run_contract_suite(
+    adapter: ChannelAdapterInterface, *, connection=None
+) -> None:
     """Run every contract assertion against one adapter instance.
 
     Construct your adapter, then `await run_contract_suite(my_adapter)`.
     Raises AssertionError naming the violated declared capability on the
     first failure.
+
+    Pass `connection` when the adapter's credentials are not named the way
+    `default_suite_connection` names them; the egress assertions drive the
+    adapter with whatever is passed.
     """
 
     capabilities = await adapter.fetch_capabilities()
+    connection = connection or default_suite_connection()
 
-    await _assert_controls_update(adapter, capabilities)
-    await _assert_buttons_max(adapter, capabilities)
-    await _assert_backfill(adapter, capabilities)
+    await _assert_controls_update(adapter, capabilities, connection)
+    await _assert_buttons_max(adapter, capabilities, connection)
+    await _assert_backfill(adapter, capabilities, connection)
     await _assert_verify_signature_rejects_bad_signature(adapter)
     await _assert_verify_signature_accepts_good_signature(adapter)
     await _assert_parse_event_addressed_is_bool(adapter)
@@ -263,6 +277,37 @@ async def run_contract_suite(adapter: ChannelAdapterInterface) -> None:
 @pytest.mark.asyncio
 async def test_suite_passes_against_well_behaved_adapter():
     await run_contract_suite(WellBehavedFakeAdapter())
+
+
+@pytest.mark.asyncio
+async def test_suite_drives_egress_with_a_caller_supplied_connection():
+    """An adapter whose credentials are not named the way the default names
+    them must still be holdable to the egress assertions."""
+
+    from oss.src.core.channels.dtos import ChannelConnection
+    from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
+
+    seen: List[str] = []
+
+    class CredentialNamingAdapter(WellBehavedFakeAdapter):
+        async def post_message(self, *, connection, **kwargs):
+            secret = (connection.data or {}).get("secret")
+            if not secret:
+                raise AssertionError("this adapter's credentials were not passed")
+            seen.append(secret)
+            return await super().post_message(connection=connection, **kwargs)
+
+    own = ChannelConnection(
+        id=uuid4(),
+        slug="own-credentials",
+        provider_key=ConnectionProviderKind.AGENTA,
+        integration_key="acme",
+        data={"secret": "shhh", "delivery_url": "https://example.invalid/"},
+    )
+
+    await run_contract_suite(CredentialNamingAdapter(), connection=own)
+
+    assert seen and all(s == "shhh" for s in seen)
 
 
 @pytest.mark.asyncio
