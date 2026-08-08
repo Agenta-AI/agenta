@@ -62,6 +62,8 @@ flowchart LR
     WP18 --> WP17
     WP19 --> WP17
     WP12 --> WP17
+    WP17 --> WP11
+    WP16 --> WP11
     WP8 --> WP13
     WP9 --> WP18
     WP10 --> WP18
@@ -72,19 +74,23 @@ flowchart LR
 
     classDef done fill:#d7ecd9,stroke:#8fbf96,color:#1f3d24
     classDef next fill:#d6e4f7,stroke:#93b4dd,color:#1c3352
-    classDef later fill:#fdf0cd,stroke:#dcc274,color:#4a3b12
     classDef apart fill:#e6e6e6,stroke:#b3b3b3,color:#333333
 
     class WP1,WP2,WP3,WP4,WP5,WP6,WP7,WP8 done
     class WP0,WP9,WP10,WP13,WP15,WP16 done
-    class WP18,WP19,WP12,WP17 next
-    class WP11 later
+    class WP18,WP19,WP12,WP17,WP11 next
     class WP14 apart
 ```
 
 Green is merged (through C4 — every package of waves 1–3 is in `channels-c3`), blue
-is the next wave (wave 4: connect it, decide the bridge protocol, then drive it),
-yellow is later, grey is deferred to the very end.
+is **wave 4, which is everything that is left**, and grey is deferred to the very
+end (WP14 and the further channels).
+
+Wave 4 has no yellow because there is no middle tier any more: connect what wave 3
+built, settle the bridge protocol, build the adapter, drive the whole thing from a
+test process, and hold in-process Slack against bridged Slack — all against fakes,
+with no credentials. Real Slack is then a *verification* checkpoint (C6) rather than
+a package, because its only extra requirement is an account.
 
 Green means **merged**, not **reachable**: `F36` records that commands, fill and the
 mock adapter have no callers, which is exactly what WP18 exists to fix. A green node
@@ -277,10 +283,11 @@ mentions arrive as context on the next trigger; the flag — never a count of
 `PULLED` rows — guards the one-time fetch, and a refusal leaves it false. WP5's
 polling is deleted, not disabled.
 
-### C5 — Wave 4: it actually runs
+### C5 — Wave 4: it actually runs (no credentials)
 
-**Merges:** WP18; then WP19, WP12, WP17 in that order. **Needs:** C4's packages,
-which are merged.
+**Merges:** WP18; then WP19, WP12, WP17, WP11 in that order. **Needs:** C4's
+packages, which are merged. **This is everything that is left** — apart from WP14
+and the further channels, both deferred to the very end.
 
 Wave 4 exists because C4 shipped five capabilities and connected one. Everything
 here is a **connection**, a **contract decision**, or the **harness that proves
@@ -351,22 +358,33 @@ rather than assumed. Ordered last: it drives WP18's wiring, asserts WP19's proto
 and runs against WP12's adapter, so all three must exist.
 
 **Exit condition:** a message enters through a channel the platform does not know
-about, becomes a turn, and an answer comes back out — with no Slack credentials
-involved. A command works. Fill supplies context from messages sent between
-mentions. `poll_turn` is gone from the tree. Two bridges coexist behind the one
-route, each resolving to its own connection.
+about, becomes a turn, and an answer comes back out — **with no credentials of any
+kind**. A command works. Fill supplies context from messages sent between mentions.
+`poll_turn` is gone from the tree. Two bridges coexist behind the one route, each
+resolving to its own connection. Slack in process and Slack over the bridge agree
+byte-for-byte against the fake.
 
-That is the first time anything in this project will have travelled the whole path.
+That is the first time anything in this project will have travelled the whole path —
+and every claim is reproducible on a laptop with no external account.
 
-### C6 — The bridge is proved
+#### WP11 — Slack in process versus Slack over the bridge
 
-**Merges:** WP11 alone. **Needs:** C5 — WP12's adapter, WP19's `source` decision and
-WP17's harness all land there.
+The differential, run **through the test-drive process against WP16's fake Slack**
+rather than against a live workspace. Same claim as the original spec — the
+in-process run is the oracle, so any difference is the bridge's or the contract's
+fault — but a fake platform makes the claim testable in a way a real one does not.
 
-Reduced to one package. WP12 moved into C5 because C5's own exit condition ("two
-bridges coexist behind the one route") cannot be true without a `BridgeAdapter` —
-a checkpoint whose exit depends on the next checkpoint's package is the same
-incoherence this plan already called out for WP0.
+The spec demands the posted content match **byte-for-byte, "modulo nothing"**.
+Against real Slack that is fragile: `ts` values differ per run, so the assertion
+needs allowances that weaken exactly what it is trying to prove. WP16's fake draws
+`ts` from a seeded counter, so byte-for-byte is achievable and the strict assertion
+survives.
+
+The live-workspace run stays as the acceptance test it already is — the only thing
+that talks to real Slack — and is not the differential's oracle.
+
+Ordered last, because it needs the adapter (WP12), the harness (WP17) and the fake
+(WP16, merged).
 
 Ordered within the checkpoint, because both WP11 and WP17 need WP12's adapter to
 exist first. WP11 and WP17 are independent of each other and test different
@@ -402,6 +420,45 @@ is withdrawn — it merges *inside* C4, because C4's exit condition is deleting
 WP5's polling and that is impossible without the events.
 
 ---
+
+### C6 — Real Slack
+
+**Merges:** nothing new. **Needs:** C5.
+
+A verification checkpoint, not a merge: the same code C5 proved against fakes, now
+pointed at a real Slack workspace — both ways, in process via `/channels/slack/` and
+bridged via `/channels/bridge/`. The live acceptance test that has sat `skipif`-gated
+since WP6 is the vehicle.
+
+Separate from C5 because it needs something C5 deliberately does not: credentials, a
+real workspace, a real bot install. That dependency is a scheduling fact, not a
+design one — which is why it earns its own checkpoint rather than blocking the work
+that can be proved without it.
+
+**Exit condition:** the C3 exit condition, finally met. A mention in a real
+workspace produces an answer in the same thread; a button approval resolves without
+opening a browser; and the bridged run agrees with the in-process one on the same
+real install.
+
+**What this catches that C5 cannot:** everything the fake was built from our own
+reading of Slack's behaviour rather than from Slack. A fake encodes assumptions, and
+this is where they are checked.
+
+### C7 — Later, and openly deferred
+
+**Merges:** WP14, then the further channels. **Needs:** C6.
+
+- **WP14 — input sequencing.** Deferred to the very end throughout this plan, and
+  still: nothing structural waits on it, and it improves C2's behaviour whenever it
+  lands.
+- **Telegram and Discord**, then Teams and WhatsApp. All modelled in `channels.md`,
+  none a package here.
+
+Two things ride on the **first** further channel and are worth naming so they are
+not lost: it is what gives the **port its generality review** (expect WP2 and WP5 to
+change — that is the follow-up working, not failing), and it is the gate on
+**publishing the wire contract externally**. A contract verified against one platform
+can be shaped around that platform's quirks without anyone noticing.
 
 ## WP0 — Session events
 
