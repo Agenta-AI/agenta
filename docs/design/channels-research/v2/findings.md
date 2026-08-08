@@ -371,6 +371,74 @@
 - Suggested Fix: Bless it in the spec or rename it. Low stakes; the point is
   that it entered the tree undocumented.
 
+### F46. `integration_key` must be globally unique, because its lookup is unscoped
+
+- ID: `F46`
+- Origin: `wave-4 WP17`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `get_project_and_connection_by_external_id` resolves on the
+  `(provider_key, integration_key)` pair with `LIMIT 1`, **no project scope and no
+  deterministic ordering**. So `integration_key` must be unique across every
+  tenant, not merely within a project — otherwise an inbound event can resolve to
+  another tenant's connection.
+- Evidence: found as a genuinely nondeterministic test failure — a fixture reusing
+  a fixed `integration_key` across concurrent xdist workers returned `202` while
+  the row landed under a *different* test's project. Fixed in the fixture by
+  minting a unique id, but the underlying lookup is unchanged.
+- Files: `api/oss/src/core/channels/service.py`, the channels DAO's
+  `by_external_id` query
+- Suggested Fix: decide whether the cross-tenant uniqueness is an invariant to
+  enforce (a unique constraint on `(provider_key, integration_key)`) or whether the
+  lookup should carry a scope. Silence is the risk: nothing today prevents a
+  collision, and the failure is a cross-tenant read.
+- Notes: This is the bridge decision's load-bearing assumption — `integration_key`
+  is what distinguishes one bridge from another under the shared `bridge` provider
+  key. It is worth an explicit constraint rather than a convention, since a
+  third-party bridge author chooses the value.
+
+### F45. One adapter instance per channel key, so two bridges cannot coexist
+
+- ID: `F45`
+- Origin: `wave-4 WP17`
+- Severity: `P0` — blocks C4's exit condition
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The adapter registry holds **one instance per channel key**, with
+  capabilities baked in at construction, and nothing threads a per-request
+  connection into `verify_signature` or `fetch_capabilities`. A bridge adapter
+  registered the way Slack is — stateless, shared, no connection held — therefore
+  **refuses every bridge request**, and a second bridge's space is validated
+  against the first bridge's declaration.
+- Evidence: two acceptance tests, real signed HTTP against real Postgres and two
+  real bridge subprocesses, failing deterministically (3 runs, no flakiness), now
+  `xfail(strict=True)` so they turn red the moment this is fixed:
+  - `assert response_a1.status_code == 202` → actual **401**, raised before bridge
+    B is ever reached. `_ingest` calls `verify_signature(headers=..., body=...)`
+    with no `connection`; the adapter falls back to `self._connection`, which is
+    `None` for a shared instance.
+  - `ChannelLocatorIncomplete: Locator for bridge is missing declared space key
+    field: chat_id` — bridge B's locator uses `room_id`, but
+    `fetch_capabilities(channel="bridge")` returns bridge A's baked-in
+    declaration, indifferent to which connection asked.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py:113-120`,
+  `api/oss/src/core/channels/adapters/bridge/adapter.py:76-85`,
+  `api/oss/src/core/channels/service.py:469-471`
+- Suggested Fix: not a patch — a design decision, and the same chicken-and-egg
+  `F37` already named. The connection must reach `verify_signature` before the
+  connection is known, so either the credential carries enough to resolve it
+  first, or the bridge arm resolves a candidate connection before verifying. The
+  Slack arm must not be forced through whichever order is chosen.
+- Notes: The adapter and the contract decision are each correct in isolation; what
+  is missing is the composition wiring that lets them serve more than one
+  installation. **Exactly the `F1`/`F36` shape a third time** — every piece passes
+  its own suite, and nothing proved they meet under more than one caller. It took
+  a real out-of-process counterpart to surface it, which is the argument for that
+  package existing.
+
 ### F44. The contract suite's egress connection was hardcoded to one platform's credential names
 
 - ID: `F44`
