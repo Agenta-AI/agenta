@@ -862,7 +862,15 @@ def _committed_revision_data(tool_name: Any, output: Any) -> Optional[Dict[str, 
             payload = json.loads(payload)
         except json.JSONDecodeError:
             return None
-    if not isinstance(payload, dict) or not payload.get("count"):
+    if not isinstance(payload, dict):
+        return None
+    # Two success shapes exist. The handler-mode commit (the migration) answers
+    # {"status": "committed", "workflow_revision": {...}} and carries no "count";
+    # the legacy route shape carried {"count": N, ...}. Gate on either, because a
+    # projector that recognizes only one silently drops the playground's refresh
+    # signal for the other (live incident, session b024a6b0: commits stored fine
+    # and the playground never switched to the new version).
+    if payload.get("status") != "committed" and not payload.get("count"):
         return None
 
     revision = payload.get("workflow_revision")
