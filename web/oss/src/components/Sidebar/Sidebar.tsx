@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo} from "react"
 
+import {SidebarShell} from "@agenta/navigation-ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -12,7 +13,6 @@ import {appAsPathAtom} from "@/oss/state/appState"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
-import SidebarShell from "./engine/SidebarShell"
 import {getSidebarViewDefinition} from "./scopes/viewRegistry"
 import type {SidebarView} from "./types"
 
