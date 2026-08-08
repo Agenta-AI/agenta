@@ -5,9 +5,9 @@ import {isViewable} from "@agenta/chat/assets"
 import type {StagedUpload as UploadFile} from "@agenta/chat/model"
 import {type MountFile} from "@agenta/entities/session"
 
-import {type DriveFileSource, DriveFileSourceContext} from "@/oss/components/Drives/driveFileSource"
-import {FilesDrawer} from "@/oss/components/Drives/FilesDrawer"
-import {type SessionDriveData} from "@/oss/components/Drives/useSessionDrive"
+import {type DriveFileSource, DriveFileSourceContext} from "@agenta/entity-ui/drive"
+import {FilesDrawer} from "@agenta/entity-ui/drive"
+import {type SessionDriveData} from "@agenta/entities/drive"
 
 /**
  * Previews the composer's attachments in the shared Files drawer — the same tree + viewer used for
