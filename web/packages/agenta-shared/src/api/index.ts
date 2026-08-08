@@ -18,6 +18,7 @@ export {
     resetAxiosConfig,
     lowPriorityWhenCached,
 } from "./axios"
+export {configureAuthToken, getAuthToken} from "./axios"
 export type {AxiosInterceptorConfig} from "./axios"
 export type {
     AxiosInstance,

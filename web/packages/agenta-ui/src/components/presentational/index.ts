@@ -200,6 +200,7 @@ export {LoadingSkeleton, type LoadingSkeletonProps} from "./skeleton"
 
 export {
     SplitPanelLayout,
+    FilterRailLayout,
     NumberedStep,
     PanelFooter,
     ModalContentLayout,
@@ -208,6 +209,7 @@ export {
     PanelSection,
     PANEL_ACTION_CLASS,
     type SplitPanelLayoutProps,
+    type FilterRailLayoutProps,
     type NumberedStepProps,
     type PanelFooterProps,
     type ModalContentLayoutProps,
