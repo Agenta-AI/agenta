@@ -64,7 +64,10 @@ export const AgentOverviewScreen = ({
                                 >
                                     {avatar.initials}
                                 </span>
-                                <h1 className="m-0 min-w-0 flex-1 truncate text-sm font-semibold">
+                                {/* No `flex-1`: the title sizes to its text so the kebab sits
+                                    beside it, as on the desktop, instead of being pushed to the
+                                    far edge. `min-w-0` still lets a long name truncate. */}
+                                <h1 className="m-0 min-w-0 truncate text-sm font-semibold">
                                     {name}
                                 </h1>
                                 {/* The same verbs the desktop header offers; rename and delete
