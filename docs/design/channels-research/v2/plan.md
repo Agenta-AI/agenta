@@ -61,6 +61,7 @@ flowchart LR
     WP12 --> WP11
     WP18 --> WP17
     WP19 --> WP17
+    WP12 --> WP17
     WP8 --> WP13
     WP9 --> WP18
     WP10 --> WP18
@@ -76,8 +77,8 @@ flowchart LR
 
     class WP1,WP2,WP3,WP4,WP5,WP6,WP7,WP8 done
     class WP0,WP9,WP10,WP13,WP15,WP16 done
-    class WP18,WP19,WP17 next
-    class WP11,WP12 later
+    class WP18,WP19,WP12,WP17 next
+    class WP11 later
     class WP14 apart
 ```
 
@@ -278,8 +279,8 @@ polling is deleted, not disabled.
 
 ### C5 — Wave 4: it actually runs
 
-**Merges:** WP18, then WP19; and WP17 (rescoped). **Needs:** C4's packages, which
-are merged.
+**Merges:** WP18; then WP19, WP12, WP17 in that order. **Needs:** C4's packages,
+which are merged.
 
 Wave 4 exists because C4 shipped five capabilities and connected one. Everything
 here is a **connection**, a **contract decision**, or the **harness that proves
@@ -326,16 +327,28 @@ A constraint that rules out the naive fix either way: `_ingest` looks the adapte
 *before* verifying, but a credential-derived channel is not known *until*
 verification.
 
+#### WP12 — the bridge adapter
+
+Pulled into wave 4, because the two packages below cannot exist without it. There is
+no `core/channels/adapters/bridge/` in the tree at all — so a "test-drive process"
+on the far side of the wire has nothing on the near side to talk to, and a
+two-bridge test has no adapter to resolve to.
+
+Implements `contract.md` outward: `BridgeAdapter(ChannelAdapterInterface)`, the
+`bridge.hello` handshake, the versioned envelope, HMAC both directions, receipts.
+Ordered after WP19, since the `source` decision changes how it resolves a channel.
+
 #### WP17 — the test-drive process (rescoped)
 
-Originally scoped as a bridge harness for the bridge checkpoint. Rescoped: it is the **process that simulates a
-channel end to end**, and therefore the thing that exercises WP18's wiring —
-commands, fill and mock have no other honest driver. A real out-of-process
-counterpart, real sockets, real signing, real concurrency, real duplicate delivery.
+Originally scoped as a bridge harness for the bridge checkpoint. Rescoped: it is the
+**process that simulates a channel end to end**, and therefore the thing that
+exercises WP18's wiring — commands, fill and mock have no other honest driver. A
+real out-of-process counterpart, real sockets, real signing, real concurrency, real
+duplicate delivery.
 
 It keeps the two-bridge test, which is what proves WP19's decision was implemented
-rather than assumed. Ordered last: it drives WP18's wiring and asserts WP19's
-protocol, so both must exist.
+rather than assumed. Ordered last: it drives WP18's wiring, asserts WP19's protocol
+and runs against WP12's adapter, so all three must exist.
 
 **Exit condition:** a message enters through a channel the platform does not know
 about, becomes a turn, and an answer comes back out — with no Slack credentials
@@ -347,9 +360,13 @@ That is the first time anything in this project will have travelled the whole pa
 
 ### C6 — The bridge is proved
 
-**Merges:** WP12, then WP11. **Needs:** C5 — WP17 and the `source` contract land there.
-The bridge's first channel is
-`mock` (WP15), which lands there, so this no longer hangs off C3.
+**Merges:** WP11 alone. **Needs:** C5 — WP12's adapter, WP19's `source` decision and
+WP17's harness all land there.
+
+Reduced to one package. WP12 moved into C5 because C5's own exit condition ("two
+bridges coexist behind the one route") cannot be true without a `BridgeAdapter` —
+a checkpoint whose exit depends on the next checkpoint's package is the same
+incoherence this plan already called out for WP0.
 
 Ordered within the checkpoint, because both WP11 and WP17 need WP12's adapter to
 exist first. WP11 and WP17 are independent of each other and test different
