@@ -6,18 +6,15 @@
  * through the authenticated client once (cached blob → object URL). BACKEND ASK: an inline
  * disposition (or real signed URLs) to let media stream natively.
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
-import {type Mount} from "@agenta/entities/session"
-import {App} from "antd"
+import {axios, getAgentaApiUrl, getAuthToken} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {getJWT} from "@/oss/services/api"
-import {projectIdAtom} from "@/oss/state/project"
+import {type Mount} from "@agenta/entities/session"
 
 import {renderPdfFirstPage} from "./pdfThumb"
 
@@ -202,7 +199,7 @@ export async function uploadMountFile({
 
 /** Raw-bytes save of one file. Module-private on purpose: it reports failure as `false`, which every
  * call site used to drop on the floor — go through {@link useDriveFileDownload}, which reports it. */
-async function downloadMountFile({
+export async function downloadMountFile({
     mount,
     path,
     projectId,
@@ -223,31 +220,6 @@ async function downloadMountFile({
     anchor.remove()
     URL.revokeObjectURL(url)
     return true
-}
-
-/** `download(mount, path)` for ONE drive file, reporting the outcome through the themed toast
- * (App.useApp, so it renders correctly in dark mode). THE way to trigger a single-file download:
- * {@link downloadMountFile} resolves `false` on failure, so a bare fire-and-forget call left a failed
- * click looking exactly like a successful one. Stable — safe to pass down to list items. */
-export function useDriveFileDownload(): (mount: Mount | null, path: string) => Promise<boolean> {
-    const {message} = App.useApp()
-    const projectId = useAtomValue(projectIdAtom)
-    return useCallback(
-        async (mount: Mount | null, path: string) => {
-            // `path` is mount-RELATIVE, so it alone doesn't identify a file: `agent-files/notes.md`
-            // and a cwd `notes.md` both arrive here as "notes.md" and would share a toast.
-            const key = `drive-download:${mount?.id ?? "none"}:${path}`
-            message.open({type: "loading", key, content: "Downloading…", duration: 0})
-            const ok = await downloadMountFile({mount, path, projectId})
-            message.open(
-                ok
-                    ? {type: "success", key, content: "Downloaded"}
-                    : {type: "error", key, content: "Download failed"},
-            )
-            return ok
-        },
-        [message, projectId],
-    )
 }
 
 /** Download the WHOLE drive as ONE zip ("download all") — spanning every mount the drive folds in
@@ -300,7 +272,7 @@ export async function downloadMountArchive({
             let writable: WritableFileStreamLike | null = null
             try {
                 writable = await handle.createWritable()
-                const jwt = await getJWT()
+                const jwt = await getAuthToken()
                 const url = `${getAgentaApiUrl()}/mounts/files/export?project_id=${encodeURIComponent(projectId)}`
                 const response = await fetch(url, {
                     method: "POST",
