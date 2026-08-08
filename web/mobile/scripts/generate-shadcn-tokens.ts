@@ -36,6 +36,30 @@ const p = palette
 // chart-*) requires extending VARS + the @theme inline map first — Tailwind v4
 // silently generates nothing for unmapped tokens.
 const VARS: Record<string, [string, string]> = {
+    // ── Shared @agenta/ui presentational vocabulary (antd-semantic names) ──
+    // These let package components (NavMenu, session rows, PanelSection) render verbatim on
+    // mobile: same palette source, same class names, mobile's own light/dark values.
+    colorText: [color(p.text.primary.light), color(p.text.primary.dark)],
+    colorTextSecondary: [color(p.text.secondary.light), color(p.text.secondary.dark)],
+    colorTextTertiary: [color(p.text.tertiary.light), color(p.text.tertiary.dark)],
+    colorTextQuaternary: [color(p.text.quaternary.light), color(p.text.quaternary.dark)],
+    colorBorder: [color(p.border.default.light), color(p.border.default.dark)],
+    colorBorderSecondary: [color(p.border.secondary.light), color(p.border.secondary.dark)],
+    colorBgContainer: [color(p.surface.container.light), color(p.surface.container.dark)],
+    colorBgElevated: [color(p.surface.elevated.light), color(p.surface.elevated.dark)],
+    colorFill: [color(p.fill.fill.light), color(p.fill.fill.dark)],
+    colorFillSecondary: [color(p.fill.secondary.light), color(p.fill.secondary.dark)],
+    colorFillTertiary: [color(p.fill.tertiary.light), color(p.fill.tertiary.dark)],
+    colorFillQuaternary: [color(p.fill.quaternary.light), color(p.fill.quaternary.dark)],
+    colorPrimary: [color(p.accent.primary.light), color(p.accent.primary.dark)],
+    colorSuccess: [color(p.semantic.success.light), color(p.semantic.success.dark)],
+    colorSuccessBg: [color(p.semantic.successBg.light), color(p.semantic.successBg.dark)],
+    colorSuccessText: [color(p.semantic.success.light), color(p.semantic.success.dark)],
+    colorWarning: [color(p.semantic.warning.light), color(p.semantic.warning.dark)],
+    colorWarningBg: [color(p.semantic.warningBg.light), color(p.semantic.warningBg.dark)],
+    colorWarningText: [color(p.semantic.warningText.light), color(p.semantic.warningText.dark)],
+    colorError: [color(p.semantic.error.light), color(p.semantic.error.dark)],
+    colorInfoBorder: [color(p.semantic.infoBorder.light), color(p.semantic.infoBorder.dark)],
     background: [color(p.surface.base.light), color(p.surface.base.dark)],
     foreground: [color(p.text.primary.light), color(p.text.primary.dark)],
     card: [color(p.surface.container.light), color(p.surface.container.dark)],
@@ -65,6 +89,48 @@ const VARS: Record<string, [string, string]> = {
     border: [color(p.border.secondary.light), color(p.border.secondary.dark)],
     input: [color(p.border.default.light), color(p.border.default.dark)],
     ring: [color(p.accent.primary.light), color(p.accent.primary.dark)],
+    // ── @agenta/ui control primitives (Button/Input/Switch) ──
+    // The kit's state tokens, fed from the SAME palette roles that generate the desktop
+    // --ag-* layer, so a shared control renders identically in both apps.
+    placeholder: [color(p.text.placeholder.light), color(p.text.placeholder.dark)],
+    "focus-ring": [color(p.semantic.primaryBorder.light), color(p.semantic.primaryBorder.dark)],
+    disabled: [color(p.text.disabled.light), color(p.text.disabled.dark)],
+    "disabled-bg": [
+        color(p.surface.containerDisabled.light),
+        color(p.surface.containerDisabled.dark),
+    ],
+    "disabled-border": [
+        color(p.button.disabledInputBorder.light),
+        color(p.button.disabledInputBorder.dark),
+    ],
+    error: [color(p.semantic.error.light), color(p.semantic.error.dark)],
+    "error-hover": [color(p.semantic.errorHover.light), color(p.semantic.errorHover.dark)],
+    "error-active": [color(p.semantic.errorActive.light), color(p.semantic.errorActive.dark)],
+    "btn-primary-fg": [color(p.button.primaryText.light), color(p.button.primaryText.dark)],
+    "btn-primary-hover": [color(p.button.primaryHover.light), color(p.button.primaryHover.dark)],
+    "btn-primary-active": [color(p.button.primaryActive.light), color(p.button.primaryActive.dark)],
+    "btn-default-bg": [color(p.button.defaultBg.light), color(p.button.defaultBg.dark)],
+    "btn-default-hover-bg": [
+        color(p.button.defaultHoverBg.light),
+        color(p.button.defaultHoverBg.dark),
+    ],
+    "btn-default-active-bg": [
+        color(p.button.defaultActiveBg.light),
+        color(p.button.defaultActiveBg.dark),
+    ],
+    "btn-text-hover-bg": [color(p.button.textHoverBg.light), color(p.button.textHoverBg.dark)],
+    "btn-text-active-bg": [color(p.button.textActiveBg.light), color(p.button.textActiveBg.dark)],
+    "btn-link": [color(p.button.link.light), color(p.button.link.dark)],
+    "btn-link-hover": [color(p.button.linkHover.light), color(p.button.linkHover.dark)],
+    "btn-link-active": [color(p.button.linkActive.light), color(p.button.linkActive.dark)],
+    // Plain vars referenced VERBATIM inside the kit's arbitrary shadow values
+    // (shadow-[0_2px_0_var(--ag-controlOutline)]) — emitted with the desktop's exact names.
+    "ag-controlOutline": [
+        color(p.surface.controlOutline.light),
+        color(p.surface.controlOutline.dark),
+    ],
+    "ag-errorOutline": [color(p.surface.errorOutline.light), color(p.surface.errorOutline.dark)],
+    "ag-colorFillQuaternary": [color(p.fill.quaternary.light), color(p.fill.quaternary.dark)],
 }
 
 const block = (selector: string, side: 0 | 1) =>

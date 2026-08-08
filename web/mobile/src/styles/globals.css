@@ -5,11 +5,27 @@
    web/oss/src/styles/theme/palette.ts — do not edit by hand.
    Regenerate: pnpm --filter @agenta/mobile generate:tokens */
 @import "./theme.generated.css";
+@import "@agenta/auth-ui/auth.css";
+/* Streamdown token-animation keyframes — the streaming "typing" effect. */
+@import "streamdown/styles.css";
 
 /* Streamdown (assistant markdown) ships its styling as Tailwind utility classes inside its
    own bundle, which Tailwind does not scan by default. Without this the markdown renders
    completely unstyled. Path is relative to this file: src/styles -> web/mobile. */
 @source "../../node_modules/streamdown/dist/*.js";
+/* Workspace packages rendered by mobile — Tailwind v4 only scans what @source names. */
+@source "../../node_modules/@agenta/ui/src/components/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/ui/src/ui/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/ui/src/RichChatInput/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/sessions/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/sessions-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/navigation/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/navigation-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/auth-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/entity-ui/src/agent/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/chat/src/components/**/*.{ts,tsx}";
+/* The config card renders the instructions file row from the DrillIn controls. */
+@source "../../node_modules/@agenta/entity-ui/src/DrillInView/SchemaControls/agentTemplate/**/*.{ts,tsx}";
 
 /* Class-based dark mode: .dark is set on <html> pre-paint by _document.tsx. */
 @custom-variant dark (&:is(.dark *));
@@ -39,10 +55,108 @@
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+    /* Shared @agenta/ui presentational vocabulary — see generate-shadcn-tokens.ts. */
+    --color-colorText: var(--colorText);
+    --color-colorTextSecondary: var(--colorTextSecondary);
+    --color-colorTextTertiary: var(--colorTextTertiary);
+    --color-colorTextQuaternary: var(--colorTextQuaternary);
+    --color-colorBorder: var(--colorBorder);
+    --color-colorBorderSecondary: var(--colorBorderSecondary);
+    --color-colorBgContainer: var(--colorBgContainer);
+    --color-colorBgElevated: var(--colorBgElevated);
+    --color-colorFill: var(--colorFill);
+    --color-colorFillSecondary: var(--colorFillSecondary);
+    --color-colorFillTertiary: var(--colorFillTertiary);
+    --color-colorFillQuaternary: var(--colorFillQuaternary);
+    --color-colorPrimary: var(--colorPrimary);
+    --color-colorSuccess: var(--colorSuccess);
+    --color-colorSuccessBg: var(--colorSuccessBg);
+    --color-colorSuccessText: var(--colorSuccessText);
+    --color-colorWarning: var(--colorWarning);
+    --color-colorWarningBg: var(--colorWarningBg);
+    --color-colorWarningText: var(--colorWarningText);
+    --color-colorError: var(--colorError);
+    --color-colorInfoBorder: var(--colorInfoBorder);
+    /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). */
+    --spacing-control-sm: 24px;
+    --spacing-control: 28px;
+    --spacing-control-lg: 34px;
+    --spacing-btn-sm: 7px;
+    --spacing-btn: 15px;
+    --spacing-btn-lg: 15px;
+    --spacing-input-sm: 7px;
+    --spacing-input: 11px;
+    --spacing-input-lg: 11px;
+    --spacing-input-y-sm: 0px;
+    --spacing-input-y: 4px;
+    --spacing-input-y-lg: 7px;
+    --spacing-input-y-ghost-sm: 1px;
+    --spacing-input-y-ghost: 5px;
+    --spacing-input-y-ghost-lg: 8px;
+    --spacing-switch-thumb: 18px;
+    --spacing-switch-thumb-sm: 12px;
+    --radius-control-sm: 6px;
+    --radius-control: 8px;
+    --radius-control-lg: 10px;
+    --radius-control-round: 50%;
+    --text-btn-sm: 12px;
+    --text-btn-sm--line-height: normal;
+    --text-btn-md: 12px;
+    --text-btn-md--line-height: normal;
+    --text-btn-lg: 14px;
+    --text-btn-lg--line-height: normal;
+    --text-field-sm: 10px;
+    --text-field-sm--line-height: 1.6666666666666667;
+    --text-field-md: 12px;
+    --text-field-md--line-height: 1.6666666666666667;
+    --text-field-lg: 14px;
+    --text-field-lg--line-height: 1.5714285714285714;
+    --shadow-switch-handle: 0 2px 4px 0 rgba(0, 35, 11, 0.2);
+    /* Kit control-state tokens — values come from theme.generated.css (palette-bridged). */
+    --color-placeholder: var(--placeholder);
+    --color-focus-ring: var(--focus-ring);
+    --color-disabled: var(--disabled);
+    --color-disabled-bg: var(--disabled-bg);
+    --color-disabled-border: var(--disabled-border);
+    --color-error: var(--error);
+    --color-error-hover: var(--error-hover);
+    --color-error-active: var(--error-active);
+    --color-btn-primary-fg: var(--btn-primary-fg);
+    --color-btn-primary-hover: var(--btn-primary-hover);
+    --color-btn-primary-active: var(--btn-primary-active);
+    --color-btn-default-bg: var(--btn-default-bg);
+    --color-btn-default-hover-bg: var(--btn-default-hover-bg);
+    --color-btn-default-active-bg: var(--btn-default-active-bg);
+    --color-btn-text-hover-bg: var(--btn-text-hover-bg);
+    --color-btn-text-active-bg: var(--btn-text-active-bg);
+    --color-btn-link: var(--btn-link);
+    --color-btn-link-hover: var(--btn-link-hover);
+    --color-btn-link-active: var(--btn-link-active);
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* Desktop surface classes the shared composer references (kbd hint chip). */
+.ag-surface-chip {
+    background: var(--ag-surface-chip);
+    border: 1px solid var(--ag-surface-chip-border);
+}
+
+/* antd Switch geometry: height and width differ for the same name, which one spacing
+   namespace cannot express — explicit utilities instead (values from controlScale.ts). */
+@utility h-switch {
+    height: 22px;
+}
+@utility h-switch-sm {
+    height: 16px;
+}
+@utility w-switch {
+    width: 44px;
+}
+@utility w-switch-sm {
+    width: 28px;
 }
 
 @layer base {

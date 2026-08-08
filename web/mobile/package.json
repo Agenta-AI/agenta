@@ -20,10 +20,18 @@
         "test:watch": "vitest"
     },
     "dependencies": {
+        "@agenta/auth": "workspace:../packages/agenta-auth",
+        "@agenta/auth-ui": "workspace:../packages/agenta-auth-ui",
         "@agenta/chat": "workspace:../packages/agenta-chat",
         "@agenta/entities": "workspace:../packages/agenta-entities",
+        "@agenta/entity-ui": "workspace:../packages/agenta-entity-ui",
+        "@agenta/navigation": "workspace:../packages/agenta-navigation",
+        "@agenta/navigation-ui": "workspace:../packages/agenta-navigation-ui",
         "@agenta/sdk": "workspace:../packages/agenta-sdk",
+        "@agenta/sessions": "workspace:../packages/agenta-sessions",
+        "@agenta/sessions-ui": "workspace:../packages/agenta-sessions-ui",
         "@agenta/shared": "workspace:../packages/agenta-shared",
+        "@agenta/ui": "workspace:../packages/agenta-ui",
         "@ai-sdk/react": "3.0.0-beta.153",
         "@tanstack/react-query": "^5.90.21",
         "ai": "6.0.0-beta.150",
