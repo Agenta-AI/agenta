@@ -108,6 +108,28 @@ const submitInviteMembersModal = async (inviteModal: any) => {
  * in the members table with "Invitation Pending" status.
  * Returns the invited email so callers can locate the row.
  */
+/**
+ * A row in the members table.
+ *
+ * The table is virtualised: the semantic `<table>` carries only the `<thead>` and each
+ * body row is a `[data-row-key]` node outside it, so `locator("tr")` only ever matches
+ * the header.
+ */
+const memberRow = (page: any, email: string) =>
+    page.locator("[data-row-key]").filter({hasText: email}).first()
+
+/**
+ * Closes the "Invited user link" dialog that opens after a successful invite.
+ * No-op if it is not showing, so callers need not care whether it appeared.
+ */
+const dismissInvitedUserLinkDialog = async (page: any) => {
+    const dialog = page.getByRole("dialog", {name: "Invited user link"})
+    if (!(await dialog.isVisible().catch(() => false))) return
+    // `exact` matters: the footer also carries a "Copy & Close" button.
+    await dialog.getByRole("button", {name: "Close", exact: true}).click()
+    await expect(dialog).toBeHidden({timeout: 10000})
+}
+
 const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): Promise<string> => {
     const testEmail = createInviteEmail("test-member")
 
@@ -133,8 +155,13 @@ const invitePendingMember = async (page: any, apiHelpers: any, uiHelpers: any): 
     // timing races between listener registration and the async form submit).
     await submitInviteMembersModal(inviteModal)
 
-    // Wait for the pending row to appear in the refreshed table
-    await expect(page.getByText(testEmail)).toBeVisible({timeout: 15000})
+    // Submitting opens the "Invited user link" dialog ON TOP of the members table, and
+    // that dialog shows the invitee's address. Waiting on the email alone therefore
+    // passes against text inside the DIALOG, while the table behind it may not have
+    // refreshed at all — which is why callers then failed to find the row. Close it
+    // first, then wait for the row itself.
+    await dismissInvitedUserLinkDialog(page)
+    await expect(memberRow(page, testEmail)).toBeVisible({timeout: 15000})
 
     return testEmail
 }
@@ -192,12 +219,20 @@ const membersTests = () => {
             })
 
             await scenarios.then(
-                "the invited member appears in the members list with an Invitation Pending tag",
+                "the invited member appears in the members list with a Pending status chip",
                 async () => {
-                    await expect(page.getByText("Invitation Pending").first()).toBeVisible({
-                        timeout: 15000,
+                    // The status chip used to read "Invitation Pending"; it is now a chip
+                    // reading just "Pending" (the row is already an invitation, so the word
+                    // added nothing). The chip is a bare <span> with no role or accessible
+                    // name of its own, so scope to the member's row — "Pending" on its own
+                    // is generic enough to match unrelated text elsewhere on the page.
+                    await dismissInvitedUserLinkDialog(page)
+
+                    const row = memberRow(page, testEmail)
+                    await expect(row).toBeVisible({timeout: 15000})
+                    await expect(row.getByText("Pending", {exact: true})).toBeVisible({
+                        timeout: 10000,
                     })
-                    await expect(page.getByText(testEmail)).toBeVisible({timeout: 10000})
                 },
             )
         },
@@ -223,10 +258,10 @@ const membersTests = () => {
             })
 
             await scenarios.when("the user opens the actions menu for that member", async () => {
-                const memberRow = page.locator("tr").filter({hasText: testEmail})
-                await expect(memberRow).toBeVisible({timeout: 10000})
+                const row = memberRow(page, testEmail)
+                await expect(row).toBeVisible({timeout: 10000})
                 // ⋯ button is the last button in the row
-                await memberRow.locator("button").last().click()
+                await row.locator("button").last().click()
             })
 
             await scenarios.and("the user clicks Resend invitation", async () => {
@@ -262,9 +297,9 @@ const membersTests = () => {
             })
 
             await scenarios.when("the user opens the actions menu for that member", async () => {
-                const memberRow = page.locator("tr").filter({hasText: testEmail})
-                await expect(memberRow).toBeVisible({timeout: 10000})
-                await memberRow.locator("button").last().click()
+                const row = memberRow(page, testEmail)
+                await expect(row).toBeVisible({timeout: 10000})
+                await row.locator("button").last().click()
             })
 
             await scenarios.and("the user clicks Remove and confirms", async () => {
