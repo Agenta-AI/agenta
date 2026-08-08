@@ -1,0 +1,70 @@
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
+import {querySessionStreams} from "@agenta/entities/session"
+import {SessionTabRail} from "@agenta/sessions-ui"
+import {useQuery} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
+
+import {PageTitle} from "@/components/PageTitle"
+
+import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
+
+/**
+ * The conversation pane's header: this agent's sessions as tabs, the open one active — the same
+ * strip the desktop playground carries above its transcript.
+ *
+ * Selecting a tab is a route change here (a session per URL), not a local tab switch, so the rail
+ * only needs the host's routing.
+ *
+ * In Chat mode at md+ the vertical sessions pane sits beside the transcript and owns the switching
+ * — the same call the desktop makes (its tag bar drops its pills in full-screen mode), so the rail
+ * steps aside there and stays on the narrow frame, where that pane is not on screen.
+ */
+export const SessionTabs = ({
+    sessionId,
+    projectId,
+    workspaceId,
+    agentId,
+}: {
+    sessionId: string
+    projectId: string
+    workspaceId: string
+    /** Scope the rail to this agent's sessions. Absent while the session's agent resolves. */
+    agentId?: string | null
+}) => {
+    const router = useRouter()
+    const base = `/w/${workspaceId}/p/${projectId}`
+    const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    // The SAME verbs the sessions pane and the sessions list bind — rename, pin, archive, delete
+    // with their confirms — so a session's menu is the same whether it is a tab or a row.
+    const menu = useSessionRowMenu(base)
+    // The singular GET /sessions/streams redirects with a root-path-less Location
+    // behind the /api prefix and lands on the web app — use the proven query POST.
+    const query = useQuery({
+        queryKey: ["mobile", "session-stream", projectId, sessionId],
+        queryFn: async () => (await querySessionStreams({sessionId, projectId}))?.[0] ?? null,
+        enabled: Boolean(projectId && sessionId),
+        staleTime: 30_000,
+    })
+
+    return (
+        <>
+            <PageTitle parts={[query.data?.name]} />
+            <SessionTabRail
+                className={chatMaximized ? "md:hidden" : undefined}
+                agentId={agentId ?? undefined}
+                limit={12}
+                withPinned
+                activeSessionId={sessionId}
+                activeFallbackTitle={query.data?.name}
+                menuFor={menu.menuFor}
+                onMenuSelect={menu.onMenuSelect}
+                onSelect={(vm) => {
+                    if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
+                }}
+                // Starting a session needs an agent to start it with.
+                onNew={agentId ? () => void router.push(`${base}/agents/${agentId}`) : undefined}
+            />
+        </>
+    )
+}

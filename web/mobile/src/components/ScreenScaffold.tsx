@@ -7,12 +7,24 @@ interface ScreenScaffoldProps {
     footer?: ReactNode
     scrollRef?: RefObject<HTMLDivElement | null>
     onScroll?: UIEventHandler<HTMLDivElement>
+    /** Inside a pane that already owns the viewport height and the top inset — fill it instead. */
+    embedded?: boolean
+    /**
+     * The child owns the scrolling, so the middle is a plain fill region instead of a scroller.
+     *
+     * For screens whose body is itself a frame with its own scroll geometry — a `FilterRailLayout`,
+     * whose rail must stay put while only the results column scrolls. Nesting that inside the
+     * default scroller breaks both halves: the rail gets content height (so it scrolls away with
+     * the page and its surface stops short) and the results column has no definite height to
+     * scroll within.
+     */
+    fill?: boolean
     children: ReactNode
 }
 
 /**
  * The one mobile screen shape: a viewport-height column whose header and footer are pinned and
- * whose middle is the ONLY scroller.
+ * whose middle either scrolls (the default) or is filled by a child that scrolls itself (`fill`).
  *
  * `h-dvh` + an `overflow-y-auto` middle keeps scrolling inside the list rather than the
  * document — a `min-h-dvh` page scrolls its own header off-screen on iOS, which is the bug this
@@ -26,16 +38,22 @@ export const ScreenScaffold = ({
     footer,
     scrollRef,
     onScroll,
+    embedded = false,
+    fill = false,
     children,
 }: ScreenScaffoldProps) => (
-    <div className="bg-background text-foreground flex h-dvh flex-col pt-[env(safe-area-inset-top)]">
+    <div
+        className={`bg-background text-foreground flex min-h-0 flex-col ${
+            embedded ? "h-full" : "h-dvh pt-[env(safe-area-inset-top)]"
+        }`}
+    >
         {header}
         <div
             ref={scrollRef}
             onScroll={onScroll}
-            className={`flex flex-1 flex-col overflow-y-auto overscroll-contain${
-                footer ? "" : " pb-[env(safe-area-inset-bottom)]"
-            }`}
+            className={`flex min-h-0 flex-1 flex-col ${
+                fill ? "" : "overflow-y-auto overscroll-contain"
+            }${footer ? "" : " pb-[env(safe-area-inset-bottom)]"}`}
         >
             {children}
         </div>

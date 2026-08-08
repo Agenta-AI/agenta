@@ -10,9 +10,14 @@ import {useQuery} from "@tanstack/react-query"
  * molecule, which self-fetches by this revision id.
  *
  * Null while resolving or for a session with no turns yet (no references → nothing to invoke);
- * the composer disables itself on null.
+ * the composer disables itself on null. `fallbackAgentId` covers exactly that case for a
+ * session Home just minted: it has no turns to name its agent, so the route carries it.
  */
-export const useAgentEntity = (sessionId: string, projectId: string) => {
+export const useAgentEntity = (
+    sessionId: string,
+    projectId: string,
+    fallbackAgentId?: string | null,
+) => {
     const agentQuery = useQuery({
         queryKey: ["mobile", "session-agent", projectId, sessionId],
         queryFn: async () => {
@@ -26,7 +31,7 @@ export const useAgentEntity = (sessionId: string, projectId: string) => {
         staleTime: 60_000,
         refetchOnWindowFocus: false,
     })
-    const agentId = agentQuery.data ?? null
+    const agentId = agentQuery.data ?? fallbackAgentId ?? null
 
     const revisionQuery = useQuery({
         queryKey: ["mobile", "agent-latest-revision", projectId, agentId],
