@@ -37,8 +37,8 @@ def _connection(team_id: str) -> ChannelConnection:
     return ChannelConnection(
         id=uuid4(),
         slug="slack-seam-connection",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="slack",
+        provider_key=ConnectionProviderKind.SLACK,
+        integration_key=team_id,
         data={
             "signing_secret": SIGNING_SECRET,
             "bot_token": "xoxb-fake",
@@ -100,13 +100,22 @@ async def slack_seam(channels_scope):
     team_id = channels_scope["external_id"]
 
     connection = _connection(team_id)
-    adapter = SlackAdapter(connection=connection, http_client=httpx.AsyncClient())
+
+    # Registered exactly as the composition root registers it: one shared
+    # instance holding no connection. Constructing it WITH one would test a
+    # shape nothing builds, which is how a total ingress failure once stayed
+    # green here.
+    adapter = SlackAdapter(http_client=httpx.AsyncClient())
     registry = _Registry({"slack": adapter})
+
+    class _Connections:
+        async def get_connection(self, *, project_id, connection_id):
+            return connection
 
     service = ChannelsService(
         channels_dao=ChannelsDAO(engine=engine),
         adapter_registry=registry,
-        connections_service=None,
+        connections_service=_Connections(),
     )
 
     from fastapi import FastAPI

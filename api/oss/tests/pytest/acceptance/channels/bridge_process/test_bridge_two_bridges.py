@@ -201,16 +201,6 @@ async def two_bridges(bridge_scope):
                 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "the registry holds one adapter instance per channel key; the ingress "
-        "calls verify_signature with no connection, so a shared bridge adapter "
-        "constructed with none held can never resolve a secret for either "
-        "installation. Two real bridges cannot both authenticate through the "
-        "one production registration today."
-    ),
-)
 async def test_two_bridges_interleaved_each_resolve_to_their_own_connection(
     two_bridges,
 ):

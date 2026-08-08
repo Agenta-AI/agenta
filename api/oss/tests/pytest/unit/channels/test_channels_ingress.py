@@ -15,12 +15,14 @@ from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.dtos import (
+    ChannelConnection,
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
     ChannelSpaceKind,
 )
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
+from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 
 LOCATOR = {"team": "T1", "channel": "C1"}
@@ -37,7 +39,16 @@ class FakeAdapter:
         self.verify_calls = 0
         self.parse_calls = 0
 
-    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        return self.installation_id
+
+    async def verify_signature(
+        self,
+        *,
+        headers: Dict[str, str],
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+    ) -> str:
         self.verify_calls += 1
         if headers.get("x-fake-signature") != "valid":
             raise ChannelSignatureInvalid(channel=self.channel)
@@ -73,16 +84,42 @@ class FakeAdapterRegistry:
         return self._adapters[channel]
 
 
-class FakeChannelsService:
-    """Stands in for ChannelsService -- just the two ingress-facing methods:
-    resolve a connection, and append to the log with the dedup contract
-    (None on an already-recorded external_id)."""
+class FakeConnectionsService:
+    """Stands in for ConnectionsService -- the one method the ingress needs, to
+    fetch the connection whose secret the signature is verified against."""
 
-    def __init__(self, *, project_id: UUID, connection_id: UUID):
+    def __init__(self, *, connection: ChannelConnection):
+        self.connection = connection
+
+    async def get_connection(self, *, project_id: UUID, connection_id: UUID):
+        return self.connection
+
+
+class FakeChannelsService:
+    """Stands in for ChannelsService -- just the ingress-facing methods:
+    resolve a connection, fetch it, and append to the log with the dedup
+    contract (None on an already-recorded external_id)."""
+
+    def __init__(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        integration_key: str = "T1",
+    ):
         self.project_id = project_id
         self.connection_id = connection_id
         self.recorded = []
         self.seen_external_ids = set()
+        self.connections_service = FakeConnectionsService(
+            connection=ChannelConnection(
+                id=connection_id,
+                slug="fake-connection",
+                provider_key=ConnectionProviderKind.SLACK,
+                integration_key=integration_key,
+                data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
+            )
+        )
 
     async def get_project_and_connection_by_external_id(self, *, channel, external_id):
         if external_id != "T1":
@@ -198,7 +235,10 @@ class FakeCrossCheckingBridgeAdapter(FakeAdapter):
     def __init__(self, *, installation_id: str = "acme-wecom"):
         super().__init__(installation_id=installation_id)
 
-    async def verify_signature(self, *, headers, body):
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        return json.loads(body).get("source") if body else None
+
+    async def verify_signature(self, *, headers, body, connection=None):
         if headers.get("x-fake-signature") != "valid":
             raise ChannelSignatureInvalid(channel=self.channel)
 
@@ -304,10 +344,12 @@ def test_stale_timestamp_rejected_even_with_structurally_valid_signature(
     calls it."""
 
     class ReplayGuardedAdapter(FakeAdapter):
-        async def verify_signature(self, *, headers, body):
+        async def verify_signature(self, *, headers, body, connection=None):
             if headers.get("x-fake-timestamp") == "stale":
                 raise ChannelSignatureInvalid(channel=self.channel)
-            return await super().verify_signature(headers=headers, body=body)
+            return await super().verify_signature(
+                headers=headers, body=body, connection=connection
+            )
 
     guarded = ReplayGuardedAdapter()
     app, _ = _make_app(

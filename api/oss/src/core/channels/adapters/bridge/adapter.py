@@ -73,6 +73,10 @@ class BridgeAdapter(ChannelAdapterInterface):
 
     # --- ingress --- #
 
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        claimed_source = _parse_json(body).get("source")
+        return _bare_source(claimed_source) if claimed_source else None
+
     async def verify_signature(
         self,
         *,
@@ -202,10 +206,13 @@ def _parse_json(body: bytes) -> Dict[str, Any]:
         return {}
 
 
-def _source_matches(claimed_source: str, installation_id: str) -> bool:
+def _bare_source(claimed_source: str) -> str:
     """`source` is `bridge/<name>`; the credential resolves to the bare
-    installation id -- normalise the wire prefix before comparing rather
-    than requiring bridges to send the bare id."""
+    installation id -- normalise the wire prefix rather than requiring
+    bridges to send the bare id."""
 
-    bare = claimed_source.split("/", 1)[1] if "/" in claimed_source else claimed_source
-    return bare == installation_id
+    return claimed_source.split("/", 1)[1] if "/" in claimed_source else claimed_source
+
+
+def _source_matches(claimed_source: str, installation_id: str) -> bool:
+    return _bare_source(claimed_source) == installation_id

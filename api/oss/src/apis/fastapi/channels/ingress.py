@@ -104,6 +104,31 @@ class ChannelsIngressRouter:
         # disagrees with the credential that signed it.
         return await self._ingest(channel="bridge", request=request)
 
+    async def _resolve_candidate(self, *, channel: str, hint: Optional[str]):
+        """The connection an unverified installation claim points at, or None."""
+
+        if not hint:
+            return None
+
+        resolved = (
+            await self.channels_service.get_project_and_connection_by_external_id(
+                channel=channel,
+                external_id=hint,
+            )
+        )
+        if resolved is None:
+            return None
+
+        project_id, connection_id = resolved
+        connection = await self.channels_service.connections_service.get_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            return None
+
+        return project_id, connection_id, connection
+
     async def _ingest(self, *, channel: str, request: Request) -> ChannelEventAck:
         """The shared body. Both handlers are one line calling this with their
         channel; the split exists for the route table and the SDK."""
@@ -112,26 +137,36 @@ class ChannelsIngressRouter:
 
         adapter = self.adapter_registry.get(channel)
 
+        # The signing secret lives on the connection, so the connection has to
+        # be in hand before the signature can be checked. The body's own
+        # installation claim selects which one to check against and grants
+        # nothing: a wrong claim finds no connection, or one whose secret
+        # fails, and both refuse identically below.
+        candidate = await self._resolve_candidate(
+            channel=channel,
+            hint=adapter.installation_hint(body=body),
+        )
+
+        if candidate is None:
+            # No secret to verify against, so this cannot be accepted -- and it
+            # must refuse exactly as a bad signature does. Answering anything
+            # distinguishable here would turn the route into an oracle for
+            # which installations exist.
+            raise ChannelSignatureInvalid(channel=channel)
+
+        project_id, connection_id, connection = candidate
+
         # Raises ChannelSignatureInvalid on failure -- caught by the decorator,
         # which answers 401 with no verification detail.
         external_id = await adapter.verify_signature(
             headers=request.headers,
             body=body,
+            connection=connection,
         )
 
-        resolved = (
-            await self.channels_service.get_project_and_connection_by_external_id(
-                channel=channel,
-                external_id=external_id,
-            )
-        )
-
-        if resolved is None:
-            # Verified, but no connection installed for this platform id --
-            # nothing to write against. Ack so the platform stops retrying.
-            return ChannelEventAck(status="accepted", detail="No connection found")
-
-        project_id, connection_id = resolved
+        # The claim only chose the secret; the verified id is what has to match.
+        if external_id != connection.integration_key:
+            raise ChannelSignatureInvalid(channel=channel)
 
         inbound = await adapter.parse_event(body=body)
 

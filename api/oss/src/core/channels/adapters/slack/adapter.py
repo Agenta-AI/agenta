@@ -94,6 +94,13 @@ class SlackAdapter(ChannelAdapterInterface):
 
     # --- ingress --- #
 
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        payload = _parse_json(body)
+        team = payload.get("team")
+        return payload.get("team_id") or (
+            team.get("id") if isinstance(team, dict) else None
+        )
+
     async def verify_signature(
         self,
         *,
@@ -113,11 +120,7 @@ class SlackAdapter(ChannelAdapterInterface):
             channel=self.channel,
         )
 
-        payload = _parse_json(body)
-        team = payload.get("team")
-        team_id = payload.get("team_id") or (
-            team.get("id") if isinstance(team, dict) else None
-        )
+        team_id = self.installation_hint(body=body)
         if not team_id:
             raise ChannelSignatureInvalid(channel=self.channel)
 

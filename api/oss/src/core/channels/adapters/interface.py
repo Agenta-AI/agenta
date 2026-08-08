@@ -24,6 +24,18 @@ class ChannelAdapterInterface(ABC):
 
     # --- ingress ---
 
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        """The installation this body claims to come from, read without any
+        secret, so the caller can look up which connection to verify against.
+
+        Unverified and untrusted: it only selects the secret the signature is
+        then checked with. A wrong or forged hint resolves to no connection, or
+        to one whose secret fails — refused either way, so the signature stays
+        the only thing that decides.
+        """
+
+        return None
+
     @abstractmethod
     async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
         """Verify HMAC with timestamp replay protection; return the platform's own
