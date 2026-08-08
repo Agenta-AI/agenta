@@ -4,15 +4,11 @@ from pydantic import BaseModel
 
 
 class RenderPart(BaseModel):
-    """The fixed outbound vocabulary (specs-wp5.md 'Out of scope'): core's
+    """The fixed outbound vocabulary: core's answer to "what to say", never a
+    platform call. An adapter maps one part to its own wire shape; it never
+    receives an ACP or record payload.
 
-    answer to "what to say", never a platform call. An adapter (WP6) maps one
-    part to its own wire shape; it never receives an ACP or record payload.
-
-    One part per button (matching the contract suite's `post_message`
-    fixture, `tests/.../channels/contract/fakes.py`, which counts
-    `item.get("type") == "button"` across the whole `content` list) — a
-    grouped multi-option part would not be visible to that count.
+    One part per button, so a grouped multi-option part is never used.
     """
 
     type: Literal["text", "button", "card"]

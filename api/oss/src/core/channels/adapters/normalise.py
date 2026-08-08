@@ -1,7 +1,6 @@
-"""Boundary normalisation of a fetched capability declaration
-(`capabilities.md` §4). Applied identically to a first-party adapter's own
-dict and to a bridge's `bridge.hello` payload — one function, one place this
-logic exists.
+"""Boundary normalisation of a fetched capability declaration. Applied
+identically to a first-party adapter's own dict and to a bridge's
+`bridge.hello` payload — one function, one place this logic exists.
 """
 
 import copy
@@ -38,7 +37,7 @@ def _clamp_numeric(
 
 
 def normalise_capabilities(raw: Dict[str, Any]) -> ChannelCapabilities:
-    """The boundary normaliser (capabilities.md §4).
+    """The boundary normaliser.
 
     - A declared maximum of zero becomes the field's default, never a
       functional zero.
@@ -52,8 +51,8 @@ def normalise_capabilities(raw: Dict[str, Any]) -> ChannelCapabilities:
 
     Trust-bearing flags (anything core uses to decide what to attempt) are
     not stamped here — that is a decision for the caller that knows whether
-    the source is a bridge (capabilities.md §4's "never read from the wire
-    as-is"); this function only clamps and defaults shared numeric ceilings.
+    the source is a bridge and so must never be read from the wire as-is;
+    this function only clamps and defaults shared numeric ceilings.
     """
 
     data = copy.deepcopy(raw) if isinstance(raw, dict) else {}

@@ -29,17 +29,15 @@ class ChannelsOutboxWorker:
     """Fold, render, post, receipt — one turn at a time.
 
     Entity-agnostic and self-contained: every dependency is a service
-    interface, so tests drive it without a broker (specs-wp5.md). `poll_turn`
-    is the single call boundary the WP0 swap replaces — the rest
+    interface, so tests drive it without a broker. `poll_turn` is the single
+    call boundary a future session-events swap replaces — the rest
     (fold/render/post/receipt) is unaffected by that swap.
 
     Reaches `channels_service.channels_dao` directly for the outbox
     read/write methods (`fetch_outbox_event_by_key`, `record_outbox_event`,
-    `transition_outbox_event`, `claim_outbox_events`) per specs-wp5.md's own
-    "Interfaces" section — `ChannelsService.enqueue_output`/`.deliver` are
-    still `NotImplementedError` stubs (WP1 owns `core/channels/service.py`;
-    filling them in is not a path WP5 may edit), so this worker does not call
-    them.
+    `transition_outbox_event`, `claim_outbox_events`) — `ChannelsService
+    .enqueue_output`/`.deliver` are still `NotImplementedError` stubs owned
+    elsewhere, so this worker does not call them.
     """
 
     def __init__(
@@ -53,10 +51,10 @@ class ChannelsOutboxWorker:
         self.turns_service = turns_service
         self.records_service = records_service
 
-    # --- polling (interim; WP0 REMOVAL TRIGGER — delete, don't flag) ------- #
+    # --- polling (interim — delete, don't flag, once session events land) - #
 
     async def poll_turn(self, *, project_id: UUID, session_id: str) -> None:
-        """Stand-in for turn-started/turn-ended events (architecture.md §6.1).
+        """Stand-in for turn-started/turn-ended events.
 
         Deleted, not disabled, once the turns service publishes: the two call
         sites below (on_turn_started/on_turn_ended) are unaffected and become
@@ -107,7 +105,7 @@ class ChannelsOutboxWorker:
         thread: ChannelThread,
         turn_id: str,
     ) -> None:
-        """Post an indicator; the receipt lands on the same row (D28)."""
+        """Post an indicator; the receipt lands on the same row."""
 
         connection, capabilities = await self._connection_and_capabilities(
             project_id=project_id, thread=thread
@@ -209,8 +207,8 @@ class ChannelsOutboxWorker:
                 idempotency_key=idempotency_key,
             )
         elif has_receipt:
-            # controls.update is false: post a NEW message rather than an edit
-            # (specs-wp5.md degradation rule) — the old receipt is superseded.
+            # controls.update is false: post a NEW message rather than an
+            # edit — the old receipt is superseded.
             receipt = await adapter.post_message(
                 connection=connection,
                 locator=event.data.external_locator,
@@ -246,8 +244,8 @@ class ChannelsOutboxWorker:
         turn_id: str,
         item_index: int,
     ) -> ChannelOutboxEvent:
-        """Idempotent on `key` (D27/D28): a retry of either call finds, not
-        forks, the row for this item."""
+        """Idempotent on `key`: a retry of either call finds, not forks, the
+        row for this item."""
 
         key = compose_outbox_key(thread_id=thread_id, turn_id=turn_id, item=item_index)
 

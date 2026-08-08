@@ -1,11 +1,10 @@
 """Acceptance: SlackAdapter against the real Slack Web API.
 
 Gated on SLACK_BOT_TOKEN + SLACK_TEST_CHANNEL — a live workspace + bot install
-with chat:write and channels:history granted. Written per specs-wp6.md's
-Tests section; WRITTEN BUT NOT RUN in this worktree (no deployed stack, no
-live Slack credentials available here). Exercises exactly the checkpoint
-condition WP6 owns: post produces a real message, edit changes it in place,
-backfill returns real history or a distinguishable refusal.
+with chat:write and channels:history granted. Exercises exactly the
+checkpoint condition the adapter owns: post produces a real message, edit
+changes it in place, backfill returns real history or a distinguishable
+refusal.
 """
 
 import os
@@ -52,13 +51,17 @@ class TestSlackAdapterLive:
         receipt = await adapter.post_message(
             connection=connection,
             locator={"channel": _TEST_CHANNEL},
-            content=[{"type": "text", "text": "WP6 acceptance check: posting"}],
+            content=[
+                {"type": "text", "text": "Slack adapter acceptance check: posting"}
+            ],
             idempotency_key=uuid4(),
         )
         edited = await adapter.edit_message(
             connection=connection,
             external_locator=receipt,
-            content=[{"type": "text", "text": "WP6 acceptance check: edited"}],
+            content=[
+                {"type": "text", "text": "Slack adapter acceptance check: edited"}
+            ],
             idempotency_key=uuid4(),
         )
 

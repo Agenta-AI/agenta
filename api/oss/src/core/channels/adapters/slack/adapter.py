@@ -32,15 +32,13 @@ from oss.src.core.channels.types import ChannelSignatureInvalid
 _SLACK_API_BASE = "https://slack.com/api"
 
 # Default page size for backfill; clamped further to the install's own rate
-# tier at fetch time (specs-wp6.md "Slack's permission model"). Kept as a
-# module constant rather than in api/oss/src/utils/env.py: WP6 owns no edit to
-# that shared file at C1 — flagged in the checkpoint report.
+# tier at fetch time.
 _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
 
 
 class ChannelBackfillRefused(Exception):
     """Raised when the install's channels:history grant is denied (403),
-    distinguishable from a legitimately empty page (channels.md §4)."""
+    distinguishable from a legitimately empty page."""
 
     def __init__(self, *, reason: str = "channels:history denied"):
         self.reason = reason
@@ -66,7 +64,7 @@ def _bot_user_id(connection: ChannelConnection) -> Optional[str]:
 
 
 class SlackAdapter(ChannelAdapterInterface):
-    """ChannelAdapterInterface for Slack (specs-wp6.md)."""
+    """ChannelAdapterInterface for Slack."""
 
     channel = "slack"
 
@@ -77,9 +75,9 @@ class SlackAdapter(ChannelAdapterInterface):
         http_client: Optional[httpx.AsyncClient] = None,
     ) -> None:
         # `connection` may be supplied at construction (single-tenant test/dev
-        # use) or per-call (multi-tenant use, once WP4/WP8 wire this adapter
-        # against a resolved connection) — verify_signature/parse_event below
-        # accept both, using the constructor's connection as a fallback.
+        # use) or per-call (multi-tenant use, against a resolved connection) —
+        # verify_signature/parse_event below accept both, using the
+        # constructor's connection as a fallback.
         self._connection = connection
         self._client = http_client or httpx.AsyncClient(base_url=_SLACK_API_BASE)
 

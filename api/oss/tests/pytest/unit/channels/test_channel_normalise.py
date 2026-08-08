@@ -41,8 +41,8 @@ SLACK = {
     "commands": ["new", "sessions", "use"],
 }
 
-# contract.md §4's bridge.hello example: fewer fields (no ephemeral,
-# spaces.topic: false), nested one level under "capabilities".
+# The bridge.hello example: fewer fields (no ephemeral, spaces.topic: false),
+# nested one level under "capabilities".
 BRIDGE_HELLO_CAPABILITIES = {
     "channel": "acme-wecom",
     "protocol": {"versions": ["0.1.0"]},

@@ -1,9 +1,8 @@
 """Fake adapters for the contract suite.
 
-`WellBehavedFakeAdapter` is the default fixture other packages' tests can use
-(WP1/WP3). The `Lying*` variants exist only to prove the contract suite has
-teeth (`plan.md`'s WP2 exit condition) — nothing outside this suite should
-construct them.
+`WellBehavedFakeAdapter` is the default fixture other test modules can use.
+The `Lying*` variants exist only to prove the contract suite has teeth —
+nothing outside this suite should construct them.
 """
 
 from copy import deepcopy

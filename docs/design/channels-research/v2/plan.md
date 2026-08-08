@@ -176,10 +176,11 @@ merged as one edit rather than two.
 ### C3 — Slack works
 
 **Merges:** nothing — WP6 and WP8 landed at C2, ready together with the rest of
-wave 2. **Needs:** C2, and `F1` applied (the three held entrypoint diffs; nothing
-runs end to end until they are).
+wave 2. **Needs:** C2, and `F1` applied — done: the adapter registry, the inbox
+dispatch task, the two worker queues and the configuration router are wired.
 
-C3 is therefore a **verification** checkpoint over merged code, not a merge.
+C3 is therefore a **verification** checkpoint over merged code, not a merge. The
+wiring is structural; C3 is where a message first travels the path.
 
 The first real platform, and the first checkpoint a person outside the team could
 use. WP8 joins here rather than earlier because a real channel is the first thing

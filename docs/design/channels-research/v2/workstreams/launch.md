@@ -105,11 +105,15 @@ declaration whose vocabulary was the first of them.
   by no package. Write the intended edit into the final report; the checkpoint
   applies them serially.
 
-### WP0 — not ours
+### WP0 — not ours, at the time
 
 Session events are owned by whoever owns sessions. C4 needs them for WP5's final
 form. Listed in `plan.md` so channels' dependency on it is visible, not so this
 team schedules it.
+
+**Superseded:** WP0 is in wave 3. Three waves of deferring it while every C4 exit
+condition required it made the deferral the more expensive option — see the wave 3
+section below.
 
 ## Reaching C1
 
@@ -167,14 +171,12 @@ Tracked in **[`tasks-cu.md`](tasks-cu.md)** — the clean-up ledger. Both land i
 Both are `findings.md` items that sit in the gap between packages, and both must
 land first because wave 3 builds on them.
 
-1. **`F1` — nothing wires the entrypoints.** WP4, WP5 and WP8 each produced the
-   `api/entrypoints/routers.py` and `worker_queues.py` edits and handed them back
-   verbatim, as instructed. No package applies them, and no wave-3 spec mentions
-   either file — checked. So the merged tree has an ingress that logs events, a
-   dispatcher that would route them, and a worker that would answer, none
-   connected. Apply the three diffs serially (WP4 first: it defines the dispatch
-   task WP3's router consumes). **Until this lands, nothing runs end to end and
-   C3 cannot be verified at all.**
+1. **`F1` — nothing wires the entrypoints. Done.** Four gaps, not the three
+   recorded: the adapter registry was constructed empty, `dispatch_task` was
+   `None`, the broker map had no channels entry, and WP8's configuration router
+   was never imported or mounted at all. All four closed; 22 channels paths now
+   appear in the OpenAPI schema, up from the 2 ingress routes. **Wired, not
+   exercised** — no message has travelled the path, which is what C3 verifies.
 2. **`F25` — the comment sweep.** 77 comment lines cite work packages, findings
    and design sections; a few assert worktree state that is now false. Cheapest
    while the merge is fresh, and it touches every file wave 3 will edit.
@@ -224,15 +226,20 @@ WP9, WP10 and WP13 are independent by construction — `plan.md` groups them
 because none sits on another's critical path. WP13 is the only one touching
 `web/`, so it cannot collide with the others at all.
 
-### Coordination points, not blockers
+### Coordination points for wave 3, not blockers
 
 - **WP9 and WP4 both parse the message.** WP4 already ships `_parse_sigil` for
   addressing; WP9 owns the `!command[:arg]` grammar. One of them should own both,
   and the checkpoint decides which — not WP9 unilaterally.
 - **WP10 cannot meet its stated exit condition without WP0.** "WP5's polling is
-  deleted, not disabled" needs session events, which are not ours and not
-  scheduled. Until then WP10's forwardfill and WP5's poll loop coexist. Raise it
-  with the sessions owner now rather than at the checkpoint.
+  deleted, not disabled" needs session events. WP0 is now in this wave, so the
+  two are coupled: WP10's exit depends on WP0 landing, and WP0 edits
+  `core/sessions/turns/service.py`, which channels does not own.
+- **WP10 builds on a backfill path that mislabels its events.** `F28`:
+  `fetch_history` gives every returned event the *request's* locator instead of
+  deriving one per message, so backfilled events are not individually
+  addressable. WP6 owns the file. Settle it before WP10 extends a backlog whose
+  rows cannot be told apart.
 - **WP13 inherits WP8's open questions in its own surface.** `F10` (the catalog
   path contradiction), `F11` (wire DTOs in the core module) and `F12` (an invented
   request model) all live in the routes WP13 consumes. Settle them before WP13

@@ -125,8 +125,8 @@ class ChannelInboxTriggerDBA(
     event_id = Column(UUID(as_uuid=True), nullable=False)
     turn_id = Column(String, nullable=False)
     state = Column(Enum(ChannelTriggerState), nullable=False)
-    # no origin (addressing is always PUSHED, §2.4); no is_trigger (every row
-    # is one, §2.1); no DataDBA (the payload lives on the event, not here)
+    # no origin (addressing is always PUSHED); no is_trigger (every row is
+    # one); no DataDBA (the payload lives on the event, not here)
 
 
 class ChannelOutboxEventDBA(
@@ -146,5 +146,5 @@ class ChannelOutboxEventDBA(
     turn_id = Column(String, nullable=False)
     key = Column(UUID(as_uuid=True), nullable=False)
     state = Column(Enum(ChannelDeliveryState), nullable=False)
-    # no attempts (TaskIQ owns retries, §2.7); no idempotency_key (derived at
-    # send time, never stored, §2.6)
+    # no attempts (TaskIQ owns retries); no idempotency_key (derived at send
+    # time, never stored)

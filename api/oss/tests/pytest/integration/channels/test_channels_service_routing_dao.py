@@ -1,13 +1,10 @@
 """Integration tests for `ChannelsService.resolve`/`compose_input`/
-`open_turn`/`settle_turn` (WP4) against real Postgres — the routing method
-bodies WP1 left as `NotImplementedError` stubs for the owning package to
-fill in (`tasks-wp1.md`). Exercises the real `ChannelsDAO` so the DAO-layer
-contracts (`ON CONFLICT DO NOTHING` on both `channel_spaces.external_key`
-lookup and `record_inbox_trigger`'s dedup) are load-bearing, not assumed.
-
-WRITTEN BUT NOT RUN: this worktree has no environment (no local Docker
-Postgres reachable from this agent session). Reviewed for correctness against
-the same `channels_scope` fixture WP1's own DAO integration tests use.
+`open_turn`/`settle_turn` against real Postgres — the routing methods that
+resolve an inbound event to an agent, space, and thread. Exercises the real
+`ChannelsDAO` so the DAO-layer contracts (`ON CONFLICT DO NOTHING` on both
+`channel_spaces.external_key` lookup and `record_inbox_trigger`'s dedup) are
+load-bearing, not assumed. Uses the same `channels_scope` fixture the other
+channels DAO integration tests use.
 """
 
 import uuid
@@ -47,7 +44,7 @@ LOCATOR = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
 
 class _FakeConnectionsService:
     """Stands in for `ConnectionsService`: the real `get_connection` is a
-    thin DAO passthrough WP4 does not own; this returns the fixture's own
+    thin DAO passthrough; this returns the fixture's own
     `gateway_connections` row shape without a second DB round trip."""
 
     def __init__(self, *, connection):
@@ -282,7 +279,7 @@ async def test_open_turn_second_worker_loses_the_race(channels_scope):
 
 
 async def test_grant_restricted_agent_not_in_this_space_refuses(channels_scope):
-    """D17: the agent has grants rows (restricted), but none for this
+    """The agent has grants rows (restricted), but none for this
     space -> resolve() returns None, identically to an unknown agent."""
 
     adapter = WellBehavedFakeAdapter()
@@ -345,7 +342,7 @@ async def test_grant_restricted_agent_not_in_this_space_refuses(channels_scope):
 
 
 async def test_resolve_attaches_the_event_to_its_space(channels_scope):
-    """F18: the ingress writes an event before any space is resolved, so
+    """The ingress writes an event before any space is resolved, so
     `space_id` starts null. `compose_input` reads the log *by* `space_id`
     (`ix_channel_inbox_events_log` is keyed on it), so an unattached row is
     invisible and the agent is invoked with empty content. resolve() closes that

@@ -10,7 +10,7 @@ class ChannelIdentityLinkDBE(Base, ChannelIdentityLinkDBA):
     __table_args__ = (
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         PrimaryKeyConstraint("project_id", "id"),
-        # one platform identity maps to at most one link per connection (WP7 spec)
+        # one platform identity maps to at most one link per connection
         UniqueConstraint(
             "project_id",
             "connection_id",

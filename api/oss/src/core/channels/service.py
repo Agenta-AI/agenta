@@ -42,20 +42,12 @@ from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
 from oss.src.core.shared.dtos import Status, Windowing
 
 if TYPE_CHECKING:
-    # WP2 owns registry.py; imported for typing only so WP1 does not depend on
-    # a module that does not exist yet in this worktree.
     from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
     from oss.src.core.gateway.connections.service import ConnectionsService
 
 
 class ChannelsService:
-    """Owns the channels domain: configuration, policy, routing, delivery.
-
-    WP1 implements configuration (agents/spaces/grants/threads) and the
-    capability/policy reads. Routing (`resolve`, `compose_input`, `open_turn`,
-    `settle_turn`) and delivery (`enqueue_output`, `deliver`) are declared here
-    per the frozen §8 surface but implemented by WP3/WP4/WP5.
-    """
+    """Owns the channels domain: configuration, policy, routing, delivery."""
 
     def __init__(
         self,
@@ -212,7 +204,7 @@ class ChannelsService:
         #
         space: ChannelSpaceCreate,
     ) -> ChannelSpace:
-        # external_key is always derived (§2.2) — never taken from the caller.
+        # external_key is always derived — never taken from the caller.
         capabilities = await self.fetch_capabilities(
             channel=await self._resolve_channel(
                 project_id=project_id, connection_id=space.connection_id
@@ -459,7 +451,7 @@ class ChannelsService:
         #
         thread_id: UUID,
     ) -> ChannelThread:
-        # append-only (D12): flips is_active on THIS row, never inserts a new one.
+        # append-only: flips is_active on THIS row, never inserts a new one.
         thread = await self.channels_dao.close_thread(
             project_id=project_id,
             user_id=user_id,
@@ -521,7 +513,7 @@ class ChannelsService:
             grant.data.policy if grant else None,
         )
 
-    # --- routing: the inbound path (§2.1, §2.4) — WP3/WP4 fill these ------ #
+    # --- routing: the inbound path ----------------------------------------- #
 
     async def get_project_and_connection_by_external_id(
         self,
@@ -562,10 +554,11 @@ class ChannelsService:
         connection_id: UUID,
         event: ChannelInboxEvent,
     ) -> Optional[ChannelResolution]:
-        """Who runs, and under what policy (`entities.md` §8, `architecture.md` §5
-        steps 2-4). Default-deny on an unconfigured space; `None` on no addressed
-        agent or a silent grant refusal (D17) -- both read identically to the
-        worker, which is the point.
+        """Who runs, and under what policy.
+
+        Default-deny on an unconfigured space; `None` on no addressed agent or
+        a silent grant refusal -- both read identically to the worker, which
+        is the point.
         """
 
         connection = await self.connections_service.get_connection(
@@ -589,8 +582,8 @@ class ChannelsService:
             external_key=space_key,
         )
         if space is None:
-            # default-deny (architecture.md §5 step 2): no configured space
-            # means the agent may not answer here, regardless of addressing.
+            # default-deny: no configured space means the agent may not
+            # answer here, regardless of addressing.
             return None
 
         # the ingress wrote this row before any space existed; attach it before
@@ -622,7 +615,7 @@ class ChannelsService:
                 agent_id=agent.id,
             )
             if has_any_grant:
-                # refuse silently and identically to "no such agent" (D17)
+                # refuse silently and identically to "no such agent"
                 return None
 
         from oss.src.core.channels.utils import resolve_policy
@@ -637,9 +630,9 @@ class ChannelsService:
         )
 
         # THREAD grain composes to None where the platform declares no thread
-        # fields (the no-threads case, architecture.md §5 step 4c). MESSAGE
-        # scope always mints a fresh thread keyed on this event's own id,
-        # since "one session per message" is the point of that scope.
+        # fields (the no-threads case). MESSAGE scope always mints a fresh
+        # thread keyed on this event's own id, since "one session per
+        # message" is the point of that scope.
         is_message_scope = policy.session_scope is ChannelSessionScope.MESSAGE
 
         thread = None
@@ -689,8 +682,8 @@ class ChannelsService:
         event: ChannelInboxEvent,
         capabilities: ChannelCapabilities,
     ) -> Optional[ChannelAgent]:
-        """The chain (`entities.md` §8, §2.5): an explicit sigil names one, else
-        the space's default grant, else the connection's default agent."""
+        """The chain: an explicit sigil names one, else the space's default
+        grant, else the connection's default agent."""
 
         slug = _parse_sigil(
             content=event.data.processed.content,
@@ -726,19 +719,15 @@ class ChannelsService:
         resolution: ChannelResolution,
         event_id: UUID,
     ) -> ChannelTurnInput:
-        """What the agent sees (`entities.md` §8, `architecture.md` §5 step 5).
+        """What the agent sees.
 
-        ``event_id`` is the addressing event's own id -- the frozen §8 signature
-        omits it, but ``ChannelResolution`` carries no event reference and the
-        offset write in ``open_turn`` needs the exact row, not "whatever is
-        latest" (a second event can race in between resolve and open_turn).
-        WP4's worker holds the id already, since it is what triggered resolve()
-        in the first place; threading it through here is the one place this
-        package's signature departs from the doc string that omits it -- see
-        the deviation note in this package's final report.
+        ``event_id`` is the addressing event's own id: ``ChannelResolution``
+        carries no event reference, and the offset write in ``open_turn``
+        needs the exact row, not "whatever is latest" (a second event can
+        race in between resolve and open_turn). The worker holds the id
+        already, since it is what triggered resolve() in the first place.
 
-        Fill mechanics (backfill fetch) are WP10's; forwardfill off skips the
-        range read, not the log write, per `specs-wp10.md`.
+        Forwardfill off skips the range read, not the log write.
         """
 
         latest_trigger = await self.channels_dao.fetch_latest_trigger(
@@ -747,7 +736,7 @@ class ChannelsService:
         )
 
         if not resolution.policy.forwardfill:
-            # the turn takes the addressing event alone (architecture.md §5)
+            # the turn takes the addressing event alone
             events = [
                 stored
                 for stored in await self.channels_dao.query_events_since(
@@ -781,10 +770,10 @@ class ChannelsService:
         turn_id: str,
         event_id: UUID,
     ) -> Optional[ChannelInboxTrigger]:
-        """Writes the offset row at STARTED before invoke runs (D14/D22):
-        nothing holds a transaction across the detached call. `None` means a
-        concurrent worker already claimed this exact addressing (D9) -- the
-        caller must not invoke. ``event_id`` -- see the note on `compose_input`.
+        """Writes the offset row at STARTED before invoke runs: nothing holds
+        a transaction across the detached call. `None` means a concurrent
+        worker already claimed this exact addressing -- the caller must not
+        invoke. ``event_id`` -- see the note on `compose_input`.
         """
 
         return await self.channels_dao.record_inbox_trigger(
@@ -806,7 +795,7 @@ class ChannelsService:
         status: Optional[Status] = None,
     ) -> None:
         """Records the turn's fate whenever it becomes known -- an in-place
-        transition by id, never a fresh insert (`entities.md` §7)."""
+        transition by id, never a fresh insert."""
 
         await self.channels_dao.transition_inbox_trigger(
             project_id=project_id,
@@ -815,7 +804,7 @@ class ChannelsService:
             status=status,
         )
 
-    # --- delivery: the outbound path (§2.6, §2.7) — WP5 fills these ------- #
+    # --- delivery: the outbound path --------------------------------------- #
 
     async def enqueue_output(self, *, project_id, thread_id, turn_id, items):
         raise NotImplementedError
@@ -869,8 +858,8 @@ def _canonical_locator(locator: Optional[dict]) -> str:
 
 def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
     """The first `{sigil}{slug}` token across this message's text parts, or
-    None. The grammar is universal (capabilities.md §3); the sigil character
-    is per-channel and undeclared platforms (`sigil is None`) never match."""
+    None. The grammar is universal; the sigil character is per-channel and
+    undeclared platforms (`sigil is None`) never match."""
 
     if not sigil:
         return None

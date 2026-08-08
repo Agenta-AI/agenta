@@ -1,17 +1,13 @@
 """Inbox dispatcher — asyncio side of the channels inbound pipeline.
 
-Entity-agnostic and self-contained (`specs-wp4.md`): routes one already-recorded
+Entity-agnostic and self-contained: routes one already-recorded
 `channel_inbox_events` row through resolution, backlog composition, and a
 detached invoke, driven directly by tests without a broker. The taskiq entry
 point (`tasks/taskiq/channels/inbox_worker.py`) is the thin wrapper around this.
 
 Calls only the four `ChannelsService` routing methods (`resolve`,
 `compose_input`, `open_turn`, `settle_turn`) — routing detail (grants, policy,
-thread get-or-create) stays inside the service, per `specs-wp4.md`'s
-"Interfaces". See this package's final report for the collaborator
-assumptions made where the frozen interfaces stop short of what this chain
-needs (the addressing event's id; the invoking user's credential; the
-runner-level `turnId` wire field).
+thread get-or-create) stays inside the service.
 """
 
 import asyncio
@@ -37,9 +33,9 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-# Bounds the retry-on-refusal loop (tasks-wp4.md "Retry on refusal"): a
-# refused overlapping turn is retried with backoff, never dropped, but a
-# worker process must not spin forever if the runner never accepts.
+# Bounds the retry-on-refusal loop: a refused overlapping turn is retried
+# with backoff, never dropped, but a worker process must not spin forever
+# if the runner never accepts.
 _MAX_INVOKE_ATTEMPTS = 5
 _RETRY_BACKOFF_SECONDS = 0.5
 
@@ -50,11 +46,10 @@ class TurnRefused(Exception):
     """Raised by an `invoke_fn` when the runner refuses an overlapping turn.
 
     The real signal is `SessionTurnInUse` (a 409), owned by
-    `core/sessions/streams`, not a channels type — `core/channels/types.py`
-    is WP1's, so this package cannot add a channels exception for it. The
-    default invoke function recognises `SessionTurnInUse` structurally (by
-    class name, see `_default_invoke_fn`) and re-raises it as this marker,
-    so the retry loop below never has to import `core/sessions/*` directly.
+    `core/sessions/streams`, not a channels type. The default invoke function
+    (`_invoke_via_workflows_service`) recognises `SessionTurnInUse`
+    structurally (by class name) and re-raises it as this marker, so the
+    retry loop below never has to import `core/sessions/*` directly.
     """
 
 
@@ -86,8 +81,8 @@ class InboxDispatcher:
         channel: str,
         external_id: str,
     ) -> None:
-        """Entry point from the taskiq task: look up the row WP3 already
-        wrote by `(connection_id, external_id)`, then run the chain."""
+        """Entry point from the taskiq task: look up the already-recorded row
+        by `(connection_id, external_id)`, then run the chain."""
 
         events = await self.channels_service.query_inbox_events(
             project_id=project_id,
@@ -118,9 +113,9 @@ class InboxDispatcher:
         event: ChannelInboxEvent,
         resolution,
     ) -> Optional[UUID]:
-        """The platform sender's linked account (architecture.md §5). None
-        means unlinked or unconfigured — the caller falls back to the agent's
-        creator, which is attribution's stand-in, not its mechanism."""
+        """The platform sender's linked account. None means unlinked or
+        unconfigured — the caller falls back to the agent's creator, which
+        is attribution's stand-in, not its mechanism."""
 
         if self.identity_service is None:
             return None
@@ -137,8 +132,8 @@ class InboxDispatcher:
         )
 
         # scope_id comes from the first `identity.keys[space]` field, which is
-        # the one that bounds the scope (Slack: "team"), not from `scope`'s own
-        # name ("workspace") — that names the boundary, not a locator key.
+        # the one that bounds the scope (Slack: "team"), not from `scope`'s
+        # own name ("workspace") — that names the boundary, not a locator key.
         space_keys = capabilities.identity.keys.get(ChannelKeyGrain.SPACE) or []
         locator = event.data.external_locator or {}
         scope_id = locator.get(space_keys[0]) if space_keys else None
@@ -164,7 +159,7 @@ class InboxDispatcher:
         connection_id: UUID,
         event: ChannelInboxEvent,
     ) -> None:
-        """The chain itself (`architecture.md` §5 steps 2-6). Takes an
+        """Resolve, compose, open, and invoke for one event. Takes an
         already-fetched row so tests can drive it directly, without a DB."""
 
         resolution = await self.channels_service.resolve(
@@ -173,8 +168,8 @@ class InboxDispatcher:
             event=event,
         )
         if resolution is None:
-            # default-deny, no addressed agent, or a silent grant refusal
-            # (D17) — the log row WP3 wrote is all there is (D9).
+            # default-deny, no addressed agent, or a silent grant refusal —
+            # the logged row is all there is.
             log.info(
                 "[INBOX DISPATCHER] no resolution for event=%s — nothing beyond the log",
                 event.id,
@@ -197,7 +192,7 @@ class InboxDispatcher:
         )
         if trigger is None:
             # (thread_id, event_id) already claimed by a concurrent worker
-            # racing the same addressing (D9) — the other one invokes.
+            # racing the same addressing — the other one invokes.
             log.info(
                 "[INBOX DISPATCHER] trigger claim lost for event=%s thread=%s",
                 event.id,
@@ -231,9 +226,9 @@ class InboxDispatcher:
         trigger_id: UUID,
         user_id: Optional[UUID] = None,
     ) -> None:
-        """Invoke once, retrying only on a refused overlapping turn
-        (tasks-wp4.md "Retry on refusal") — never the `force` path, never
-        coalescing. Any other failure settles the trigger FAILED and stops."""
+        """Invoke once, retrying only on a refused overlapping turn — never
+        the `force` path, never coalescing. Any other failure settles the
+        trigger FAILED and stops."""
 
         attempt = 0
         while True:
@@ -302,8 +297,8 @@ class InboxDispatcher:
         turn_id: str,
         user_id: Optional[UUID] = None,
     ) -> str:
-        """The real invoke: `WorkflowsService.invoke_workflow_detached` over
-        the agent's bound references, on the thread's session.
+        """Invoke via `WorkflowsService.invoke_workflow_detached` over the
+        agent's bound references, on the thread's session.
 
         `invoke_workflow_detached` honours no caller-supplied `turnId` — only
         `run_id` and `session_id` reach the wire — so the minted turn id travels

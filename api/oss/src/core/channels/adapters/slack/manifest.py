@@ -3,8 +3,8 @@ from typing import Any, Dict
 # Scopes match exactly what adapter.py calls: chat:write (post/edit),
 # channels:history/groups:history/im:history/mpim:history (fetch_history +
 # discover_spaces read), channels:read/groups:read/im:read/mpim:read
-# (discover_spaces listing). No slash command registered in-thread
-# (channels.md §3 Slack "Reset" — slash commands cannot be invoked in threads).
+# (discover_spaces listing). No slash command registered in-thread —
+# slash commands cannot be invoked in threads.
 
 
 def build_slack_manifest(*, request_url: str) -> Dict[str, Any]:

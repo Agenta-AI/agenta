@@ -7,17 +7,15 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-# Broker-level retry ceiling for a failed task run (taskiq's own
-# retry_on_error, distinct from InboxDispatcher's in-process refusal retry).
-# Not a channels DTO constant: this file is the only owner of its own
-# task-registration knobs, mirroring TRIGGER_MAX_RETRIES's role in triggers.
+# Broker-level retry ceiling for a failed task run (taskiq's retry_on_error),
+# distinct from InboxDispatcher's in-process refusal retry.
 CHANNEL_INBOX_MAX_RETRIES = 5
 
 
 class ChannelsInboxWorker:
     """Registers and owns the TaskIQ channels-inbox dispatch task.
 
-    Thin by construction, following `triggers`: the ingress route (WP3) enqueues
+    Thin by construction, following `triggers`: the ingress route enqueues
     `channels.inbox.dispatch` with the ids it already resolved; this task hands
     off to `InboxDispatcher.dispatch`, which does the routing/resolution/invoke.
     """

@@ -49,7 +49,7 @@ def compose_external_user_key(
     Slack's `workspace`); the key then embeds `scope_id` so two connections
     cannot collide on the same raw platform id. `scope` absent, or a
     global-uniqueness value, means the raw id alone is the key — embedding a
-    scope id there would be noise (capabilities.md §3).
+    scope id there would be noise.
     """
 
     scope = capabilities.identity.scope
@@ -61,7 +61,7 @@ def compose_external_user_key(
 
 
 # ---------------------------------------------------------------------------
-# DAO interface — WP7's own, not WP1's frozen ChannelsDAOInterface
+# DAO interface — separate from the frozen ChannelsDAOInterface
 # ---------------------------------------------------------------------------
 
 
@@ -104,9 +104,9 @@ class ChannelIdentityDAOInterface(ABC):
 
 
 class ChannelIdentityService:
-    """Maps a platform user to an Agenta account (D2). WP4 calls resolve_link
-    to decide who a turn runs as; the decision of linked-vs-unlinked is ours,
-    not a guess WP4 makes."""
+    """Maps a platform user to an Agenta account. The caller calls
+    resolve_link to decide who a turn runs as; the decision of
+    linked-vs-unlinked is ours, not a guess the caller makes."""
 
     def __init__(self, *, identity_dao: ChannelIdentityDAOInterface) -> None:
         self.identity_dao = identity_dao
@@ -119,7 +119,7 @@ class ChannelIdentityService:
         external_user_key: str,
     ) -> Optional[ChannelIdentityLink]:
         """None means unlinked — the caller decides what an unlinked user may
-        still do (D9: fill without a turn needs no identity; a trigger does)."""
+        still do (fill without a turn needs no identity; a trigger does)."""
 
         return await self.identity_dao.fetch_link(
             project_id=project_id,
@@ -171,19 +171,19 @@ class ChannelIdentityService:
 
 
 # ---------------------------------------------------------------------------
-# Refusal (D17) — one sentence, three causes, no differentiation
+# Refusal — one sentence, three causes, no differentiation
 # ---------------------------------------------------------------------------
 
 
 def render_agent_refusal(*, slug: str) -> str:
-    """The one D17 sentence. Every caller — not-found, granted-nowhere,
+    """The one refusal sentence. Every caller — not-found, granted-nowhere,
     granted-elsewhere-not-here — routes through this and gets identical text."""
 
     return f"No agent named `{slug}` is available in this space"
 
 
 class ChannelAgentRefused(ChannelsError):
-    """D17: one message, three causes, no differentiation.
+    """One message, three causes, no differentiation.
 
     Raised identically whether the slug does not exist, exists outside this
     connection's roster, or is in the roster but not granted in this space.
@@ -195,7 +195,7 @@ class ChannelAgentRefused(ChannelsError):
 
 
 def refuse_agent(cause: Optional[ChannelsError], *, slug: str) -> ChannelAgentRefused:
-    """Route any of the three D17 causes through the one rendered sentence.
+    """Route any of the three refusal causes through the one rendered sentence.
 
     `cause` (ChannelAgentNotFound / ChannelAgentNotGranted, or a bare "zero
     grants anywhere" case with neither) stays distinct for logging — only the

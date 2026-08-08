@@ -1,16 +1,16 @@
-"""The C1 seam: an HTTP request through the real router, service and DAO, into a
-real table.
+"""The full seam: an HTTP request through the real router, service and DAO, into
+a real table.
 
 `unit/channels/test_channels_ingress.py` proves the same three behaviours against
-a `FakeChannelsService` holding an in-memory list, which is right for WP3 in
-isolation. But C1's exit condition says a signed request writes *exactly one
+a `FakeChannelsService` holding an in-memory list, which is right for the ingress
+route in isolation. But a signed request must write *exactly one
 `channel_inbox_events` row* — a claim about a table, not a list. Only the adapter
 is faked here (it stands for the platform, which we cannot call), and it is the
 one seam this file is not testing.
 
-Writing it found a real defect the fakes hid: WP3's ingress called
-`get_project_and_connection_by_external_id` and `record_inbox_event`, while WP1's
-service declared `verify_signature` and `record_event`. Two packages, two
+Writing it found a real defect the fakes hid: the ingress route called
+`get_project_and_connection_by_external_id` and `record_inbox_event`, while the
+service declared `verify_signature` and `record_event` — two mismatched
 vocabularies, both green in isolation.
 """
 

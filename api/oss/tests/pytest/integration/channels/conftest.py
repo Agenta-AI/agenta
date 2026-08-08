@@ -26,9 +26,9 @@ async def _fresh_engine_per_test():
 async def channels_scope():
     """A project + a gateway_connections row, cleaned up after the test.
 
-    Channels tables carry no FK to gateway_connections (entities.md §3
-    lists none), but every fixture still creates a real connection row so
-    connection_id reads like production data.
+    Channels tables carry no FK to gateway_connections, but every fixture
+    still creates a real connection row so connection_id reads like
+    production data.
     """
 
     engine = get_transactions_engine()

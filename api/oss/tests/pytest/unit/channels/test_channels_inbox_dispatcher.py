@@ -1,4 +1,4 @@
-"""Unit tests for the channels inbox dispatcher (WP4, `specs-wp4.md`).
+"""Unit tests for the channels inbox dispatcher.
 
 Stubs `ChannelsService` and the invoke path (no DB, no broker, no runner) and
 pins the chain's branches: unconfigured space, unaddressed message, grant
@@ -135,7 +135,7 @@ def _make_channels_service(
 
 class TestRouting:
     async def test_unconfigured_space_writes_nothing_beyond_the_log(self):
-        """`resolve` returning None (default-deny, per WP1) — no compose_input,
+        """`resolve` returning None (default-deny) — no compose_input,
         no open_turn, no invoke call."""
 
         event = _make_event()
@@ -155,8 +155,8 @@ class TestRouting:
 
     async def test_unaddressed_message_writes_nothing_beyond_the_log(self):
         """No sigil, no default grant, no default agent -> resolve() returns
-        None (entities.md §8) — same code path as the unconfigured-space case
-        from the worker's point of view, which is the point (D9)."""
+        None — same code path as the unconfigured-space case from the
+        worker's point of view, which is the point."""
 
         event = _make_event()
         channels_service = _make_channels_service(resolution=None)
@@ -174,7 +174,7 @@ class TestRouting:
 
     async def test_grant_refusal_is_silent_no_trigger_row(self):
         """`resolve` refuses identically for grants-not-among-them as for no
-        agent at all (D17) — the worker cannot and must not distinguish."""
+        agent at all — the worker cannot and must not distinguish."""
 
         event = _make_event()
         channels_service = _make_channels_service(resolution=None)
@@ -442,10 +442,10 @@ class TestIndependence:
 
 
 class TestIdentityAttribution:
-    """C2 wired WP7's identity links into the invoke (architecture.md §5: the
-    credential is the invoking user's). Before C2 every turn ran as the agent's
-    creator; these pin that the linked account now wins, and that the fallback
-    survives when identity is absent or the sender is unlinked.
+    """Identity links are wired into the invoke: the credential is the
+    invoking user's, not the agent's creator. These pin that the linked
+    account wins, and that the fallback survives when identity is absent or
+    the sender is unlinked.
     """
 
     @staticmethod

@@ -17,7 +17,6 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
 
 if TYPE_CHECKING:
-    # WP1's service and WP2's registry — not yet implemented in this worktree.
     # Imported only for typing so this module never hard-depends on them.
     from oss.src.core.channels.service import ChannelsService
     from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
@@ -55,8 +54,7 @@ def handle_channel_adapter_exceptions():
 
 class ChannelsIngressRouter:
     """Public ingress: one literal route per in-process channel, plus the one
-    shared bridge route. Verify, write one row, ack 202 -- nothing else
-    (routing/resolution is WP4's)."""
+    shared bridge route. Verify, write one row, ack 202 -- nothing else."""
 
     def __init__(
         self,
@@ -72,7 +70,7 @@ class ChannelsIngressRouter:
         self.router = APIRouter()
 
         # One literal route per in-process channel. Written out, not generated
-        # -- entities.md §9: a path parameter has no literal prefix to exempt.
+        # -- a path parameter has no literal prefix to exempt.
         self.router.add_api_route(
             "/slack/events/",
             self.ingest_slack_event,
@@ -101,8 +99,8 @@ class ChannelsIngressRouter:
     @handle_channel_adapter_exceptions()
     async def ingest_bridge_event(self, request: Request) -> Any:
         # The bridge credential identifies which bridge is calling; verifying
-        # it and identifying it are the same act (contract.md §6), so the
-        # channel comes from the adapter's own resolution, not this path.
+        # it and identifying it are the same act, so the channel comes from
+        # the adapter's own resolution, not this path.
         return await self._ingest(channel="bridge", request=request)
 
     async def _ingest(self, *, channel: str, request: Request) -> ChannelEventAck:

@@ -86,7 +86,7 @@ def compose_idempotency_key(
     return uuid5(_CHANNELS, f"{key}:{updated_at.isoformat()}")
 
 
-# positional order of *levels in every call site (§8): agent, space, grant
+# positional order of *levels in every call site: agent, space, grant
 _LEVEL_ORDER = (
     ChannelPolicyLevel.AGENT,
     ChannelPolicyLevel.SPACE,
@@ -104,7 +104,7 @@ def resolve_policy(
     booleans: any stated False wins. sets: intersect every stated set. enums:
     the narrowest stated value, by SESSION_SCOPE_ORDER. Unstated everywhere:
     fall through to the channel defaults. The capability declaration is the
-    outermost, uneditable level (§1) and always contributes a decision.
+    outermost, uneditable level and always contributes a decision.
     """
 
     stated_levels = list(zip(_LEVEL_ORDER, levels))

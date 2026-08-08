@@ -974,7 +974,7 @@ class ChannelsDAO(ChannelsDAOInterface):
             )
 
             if after_event_id is not None:
-                # PUSHED is the only origin an addressing offset can hold (§2.4);
+                # PUSHED is the only origin an addressing offset can hold;
                 # row-tuple comparison keeps PULLED sorted before PUSHED.
                 stmt = stmt.where(
                     tuple_(

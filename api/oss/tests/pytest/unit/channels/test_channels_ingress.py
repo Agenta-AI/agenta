@@ -1,9 +1,8 @@
-"""Unit tests for the channels ingress route (WP3).
+"""Unit tests for the channels ingress route.
 
-Deliberately tiny, matching the package it tests: verify, write one row,
-answer 202. No DB, no real adapter -- WP1's ChannelsService and WP2's
-ChannelAdapterRegistry do not exist yet in this worktree, so both are faked
-here to the shape their specs declare (`entities.md` §7-§8, `specs-wp2.md`).
+Deliberately tiny, matching the module it tests: verify, write one row,
+answer 202. No DB, no real adapter -- ChannelsService and
+ChannelAdapterRegistry are faked here to the shape they declare.
 """
 
 from typing import Dict, Optional
@@ -28,7 +27,7 @@ LOCATOR = {"team": "T1", "channel": "C1"}
 
 class FakeAdapter:
     """A minimal well-behaved adapter -- verifies a fixed header, parses a
-    fixed inbound event. Stands in for WP2's ChannelAdapterInterface."""
+    fixed inbound event. Stands in for ChannelAdapterInterface."""
 
     channel = "slack"
 
@@ -61,8 +60,8 @@ class FakeAdapter:
 
 
 class FakeAdapterRegistry:
-    """Stands in for WP2's ChannelAdapterRegistry -- same two behaviours:
-    dispatch by key, raise ChannelNotSupported on a miss."""
+    """Stands in for ChannelAdapterRegistry -- same two behaviours: dispatch
+    by key, raise ChannelNotSupported on a miss."""
 
     def __init__(self, adapters: Dict[str, FakeAdapter]):
         self._adapters = adapters
@@ -74,9 +73,9 @@ class FakeAdapterRegistry:
 
 
 class FakeChannelsService:
-    """Stands in for WP1's ChannelsService -- just the two ingress-facing
-    methods (`entities.md` §7/§8): resolve a connection, and append to the
-    log with the dedup contract (None on an already-recorded external_id)."""
+    """Stands in for ChannelsService -- just the two ingress-facing methods:
+    resolve a connection, and append to the log with the dedup contract
+    (None on an already-recorded external_id)."""
 
     def __init__(self, *, project_id: UUID, connection_id: UUID):
         self.project_id = project_id
@@ -209,8 +208,9 @@ def test_invalid_signature_is_rejected(client, service):
 def test_stale_timestamp_rejected_even_with_structurally_valid_signature(
     service, registry
 ):
-    """The adapter's own replay guard (WP2/WP6) must still be reachable and
-    honoured through the route -- WP3 does not implement it, only calls it."""
+    """The adapter's own replay guard must still be reachable and honoured
+    through the route -- the ingress route does not implement it, only
+    calls it."""
 
     class ReplayGuardedAdapter(FakeAdapter):
         async def verify_signature(self, *, headers, body):
@@ -399,7 +399,7 @@ def test_dispatch_enqueue_failure_is_503_row_already_written(service, registry):
 
 
 # ---------------------------------------------------------------------------
-# Scope discipline: this module must not import WP4's worker logic.
+# Scope discipline: this module must not import the inbox worker's logic.
 # ---------------------------------------------------------------------------
 
 

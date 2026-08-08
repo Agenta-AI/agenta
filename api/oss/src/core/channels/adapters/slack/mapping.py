@@ -3,8 +3,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from oss.src.core.channels.dtos import ChannelSpaceKind
 
-# Slack rewrites @mention into <@U…> before delivery (channels.md §3 "Addressing")
-# so the adapter parses ~agent/!command from otherwise-untouched text, never @.
+# Slack rewrites @mention into <@U…> before delivery, so the adapter parses
+# ~agent/!command from otherwise-untouched text, never @.
 _AGENT_SIGIL_RE = re.compile(r"(?<!\S)~(?P<agent>[\w.-]+)")
 _COMMAND_SIGIL_RE = re.compile(r"(?<!\S)!(?P<command>[\w-]+)(?::(?P<arg>\S+))?")
 
@@ -13,7 +13,7 @@ BUTTONS_MAX = 5
 
 
 def classify_space_kind(event: Dict[str, Any]) -> ChannelSpaceKind:
-    """is_im -> private, is_mpim -> group, private/public channel -> topic (D8)."""
+    """is_im -> private, is_mpim -> group, private/public channel -> topic."""
 
     if event.get("channel_type") == "im" or event.get("is_im"):
         return ChannelSpaceKind.PRIVATE
@@ -39,7 +39,7 @@ def build_locator(
     *, team: str, channel: str, thread_ts: Optional[str] = None
 ) -> Dict[str, Any]:
     """team/channel always; thread_ts only when present — thread_ts absent means
-    the space unit, never a locator with a null field (D-thread-is-not-a-container)."""
+    the space unit, never a locator with a null field."""
 
     locator: Dict[str, Any] = {"team": team, "channel": channel}
     if thread_ts:
@@ -48,7 +48,7 @@ def build_locator(
 
 
 def is_bot_authored(event: Dict[str, Any], *, bot_user_id: Optional[str]) -> bool:
-    """The domain must never treat the adapter's own posts as input (D23)."""
+    """The domain must never treat the adapter's own posts as input."""
 
     if event.get("bot_id"):
         return True
@@ -58,13 +58,13 @@ def is_bot_authored(event: Dict[str, Any], *, bot_user_id: Optional[str]) -> boo
 
 
 def format_attribution(display_name: str, text: str) -> str:
-    """Speaker attribution as formatting only — never a `sender` field (D11)."""
+    """Speaker attribution as formatting only — never a `sender` field."""
 
     return f"*{display_name}:* {text}"
 
 
 def split_for_max_chars(text: str, *, max_chars: int = MAX_CHARS) -> List[str]:
-    """Split rather than truncate (specs-wp6.md Outbound mapping)."""
+    """Split rather than truncate."""
 
     if len(text) <= max_chars:
         return [text]
@@ -81,7 +81,7 @@ def render_buttons_or_degrade(
     options: List[Dict[str, Any]], *, buttons_max: int = BUTTONS_MAX
 ) -> Dict[str, Any]:
     """<= buttons_max renders as Block Kit buttons; above degrades to numbered
-    text (specs-wp6.md "an approval with 6+ options degrades")."""
+    text."""
 
     if len(options) <= buttons_max:
         return {
@@ -104,8 +104,7 @@ def render_buttons_or_degrade(
 
 
 def render_approval_card(tool_call: Dict[str, Any]) -> Dict[str, Any]:
-    """Sourced only from the recorded tool call, never model-composed text
-    (architecture.md §6.3)."""
+    """Sourced only from the recorded tool call, never model-composed text."""
 
     name = tool_call["name"]
     arguments = tool_call.get("arguments", {})

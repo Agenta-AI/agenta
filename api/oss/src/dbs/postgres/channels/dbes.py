@@ -30,7 +30,7 @@ class ChannelAgentDBE(Base, ChannelAgentDBA):
             "slug",
             name="uq_channel_agents_connection_slug",
         ),
-        # at most one connection-wide default agent (§2.5)
+        # at most one connection-wide default agent
         Index(
             "uq_channel_agents_default",
             "project_id",
@@ -69,7 +69,7 @@ class ChannelGrantDBE(Base, ChannelGrantDBA):
             "space_id",
             name="uq_channel_grants_agent_space",
         ),
-        # at most one default agent per space (§2.5)
+        # at most one default agent per space
         Index(
             "uq_channel_grants_default",
             "project_id",
@@ -87,7 +87,7 @@ class ChannelThreadDBE(Base, ChannelThreadDBA):
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         PrimaryKeyConstraint("project_id", "id"),
         # current thread for one agent in one place — no unique constraint,
-        # deliberately: the table is append-only and the latest row wins (D12)
+        # deliberately: the table is append-only and the latest row wins
         Index(
             "ix_channel_threads_current",
             "project_id",
@@ -111,7 +111,7 @@ class ChannelInboxEventDBE(Base, ChannelInboxEventDBA):
             "external_id",
             name="uq_channel_inbox_connection_external",
         ),
-        # the log read, in true sequence: PULLED before PUSHED, then id (§2.4)
+        # the log read, in true sequence: PULLED before PUSHED, then id
         Index(
             "ix_channel_inbox_events_log",
             "project_id",

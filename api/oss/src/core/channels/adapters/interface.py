@@ -12,8 +12,7 @@ from oss.src.core.channels.dtos import (
 
 class ChannelAdapterInterface(ABC):
     """One platform, reached in process. A bridge is the same interface reached
-    over the wire (D16) — `contract.md` is this file's wire projection, message
-    for message."""
+    over the wire."""
 
     channel: str  # the registry key: "slack", "telegram"
 
@@ -21,7 +20,7 @@ class ChannelAdapterInterface(ABC):
 
     @abstractmethod
     async def fetch_capabilities(self) -> ChannelCapabilities:
-        """`capabilities.md` §2. Normalised by core, never trusted (§4 there)."""
+        """Normalised by core, never trusted."""
 
     # --- ingress ---
 
@@ -29,13 +28,13 @@ class ChannelAdapterInterface(ABC):
     async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
         """Verify HMAC with timestamp replay protection; return the platform's own
         installation id. Verification and identification are one act — the caller
-        maps that id to a connection (§8). Raises ChannelSignatureInvalid (§5)."""
+        maps that id to a connection. Raises ChannelSignatureInvalid."""
 
     @abstractmethod
     async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
         """Platform payload → the normalised event, or None for anything we do not
         act on (acks, bot echoes, platform noise). Carries `addressed`, which is
-        the adapter's answer to trigger-or-fill (D9): the adapter knows its own
+        the adapter's answer to trigger-or-fill: the adapter knows its own
         platform's addressing conventions and core does not."""
 
     # --- egress ---
@@ -51,9 +50,9 @@ class ChannelAdapterInterface(ABC):
     ) -> Dict[str, Any]:
         """Post, and return the `external_locator` receipt — a structured object,
         not a bare id, since editing needs `(channel, ts)` on one platform and
-        `(chat_id, message_id)` on another (§2.6). Drop a command whose
+        `(chat_id, message_id)` on another. Drop a command whose
         idempotency_key was already accepted; dedupe on that token and nothing
-        else (`contract.md` §5)."""
+        else."""
 
     @abstractmethod
     async def edit_message(
@@ -64,7 +63,7 @@ class ChannelAdapterInterface(ABC):
         content: List[Dict[str, Any]],
         idempotency_key: UUID,
     ) -> Dict[str, Any]:
-        """Edit in place — the indicator becoming the answer (D28). Offered only
+        """Edit in place — the indicator becoming the answer. Offered only
         where the declaration says `rendering.controls.update`."""
 
     # --- discovery ---
@@ -74,7 +73,7 @@ class ChannelAdapterInterface(ABC):
         self, *, connection: ChannelConnection
     ) -> List[ChannelSpaceCandidate]:
         """Which places this install can actually see, so configuration is a
-        pick-list rather than a paste-the-channel-id form (§8). Returns
+        pick-list rather than a paste-the-channel-id form. Returns
         candidates, not rows — nothing is persisted until an operator chooses."""
 
     # --- history ---
@@ -83,7 +82,7 @@ class ChannelAdapterInterface(ABC):
     async def fetch_history(
         self, *, connection: ChannelConnection, locator: Dict[str, Any], limit: int
     ) -> List[ChannelInboundEvent]:
-        """The one-time backfill (D21). Called only where the declaration says
+        """The one-time backfill. Called only where the declaration says
         `fill.backfill.supported`. A permission refusal raises rather than
         returning empty — an empty fetch is a legitimate result and the two must
-        stay distinguishable (D30)."""
+        stay distinguishable."""

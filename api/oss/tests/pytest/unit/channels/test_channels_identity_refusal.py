@@ -61,9 +61,9 @@ def test_refuse_agent_rejects_an_unrelated_cause_type():
 
 
 def test_unlinked_state_is_not_worded_as_a_d17_refusal():
-    # WP4 owns the actual "not linked" prompt; this only asserts the two
-    # sentences never collide, so an unlinked user is never told "no agent
-    # exists" when the real issue is that they have not linked at all.
+    # This only asserts the two sentences never collide, so an unlinked user
+    # is never told "no agent exists" when the real issue is that they have
+    # not linked at all.
     refusal_text = render_agent_refusal(slug="finance")
     unlinked_text = "You need to link your account before this agent can run."
 

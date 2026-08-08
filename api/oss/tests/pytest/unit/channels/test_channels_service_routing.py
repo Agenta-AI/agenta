@@ -1,10 +1,9 @@
 """Unit tests for `ChannelsService.resolve`/`compose_input`/`open_turn`/
-`settle_turn` (WP4, `specs-wp4.md`) — the four routing method bodies WP1 left
-raising `NotImplementedError` for "the owning package" to fill in
-(`tasks-wp1.md`). No DB: a fake DAO stands in for persistence, and the
-contract suite's `WellBehavedFakeAdapter` (read-only import, owned by WP2)
-stands in for the adapter port so capabilities come from a real declaration
-shape rather than a hand-rolled one.
+`settle_turn` — the four routing methods that resolve an inbound event to an
+agent, space, and thread. No DB: a fake DAO stands in for persistence, and
+the contract suite's `WellBehavedFakeAdapter` (read-only import) stands in
+for the adapter port so capabilities come from a real declaration shape
+rather than a hand-rolled one.
 """
 
 from uuid import uuid4
@@ -58,7 +57,7 @@ def _make_fake_dao():
     dao.count_grants = AsyncMock(return_value=0)
     dao.fetch_current_thread = AsyncMock(return_value=None)
     dao.create_thread = AsyncMock()
-    # F18: resolve() attaches the event to its space before any refusal path
+    # resolve() attaches the event to its space before any refusal path
     dao.attach_event_to_space = AsyncMock(return_value=None)
     dao.fetch_latest_trigger = AsyncMock(return_value=None)
     dao.query_events_since = AsyncMock(return_value=[])
@@ -132,8 +131,8 @@ def _make_agent(*, slug="triage", policy=None):
 
 class TestResolveRouting:
     async def test_unconfigured_space_returns_none(self):
-        """Default-deny (architecture.md §5 step 2): `fetch_space_by_key`
-        returns None -> `resolve` returns None, no further DAO reads."""
+        """Default-deny: `fetch_space_by_key` returns None -> `resolve`
+        returns None, no further DAO reads."""
 
         dao = _make_fake_dao()
         adapter = WellBehavedFakeAdapter()
@@ -149,8 +148,8 @@ class TestResolveRouting:
 
     async def test_no_sigil_no_default_grant_no_default_agent_returns_none(self):
         """Nobody addressed: sigil absent, no default grant, no default
-        agent — resolve() returns None (D9), same as an unconfigured space
-        from the caller's point of view."""
+        agent — resolve() returns None, same as an unconfigured space from
+        the caller's point of view."""
 
         adapter = WellBehavedFakeAdapter()
         capabilities = await adapter.fetch_capabilities()
@@ -181,7 +180,7 @@ class TestResolveRouting:
         dao = _make_fake_dao()
         dao.fetch_space_by_key = AsyncMock(return_value=space)
         dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
-        dao.count_grants = AsyncMock(return_value=0)  # unrestricted (§1)
+        dao.count_grants = AsyncMock(return_value=0)  # unrestricted
 
         created_thread = ChannelThread(
             id=uuid4(),
@@ -208,9 +207,9 @@ class TestResolveRouting:
         dao.fetch_agent_by_slug.assert_awaited_once()
 
     async def test_agent_with_grants_not_among_them_refuses_silently(self):
-        """D17: an agent with grants rows, addressed in a space not among
-        them, refuses exactly like an unknown agent — resolve() returns
-        None either way, and the worker cannot tell the two apart."""
+        """An agent with grants rows, addressed in a space not among them,
+        refuses exactly like an unknown agent — resolve() returns None
+        either way, and the worker cannot tell the two apart."""
 
         adapter = WellBehavedFakeAdapter()
         capabilities = await adapter.fetch_capabilities()
@@ -235,7 +234,7 @@ class TestResolveRouting:
 
     async def test_default_grant_used_when_no_sigil(self):
         """No sigil in the message -> the space's default grant names the
-        agent (§2.5)."""
+        agent."""
 
         adapter = WellBehavedFakeAdapter()
         capabilities = await adapter.fetch_capabilities()

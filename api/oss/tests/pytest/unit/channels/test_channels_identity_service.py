@@ -13,9 +13,9 @@ from oss.src.core.channels.identity import (
 
 
 class FakeChannelIdentityDAO(ChannelIdentityDAOInterface):
-    """In-memory double of the WP7 DAO interface WP7 itself defines and
-    implements for real in identity_dao.py — the fake and the real
-    implementation are held to the exact same abstract contract."""
+    """In-memory double of the DAO interface, implemented for real in
+    identity_dao.py — the fake and the real implementation are held to the
+    exact same abstract contract."""
 
     def __init__(self):
         self._rows: Dict[Tuple[UUID, UUID, str], ChannelIdentityLink] = {}
@@ -109,9 +109,9 @@ SERVICE_IDENTITY = UUID("00000000-0000-0000-0000-000000000000")
 
 @pytest.mark.asyncio
 async def test_resolved_link_attributes_to_the_linked_user_not_a_service_identity():
-    """The turn WP4 opens with this user_id must be attributed to the person
+    """The turn opened with this user_id must be attributed to the person
     who linked, never to a system/service account — resolve_link's user_id is
-    exactly what a caller (WP4) would pass as the invoking credential."""
+    exactly what a caller would pass as the invoking credential."""
     service = ChannelIdentityService(identity_dao=FakeChannelIdentityDAO())
     project_id, connection_id, user_id = uuid4(), uuid4(), uuid4()
     assert user_id != SERVICE_IDENTITY

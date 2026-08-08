@@ -1,11 +1,10 @@
-"""Wire models for the channels configuration API (entities.md §6).
+"""Wire models for the channels configuration API.
 
-C0/WP1 already placed the house-shape request/response models directly in
-`core.channels.dtos` rather than here. Re-exported, not duplicated: a second
-set under new names would be the exact seam defect c1-merge-notes.md warns
-about — two definitions of the same wire shape, agreeing by accident. The
-three `*CreateRequest` aliases below restore the entities.md §6 name over the
-existing `*Request` class without introducing a second class.
+The house-shape request/response models live directly in `core.channels.dtos`
+rather than here, and are re-exported rather than duplicated to avoid two
+definitions of the same wire shape agreeing by accident. The three
+`*CreateRequest` aliases below give the conventional name to the existing
+`*Request` class without introducing a second class.
 """
 
 from typing import Optional

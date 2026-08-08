@@ -1,10 +1,8 @@
 """ChannelsOutboxWorker against real Postgres (channel_* + session_turns).
 
-WRITTEN, NOT RUN: this worktree has no deployed stack — the policy for
-integration tests (docs/designs/testing/README.md) is write + review, not
-execute. `RecordsService` is faked here because records live on the
-analytics engine (a separate connection this fixture does not stand up);
-everything WP5 actually owns — the outbox row lifecycle and the turns lookup
+`RecordsService` is faked here because records live on the analytics engine
+(a separate connection this fixture does not stand up); everything the
+outbox worker actually owns — the outbox row lifecycle and the turns lookup
 — goes through the real DAOs.
 """
 
@@ -381,7 +379,7 @@ async def test_turn_ended_edits_the_same_row_across_a_real_transition(outbox_sco
 async def test_polling_finds_the_channel_thread_by_session_id(outbox_scope):
     """poll_turn's own thread lookup (query_threads by session_id) against a
     real channel_threads row, with a real session_turns row for the same
-    session — the two indexed lookups architecture.md §6.1 describes."""
+    session — the two indexed lookups this exercises."""
 
     turns_dao = SessionTurnsDAO(engine=None)
     await turns_dao.append(

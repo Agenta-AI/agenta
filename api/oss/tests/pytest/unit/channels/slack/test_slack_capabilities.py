@@ -1,7 +1,7 @@
 from oss.src.core.channels.adapters.slack.capabilities import fetch_slack_capabilities
 from oss.src.core.channels.dtos import ChannelKeyGrain
 
-# specs-wp6.md §Interfaces' worked example, field for field.
+# The Slack capabilities worked example, field for field.
 EXPECTED = {
     "channel": "slack",
     "protocol": {"versions": ["0.1.0"]},

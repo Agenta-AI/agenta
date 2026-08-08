@@ -1,5 +1,5 @@
-"""WP3 owns the one _PUBLIC_ENDPOINTS addition for channels ingress, and this
-is the guard against a future wildcard undoing it.
+"""The channels ingress owns one _PUBLIC_ENDPOINTS addition, and this is the
+guard against a future wildcard undoing it.
 
 The middleware matches `request.url.path.startswith(_PUBLIC_ENDPOINTS)` --
 a literal-prefix test. If someone later "simplifies" the four ingress
@@ -32,7 +32,7 @@ def _make_request(path: str) -> Request:
 
 
 # ---------------------------------------------------------------------------
-# The four ingress entries WP3 owns must be present, per channel shipped.
+# The four ingress entries must be present, per channel shipped.
 # ---------------------------------------------------------------------------
 
 
@@ -76,8 +76,8 @@ async def test_ingress_paths_reach_the_handler_with_no_auth(path):
 
 
 # ---------------------------------------------------------------------------
-# The guard: config routes under /channels/ are NOT public. WP3 is what
-# could break this by widening the prefix -- WP3 proves it did not.
+# The guard: config routes under /channels/ are NOT public. Widening the
+# ingress prefix is what could break this -- this proves it did not.
 # ---------------------------------------------------------------------------
 
 
@@ -109,7 +109,7 @@ async def test_config_routes_under_channels_are_not_public(path):
 def test_bare_channels_prefix_is_not_registered():
     """The literal guard itself: a bare "/channels/" (or "/api/channels/",
     etc.) entry must never appear in _PUBLIC_ENDPOINTS -- that would exempt
-    every WP8 configuration route by startswith-prefix, not just ingress."""
+    every configuration route by startswith-prefix, not just ingress."""
 
     forbidden = (
         "/channels/",

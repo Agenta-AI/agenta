@@ -1,16 +1,17 @@
 """The reusable adapter contract suite.
 
-`run_contract_suite(adapter)` is the entry point WP6, WP11 and WP12 import and
-call against their own adapter instance — a plain async function, not a
-fixture tied to this file's own test classes. It holds an adapter to its own
-declaration: fetch_capabilities() is read once, and every gated assertion runs
-only where the declaration says the capability exists (never assumed).
+`run_contract_suite(adapter)` is the entry point any channel adapter's own
+test module imports and calls against its own adapter instance — a plain
+async function, not a fixture tied to this file's own test classes. It holds
+an adapter to its own declaration: fetch_capabilities() is read once, and
+every gated assertion runs only where the declaration says the capability
+exists (never assumed).
 
-The studied failure mode is the silent no-op (capabilities.md §5): a
-declaration that claims a capability whose implementation quietly does
-nothing. `identity.keys` gets its own block because a too-small declared
-field set is silent and merges conversations — worse than a wrong key
-(entities.md §2.2), so distinctness is asserted, never assumed.
+The studied failure mode is the silent no-op: a declaration that claims a
+capability whose implementation quietly does nothing. `identity.keys` gets
+its own block because a too-small declared field set is silent and merges
+conversations — worse than a wrong key, so distinctness is asserted, never
+assumed.
 """
 
 from typing import List
@@ -96,7 +97,7 @@ async def _assert_buttons_max(adapter: ChannelAdapterInterface, capabilities) ->
     except Exception:
         return  # rejecting the call outright is an acceptable response
 
-    # The port has no generic read-back of what was actually posted (§7.1's
+    # The port has no generic read-back of what was actually posted (the
     # egress methods return only the receipt), so an adapter that wants to be
     # held to this assertion exposes `inspect_posted(locator)` — an optional
     # test seam, not part of the port. Adapters without it can only be
@@ -166,8 +167,8 @@ async def _assert_parse_event_addressed_is_bool(
 def _thread_fixtures(adapter: ChannelAdapterInterface):
     """The adapter's own two thread fixture locators, plus the incomplete
     one. Every fake in this package shares the same three constants; a real
-    adapter parameterising this suite would override this lookup, but WP2's
-    fakes are the only adapters this package ships."""
+    adapter parameterising this suite would override this lookup, but the
+    fakes here are the only adapters this package ships."""
 
     return THREAD_LOCATOR_A, THREAD_LOCATOR_B, THREAD_LOCATOR_INCOMPLETE
 
@@ -184,7 +185,7 @@ def _assert_identity_distinctness(
         "identity.keys['thread'] is too small: two distinct thread locators "
         f"({locator_a!r} and {locator_b!r}) composed to the same external_key "
         f"({key_a!r}) — this merges two conversations into one, the worst "
-        "identity failure (capabilities.md §3)."
+        "identity failure."
     )
 
 
@@ -229,9 +230,9 @@ def _assert_identity_no_threads(capabilities, adapter: ChannelAdapterInterface) 
 async def run_contract_suite(adapter: ChannelAdapterInterface) -> None:
     """Run every contract assertion against one adapter instance.
 
-    Entry point for WP6/WP11/WP12: construct your adapter, then
-    `await run_contract_suite(my_adapter)`. Raises AssertionError naming the
-    violated declared capability on the first failure.
+    Construct your adapter, then `await run_contract_suite(my_adapter)`.
+    Raises AssertionError naming the violated declared capability on the
+    first failure.
     """
 
     capabilities = await adapter.fetch_capabilities()

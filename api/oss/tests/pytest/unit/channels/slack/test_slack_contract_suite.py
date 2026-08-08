@@ -1,13 +1,13 @@
-"""Runs WP2's reusable contract suite against SlackAdapter.
+"""Runs the reusable contract suite against SlackAdapter.
 
 `run_contract_suite`'s two signature assertions are coupled to the suite's own
 fake header scheme (`x-fake-signature: valid`, contract/fakes.py) rather than
 being adapter-agnostic — a real adapter's `verify_signature` correctly REJECTS
-that header, since it is not a valid Slack HMAC. Rather than editing WP2's
-suite (owned by another package) or weakening SlackAdapter to accept a fake
-scheme, this file runs the suite against a test-local subclass that swaps in
-the suite's fake header acceptance for verify_signature only — every other
-method (post/edit/buttons/backfill/identity keys) is the real SlackAdapter
+that header, since it is not a valid Slack HMAC. Rather than editing the
+shared suite or weakening SlackAdapter to accept a fake scheme, this file
+runs the suite against a test-local subclass that swaps in the suite's fake
+header acceptance for verify_signature only — every other method
+(post/edit/buttons/backfill/identity keys) is the real SlackAdapter
 implementation, unmodified. SlackAdapter's own signature behaviour is
 covered separately and exhaustively in test_slack_signature.py and
 test_slack_adapter.py against real Slack HMAC fixtures.

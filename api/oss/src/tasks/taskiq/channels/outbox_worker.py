@@ -9,11 +9,11 @@ log = get_module_logger(__name__)
 
 
 class ChannelsOutboxTaskWorker:
-    """Registers the TaskIQ poll task; thin by construction (README.md).
+    """Registers the TaskIQ poll task; thin by construction.
 
     One task, `channels.outbox.poll`, standing in for turn-started/turn-ended
-    until WP0 publishes real session events — deleted, not disabled, at that
-    point (specs-wp5.md).
+    until real session events are published — deleted, not disabled, at that
+    point.
     """
 
     def __init__(

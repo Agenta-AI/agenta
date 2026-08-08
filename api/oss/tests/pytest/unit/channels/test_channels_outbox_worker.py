@@ -1,7 +1,7 @@
 """ChannelsOutboxWorker: fold, render, post, receipt. Driven directly, no
-broker (README.md "The two worker halves") and no DB — an in-memory fake DAO
-plays ChannelsDAOInterface, and the WP2 contract fixture plays the adapter so
-this suite exercises the exact same collaborator WP6 is held to."""
+broker and no DB — an in-memory fake DAO plays ChannelsDAOInterface, and the
+contract-suite fixture plays the adapter so this suite exercises the exact
+same collaborator a real adapter is held to."""
 
 from datetime import datetime, timezone
 from typing import Dict, List
@@ -37,9 +37,9 @@ PROJECT_ID = uuid4()
 
 
 class FakeChannelsDAO(ChannelsDAOInterface):
-    """Only the surface WP5 actually reaches: outbox CRUD, fetch_space,
-    query_threads. Every other abstract method raises — a call through one
-    would be this test overreaching WP5's own paths."""
+    """Only the surface the outbox worker actually reaches: outbox CRUD,
+    fetch_space, query_threads. Every other abstract method raises — a call
+    through one would be this test overreaching the worker's own paths."""
 
     def __init__(self):
         self.outbox: Dict[UUID, ChannelOutboxEvent] = {}
@@ -132,7 +132,7 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def query_outbox_events(self, *, project_id, event=None, windowing=None):
         raise NotImplementedError
 
-    # --- everything else: out of WP5's reach, deliberately unimplemented -- #
+    # --- everything else: out of the outbox worker's reach, unimplemented -- #
 
     async def create_agent(self, **kwargs):
         raise NotImplementedError
@@ -363,9 +363,8 @@ async def _seed_connection_and_thread(channels_dao, connections_service, session
     # channel key string ("slack", "fake") that ChannelsService/adapter
     # registry actually key on (service.py's _resolve_channel returns
     # connection.provider_key verbatim). That is a pre-existing typing gap in
-    # the shared gateway connections DTO, not something WP5 owns or may fix
-    # here — model_construct bypasses the enum validation so this test can
-    # still exercise the real production code path (see report).
+    # the shared gateway connections DTO — model_construct bypasses the enum
+    # validation so this test can still exercise the real production code path.
     connection = Connection.model_construct(
         id=uuid4(),
         slug="fake-connection",

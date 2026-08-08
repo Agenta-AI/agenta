@@ -1,10 +1,9 @@
-"""Unit tests for ChannelsRouter (WP8): the authenticated configuration API.
+"""Unit tests for ChannelsRouter: the authenticated configuration API.
 
-Mirrors test_wp5_root_router.py's pattern -- a mock Request plus patched
-check_action_access, so RBAC gating and service delegation are pinned
-without a live app/DB. ChannelsService is an AsyncMock standing in for
-WP1's real implementation; that fake is the one collaborator this module
-asserts an interface against (see the report for what was assumed).
+A mock Request plus patched check_action_access, so RBAC gating and service
+delegation are pinned without a live app/DB. ChannelsService is an AsyncMock
+standing in for the real implementation; that fake is the one collaborator
+this module asserts an interface against.
 """
 
 from unittest.mock import AsyncMock, patch

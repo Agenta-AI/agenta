@@ -133,9 +133,9 @@ class ChannelSpacesSupport(BaseModel):
 
 
 class ChannelConversation(BaseModel):
-    # capabilities.md §2's vocabulary is {"thread", "space"} — ChannelKeyGrain,
-    # not the policy-level ChannelSessionScope ({"thread", "message"}); a
-    # platform with no threads degenerates to "space", never to "message"
+    # vocabulary is {"thread", "space"} — ChannelKeyGrain, not the
+    # policy-level ChannelSessionScope ({"thread", "message"}); a platform
+    # with no threads degenerates to "space", never to "message"
     units: List[ChannelKeyGrain] = Field(default_factory=list)
     # applies when no policy level states a session_scope; must be in units
     default: ChannelKeyGrain = ChannelKeyGrain.SPACE

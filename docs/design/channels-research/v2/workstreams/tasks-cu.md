@@ -106,6 +106,15 @@ Scope: `api/oss/src/core/channels/`, `api/oss/src/dbs/postgres/channels/`,
 `api/oss/src/apis/fastapi/channels/`, `api/oss/src/tasks/{asyncio,taskiq}/channels/`,
 plus the channels test files.
 
+**Measured, not estimated: 109 citation lines across 43 files.** The 77 above counted
+source only; the test tree carries the rest, and a test docstring naming the package
+that wrote it ages exactly the way a source comment does.
+
+**Verify comment-only by AST, not by reading the diff.** Parse each file before and
+after, strip docstring nodes, compare. A sweep that "only touched comments" is a claim
+worth mechanising — docstrings are AST nodes, so a naive AST compare flags them and a
+naive diff read misses a real edit buried in reflowed prose.
+
 ### Rules
 
 - [ ] **Design-process identifiers → drop.** `WP4`, `WP7`, `(F18)`, `(D17)`, `(D9)`,

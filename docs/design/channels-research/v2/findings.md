@@ -623,6 +623,37 @@
   `F1` was: four disconnections that every green suite missed because nothing
   imports this module.
 
+### F28. Backfilled events all carry the request's locator, not their own
+
+- ID: `F28`
+- Origin: `wave-2`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `SlackAdapter.fetch_history` sets `external_locator=locator` on every
+  event it returns — the locator it was *called* with. So each backfilled
+  message points at the conversation, not at itself, and no two of them are
+  distinguishable by locator. `thread_locator` has the same shape problem:
+  `{**locator} if locator.get("thread_ts")` copies the request's `thread_ts`
+  rather than deriving the message's own.
+- Evidence: `adapter.py:268-269` inside the message loop. Contrast
+  `parse_event`, which calls `build_locator(team=..., channel=...,
+  thread_ts=...)` per event. `mapping.py:38-47` exists precisely to build a
+  per-message locator and `fetch_history` does not call it.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py:268`,
+  `api/oss/src/core/channels/adapters/slack/mapping.py:38`
+- Suggested Fix: Build the locator per message from `message.get("ts")` via
+  `build_locator`, as `parse_event` does. WP6 owns the file.
+- Notes: Found by the `F25` comment sweep while reading, not by a test — the
+  backfill path's tests assert the returned events' content and count, not
+  their locators, so a shared locator passes. **Not an idempotency hazard:**
+  `compose_idempotency_key` derives from row identity and `updated_at`, never
+  from the locator, so this cannot collide two sends. The cost is that a
+  backfilled event cannot be addressed or threaded individually — which is
+  `WP10`'s subject matter, so settle it before WP10 builds on the backfill
+  path.
+
 ## Closed Findings
 
 ### [CLOSED] F1. Nothing connected the ingress, the workers, the registry or the configuration router

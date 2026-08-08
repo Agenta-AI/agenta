@@ -82,7 +82,7 @@ class ChannelIdentityDAO(ChannelIdentityDAOInterface):
     ) -> Optional[ChannelIdentityLink]:
         async with self.engine.session() as session:
             # updates the existing row in place — user_id and id are untouched,
-            # so attribution history does not fork (WP7 spec).
+            # so attribution history does not fork.
             stmt = (
                 update(ChannelIdentityLinkDBE)
                 .where(

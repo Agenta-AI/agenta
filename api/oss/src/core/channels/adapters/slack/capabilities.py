@@ -1,6 +1,5 @@
 from oss.src.core.channels.dtos import ChannelCapabilities
 
-# specs-wp6.md §Interfaces, verbatim.
 SLACK_CAPABILITIES: dict = {
     "channel": "slack",
     "protocol": {"versions": ["0.1.0"]},

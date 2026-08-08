@@ -37,7 +37,7 @@ def test_neither_sigil_present_returns_all_none():
     assert arg is None
 
 
-# --- space-kind classification (D8) ---------------------------------------- #
+# --- space-kind classification ---------------------------------------------- #
 
 
 def test_im_classifies_private():
@@ -81,7 +81,7 @@ def test_two_distinct_threads_produce_distinct_locators():
     assert a != b
 
 
-# --- bot-authored marking (D23) --------------------------------------------- #
+# --- bot-authored marking ---------------------------------------------------- #
 
 
 def test_message_with_bot_id_is_bot_authored():

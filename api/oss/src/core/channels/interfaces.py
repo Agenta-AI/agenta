@@ -77,7 +77,7 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         connection_id: UUID,
     ) -> Optional[ChannelAgent]:
-        """The connection-wide fallback — the last step of the chain (§2.5).
+        """The connection-wide fallback — the last step of the chain.
 
         Backed by the partial unique index on flags->>'is_default', so this
         returns at most one row by construction rather than by LIMIT 1.
@@ -147,7 +147,7 @@ class ChannelsDAOInterface(ABC):
         """The routing lookup — default-deny, so None means "not configured here".
 
         This is the whole reason external_key is a column rather than living
-        inside the locator (§2.2): the unique constraint serves this read.
+        inside the locator: the unique constraint serves this read.
         """
         ...
 
@@ -189,7 +189,7 @@ class ChannelsDAOInterface(ABC):
         #
         space_id: UUID,
     ) -> Optional[ChannelSpace]:
-        """Set flags.is_backfilled after the one-time history fetch (§2.4).
+        """Set flags.is_backfilled after the one-time history fetch.
 
         Separate from edit_space because the writer is a worker, not a person:
         an operator editing a space must not be able to clear this and trigger a
@@ -245,7 +245,7 @@ class ChannelsDAOInterface(ABC):
         #
         space_id: UUID,
     ) -> Optional[ChannelGrant]:
-        """The space's default agent — the middle step of the chain (§2.5)."""
+        """The space's default agent — the middle step of the chain."""
         ...
 
     @abstractmethod
@@ -286,7 +286,7 @@ class ChannelsDAOInterface(ABC):
         #
         agent_id: UUID,
     ) -> int:
-        """Does this agent have ANY grant? Zero means unrestricted (§1).
+        """Does this agent have ANY grant? Zero means unrestricted.
 
         A count rather than a query because the service only needs the
         predicate, and an agent granted in five hundred spaces should not load
@@ -319,8 +319,8 @@ class ChannelsDAOInterface(ABC):
         """The most recent thread row for this (space, key, agent) triple.
 
         `ORDER BY created_at DESC LIMIT 1` — the table is append-only and the
-        latest row wins (D12), so there is deliberately no unique constraint to
-        read against (§3). `external_key` is None when the scope is the space.
+        latest row wins, so there is deliberately no unique constraint to
+        read against. `external_key` is None when the scope is the space.
         """
         ...
 
@@ -344,15 +344,10 @@ class ChannelsDAOInterface(ABC):
         #
         thread_id: UUID,
     ) -> Optional[ChannelThread]:
-        """Flip flags.is_active on THIS row, in place — never inserts (D12).
+        """Flip flags.is_active on THIS row, in place — never inserts.
 
-        GAP NOTE (flagged per WP1's brief): entities.md §8 assigns
-        ChannelsService.close_thread a real WP1 implementation, but the frozen
-        §7 method list has no write path over an existing thread row — threads
-        are append-only and get no edit_thread. Added minimally, mirroring
-        transition_inbox_trigger's "update in place by id, never insert" shape,
-        so close_thread is not left calling a route that does not exist. Flag
-        at the WP1→WP2/WP3 checkpoint if this should move or be renamed.
+        Threads are append-only and get no edit_thread; this mirrors
+        transition_inbox_trigger's "update in place by id, never insert" shape.
         """
         ...
 
@@ -385,7 +380,7 @@ class ChannelsDAOInterface(ABC):
     ) -> List[ChannelInboxEvent]:
         """Bulk append for backfill — one statement, so `id` order is fetch order.
 
-        This is what makes `origin` sufficient for ordering (§2.4): the batch is
+        This is what makes `origin` sufficient for ordering: the batch is
         written in one pass, in the order the platform returned it.
         """
         ...
@@ -399,7 +394,7 @@ class ChannelsDAOInterface(ABC):
         event_id: UUID,
         space_id: UUID,
     ) -> Optional[ChannelInboxEvent]:
-        """Set space_id once the event is routed — it is null on arrival (§2)."""
+        """Set space_id once the event is routed — it is null on arrival."""
         ...
 
     @abstractmethod
@@ -413,7 +408,7 @@ class ChannelsDAOInterface(ABC):
         #
         limit: Optional[int] = None,
     ) -> List[ChannelInboxEvent]:
-        """The backlog read — D21's drain as a range query (§2.4).
+        """The backlog read — a drain expressed as a range query.
 
         `WHERE (origin, id) > (PUSHED, :after_event_id) ORDER BY origin, id`, or
         the whole log when `after_event_id` is None (a thread nobody has
@@ -443,7 +438,7 @@ class ChannelsDAOInterface(ABC):
         #
         thread_id: UUID,
     ) -> Optional[ChannelInboxTrigger]:
-        """This agent's consumer offset — `ORDER BY id DESC LIMIT 1` (D26).
+        """This agent's consumer offset — `ORDER BY id DESC LIMIT 1`.
 
         None means never addressed, which is the case that triggers backfill.
         """
@@ -461,7 +456,7 @@ class ChannelsDAOInterface(ABC):
 
         None when `(thread_id, event_id)` is taken: two workers raced the same
         addressing and this one lost. That is the entire concurrency story
-        inbound; nothing is locked and nothing is claimed (§2.4).
+        inbound; nothing is locked and nothing is claimed.
         """
         ...
 
@@ -503,7 +498,7 @@ class ChannelsDAOInterface(ABC):
         #
         event: ChannelOutboxEventCreate,
     ) -> ChannelOutboxEvent:
-        """Insert at state=CREATED, idempotent on `key` (§2.6).
+        """Insert at state=CREATED, idempotent on `key`.
 
         `ON CONFLICT (project_id, key) DO NOTHING ... RETURNING`, falling back to
         a fetch — so a re-run of the outbox worker returns the EXISTING row
@@ -533,7 +528,7 @@ class ChannelsDAOInterface(ABC):
 
         The worker rendering a turn's final answer holds `(thread, turn, item)`
         and so can derive `key`, but it does not hold the `uuid7` id. This is why
-        `key` is stored (§2.6).
+        `key` is stored.
         """
         ...
 
@@ -566,7 +561,7 @@ class ChannelsDAOInterface(ABC):
     ) -> Optional[ChannelOutboxEvent]:
         """Advance the row in place — SENT with a locator, or FAILED/ABANDONED.
 
-        `data` is how the receipt lands (§2.7). One posted message is one row for
+        `data` is how the receipt lands. One posted message is one row for
         its whole life, so this is an update and never an insert.
         """
         ...

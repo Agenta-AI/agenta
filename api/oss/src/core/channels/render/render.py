@@ -25,12 +25,12 @@ def render_turn_result(
     capabilities: ChannelCapabilities,
     folded: Dict[str, Any],
 ) -> List[RenderItem]:
-    """The fold result -> one or more independently-postable items (D27/D28).
+    """The fold result -> one or more independently-postable items.
 
     `folded` is exactly fold()'s return: {messages, stop_reason,
     pending_interaction}. A paused turn renders its card from
-    pending_interaction's recorded tool call, never from message text — the
-    hard exclusion in specs-wp5.md holds regardless of stop_reason.
+    pending_interaction's recorded tool call, never from message text —
+    this hard exclusion holds regardless of stop_reason.
     """
 
     pending_interaction = folded.get("pending_interaction")
@@ -96,7 +96,7 @@ def _render_pending_interaction(
 
 def _extract_answer_text(messages: List[Dict[str, Any]]) -> str:
     """Only what fold() already surfaced as message content — never a raw
-    thought/usage event, per the hard exclusion (specs-wp5.md)."""
+    thought/usage event."""
 
     parts: List[str] = []
     for message in messages:
