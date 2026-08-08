@@ -1,9 +1,4 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/loadSession.ts (2026-07-25);
-// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
-// Keep byte-parity if either side changes.
-// Adaptations: none — `fetchSessionRecordsAtom` already reads `projectIdAtom` internally from
-// `@agenta/entities/session` (an allowed package dep), so no OSS-app-only import is involved and
-// no signature change was needed.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {fetchSessionRecordsAtom} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"

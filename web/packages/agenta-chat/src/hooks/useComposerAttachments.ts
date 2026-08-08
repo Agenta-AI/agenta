@@ -1,125 +1,263 @@
-// Assembled from the attachment-state block of
-// web/oss/src/components/AgentChatSlice/AgentConversation.tsx (2026-07-25): the per-session
-// restore/mirror effect, `addFiles` (validateIncoming), `removeFile`, and the submit-time
-// clear + `filesToParts` conversion. The desktop host keeps its own upload-item file type;
-// this hook mirrors the same LOGIC over the package's neutral `PendingAttachment`.
-// Deliberately omitted (desktop-only): the drag/drop DOM handlers and the tray open/close
-// flag — the skin calls `add()` from its own drop/paste surfaces and derives visibility.
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import type {FileUIPart} from "ai"
+import {generateId} from "@agenta/shared/utils"
 
 import {
-    type AttachmentLimits,
     type AttachmentRejection,
     DEFAULT_ATTACHMENT_LIMITS,
+    attachmentRefsToParts,
     validateIncoming,
-} from "../assets/attachmentRules"
-import {filesToParts} from "../assets/files"
-import {type PendingAttachment, toPendingAttachment} from "../model/attachments"
+} from "../assets"
+import {uploadAttachment, type SessionAttachmentResponse} from "../assets/attachmentTransport"
+import type {StagedUpload as UploadFile} from "../model"
 import {attachmentsBySession} from "../state/sessionEphemera"
 
-export interface UseComposerAttachmentsArgs {
-    /** Persist pending files under this session across pane remounts (route re-entry). */
-    sessionId?: string
-    /** Guardrails; defaults to the shared limits (count / size / accepted types). */
-    limits?: AttachmentLimits
-}
+import {removeUploadFile, useAttachmentUploads} from "./useAttachmentUploads"
 
-export interface ComposerAttachments {
-    /** Files staged for the next send, in add order. */
-    files: PendingAttachment[]
-    /** Files turned away by the guardrails on the LAST add (too big, wrong type, over the count). */
-    rejections: AttachmentRejection[]
-    /** The active guardrails, for tray copy ("up to N files, X MB each"). */
-    limits: AttachmentLimits
-    /** The staged set is at the count cap — pickers should disable. */
-    atMax: boolean
-    /** Run incoming files (picker / paste / drop) through the guardrails and stage the accepted. */
-    add: (incoming: File[]) => void
-    /** Unstage one file by its dedup uid. */
-    remove: (uid: string) => void
-    /** Drop everything staged (send consumed them, or the user reset the composer). */
-    clear: () => void
-    /** Dismiss the inline rejection notices without touching the staged files. */
-    dismissRejections: () => void
-    /** Encode the staged files as inline `file` parts for `sendMessage({text, files})`. */
-    toParts: () => Promise<FileUIPart[]>
-}
+type StagedFile = UploadFile<SessionAttachmentResponse>
+
+/** Convert settled upload-tray entries into reference `file` parts via the neutral builder. */
+export const stagedFilesToParts = (files: StagedFile[], sessionId: string) =>
+    attachmentRefsToParts(
+        files.map((file) => {
+            const attachment = file.response?.attachment
+            if (!attachment) throw new Error(`Attachment upload is incomplete: ${file.name}`)
+            return {
+                attachmentId: attachment.attachment_id,
+                filename: attachment.filename,
+                mediaType: attachment.media_type,
+                size: attachment.size,
+            }
+        }),
+        sessionId,
+    )
+
+// `uid` is the tray's React key, its preview-URL key, the remove / view / retry handle, and the
+// upload's idempotency key, so it has to be unique per TRAY ROW. Deriving it from name+mtime+size
+// collided whenever the same file was attached twice (paste then drop) — one remove then wiped
+// both rows and their previews.
+const toUploadFile = (file: File, uploadsEnabled: boolean): StagedFile => ({
+    uid: `att-${generateId()}`,
+    name: file.name,
+    status: uploadsEnabled ? "uploading" : "done",
+    percent: uploadsEnabled ? 0 : 100,
+    originFileObj: file as UploadFile["originFileObj"],
+})
 
 /**
- * Headless composer-attachment state for one session: staging, validation, per-session
- * persistence, and the send-time encoding. The skin owns every surface (tray, drop overlay,
- * paste) and calls `add`/`remove`/`clear`; on submit it awaits `toParts()` then `clear()`s.
+ * Pending composer attachments for one session — the tray, its guardrails, the upload lifecycle,
+ * the preview target, and the whole-panel drag-and-drop that feeds them. Files survive a remount
+ * (route re-entry, tab close/reopen) alongside the composer draft; rejections stay transient.
  */
 export const useComposerAttachments = ({
     sessionId,
-    limits = DEFAULT_ATTACHMENT_LIMITS,
-}: UseComposerAttachmentsArgs = {}): ComposerAttachments => {
+    uploadsEnabled = true,
+}: {
+    sessionId: string
+    /** Hosts gate the whole attachment path on their rollout flag; off = inline-only staging. */
+    uploadsEnabled?: boolean
+}) => {
     // Restored from the per-session store on remount (route re-entry, tab close/reopen) —
     // pending attachments survive alongside the composer draft. Rejections stay transient.
-    const [files, setFiles] = useState<PendingAttachment[]>(() =>
-        sessionId ? (attachmentsBySession.get(sessionId) ?? []) : [],
+    const [files, setFiles] = useState<StagedFile[]>(
+        () => (attachmentsBySession.get(sessionId) as StagedFile[] | undefined) ?? [],
     )
-    // `sessionId` is a prop. Today's only caller mounts one instance per session, but a caller
-    // that swapped it in place would carry the old session's staged files into the new one, and
-    // the mirror effect below would then write them under the new key. Re-seed during render so
-    // that effect never sees a mismatched pair.
-    const [seededFor, setSeededFor] = useState(sessionId)
-    if (sessionId !== seededFor) {
-        setSeededFor(sessionId)
-        setFiles(sessionId ? (attachmentsBySession.get(sessionId) ?? []) : [])
-    }
     useEffect(() => {
-        if (!sessionId) return
         if (files.length > 0) attachmentsBySession.set(sessionId, files)
         else attachmentsBySession.delete(sessionId)
     }, [files, sessionId])
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
+    // Same-tick guard: a paste and a drop can both fire before React re-renders; the render
+    // closure's `files.length` would let both batches validate against the pre-add count.
+    const stagedCountRef = useRef(files.length)
+    useEffect(() => {
+        stagedCountRef.current = files.length
+    }, [files.length])
     const [rejections, setRejections] = useState<AttachmentRejection[]>([])
-
+    // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
+    const [viewingUid, setViewingUid] = useState<string | null>(null)
+    const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+    // Single limits object so it can later be swapped for capability-derived limits.
+    const limits = DEFAULT_ATTACHMENT_LIMITS
     const atMax = files.length >= limits.maxCount
+    // Drag-over state for the whole-panel drop overlay (depth counter avoids child flicker).
+    const dragDepthRef = useRef(0)
+    const [isDragging, setIsDragging] = useState(false)
 
-    // The staged count as of the last accepted batch, not the render closure. Two `add` calls
-    // in one tick (a paste and a drop, or a duplicated drop handler) both read the same
-    // `files.length`, so both compute the same remaining capacity and the staged set can pass
-    // `limits.maxCount`. Re-synced on every render so state remains the source of truth.
-    const countRef = useRef(files.length)
-    countRef.current = files.length
-
-    /** Add files from picker / paste / programmatic sources through the guardrails. */
-    const add = useCallback(
-        (incoming: File[]) => {
-            const {accepted, rejections: rej} = validateIncoming(incoming, countRef.current, limits)
-            if (accepted.length) {
-                countRef.current += accepted.length
-                setFiles((prev) => [...prev, ...accepted.map(toPendingAttachment)])
-            }
-            setRejections(rej)
-        },
-        [limits],
+    // One multipart upload per staged file; the tray uid doubles as the idempotency key, so a
+    // retry reuses the original identity instead of minting a second attachment.
+    const attachmentUploader = useCallback(
+        (
+            file: File,
+            {
+                uid,
+                onProgress,
+                signal,
+            }: {uid: string; onProgress: (percent: number) => void; signal: AbortSignal},
+        ) => uploadAttachment({file, sessionId, idempotencyKey: uid, onProgress, signal}),
+        [sessionId],
     )
+    // Upload lifecycle for the tray (progress / error / retry).
+    const uploads = useAttachmentUploads(files, setFiles, attachmentUploader)
+    // A staged attachment blocks send until its reference exists; without uploads the inline path
+    // only needs every entry to be settled.
+    const attachmentsSettled = uploadsEnabled
+        ? files.every((file) => file.status === "done" && Boolean(file.response?.attachment))
+        : files.every((file) => file.status === "done")
 
-    const remove = useCallback((uid: string) => {
-        setFiles((prev) => prev.filter((f) => f.uid !== uid))
-    }, [])
+    /** Why send is held, for the send button's tooltip. */
+    const uploadBlockReason = files.some((file) => file.status === "error")
+        ? "an upload failed"
+        : files.some((file) => file.status === "uploading")
+          ? "waiting for uploads"
+          : undefined
 
-    const clear = useCallback(() => {
-        setFiles([])
+    /** Add files from paste / programmatic sources through the guardrails. */
+    const addFiles = (incoming: File[], extraRejections: AttachmentRejection[] = []) => {
+        const {accepted, rejections} = validateIncoming(incoming, stagedCountRef.current, limits)
+        const allRejections = [...extraRejections, ...rejections]
+        if (accepted.length) {
+            // Stage once and enqueue the MINTED uids — re-deriving them here is what let the tray
+            // row and its upload disagree about which entry they addressed.
+            const staged = accepted.map((file) => toUploadFile(file, uploadsEnabled))
+            stagedCountRef.current += staged.length
+            setFiles((prev) => [...prev, ...staged])
+            if (uploadsEnabled) uploads.enqueue(staged.map((f) => f.uid))
+        }
+        setRejections(allRejections)
+        // Open for rejections too. Otherwise dropping something unsupported writes a message into
+        // a closed panel and reads as nothing having happened at all.
+        if (accepted.length || allRejections.length) setAttachmentsOpen(true)
+    }
+
+    // Removing a chip also aborts its in-flight request.
+    const removeFile = (uid: string) => removeUploadFile(uid, uploads.abort, setFiles)
+
+    /**
+     * Upload files that never entered the tray (a voice take sent outright) and return their staged
+     * entries. A failure adopts them into the tray so the error is visible and retryable, and
+     * returns null so the caller holds the send.
+     */
+    const uploadExtraFiles = async (extraFiles: File[]): Promise<StagedFile[] | null> => {
+        const staged = extraFiles.map((file) => toUploadFile(file, uploadsEnabled))
+        const results = await Promise.allSettled(
+            staged.map(async (entry) => {
+                const response = await attachmentUploader(entry.originFileObj as File, {
+                    uid: entry.uid,
+                    onProgress: () => undefined,
+                    signal: new AbortController().signal,
+                })
+                return {...entry, status: "done" as const, percent: 100, response}
+            }),
+        )
+        if (results.every((result) => result.status === "fulfilled")) {
+            return results.map((result) => (result as PromiseFulfilledResult<StagedFile>).value)
+        }
+        const settledEntries = results.map((result, index) =>
+            result.status === "fulfilled"
+                ? result.value
+                : {
+                      ...staged[index],
+                      status: "error" as const,
+                      error:
+                          result.reason instanceof Error ? result.reason.message : "Upload failed",
+                  },
+        )
+        setFiles((prev) => [...prev, ...settledEntries])
+        setAttachmentsOpen(true)
+        return null
+    }
+
+    // Native drag-and-drop onto the whole panel. A depth counter ignores dragenter/leave from
+    // nested children so the overlay doesn't flicker; only file drags (not text) are handled.
+    const isFileDrag = (e: React.DragEvent) => Array.from(e.dataTransfer.types).includes("Files")
+
+    /**
+     * Bind the panel's drop target. `isBlocked` is a predicate, read at EVENT time and never at
+     * bind time: whether attachments are refused right now is the conversation's call (a voice take
+     * in flight, a disabled composer), so this hook asks rather than tracking it.
+     */
+    const bindDropTarget = (isBlocked: () => boolean) => {
+        // The panel is ALWAYS a drop target for file drags — preventDefault on enter/over/drop even when
+        // blocked. Otherwise the browser's default action for a file drop is to navigate to it, which
+        // unloads the SPA and discards the whole conversation. Whether we ACCEPT the files is signalled
+        // separately (the overlay + the drop cursor), not by declining to be a drop target.
+        const onDragEnter = (e: React.DragEvent) => {
+            if (!isFileDrag(e)) return
+            e.preventDefault()
+            if (isBlocked()) return
+            dragDepthRef.current += 1
+            setIsDragging(true)
+        }
+        const onDragOver = (e: React.DragEvent) => {
+            if (!isFileDrag(e)) return
+            e.preventDefault()
+            // Honest cursor: "no drop" while blocked — but we stay a target so the drop is still swallowed.
+            e.dataTransfer.dropEffect = isBlocked() ? "none" : "copy"
+        }
+        const onDragLeave = (e: React.DragEvent) => {
+            if (!isFileDrag(e)) return
+            dragDepthRef.current -= 1
+            if (dragDepthRef.current <= 0) {
+                dragDepthRef.current = 0
+                setIsDragging(false)
+            }
+        }
+        const onDrop = (e: React.DragEvent) => {
+            if (!isFileDrag(e)) return
+            e.preventDefault()
+            dragDepthRef.current = 0
+            setIsDragging(false)
+            if (isBlocked()) return
+
+            // A dropped folder still arrives in `files` — as a typeless, zero-byte entry that the
+            // guardrails would reject as "not a supported file type", which is misleading. Name it.
+            // `webkitGetAsEntry` is only valid synchronously, during this event.
+            const folderNames = Array.from(e.dataTransfer.items ?? [])
+                .map((item) => (item.kind === "file" ? item.webkitGetAsEntry() : null))
+                .filter((entry): entry is FileSystemEntry => !!entry?.isDirectory)
+                .map((entry) => entry.name)
+
+            const dropped = Array.from(e.dataTransfer.files).filter(
+                (f) => !folderNames.includes(f.name),
+            )
+            const folderRejections = folderNames.map((name) => ({
+                name,
+                reason: "is a folder — drop the files inside it",
+            }))
+
+            if (dropped.length || folderRejections.length) addFiles(dropped, folderRejections)
+        }
+        return {onDragEnter, onDragOver, onDragLeave, onDrop}
+    }
+
+    /** Drop the attachments a send just carried, plus any rejection notice. */
+    const clearAttachments = (consumedUids: string[]) => {
+        // Only what this send carried: anything staged while it was in flight belongs to the next message.
+        setFiles((prev) => prev.filter((file) => !consumedUids.includes(file.uid)))
         setRejections([])
-    }, [])
+        setAttachmentsOpen(false)
+    }
 
-    const dismissRejections = useCallback(() => setRejections([]), [])
-
-    // A file that cannot be read at submit time is surfaced through the same inline notices the
-    // guardrails use, and the readable ones still go out — losing the whole message because one
-    // attachment went missing is worse than sending without it.
-    const toParts = useCallback(async () => {
-        if (!files.length) return []
-        const {parts, rejections: unreadable} = await filesToParts(files.map((f) => f.file))
-        if (unreadable.length) setRejections((prev) => [...prev, ...unreadable])
-        return parts
-    }, [files])
-
-    return {files, rejections, limits, atMax, add, remove, clear, dismissRejections, toParts}
+    return {
+        uploadsEnabled,
+        files,
+        rejections,
+        setRejections,
+        attachmentsOpen,
+        setAttachmentsOpen,
+        viewingUid,
+        setViewingUid,
+        limits,
+        atMax,
+        attachmentsSettled,
+        uploadBlockReason,
+        isDragging,
+        addFiles,
+        removeFile,
+        uploadExtraFiles,
+        uploads,
+        clearAttachments,
+        bindDropTarget,
+    }
 }

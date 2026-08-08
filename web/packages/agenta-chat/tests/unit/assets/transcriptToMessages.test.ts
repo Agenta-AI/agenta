@@ -1,7 +1,10 @@
 import type {SessionRecord} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
-import {transcriptToMessages} from "../../../src/assets/transcriptToMessages"
+import {
+    APPROVED_EXECUTION_RESULT_UNKNOWN,
+    transcriptToMessages,
+} from "../../../src/assets/transcriptToMessages"
 
 const record = (id: string, payload: Record<string, unknown>, sender = "agent"): SessionRecord => ({
     id,
@@ -377,5 +380,359 @@ describe("transcriptToMessages cold approval resume (re-raised tool call id)", (
             approval: {id: "approval-1", approved: false},
         })
         expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+})
+
+describe("transcriptToMessages run failures", () => {
+    const failure = (message: string, id = "record-error"): SessionRecord =>
+        record(id, {type: "error", message})
+
+    it("replays a persisted error through metadata.runError, not as body text", () => {
+        const messages = transcriptToMessages([
+            record("record-text", {type: "message", text: "Working on it."}),
+            failure("tool call toolu_1 exceeded 300000ms"),
+        ])
+
+        expect(messages?.[0].parts).toEqual([{type: "text", text: "Working on it."}])
+        expect(messages?.[0].metadata).toMatchObject({
+            runError: {message: "tool call toolu_1 exceeded 300000ms"},
+        })
+    })
+
+    it("keeps a turn whose only content was the failure", () => {
+        const messages = transcriptToMessages([failure("the agent run failed")])
+
+        expect(messages).toHaveLength(1)
+        expect(messages?.[0].parts).toEqual([])
+        expect(messages?.[0].metadata).toMatchObject({runError: {message: "the agent run failed"}})
+    })
+
+    it("keeps the root cause when a cascading error follows", () => {
+        const messages = transcriptToMessages([
+            failure("first failure", "record-error-1"),
+            failure("second failure", "record-error-2"),
+        ])
+
+        expect(messages?.[0].metadata).toMatchObject({runError: {message: "first failure"}})
+    })
+
+    it("ignores an empty error message", () => {
+        expect(transcriptToMessages([failure("   ")])).toBeNull()
+    })
+})
+
+const firstPart = (records: SessionRecord[]): Record<string, unknown> => {
+    const messages = transcriptToMessages(records)
+    expect(messages).not.toBeNull()
+    return messages?.[0].parts[0] as unknown as Record<string, unknown>
+}
+
+// Ported from the OSS original's "approval hydration" suite (the cases not already covered by
+// the approval-resume suites above).
+describe("transcriptToMessages approval hydration", () => {
+    it("overlays a persisted approval response with the live response shape", () => {
+        const part = firstPart([
+            ...approvalRecords(),
+            record("record-response", {
+                type: "interaction_response",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", approved: true},
+            }),
+        ])
+
+        expect(part).toEqual({
+            type: "tool-bash",
+            toolCallId: "tool-1",
+            state: "approval-responded",
+            input: {command: "ls"},
+            approval: {id: "approval-1", approved: true},
+        })
+    })
+
+    it("keeps an unanswered request pending", () => {
+        const part = firstPart(approvalRecords())
+
+        expect(part.state).toBe("approval-requested")
+        expect(part.approval).toEqual({id: "approval-1"})
+    })
+
+    it("lets an executed tool result supersede a later approval response", () => {
+        const part = firstPart([
+            ...approvalRecords(),
+            record("record-result", {
+                type: "tool_result",
+                id: "tool-1",
+                output: "done",
+            }),
+            record("record-response", {
+                type: "interaction_response",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", approved: true},
+            }),
+        ])
+
+        expect(part.state).toBe("output-available")
+        expect(part.output).toBe("done")
+        expect(part.approval).toEqual({id: "approval-1"})
+    })
+
+    it("falls back to the interaction id when the response omits the tool-call id", () => {
+        const part = firstPart([
+            ...approvalRecords(),
+            record("record-response", {
+                type: "interaction_response",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {approved: false},
+            }),
+        ])
+
+        expect(part.state).toBe("approval-responded")
+        expect(part.approval).toEqual({id: "approval-1", approved: false})
+    })
+
+    it("reopens deferred call b when its turn-2 approval request arrives", () => {
+        const messages = transcriptToMessages([
+            record("record-user", {type: "message", text: "run both writes"}, "user"),
+            record("record-call-a", {
+                type: "tool_call",
+                id: "tool-a",
+                name: "bash",
+                input: {command: "write a"},
+            }),
+            record("record-call-b", {
+                type: "tool_call",
+                id: "tool-b",
+                name: "bash",
+                input: {command: "write b"},
+            }),
+            record("record-request-a", {
+                type: "interaction_request",
+                id: "approval-a",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-a"},
+            }),
+            record("record-result-b-deferred", {
+                type: "tool_result",
+                id: "tool-b",
+                output: "DEFERRED_NOT_EXECUTED: paused for another approval; retry the same call if still required.",
+                isError: true,
+            }),
+            record("record-done-turn-1", {type: "done"}),
+            record("record-user-turn-2", {type: "message", text: "run both writes"}, "user"),
+            record("record-response-a", {
+                type: "interaction_response",
+                id: "approval-a",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-a", approved: true},
+            }),
+            record("record-request-b", {
+                type: "interaction_request",
+                id: "approval-b",
+                kind: "user_approval",
+                payload: {
+                    toolCallId: "tool-b",
+                    toolCall: {
+                        toolCallId: "tool-b",
+                        name: "bash",
+                        rawInput: {command: "write b"},
+                    },
+                },
+            }),
+            record("record-result-a", {
+                type: "tool_result",
+                id: "tool-a",
+                output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+                isError: true,
+            }),
+            record("record-done-turn-2", {type: "done"}),
+        ])
+
+        expect(messages).not.toBeNull()
+        expect(messages?.[0]).toMatchObject({
+            role: "user",
+            parts: [{type: "text", text: "run both writes"}],
+        })
+        const assistantParts = messages
+            ?.filter((message) => message.role === "assistant")
+            .flatMap((message) => message.parts) as unknown as Record<string, unknown>[]
+        const callA = assistantParts.find((part) => part.toolCallId === "tool-a")
+        const callB = assistantParts.find((part) => part.toolCallId === "tool-b")
+
+        expect(callA).toMatchObject({
+            state: "output-error",
+            errorText: APPROVED_EXECUTION_RESULT_UNKNOWN,
+            approval: {id: "approval-a", approved: true},
+        })
+        expect(callB).toEqual({
+            type: "tool-bash",
+            toolCallId: "tool-b",
+            state: "approval-requested",
+            input: {command: "write b"},
+            approval: {id: "approval-b"},
+        })
+        expect(assistantParts.filter((part) => part.state === "approval-requested")).toEqual([
+            callB,
+        ])
+    })
+
+    it("keeps a real tool error closed when a late approval request arrives", () => {
+        const part = firstPart([
+            record("record-call-b", {
+                type: "tool_call",
+                id: "tool-b",
+                name: "bash",
+                input: {command: "write b"},
+            }),
+            record("record-result-b", {
+                type: "tool_result",
+                id: "tool-b",
+                output: "permission denied",
+                isError: true,
+            }),
+            record("record-done-turn-1", {type: "done"}),
+            record("record-request-b", {
+                type: "interaction_request",
+                id: "approval-b",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-b"},
+            }),
+        ])
+
+        expect(part).toEqual({
+            type: "tool-bash",
+            toolCallId: "tool-b",
+            state: "output-error",
+            input: {command: "write b"},
+            errorText: "permission denied",
+        })
+    })
+})
+
+describe("transcriptToMessages paused end-marker", () => {
+    it("flags the message whose turn ended paused (done.stopReason)", () => {
+        const messages = transcriptToMessages([
+            ...approvalRecords(),
+            record("record-done-paused", {type: "done", stopReason: "paused"}),
+        ])
+        expect(messages).not.toBeNull()
+        expect(messages?.[0].metadata).toMatchObject({paused: true})
+    })
+
+    it("does not flag a normally completed turn", () => {
+        const messages = transcriptToMessages([
+            ...approvalRecords(),
+            record("record-done-complete", {type: "done"}),
+        ])
+        expect(messages).not.toBeNull()
+        expect((messages?.[0].metadata as {paused?: boolean} | undefined)?.paused).toBeUndefined()
+    })
+})
+
+/**
+ * Regression guard for issue #5530. The adoption guard must not go back to comparing message
+ * counts: a turn grows IN PLACE here, so the count is identical before and after it completes.
+ * If a mapper change ever makes these counts differ, revisit `shouldAdoptServerTranscript` —
+ * do not "simplify" it back to a count comparison on the strength of that change.
+ */
+describe("transcriptToMessages turn growth is invisible to a message count", () => {
+    const midTurn = (): SessionRecord[] => [
+        ...approvalRecords(),
+        record("record-done-paused", {type: "done", stopReason: "paused"}),
+    ]
+
+    const completed = (): SessionRecord[] => [
+        ...midTurn(),
+        record("record-response", {
+            type: "interaction_response",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-1", approved: true},
+        }),
+        record("record-result", {
+            type: "tool_result",
+            id: "tool-1",
+            output: {stdout: "a.txt\nb.txt"},
+        }),
+        record("record-answer", {type: "message", text: "There are two files."}),
+        record("record-done", {type: "done"}),
+    ]
+
+    it("renders the same number of messages before and after the turn finishes", () => {
+        const partial = transcriptToMessages(midTurn())
+        const full = transcriptToMessages(completed())
+
+        expect(partial).toHaveLength(1)
+        expect(full).toHaveLength(1)
+        // Same messages, far more content — and far more records behind it.
+        expect(completed().length).toBeGreaterThan(midTurn().length)
+    })
+
+    it("carries strictly more content in the completed turn", () => {
+        const partial = transcriptToMessages(midTurn())
+        const full = transcriptToMessages(completed())
+
+        expect(full?.[0].parts.length).toBeGreaterThan(partial?.[0].parts.length ?? 0)
+    })
+})
+
+describe("transcriptToMessages attachments", () => {
+    it("rebuilds user attachment references as file parts with filenames", () => {
+        const messages = transcriptToMessages([
+            record(
+                "record-user",
+                {
+                    type: "message",
+                    text: "Inspect this",
+                    attachments: [
+                        {
+                            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+                            filename: "diagram.png",
+                            mediaType: "image/png",
+                            size: 42,
+                        },
+                    ],
+                },
+                "user",
+            ),
+        ])
+
+        expect(messages?.[0]).toMatchObject({
+            role: "user",
+            parts: [
+                {type: "text", text: "Inspect this"},
+                {
+                    type: "file",
+                    filename: "diagram.png",
+                    mediaType: "image/png",
+                    providerMetadata: {
+                        agenta: {attachmentId: "019c1e0a-f911-7000-8000-000000000001", size: 42},
+                    },
+                },
+            ],
+        })
+        expect((messages?.[0].parts[1] as {url: string}).url).toContain(
+            "/sessions/attachments/019c1e0a-f911-7000-8000-000000000001/content?session_id=session-1",
+        )
+    })
+
+    it("ignores an attachment delivery record instead of rendering a part", () => {
+        const delivery = record("record-delivery", {
+            type: "attachment_delivery",
+            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+            outcome: "workspace_only",
+            reasonCode: "model_modality_unknown",
+            workingPath: "attachments/019c1e0a-f911-7000-8000-000000000001/archive.zip",
+        })
+
+        expect(transcriptToMessages([delivery])).toBeNull()
+        expect(
+            transcriptToMessages([
+                record("record-text", {type: "message", text: "Done."}),
+                delivery,
+            ])?.[0].parts,
+        ).toEqual([{type: "text", text: "Done."}])
     })
 })

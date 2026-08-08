@@ -1,12 +1,9 @@
 // @vitest-environment jsdom
-import {act, renderHook, waitFor} from "@testing-library/react"
-import {describe, expect, it} from "vitest"
+import {act, renderHook} from "@testing-library/react"
+import {afterEach, describe, expect, it} from "vitest"
 
 import {DEFAULT_ATTACHMENT_LIMITS} from "../../../src/assets/attachmentRules"
-import {
-    useComposerAttachments,
-    type UseComposerAttachmentsArgs,
-} from "../../../src/hooks/useComposerAttachments"
+import {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
 import {attachmentsBySession} from "../../../src/state/sessionEphemera"
 
 const makeFile = (name: string, type = "text/plain", size = 16): File => {
@@ -14,37 +11,44 @@ const makeFile = (name: string, type = "text/plain", size = 16): File => {
     return new File([blob], name, {type, lastModified: 1_700_000_000_000})
 }
 
-const setup = (args: UseComposerAttachmentsArgs = {}) =>
-    renderHook((props: UseComposerAttachmentsArgs) => useComposerAttachments(props), {
-        initialProps: args,
-    })
+// `uploadsEnabled: false` keeps every test off the network: files stage as settled ("done")
+// without the multipart upload lifecycle.
+const setup = (sessionId = `attach-${Math.random().toString(36).slice(2)}`) => ({
+    sessionId,
+    ...renderHook(() => useComposerAttachments({sessionId, uploadsEnabled: false})),
+})
+
+afterEach(() => {
+    attachmentsBySession.clear()
+})
 
 describe("useComposerAttachments", () => {
-    it("stages accepted files with the shared dedup uid and no rejections", () => {
+    it("stages accepted files settled, with the tray uid minted once and no rejections", () => {
         const {result} = setup()
         act(() => {
-            result.current.add([makeFile("notes.txt")])
+            result.current.addFiles([makeFile("notes.txt")])
         })
         expect(result.current.files).toHaveLength(1)
         expect(result.current.files[0].name).toBe("notes.txt")
-        expect(result.current.files[0].uid).toBe("notes.txt-1700000000000-16")
+        expect(result.current.files[0].uid).toMatch(/^att-/)
+        expect(result.current.files[0].status).toBe("done")
+        expect(result.current.attachmentsSettled).toBe(true)
         expect(result.current.rejections).toHaveLength(0)
         expect(result.current.atMax).toBe(false)
     })
 
-    it("rejects unsupported types and oversized files with a per-file reason", () => {
+    it("rejects oversized files with a per-file reason and stages the rest", () => {
         const {result} = setup()
         act(() => {
-            result.current.add([
-                makeFile("clip.mp4", "video/mp4"),
-                makeFile("huge.txt", "text/plain", DEFAULT_ATTACHMENT_LIMITS.maxBytes + 1),
+            result.current.addFiles([
+                makeFile("huge.txt", "text/plain", DEFAULT_ATTACHMENT_LIMITS.maxBytes.document + 1),
                 makeFile("ok.txt"),
             ])
         })
         expect(result.current.files.map((f) => f.name)).toEqual(["ok.txt"])
-        expect(result.current.rejections.map((r) => r.name)).toEqual(["clip.mp4", "huge.txt"])
-        expect(result.current.rejections[0].reason).toContain("supported file type")
-        expect(result.current.rejections[1].reason).toContain("too large")
+        expect(result.current.rejections.map((r) => r.name)).toEqual(["huge.txt"])
+        // A rejection opens the tray so the message is visible.
+        expect(result.current.attachmentsOpen).toBe(true)
     })
 
     it("caps the staged set at the count limit and flags atMax", () => {
@@ -53,112 +57,76 @@ describe("useComposerAttachments", () => {
             makeFile(`f${i}.txt`),
         )
         act(() => {
-            result.current.add(batch)
+            result.current.addFiles(batch)
         })
         expect(result.current.files).toHaveLength(DEFAULT_ATTACHMENT_LIMITS.maxCount)
         expect(result.current.atMax).toBe(true)
         expect(result.current.rejections).toHaveLength(2)
-        expect(result.current.rejections[0].reason).toContain("limit")
-        // At the cap, another add stages nothing more.
         act(() => {
-            result.current.add([makeFile("extra.txt")])
+            result.current.addFiles([makeFile("extra.txt")])
         })
         expect(result.current.files).toHaveLength(DEFAULT_ATTACHMENT_LIMITS.maxCount)
         expect(result.current.rejections.map((r) => r.name)).toEqual(["extra.txt"])
     })
 
     // A paste and a drop can both fire before React re-renders. Reading the count from the
-    // render closure makes both batches see zero staged files, so the cap is passed.
+    // render closure would make both batches see zero staged files and blow past the cap.
     it("holds the count limit across two adds in the same tick", () => {
         const {result} = setup()
         const half = Math.ceil(DEFAULT_ATTACHMENT_LIMITS.maxCount / 2) + 1
         const batch = (tag: string) =>
             Array.from({length: half}, (_, i) => makeFile(`${tag}${i}.txt`))
         act(() => {
-            result.current.add(batch("a"))
-            result.current.add(batch("b"))
+            result.current.addFiles(batch("a"))
+            result.current.addFiles(batch("b"))
         })
         expect(result.current.files.length).toBeLessThanOrEqual(DEFAULT_ATTACHMENT_LIMITS.maxCount)
         expect(result.current.atMax).toBe(true)
     })
 
-    it("re-seeds from the new session when sessionId changes on a mounted instance", () => {
-        const a = `attach-swap-a-${Date.now()}`
-        const b = `attach-swap-b-${Date.now()}`
-        attachmentsBySession.set(b, [
-            {uid: "seeded", name: "from-b.txt", size: 4, type: "text/plain", file: makeFile("x")},
-        ] as never)
-        const {result, rerender} = setup({sessionId: a})
+    it("persists staged files per session across a remount, keyed by session id", () => {
+        const sessionId = `attach-restore-${Date.now()}`
+        const first = setup(sessionId)
         act(() => {
-            result.current.add([makeFile("from-a.txt")])
+            first.result.current.addFiles([makeFile("keep.txt")])
         })
-        expect(result.current.files.map((f) => f.name)).toEqual(["from-a.txt"])
-
-        rerender({sessionId: b})
-        // Session b's own staged file, not session a's leaking across.
-        expect(result.current.files.map((f) => f.name)).toEqual(["from-b.txt"])
-        // …and session a keeps what it had rather than being overwritten under the new key.
-        expect(attachmentsBySession.get(a)?.map((f) => f.name)).toEqual(["from-a.txt"])
+        first.unmount()
+        expect(attachmentsBySession.get(sessionId)).toHaveLength(1)
+        const second = setup(sessionId)
+        expect(second.result.current.files.map((f) => f.name)).toEqual(["keep.txt"])
+        const other = setup(`${sessionId}-other`)
+        expect(other.result.current.files).toHaveLength(0)
+        // Removing the last file empties the per-session store too.
+        act(() => {
+            second.result.current.removeFile(second.result.current.files[0].uid)
+        })
+        expect(attachmentsBySession.has(sessionId)).toBe(false)
     })
 
-    it("remove unstages one file; dismissRejections keeps files; clear drops both", () => {
+    it("removeFile unstages one; dismissing rejections keeps files; clearAttachments drops only consumed uids", () => {
         const {result} = setup()
         act(() => {
-            result.current.add([
+            result.current.addFiles([
                 makeFile("a.txt"),
                 makeFile("b.txt"),
-                makeFile("bad.mp4", "video/mp4"),
+                makeFile("huge.txt", "text/plain", DEFAULT_ATTACHMENT_LIMITS.maxBytes.document + 1),
             ])
         })
         expect(result.current.files).toHaveLength(2)
         expect(result.current.rejections).toHaveLength(1)
         act(() => {
-            result.current.remove(result.current.files[0].uid)
+            result.current.removeFile(result.current.files[0].uid)
         })
         expect(result.current.files.map((f) => f.name)).toEqual(["b.txt"])
         act(() => {
-            result.current.dismissRejections()
+            result.current.setRejections([])
         })
         expect(result.current.rejections).toHaveLength(0)
         expect(result.current.files).toHaveLength(1)
         act(() => {
-            result.current.clear()
+            result.current.clearAttachments(result.current.files.map((f) => f.uid))
         })
         expect(result.current.files).toHaveLength(0)
-    })
-
-    it("toParts encodes the staged files as inline data-URL file parts", async () => {
-        const {result} = setup()
-        act(() => {
-            result.current.add([makeFile("doc.txt")])
-        })
-        const parts = await result.current.toParts()
-        expect(parts).toHaveLength(1)
-        expect(parts[0]).toMatchObject({type: "file", mediaType: "text/plain", filename: "doc.txt"})
-        expect(parts[0].url.startsWith("data:text/plain;base64,")).toBe(true)
-        // Empty staged set resolves to an empty list without touching FileReader.
-        act(() => {
-            result.current.clear()
-        })
-        await waitFor(async () => expect(await result.current.toParts()).toEqual([]))
-    })
-
-    it("persists staged files per session across a remount, keyed by session id", () => {
-        const sessionId = `attach-restore-${Date.now()}`
-        const first = setup({sessionId})
-        act(() => {
-            first.result.current.add([makeFile("keep.txt")])
-        })
-        first.unmount()
-        expect(attachmentsBySession.get(sessionId)).toHaveLength(1)
-        const second = setup({sessionId})
-        expect(second.result.current.files.map((f) => f.name)).toEqual(["keep.txt"])
-        const other = setup({sessionId: `${sessionId}-other`})
-        expect(other.result.current.files).toHaveLength(0)
-        // Clearing empties the per-session store too.
-        act(() => {
-            second.result.current.clear()
-        })
-        expect(attachmentsBySession.has(sessionId)).toBe(false)
+        expect(result.current.attachmentsOpen).toBe(false)
     })
 })

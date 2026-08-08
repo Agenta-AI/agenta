@@ -22,10 +22,10 @@ import {
     agentShouldResumeAfterApproval,
     buildAgentRequest,
     type LiveAgentInteraction,
-} from "@agenta/playground"
+} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import {useChat} from "@ai-sdk/react"
-import type {UIMessage} from "ai"
+import type {FileUIPart, UIMessage} from "ai"
 import {useSetAtom, useStore} from "jotai"
 
 import {filesToParts} from "../assets/files"
@@ -60,6 +60,8 @@ const ignoreStreamRejection = () => {}
 export interface SendInput {
     text: string
     files?: File[]
+    /** Prebuilt file parts (server-uploaded attachment references) — appended after `files`. */
+    parts?: FileUIPart[]
 }
 
 /** The pure scan result of a rewind request; the skin renders any confirm UI and then calls
@@ -127,6 +129,10 @@ export interface AgentConversation {
     approvals: ApprovalDock
     /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
     sendToolOutput: (args: ToolOutputSettleInput) => void
+    /** Re-fetch the durable records and adopt the server transcript under the same guards as
+     * revalidate-on-open (never mid-stream, only when strictly ahead). Wire push signals — a
+     * session watch relay, a foreground event — to this. */
+    revalidate: () => void
 }
 
 /**
@@ -476,6 +482,25 @@ export const useAgentConversation = ({
         pruneExpanded(live)
     }, [messages, status, store, pruneExpanded])
 
+    // Push-signal revalidation: same guarded adoption as revalidate-on-open, callable at any
+    // time (a watch relay tick, app foregrounding). Guards make it idempotent and stream-safe.
+    const revalidate = useCallback(() => {
+        const adopt = (transcript: SessionTranscript | null) => {
+            if (!transcript || transcript.messages.length === 0) return
+            const serverMsgs = transcript.messages
+            if (busyRef.current || serverMsgs.length <= messagesRef.current.length) return
+            serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
+            setHistoryUnavailable(false)
+            setMessages(serverMsgs)
+            persistMessages({
+                id: sessionId,
+                messages: serverMsgs,
+                recordCount: transcript.recordCount,
+            })
+        }
+        loadSessionMessages(sessionId, adopt).then(adopt)
+    }, [persistMessages, sessionId, setMessages])
+
     // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
     const handleStop = useCallback(() => {
         const last = messagesRef.current[messagesRef.current.length - 1]
@@ -491,14 +516,16 @@ export const useAgentConversation = ({
     }, [sessionId, stop])
 
     const send = useCallback(
-        async ({text, files}: SendInput) => {
+        async ({text, files, parts}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
-            if (!trimmed && fileObjs.length === 0) return
+            const refParts = parts ?? []
+            if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             // Send what encoded. A file that cannot be read no longer takes the text and the
             // other attachments down with it (`filesToParts` settles each file separately).
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
-            const fileParts = encoded?.parts.length ? encoded.parts : undefined
+            const merged = [...(encoded?.parts ?? []), ...refParts]
+            const fileParts = merged.length ? merged : undefined
             if (encoded?.rejections.length) {
                 console.warn("[useAgentConversation] attachments could not be read:", {
                     files: encoded.rejections.map((r) => r.name),
@@ -580,5 +607,6 @@ export const useAgentConversation = ({
         clearQueue,
         approvals,
         sendToolOutput,
+        revalidate,
     }
 }

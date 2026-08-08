@@ -1,15 +1,15 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/files.ts (2026-07-25); the
-// OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it. Keep
-// byte-parity if either side changes.
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import type {FileUIPart, UIMessage} from "ai"
 
 import type {AttachmentRejection} from "./attachmentRules"
+import {attachmentContentUrl} from "./transcriptToMessages"
 
 /**
- * Multi-modality helpers for the agent chat slice. Attachments are kept entirely on the
- * client: there is no upload server, so a selected file is read into a `data:` URL and
- * sent inline as an AI SDK v6 `file` part (`{type, mediaType, filename, url}`). The service
- * receives the bytes in the request body — same channel as the text.
+ * Multi-modality helpers for the agent chat. Two send strategies share these parts:
+ * - inline (`filesToParts`): the file is read into a `data:` URL and the bytes travel in the
+ *   request body — no upload server involved;
+ * - reference (`attachmentRefsToParts`): the file was uploaded to the sessions attachment
+ *   store first and the part carries a durable content URL instead of bytes.
  */
 
 export type FileKind = "image" | "audio" | "video" | "file"
@@ -68,15 +68,43 @@ export const filesToParts = async (files: File[]): Promise<FilesToPartsResult> =
 export const fileParts = (message: UIMessage): FileUIPart[] =>
     message.parts.filter((p) => p.type === "file") as FileUIPart[]
 
+/** The Agenta attachment id carried by a reference part, if present. */
+export const attachmentIdForPart = (part: FileUIPart): string | null => {
+    const agenta = part.providerMetadata?.agenta
+    if (!agenta || typeof agenta !== "object") return null
+    const attachmentId = (agenta as {attachmentId?: unknown}).attachmentId
+    return typeof attachmentId === "string" && attachmentId ? attachmentId : null
+}
+
+/** A durable attachment an upload settled to — the neutral input for reference parts. */
+export interface AttachmentRef {
+    attachmentId: string
+    filename: string
+    mediaType: string
+    size: number
+}
+
+/** Build reference-carrying `file` parts for uploaded attachments (no inline bytes). */
+export const attachmentRefsToParts = (refs: AttachmentRef[], sessionId: string): FileUIPart[] =>
+    refs.map((ref) => ({
+        type: "file",
+        mediaType: ref.mediaType,
+        filename: ref.filename,
+        url: attachmentContentUrl(sessionId, ref.attachmentId),
+        providerMetadata: {
+            agenta: {attachmentId: ref.attachmentId, size: ref.size},
+        },
+    }))
+
 /**
  * A readable label for a file part: the filename, else the tail of its URL.
  *
- * The URL fallback skips `data:` URLs. `fileToPart` emits `data:<type>;base64,<...>`, whose tail
- * is the payload itself, so an unnamed inline file would be labelled with ~70 characters of
- * base64 instead of a name.
+ * The URL fallback skips `data:` URLs (`fileToPart` emits base64 payloads whose tail is the
+ * payload itself) and attachment REFERENCE parts (their URLs end in the fixed `/content`
+ * segment, which would label every unnamed reference "content").
  */
 export const filePartName = (part: FileUIPart): string => {
     if (part.filename) return part.filename
-    if (part.url.startsWith("data:")) return "attachment"
+    if (part.url.startsWith("data:") || attachmentIdForPart(part)) return "attachment"
     return part.url.split("/").pop()?.split("?")[0] || "file"
 }

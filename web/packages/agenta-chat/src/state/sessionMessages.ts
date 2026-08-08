@@ -1,18 +1,9 @@
-// Copied from web/oss/src/components/AgentChatSlice/state/sessions.ts (2026-07-25) — ONLY the
-// self-contained message-persistence and run-status pieces the conversation host needs
-// (`sessionMessagesAtom` + its record watermark, the quota-guarded persist writer, and the
-// per-session run-status store). The OSS original remains authoritative for the desktop chat
-// until the re-plumb PR deletes it; keep byte-parity on the copied blocks if either side
-// changes. The rest of that file (scope-keyed history/tabs, server reconciliation,
-// archive/delete remotes, timestamps) is app-layer session-LIST state and stays out of the
-// package deliberately.
-//
-// Both copies write the SAME localStorage keys (`agenta:agent-chat:{messages,record-counts}`),
-// so a semantic difference here is a live defect the moment one app writes through the package
-// while the other reads OSS's stores. The ONE deliberate difference: OSS's `dropSessionMessages`
-// is a module-private helper called by its scope-keyed delete/close/prune paths, which do not
-// exist here — the package exposes the same joint deletion as a write atom
-// (`dropSessionMessagesAtom`) so a consumer that forgets a session cannot drop one store only.
+// Canonical since the desktop re-plumb: OSS's sessions.ts deleted its copied blocks and both
+// apps read/write THIS store (localStorage keys `agenta:agent-chat:{messages,record-counts}:v2`).
+// The rest of that OSS file (scope-keyed history/tabs, server reconciliation, archive/delete
+// remotes, timestamps) is app-layer session-LIST state and stays out of the package deliberately.
+// Deletion is exposed as `dropSessionMessagesAtom` so a consumer that forgets a session cannot
+// drop the transcript store without its watermark (the two must never diverge).
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
 import {atomFamily, atomWithStorage, createJSONStorage} from "jotai/utils"
@@ -39,9 +30,11 @@ const tabLocalStorage = <T>() => {
 }
 
 /** Persisted messages per session id. Written when a conversation's stream settles. Session ids
- * are globally unique, so this store has no scope dimension. */
+ * are globally unique, so this store has no scope dimension.
+ * v2: caches written by the pre-fix mapper hold duplicated approval parts; the key bump forces
+ * one re-sync from records (the watermark otherwise keeps the stale copy authoritative). */
 export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
-    "agenta:agent-chat:messages",
+    "agenta:agent-chat:messages:v2",
     {},
     tabLocalStorage(),
     STORAGE_OPTS,
@@ -56,7 +49,7 @@ export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
  * goes through `persistSessionMessagesAtom` and every delete through `dropSessionMessagesAtom`.
  */
 const sessionRecordCountsAtom = atomWithStorage<Record<string, number>>(
-    "agenta:agent-chat:record-counts",
+    "agenta:agent-chat:record-counts:v2",
     {},
     tabLocalStorage(),
     STORAGE_OPTS,

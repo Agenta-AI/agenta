@@ -19,8 +19,18 @@ describe("isAcceptedType", () => {
         expect(isAcceptedType("image/png", DEFAULT_ATTACHMENT_LIMITS)).toBe(true)
     })
 
-    it("rejects an unlisted type", () => {
-        expect(isAcceptedType("application/zip", DEFAULT_ATTACHMENT_LIMITS)).toBe(false)
+    it("accepts any type under the defaults (the 'other' kind is enabled)", () => {
+        expect(isAcceptedType("application/zip", DEFAULT_ATTACHMENT_LIMITS)).toBe(true)
+    })
+
+    it("rejects a kind the limits exclude", () => {
+        const narrowed = {
+            ...DEFAULT_ATTACHMENT_LIMITS,
+            kinds: ["image", "audio", "document"] as const,
+        }
+        expect(isAcceptedType("application/zip", {...narrowed, kinds: [...narrowed.kinds]})).toBe(
+            false,
+        )
     })
 })
 
@@ -46,20 +56,27 @@ describe("validateIncoming", () => {
         expect(rejections).toEqual([])
     })
 
-    it("rejects an unsupported media type", () => {
+    it("rejects a media type whose kind the limits exclude", () => {
+        const limits = {
+            ...DEFAULT_ATTACHMENT_LIMITS,
+            kinds: ["image", "audio", "document"] as ("image" | "audio" | "document")[],
+        }
         const file = makeFile("a.zip", "application/zip", 1024)
-        const {accepted, rejections} = validateIncoming([file], 0)
+        const {accepted, rejections} = validateIncoming([file], 0, limits)
         expect(accepted).toEqual([])
         expect(rejections).toEqual([{name: "a.zip", reason: "isn't a supported file type"}])
     })
 
-    it("rejects a file over the per-file byte limit", () => {
-        const limits = {...DEFAULT_ATTACHMENT_LIMITS, maxBytes: 100}
+    it("rejects a file over its kind's byte limit", () => {
+        const limits = {
+            ...DEFAULT_ATTACHMENT_LIMITS,
+            maxBytes: {...DEFAULT_ATTACHMENT_LIMITS.maxBytes, image: 100},
+        }
         const file = makeFile("big.png", "image/png", 200)
         const {accepted, rejections} = validateIncoming([file], 0, limits)
         expect(accepted).toEqual([])
         expect(rejections).toEqual([
-            {name: "big.png", reason: "is too large (200 B) · max 100 B per file"},
+            {name: "big.png", reason: "is too large (200 B) · max 100 B for images"},
         ])
     })
 

@@ -1,5 +1,7 @@
 export * from "./useAgentChatQueue"
 export * from "./useAgentModelKeyStatus"
 export * from "./useComposerAttachments"
+export * from "./useAttachmentUploads"
 export * from "./useApprovalDock"
 export * from "./useAgentConversation"
+export * from "./useAlwaysAllowTool"

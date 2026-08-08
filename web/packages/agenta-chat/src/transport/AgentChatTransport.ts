@@ -1,10 +1,5 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/assets/AgentChatTransport.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
-// Adaptations: none — `createNegotiatingFetch`/`NegotiatingFetch` come from `@agenta/playground`
-// and `generateId` from `@agenta/shared/utils`, both already allowed package deps; no OSS-app
-// import was involved.
-import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground"
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
+import {createNegotiatingFetch, type NegotiatingFetch} from "@agenta/playground/agent-chat"
 import {generateId} from "@agenta/shared/utils"
 import {DefaultChatTransport, type UIMessage, type UIMessageChunk} from "ai"
 
@@ -209,6 +204,56 @@ function batchJsonToUiMessageStream(
     })
 }
 
+/** Per-piece pacing for the smooth stream: base cadence, and a per-chunk time budget so a
+ * huge delta (multiple paragraphs in one SSE event) still lands within about a second instead
+ * of faking a minute of typing. */
+const SMOOTH_BASE_MS = 18
+const SMOOTH_CHUNK_BUDGET_MS = 1200
+
+/**
+ * Smooth the text stream: the backend emits deltas at whatever granularity it batches (often
+ * several sentences or paragraphs per event), which makes the UI "type" whole paragraphs at
+ * once. This re-emits each text delta as word-sized pieces on a timed cadence, so downstream
+ * consumers (streamdown's token animation) see genuinely incremental text. Non-text chunks
+ * pass through in order (the pump is sequential, so a tool call never overtakes its preceding
+ * prose). The budget cap keeps total added latency bounded per chunk.
+ */
+function smoothTextStream(upstream: ReadableStream<AnyChunk>): ReadableStream<AnyChunk> {
+    const reader = upstream.getReader()
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+    return new ReadableStream<AnyChunk>({
+        async pull(controller) {
+            const {done, value} = await reader.read()
+            if (done) {
+                controller.close()
+                return
+            }
+            const chunk = value as {type?: string; delta?: string}
+            // Pace every delta-carrying chunk kind (text-delta, reasoning-delta, and any other
+            // alias the projection uses) — matching exact names is how thinking slipped through.
+            const paced = typeof chunk?.type === "string" && chunk.type.endsWith("-delta")
+            if (!paced || typeof chunk.delta !== "string") {
+                controller.enqueue(value)
+                return
+            }
+            // Split keeping whitespace attached to the preceding word, so reassembly is exact.
+            const pieces = chunk.delta.match(/\S+\s*|\s+/g) ?? [chunk.delta]
+            if (pieces.length <= 1) {
+                controller.enqueue(value)
+                return
+            }
+            const delay = Math.min(SMOOTH_BASE_MS, SMOOTH_CHUNK_BUDGET_MS / pieces.length)
+            for (const piece of pieces) {
+                controller.enqueue({...(value as object), delta: piece} as AnyChunk)
+                if (delay >= 1) await sleep(delay)
+            }
+        },
+        cancel(reason) {
+            return reader.cancel(reason)
+        },
+    })
+}
+
 export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
     private readonly negotiator: NegotiatingFetch
 
@@ -226,6 +271,7 @@ export class AgentChatTransport extends DefaultChatTransport<UIMessage> {
         // body stream (`resolvedMode(stream)`), so request and parse stay in lockstep.
         if (this.negotiator.resolvedMode(stream) === "batch")
             return batchJsonToUiMessageStream(stream)
-        return super.processResponseStream(stream)
+        // Live stream: smooth coarse backend deltas into word-paced pieces (typing feel).
+        return smoothTextStream(super.processResponseStream(stream))
     }
 }

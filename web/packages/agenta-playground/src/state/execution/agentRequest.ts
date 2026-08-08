@@ -36,7 +36,7 @@ import {getDefaultStore} from "jotai"
 
 import {withBuildKitOverlay} from "./buildKitOverlay"
 import {agentChannelModeAtomFamily} from "./channelMode"
-import {executionHeadersAtom} from "./webWorkerIntegration"
+import {executionHeadersAtom} from "./executionHeaders"
 
 // Re-exported so existing consumers keep importing it from the request builder; the merge
 // implementation now lives in `buildKitOverlay.ts`.
