@@ -1,7 +1,8 @@
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 from agenta.sdk.agents.fold import fold
+from redis.asyncio import Redis
 
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
@@ -20,6 +21,8 @@ from oss.src.core.channels.types import ChannelConnectionNotFound, ChannelSpaceN
 from oss.src.core.channels.utils import compose_idempotency_key, compose_outbox_key
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
+from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -29,9 +32,7 @@ class ChannelsOutboxWorker:
     """Fold, render, post, receipt — one turn at a time.
 
     Entity-agnostic and self-contained: every dependency is a service
-    interface, so tests drive it without a broker. `poll_turn` is the single
-    call boundary a future session-events swap replaces — the rest
-    (fold/render/post/receipt) is unaffected by that swap.
+    interface, so tests drive it without a broker.
 
     Reaches `channels_service.channels_dao` directly for the outbox
     read/write methods (`fetch_outbox_event_by_key`, `record_outbox_event`,
@@ -51,15 +52,19 @@ class ChannelsOutboxWorker:
         self.turns_service = turns_service
         self.records_service = records_service
 
-    # --- polling (interim — delete, don't flag, once session events land) - #
+    # --- driven by the session-turn stream ---------------------------------#
 
-    async def poll_turn(self, *, project_id: UUID, session_id: str) -> None:
-        """Stand-in for turn-started/turn-ended events.
-
-        Deleted, not disabled, once the turns service publishes: the two call
-        sites below (on_turn_started/on_turn_ended) are unaffected and become
-        driven by the event payload instead of a poll tick.
-        """
+    async def handle_turn_event(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        kind: str,
+    ) -> None:
+        """Routes one `SessionTurnEvent` to its handler by its own `kind` —
+        no re-read of `latest_turn`, so a concurrent second turn on the same
+        session can never be mistaken for this one."""
 
         thread = await self._fetch_thread_for_session(
             project_id=project_id, session_id=session_id
@@ -67,19 +72,11 @@ class ChannelsOutboxWorker:
         if thread is None:
             return  # no channel_threads row for this session — not our turn
 
-        turn = await self.turns_service.latest_turn(
-            project_id=project_id, session_id=session_id
-        )
-        if turn is None or turn.turn_id is None:
-            return
-
-        turn_id = str(turn.turn_id)
-
-        if turn.end_time is None:
+        if kind == "turn_started":
             await self.on_turn_started(
                 project_id=project_id, thread=thread, turn_id=turn_id
             )
-        else:
+        elif kind == "turn_ended":
             await self.on_turn_ended(
                 project_id=project_id,
                 thread=thread,
@@ -290,3 +287,79 @@ class ChannelsOutboxWorker:
         )
 
         return connection, capabilities
+
+
+class ChannelsOutboxStreamWorker(StreamConsumer):
+    """Consumes `streams:sessions` and drives `ChannelsOutboxWorker` off each
+    event's own `kind`/`turn_id`.
+
+    Consumes from: streams:sessions
+    Consumer group: worker-sessions-channels-outbox
+
+    Unlike the sibling spans/records/events streams, this payload is plain
+    JSON (`orjson.dumps`, no zlib) — `deserialize_turn_event` matches that.
+    """
+
+    log_prefix = "[SESSIONS-OUTBOX]"
+
+    def __init__(
+        self,
+        *,
+        outbox: ChannelsOutboxWorker,
+        redis_client: Redis,
+        stream_name: str,
+        consumer_group: str,
+        consumer_name: Optional[str] = None,
+        max_batch_size: int = 50,
+        max_block_ms: int = 5000,
+        max_delay_ms: int = 250,
+        max_batch_mb: int = 50,
+    ):
+        super().__init__(
+            redis_client=redis_client,
+            stream_name=stream_name,
+            consumer_group=consumer_group,
+            consumer_name=consumer_name,
+            max_batch_size=max_batch_size,
+            max_block_ms=max_block_ms,
+            max_delay_ms=max_delay_ms,
+            max_batch_mb=max_batch_mb,
+        )
+        self.outbox = outbox
+
+    async def process_batch(
+        self,
+        batch: List[Tuple[bytes, Dict[bytes, bytes]]],
+    ) -> Tuple[int, List[bytes]]:
+        processed_ids: List[bytes] = []
+
+        for msg_id, data in batch:
+            try:
+                turn_event = deserialize_turn_event(payload=data[b"data"])
+            except Exception:
+                log.error(
+                    "[SESSIONS-OUTBOX] Failed to deserialize message",
+                    msg_id=repr(msg_id),
+                    exc_info=True,
+                )
+                processed_ids.append(msg_id)  # unparseable: ack to avoid PEL buildup
+                continue
+
+            try:
+                await self.outbox.handle_turn_event(
+                    project_id=turn_event.project_id,
+                    session_id=turn_event.session_id,
+                    turn_id=turn_event.turn_id,
+                    kind=turn_event.kind,
+                )
+                processed_ids.append(msg_id)
+            except Exception:
+                log.error(
+                    "[SESSIONS-OUTBOX] Failed to handle turn event",
+                    msg_id=repr(msg_id),
+                    turn_id=turn_event.turn_id,
+                    exc_info=True,
+                )
+                # left un-acked: pending, retried on the next read
+
+        return len(processed_ids), processed_ids

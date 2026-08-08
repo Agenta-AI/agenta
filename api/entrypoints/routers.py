@@ -164,6 +164,7 @@ from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
+from oss.src.core.channels.adapters.mock.adapter import MockAdapter
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
 from oss.src.core.channels.identity import ChannelIdentityService
@@ -171,9 +172,7 @@ from oss.src.core.channels.service import ChannelsService
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.apis.fastapi.channels.router import ChannelsRouter
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
-from oss.src.tasks.asyncio.channels.outbox import ChannelsOutboxWorker
 from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
-from oss.src.tasks.taskiq.channels.outbox_worker import ChannelsOutboxTaskWorker
 
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
@@ -277,7 +276,6 @@ async def lifespan(*args, **kwargs):
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()
-    await _channels_outbox_broker.startup()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -325,7 +323,6 @@ async def lifespan(*args, **kwargs):
 
     await _triggers_broker.shutdown()
     await _channels_inbox_broker.shutdown()
-    await _channels_outbox_broker.shutdown()
 
     for adapter in _composio_adapters.values():
         await adapter.close()
@@ -1071,6 +1068,9 @@ triggers = TriggersRouter(
 channels_adapter_registry = ChannelAdapterRegistry(
     adapters={
         "slack": SlackAdapter(),
+        # No credentials needed: drives the whole pipeline (commands,
+        # backfill, outbox) without a real platform.
+        "mock": MockAdapter(),
     }
 )
 
@@ -1102,30 +1102,12 @@ _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
     workflows_service=workflows_service,
     identity_service=channels_identity_service,
+    streams_service=session_streams_service,
 )
 
 _channels_inbox_worker = ChannelsInboxWorker(
     broker=_channels_inbox_broker,
     dispatcher=_channels_inbox_dispatcher,
-)
-
-_channels_outbox_broker = ProducerOnlyRedisStreamBroker(
-    url=env.redis.uri_durable,
-    queue_name="queues:channels-outbox",
-    consumer_group_name="api-channels-outbox-producer",
-    maxlen=100_000,
-    approximate=True,
-)
-
-_channels_outbox = ChannelsOutboxWorker(
-    channels_service=channels_service,
-    turns_service=session_turns_service,
-    records_service=records_service,
-)
-
-_channels_outbox_worker = ChannelsOutboxTaskWorker(
-    broker=_channels_outbox_broker,
-    outbox=_channels_outbox,
 )
 
 channels_ingress = ChannelsIngressRouter(
