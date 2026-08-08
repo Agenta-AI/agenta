@@ -45,6 +45,7 @@ def test_subclass_missing_one_method_also_raises_type_error():
 def test_every_method_is_abstract():
     assert set(ChannelAdapterInterface.__abstractmethods__) == {
         "fetch_capabilities",
+        "installation_hint",
         "verify_signature",
         "parse_event",
         "post_message",

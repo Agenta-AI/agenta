@@ -72,6 +72,9 @@ class _LocalFakeAdapter(ChannelAdapterInterface):
     async def fetch_capabilities(self) -> ChannelCapabilities:
         return self._capabilities
 
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        raise NotImplementedError
+
     async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
         raise NotImplementedError
 

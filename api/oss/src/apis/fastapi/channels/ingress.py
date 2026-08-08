@@ -164,7 +164,10 @@ class ChannelsIngressRouter:
             connection=connection,
         )
 
-        # The claim only chose the secret; the verified id is what has to match.
+        # The claim only chose the secret. Adapters that derive the id from the
+        # body rather than from the connection can still return one that belongs
+        # to a different install, so the verified id must match the connection
+        # the secret came from.
         if external_id != connection.integration_key:
             raise ChannelSignatureInvalid(channel=channel)
 

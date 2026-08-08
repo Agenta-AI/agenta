@@ -67,7 +67,17 @@ class MockAdapter(ChannelAdapterInterface):
 
     # --- ingress --- #
 
-    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
+    def installation_hint(self, *, body: bytes) -> Optional[str]:
+        # Fixed, like the id verification returns: this adapter has one install.
+        return self._installation_id
+
+    async def verify_signature(
+        self,
+        *,
+        headers: Dict[str, str],
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+    ) -> str:
         lowered = {k.lower(): v for k, v in headers.items()}
         if lowered.get(self._signature_header) != self._signature_value:
             raise ChannelSignatureInvalid(channel=self.channel)

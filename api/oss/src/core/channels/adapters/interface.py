@@ -24,6 +24,7 @@ class ChannelAdapterInterface(ABC):
 
     # --- ingress ---
 
+    @abstractmethod
     def installation_hint(self, *, body: bytes) -> Optional[str]:
         """The installation this body claims to come from, read without any
         secret, so the caller can look up which connection to verify against.
@@ -32,9 +33,11 @@ class ChannelAdapterInterface(ABC):
         then checked with. A wrong or forged hint resolves to no connection, or
         to one whose secret fails — refused either way, so the signature stays
         the only thing that decides.
-        """
 
-        return None
+        Abstract rather than defaulted: returning None here means the ingress
+        resolves no connection and refuses every event for that channel, which
+        is silent. An adapter must say what its claim is, even if it is fixed.
+        """
 
     @abstractmethod
     async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
