@@ -9,10 +9,22 @@ context than `v2/`.
 add what was missed. Neither carries history; the design documents in `v2/` remain
 the source of truth and a spec that disagrees with them is a bug in the spec.
 
-Clean-up work that belongs to no package — a collision file, a cross-cutting
-sweep — goes in a `tasks-cu*.md` ledger and is done at the checkpoint, not in a
-worktree. [`tasks-cu.md`](tasks-cu.md) covered wave 3 and is closed;
-[`tasks-cu2.md`](tasks-cu2.md) is wave 4's.
+Clean-up work that belongs to no package goes in that wave's `tasks-cu-*.md` ledger
+and is done at the checkpoint, not in a worktree.
+[`tasks-cu.md`](tasks-cu.md) covered wave 3 and is closed;
+[`tasks-cu-wave4.md`](tasks-cu-wave4.md) is wave 4's.
+
+**A wave is a cycle, not a fan-out.** Wave k runs from C(k-1) to Ck as:
+
+```
+CU-A  →  packages  →  merge  →  CU-B  →  deploy  →  CU-C  →  Ck reached
+```
+
+CU-A unblocks the packages; CU-B catches what only appears when they meet; CU-C
+catches what only a real stack shows. The history justifies all three — 13 of this
+project's findings came from clean-up and verification phases against 14 from the
+packages themselves, and the conflict-free green C2 merge still yielded four defects
+on its first integration run.
 
 Anything that outlives a single package — a cross-package seam, a pre-existing
 defect, something blocked on a checkpoint — goes in [`../findings.md`](../findings.md),
@@ -157,7 +169,7 @@ and the checklist that says C1 has actually been reached.
 | [specs-wp18.md](specs-wp18.md) | [tasks-wp18.md](tasks-wp18.md) | Connect what wave 3 built |
 | [specs-wp19.md](specs-wp19.md) | [tasks-wp19.md](tasks-wp19.md) | The bridge `source` contract |
 | — | [tasks-cu.md](tasks-cu.md) | Clean-up before wave 3 (closed) |
-| — | [tasks-cu2.md](tasks-cu2.md) | Clean-up before wave 4 |
+| — | [tasks-cu-wave4.md](tasks-cu-wave4.md) | Wave 4's three clean-up phases |
 
 ## Migrations are never verified by pytest
 

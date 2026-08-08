@@ -199,7 +199,20 @@ merged as one edit rather than two.
 
 ### C3 — Wave 3: it is pleasant
 
-**Wave k runs from C(k-1) to Ck and merges at Ck.** That identity holds throughout:
+**Wave k runs from C(k-1) to Ck.** A wave is a **cycle**, not a fan-out:
+
+```
+CU-A  →  packages  →  merge  →  CU-B  →  deploy  →  CU-C  →  Ck reached
+```
+
+CU-A unblocks the packages. CU-B catches what only appears when they meet — the
+reachability sweep, the seam review, the canonical run. CU-C catches what only a real
+stack shows, and holds the exit condition. **Ck is reached after CU-C, not at the
+merge.** Of this project's findings, 13 came from clean-up and verification phases
+against 14 from the packages; the C2 merge was conflict-free and green and still
+yielded four defects on its first integration run.
+
+That identity holds throughout:
 wave 1 → WP1–WP3 → `channels-c1`; wave 2 → WP4–WP8 → `channels-c2`; wave 3 → WP0, WP9,
 WP10, WP13, WP15, WP16 → `channels-c3`; wave 4 → WP18, WP19, WP12, WP17, WP11 →
 `channels-c4`. A branch named `channels-ck` holds Ck. Nothing lags.
