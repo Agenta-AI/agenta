@@ -13,3 +13,5 @@ export {AgentRosterGrid, type AgentRosterEntry, type AgentRosterGridProps} from 
 export {AgentOverviewLayout, type AgentOverviewLayoutProps} from "./AgentOverviewLayout"
 export {AgentFilesCard} from "./AgentFilesCard"
 export {AgentOverviewBody, type AgentOverviewBodyProps} from "./AgentOverviewBody"
+export {AgentActionsMenu, type AgentActionsMenuProps} from "./AgentActionsMenu"
+export {useAgentActions, type AgentActionTarget} from "./useAgentActions"
