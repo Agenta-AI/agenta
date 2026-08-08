@@ -4,6 +4,14 @@ Findings that no wave-4 package owns, done in `channels-c3` before any worktree 
 launched. Same shape as [`tasks-cu.md`](tasks-cu.md), which covered the wave-3
 clean-up and is closed.
 
+**Where we are, precisely.** Wave k runs from C(k-1) to Ck and merges at Ck; a branch
+named `channels-ck` holds Ck. So `channels-c3` holds wave 3's six merged packages, and
+wave 4 merges into `channels-c4`.
+
+C3's packages are in, but **C3's exit condition is not met** — "each command works in a
+real space" and "WP5's polling is deleted" are both still false, because `F36` left four
+of five capabilities with no callers. That is what wave 4 fixes.
+
 **Verify with the canonical configuration only.** From the **repo root** — the
 wrapper appends the component to `$PWD`, so running it from inside `api/` fails:
 
@@ -136,9 +144,9 @@ cross-package defect in this project so far.
 drop the reference. `CU-2` removed 109 such lines; four of five wave-3 briefs omitted
 this rule and every one of them reintroduced them.
 
-## Then C5
+## Then C4
 
-Merge in the order above into a `channels-c5` worktree, resolve the seams, get the
+Merge in the order above into a `channels-c4` worktree, resolve the seams, get the
 canonical run green. **Then** the exit condition: a message enters through a channel
 the platform does not know about, becomes a turn, and an answer comes back out, with
 no credentials of any kind.

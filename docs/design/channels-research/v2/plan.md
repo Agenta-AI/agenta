@@ -197,18 +197,22 @@ a running turn is retried until accepted, never dropped, never duplicated.
 **Serialised here:** both workers' registration in `api/entrypoints/routers.py`,
 merged as one edit rather than two.
 
-### C3 — Slack works
+### C3 — Wave 3: it is pleasant
 
-**Merges:** nothing — WP6 and WP8 landed at C2, ready together with the rest of
-wave 2. **Needs:** C2, and `F1` applied — done: the adapter registry, the inbox
-dispatch task, the two worker queues and the configuration router are wired.
+**Wave k runs from C(k-1) to Ck and merges at Ck.** That identity holds throughout:
+wave 1 → WP1–WP3 → `channels-c1`; wave 2 → WP4–WP8 → `channels-c2`; wave 3 → WP0, WP9,
+WP10, WP13, WP15, WP16 → `channels-c3`; wave 4 → WP18, WP19, WP12, WP17, WP11 →
+`channels-c4`. A branch named `channels-ck` holds Ck. Nothing lags.
 
-C3 is therefore a **verification** checkpoint over merged code, not a merge. The
-wiring is structural; C3 is where a message first travels the path.
+An earlier draft of this plan broke that by inserting a merge-nothing "Slack works"
+verification checkpoint between C2 and the wave-3 merge, which pushed every later
+number up by one and made "the merge happened but the checkpoint did not" seem like a
+real distinction. It was not. Verification belongs to the wave whose work it verifies,
+as an exit condition — not to a checkpoint of its own.
 
-The first real platform, and the first checkpoint a person outside the team could
-use. WP8 joins here rather than earlier because a real channel is the first thing
-that makes configuration worth having a UI-shaped API for.
+**What that old C3 asked for is now split correctly:** the parts provable without
+credentials are C4's exit condition; the parts needing a real Slack workspace are C5;
+and the button clause was never achievable at all (`F38`, `WP20`, C6).
 
 **Exit condition:** a mention in a real Slack workspace produces an answer in the
 same thread; an approval resolves from a button click without opening a browser; an
@@ -216,7 +220,7 @@ operator can configure a connection end to end over the API.
 
 **The button clause was never achievable and is now deferred.** `F38`: nothing parses
 a button click — `parse_event` returns `None` for anything that is not
-`event_callback`, and a click arrives as `block_actions`. It is `WP20` at C7. This
+`event_callback`, and a click arrives as `block_actions`. It is `WP20` at C6. This
 clause is left in place as written rather than quietly edited, because it is what C3
 promised; C6 meets it minus interactivity.
 
@@ -246,16 +250,14 @@ mention, no button approval, no turn. `F36` is why — commands, fill and the mo
 adapter have no callers, and `F31` leaves `streams:sessions` unconsumed. C3 is
 *deployable and verified*, not *proved*.
 
-### C4 — It is pleasant
-
-**Merges:** WP15, then WP16; and WP0, WP9, WP10, WP13. **Needs:** C3.
+**Merges:** WP15, then WP16; and WP0, WP9, WP10, WP13. **Needs:** C2.
 
 **Merged, and the exit condition is NOT met.** All six are in `channels-c3`: api
 2754 unit / 43 integration / 802 acceptance, web 252, zero conflicts, deployed and
 green. But `F36` — commands, fill and the mock adapter have no callers at all, and
 `F31` leaves `streams:sessions` unconsumed, so "each command works in a real space"
 and "WP5's polling is deleted" are both still false. **The remaining work is wave 4
-(C5), below.** C4 delivered the packages; it did not connect them.
+(C4), below.** C3 delivered the packages; it did not connect them.
 
 **WP15 → WP16 is ordered within the checkpoint**, the same way WP12 → WP11 is at
 C6, and for the same reason: each pair is a channel-shaped harness plus the real
@@ -289,9 +291,9 @@ mentions arrive as context on the next trigger; the flag — never a count of
 `PULLED` rows — guards the one-time fetch, and a refusal leaves it false. WP5's
 polling is deleted, not disabled.
 
-### C5 — Wave 4: it actually runs (no credentials)
+### C4 — Wave 4: it actually runs (no credentials)
 
-**Merges:** WP18; then WP19, WP12, WP17, WP11 in that order. **Needs:** C4's
+**Merges:** WP18; then WP19, WP12, WP17, WP11 in that order. **Needs:** C3's
 packages, which are merged. **This is everything that is left** — apart from WP14
 and the further channels, both deferred to the very end.
 
@@ -427,9 +429,9 @@ WP5's polling and that is impossible without the events.
 
 ---
 
-### C6 — Real Slack
+### C5 — Real Slack
 
-**Merges:** nothing new. **Needs:** C5.
+**Merges:** nothing new. **Needs:** C4.
 
 A verification checkpoint, not a merge: the same code C5 proved against fakes, now
 pointed at a real Slack workspace — both ways, in process via `/channels/slack/` and
@@ -446,18 +448,18 @@ thread, and the bridged run agrees with the in-process one on the same real inst
 
 **Not the button clause.** C3's original exit condition also asked that "an approval
 resolves from a button click without opening a browser" — that is `F38`, deferred to
-C7 as **WP20**, because nothing parses a button click today. C6 therefore meets C3's
+C6 as **WP20**, because nothing parses a button click today. C5 therefore meets the
 condition *minus* interactivity, and saying so is better than carrying a clause no
 checkpoint can pass. Buttons are still *posted* correctly; they are simply not yet
 *clickable*.
 
-**What this catches that C5 cannot:** everything the fake was built from our own
+**What this catches that C4 cannot:** everything the fake was built from our own
 reading of Slack's behaviour rather than from Slack. A fake encodes assumptions, and
 this is where they are checked.
 
-### C7 — Later, and openly deferred
+### C6 — Later, and openly deferred
 
-**Merges:** WP14, then the further channels. **Needs:** C6.
+**Merges:** WP14, WP20, then the further channels. **Needs:** C5.
 
 - **WP14 — input sequencing.** Deferred to the very end throughout this plan, and
   still: nothing structural waits on it, and it improves C2's behaviour whenever it
