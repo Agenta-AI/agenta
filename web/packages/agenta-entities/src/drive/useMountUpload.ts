@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {type Mount} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {projectIdAtom} from "@/oss/state/project"
+import {type Mount} from "@agenta/entities/session"
 
 import {uploadMountFile} from "./driveMedia"
 import {type DroppedFile} from "./dropEntries"

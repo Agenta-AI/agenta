@@ -5,16 +5,10 @@
  * resolve the same session/artifact drive via {@link useConfigDrive} and share one drawer request
  * via {@link configFilesDrawerAtomFamily}, keyed by the edited revision.
  */
-import {isSessionFresh} from "@agenta/chat/state"
-import {workflowMolecule} from "@agenta/entities/workflow"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
-import {
-    activeSessionIdAtomFamily,
-    sessionsListAtomFamily,
-} from "@/oss/components/AgentChatSlice/state/sessions"
+import {workflowMolecule} from "@agenta/entities/workflow"
 
 import {type DroppedFile} from "./dropEntries"
 import {useSessionDriveSummary, type SessionDriveData} from "./useSessionDrive"
@@ -33,28 +27,28 @@ export const configFilesDrawerAtomFamily = atomFamily((_revisionId: string) =>
 )
 
 /**
- * The drive backing the config panel's Files region: the active conversation's cwd mount plus the
- * agent's durable folder (resolved from the edited revision's artifact). Resolves the session id
- * the same way the chat does — a stale active id (closed tab) falls back to the first open tab,
- * and a brand-new never-run tab holds the queries off until its first run.
+ * The drive backing the config panel's Files region: the conversation's cwd mount plus the
+ * agent's durable folder (resolved from the edited revision's artifact).
+ *
+ * The SESSION is the host's to resolve and is passed in — the desktop derives it from its open
+ * chat tabs (a stale active id falls back to the first open tab, a never-run tab resolves to
+ * none), a session-scoped surface already knows it. An empty id holds the queries off, which is
+ * the "open a conversation to browse them here" state.
  */
-export function useConfigDrive(revisionId?: string | null): {
+export function useConfigDrive(
+    revisionId?: string | null,
+    sessionId?: string | null,
+): {
     drive: SessionDriveData
     sessionId: string
     artifactId?: string
 } {
-    const scope = useChatScopeKey()
     const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(revisionId ?? ""))
-    const sessions = useAtomValue(sessionsListAtomFamily(scope))
-    const rawActiveId = useAtomValue(activeSessionIdAtomFamily(scope))
-    const resolvedId = sessions.some((s) => s.id === rawActiveId)
-        ? rawActiveId
-        : (sessions[0]?.id ?? "")
-    const sessionId = resolvedId && !isSessionFresh(resolvedId) ? resolvedId : ""
+    const resolvedSessionId = sessionId ?? ""
 
     // Summary only: the config header/body show a count + the latest handful. The browse drawer
     // gets its own full drive, gated on open (see StorageSection), so the whole tree is never
     // fetched just to render this always-mounted section.
-    const drive = useSessionDriveSummary(sessionId, artifactId ?? undefined)
-    return {drive, sessionId, artifactId: artifactId ?? undefined}
+    const drive = useSessionDriveSummary(resolvedSessionId, artifactId ?? undefined)
+    return {drive, sessionId: resolvedSessionId, artifactId: artifactId ?? undefined}
 }

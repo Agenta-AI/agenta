@@ -7,8 +7,9 @@
  * clone keeps objects in a packfile (zlib + deltas), impractical to unpack in the browser — so we
  * surface branch, remote and the HEAD short SHA, which are all plain text.
  */
-import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 import {useAtomValue} from "jotai"
+
+import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
 
 const SHA_RE = /^[0-9a-f]{40}$/i
 

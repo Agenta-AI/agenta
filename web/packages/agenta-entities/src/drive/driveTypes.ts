@@ -10,3 +10,12 @@ export interface DriveId {
     label: string
     value: string
 }
+
+/** A file staged for upload but not yet committed to the drive. */
+export interface StagedTileItem {
+    id: string
+    name: string
+    file: File
+    /** Object URL for an image preview, else null (icon fallback). Owned by DriveExplorer. */
+    previewUrl: string | null
+}

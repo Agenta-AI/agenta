@@ -1,5 +1,7 @@
 import {useCallback, useMemo} from "react"
 
+import {useAtomValue} from "jotai"
+
 import {
     latestMountFilesQueryFamily,
     mountFilesQueryFamily,
@@ -11,7 +13,6 @@ import {
     type Mount,
     type MountFile,
 } from "@agenta/entities/session"
-import {useAtomValue} from "jotai"
 
 import {agentMountQueryFamily} from "./agentDrive"
 import {cleanPath, driveFileStats, isInternalDrivePath, relativeTime} from "./driveTree"

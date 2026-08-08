@@ -4,11 +4,11 @@
  * runner, so `null` covers both "backend not deployed yet" and "agent never ran": the App drive
  * row simply stays gated until a mount appears, and lights up by itself once one does.
  */
-import {queryAgentMounts, type Mount} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {projectIdAtom} from "@/oss/state/project"
+import {queryAgentMounts, type Mount} from "@agenta/entities/session"
 
 export const agentMountQueryFamily = atomFamily((artifactId: string) =>
     atomWithQuery<Mount | null>((get) => {
