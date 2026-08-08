@@ -2,6 +2,7 @@ import {useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentOverviewBody, agentAvatar} from "@agenta/entity-ui/agent"
+import {UsageCard} from "@agenta/home-ui"
 import {useAtomValue} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -52,7 +53,7 @@ export const AgentOverviewScreen = ({
                 <ScreenScaffold
                     fill
                     header={
-                        <div className="border-border shrink-0 border-b px-2 pb-3 pt-2 lg:px-6">
+                        <div className="border-border shrink-0 border-b px-2 pb-3 pt-2 lg:px-16">
                             <ContentRail className="flex items-center gap-2 lg:max-w-none">
                                 {/* Nav is the drawer, as on every other screen — not a per-screen
                                     back button. Home is one drawer entry away. */}
@@ -76,7 +77,7 @@ export const AgentOverviewScreen = ({
                     {/* `flex flex-col` is load-bearing: the body's columns size off `flex-1` +
                         `h-full`, so a plain block here leaves them with no definite height and
                         the left column scrolls inside a stunted box. */}
-                    <ContentRail className="flex min-h-0 flex-1 flex-col px-2 pb-4 pt-2 lg:max-w-none lg:px-6 lg:pb-6 lg:pt-5">
+                    <ContentRail className="flex min-h-0 flex-1 flex-col px-2 pb-4 pt-2 lg:max-w-none lg:px-16 lg:pb-6 lg:pt-5">
                         <AgentOverviewBody
                             alwaysShowPin
                             composer={
@@ -84,6 +85,7 @@ export const AgentOverviewScreen = ({
                             }
                             agentId={agentId}
                             agentNames={agentNames}
+                            usage={<UsageCard appId={agentId} />}
                             sessionsHref={`${base}/sessions`}
                             onOpenRow={sessionMenu.open}
                             menuFor={sessionMenu.menuFor}
