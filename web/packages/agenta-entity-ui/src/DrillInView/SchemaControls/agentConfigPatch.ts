@@ -1,7 +1,8 @@
 /**
- * agentConfigPatch — set an agent template's model or harness from OUTSIDE the config drawer.
+ * agentConfigPatch — set an agent template's model, harness, or permission policy from OUTSIDE the
+ * config drawer.
  *
- * The chat composer's `/model` and `/harness` commands write through these. Same contract as
+ * The chat composer's `/model`, `/harness`, and `/permissions` commands write through these. Same contract as
  * `toolPermission`'s `withToolPermission`: pure, `parameters`-in / `parameters`-out, and located
  * via `locateTemplate` so the write lands exactly where `buildAgentRequest` reads from (the run
  * reads the draft config, so the change takes effect on the next send without a commit).
@@ -10,6 +11,7 @@
  * `composeModelValue`, `harness.kind` via a section replace) without its React state.
  */
 import {composeModelValue, connectionFromConfig, type ConnectionMode} from "./connectionUtils"
+import {isPermissionPolicy, type PermissionPolicy} from "./permissionPolicy"
 import {locateTemplate} from "./toolPermission"
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -56,6 +58,30 @@ export function withHarnessKind(parameters: unknown, kind: string): Record<strin
     const {template, wrap} = locateTemplate(parameters)
     const harness = isRecord(template.harness) ? template.harness : {}
     return wrap({...template, harness: {...harness, kind}})
+}
+
+/**
+ * Set `agent.runner.permissions.default`. The rules list beside it rides through untouched — the
+ * palette picks a policy, rule editing stays in the config drawer.
+ */
+export function withRunnerPermission(
+    parameters: unknown,
+    policy: string,
+): Record<string, unknown> | null {
+    if (!isRecord(parameters) || !isPermissionPolicy(policy)) return null
+    const {template, wrap} = locateTemplate(parameters)
+    const runner = isRecord(template.runner) ? template.runner : {}
+    const permissions = isRecord(runner.permissions) ? runner.permissions : {}
+    return wrap({...template, runner: {...runner, permissions: {...permissions, default: policy}}})
+}
+
+/** The stored default policy, or null when the template names none. */
+export function readRunnerPermission(parameters: unknown): PermissionPolicy | null {
+    if (!isRecord(parameters)) return null
+    const runner = locateTemplate(parameters).template.runner
+    if (!isRecord(runner) || !isRecord(runner.permissions)) return null
+    const stored = runner.permissions.default
+    return isPermissionPolicy(stored) ? stored : null
 }
 
 /** The stored model id, or null. Reads the ModelRef the same way the picker does. */

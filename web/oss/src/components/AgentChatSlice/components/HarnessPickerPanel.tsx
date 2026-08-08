@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import type {HarnessCapabilitiesMap} from "@agenta/entities/workflow"
 import {
@@ -27,7 +27,8 @@ const HarnessPickerPanel = ({
     currentHarness,
     currentModel,
     onApply,
-    onBack,
+    onDismiss,
+    onBackToCommands,
     onOpenConfig,
 }: {
     harnessIds: string[]
@@ -35,15 +36,38 @@ const HarnessPickerPanel = ({
     currentHarness: string | null
     currentModel: string | null
     onApply: (kind: string) => void
-    onBack: () => void
+    /** Escape / a click outside — drop the picker and leave the composer as it is. */
+    onDismiss: () => void
+    /** Step back one level: the host restores the `/` this picker consumed. */
+    onBackToCommands: () => void
     onOpenConfig: () => void
 }) => {
     const [selected, setSelected] = useState(() => currentHarness ?? harnessIds[0] ?? null)
+    const rootRef = useRef<HTMLDivElement | null>(null)
 
     // The list arrives with the capability catalog, so seed the selection once it lands.
     useEffect(() => {
         if (!selected && harnessIds.length) setSelected(currentHarness ?? harnessIds[0])
     }, [currentHarness, harnessIds, selected])
+
+    // No trigger to toggle it and nothing above it dismisses it, so the panel owns that itself.
+    useEffect(() => {
+        const onPointerDown = (event: PointerEvent) => {
+            const node = event.target as Node | null
+            if (node && rootRef.current?.contains(node)) return
+            onDismiss()
+        }
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") onDismiss()
+        }
+        // Capture, so a handler that stops propagation cannot strand the panel open.
+        document.addEventListener("pointerdown", onPointerDown, true)
+        document.addEventListener("keydown", onKeyDown, true)
+        return () => {
+            document.removeEventListener("pointerdown", onPointerDown, true)
+            document.removeEventListener("keydown", onKeyDown, true)
+        }
+    }, [onDismiss])
 
     const meta: HarnessMeta | null = selected ? harnessMetaFor(selected) : null
     const providers = selected ? allowedProviders(capabilities, selected) : []
@@ -70,7 +94,10 @@ const HarnessPickerPanel = ({
     }
 
     return (
-        <div className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-[0_14px_36px_rgba(28,44,61,.14),0_2px_6px_rgba(28,44,61,.06)]">
+        <div
+            ref={rootRef}
+            className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-[0_14px_36px_rgba(28,44,61,.14),0_2px_6px_rgba(28,44,61,.06)]"
+        >
             <div className="flex items-center gap-2 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] px-[13px] py-2.5">
                 <Cube size={14} className="text-[var(--ag-colorSuccess)]" />
                 <span className="text-xs font-medium text-[var(--ag-colorText)]">Harness</span>
@@ -113,7 +140,13 @@ const HarnessPickerPanel = ({
                     })}
                 </div>
 
-                <div className="flex min-w-0 flex-1 flex-col px-4 py-3.5">
+                {/* Keyed on the selection so picking another harness crossfades the detail rather
+                    than swapping every line at once. Opacity only — this is text being read to
+                    make a decision, so it must not move. */}
+                <div
+                    key={selected}
+                    className="flex min-w-0 flex-1 animate-command-panel-swap flex-col px-4 py-3.5"
+                >
                     <div className="flex items-center gap-[9px]">
                         <span className="text-sm font-semibold text-[var(--ag-colorText)]">
                             {meta?.label ?? "—"}
@@ -174,9 +207,6 @@ const HarnessPickerPanel = ({
                                 Use {meta?.label ?? "harness"}
                             </Button>
                         )}
-                        <Button size="small" onClick={onBack}>
-                            Back
-                        </Button>
                     </div>
                 </div>
             </div>
@@ -192,7 +222,7 @@ const HarnessPickerPanel = ({
                 </button>
                 <button
                     type="button"
-                    onClick={onBack}
+                    onClick={onBackToCommands}
                     className="ml-auto cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
                 >
                     ← back to commands

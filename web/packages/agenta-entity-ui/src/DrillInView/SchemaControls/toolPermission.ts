@@ -100,7 +100,7 @@ export interface GrantableTool {
 // rule editor also offers.
 
 /** Platform ops (overlay-injected). These must ALWAYS gate — never auto-allowable from the card. */
-const PLATFORM_OPS = new Set([
+export const PLATFORM_OPS = new Set([
     "discover_tools",
     "query_workflows",
     "query_spans",
@@ -124,7 +124,7 @@ const PLATFORM_OPS = new Set([
 ])
 
 /** Browser-fulfilled client tools — they carry their own widget/decline UI; never auto-allowable. */
-const CLIENT_TOOLS = new Set(["request_connection", "request_input"])
+export const CLIENT_TOOLS = new Set(["request_connection", "request_input"])
 
 /** The seven built-ins by lower-cased name, so a gate can be written under its canonical name. */
 const PI_BUILTIN_CANONICAL_NAMES = new Map<string, string>(

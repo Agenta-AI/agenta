@@ -35,6 +35,8 @@ import {SubmitPlugin} from "./plugins/SubmitPlugin"
 /** Imperative handle for prefill / clear / focus (e.g. rewind-to-edit). */
 export interface RichChatInputHandle {
     focus: () => void
+    /** Drop focus before handing the keyboard to an overlay — see `blur` in the implementation. */
+    blur: () => void
     clear: () => void
     setMarkdown: (markdown: string) => void
     /** Read the current content as markdown without submitting (e.g. non-Enter actions). */
@@ -184,6 +186,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         useImperativeHandle(
             ref,
             () => ({
+                // A focused editor re-asserts its selection on the next reconcile, which reads as
+                // focus theft to an overlay that just autofocused itself (it dismisses).
+                blur: () => editorRef.current?.blur(),
                 focus: () => editorRef.current?.focus(),
                 clear: () =>
                     editorRef.current?.update(() => {

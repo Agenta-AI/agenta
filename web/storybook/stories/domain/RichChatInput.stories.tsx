@@ -1,9 +1,11 @@
 import {useRef, useState} from "react"
 
+import {permissionPolicyLabel, type PermissionPolicy} from "@agenta/entity-ui/drill-in"
 import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/HarnessPickerPanel"
+import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/PermissionsPickerPanel"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {BookOpen, Cube, Paperclip, Plug, Sparkle} from "@phosphor-icons/react"
+import {Cpu, Cube, GraduationCap, Paperclip, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
@@ -115,7 +117,7 @@ const SLASH_SECTIONS = [
                 label: "/model",
                 description: "Switch the model for this agent",
                 tail: "DeepSeek V4 Flash ›",
-                icon: <Sparkle size={13} />,
+                icon: <Cpu size={14} />,
                 kind: "open" as const,
             },
             {
@@ -123,7 +125,15 @@ const SLASH_SECTIONS = [
                 label: "/harness",
                 description: "Switch the runtime that executes this agent",
                 tail: "Pi ›",
-                icon: <Cube size={13} />,
+                icon: <Cube size={14} />,
+                kind: "open" as const,
+            },
+            {
+                key: "permissions",
+                label: "/permissions",
+                description: "Set what the agent may do before it must ask",
+                tail: "Allow reads ›",
+                icon: <ShieldCheck size={14} />,
                 kind: "open" as const,
             },
         ],
@@ -136,14 +146,14 @@ const SLASH_SECTIONS = [
                 key: "diagnose",
                 label: "/diagnose",
                 description: "Disciplined diagnosis loop for hard bugs and regressions",
-                icon: <BookOpen size={13} />,
+                icon: <GraduationCap size={14} />,
                 kind: "insert" as const,
             },
             {
                 key: "handoff",
                 label: "/handoff",
                 description: "Compact this conversation into a handoff document",
-                icon: <BookOpen size={13} />,
+                icon: <GraduationCap size={14} />,
                 kind: "insert" as const,
             },
         ],
@@ -153,24 +163,17 @@ const SLASH_SECTIONS = [
         title: "Tools",
         items: [
             {
-                key: "list",
-                label: "/list_connections",
-                tail: "platform",
-                icon: <Plug size={13} />,
-                kind: "insert" as const,
-            },
-            {
                 key: "weather",
                 label: "/get_weather",
                 tail: "custom",
-                icon: <Plug size={13} />,
+                icon: <Wrench size={14} />,
                 kind: "insert" as const,
             },
             {
                 key: "notion",
                 label: "/notion.move_page",
                 tail: "integration",
-                icon: <Plug size={13} />,
+                icon: <Wrench size={14} />,
                 kind: "insert" as const,
             },
         ],
@@ -239,9 +242,10 @@ export const SlashCommands: Story = {
     render: () => {
         const Demo = () => {
             const [last, setLast] = useState<string>("")
-            const [picker, setPicker] = useState<"model" | "harness" | null>(null)
+            const [picker, setPicker] = useState<"model" | "harness" | "permissions" | null>(null)
             const [model, setModel] = useState("deepseek-v4-flash")
             const [harness, setHarness] = useState("pi_core")
+            const [permission, setPermission] = useState<PermissionPolicy>("allow_reads")
             const [applied, setApplied] = useState<string>("")
             const boxRef = useRef<HTMLDivElement | null>(null)
             const inputRef = useRef<RichChatInputHandle | null>(null)
@@ -250,6 +254,19 @@ export const SlashCommands: Story = {
             const clearCommand = () => {
                 inputRef.current?.clear()
                 inputRef.current?.focus()
+            }
+            // ...and clears it as the picker opens, a frame ahead of the picker so the editor's
+            // reconcile cannot take focus back from it (which would dismiss it).
+            // Mirrors the dock: "back to commands" restores the `/` the picker consumed.
+            const backToCommands = () => {
+                setPicker(null)
+                inputRef.current?.setMarkdown("/")
+                inputRef.current?.focus()
+            }
+            const openPicker = (which: "model" | "harness" | "permissions") => {
+                inputRef.current?.blur()
+                inputRef.current?.clear()
+                requestAnimationFrame(() => setPicker(which))
             }
 
             const sections = SLASH_SECTIONS.map((section) => ({
@@ -261,13 +278,13 @@ export const SlashCommands: Story = {
                             ? `${model} ›`
                             : item.key === "harness"
                               ? `${harness} ›`
-                              : item.tail,
+                              : item.key === "permissions"
+                                ? `${permissionPolicyLabel(permission)} ›`
+                                : item.tail,
                     onSelect:
-                        item.key === "model"
-                            ? () => setPicker("model")
-                            : item.key === "harness"
-                              ? () => setPicker("harness")
-                              : undefined,
+                        item.key === "model" || item.key === "harness" || item.key === "permissions"
+                            ? () => openPicker(item.key as "model" | "harness" | "permissions")
+                            : undefined,
                 })),
             }))
 
@@ -277,10 +294,10 @@ export const SlashCommands: Story = {
                     <span className="text-colorPrimary">Open config →</span>
                     <span
                         className="ml-auto cursor-pointer"
-                        onClick={() => setPicker(null)}
+                        onClick={backToCommands}
                         role="button"
                         tabIndex={0}
-                        onKeyDown={() => setPicker(null)}
+                        onKeyDown={backToCommands}
                     >
                         ← back to commands
                     </span>
@@ -291,7 +308,7 @@ export const SlashCommands: Story = {
                 <div className="flex w-[720px] flex-col gap-3 pt-[380px]">
                     <div className="relative" ref={boxRef}>
                         {picker === "harness" ? (
-                            <div className="absolute bottom-full left-0 right-0 z-[1050] mb-2">
+                            <div className="absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade">
                                 <HarnessPickerPanel
                                     harnessIds={["pi_core", "claude", "codex"]}
                                     capabilities={MOCK_CAPABILITIES}
@@ -303,7 +320,24 @@ export const SlashCommands: Story = {
                                         setPicker(null)
                                         clearCommand()
                                     }}
-                                    onBack={() => setPicker(null)}
+                                    onDismiss={() => setPicker(null)}
+                                    onBackToCommands={backToCommands}
+                                    onOpenConfig={() => setApplied("open config")}
+                                />
+                            </div>
+                        ) : null}
+                        {picker === "permissions" ? (
+                            <div className="absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade">
+                                <PermissionsPickerPanel
+                                    current={permission}
+                                    onApply={(next) => {
+                                        setPermission(next)
+                                        setApplied(`permissions → ${next}`)
+                                        setPicker(null)
+                                        clearCommand()
+                                    }}
+                                    onDismiss={() => setPicker(null)}
+                                    onBackToCommands={backToCommands}
                                     onOpenConfig={() => setApplied("open config")}
                                 />
                             </div>
@@ -331,11 +365,6 @@ export const SlashCommands: Story = {
                         <RichChatInput
                             ref={inputRef}
                             onSubmit={setLast}
-                            // Erasing the command closes the picker it opened — same tie the chat
-                            // dock makes.
-                            onChange={(text) => {
-                                if (picker && !text.trimStart().startsWith("/")) setPicker(null)
-                            }}
                             placeholder="Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
                             slashCommands={sections}
                             slashEmptyAction={{
