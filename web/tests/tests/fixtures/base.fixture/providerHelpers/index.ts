@@ -14,6 +14,12 @@ import type {
     TestProviderProfileInfo,
 } from "./types"
 
+// Header of the custom-providers ("OpenAI-compatible endpoints") section, and the
+// label of the button that opens its create form. Both are product copy; keep them
+// here so a rename is a one-line fix rather than a hunt through the helpers.
+const CUSTOM_PROVIDERS_SECTION_HEADER = "OpenAI-compatible endpoints"
+const CUSTOM_PROVIDER_ADD_BUTTON_LABEL = "Add endpoint"
+
 const MOCK_PROVIDER_NAME = "mock"
 const MOCK_PROVIDER_KIND = "custom"
 const MOCK_MODEL_NAME = "gpt-6"
@@ -145,8 +151,14 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                     .locator(".ant-spin-spinning")
                     .isVisible()
                     .catch(() => false)
+                // `.first()` matters: the section renders this button twice (once in the
+                // header, once in the empty-state row). Without it the locator is strict-mode
+                // ambiguous, `isEnabled()` throws, and the `.catch` below turns that into a
+                // permanent `false` — the poll then times out with a "never reached a stable
+                // ready state" message that says nothing about the real cause.
                 const createButtonEnabled = await customProvidersSection
-                    .getByRole("button", {name: "OpenAI-compatible endpoint"})
+                    .getByRole("button", {name: CUSTOM_PROVIDER_ADD_BUTTON_LABEL})
+                    .first()
                     .isEnabled()
                     .catch(() => false)
 
@@ -189,10 +201,12 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
 }
 
 function getCustomProvidersSection(page: Page): Locator {
-    // The custom-providers section no longer has a dedicated header label — its
-    // section-identifying text IS the "OpenAI-compatible endpoint" trigger button now.
+    // Anchored on the section's own header text. This used to key off the
+    // "OpenAI-compatible endpoint" trigger button, but that button is now labelled
+    // "Add endpoint", so the old anchor matched nothing and the section could never
+    // be found. The header reads "OpenAI-compatible endpoints" (plural).
     return page
-        .getByText("OpenAI-compatible endpoint", {exact: true})
+        .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
         .locator("xpath=ancestor::section[1]")
         .first()
 }
