@@ -28,7 +28,13 @@ class ChannelAdapterInterface(ABC):
     async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
         """Verify HMAC with timestamp replay protection; return the platform's own
         installation id. Verification and identification are one act — the caller
-        maps that id to a connection. Raises ChannelSignatureInvalid."""
+        maps that id to a connection. Raises ChannelSignatureInvalid.
+
+        Where the payload also carries a self-asserted sender identity (a
+        bridge's envelope `source`), that value is a cross-check against the
+        id derived here, never a substitute for it: a mismatch must raise
+        ChannelSignatureInvalid rather than resolve against the unverified
+        value."""
 
     @abstractmethod
     async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:

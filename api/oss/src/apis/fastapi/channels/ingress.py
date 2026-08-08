@@ -98,9 +98,10 @@ class ChannelsIngressRouter:
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
     async def ingest_bridge_event(self, request: Request) -> Any:
-        # The bridge credential identifies which bridge is calling; verifying
-        # it and identifying it are the same act, so the channel comes from
-        # the adapter's own resolution, not this path.
+        # Every bridge shares this literal channel key; the credential (not
+        # this path) resolves which installation is calling, and the adapter
+        # is responsible for refusing a payload whose claimed sender
+        # disagrees with the credential that signed it.
         return await self._ingest(channel="bridge", request=request)
 
     async def _ingest(self, *, channel: str, request: Request) -> ChannelEventAck:

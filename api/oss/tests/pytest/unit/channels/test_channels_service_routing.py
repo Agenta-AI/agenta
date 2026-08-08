@@ -8,6 +8,7 @@ rather than a hand-rolled one.
 
 from uuid import uuid4
 
+import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from oss.src.core.channels.dtos import (
@@ -578,3 +579,60 @@ class TestOpenTurnAndSettleTurn:
         _, kwargs = dao.transition_inbox_trigger.call_args
         assert kwargs["trigger_id"] == trigger_id
         assert kwargs["state"] == ChannelTriggerState.SETTLED
+
+
+class TestBridgeProviderKey:
+    """A real `Connection`, not a fake, on the bridge's channel key -- proves
+    `ConnectionProviderKind.BRIDGE` actually constructs and resolves through
+    the real registry, the thing a fake adapter/registry cannot catch."""
+
+    def test_connection_constructs_with_bridge_provider_key(self):
+        connection = Connection(
+            id=uuid4(),
+            slug="acme-wecom",
+            provider_key=ConnectionProviderKind.BRIDGE,
+            integration_key="acme-wecom",
+        )
+
+        assert connection.provider_key == ConnectionProviderKind.BRIDGE
+        assert connection.provider_key == "bridge"
+
+    async def test_bridge_connection_resolves_through_the_real_adapter_registry(self):
+        adapter = WellBehavedFakeAdapter()
+        registry = ChannelAdapterRegistry(adapters={"bridge": adapter})
+
+        connection = Connection(
+            id=uuid4(),
+            slug="acme-wecom",
+            provider_key=ConnectionProviderKind.BRIDGE,
+            integration_key="acme-wecom",
+        )
+
+        resolved = registry.get(connection.provider_key)
+
+        assert resolved is adapter
+
+    async def test_bridge_provider_key_raises_typed_error_on_the_connections_registry(
+        self,
+    ):
+        """The new member must not silently resolve to None or KeyError on
+        the unrelated connections-provider registry (composio/agenta) --
+        confirms every `.value` call site there degrades to a typed
+        ProviderNotFoundError rather than crashing or returning nothing."""
+
+        from oss.src.core.gateway.connections.exceptions import ProviderNotFoundError
+        from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+
+        registry = ConnectionsGatewayRegistry(adapters={"composio": MagicMock()})
+
+        connection = Connection(
+            id=uuid4(),
+            slug="acme-wecom",
+            provider_key=ConnectionProviderKind.BRIDGE,
+            integration_key="acme-wecom",
+        )
+
+        with pytest.raises(ProviderNotFoundError) as excinfo:
+            registry.get(connection.provider_key.value)
+
+        assert excinfo.value.provider_key == "bridge"

@@ -23,6 +23,9 @@ class ConnectionProviderKind(str, Enum):
     # channels share this table, keyed by channel. Only keys the ingress
     # can route belong here — see _PUBLIC_ENDPOINTS in middlewares/auth.py.
     SLACK = "slack"
+    # one member for every bridge; the specific bridge lives in
+    # integration_key, never in a per-bridge enum member.
+    BRIDGE = "bridge"
 
 
 class ConnectionAuthScheme(str, Enum):
