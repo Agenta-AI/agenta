@@ -1,9 +1,10 @@
 /**
  * SlashCommandPlugin — the `/` command palette above the composer.
  *
- * Opens when a `/` starts a block (so `and/or` and URLs never trigger it), filters as the user
- * types, and hands the selection back to the host: an `insert` item types its text into the
- * message, an `open` item closes the menu first so the host's picker owns the keyboard.
+ * Opens on a `/` that starts a block or follows a space (so `and/or`, URLs, and paths never trigger
+ * it), filters as the user types, and hands the selection back to the host: an `insert` item types
+ * its text into the message, an `open` item closes the menu first so the host's picker owns the
+ * keyboard.
  *
  * The menu registers Enter at CRITICAL because `SubmitPlugin` claims it at HIGH — without that a
  * selection would send the message. With no matches it deliberately declines Enter, so a message
@@ -43,8 +44,8 @@ interface SlashCommandPluginProps {
     disabled?: boolean
 }
 
-/** A command run: the `/` plus everything up to the caret, with no whitespace in it. */
-const COMMAND_RUN = /^\/([^\s/]*)$/
+/** A command run: a `/` opening the block or following a space, plus the word being typed. */
+const COMMAND_RUN = /(^|\s)\/([^\s/]*)$/
 
 export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommandPluginProps) {
     const [editor] = useLexicalComposerContext()
@@ -70,8 +71,8 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
         setQuery(null)
     }, [])
 
-    // Read the caret's command run on every edit. The run must start its block, which is what keeps
-    // `and/or`, URLs, and paths from opening the menu mid-sentence.
+    // Read the caret's command run on every edit. Requiring a space (or the block start) before the
+    // `/` is what keeps `and/or`, URLs, and paths from opening the menu mid-sentence.
     useEffect(() => {
         /** The command run at the caret, or null when the caret isn't in one. */
         const $readRun = (): string | null => {
@@ -79,9 +80,12 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
             if (!$isRangeSelection(selection) || !selection.isCollapsed()) return null
             const node = selection.anchor.getNode()
             // An emptied paragraph anchors on the element itself, not a text node.
-            if (!$isTextNode(node) || node.getPreviousSibling() !== null) return null
+            if (!$isTextNode(node)) return null
             const hit = COMMAND_RUN.exec(node.getTextContent().slice(0, selection.anchor.offset))
-            return hit ? hit[1] : null
+            if (!hit) return null
+            // A run flush against the node start opens the menu only when it also starts the block.
+            if (!hit[1] && node.getPreviousSibling() !== null) return null
+            return hit[2]
         }
         return editor.registerUpdateListener(({editorState}) => {
             editorState.read(() => {
@@ -113,12 +117,17 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
                     if (!$isRangeSelection(selection)) return
                     const node = selection.anchor.getNode()
                     if (!$isTextNode(node)) return
-                    // Replace the typed run, not the whole node — a user may have typed the
-                    // command in front of text they already had.
-                    const offsetInNode = selection.anchor.offset
-                    const rest = node.getTextContent().slice(offsetInNode)
-                    node.setTextContent(text + rest)
-                    node.select(text.length, text.length)
+                    // Replace the typed run ONLY — anything the user wrote before it must survive,
+                    // now that a run can start mid-message.
+                    const full = node.getTextContent()
+                    const caret = selection.anchor.offset
+                    const hit = COMMAND_RUN.exec(full.slice(0, caret))
+                    const head = hit
+                        ? full.slice(0, hit.index + hit[1].length)
+                        : full.slice(0, caret)
+                    const upToCaret = head + text
+                    node.setTextContent(upToCaret + full.slice(caret))
+                    node.select(upToCaret.length, upToCaret.length)
                 })
                 close()
                 return
