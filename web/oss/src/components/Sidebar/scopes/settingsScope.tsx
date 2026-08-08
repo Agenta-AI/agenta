@@ -51,33 +51,33 @@ interface SettingsScopeOptions {
 const getSettingsSidebarIcon = (key: SettingsTabKey) => {
     switch (key) {
         case "apiKeys":
-            return <Key size={16} className="mt-0.5" />
+            return <Key size={14} />
         case "secrets":
-            return <Vault size={16} className="mt-0.5" />
+            return <Vault size={14} />
         case "llms":
-            return <Sparkle size={16} className="mt-0.5" />
+            return <Sparkle size={14} />
         case "tools":
-            return <Wrench size={16} className="mt-0.5" />
+            return <Wrench size={14} />
         case "triggers":
-            return <Lightning size={16} className="mt-0.5" />
+            return <Lightning size={14} />
         case "webhooks":
-            return <Link size={16} className="mt-0.5" />
+            return <Link size={14} />
         case "workspace":
-            return <UsersThree size={16} className="mt-0.5" />
+            return <UsersThree size={14} />
         case "organizationGeneral":
-            return <Buildings size={16} className="mt-0.5" />
+            return <Buildings size={14} />
         case "organization":
-            return <ShieldCheck size={16} className="mt-0.5" />
+            return <ShieldCheck size={14} />
         case "auditLog":
-            return <ClockCounterClockwise size={16} className="mt-0.5" />
+            return <ClockCounterClockwise size={14} />
         case "billing":
-            return <Receipt size={16} className="mt-0.5" />
+            return <Receipt size={14} />
         case "account":
-            return <User size={16} className="mt-0.5" />
+            return <User size={14} />
         case "preferences":
-            return <SlidersHorizontal size={16} className="mt-0.5" />
+            return <SlidersHorizontal size={14} />
         case "projects":
-            return <FolderSimple size={16} className="mt-0.5" />
+            return <FolderSimple size={14} />
         default: {
             const exhaustiveCheck: never = key
             return exhaustiveCheck
@@ -145,10 +145,17 @@ const useSettingsSidebarSections = (): SidebarSection[] => {
             ...SETTINGS_SCOPES.map(({key, title}, index) => ({
                 key: `settings-${key}`,
                 items: tabsByScope[key],
-                dividerBefore: index > 0,
+                // Groups are separated by whitespace, not a rule.
+                dividerBefore: false,
                 before: ({collapsed}: SidebarSlotContext) =>
                     collapsed ? null : (
-                        <div className="px-3 pb-1 pt-1 text-xs font-medium text-colorTextTertiary">
+                        // pl-[22px] = menu items' mx-2 + pl-3 (20px), nudged 2px right.
+                        <div
+                            className={[
+                                "pl-[22px] pr-3 pb-1 text-xs font-medium text-colorTextTertiary",
+                                index === 0 ? "pt-1" : "pt-4",
+                            ].join(" ")}
+                        >
                             {title}
                         </div>
                     ),

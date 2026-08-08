@@ -60,11 +60,7 @@ const Preferences = () => {
     const [agentVoiceInputEnabled, setAgentVoiceInputEnabled] = useAtom(agentVoiceInputEnabledAtom)
 
     return (
-        <section className="-mt-2 flex max-w-[840px] flex-col gap-2">
-            <Typography.Paragraph type="secondary" className="!mb-0">
-                Personal settings for this browser.
-            </Typography.Paragraph>
-
+        <section className="flex flex-col gap-8">
             <div className="flex flex-col gap-4">
                 <SectionHeader title="Appearance" />
                 <div className="flex flex-col gap-2">

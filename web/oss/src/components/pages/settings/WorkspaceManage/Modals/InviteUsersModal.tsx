@@ -1,8 +1,9 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MinusCircleOutlined} from "@ant-design/icons"
-import {Alert, Form, Input, Modal, Select, Space, Typography, theme} from "antd"
+import {Alert, Form, Input, Select, Space, Typography, theme} from "antd"
 import Link from "next/link"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
@@ -201,9 +202,9 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
     }
 
     return (
-        <Modal
+        <EnhancedModal
             {...props}
-            title="Invite Members"
+            title="Invite members"
             onOk={form.submit}
             okText="Invite"
             okButtonProps={{loading}}
@@ -226,7 +227,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
                 workspaceId={workspaceId}
                 setLoading={setLoading}
             />
-        </Modal>
+        </EnhancedModal>
     )
 }
 
