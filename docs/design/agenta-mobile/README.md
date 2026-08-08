@@ -293,11 +293,13 @@ pnpm dev-mobile   # → http://localhost:3000/m, check light+dark
   image (both arches) on mobile-path PRs and typechecks `@agenta/mobile`; lint (`turbo run lint`
   in workflow 11) and `@agenta/chat` unit tests (recursive package discovery in workflow 12)
   were already covered by their generic mechanisms — verified, not changed. **First publication
-  ordering:** merge → run `17 - check mobile` via `workflow_dispatch` with `push=true,
-  push_latest=true` → only then can operators pass `--with-mobile` to `bash ./hosting/docker-compose/run.sh --oss --gh` (or `--ee`). Until that first
-  dispatch-push, the `with-web-mobile` compose profile stays opt-in on purpose — `docker compose
-  up`/`pull` would fail the whole stack against a `ghcr.io/agenta-ai/agenta-web-mobile:latest`
-  that doesn't exist yet.
+  ordering:** `17 - check mobile` no longer publishes `latest` — there is no `push_latest` input,
+  and `image_tag=latest` is rejected outright. Publication is owned by `43 - Release to GHCR` in
+  the private `agenta_cloud` repo, the same as api, web, services and runner; only after that
+  pipeline has published `agenta-web-mobile` once can operators pass `--with-mobile` to
+  `bash ./hosting/docker-compose/run.sh --oss --gh` (or `--ee`). Until then, the `with-web-mobile`
+  compose profile stays opt-in on purpose — `docker compose up`/`pull` would fail the whole stack
+  against a `ghcr.io/agenta-ai/agenta-web-mobile:latest` that doesn't exist yet.
 - **Design-doc staleness:** `docs/designs/sessions/**` predates the streams-merge/turns model;
   don't trust it over the code. The memory file `project_agenta_mobile_discovery` (assistant
   memory) mirrors this handoff.
