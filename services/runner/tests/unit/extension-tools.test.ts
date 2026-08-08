@@ -27,6 +27,7 @@ import factory, {
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
+import { refusedAtGateText } from "../../src/tools/denial-text.ts";
 
 const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_PUBLIC_SPECS",
@@ -411,6 +412,10 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       fakeDialogCtx(false).ctx,
     );
     assert.equal(denied.block, true, "deny -> block");
+    // What the model reads. The block is only half the behavior; the reason is the half that
+    // decides whether the model asks the user or gives up on the whole tool.
+    assert.equal(denied.reason, refusedAtGateText("bash"));
+    assert.doesNotMatch(denied.reason, /policy/i);
 
     const threw = await hook(
       builtinEvent("bash", {}),
@@ -425,6 +430,12 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       hasUI: false,
     });
     assert.equal(noUi.block, true, "no UI plane fails closed");
+    // The block is only half of it. A broken approval channel used to answer with a bare
+    // statement of fact and no next step, which is the shape that produced "I'll retry as soon
+    // as that is allowed".
+    assert.match(noUi.reason, /Nothing ran/);
+    assert.match(noUi.reason, /Tell the user the approval step is unavailable/);
+    assert.match(threw.reason, /dialog transport gone/, "the cause survives");
   });
 
   it("custom-tool gate: a deny returns the reason WITHOUT relaying (early return)", async () => {
@@ -454,10 +465,12 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
     assert.equal(envelope.gate, "pi-custom-tool");
     assert.equal(envelope.toolName, "park_probe");
     assert.deepEqual(envelope.input, { token: "T" });
-    assert.ok(
-      result.content[0].text.toLowerCase().includes("denied"),
-      "a denied custom tool returns the deny reason as its result",
-    );
+    // The model-visible text, asserted as the SHARED string rather than by substring. It used to
+    // read "Denied by the permission policy.", which names a decider this side cannot know: a
+    // confirm resolves to a boolean, so a policy deny and a human declining one change are
+    // indistinguishable here. See `refusedAtGateText`.
+    assert.equal(result.content[0].text, refusedAtGateText("park_probe"));
+    assert.doesNotMatch(result.content[0].text, /policy/i);
   });
 
   it("custom-tool gate: a malformed call errors to the model BEFORE the dialog is raised", async () => {

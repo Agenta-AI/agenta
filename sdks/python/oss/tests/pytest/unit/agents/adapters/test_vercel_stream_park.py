@@ -526,6 +526,56 @@ async def test_commit_revision_tool_result_emits_refresh_data_part() -> None:
 
 
 @pytest.mark.asyncio
+async def test_commit_revision_handler_shape_emits_refresh_data_part() -> None:
+    """The handler-mode commit answers {"status": "committed", ...} with no "count".
+
+    The projector must emit the refresh part for this shape too. It did not, and the
+    suite stayed green because every fixture here pinned the legacy count shape while
+    the live output moved (session b024a6b0: the commit stored, the playground never
+    switched). This test pins the CURRENT live shape.
+    """
+    stream = AgentStream(
+        _records(
+            [
+                {
+                    "kind": "event",
+                    "event": {
+                        "type": "tool_result",
+                        "id": "tool-commit-1",
+                        "output": (
+                            '{"status":"committed","warnings":[],"workflow_revision":{'
+                            '"workflow_variant_id":"variant-1",'
+                            '"id":"revision-1",'
+                            '"version":"4"'
+                            "}}"
+                        ),
+                    },
+                },
+                {"kind": "event", "event": {"type": "done", "stopReason": "stop"}},
+                {
+                    "kind": "result",
+                    "result": {
+                        "ok": True,
+                        "output": "",
+                        "stopReason": "stop",
+                        "sessionId": "conv-1",
+                        "traceId": "trace-1",
+                    },
+                },
+            ]
+        )
+    )
+    parts = [part async for part in agent_run_to_vercel_parts(stream)]
+
+    committed = next(p for p in parts if p["type"] == "data-committed-revision")
+    assert committed["data"] == {
+        "variantId": "variant-1",
+        "revisionId": "revision-1",
+        "version": "4",
+    }
+
+
+@pytest.mark.asyncio
 async def test_commit_revision_result_only_emits_refresh_data_part() -> None:
     parts = [
         part
