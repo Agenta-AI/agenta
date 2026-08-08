@@ -422,6 +422,105 @@
   `git/` + `sessions/`; it is 30 files across seven areas. **No channels unit
   test is among them** — verified, all 259 use fakes.
 
+### F22. Channels integration tests error instead of skipping without Postgres
+
+- ID: `F22`
+- Origin: `test-layer audit`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Test-design`
+- Summary: With Postgres stopped, all 41 channels integration tests **error**
+  (`OSError: Connect call failed ... 5432`) rather than skipping. The acceptance
+  layer already solves this: `acceptance/conftest.py` has a
+  `_postgres_reachable()` probe and an autouse fixture that skips
+  database-adjacent tests. `integration/channels/conftest.py` has no such guard.
+- Evidence:
+  - Stack down, `--layer integration -- oss/tests/pytest/integration/channels`:
+    `27 warnings, 41 errors`.
+  - `oss/tests/pytest/acceptance/conftest.py:11-36` — the probe and skip that
+    should be mirrored (its own comment says it exists so "a remote-stage run
+    skips those instead of failing on name resolution").
+  - Same run for acceptance: `3 skipped`, no errors.
+- Files: `api/oss/tests/pytest/integration/channels/conftest.py`
+- Cause: The integration conftest was written when a deployment was assumed
+  present; the acceptance one was hardened later and the fix never moved across.
+- Fix: **Applied.** The probe moved to `oss/tests/pytest/utils/postgres.py` as
+  `postgres_reachable()`, with a new autouse guard in
+  `oss/tests/pytest/integration/conftest.py` covering the whole layer (not just
+  channels — future integration tests inherit it). The acceptance conftest now
+  imports the same function instead of holding a second copy.
+- Verified: Postgres stopped → **41 skipped, 0 errors** (was 41 errors).
+  Postgres up with the EE URI → **40 pass, 1 fail (`F18`), 0 errors**.
+- Notes: The tests themselves were correctly placed — they need a real database,
+  which is what makes them integration. Only the missing-dependency behaviour
+  was wrong. Worth recording one trap hit while fixing it: the probe reads
+  `env.postgres.uri_core`, whose host is `postgres` by default and only becomes
+  `localhost` because `py-run-tests` exports `POSTGRES_HOST`. Probing outside
+  that wrapper reports unreachable against a healthy database — so the probe must
+  read the env as the tests see it, and a "clean skip" observed outside the
+  wrapper is a false pass.
+
+### F24. Four test layers are empty across ee and services
+
+- ID: `F24`
+- Origin: `test-layer audit`
+- Severity: `P3`
+- Confidence: `high`
+- Status: `open`
+- Category: `Test-design`
+- Summary: An empty layer folder means the setup was never completed, not that
+  the layer does not apply — every part needs all three. Counts of test files:
+
+  | Part | unit | integration | acceptance |
+  | --- | --- | --- | --- |
+  | `api/oss` | 193 | 10 | 101 |
+  | `api/ee` | 17 | **0** | 11 |
+  | `sdks/python/oss` | 109 | 9 | 13 |
+  | `services/oss` | 11 | 3 | 3 |
+  | `services/ee` | **0** | **0** | **0** |
+  | `services/runner` (ts) | 122 | 1 | 1 |
+
+- Cause: A missing integration layer pushes its tests into `unit/` (where they
+  become order-dependent — `F14`) or into `acceptance/` (where they skip on any
+  machine without a full stack). Both hide coverage rather than remove the need
+  for it.
+- Files: `api/ee/tests/pytest/integration/`, `services/ee/tests/pytest/`
+- Suggested Fix: Not channels' scope. Raise with those owners; recorded here
+  because the same gap is what produced `F14` and `F22`.
+- Notes: `services/runner`'s integration and acceptance layers exist but hold one
+  file each against 122 unit files — thin enough to be worth a look, though not
+  empty.
+
+### F23. Channels test layering is otherwise compliant — verified, not assumed
+
+- ID: `F23`
+- Origin: `test-layer audit`
+- Severity: `P3`
+- Confidence: `high`
+- Status: `not-a-defect`
+- Category: `Test-design`
+- Summary: Audited all channels tests against the repo rule (a `unit/` test may
+  import anything but must need nothing *running*, including its own server).
+  No violations beyond `F22`'s skip behaviour.
+- Evidence:
+  - **Unit: 259 pass with Postgres, Redis and the api all stopped.** The
+    decisive check, not a code read.
+  - Two unit files construct a `FastAPI()` and drive it via `TestClient`
+    (`test_channels_ingress.py`, `test_channels_router.py`). In-process ASGI
+    starts no server, and 53 of those pass with the api container stopped — so
+    they are correctly unit.
+  - The two seam tests use in-process ASGI **plus a real database**; the
+    database is the runtime dep that makes them integration. Correct.
+  - `acceptance/channels/test_slack_adapter_live.py` is `skipif`-gated on
+    `SLACK_BOT_TOKEN`/`SLACK_TEST_CHANNEL`: 3 skipped, 0 errors without them.
+- Notes: Recorded because "we checked and it holds" is worth keeping — the next
+  person auditing this should not have to re-derive it. Also fixes a claim made
+  earlier in this record that channels unit tests were clean *by inspection*;
+  they are clean, but the grep behind that claim had a false positive
+  (`self.requests.append` in a fake matched a `requests.` library pattern), so
+  the empirical check is the evidence, not the grep.
+
 ### F21. 19 runner tests fail, unrelated to channels
 
 - ID: `F21`

@@ -14,6 +14,19 @@ process, a container. Reading `POSTGRES_HOST` from the environment is fine;
 connecting to it is not. One runtime dependency, still exercising a single unit →
 `integration/`. Point-like or flow-like end to end → `acceptance/`.
 
+**That includes the part's own server.** An api unit test must not need the api
+running, a web unit test must not need the web app served, and the same holds for
+the runner, services and workers. Import the code and call it; do not boot your
+own process and talk to it over a socket. This is the case that slips through
+most often, because the dependency looks internal — it is not, it is a running
+thing.
+
+In-process is the dividing line, not the protocol. Constructing an app object in
+the test and driving it through an in-memory transport — FastAPI's `TestClient`,
+`httpx.ASGITransport`, a React render — starts no server and stays **unit**, as
+long as everything below is faked. The check that settles it: **stop the
+deployment and run the test.** If it still passes, it was a unit test.
+
 A runtime dependency is **relative to the part you are testing**, so the same
 thing changes layer depending on which side of it you sit. Postgres is a runtime
 dep of the api; the api is a runtime dep of web and of the sdks; a sandbox
@@ -73,7 +86,14 @@ checked out.
 | `acceptance/` | a deployment, point-like or flow-like end to end | the stack |
 
 A code dependency never moves a test out of `unit/`; a runtime dependency always
-does. What counts as a runtime dep is relative to the part under test:
+does — **including the part's own server.** An api unit test must not need the
+api running; a web unit test must not need the web app served; the same for the
+runner, services and workers. Call the function, construct the class, drive the
+component — do not boot the thing you are testing and talk to it over a socket.
+If a test needs its own process up, it is `integration/` at least.
+
+What counts as a runtime dep is relative to the part under test — its own server
+first, then whatever it calls:
 
 | Part | Typical runtime deps |
 | ---- | -------------------- |
@@ -88,6 +108,13 @@ A package having its own `integration/` folder is normal, not a smell:
 `web/packages/agenta-entities/tests/` holds both, with the integration side
 gated on `AGENTA_API_URL` + `AGENTA_AUTH_KEY` and skipping when they are absent.
 That is the shape to copy — split by what must be running, in the same package.
+
+**An empty `unit/`, `integration/` or `acceptance/` folder means the setup is
+incomplete — not that the layer does not apply.** Every part needs all three.
+A missing integration layer usually means its tests were filed as unit tests
+(where they fail intermittently, see above) or as acceptance tests (where they
+are skipped on any machine without a full stack). If a layer is empty, the
+question is what is missing from it, not whether it is needed.
 
 ## Status Matrix
 
