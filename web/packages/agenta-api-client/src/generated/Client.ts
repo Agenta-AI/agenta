@@ -4,6 +4,7 @@ import { AccessClient } from "./api/resources/access/client/Client.js";
 import { AnnotationsClient } from "./api/resources/annotations/client/Client.js";
 import { ApplicationsClient } from "./api/resources/applications/client/Client.js";
 import { BillingClient } from "./api/resources/billing/client/Client.js";
+import { ChannelsClient } from "./api/resources/channels/client/Client.js";
 import { EnvironmentsClient } from "./api/resources/environments/client/Client.js";
 import { EvaluationsClient } from "./api/resources/evaluations/client/Client.js";
 import { EvaluatorsClient } from "./api/resources/evaluators/client/Client.js";
@@ -61,6 +62,7 @@ export class AgentaApiClient {
     protected _environments: EnvironmentsClient | undefined;
     protected _tools: ToolsClient | undefined;
     protected _triggers: TriggersClient | undefined;
+    protected _channels: ChannelsClient | undefined;
     protected _evaluations: EvaluationsClient | undefined;
     protected _mounts: MountsClient | undefined;
     protected _status: StatusClient | undefined;
@@ -155,6 +157,10 @@ export class AgentaApiClient {
 
     public get triggers(): TriggersClient {
         return (this._triggers ??= new TriggersClient(this._options));
+    }
+
+    public get channels(): ChannelsClient {
+        return (this._channels ??= new ChannelsClient(this._options));
     }
 
     public get evaluations(): EvaluationsClient {
