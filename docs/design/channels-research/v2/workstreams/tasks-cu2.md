@@ -71,12 +71,16 @@ to stderr, so a bare `> file` keeps the summary and loses every traceback.
 
 ## CU2-6 — `F14`: 30 misfiled unit tests
 
-- [ ] 30 tests under `unit/` open external connections; the layer rule says a unit
-  test may use nothing external. They also collide over shared resources.
-- [ ] Move them to `integration/`, or make them hermetic. Do not add markers — the
+- [ ] **Re-measure before acting: the symptom is already gone.** With nothing running,
+  the unit layer is 2443 passed / 52 skipped — the Postgres-dependent tests skip
+  cleanly rather than erroring, because the `postgres_reachable()` guard added for
+  `F22` covers them. Only two files under `unit/` still reference it.
+- [ ] What remains is placement, not breakage: a unit test should not need a Postgres
+  probe at all. Move them to `integration/`, or make them hermetic. No markers — the
   layer is decided by folder.
-- [ ] Not channels' own tests, and they arrived from `main` — check with the owners
-  before moving, and say so if that blocks.
+- [ ] **Lowest priority item in this ledger.** They came from `main`, they are not
+  channels' tests, nothing is failing. If checking with the owners stalls, defer it
+  rather than holding wave 4.
 
 ## CU2-7 — `CU-2` missed the gateway DTO
 
