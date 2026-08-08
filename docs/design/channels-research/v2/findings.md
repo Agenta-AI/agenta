@@ -903,12 +903,25 @@
 - Suggested Fix: A checkpoint edit, like `F1` — `worker_streams.py` is a
   composition-root file no package owns. Add the `sessions` builder and stream
   entry. Note WP0's consumer is explicitly a proof-of-observability scaffold,
-  not the production consumer: the real consumer is WP5's, replacing its poll
-  tick.
-- Notes: Two distinct things must both happen before WP5's `poll_turn` can be
-  deleted — the stream needs a registered consumer group (this finding), and WP5
-  must subscribe instead of polling. WP0 unblocked the dependency; it did not
-  complete the swap, and said so.
+  not the production consumer.
+- **The real consumer is the channels outbox worker, and it is already written.**
+  `ChannelsOutboxWorker` has `on_turn_started` and `on_turn_ended` as distinct
+  methods (`outbox.py:101` and `:136`); `poll_turn` only *infers* which to call,
+  by re-reading the thread, re-reading `latest_turn`, and branching on
+  `turn.end_time is None`. WP0's event carries `kind` directly, so the whole
+  inference deletes and the two handlers are driven by the payload — which is
+  precisely the "deleted, not disabled" exit condition. So this is not "write a
+  consumer", it is "subscribe the consumer that exists".
+- **A correctness gain, not only a tidy-up:** `latest_turn` can return a
+  different turn than the one whose tick is being handled, so the poll path can
+  act on the wrong turn under concurrency. An event carrying its own `turn_id`
+  cannot.
+- Notes: Two distinct things must both happen — the stream needs a registered
+  consumer group (this finding), and the outbox must subscribe instead of
+  polling. WP0 unblocked the dependency; it did not complete the swap, and said
+  so. Note the entrypoint is `worker_streams.py`, not `worker_queues.py`: this is
+  a Redis **stream**, not a taskiq queue, so it is a different composition root
+  from the one `CU-1` edited.
 - Also: WP0's payload is **not** zlib-compressed, while the sibling `records`
   and `events` streams are. A consumer that copies a sibling's
   `zlib.decompress` will fail on this stream. Worth pinning before WP5 writes

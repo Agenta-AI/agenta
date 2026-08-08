@@ -34,7 +34,9 @@ flowchart LR
     WP14["WP14<br/>input sequencing"]
     WP15["WP15<br/>mock channel"]
     WP16["WP16<br/>Slack over<br/>mock"]
-    WP17["WP17<br/>bridge process<br/>(test level)"]
+    WP17["WP17<br/>test-drive process<br/>(simulates a channel)"]
+    WP18["WP18<br/>connect wave 3"]
+    WP19["WP19<br/>bridge source<br/>contract"]
 
     WP1 --> WP3
     WP1 --> WP4
@@ -57,22 +59,36 @@ flowchart LR
     WP2 --> WP12
     WP6 --> WP11
     WP12 --> WP11
-    WP12 --> WP17
+    WP18 --> WP17
+    WP19 --> WP17
     WP8 --> WP13
+    WP9 --> WP18
+    WP10 --> WP18
+    WP0 --> WP18
+    WP15 --> WP18
+    WP19 --> WP12
     WP14 -.->|improves| WP4
 
     classDef done fill:#d7ecd9,stroke:#8fbf96,color:#1f3d24
     classDef next fill:#d6e4f7,stroke:#93b4dd,color:#1c3352
+    classDef later fill:#fdf0cd,stroke:#dcc274,color:#4a3b12
     classDef apart fill:#e6e6e6,stroke:#b3b3b3,color:#333333
 
     class WP1,WP2,WP3,WP4,WP5,WP6,WP7,WP8 done
     class WP0,WP9,WP10,WP13,WP15,WP16 done
-    class WP11,WP12,WP17 next
+    class WP18,WP19,WP17 next
+    class WP11,WP12 later
     class WP14 apart
 ```
 
-Green is merged (through C2), blue is the next wave, yellow is later, grey is
-deferred to the very end.
+Green is merged (through C4 — every package of waves 1–3 is in `channels-c3`), blue
+is the next wave (wave 4: connect it, decide the bridge protocol, then drive it),
+yellow is later, grey is deferred to the very end.
+
+Green means **merged**, not **reachable**: `F36` records that commands, fill and the
+mock adapter have no callers, which is exactly what WP18 exists to fix. A green node
+whose capability nothing invokes is the failure mode this project keeps hitting, so
+the distinction is worth holding in mind while reading the graph.
 
 **WP1** and **WP2** — the domain and the port — have no dependencies and gate most
 of the rest. Everything else follows.
@@ -221,12 +237,15 @@ adapter have no callers, and `F31` leaves `streams:sessions` unconsumed. C3 is
 
 **Merges:** WP15, then WP16; and WP0, WP9, WP10, WP13. **Needs:** C3.
 
-**Merged.** All six are in `channels-c3`: api 2443 unit, web 252, zero conflicts.
-But see `F36` — commands, fill and the mock adapter have no callers, so the
-checkpoint's exit condition is not met by the merge alone.
+**Merged, and the exit condition is NOT met.** All six are in `channels-c3`: api
+2754 unit / 43 integration / 802 acceptance, web 252, zero conflicts, deployed and
+green. But `F36` — commands, fill and the mock adapter have no callers at all, and
+`F31` leaves `streams:sessions` unconsumed, so "each command works in a real space"
+and "WP5's polling is deleted" are both still false. **The remaining work is wave 4
+(C5), below.** C4 delivered the packages; it did not connect them.
 
 **WP15 → WP16 is ordered within the checkpoint**, the same way WP12 → WP11 is at
-C5, and for the same reason: each pair is a channel-shaped harness plus the real
+C6, and for the same reason: each pair is a channel-shaped harness plus the real
 Slack adapter run through it. `mock` proves the port is a port; `slack-over-mock`
 then proves the Slack adapter is correct against Slack's own contract, reusing the
 scripted-workspace technique WP15 establishes. Separate packages because the
@@ -257,9 +276,79 @@ mentions arrive as context on the next trigger; the flag — never a count of
 `PULLED` rows — guards the one-time fetch, and a refusal leaves it false. WP5's
 polling is deleted, not disabled.
 
-### C5 — The bridge is proved
+### C5 — Wave 4: it actually runs
 
-**Merges:** WP12, then WP11 and WP17. **Needs:** C4 — the bridge's first channel is
+**Merges:** WP18, then WP19; and WP17 (rescoped). **Needs:** C4's packages, which
+are merged.
+
+Wave 4 exists because C4 shipped five capabilities and connected one. Everything
+here is a **connection**, a **contract decision**, or the **harness that proves
+either** — no new domain surface. Three packages, in dependency order.
+
+#### WP18 — connect what wave 3 built
+
+The `F36`/`F29`/`F31` wiring, as one package rather than three checkpoint edits,
+because the call sites are the same two files and the ordering questions interact.
+
+- **Commands and fill both belong in `dispatch_event`** (`inbox.py:155`), the one
+  place holding a resolved thread: commands parse before `compose_input`, backfill
+  runs before `open_turn`. `F29`'s ordering tension is settled here — backfill's
+  refusal `Status` wants a trigger row that does not exist yet at the point
+  backfill must run.
+- **Register `mock` in the adapter registry.** One line, and it is what lets the
+  rest be driven without credentials.
+- **Subscribe the outbox to `streams:sessions`, and delete `poll_turn`.** The
+  consumer already exists: `ChannelsOutboxWorker.on_turn_started` and
+  `on_turn_ended` are separate methods and `poll_turn` only *infers* which to call
+  by re-reading `latest_turn` and branching on `turn.end_time is None`. WP0's event
+  carries `kind` and `turn_id`, so the inference deletes. This is a correctness
+  gain, not a tidy-up: `latest_turn` can return a different turn than the one whose
+  tick is being handled.
+- Note the entrypoint is **`worker_streams.py`**, not the `worker_queues.py` that
+  `CU-1` edited — a Redis stream, not a taskiq queue.
+- `F32` blocks half of `!use:<id>`: `create_thread` exists on the DAO with no
+  service method in front of it. Add it, or scope `!use` down and say so.
+
+#### WP19 — the bridge `source` contract, designed then built
+
+`F37`, pulled forward out of the bridge checkpoint because it is a **protocol** decision and every later
+bridge inherits it. One `/channels/bridge/events/` route is correct; the
+multiplicity is a wire-contract property, and the contract carries `source` and
+`bridge.name` without ever saying what core does with them. Nothing reads `source`.
+
+Decide in `contract.md` **first** — is `source` authoritative, is the credential,
+or does the credential decide with `source` as a cross-check? — then implement.
+Also undecided and persisted: the channel key for a bridged platform
+(`bridge/<name>`, or a key declared at `hello`), which is what
+`gateway_connections.provider_key` stores and what the registry is keyed on.
+
+A constraint that rules out the naive fix either way: `_ingest` looks the adapter up
+*before* verifying, but a credential-derived channel is not known *until*
+verification.
+
+#### WP17 — the test-drive process (rescoped)
+
+Originally scoped as a bridge harness for the bridge checkpoint. Rescoped: it is the **process that simulates a
+channel end to end**, and therefore the thing that exercises WP18's wiring —
+commands, fill and mock have no other honest driver. A real out-of-process
+counterpart, real sockets, real signing, real concurrency, real duplicate delivery.
+
+It keeps the two-bridge test, which is what proves WP19's decision was implemented
+rather than assumed. Ordered last: it drives WP18's wiring and asserts WP19's
+protocol, so both must exist.
+
+**Exit condition:** a message enters through a channel the platform does not know
+about, becomes a turn, and an answer comes back out — with no Slack credentials
+involved. A command works. Fill supplies context from messages sent between
+mentions. `poll_turn` is gone from the tree. Two bridges coexist behind the one
+route, each resolving to its own connection.
+
+That is the first time anything in this project will have travelled the whole path.
+
+### C6 — The bridge is proved
+
+**Merges:** WP12, then WP11. **Needs:** C5 — WP17 and the `source` contract land there.
+The bridge's first channel is
 `mock` (WP15), which lands there, so this no longer hangs off C3.
 
 Ordered within the checkpoint, because both WP11 and WP17 need WP12's adapter to
