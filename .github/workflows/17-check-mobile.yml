@@ -17,6 +17,11 @@ on:
       - 'web/turbo.json'
       - 'web/patches/**'
       - '.github/workflows/17-check-mobile.yml'
+  # Dispatch builds an ad-hoc image (a preview, a one-off test). It is NOT the release
+  # path: `43 - Release to GHCR` in agenta_cloud publishes agenta-web-mobile:vX.Y.Z and
+  # moves :latest, the same as it does for api, web, services and runner. There is
+  # deliberately no `latest` option here — self-hosters pull :latest by default, so a
+  # manual build must not be able to take that tag away from the released version.
   workflow_dispatch:
     inputs:
       push:
@@ -27,10 +32,6 @@ on:
         description: "Image tag; leave empty for manual-<short-sha>"
         type: string
         default: ""
-      push_latest:
-        description: "Also tag :latest (requires push)"
-        type: boolean
-        default: false
 
 # Least privilege at the top; the two jobs that log in to the registry raise it themselves.
 permissions:
@@ -256,17 +257,10 @@ jobs:
         env:
           IMAGE: ghcr.io/agenta-ai/agenta-web-mobile
           TAG: ${{ needs.prepare.outputs.image_tag }}
-          PUSH_LATEST: ${{ inputs.push_latest }}
         run: |
           set -euo pipefail
           docker buildx imagetools create \
             -t "${IMAGE}:${TAG}" \
             "${IMAGE}:${TAG}-amd64" \
             "${IMAGE}:${TAG}-arm64"
-          if [ "${PUSH_LATEST}" = "true" ]; then
-            docker buildx imagetools create \
-              -t "${IMAGE}:latest" \
-              "${IMAGE}:${TAG}-amd64" \
-              "${IMAGE}:${TAG}-arm64"
-          fi
-          echo "- Merged \`agenta-web-mobile:${TAG}\` (linux/amd64 + linux/arm64; latest=${PUSH_LATEST})" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Merged \`agenta-web-mobile:${TAG}\` (linux/amd64 + linux/arm64)" >> "$GITHUB_STEP_SUMMARY"
