@@ -22,16 +22,13 @@ import {
     type AuthFlagKey,
     DomainsSection,
     GatewayToolsSection,
-    NamedSecretTable,
     OrganizationsPage,
     SsoProvidersSection,
     TriggerConnectionsSection,
     TriggerSchedulesSection,
     TriggerSubscriptionsSection,
-    SecretProviderTable,
     SettingsPageShell,
     useEntitlements,
-    WebhooksPage,
 } from "@agenta/settings-ui"
 import {useThemeMode} from "@agenta/ui/theme"
 import {useQuery} from "@tanstack/react-query"
@@ -48,13 +45,16 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {AccountTab} from "./AccountTab"
 import {BillingTab} from "./BillingTab"
+import {LlmProvidersTab} from "./LlmProvidersTab"
 import {MembersTab} from "./MembersTab"
 import {isNestedSettingsNavEnabled} from "./nestedNav"
 import {PreferencesTab} from "./PreferencesTab"
 import {ProjectsTab} from "./ProjectsTab"
+import {SecretsTab} from "./SecretsTab"
 import {useSettingsNavScope} from "./settingsNavScope"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
+import {WebhooksTab} from "./WebhooksTab"
 
 const THEME_OPTIONS = [
     {mode: "light", label: "Light"},
@@ -184,14 +184,9 @@ const TabBody = ({
                 />
             )
         case "llms":
-            return (
-                <div className="flex flex-col gap-8">
-                    <SecretProviderTable type="standard" />
-                    <SecretProviderTable type="custom" />
-                </div>
-            )
+            return <LlmProvidersTab />
         case "secrets":
-            return <NamedSecretTable />
+            return <SecretsTab />
         // No date-range picker — the desktop's preset picker is its own. The entitlement gate
         // is the desktop's, so a plan without Audit Log reads the same on both.
         case "auditLog":
@@ -204,7 +199,7 @@ const TabBody = ({
         case "billing":
             return <BillingTab projectId={projectId} />
         case "webhooks":
-            return <WebhooksPage />
+            return <WebhooksTab />
         // Read-only: the create/edit drawers still render antd forms, which have no
         // ConfigProvider here and would come out light on a dark page.
         case "tools":
