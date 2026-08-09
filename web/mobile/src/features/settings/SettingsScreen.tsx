@@ -1,5 +1,10 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
+import {
+    fetchAllOrgsList,
+    fetchSingleOrg,
+    fetchWorkspaceMembers,
+} from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
 import {
@@ -13,6 +18,7 @@ import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
     AccountPage,
     ApiKeysPage,
+    MembersPage,
     NamedSecretTable,
     PreferencesPage,
     ProjectsPage,
@@ -48,6 +54,7 @@ const AVAILABLE: SettingsTabKey[] = [
     "llms",
     "secrets",
     "webhooks",
+    "workspace",
     "projects",
     "account",
     "preferences",
@@ -85,6 +92,23 @@ const TabBody = ({
         enabled: tab === "projects",
     })
 
+    const members = useQuery({
+        queryKey: ["workspace", workspaceId, "members"],
+        queryFn: () => fetchWorkspaceMembers(workspaceId, true),
+        enabled: tab === "workspace" && Boolean(workspaceId),
+    })
+    // The roster names its owner, and only the org response carries `owner_id`.
+    const org = useQuery({
+        queryKey: ["selectedOrg", "forMembers"],
+        queryFn: async () => {
+            const orgs = await fetchAllOrgsList()
+            const first = orgs[0]
+            return first ? await fetchSingleOrg({organizationId: first.id}) : null
+        },
+        enabled: tab === "workspace",
+    })
+    const [memberSearch, setMemberSearch] = useState("")
+
     switch (tab) {
         case "preferences":
             return <PreferencesPage theme={theme} />
@@ -120,6 +144,23 @@ const TabBody = ({
                     projects={projects.data ?? []}
                     isLoading={projects.isPending}
                     workspaceId={workspaceId}
+                />
+            )
+        case "workspace":
+            return (
+                <MembersPage
+                    members={(members.data ?? []).filter((member) => {
+                        const term = memberSearch.trim().toLowerCase()
+                        if (!term) return true
+                        return [member.user?.username, member.user?.email].some((value) =>
+                            value?.toLowerCase().includes(term),
+                        )
+                    })}
+                    loading={members.isPending}
+                    searchTerm={memberSearch}
+                    onSearchChange={setMemberSearch}
+                    signedInUser={user}
+                    ownerId={org.data?.owner_id}
                 />
             )
         default:
