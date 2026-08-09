@@ -1864,6 +1864,9 @@ importers:
       '@agenta/entities':
         specifier: workspace:../agenta-entities
         version: link:../agenta-entities
+      '@agenta/entity-ui':
+        specifier: workspace:../agenta-entity-ui
+        version: link:../agenta-entity-ui
       '@agenta/settings':
         specifier: workspace:../agenta-settings
         version: link:../agenta-settings
@@ -1880,6 +1883,9 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
     devDependencies:
+      '@tanstack/react-query':
+        specifier: 5.100.9
+        version: 5.100.9(react@19.2.6)
       '@types/node':
         specifier: ^20.19.20
         version: 20.19.39
