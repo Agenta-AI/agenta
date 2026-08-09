@@ -1,5 +1,22 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
+import {
+    InfiniteVirtualTableFeatureShell,
+    createStandardColumns,
+    type StandardColumnDef,
+} from "@agenta/ui/table"
+import {EmptyState} from "@agenta/ui/ui"
+import {ArrowClockwise, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
+import {message} from "@agenta/ui/app-message"
+import {Button, Input, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {useAtom, useSetAtom} from "jotai"
+
+import {useStaticTable} from "@agenta/settings"
+import {
+    WEBHOOK_TEST_FAILURE_MESSAGE,
+    handleTestResult,
+} from "@agenta/entities/webhook"
 import type {WebhookProvider, WebhookSubscription} from "@agenta/entities/webhook"
 import {WEBHOOK_TEST_FAILURE_MESSAGE, handleTestResult} from "@agenta/entities/webhook"
 import {setWebhookActiveAtom, testWebhookAtom, webhooksAtom} from "@agenta/entities/webhook"
@@ -278,7 +295,8 @@ export const WebhooksPage = ({
                 }
                 primaryActions={
                     <>
-                        <Tooltip>
+                        <TooltipProvider>
+                            <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
                                     variant="outline"
@@ -291,6 +309,7 @@ export const WebhooksPage = ({
                             </TooltipTrigger>
                             <TooltipContent>Reload all webhooks</TooltipContent>
                         </Tooltip>
+                            </TooltipProvider>
                         <Button onClick={handleCreate} disabled={isLoading}>
                             <Plus size={14} />
                             Subscribe

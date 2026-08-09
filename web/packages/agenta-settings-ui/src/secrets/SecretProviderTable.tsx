@@ -12,8 +12,12 @@ import {
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
-import {Button, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
 import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {Tag} from "@agenta/ui/components/presentational"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+
+import {useStaticTable} from "@agenta/settings"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 
 export interface ProviderDialogState {
     selectedProvider: LlmProvider | null
@@ -222,22 +226,21 @@ export const SecretProviderTable = ({
                     primaryActions={
                         isCustom ? (
                             <>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            aria-label="Reload providers"
-                                            disabled={loading}
-                                            // `mutate` takes no arguments; called as the
-                                            // handler directly it would be handed the click
-                                            // event.
-                                            onClick={() => mutate()}
-                                        >
-                                            <ArrowClockwise size={14} />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Reload providers</TooltipContent>
-                                </Tooltip>
+                                <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        aria-label="Reload providers"
+                                        disabled={loading}
+                                        onClick={mutate}
+                                    >
+                                        <ArrowClockwise size={14} />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Reload providers</TooltipContent>
+                            </Tooltip>
+                            </TooltipProvider>
                                 <Button
                                     disabled={loading}
                                     onClick={() => setIsConfigProviderOpen(true)}

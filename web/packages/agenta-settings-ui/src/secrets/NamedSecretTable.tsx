@@ -11,8 +11,13 @@ import {
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
-import {Button, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
 import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {Tag} from "@agenta/ui/components/presentational"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+
+import {useStaticTable} from "@agenta/settings"
+import {formatDay} from "@agenta/shared/utils/dateTime"
+
 
 /**
  * Mask stored secret content for display. `text` is masked like an API key
@@ -145,6 +150,7 @@ export const NamedSecretTable = ({
                     pagination={pagination}
                     primaryActions={
                         <>
+                            <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
@@ -160,6 +166,7 @@ export const NamedSecretTable = ({
                                 </TooltipTrigger>
                                 <TooltipContent>Reload secrets</TooltipContent>
                             </Tooltip>
+                            </TooltipProvider>
                             <Button
                                 disabled={loading}
                                 onClick={() => {
