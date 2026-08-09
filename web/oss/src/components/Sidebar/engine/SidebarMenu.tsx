@@ -319,7 +319,9 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 "[&_.ant-menu-item-icon]:!shrink-0",
                 "!border-0 [&_.ant-menu-item-divider]:!w-full [&_.ant-menu-item-divider]:!my-2",
                 {
-                    "[&_.ant-menu-item]:!w-[94%] [&_.ant-menu-item]:!mx-2 [&_.ant-menu-item]:!pl-3 [&_.ant-menu-submenu-title]:!pl-3 [&_.ant-menu-submenu-title]:!pr-0 [&_.ant-menu-submenu-title]:!w-[94%] [&_.ant-menu-submenu-title]:!mx-2":
+                    // calc, not 94%: an exact 8px inset each side, so the row's right edge lines
+                    // up with the 8px-inset collapse toggle in the brand row.
+                    "[&_.ant-menu-item]:!w-[calc(100%-16px)] [&_.ant-menu-item]:!mx-2 [&_.ant-menu-item]:!pl-3 [&_.ant-menu-submenu-title]:!pl-3 [&_.ant-menu-submenu-title]:!pr-0 [&_.ant-menu-submenu-title]:!w-[calc(100%-16px)] [&_.ant-menu-submenu-title]:!mx-2":
                         !collapsed,
                     "[&_.ag-sidebar-submenu-inline>.ant-menu-sub.ant-menu-inline]:!ml-2 [&_.ag-sidebar-submenu-inline>.ant-menu-sub.ant-menu-inline]:!pl-2":
                         !collapsed,
