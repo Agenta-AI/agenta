@@ -3,6 +3,7 @@ import {existsSync, readFileSync} from "fs"
 import {expect, Locator, Page} from "@playwright/test"
 
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
+import {pollLocatorState} from "../../../../utils"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 import type {UIHelpers} from "../uiHelpers/types"
@@ -153,14 +154,16 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                     .catch(() => false)
                 // `.first()` matters: the section renders this button twice (once in the
                 // header, once in the empty-state row). Without it the locator is strict-mode
-                // ambiguous, `isEnabled()` throws, and the `.catch` below turns that into a
-                // permanent `false` — the poll then times out with a "never reached a stable
-                // ready state" message that says nothing about the real cause.
-                const createButtonEnabled = await customProvidersSection
-                    .getByRole("button", {name: CUSTOM_PROVIDER_ADD_BUTTON_LABEL})
-                    .first()
-                    .isEnabled()
-                    .catch(() => false)
+                // ambiguous and `isEnabled()` throws — pollLocatorState lets that throw
+                // through instead of swallowing it, so a future selector regression fails
+                // loudly instead of timing out with a "never reached a stable ready state"
+                // message that names no real cause.
+                const createButtonEnabled = await pollLocatorState(() =>
+                    customProvidersSection
+                        .getByRole("button", {name: CUSTOM_PROVIDER_ADD_BUTTON_LABEL})
+                        .first()
+                        .isEnabled(),
+                )
 
                 return (
                     hasScopedSettingsPath &&
