@@ -4,16 +4,17 @@
  * Dispatch precedence is **`render.kind` → `toolName` → generic fallback**. `render.kind` is a
  * REQUIRED wire field for interaction kinds — it arrives as a sibling `data-render` part (AI SDK
  * tool chunks are strict), resolved into `meta.renderKind` via the message-scoped render map
- * (@agenta/playground `buildRenderMap`). The `toolName` axis remains for the shipped connect
- * widget, whose v1 wire predates the guarantee. Each later kind is one added entry, not a
- * protocol change. Contract: docs/design/agent-chat-interaction-kinds/decisions.md
+ * (@agenta/playground `buildRenderMap`). The `toolName` axis is the safety net for a hint that
+ * never arrived — the connect widget's v1 wire predates the guarantee, and a transcript persisted
+ * before the replay path carried the sibling part has none. Each later kind is one added entry,
+ * not a protocol change. Contract: docs/design/agent-chat-interaction-kinds/decisions.md
  *
  *   runner interaction_request ──▶ tool part (+ sibling data-render part)
  *                                        │ AgentMessage: buildRenderMap(message.parts)
  *                                        ▼
  *                    ClientToolPart → resolveClientToolHandler(meta)
  *                    render.kind ──▶ BY_RENDER_KIND   (elicitation, connect, …)
- *                    toolName ─────▶ BY_TOOL_NAME     (request_connection)
+ *                    toolName ─────▶ BY_TOOL_NAME     (request_connection, request_input)
  *                    neither ──────▶ UnhandledClientTool (neutral "not handled", auto-settles)
  *                                        │ widget settles: output {action,…} | errorText
  *                                        ▼
@@ -38,9 +39,12 @@ const BY_RENDER_KIND: Record<string, ClientToolHandler> = {
     elicitation: ElicitationWidget,
 }
 
-/** Handlers keyed by `toolName` (checked when no render hint matched). */
+/** Handlers keyed by `toolName` (checked when no render hint matched). Both entries are
+ * platform-reserved static tools, so the name is a safe second axis when the hint is missing —
+ * an old persisted transcript, or any replay path that didn't carry the sibling part. */
 const BY_TOOL_NAME: Record<string, ClientToolHandler> = {
     request_connection: ConnectToolWidget,
+    request_input: ElicitationWidget,
 }
 
 /** Resolve the widget for a client tool, or `null` when none is registered. */
