@@ -1846,6 +1846,9 @@ importers:
       '@types/react':
         specifier: ^19.0.10
         version: 19.2.14
+      jotai:
+        specifier: ^2.15.0
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
       react:
         specifier: ^19.0.0
         version: 19.2.6

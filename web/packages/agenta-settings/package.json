@@ -21,11 +21,13 @@
         "@agenta/ui": "workspace:../agenta-ui"
     },
     "peerDependencies": {
+        "jotai": ">=2.0.0",
         "react": ">=18.0.0"
     },
     "devDependencies": {
         "@types/node": "^20.19.20",
         "@types/react": "^19.0.10",
+        "jotai": "^2.15.0",
         "react": "^19.0.0",
         "typescript": "^5.9.3",
         "vitest": "^4.1.4"
