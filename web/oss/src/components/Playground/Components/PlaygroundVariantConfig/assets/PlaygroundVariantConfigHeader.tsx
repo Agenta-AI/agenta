@@ -8,8 +8,8 @@ import {
     useEnrichedEvaluatorOnlyAdapter,
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
-import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
+import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"

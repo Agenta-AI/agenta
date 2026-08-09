@@ -1,11 +1,10 @@
 import {memo, type ReactNode} from "react"
 
+import {useDriveSessionId} from "@agenta/entity-ui/drive"
 import {code} from "@streamdown/code"
 import {math} from "@streamdown/math"
 import {useAtomValue} from "jotai"
 import {Streamdown, type Components, type ThemeInput} from "streamdown"
-
-import {useDriveSessionId} from "@agenta/entity-ui/drive"
 
 import {chatFileLinkAtomFamily} from "../state/fileLinks"
 

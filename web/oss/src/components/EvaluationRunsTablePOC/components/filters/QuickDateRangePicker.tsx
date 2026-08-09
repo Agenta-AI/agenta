@@ -1,7 +1,8 @@
 import {useCallback, useMemo} from "react"
 
+import {dayjs} from "@agenta/shared/utils/dateTime"
+
 import Sort, {type SortResult} from "@/oss/components/Filters/Sort"
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
 type RangeValue = {from?: string | null; to?: string | null; preset?: string | null} | null
 

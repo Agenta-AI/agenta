@@ -1,11 +1,11 @@
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
 
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {
     attachAnnotationsToTraces,
     groupAnnotationsByReferenceId,

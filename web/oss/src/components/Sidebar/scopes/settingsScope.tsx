@@ -1,5 +1,21 @@
 import {useEffect, useMemo} from "react"
 
+import type {
+    SidebarConfig,
+    SidebarScope,
+    SidebarSection,
+    SidebarSelection,
+    SidebarSlotContext,
+} from "@agenta/navigation"
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
+import {
+    getSettingsSidebarTabs,
+    isSettingsTabKey,
+    resolveSettingsTab,
+    SETTINGS_SCOPES,
+    type SettingsScopeKey,
+    type SettingsTabKey,
+} from "@agenta/settings"
 import {
     Buildings,
     ClockCounterClockwise,
@@ -18,14 +34,6 @@ import {
 } from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
-import {
-    getSettingsSidebarTabs,
-    isSettingsTabKey,
-    resolveSettingsTab,
-    SETTINGS_SCOPES,
-    type SettingsScopeKey,
-    type SettingsTabKey,
-} from "@/oss/components/pages/settings/assets/navigation"
 import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {settingsTabAtom} from "@/oss/state/settings"
@@ -33,16 +41,8 @@ import {settingsTabAtom} from "@/oss/state/settings"
 import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
 import SidebarBackButton from "../components/SidebarBackButton"
 import SidebarToggleButton from "../components/SidebarToggleButton"
-import type {
-    SidebarConfig,
-    SidebarScope,
-    SidebarSection,
-    SidebarSelection,
-    SidebarSlotContext,
-} from "../engine/types"
 
 import {useSidebarBottomSection} from "./bottomSection"
-import {SETTINGS_SIDEBAR_SCOPE_ID} from "./constants"
 
 interface SettingsScopeOptions {
     lastPath?: string

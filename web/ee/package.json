@@ -27,6 +27,7 @@
         "@agenta/oss": "workspace:../oss",
         "@agenta/playground": "workspace:../packages/agenta-playground",
         "@agenta/playground-ui": "workspace:../packages/agenta-playground-ui",
+        "@agenta/settings": "workspace:../packages/agenta-settings",
         "@agenta/shared": "workspace:../packages/agenta-shared",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@ant-design/colors": "^7.2.1",

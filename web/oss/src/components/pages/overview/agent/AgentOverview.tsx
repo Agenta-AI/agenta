@@ -5,17 +5,16 @@ import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
+import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
 import {
     SeedAttachButton,
     SeedAttachmentChips,
     useSeedAttachments,
 } from "@/oss/components/SeedAttachments"
-import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
 import UsageSummary from "@/oss/components/UsageSummary"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
-
 
 interface Props {
     appId: string
@@ -58,7 +57,10 @@ const AgentOverview = ({appId, agentName}: Props) => {
 
     const verbs = useSessionCardVerbs()
     const {goToPlayground} = usePlaygroundNavigation()
-    const openConfig = useCallback(() => goToPlayground(undefined, {appId}), [goToPlayground, appId])
+    const openConfig = useCallback(
+        () => goToPlayground(undefined, {appId}),
+        [goToPlayground, appId],
+    )
 
     const attachments = useSeedAttachments()
 

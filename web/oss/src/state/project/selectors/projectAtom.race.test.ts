@@ -47,9 +47,8 @@
  * regression and runs unmodified once vitest is added.
  */
 
+import type {ProjectsResponse} from "@agenta/entities/project"
 import {describe, expect, it} from "vitest"
-
-import type {ProjectsResponse} from "@/oss/services/project/types"
 
 import {pickPreferredProject} from "./project"
 

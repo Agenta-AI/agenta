@@ -1,4 +1,5 @@
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {formatDay} from "@agenta/shared/utils/dateTime"
+
 import {WorkspaceMember} from "@/oss/lib/Types"
 import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
 

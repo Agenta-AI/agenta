@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {useStaticTable} from "@agenta/settings"
 import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {
@@ -13,7 +14,6 @@ import {useMutation} from "@tanstack/react-query"
 import {App, Button, Form, Input, Select, Typography} from "antd"
 import clsx from "clsx"
 
-import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import type {Org, OrgDetails} from "@/oss/lib/Types"
 import {

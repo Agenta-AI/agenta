@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useState, type FC} from "react"
 
+import {useStaticTable} from "@agenta/settings"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
 import {
     createStandardColumns,
@@ -14,10 +16,8 @@ import {Button, Input, Modal} from "antd"
 import dynamic from "next/dynamic"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"

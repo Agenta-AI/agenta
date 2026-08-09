@@ -1,11 +1,11 @@
 import {useCallback, useMemo} from "react"
 
+import {writeLastAuthMethod} from "@agenta/auth"
 import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
-import {writeLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMethod"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
 import {isEE} from "@/oss/lib/helpers/isEE"

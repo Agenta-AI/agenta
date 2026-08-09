@@ -1,5 +1,8 @@
 import dayjs from "./dayjs"
 
+// The plugin-configured instance (utc, duration, relativeTime) — call sites need this one.
+export {default as dayjs} from "./dayjs"
+
 const FALLBACK_FORMATS = [
     "YYYY-MM-DD H:mm:ssAZ",
     "YYYY-MM-DD H:mm:sssAZ",

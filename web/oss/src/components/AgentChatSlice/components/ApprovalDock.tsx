@@ -2,13 +2,13 @@ import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {ApprovalCard, PayloadBlock} from "@agenta/chat/components"
 import type {PendingApproval} from "@agenta/chat/model"
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {HeightCollapse} from "@agenta/ui"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {isAgentChatSteerEnabled} from "../assets/constants"
 import {canonicalToolName} from "../assets/toolDisplay"
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import ApprovedContentManifest, {
     parseApprovedContentManifest,

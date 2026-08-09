@@ -152,6 +152,9 @@ importers:
       '@agenta/playground-ui':
         specifier: workspace:../packages/agenta-playground-ui
         version: link:../packages/agenta-playground-ui
+      '@agenta/settings':
+        specifier: workspace:../packages/agenta-settings
+        version: link:../packages/agenta-settings
       '@agenta/shared':
         specifier: workspace:../packages/agenta-shared
         version: link:../packages/agenta-shared

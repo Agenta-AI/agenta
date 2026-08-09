@@ -11,6 +11,8 @@ import {
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
 import {ActiveToggle, TriggerSubscriptionDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import {useStaticTable} from "@agenta/settings"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {
     createStandardColumns,
@@ -29,9 +31,6 @@ import {
 } from "@phosphor-icons/react"
 import {Button, message, Tag, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
-
-import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 export default function GatewaySubscriptionsSection() {
     const {subscriptions, isLoading, refetch} = useTriggerSubscriptions()
