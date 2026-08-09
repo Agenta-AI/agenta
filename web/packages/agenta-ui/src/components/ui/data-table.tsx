@@ -132,8 +132,11 @@ export function DataTable<T>({
     // Actions ride the title's row when there is a title, so a section with no search does not
     // leave a band of empty space between its heading and its buttons. Without a title they sit
     // at the end of the filter row instead.
+    //
+    // Narrow: the row stacks and the buttons span it, rather than wrapping to a hard-right
+    // cluster under the description.
     const toolbarActions = hasActions ? (
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 max-sm:w-full sm:ml-auto">
             {onReload ? (
                 <SimpleTooltip title={reloadLabel}>
                     <Button
@@ -146,7 +149,16 @@ export function DataTable<T>({
                     </Button>
                 </SimpleTooltip>
             ) : null}
-            {primaryActions}
+            {/* The empty state carries its own call to action, and on a phone the two sit far
+                enough apart to read as different controls — so show only that one. */}
+            <div
+                className={clsx(
+                    "flex flex-1 items-center gap-2 [&>*]:flex-1 sm:flex-none sm:[&>*]:flex-none",
+                    showEmpty && empty && "max-sm:hidden",
+                )}
+            >
+                {primaryActions}
+            </div>
         </div>
     ) : null
 
@@ -168,7 +180,7 @@ export function DataTable<T>({
                         // `min-h` holds the row's height when a host suppresses the actions (a
                         // read-only surface), so the rhythm from header to table does not
                         // change tab to tab.
-                        <div className="flex min-h-control flex-wrap items-start gap-2">
+                        <div className="flex min-h-control flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
                             {title ? <div className="min-w-0">{title}</div> : null}
                             {title || !hasFilterRow ? toolbarActions : null}
                         </div>
@@ -181,7 +193,7 @@ export function DataTable<T>({
                             {search ? (
                                 <Input
                                     placeholder={search.placeholder}
-                                    className="w-[260px]"
+                                    className="w-full sm:w-[260px]"
                                     value={search.value}
                                     onChange={(event) => search.onChange(event.target.value)}
                                     disabled={search.disabled}
@@ -290,7 +302,7 @@ export function DataTable<T>({
                     </tbody>
                 </table>
 
-                {showEmpty ? <div className="px-3 py-8">{empty}</div> : null}
+                {showEmpty ? <div className="px-3 py-5 sm:py-8">{empty}</div> : null}
             </div>
         </div>
     )
