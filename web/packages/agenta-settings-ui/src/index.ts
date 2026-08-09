@@ -16,6 +16,7 @@ export {
     type ProjectDialogState,
 } from "./projects/ProjectsPage"
 export {MembersPage, type MembersPageProps} from "./members/MembersPage"
+export {AuditLogPage, type AuditLogPageProps} from "./audit/AuditLogPage"
 export {OrganizationsPage, type OrganizationsPageProps} from "./organizations/OrganizationsPage"
 export {
     AccessControlsSection,

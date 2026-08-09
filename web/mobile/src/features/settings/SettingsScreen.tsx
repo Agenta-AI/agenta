@@ -22,6 +22,7 @@ import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
     AccessControlsSection,
     ApiKeysPage,
+    AuditLogPage,
     type AuthFlagKey,
     DomainsSection,
     GatewayToolsSection,
@@ -73,6 +74,7 @@ const AVAILABLE: SettingsTabKey[] = [
     "workspace",
     "organization",
     "projects",
+    "auditLog",
     "account",
     "preferences",
 ]
@@ -180,6 +182,11 @@ const TabBody = ({
             )
         case "secrets":
             return <NamedSecretTable />
+        // No date-range picker and no entitlement lookup here: the rail already only lists
+        // this tab on EE, and `/events/query` authorizes regardless — an org without the
+        // entitlement gets the table's empty state rather than a locked page.
+        case "auditLog":
+            return <AuditLogPage hasAudit />
         case "webhooks":
             return <WebhooksPage />
         // Read-only: the create/edit drawers still render antd forms, which have no
@@ -294,7 +301,7 @@ export const SettingsScreen = ({
             canShowTools: true,
             canShowTriggers: true,
             canViewApiKeys: true,
-            canViewEvents: false,
+            canViewEvents: true,
             isEE,
             isOwner: false,
         }),
@@ -367,8 +374,11 @@ export const SettingsScreen = ({
                         </nav>
 
                         <div className="min-w-0 flex-1 overflow-y-auto">
+                            {/* No content cap: this app's rail already narrows the page, and the
+                                desktop's 640/1120 caps left every section floating in a wide
+                                empty column here. */}
                             <SettingsPageShell
-                                variant="form"
+                                variant="full"
                                 title={getSettingsTabLabel(active, access)}
                                 description={getSettingsTabDescription(active, access)}
                             >
