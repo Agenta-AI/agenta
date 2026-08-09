@@ -71,10 +71,6 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     // Covers /agents and /agents/archived, both full-height InfiniteVirtualTable pages.
     const isAgents = pathname.includes("/agents")
     const isSessions = pathname.includes("/sessions")
-    // The apps INDEX only (Home): its two columns scroll independently, so it needs the bounded
-    // frame. Anchored to the end of the path so an app's own sub-routes — /apps/<id>/overview,
-    // /apps/<id>/playground — keep whichever layout they already had.
-    const isAppsHome = /\/apps\/?$/.test(pathname)
 
     return {
         isAuthRoute:
@@ -96,8 +92,8 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAgentTemplates ||
             isAgents ||
             isSessions ||
-            isAppsHome ||
-            // Asked for by the page — see `layoutFullHeightRequestAtom`.
+            // Asked for by the page — see `layoutFullHeightRequestAtom`. Home is one of these:
+            // its returning branch scrolls with the page, its first-run branch asks for the frame.
             get(layoutFullHeightRequestAtom),
     }
 })
@@ -300,7 +296,14 @@ const AppWithVariants = memo(
         }, [demoReturnHintDismissed, lastNonDemoProject, navigate, setDemoReturnHintPending])
 
         return (
-            <div className={clsx([{"flex flex-col grow min-h-0": isFullHeight}])}>
+            <div
+                className={clsx([
+                    {"flex flex-col grow min-h-0": isFullHeight},
+                    // The demo banner is `fixed`, so it covers anything the page pins to the
+                    // viewport top. Sticky content reads this var to offset itself past it.
+                    project?.is_demo && "[--ag-demo-banner-h:38px]",
+                ])}
+            >
                 <Modal
                     title="Want to revisit the demo?"
                     open={isDemoReturnModalOpen}
