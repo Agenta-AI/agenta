@@ -1,6 +1,11 @@
 import {useMemo, useState} from "react"
 
-import {fetchAllOrgsList, fetchSingleOrg} from "@agenta/entities/organization"
+import {
+    fetchAllOrgsList,
+    fetchSingleOrg,
+    updateOrganization,
+    type OrganizationFlags,
+} from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
 import {
@@ -12,8 +17,10 @@ import {
 } from "@agenta/settings"
 import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
+    AccessControlsSection,
     AccountPage,
     ApiKeysPage,
+    type AuthFlagKey,
     MembersPage,
     NamedSecretTable,
     OrganizationsPage,
@@ -52,6 +59,7 @@ const AVAILABLE: SettingsTabKey[] = [
     "webhooks",
     "organizationGeneral",
     "workspace",
+    "organization",
     "projects",
     "account",
     "preferences",
@@ -86,7 +94,8 @@ const TabBody = ({
     const projects = useQuery({
         queryKey: ["projects", workspaceId],
         queryFn: () => fetchAllProjects(workspaceId),
-        enabled: tab === "projects" || tab === "workspace" || tab === "organizationGeneral",
+        // Every organization-scoped tab resolves its org id from this list.
+        enabled: tab !== "preferences" && tab !== "account",
     })
 
     // A project carries its organization, which saves resolving one from the workspace id.
@@ -98,7 +107,7 @@ const TabBody = ({
     const org = useQuery({
         queryKey: ["selectedOrg", organizationId],
         queryFn: () => fetchSingleOrg({organizationId: organizationId!}),
-        enabled: tab === "workspace" && Boolean(organizationId),
+        enabled: (tab === "workspace" || tab === "organization") && Boolean(organizationId),
     })
     const organizations = useQuery({
         queryKey: ["orgs"],
@@ -107,6 +116,20 @@ const TabBody = ({
     })
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
+
+    const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
+    const [lastSavedFlag, setLastSavedFlag] = useState<AuthFlagKey | null>(null)
+    const setFlag = async (flag: AuthFlagKey, value: boolean) => {
+        if (!organizationId) return
+        setSavingFlag(flag)
+        try {
+            await updateOrganization(organizationId, {flags: {[flag]: value}})
+            await org.refetch()
+            setLastSavedFlag(flag)
+        } finally {
+            setSavingFlag(null)
+        }
+    }
 
     switch (tab) {
         case "preferences":
@@ -167,6 +190,22 @@ const TabBody = ({
                     currentUserId={user?.id}
                 />
             )
+        case "organization": {
+            const flags = org.data?.flags as OrganizationFlags | undefined
+            if (!flags) return null
+            return (
+                <AccessControlsSection
+                    flags={flags}
+                    onFlagChange={(flag, value) => void setFlag(flag, value)}
+                    updating={Boolean(savingFlag)}
+                    lastSavedFlag={lastSavedFlag}
+                    // Domains and SSO providers are configured on the desktop, so these two
+                    // gates read from the flags already in effect rather than from those lists.
+                    hasActiveVerifiedProvider={flags.allow_sso}
+                    hasVerifiedDomain={flags.auto_join || flags.domains_only}
+                />
+            )
+        }
         default:
             return null
     }
