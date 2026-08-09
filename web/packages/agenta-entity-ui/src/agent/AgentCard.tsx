@@ -102,7 +102,12 @@ export const AgentCard = ({
 
     const title = (
         <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate text-base font-semibold text-colorText">
+            {/* Rail rows read like session rows (14/regular); the grid card keeps a heading. */}
+            <span
+                className={`min-w-0 truncate text-colorText ${
+                    isGrid ? "text-base font-semibold" : "text-sm"
+                }`}
+            >
                 {agent.name}
             </span>
             {waiting > 0 ? (
@@ -202,7 +207,13 @@ export const AgentCard = ({
                     </div>
                 </>
             ) : (
-                <div className="flex items-start gap-3">
+                <div
+                    className={`flex gap-3 ${
+                        // Without a description the title is one 24px line against a 40px
+                        // avatar, and top-alignment left the name riding high.
+                        description ? "items-start" : "items-center"
+                    }`}
+                >
                     {avatar}
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                         {title}
