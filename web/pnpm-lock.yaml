@@ -1861,6 +1861,9 @@ importers:
 
   packages/agenta-settings-ui:
     dependencies:
+      '@agenta/entities':
+        specifier: workspace:../agenta-entities
+        version: link:../agenta-entities
       '@agenta/settings':
         specifier: workspace:../agenta-settings
         version: link:../agenta-settings

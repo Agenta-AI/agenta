@@ -15,6 +15,7 @@
         ".": "./src/index.ts"
     },
     "dependencies": {
+        "@agenta/entities": "workspace:../agenta-entities",
         "@agenta/settings": "workspace:../agenta-settings",
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",

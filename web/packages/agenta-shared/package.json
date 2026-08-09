@@ -21,12 +21,13 @@
         "./api": "./src/api/index.ts",
         "./api/env": "./src/api/env.ts",
         "./api/persist": "./src/api/persist/index.ts",
-        "./state": "./src/state/index.ts",
-        "./utils": "./src/utils/index.ts",
-        "./utils/mobileGate": "./src/utils/mobileGate/index.ts",
         "./hooks": "./src/hooks/index.ts",
         "./schemas": "./src/schemas/index.ts",
-        "./types": "./src/types/index.ts"
+        "./state": "./src/state/index.ts",
+        "./types": "./src/types/index.ts",
+        "./utils": "./src/utils/index.ts",
+        "./utils/dateTime": "./src/utils/dateTime/index.ts",
+        "./utils/mobileGate": "./src/utils/mobileGate/index.ts"
     },
     "dependencies": {
         "@tanstack/query-persist-client-core": "5.100.9",
