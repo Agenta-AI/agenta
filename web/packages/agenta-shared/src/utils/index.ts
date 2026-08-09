@@ -12,6 +12,9 @@ export {
     validateUUID,
 } from "./validators"
 
+// Platform detection (modifier-key naming)
+export {isMacPlatform, modifierKeyLabel} from "./platform"
+
 // Filtering utilities
 export {filterItems} from "./filterItems"
 export type {FilterItemLabel} from "./filterItems"

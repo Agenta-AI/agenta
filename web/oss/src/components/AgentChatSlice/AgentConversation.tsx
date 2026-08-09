@@ -21,10 +21,7 @@ import {
     filesDrawerOpenAtomFamily,
     filesDrawerStagedAtomFamily,
 } from "@/oss/components/Drives/SessionFilesDrawer"
-import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
-import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
-import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 
 import {describeAccepted} from "./assets/attachments"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
@@ -727,14 +724,6 @@ const AgentConversation = ({
                         />
                     </div>
                 </RightPanelSplit>
-
-                {TEMPLATE_STRIP_MODE ? (
-                    <CopiedToast
-                        open={onboardingChat.copiedToastOpen}
-                        text={STRIP_COPY.copiedToast}
-                        onDone={() => onboardingChat.setCopiedToastOpen(false)}
-                    />
-                ) : null}
             </div>
         </DriveSessionProvider>
     )

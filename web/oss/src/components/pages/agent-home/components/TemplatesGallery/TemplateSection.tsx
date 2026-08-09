@@ -5,10 +5,17 @@ interface TemplateSectionProps {
     category: string
     templates: AgentTemplate[]
     onSelectTemplate: (template: AgentTemplate) => void
+    /** Key of the template whose agent is being created (spins that card, dims the rest). */
+    pendingTemplateKey?: string | null
 }
 
 /** One category block in the gallery: uppercase header + per-section count, then a 3-col card grid. */
-const TemplateSection = ({category, templates, onSelectTemplate}: TemplateSectionProps) => {
+const TemplateSection = ({
+    category,
+    templates,
+    onSelectTemplate,
+    pendingTemplateKey,
+}: TemplateSectionProps) => {
     if (templates.length === 0) return null
 
     return (
@@ -30,6 +37,8 @@ const TemplateSection = ({category, templates, onSelectTemplate}: TemplateSectio
                         key={template.key}
                         template={template}
                         onSelect={onSelectTemplate}
+                        loading={template.key === pendingTemplateKey}
+                        disabled={!!pendingTemplateKey && template.key !== pendingTemplateKey}
                     />
                 ))}
             </div>

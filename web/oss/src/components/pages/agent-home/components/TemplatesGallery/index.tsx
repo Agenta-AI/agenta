@@ -3,12 +3,10 @@ import {useCallback, useDeferredValue, useEffect, useMemo, useState} from "react
 import {type SectionRailItem} from "@agenta/entity-ui"
 import {PageLayout} from "@agenta/ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {App, Input, Typography} from "antd"
+import {Input, Typography} from "antd"
 import clsx from "clsx"
 import {Search} from "lucide-react"
 import {useRouter} from "next/router"
-
-import useURL from "@/oss/hooks/useURL"
 
 import {TEMPLATES_GALLERY} from "../../assets/constants"
 import {
@@ -19,7 +17,7 @@ import {
     templateCategories,
     type AgentTemplate,
 } from "../../assets/templates"
-import TemplateSetupDrawer, {type TemplateSetupResult} from "../TemplateSetupDrawer"
+import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate"
 
 import TemplateSection from "./TemplateSection"
 
@@ -33,8 +31,6 @@ const matchesQuery = (template: AgentTemplate, query: string) => {
 /** Full templates gallery — category rail + sectioned card grid, reached from Home's "Browse all". */
 const TemplatesGalleryPage = () => {
     const router = useRouter()
-    const {message} = App.useApp()
-    const {baseAppURL} = useURL()
 
     const categories = useMemo(() => templateCategories(), [])
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
@@ -80,24 +76,13 @@ const TemplatesGalleryPage = () => {
         [router],
     )
 
-    // Template card click: builder mode → straight to a seeded playground; else open the setup
-    // drawer. Gated by NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER.
-    const [setupTemplate, setSetupTemplate] = useState<AgentTemplate | null>(null)
-    // A card opens the template rather than creating from it: the detail page is where you find
-    // out what it needs before committing, which is the point of having one.
+    // A card IS the create action: picking a template mints the agent and opens its playground,
+    // rather than routing through a detail page and a second "Use this template" click. The detail
+    // page stays reachable by URL for anyone who wants to read what a template does first.
+    const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("gallery")
     const handleSelectTemplate = useCallback(
-        (template: AgentTemplate) =>
-            void router.push(`${baseAppURL}/agent-templates/${template.key}`),
-        [router, baseAppURL],
-    )
-
-    // TODO(Phase B): create the ephemeral draft from the template + open the playground.
-    const handleTemplateCreate = useCallback(
-        ({template, name}: TemplateSetupResult) => {
-            setSetupTemplate(null)
-            message.info(`Create "${name}" from ${template.name} — wiring in the next phase`)
-        },
-        [message],
+        (template: AgentTemplate) => void createFromTemplate(template),
+        [createFromTemplate],
     )
 
     // Sections to render: All → every present category; otherwise just the active one.
@@ -188,19 +173,13 @@ const TemplatesGalleryPage = () => {
                                     category={section.category}
                                     templates={section.templates}
                                     onSelectTemplate={handleSelectTemplate}
+                                    pendingTemplateKey={pendingKey}
                                 />
                             ))}
                         </div>
                     )}
                 </div>
             </div>
-
-            <TemplateSetupDrawer
-                template={setupTemplate}
-                open={!!setupTemplate}
-                onClose={() => setSetupTemplate(null)}
-                onCreate={handleTemplateCreate}
-            />
         </PageLayout>
     )
 }

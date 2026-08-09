@@ -6,7 +6,7 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
-import {App, Typography} from "antd"
+import {Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
@@ -16,18 +16,13 @@ import NewAgentButton from "@/oss/components/NewAgentButton"
 import NextTriggersSection from "@/oss/components/NextTriggers"
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
 import TemplateStrip from "@/oss/components/TemplateStrip"
-import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
-import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
-import CopiedToast from "@/oss/components/TemplateStrip/components/CopiedToast"
 import StripComposer from "@/oss/components/TemplateStrip/components/StripComposer"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import UsageSummary from "@/oss/components/UsageSummary"
 import useURL from "@/oss/hooks/useURL"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 
 import {HERO, RETURNING_HERO} from "./assets/constants"
-import {captureFirstAgentIntent, truncateForCapture} from "./assets/onboardingAnalytics"
 import {AGENT_TEMPLATES, type AgentTemplate} from "./assets/templates"
 import HomeAutomationsSection from "./components/HomeAutomationsSection"
 import HomeSessionsSection from "./components/HomeSessionsSection"
@@ -35,6 +30,7 @@ import HomeTaskComposer from "./components/HomeTaskComposer"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
+import {useCreateAgentFromTemplate} from "./hooks/useCreateAgentFromTemplate"
 
 /**
  * The strip-era home layout (TEMPLATE_STRIP_MODE on): hero + composer (chip-docked) +
@@ -50,11 +46,8 @@ const StripHome: React.FC = () => {
     // Home creates, navigates to the playground, and auto-sends (owner decision).
     const {onCreate} = useAgentHomeActions(composerRef, {autoSendSeed: true})
     const {firstRunOverride, creatingAgent} = useAgentHomeVariants()
-    const posthog = usePostHogAg()
     const {baseAppURL} = useURL()
     const router = useRouter()
-    const {message} = App.useApp()
-    const [toastOpen, setToastOpen] = useState(false)
     // Create is a multi-step async round-trip; on success we navigate away, so we keep the
     // spinner running (only reset on failure) rather than flashing the label back mid-navigation.
     const [loading, setLoading] = useState(false)
@@ -69,6 +62,14 @@ const StripHome: React.FC = () => {
     // The create-an-agent surface IS the first-run surface — describe it, pick a template, send.
     // A returning user gets there via `?new=1` rather than through the task composer.
     const firstRun = isFirstRun || creatingAgent
+
+    const templateParam = Array.isArray(router.query.template)
+        ? router.query.template[0]
+        : router.query.template
+    // "Blank agent" from the New agent menu asks for one thing: describe it. The templates below
+    // were the answer to a question this path already declined, so the composer stands alone and
+    // centres. First run and `?template=` still show them — there the strip is the offer.
+    const blankCreate = creatingAgent && !templateParam
 
     // Only the centred first-run document wants the layout's bounded frame. The workspace scrolls
     // with the page, so it must NOT ask — see `layoutFullHeightRequestAtom`.
@@ -85,6 +86,9 @@ const StripHome: React.FC = () => {
         },
     })
 
+    // A card here IS the create action — no composer step, no second confirmation.
+    const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("create")
+
     const handlePick = useCallback(
         (template: AgentTemplate) => {
             // On the workspace home the composer runs tasks, so a pick here has no composer to
@@ -93,28 +97,14 @@ const StripHome: React.FC = () => {
                 void router.push(`${baseAppURL}?new=1&template=${template.key}`)
                 return
             }
-            provenance.pick(template)
-            captureFirstAgentIntent(posthog, {
-                source: "template",
-                properties: {
-                    template: template.name,
-                    templateId: template.key,
-                    templateCategory: template.category,
-                    mode: "strip",
-                    surface: "home",
-                },
-                intentValue: template.category || template.name,
-            })
+            void createFromTemplate(template)
         },
-        [firstRun, router, baseAppURL, provenance.pick, posthog],
+        [firstRun, router, baseAppURL, createFromTemplate],
     )
 
     // Seed once PER TEMPLATE KEY: a boolean guard blocked every template after the first,
     // because this surface stays mounted across ?template= navigations.
     const seededTemplate = useRef<string | null>(null)
-    const templateParam = Array.isArray(router.query.template)
-        ? router.query.template[0]
-        : router.query.template
     useEffect(() => {
         if (!templateParam) {
             seededTemplate.current = null
@@ -137,21 +127,6 @@ const StripHome: React.FC = () => {
         [loading, onCreate, provenance.resolveTemplateName],
     )
 
-    const handleCodingAgentCopy = useCallback(async () => {
-        const text = composerRef.current?.getMarkdown().trim() ?? ""
-        try {
-            await navigator.clipboard.writeText(buildCodingAgentClipboard(text))
-            setToastOpen(true)
-        } catch {
-            message.error("Couldn't copy — copy it manually")
-            return
-        }
-        captureFirstAgentIntent(posthog, {
-            source: "composer",
-            properties: {action: "coding_agent_copy", message: truncateForCapture(text)},
-        })
-    }, [message, posthog])
-
     return (
         <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")}>
             {/* First run stays a centered document in the layout's bounded frame — one question,
@@ -171,7 +146,9 @@ const StripHome: React.FC = () => {
                 <div
                     className={
                         firstRun
-                            ? "flex w-full flex-col"
+                            ? // `my-auto` (not `justify-center`) so the block still centres when it
+                              // outgrows the frame without clipping its top out of the scroller.
+                              `flex w-full flex-col ${blankCreate ? "my-auto" : ""}`
                             : // `min-w-0` or a wide table would push the column past its share.
                               "box-border flex min-w-0 flex-1 flex-col gap-14"
                     }
@@ -243,7 +220,6 @@ const StripHome: React.FC = () => {
                                 <StripComposer
                                     composerRef={composerRef}
                                     onCreate={handleCreate}
-                                    onCodingAgentCopy={handleCodingAgentCopy}
                                     composerClassName={provenance.composerClassName}
                                     onTextChange={provenance.onComposerTextChange}
                                     loading={loading}
@@ -255,13 +231,16 @@ const StripHome: React.FC = () => {
                     </div>
 
                     {firstRun ? (
-                        <TemplateStrip
-                            className="mt-20"
-                            surface="home"
-                            layout="grid"
-                            selectedTemplateKey={provenance.selectedTemplateKey}
-                            onPick={handlePick}
-                        />
+                        blankCreate ? null : (
+                            <TemplateStrip
+                                className="mt-20"
+                                surface="home"
+                                layout="grid"
+                                selectedTemplateKey={provenance.selectedTemplateKey}
+                                onPick={handlePick}
+                                pendingTemplateKey={pendingKey}
+                            />
+                        )
                     ) : (
                         // EXPERIMENT: the columns' contents are swapped. What's in flight takes
                         // the wide column under the composer; the templates strip and the agents
@@ -315,12 +294,6 @@ const StripHome: React.FC = () => {
                     </div>
                 ) : null}
             </div>
-
-            <CopiedToast
-                open={toastOpen}
-                text={STRIP_COPY.copiedToast}
-                onDone={() => setToastOpen(false)}
-            />
         </PageLayout>
     )
 }
