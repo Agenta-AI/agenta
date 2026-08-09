@@ -75,6 +75,10 @@ services/runner/tests/results/
 !.husky/
 !.husky/**
 !.coderabbit.yaml
+
+# QA gate run outputs: machine artifacts with per-run probe tokens that trip secret
+# scanners (and once rode a blanket commit onto a public branch). Never tracked.
+.agents/skills/agent-release-gate/qa-gate-runs/
 !.dockerignore
 !api/.dockerignore
 !services/.dockerignore
