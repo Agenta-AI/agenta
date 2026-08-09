@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
 import SidebarBackButton from "../components/SidebarBackButton"
 import SidebarToggleButton from "../components/SidebarToggleButton"
 import WorkflowPicker from "../components/WorkflowPicker"
@@ -12,6 +13,10 @@ import {useWorkflowSidebarItems} from "./workflowItems"
 interface WorkflowScopeOptions {
     lastPath?: string
 }
+
+const WorkflowSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => (
+    <ProjectOrgSwitcher collapsed={collapsed} />
+)
 
 // The two header rows are 45px tall so the rail's lines land on the same y as the
 // playground header, and read as one line across the app.
@@ -66,4 +71,7 @@ export const createWorkflowSidebarScope = ({lastPath}: WorkflowScopeOptions): Si
     useSelection: useWorkflowSidebarSelection,
     useSections: useWorkflowSidebarSections,
     header: WorkflowSidebarHeader,
+    // Same bottom slot as the main and settings scopes: the project/org switcher
+    // stays reachable inside an agent, not only on the top-level sidebar.
+    afterBottom: WorkflowSidebarAfterBottom,
 })
