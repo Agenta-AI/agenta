@@ -917,10 +917,61 @@ body {
     background: transparent;
 }
 
-/* Solid thumb. Mahmoud's verdict on the always-on gradient: a fade should MEAN "more
-   content this way" (fade at the far end at the top, at the near end at the bottom,
-   none mid-scroll) — a static fade is noise. Until a scroll-position-aware fade is
-   proven to work, the thumb stays plain. */
+/* Scroll-position-aware thumb. The fade is a SIGNAL of remaining content: at the top the
+   thumb dissolves at its bottom end ("more below"), at the bottom at its top end, and
+   mid-scroll it is solid, because mid-scroll both directions are already obvious. The two
+   fade lengths are registered custom properties so they can interpolate, a scroll-driven
+   animation moves them on the scroller, and the thumb's gradient reads them back.
+
+   `inherits: true` is load-bearing. ::-webkit-scrollbar-thumb only sees these through
+   inheritance from its scroller; registered with `inherits: false` the thumb silently
+   paints the initial value and the result is pixel-identical to a solid thumb.
+
+   The percentage in min() resolves against the thumb's own box, not the scroller, so the
+   fade is a constant soft tip on a long thumb and cannot swallow a minimum-length one. */
+@property --ag-fade-start {
+    syntax: "<length-percentage>";
+    inherits: true;
+    initial-value: 0px;
+}
+
+@property --ag-fade-end {
+    syntax: "<length-percentage>";
+    inherits: true;
+    initial-value: 0px;
+}
+
+@keyframes ag-thumb-fade {
+    0% {
+        --ag-fade-start: 0px;
+        --ag-fade-end: min(14px, 35%);
+    }
+
+    40%,
+    60% {
+        --ag-fade-start: 0px;
+        --ag-fade-end: 0px;
+    }
+
+    100% {
+        --ag-fade-start: min(14px, 35%);
+        --ag-fade-end: 0px;
+    }
+}
+
+/* Scoped to the scrollers we write, not `*`. On `*` Chromium builds a scroll timeline for
+   every element — 12k of them on a 12k-node page to drive the one that scrolls — which
+   costs ~3.5x page load, ~5x style recalc and halves the scroll frame rate; and the
+   animation-timeline leaks onto any element that sets animation-name through the longhand,
+   turning that element's own animation scroll-driven. Scoped, the same page builds one
+   timeline and holds 60fps. Scrollers outside this list keep the solid thumb; opt in with
+   .ag-scroll-fade. Vertical only — horizontal thumbs stay solid. */
+html,
+:where(.overflow-auto, .overflow-y-auto, .overflow-y-scroll, .ag-scroll-fade) {
+    animation: ag-thumb-fade linear both;
+    animation-timeline: scroll(self block);
+}
+
 ::-webkit-scrollbar-thumb {
     border-radius: 999px;
     background-color: var(--ag-scroll-thumb);
@@ -928,6 +979,38 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background-color: var(--ag-scroll-thumb-hover);
+}
+
+/* background-color has to be cleared wherever the gradient paints: the two composite, and
+   a 0.22-alpha thumb painted twice reads as ~0.39. The local --ag-thumb is what keeps
+   :hover working underneath an opaque gradient, which a plain background-color hover rule
+   cannot do. Horizontal thumbs keep the solid rules above. */
+html::-webkit-scrollbar-thumb:vertical,
+:where(
+        .overflow-auto,
+        .overflow-y-auto,
+        .overflow-y-scroll,
+        .ag-scroll-fade
+    )::-webkit-scrollbar-thumb:vertical {
+    --ag-thumb: var(--ag-scroll-thumb);
+    background-color: transparent;
+    background-image: linear-gradient(
+        to bottom,
+        transparent 0%,
+        var(--ag-thumb) var(--ag-fade-start),
+        var(--ag-thumb) calc(100% - var(--ag-fade-end)),
+        transparent 100%
+    );
+}
+
+html::-webkit-scrollbar-thumb:vertical:hover,
+:where(
+        .overflow-auto,
+        .overflow-y-auto,
+        .overflow-y-scroll,
+        .ag-scroll-fade
+    )::-webkit-scrollbar-thumb:vertical:hover {
+    --ag-thumb: var(--ag-scroll-thumb-hover);
 }
 
 /* Quiet scrollbars. The gutter is reserved at the thumb's width whether or not the
