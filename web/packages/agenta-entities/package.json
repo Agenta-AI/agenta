@@ -46,6 +46,7 @@
         "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
         "./loadable": "./src/loadable/index.ts",
         "./profile": "./src/profile/index.ts",
+        "./project": "./src/project/index.ts",
         "./queue": "./src/queue/index.ts",
         "./runnable": "./src/runnable/index.ts",
         "./runnable/bridge": "./src/runnable/bridge.ts",
