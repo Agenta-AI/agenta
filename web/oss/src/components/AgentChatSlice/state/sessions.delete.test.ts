@@ -15,10 +15,17 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-const deleteSessionRemote = vi.fn(async () => true)
+interface DeleteSessionRemoteArgs {
+    sessionId: string
+    projectId: string
+    appId?: string
+    abortSignal?: AbortSignal
+}
+
+const deleteSessionRemote = vi.fn(async (_args: DeleteSessionRemoteArgs) => true)
 
 vi.mock("@agenta/entities/session", () => ({
-    deleteSessionRemote: (...args: unknown[]) => deleteSessionRemote(...(args as [])),
+    deleteSessionRemote: (args: DeleteSessionRemoteArgs) => deleteSessionRemote(args),
     archiveSessionRemote: vi.fn(async () => true),
     unarchiveSessionRemote: vi.fn(async () => true),
     setSessionHeader: vi.fn(),
