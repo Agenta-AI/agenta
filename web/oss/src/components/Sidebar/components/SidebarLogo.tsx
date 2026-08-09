@@ -21,8 +21,10 @@ const SidebarLogo = ({collapsed}: SidebarLogoProps) => {
     return (
         <div
             className={clsx(
-                "flex h-[48px] shrink-0 items-start pt-2 mb-1",
-                collapsed ? "justify-center" : "justify-between pl-2 pr-2",
+                // mt/ml push the whole centred row away from the corner; padding alone read as
+                // no change because the 48px row's centring already held the logo 14px down.
+                "flex h-[48px] shrink-0 items-center mt-2 mb-1",
+                collapsed ? "justify-center" : "justify-between ml-2 pl-3 pr-2",
             )}
         >
             {/* unoptimized: SVGs skip /_next/image, which rejects SVG without dangerouslyAllowSVG. */}
