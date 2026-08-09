@@ -46,7 +46,7 @@ export const ConfirmSheet = ({
             if (!next && !pending) onClose()
         }}
     >
-        <SheetContent side="bottom">
+        <SheetContent side="responsive">
             <SheetHeader>
                 <SheetTitle>{title}</SheetTitle>
                 {description ? <SheetDescription>{description}</SheetDescription> : null}

@@ -148,8 +148,32 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
     const showSkeleton = loading && rows.length === 0
     const showEmpty = !loading && rows.length === 0
-    const hasToolbar = Boolean(search || filters || onReload || primaryActions)
-    const hasHeader = Boolean(title) || hasToolbar
+    const hasFilterRow = Boolean(search || filters)
+    const hasActions = Boolean(onReload || primaryActions)
+    const hasHeader = Boolean(title) || hasFilterRow || hasActions
+
+    // Actions ride the title's row when there is a title, so a section with no search does not
+    // leave a band of empty space between its heading and its buttons. Without a title they sit
+    // at the end of the filter row instead.
+    const toolbarActions = hasActions ? (
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+            {onReload ? (
+                <SimpleTooltip title={reloadLabel}>
+                    <Button
+                        variant="outline"
+                        aria-label={reloadLabel}
+                        disabled={reloading}
+                        // Callers pass zero-arg reloaders; bound directly,
+                        // React would hand them the click event.
+                        onClick={() => onReload()}
+                    >
+                        <ArrowClockwise size={14} />
+                    </Button>
+                </SimpleTooltip>
+            ) : null}
+            {primaryActions}
+        </div>
+    ) : null
 
     return (
         <div className={clsx("flex min-w-0 flex-col gap-2", className)}>
@@ -165,13 +189,19 @@ export function DataTable<T>({
                             "sticky top-[var(--ag-sticky-top,0px)] z-10 bg-colorBgContainer pb-2 pt-2",
                     )}
                 >
-                    {title ? <div>{title}</div> : null}
+                    {title || (hasActions && !hasFilterRow) ? (
+                        // `min-h` holds the row's height when a host suppresses the actions (a
+                        // read-only surface), so the rhythm from header to table does not
+                        // change tab to tab.
+                        <div className="flex min-h-control flex-wrap items-start gap-2">
+                            {title ? <div className="min-w-0">{title}</div> : null}
+                            {title || !hasFilterRow ? toolbarActions : null}
+                        </div>
+                    ) : null}
 
-                    {hasToolbar ? (
-                        // One shape for every list: search then filters on the left, reload
-                        // then the primary buttons on the right. `min-h` holds the row's
-                        // height when a host suppresses the actions (a read-only surface),
-                        // so the rhythm from header to table does not change tab to tab.
+                    {hasFilterRow ? (
+                        // Search then filters on the left; the actions join this row only when
+                        // there is no title above to carry them.
                         <div className="flex min-h-control flex-wrap items-center gap-2">
                             {search ? (
                                 <Input
@@ -183,23 +213,7 @@ export function DataTable<T>({
                                 />
                             ) : null}
                             {filters}
-                            <div className="ml-auto flex items-center gap-2">
-                                {onReload ? (
-                                    <SimpleTooltip title={reloadLabel}>
-                                        <Button
-                                            variant="outline"
-                                            aria-label={reloadLabel}
-                                            disabled={reloading}
-                                            // Callers pass zero-arg reloaders; bound directly, React would hand
-                                            // them the click event.
-                                            onClick={() => onReload()}
-                                        >
-                                            <ArrowClockwise size={14} />
-                                        </Button>
-                                    </SimpleTooltip>
-                                ) : null}
-                                {primaryActions}
-                            </div>
+                            {title ? null : toolbarActions}
                         </div>
                     ) : null}
                 </div>

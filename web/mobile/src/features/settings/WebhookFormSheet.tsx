@@ -126,7 +126,7 @@ export const WebhookFormSheet = ({onSuccess}: {onSuccess: () => void}) => {
                 if (!next && !saving) close()
             }}
         >
-            <SheetContent side="bottom">
+            <SheetContent side="responsive">
                 <SheetHeader>
                     <SheetTitle>{isEdit ? "Edit subscription" : "Subscribe"}</SheetTitle>
                     <SheetDescription>

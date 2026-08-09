@@ -63,7 +63,7 @@ export const ProviderKeySheet = ({
                 if (!next && !saving) onClose()
             }}
         >
-            <SheetContent side="bottom">
+            <SheetContent side="responsive">
                 <SheetHeader>
                     <SheetTitle>{provider?.title ?? "Provider"} API key</SheetTitle>
                     <SheetDescription>

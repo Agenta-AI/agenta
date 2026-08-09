@@ -77,7 +77,7 @@ export const WebhooksTab = () => {
                         }
                     }}
                 >
-                    <SheetContent side="bottom">
+                    <SheetContent side="responsive">
                         <SheetHeader>
                             <SheetTitle>Save your webhook secret</SheetTitle>
                             <SheetDescription>
