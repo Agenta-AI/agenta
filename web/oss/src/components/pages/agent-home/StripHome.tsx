@@ -275,16 +275,18 @@ const StripHome: React.FC = () => {
                     )}
                 </div>
 
-                {/* Right column, post-swap: what you could start. Pinned while the page scrolls;
-                    the cap is what lets `PanelScroll` inside take over once the rail outgrows the
-                    viewport. Both the sticky offset and the height it subtracts are the page's own
-                    56/32 gutters.
+                {/* Right column, post-swap: what you could start. It scrolls up with the page
+                    first and only pins on arrival — which is what the offset buys: sticky pins
+                    the moment the element reaches `top`, so an offset equal to its resting y
+                    (the 56px gutter) would pin it from scroll zero and it would never travel.
+                    16px leaves it 40px of travel and a little air once pinned. The cap is what
+                    lets `PanelScroll` inside take over when the rail outgrows the viewport.
 
                     A third of the width rather than a fixed 400px, which held its proportion
                     only at one screen size — it read as a third on a large display and as a
                     slab on a laptop. */}
                 {!firstRun ? (
-                    <div className="sticky top-14 box-border flex max-h-[calc(100vh-5.5rem)] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
+                    <div className="sticky top-4 box-border flex max-h-[calc(100vh-3rem)] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
                         <PanelSurface>
                             <PanelScroll>
                                 {/* Rows, not the scroller: a 238px card and a six-tab category

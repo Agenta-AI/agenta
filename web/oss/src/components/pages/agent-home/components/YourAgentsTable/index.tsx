@@ -6,7 +6,7 @@ import {
     type TableFeaturePagination,
     type TableScopeConfig,
 } from "@agenta/ui/table"
-import {ArrowRightIcon, PlusIcon} from "@phosphor-icons/react"
+import {ArrowRightIcon} from "@phosphor-icons/react"
 import {Typography} from "antd"
 import type {TableProps} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -165,22 +165,13 @@ const YourAgentsTable = ({forceEmpty = false, variant = "table"}: YourAgentsTabl
                 title="Your agents"
                 bodyClassName="flex flex-col gap-1 px-2 pb-3"
                 extra={
-                    <div className="flex shrink-0 items-center gap-3">
-                        <button
-                            type="button"
-                            onClick={() => router.push(`${baseAppURL}?new=1`)}
-                            className={PANEL_ACTION_CLASS}
-                        >
-                            <PlusIcon size={14} />
-                            New agent
-                        </button>
-                        {/* An arrow means the action leaves the page. In-place reveals
-                            ("View all 28", "Expand") deliberately don't carry one. */}
-                        <Link href={`${projectURL}/agents`} className={PANEL_ACTION_CLASS}>
-                            All agents
-                            <ArrowRightIcon size={12} />
-                        </Link>
-                    </div>
+                    // One action only: the page header already carries "New agent", so a second
+                    // one here was noise. An arrow means the action leaves the page; in-place
+                    // reveals ("View all 28", "Expand") deliberately don't carry one.
+                    <Link href={`${projectURL}/agents`} className={PANEL_ACTION_CLASS}>
+                        All agents
+                        <ArrowRightIcon size={12} />
+                    </Link>
                 }
             >
                 {showEmpty ? (
