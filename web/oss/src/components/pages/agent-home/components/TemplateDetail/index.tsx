@@ -12,7 +12,7 @@ import {AGENT_TEMPLATES, PROVIDERS} from "../../assets/templates"
 import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate"
 
 const SectionLabel = ({children}: {children: React.ReactNode}) => (
-    <h2 className="m-0 text-[11px] font-semibold uppercase tracking-wide text-colorTextTertiary">
+    <h2 className="m-0 text-xs font-semibold uppercase tracking-wide text-colorTextTertiary">
         {children}
     </h2>
 )

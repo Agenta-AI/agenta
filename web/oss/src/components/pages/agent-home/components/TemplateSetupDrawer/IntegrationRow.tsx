@@ -70,7 +70,7 @@ const IntegrationRow = ({integration, onConnectedChange}: IntegrationRowProps) =
                 subtitle={integration.scope}
                 right={
                     connected ? (
-                        <span className="flex items-center gap-1 text-[11px] font-medium text-[var(--ag-colorSuccess)]">
+                        <span className="flex items-center gap-1 text-xs font-medium text-[var(--ag-colorSuccess)]">
                             <CheckCircle size={13} weight="fill" />
                             Connected
                         </span>

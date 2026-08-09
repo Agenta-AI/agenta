@@ -143,12 +143,12 @@ const TemplateStrip = ({
 
     if (hideable && hidden) {
         return (
-            <div className={`text-[12.5px] text-[var(--ag-colorTextTertiary)] ${className ?? ""}`}>
+            <div className={`text-xs text-[var(--ag-colorTextTertiary)] ${className ?? ""}`}>
                 {STRIP_COPY.hiddenLine} ·{" "}
                 <button
                     type="button"
                     onClick={() => setHidden(false)}
-                    className="cursor-pointer border-0 bg-transparent p-0 text-[12.5px] text-[var(--ag-colorTextSecondary)] underline [text-underline-offset:3px]"
+                    className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] underline [text-underline-offset:3px]"
                 >
                     {STRIP_COPY.showAgain}
                 </button>
@@ -235,7 +235,7 @@ const TemplateStrip = ({
             <div className="flex items-center gap-[14px]">
                 <span
                     className={`font-semibold text-[var(--ag-colorText)] ${
-                        isList ? "text-[13px]" : "text-[14.5px]"
+                        isList ? "text-[13px]" : "text-base"
                     }`}
                 >
                     {STRIP_COPY.label}
@@ -261,7 +261,7 @@ const TemplateStrip = ({
                                     }`}
                                 >
                                     {category}
-                                    <span className="ml-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                    <span className="ml-1.5 text-xs text-[var(--ag-colorTextTertiary)]">
                                         {countFor(category)}
                                     </span>
                                 </button>

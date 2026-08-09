@@ -124,11 +124,11 @@ const AgentFilesCard = ({appId}: {appId: string}) => {
                                 </span>
                             </Tooltip>
                             {/* Fixed column: shrink-to-fit left "1.3 KB" and "293 B" without a shared edge. */}
-                            <span className="w-16 shrink-0 text-right text-[11px] text-colorTextTertiary">
+                            <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
                                 {detail}
                             </span>
                             {file.mtime ? (
-                                <span className="w-14 shrink-0 text-right text-[11px] text-colorTextTertiary">
+                                <span className="w-14 shrink-0 text-right text-xs text-colorTextTertiary">
                                     {timeAgo(file.mtime)}
                                 </span>
                             ) : null}

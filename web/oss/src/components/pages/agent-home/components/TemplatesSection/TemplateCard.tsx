@@ -45,9 +45,7 @@ const TemplateCard = ({template, onSelect, loading, disabled}: TemplateCardProps
                 )}
             </span>
 
-            <span className="truncate text-[15px] font-semibold text-colorText">
-                {template.name}
-            </span>
+            <span className="truncate text-base font-semibold text-colorText">{template.name}</span>
 
             <p className="m-0 line-clamp-2 text-[13px] leading-snug text-colorTextSecondary">
                 {template.description}

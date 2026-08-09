@@ -81,7 +81,7 @@ export function SubscriptionChildRow({
                             {primary}
                         </div>
                         {secondary ? (
-                            <div className="truncate text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                            <div className="truncate text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                                 {secondary}
                             </div>
                         ) : null}

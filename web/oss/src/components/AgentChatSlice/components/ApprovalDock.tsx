@@ -114,17 +114,17 @@ const PayloadBlock = ({input, label = "Payload"}: {input: unknown; label?: strin
                         showPayload ? "rotate-90" : ""
                     }`}
                 />
-                <span className="shrink-0 text-[11px] font-medium text-colorTextSecondary">
+                <span className="shrink-0 text-xs font-medium text-colorTextSecondary">
                     {label}
                 </span>
                 {!showPayload ? (
-                    <span className="min-w-0 truncate font-mono text-[11px] text-colorTextTertiary">
+                    <span className="min-w-0 truncate font-mono text-xs text-colorTextTertiary">
                         {payloadPreview}
                     </span>
                 ) : null}
             </button>
             <HeightCollapse open={showPayload}>
-                <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-all px-2.5 pb-2.5 font-mono text-[11px] leading-snug text-colorTextSecondary">
+                <pre className="m-0 max-h-48 overflow-auto whitespace-pre-wrap break-all px-2.5 pb-2.5 font-mono text-xs leading-snug text-colorTextSecondary">
                     {payload}
                 </pre>
             </HeightCollapse>
@@ -331,10 +331,7 @@ const ApprovalDock = ({
                                 Approval needed to continue
                             </Text>
                             {count > 1 ? (
-                                <Text
-                                    type="secondary"
-                                    className="!text-[11px] ml-auto tabular-nums"
-                                >
+                                <Text type="secondary" className="!text-xs ml-auto tabular-nums">
                                     1 of {count}
                                 </Text>
                             ) : null}
@@ -353,7 +350,7 @@ const ApprovalDock = ({
                                     {current.toolName}
                                 </Text>
                                 {source ? (
-                                    <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-[11px] text-colorTextSecondary">
+                                    <span className="shrink-0 rounded border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-1.5 py-px text-xs text-colorTextSecondary">
                                         {source}
                                     </span>
                                 ) : null}
@@ -450,7 +447,7 @@ const ApprovalDock = ({
                                                 <div className="ag-surface-chat box-border flex max-w-[320px] flex-col gap-1.5 rounded-lg border border-solid border-colorBorderSecondary p-2 shadow-md">
                                                     <Text
                                                         type="secondary"
-                                                        className="!text-[11px] px-1"
+                                                        className="!text-xs px-1"
                                                     >
                                                         Approving all runs these {count} actions:
                                                     </Text>
@@ -474,7 +471,7 @@ const ApprovalDock = ({
                                                                     {preview ? (
                                                                         <Text
                                                                             type="secondary"
-                                                                            className="!text-[11px] block truncate font-mono"
+                                                                            className="!text-xs block truncate font-mono"
                                                                         >
                                                                             {preview}
                                                                         </Text>
@@ -527,7 +524,7 @@ const ApprovalDock = ({
                         {steerEnabled ? (
                             <HeightCollapse open={steerOpen} fade inert>
                                 <div className="flex flex-col gap-2 border-0 border-t border-solid border-colorBorderSecondary pt-2.5">
-                                    <Text type="secondary" className="!text-[11px]">
+                                    <Text type="secondary" className="!text-xs">
                                         Deny this step and tell the agent what to do instead — your
                                         note runs as the next message.
                                     </Text>
@@ -589,7 +586,7 @@ const ApprovalDock = ({
                                             </span>{" "}
                                             for this agent
                                         </Text>
-                                        <Text type="secondary" className="!text-[11px]">
+                                        <Text type="secondary" className="!text-xs">
                                             Applies when you approve; commit to use it in triggers.
                                         </Text>
                                     </div>

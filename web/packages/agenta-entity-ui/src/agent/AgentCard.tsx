@@ -102,12 +102,12 @@ export const AgentCard = ({
 
     const title = (
         <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate text-[15px] font-semibold text-colorText">
+            <span className="min-w-0 truncate text-base font-semibold text-colorText">
                 {agent.name}
             </span>
             {waiting > 0 ? (
                 <Tip title={`${waiting} waiting on you`}>
-                    <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText">
+                    <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
                         {waiting} waiting
                     </span>
                 </Tip>

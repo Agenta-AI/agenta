@@ -85,7 +85,7 @@ const UsageSummary = ({variant = "default"}: {variant?: "default" | "strip"}) =>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     {stats.map((stat) => (
                         <div key={stat.label} className="flex flex-col gap-0.5">
-                            <span className="text-[11px] text-[var(--ag-colorTextSecondary)]">
+                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
                                 {stat.label}
                             </span>
                             <span className="text-xs font-semibold text-[var(--ag-colorText)]">

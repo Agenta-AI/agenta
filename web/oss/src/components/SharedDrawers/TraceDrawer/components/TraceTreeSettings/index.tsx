@@ -15,7 +15,7 @@ const DISPLAY_TOGGLES = [
 ] as const
 
 const SectionLabel = ({children}: {children: ReactNode}) => (
-    <Typography.Text className="block px-3 pt-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-colorTextTertiary">
+    <Typography.Text className="block px-3 pt-2 pb-1 text-xs font-medium uppercase tracking-wider text-colorTextTertiary">
         {children}
     </Typography.Text>
 )
@@ -69,7 +69,7 @@ const TraceTreeSettings = ({
                         >
                             <div className="flex flex-col min-w-0">
                                 <Typography.Text>{option.label}</Typography.Text>
-                                <Typography.Text className="text-[11px] leading-tight text-colorTextTertiary">
+                                <Typography.Text className="text-xs leading-tight text-colorTextTertiary">
                                     {option.hint}
                                 </Typography.Text>
                             </div>

@@ -198,7 +198,7 @@ const ExpandedRail = ({
             <div className="flex items-center gap-1.5 px-3 pt-3">
                 <span className="text-xs font-medium">Files</span>
                 {drive.fileCount > 0 ? (
-                    <Tag bordered className="m-0 !px-1.5 !text-[10px] font-normal leading-[16px]">
+                    <Tag bordered className="m-0 !px-1.5 !text-[12px] font-normal leading-[16px]">
                         {drive.fileCount}
                         {drive.fileCountCapped ? "+" : ""}
                     </Tag>
@@ -264,7 +264,7 @@ const ExpandedRail = ({
                                 aria-busy={showSkeleton || undefined}
                             >
                                 {phase === "error" ? (
-                                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
+                                    <Text type="secondary" className="px-1 pb-1 !text-xs">
                                         Couldn&rsquo;t load files.{" "}
                                         {drive.retry ? (
                                             <DriveRetryButton
@@ -276,11 +276,11 @@ const ExpandedRail = ({
                                 ) : phase === "no-changes" ? (
                                     // Files exist but none changed in THIS conversation (recents = its
                                     // record log).
-                                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
+                                    <Text type="secondary" className="px-1 pb-1 !text-xs">
                                         No changes yet — open “View all files” to browse.
                                     </Text>
                                 ) : phase === "empty" ? (
-                                    <Text type="secondary" className="px-1 pb-1 !text-[11px]">
+                                    <Text type="secondary" className="px-1 pb-1 !text-xs">
                                         No files yet.
                                     </Text>
                                 ) : (
@@ -408,7 +408,7 @@ const ExpandedRail = ({
                                         </MotionConfig>
                                         {!showSkeleton &&
                                         (drive.reconciling || drive.isFetching) ? (
-                                            <div className="flex items-center gap-1.5 px-1 pt-0.5 text-[11px] text-colorTextTertiary">
+                                            <div className="flex items-center gap-1.5 px-1 pt-0.5 text-xs text-colorTextTertiary">
                                                 <CircleNotch size={11} className="animate-spin" />
                                                 <span>Loading more…</span>
                                             </div>

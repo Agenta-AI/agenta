@@ -233,7 +233,7 @@ export function MarkdownEditor({
             {filename ? (
                 // antd v6's default Tag variant is `filled` (borderless), so the `bordered` this
                 // carried was a no-op — the neutral Badge is the exact equivalent.
-                <Badge className="font-mono text-[11px] font-normal leading-[22.4px] text-[var(--ag-c-586673,#586673)]">
+                <Badge className="font-mono text-xs font-normal leading-[22.4px] text-[var(--ag-c-586673,#586673)]">
                     {filename}
                 </Badge>
             ) : (

@@ -107,8 +107,8 @@ const chatInputExtension = defineExtension({
 
 export function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
-        <span className="flex items-center gap-1 whitespace-nowrap text-[10px] text-[var(--ag-colorTextSecondary)]">
-            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[10px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
+        <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
+            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[12px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
                 {keys}
             </kbd>
             {label}

@@ -66,7 +66,7 @@ export function WindowField({
                     </div>
                 </div>
             </div>
-            <span className="text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+            <span className="text-xs leading-snug text-[var(--ag-colorTextDescription)]">
                 Schedule fires only within [start, end). Leave either empty for no bound; past end
                 auto-stops it.
             </span>

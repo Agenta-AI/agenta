@@ -188,14 +188,16 @@ const StripHome: React.FC = () => {
                         >
                             <Typography.Title
                                 level={2}
-                                className={`!m-0 !leading-tight ${
-                                    firstRun ? "!text-[30px]" : "!text-[20px]"
+                                className={`!m-0 ${
+                                    firstRun
+                                        ? "!text-[30px] !leading-tight"
+                                        : "!text-[24px] !leading-8"
                                 }`}
                             >
                                 {firstRun ? HERO.title : RETURNING_HERO.title}
                             </Typography.Title>
                             {firstRun ? (
-                                <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                                <Typography.Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
                                     {HERO.subtitle}
                                 </Typography.Text>
                             ) : null}

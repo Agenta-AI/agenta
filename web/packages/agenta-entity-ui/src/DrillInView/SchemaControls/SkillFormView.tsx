@@ -286,7 +286,7 @@ export function SkillFormView({value, onChange, disabled}: SkillFormViewProps) {
                 {!disabled ? (
                     <div className="flex shrink-0 flex-col gap-1.5">
                         <SkillUploadZone onParsed={applyParsed} disabled={disabled} />
-                        <span className="text-[11px] leading-snug text-colorTextDescription">
+                        <span className="text-xs leading-snug text-colorTextDescription">
                             …or paste a SKILL.md anywhere here to fill the fields
                         </span>
                     </div>

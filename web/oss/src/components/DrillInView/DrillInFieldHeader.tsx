@@ -228,7 +228,7 @@ function ViewModeDropdown({
                     {option.label}
                 </span>
                 {option.value === value ? (
-                    <span className="text-[11px] text-[var(--ag-rgba-051729-55)]">default</span>
+                    <span className="text-xs text-[var(--ag-rgba-051729-55)]">default</span>
                 ) : null}
             </div>
         ),

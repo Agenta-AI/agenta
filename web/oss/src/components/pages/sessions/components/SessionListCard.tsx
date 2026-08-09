@@ -179,7 +179,7 @@ const SessionListCard = ({
             initial="initial"
             animate="animate"
             exit="exit"
-            className="m-0 overflow-hidden px-2 pt-1 text-[11px] uppercase tracking-wide text-colorTextTertiary"
+            className="m-0 overflow-hidden px-2 pt-1 text-xs uppercase tracking-wide text-colorTextTertiary"
         >
             {label}
         </motion.p>
@@ -199,7 +199,7 @@ const SessionListCard = ({
                     <Link
                         href={scopedHref}
                         onClick={handleWaitingClick}
-                        className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText"
+                        className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText"
                     >
                         {list.waitingTotal} waiting
                     </Link>

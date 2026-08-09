@@ -37,9 +37,9 @@ const STATUS_TAG_TONE = {
     incomplete: "gold",
 } as const satisfies Record<ItemRowStatusTone, string>
 // antd pins `.ant-tag`'s line-height in px (22.4), so overriding only the FONT size leaves it
-// intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-[11px]` drops
+// intact; Badge's `text-badge-md` BUNDLES its line-height, which a bare `text-xs` drops
 // (tags rendered 20.3px instead of 24.4px until this was restated).
-const TAG_CLS = "m-0 text-[11px] leading-[22.4px]"
+const TAG_CLS = "m-0 text-xs leading-[22.4px]"
 // Solid accent for borderless child rows (an inset left bar, so rounded corners survive).
 const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
     new: "var(--ag-colorSuccess)",
@@ -73,7 +73,7 @@ export function StatusTag({status}: {status: ItemRowStatus}) {
 export function ItemAvatar({descriptor}: {descriptor: ItemDescriptor}) {
     return (
         <span
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-semibold leading-none text-white"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-[12px] font-semibold leading-none text-white"
             style={{background: descriptor.color}}
         >
             {descriptor.icon ?? descriptor.mono}
@@ -228,7 +228,7 @@ export function ItemChildRow({
                     {descriptor.name}
                 </div>
                 {descriptor.description ? (
-                    <span className="block truncate text-[11px] leading-snug text-colorTextDescription">
+                    <span className="block truncate text-xs leading-snug text-colorTextDescription">
                         {descriptor.description}
                     </span>
                 ) : null}
@@ -307,7 +307,7 @@ export function InstructionsFileRow({
                     </span>
                     {/* antd's Typography carries `line-height: token.lineHeight` (5/3); a bare
                         span would inherit the row's instead, so restate it. */}
-                    <span className="shrink-0 text-[11px] leading-[1.6667] text-colorTextDescription">
+                    <span className="shrink-0 text-xs leading-[1.6667] text-colorTextDescription">
                         {meta}
                     </span>
                     {status ? <StatusTag status={status} /> : null}

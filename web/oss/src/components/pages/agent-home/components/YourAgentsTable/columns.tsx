@@ -51,7 +51,7 @@ export function createAgentColumns(
                 const waiting = waitingByAgent.get(record.workflowId) ?? 0
                 if (!waiting) return <span className="text-xs text-colorTextTertiary">—</span>
                 return (
-                    <span className="rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText">
+                    <span className="rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
                         {waiting}
                     </span>
                 )

@@ -770,13 +770,13 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                                 binSize,
                                                         )}
                                                         {binWidthText ? (
-                                                            <span className="ml-2 text-[11px] text-gray-500">
+                                                            <span className="ml-2 text-xs text-gray-500">
                                                                 [bin width: {binWidthText}]
                                                             </span>
                                                         ) : null}
                                                     </span>
                                                     {isHighlighted && (
-                                                        <span className="ml-2 px-1 py-0.5 rounded bg-yellow-100 text-yellow-800 font-semibold text-[10px] border border-yellow-300">
+                                                        <span className="ml-2 px-1 py-0.5 rounded bg-yellow-100 text-yellow-800 font-semibold text-[12px] border border-yellow-300">
                                                             Highlighted
                                                         </span>
                                                     )}

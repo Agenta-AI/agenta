@@ -96,7 +96,7 @@ const ClassicAgentHome: React.FC = () => {
                                 <div className="flex items-center gap-2">
                                     <Tag
                                         color="processing"
-                                        className="!m-0 !rounded !px-1.5 !py-0 !text-[10px] !font-semibold !uppercase !leading-5"
+                                        className="!m-0 !rounded !px-1.5 !py-0 !text-[12px] !font-semibold !uppercase !leading-5"
                                     >
                                         {HERO.eyebrowNew}
                                     </Tag>
@@ -111,7 +111,7 @@ const ClassicAgentHome: React.FC = () => {
                             >
                                 {HERO.title}
                             </Typography.Title>
-                            <Typography.Text className="!text-[15px] !text-[var(--ag-colorTextSecondary)]">
+                            <Typography.Text className="!text-base !text-[var(--ag-colorTextSecondary)]">
                                 {HERO.subtitle}
                             </Typography.Text>
                         </div>

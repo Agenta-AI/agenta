@@ -195,7 +195,7 @@ export function InstructionsDrawer({
                                     <Lightbulb size={14} />
                                     Writing a good AGENTS.md
                                 </div>
-                                <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-[11px] leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                <ul className="m-0 flex list-disc flex-col gap-1 pl-4 text-xs leading-snug text-[var(--ag-c-97A4B0,#97a4b0)]">
                                     <li>
                                         Open with the agent&apos;s role and goal in one or two
                                         lines.
@@ -209,7 +209,7 @@ export function InstructionsDrawer({
                             </div>
                         ) : null}
                         <div>
-                            <div className="mb-2 text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                            <div className="mb-2 text-xs uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
                                 Suggested
                             </div>
                             <div className="flex flex-wrap gap-1.5">
@@ -229,10 +229,10 @@ export function InstructionsDrawer({
 
                         <div>
                             <div className="mb-2 flex items-center gap-1.5">
-                                <span className="text-[11px] uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                <span className="text-xs uppercase tracking-wide text-[var(--ag-c-97A4B0,#97a4b0)]">
                                     Version history
                                 </span>
-                                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[10px] text-[var(--ag-c-97A4B0,#97a4b0)]">
+                                <span className="rounded-full border border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-1.5 text-[12px] text-[var(--ag-c-97A4B0,#97a4b0)]">
                                     soon
                                 </span>
                             </div>

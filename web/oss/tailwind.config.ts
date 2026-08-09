@@ -272,6 +272,8 @@ export const createConfig = (content: string[] = []): Config => {
                     ...controlScale.borderRadius,
                 },
                 fontSize: {
+                    // `secondary` step of the type scale. `sm` stays stock 14/20 (`body`).
+                    xs: ["13px", {lineHeight: "18px"}],
                     "tremor-label": ["0.75rem", {lineHeight: "1rem"}],
                     "tremor-default": ["0.875rem", {lineHeight: "1.25rem"}],
                     "tremor-title": ["1.125rem", {lineHeight: "1.75rem"}],

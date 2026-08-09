@@ -669,7 +669,7 @@ export const PromptSchemaControl = memo(function PromptSchemaControl({
                         message={
                             <span className="text-[12px]">
                                 Switching from{" "}
-                                <code className="font-mono text-[11px] bg-chip px-1 rounded">
+                                <code className="font-mono text-xs bg-chip px-1 rounded">
                                     {originalTemplateFormatRef.current}
                                 </code>{" "}
                                 is permanent — once you commit, you won&apos;t be able to switch

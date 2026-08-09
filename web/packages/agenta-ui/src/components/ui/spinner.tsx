@@ -18,8 +18,8 @@ import {cn} from "./utils"
  * Colour = antd section `colorPrimary` (`text-colorPrimary`, dots `bg-current`, tip
  * inherits — matching antd's `currentColor`). Layout = antd's standalone
  * `ant-spin-section`: `inline-flex` column, `items-center`, `gap` = `paddingSM` 12px
- * (`gap-3`); tip = `ant-spin-description` `fontSize` 12px / `line-height:1`
- * (`text-xs leading-none`). `box-border` is required (preflight is OFF).
+ * (`gap-3`); tip = `ant-spin-description` `fontSize` 14px / `line-height:1`
+ * (`text-sm leading-none`). `box-border` is required (preflight is OFF).
  *
  * Rotation: antd spins the group 45°→405° at 1.2s linear. Tailwind's `animate-spin`
  * (0°→360°, linear) drives a nested rotor while the holder holds the static 45° base, so
@@ -121,7 +121,7 @@ export function Spinner({
                 </span>
             </span>
             {tip != null ? (
-                <div data-slot="spinner-tip" className="text-xs leading-none">
+                <div data-slot="spinner-tip" className="text-sm leading-none">
                     {tip}
                 </div>
             ) : null}

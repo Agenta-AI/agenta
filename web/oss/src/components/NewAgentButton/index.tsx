@@ -52,7 +52,7 @@ const NewAgentButton = ({label = "New agent"}: {label?: string}) => {
                             <div className="flex items-center gap-2 py-0.5">
                                 <span
                                     aria-hidden
-                                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold text-white"
+                                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white"
                                     style={{background: template.color}}
                                 >
                                     {template.initials}
