@@ -1,17 +1,7 @@
 import type {ApiKeyRow} from "@agenta/settings"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {
-    Alert,
-    Button,
-    DataTable,
-    EmptyState,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
-import {ArrowClockwise, Plus, Trash} from "@phosphor-icons/react"
+import {Alert, Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
+import {Plus, Trash} from "@phosphor-icons/react"
 
 export interface ApiKeysPageProps {
     rows: ApiKeyRow[]
@@ -103,24 +93,12 @@ export const ApiKeysPage = ({
                       ]
                     : undefined
             }
+            onReload={onReload}
+            reloading={listing}
+            reloadLabel="Reload API keys"
             primaryActions={
                 canEdit ? (
                     <>
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        aria-label="Reload API keys"
-                                        disabled={listing}
-                                        onClick={onReload}
-                                    >
-                                        <ArrowClockwise size={14} />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Reload API keys</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
                         <Button disabled={creating || listing} onClick={onCreate}>
                             <Plus size={14} />
                             Generate key

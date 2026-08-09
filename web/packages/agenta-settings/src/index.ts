@@ -1,4 +1,10 @@
 export * from "./navigation"
+export {
+    buildSettingsSidebarSections,
+    getSettingsSidebarIcon,
+    type SettingsSidebarSectionsOptions,
+    type SettingsSidebarTab,
+} from "./sidebar"
 export {useStaticTable} from "./useStaticTable"
 export {SettingsAccessProvider, useSettingsAccess, CLOSED_SETTINGS_ACCESS} from "./access"
 export {fetchAllListApiKeys, createApiKey, deleteApiKey} from "./api/apiKeys"

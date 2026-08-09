@@ -101,18 +101,26 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
 // Lazy-load package.json so its version stays out of the initial bundle — same as the desktop.
 const versionAtom = loadable(atom(async () => (await import("../../../package.json")).version))
 
-export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => {
+export const useMobileBottomNavItems = (
+    projectURL: string,
+    {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
+): SidebarConfig[] => {
     const versionState = useAtomValue(versionAtom)
     const version = versionState.state === "hasData" ? versionState.data : undefined
 
     return useMemo(
         () => [
-            {
-                key: "mobile-settings",
-                title: "Settings",
-                icon: createElement(Settings, {size: 16}),
-                link: `${projectURL}/settings`,
-            },
+            // The settings scope drops it: the rail IS settings there, as on the desktop.
+            ...(includeSettingsLink
+                ? [
+                      {
+                          key: "mobile-settings",
+                          title: "Settings",
+                          icon: createElement(Settings, {size: 16}),
+                          link: `${projectURL}/settings`,
+                      },
+                  ]
+                : []),
             buildHelpDocsNavItem({
                 icons: {
                     help: createElement(HelpCircle, {size: 16}),
@@ -130,6 +138,6 @@ export const useMobileBottomNavItems = (projectURL: string): SidebarConfig[] => 
                     : undefined,
             }),
         ],
-        [projectURL, version],
+        [includeSettingsLink, projectURL, version],
     )
 }

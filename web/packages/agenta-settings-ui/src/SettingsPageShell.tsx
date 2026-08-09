@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import {useEffect, useRef, useState, type CSSProperties, type ReactNode} from "react"
 
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -45,35 +45,50 @@ const SettingsPageShell = ({
     fullHeight,
     children,
 }: SettingsPageShellProps) => {
+    const headerRef = useRef<HTMLElement>(null)
+    // What the page header occupies once pinned, published as `--ag-sticky-top` so each
+    // section's own sticky header (DataTable) parks beneath it instead of sliding under.
+    // Measured, not a constant: a long description wraps, and the two would drift apart.
+    const [headerHeight, setHeaderHeight] = useState(0)
+
+    useEffect(() => {
+        const node = headerRef.current
+        if (!node || typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(([entry]) => setHeaderHeight(entry.contentRect.height))
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [])
+
     return (
         <div
+            style={{"--ag-sticky-top": `${headerHeight}px`} as CSSProperties}
             className={clsx(
                 "flex w-full flex-col self-stretch",
                 // Gutter: 16 / 24 / 32 / 40 as the viewport widens, replacing the flat 16px
                 // every Settings page used to inherit at every size. Vertical rhythm is
                 // fixed (32 top, 64 bottom).
                 "px-4 pt-8 pb-16 md:px-6 lg:px-8 xl:px-10",
+                // The app's body scale, stated rather than inherited: on the desktop it comes
+                // from antd's 12px/1.667 base, and mobile — which has no antd — was rendering
+                // every Settings tab at the browser's 16px default.
+                "text-[12px] leading-[1.6666666666666667]",
                 fullHeight ? "h-full min-h-0" : "min-h-full",
             )}
         >
             <div className={clsx("flex w-full flex-col gap-6", fullHeight && "min-h-0 flex-1")}>
-                <header className="flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary pb-6">
+                {/* Pinned: the tab you are on stays named however far its sections run. `pt-4`
+                    with a matching negative margin keeps the resting layout identical and buys
+                    clearance above the title once it is stuck against the container edge. */}
+                <header
+                    ref={headerRef}
+                    className="sticky top-0 z-20 -mt-4 flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary bg-colorBgContainer pb-6 pt-4"
+                >
                     <div className="flex min-w-0 flex-col gap-1">
-                        {/* Sized off antd's own heading tokens so it scales and flips with the
-                            theme. `--ant-*` only exists where antd's ConfigProvider emits it —
-                            /m has no antd, so each carries the literal the desktop's token
-                            config resolves to (fontSizeHeading3 24, lineHeightHeading3 4/3,
-                            fontWeightStrong 600). Without the fallbacks the whole declaration
-                            is invalid there and the heading drops to the UA h1 size.
-                            `m-0` kills the UA margin (preflight is off). */}
-                        <h1
-                            className="m-0 truncate text-colorText"
-                            style={{
-                                fontSize: "var(--ant-font-size-heading-3, 24px)",
-                                lineHeight: "var(--ant-line-height-heading-3, 1.3333333333333333)",
-                                fontWeight: "var(--ant-font-weight-strong, 600)",
-                            }}
-                        >
+                        {/* antd's heading-3 (20px / 1.4 / 600) as literals, not `--ant-*` vars:
+                            those exist only where antd runs, so on mobile the heading fell back
+                            to body text and the hierarchy collapsed. `m-0` kills the UA margin
+                            (preflight is off). */}
+                        <h1 className="m-0 truncate text-[20px] font-semibold leading-[1.4] text-colorText">
                             {title}
                         </h1>
                         <p className="m-0 text-colorTextSecondary">{description}</p>

@@ -1,6 +1,7 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
 import {inviteToWorkspace} from "@agenta/entities/organization"
+import {isEE, isEmailInvitationsEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MinusCircleOutlined} from "@ant-design/icons"
@@ -8,7 +9,6 @@ import {Alert, Form, Input, Select, Space, Typography, theme} from "antd"
 import Link from "next/link"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
 import {useOrgData} from "@/oss/state/org"

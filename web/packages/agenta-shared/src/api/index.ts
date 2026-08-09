@@ -4,6 +4,10 @@
 
 export {
     getEnv,
+    isBillingEnabled,
+    isEE,
+    isEmailInvitationsEnabled,
+    isToolsEnabled,
     getAgentaApiUrl,
     getAgentaWebUrl,
     isSandboxLocalEnabled,

@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useCallback, useState} from "react"
 
 import {
     fetchAllOrgsList,
@@ -11,16 +11,12 @@ import {
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
-import {
-    getSettingsSidebarTabs,
-    getSettingsTabDescription,
-    getSettingsTabLabel,
-    SETTINGS_SCOPES,
-    type SettingsTabKey,
-} from "@agenta/settings"
+import {getSettingsTabDescription, getSettingsTabLabel, type SettingsTabKey} from "@agenta/settings"
 import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
     AccessControlsSection,
+    type AccessFeature,
+    AccessUpgradeNotice,
     ApiKeysPage,
     AuditLogPage,
     type AuthFlagKey,
@@ -34,9 +30,9 @@ import {
     TriggerSubscriptionsSection,
     SecretProviderTable,
     SettingsPageShell,
+    useEntitlements,
     WebhooksPage,
 } from "@agenta/settings-ui"
-import {getEnv} from "@agenta/shared/api"
 import {useThemeMode} from "@agenta/ui/theme"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
@@ -44,8 +40,6 @@ import {useRouter} from "next/router"
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {fetchProjects} from "@/lib/context"
-import {cn} from "@/lib/utils"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
@@ -53,31 +47,19 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AccountTab} from "./AccountTab"
+import {BillingTab} from "./BillingTab"
 import {MembersTab} from "./MembersTab"
+import {isNestedSettingsNavEnabled} from "./nestedNav"
 import {PreferencesTab} from "./PreferencesTab"
 import {ProjectsTab} from "./ProjectsTab"
+import {useSettingsNavScope} from "./settingsNavScope"
+import {SettingsTabRail} from "./SettingsTabRail"
+import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
 
 const THEME_OPTIONS = [
     {mode: "light", label: "Light"},
     {mode: "dark", label: "Dark"},
     {mode: "system", label: "System default"},
-]
-
-/** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
-const AVAILABLE: SettingsTabKey[] = [
-    "apiKeys",
-    "llms",
-    "secrets",
-    "webhooks",
-    "tools",
-    "triggers",
-    "organizationGeneral",
-    "workspace",
-    "organization",
-    "projects",
-    "auditLog",
-    "account",
-    "preferences",
 ]
 
 /**
@@ -91,12 +73,14 @@ const TabBody = ({
     user,
     theme,
     workspaceId,
+    projectId,
 }: {
     tab: SettingsTabKey
     access: SettingsAccess
     user: {id?: string | null; username?: string | null; email?: string | null} | null
     theme: {options: {mode: string; label: string}[]; mode: string; onSelect: (m: string) => void}
     workspaceId: string
+    projectId: string
 }) => {
     const keys = useApiKeys({
         workspaceId,
@@ -138,6 +122,12 @@ const TabBody = ({
         queryKey: ["organization-providers", organizationId],
         queryFn: () => fetchOrganizationProviders(),
         enabled: tab === "organization" && Boolean(organizationId),
+    })
+    // The same two responses the desktop gates on, so a plan without a feature reads the same
+    // on both surfaces instead of /m quietly showing controls the plan does not include.
+    const entitlements = useEntitlements({
+        projectId,
+        enabled: access.isEE && (tab === "organization" || tab === "auditLog"),
     })
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
@@ -201,11 +191,17 @@ const TabBody = ({
             )
         case "secrets":
             return <NamedSecretTable />
-        // No date-range picker and no entitlement lookup here: the rail already only lists
-        // this tab on EE, and `/events/query` authorizes regardless — an org without the
-        // entitlement gets the table's empty state rather than a locked page.
+        // No date-range picker — the desktop's preset picker is its own. The entitlement gate
+        // is the desktop's, so a plan without Audit Log reads the same on both.
         case "auditLog":
-            return <AuditLogPage hasAudit />
+            return (
+                <AuditLogPage
+                    hasAudit={entitlements.hasAudit}
+                    entitlementsLoading={entitlements.isLoading}
+                />
+            )
+        case "billing":
+            return <BillingTab projectId={projectId} />
         case "webhooks":
             return <WebhooksPage />
         // Read-only: the create/edit drawers still render antd forms, which have no
@@ -269,13 +265,24 @@ const TabBody = ({
                     />
                 )
             const flags = org.data?.flags as OrganizationFlags | undefined
-            if (!flags) return null
+            // Waiting on entitlements too: every `has*` reads false until they land, so
+            // rendering now would flash the locked state at an entitled organization.
+            if (!flags || entitlements.isLoading) return null
             const domainList = domains.data ?? []
             const providerList = providers.data ?? []
             const orgSlug = org.data?.slug
+            // Three independently-sold features. Whatever the plan excludes is said once, at the
+            // end, rather than as a lock card per section. No upgrade link: changing a plan means
+            // Stripe, which lives on the desktop.
+            const locked: AccessFeature[] = [
+                !entitlements.hasAccessControl && "access",
+                !entitlements.hasDomains && "domains",
+                !entitlements.hasSSO && "sso",
+            ].filter(Boolean) as AccessFeature[]
+
             return (
                 <div className="flex flex-col gap-8">
-                    <div className="flex flex-col gap-2">
+                    {entitlements.hasAccessControl ? (
                         <AccessControlsSection
                             flags={flags}
                             onFlagChange={(flag, value) => void setFlag(flag, value)}
@@ -288,26 +295,27 @@ const TabBody = ({
                                 (domain) => domain.flags?.is_verified,
                             )}
                         />
-                        {/* A failed save leaves the switch where it was, so the reason has to be
-                            visible or the toggle just looks broken. */}
-                        {flagError ? (
-                            <p className="text-destructive m-0 text-xs" role="alert">
-                                {flagError}
-                            </p>
-                        ) : null}
-                    </div>
+                    ) : null}
+
                     {/* Read-only here: adding a domain or provider means DNS records and IdP
                         setup, which belong on the desktop. */}
-                    <DomainsSection domains={domainList} loading={domains.isPending} />
-                    <SsoProvidersSection
-                        providers={providerList}
-                        loading={providers.isPending}
-                        callbackUrlFor={(provider: OrganizationProvider) =>
-                            orgSlug
-                                ? `${window.location.origin}/auth/callback/sso:${orgSlug}:${provider.slug}`
-                                : null
-                        }
-                    />
+                    {entitlements.hasDomains ? (
+                        <DomainsSection domains={domainList} loading={domains.isPending} />
+                    ) : null}
+
+                    {entitlements.hasSSO ? (
+                        <SsoProvidersSection
+                            providers={providerList}
+                            loading={providers.isPending}
+                            callbackUrlFor={(provider: OrganizationProvider) =>
+                                orgSlug
+                                    ? `${window.location.origin}/auth/callback/sso:${orgSlug}:${provider.slug}`
+                                    : null
+                            }
+                        />
+                    ) : null}
+
+                    <AccessUpgradeNotice locked={locked} />
                 </div>
             )
         }
@@ -317,7 +325,11 @@ const TabBody = ({
 }
 
 /**
- * Settings on /m: the desktop's own tab model as a rail, with one tab open at a time.
+ * Settings on /m: the desktop's own tab model, with one tab open at a time.
+ *
+ * By default the settings nav TAKES OVER the main sidebar exactly as oss/ee do — no second rail,
+ * no in-page top bar, the content pane starts at the tab title. `NEXT_PUBLIC_SETTINGS_NESTED_NAV`
+ * brings back the nested rail beside the main one.
  *
  * Every page is the shared one. This host is read-only — it brings no create/edit dialogs — so
  * the rail lists what it can show and each page renders without its write affordances.
@@ -335,111 +347,81 @@ export const SettingsScreen = ({
     const {themeMode, setMode} = useThemeMode()
     const {user} = useProfile()
 
-    // Read-only host: it renders lists but brings none of the create/edit dialogs, so every
-    // write affordance stays off. View flags are optimistic — the API authorizes regardless, and
-    // each page has an empty state — while edition comes from the same env the desktop reads.
-    const isEE = getEnv("NEXT_PUBLIC_AGENTA_LICENSE") === "ee"
-    const access: SettingsAccess = useMemo(
-        () => ({
-            billingEnabled: false,
-            canShowTools: true,
-            canShowTriggers: true,
-            canViewApiKeys: true,
-            canViewEvents: true,
-            isEE,
-            isOwner: false,
-        }),
-        [isEE],
-    )
-    const requested = typeof router.query.tab === "string" ? router.query.tab : null
-    const active: SettingsTabKey = AVAILABLE.includes(requested as SettingsTabKey)
-        ? (requested as SettingsTabKey)
-        : "preferences"
+    const nestedNav = isNestedSettingsNavEnabled()
+    const settingsScope = useSettingsNavScope(workspaceId, projectId)
+    const access = useMobileSettingsAccess()
+    const active = useActiveSettingsTab()
 
-    // The desktop's grouping and labels, filtered to what this app implements — so the two
-    // rails read the same and cannot drift.
-    const groups = useMemo(() => {
-        const tabs = getSettingsSidebarTabs(access).filter(
-            (tab) => AVAILABLE.includes(tab.key) && !tab.isHidden,
-        )
-        return SETTINGS_SCOPES.map((scope) => ({
-            ...scope,
-            tabs: tabs.filter((tab) => tab.scope === scope.key),
-        })).filter((scope) => scope.tabs.length > 0)
-    }, [access])
+    const selectTab = useCallback(
+        (tab: SettingsTabKey) =>
+            void router.replace({query: {...router.query, tab}}, undefined, {shallow: true}),
+        [router],
+    )
+
+    const content = (
+        <div className="min-w-0 flex-1 overflow-y-auto">
+            {/* No content cap: the desktop's 640/1120 caps left every section floating in a
+                wide empty column here. */}
+            <SettingsPageShell
+                variant="full"
+                title={getSettingsTabLabel(active, access)}
+                description={getSettingsTabDescription(active, access)}
+            >
+                <TabBody
+                    tab={active}
+                    access={access}
+                    user={user}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    theme={{
+                        options: THEME_OPTIONS,
+                        mode: themeMode,
+                        onSelect: (mode) => setMode(mode as typeof themeMode),
+                    }}
+                />
+            </SettingsPageShell>
+        </div>
+    )
 
     return (
         <>
             <PageTitle parts={["Settings", project?.project_name]} />
-            <AppShell workspaceId={workspaceId} projectId={projectId}>
+            <AppShell
+                workspaceId={workspaceId}
+                projectId={projectId}
+                scope={nestedNav ? undefined : settingsScope}
+            >
                 <ScreenScaffold
                     fill
                     header={
-                        <div className="border-border shrink-0 border-0 border-b border-solid px-2 pb-3 pt-2 lg:px-8">
-                            <ContentRail className="flex items-center gap-2 lg:max-w-none">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <h1 className="m-0 text-sm font-semibold">Settings</h1>
-                            </ContentRail>
-                        </div>
+                        nestedNav ? (
+                            <div className="border-border shrink-0 border-0 border-b border-solid px-2 pb-3 pt-2 lg:px-8">
+                                <ContentRail className="flex items-center gap-2 lg:max-w-none">
+                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                    <h1 className="m-0 text-sm font-semibold">Settings</h1>
+                                </ContentRail>
+                            </div>
+                        ) : (
+                            // Takeover has no top bar. Below lg the rail is a drawer, so the page
+                            // still needs the one way into it — the hamburger, nothing else.
+                            <div className="border-border shrink-0 border-0 border-b border-solid px-2 py-2 lg:hidden">
+                                <NavDrawer
+                                    workspaceId={workspaceId}
+                                    projectId={projectId}
+                                    scope={settingsScope}
+                                />
+                            </div>
+                        )
                     }
                 >
-                    <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-                        {/* A scrolling strip on a phone, a grouped rail from lg — the desktop's
-                            own scopes, so both surfaces list settings the same way. */}
-                        <nav className="border-border flex shrink-0 gap-1 overflow-x-auto border-0 border-b border-solid px-2 py-2 lg:w-[220px] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-3 lg:py-4">
-                            {groups.map((group) => (
-                                <div key={group.key} className="flex gap-1 lg:flex-col">
-                                    <span className="text-muted-foreground hidden px-2 pb-1 text-[11px] font-medium uppercase tracking-wide lg:block">
-                                        {group.title}
-                                    </span>
-                                    {group.tabs.map((tab) => (
-                                        <button
-                                            key={tab.key}
-                                            type="button"
-                                            onClick={() =>
-                                                void router.replace(
-                                                    {query: {...router.query, tab: tab.key}},
-                                                    undefined,
-                                                    {shallow: true},
-                                                )
-                                            }
-                                            className={cn(
-                                                "shrink-0 cursor-pointer rounded-md border-0 px-3 py-1.5 text-left text-xs",
-                                                tab.key === active
-                                                    ? "bg-accent text-accent-foreground font-medium"
-                                                    : "text-muted-foreground hover:bg-accent/50 bg-transparent",
-                                            )}
-                                        >
-                                            {tab.title}
-                                        </button>
-                                    ))}
-                                </div>
-                            ))}
-                        </nav>
-
-                        <div className="min-w-0 flex-1 overflow-y-auto">
-                            {/* No content cap: this app's rail already narrows the page, and the
-                                desktop's 640/1120 caps left every section floating in a wide
-                                empty column here. */}
-                            <SettingsPageShell
-                                variant="full"
-                                title={getSettingsTabLabel(active, access)}
-                                description={getSettingsTabDescription(active, access)}
-                            >
-                                <TabBody
-                                    tab={active}
-                                    access={access}
-                                    user={user}
-                                    workspaceId={workspaceId}
-                                    theme={{
-                                        options: THEME_OPTIONS,
-                                        mode: themeMode,
-                                        onSelect: (mode) => setMode(mode as typeof themeMode),
-                                    }}
-                                />
-                            </SettingsPageShell>
+                    {nestedNav ? (
+                        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+                            <SettingsTabRail active={active} onSelect={selectTab} />
+                            {content}
                         </div>
-                    </div>
+                    ) : (
+                        content
+                    )}
                 </ScreenScaffold>
             </AppShell>
         </>

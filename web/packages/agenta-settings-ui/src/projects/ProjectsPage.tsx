@@ -4,14 +4,7 @@ import {createProject, deleteProject, patchProject} from "@agenta/entities/proje
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    DataTable,
-    EmptyState,
-    Input,
-    type DataTableAction,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {CheckCircle, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
@@ -257,16 +250,39 @@ export const ProjectsPage = ({
                 rows={rows}
                 rowKey={(record) => record.key}
                 loading={isLoading}
-                actions={canEdit ? rowActions : undefined}
-                filters={
-                    <Input
-                        placeholder="Search projects"
-                        className="w-[260px]"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        disabled={isLoading}
-                    />
-                }
+                actions={(record) => [
+                    {
+                        key: "rename",
+                        label: "Rename",
+                        icon: <PencilSimpleLine size={16} />,
+                        onClick: () => openRenameModal(record),
+                    },
+                    {
+                        key: "default",
+                        label: "Set as default",
+                        icon: <CheckCircle size={16} />,
+                        hidden: Boolean(record.is_default_project),
+                        disabled: defaultMutation.isPending,
+                        onClick: () => handleMakeDefault(record),
+                    },
+                    {type: "divider"},
+                    {
+                        key: "delete",
+                        label: "Delete project",
+                        icon: <Trash size={16} />,
+                        danger: true,
+                        // The last project in a workspace cannot be removed, and the
+                        // default project must be reassigned first.
+                        disabled: !canDeleteProjects || Boolean(record.is_default_project),
+                        onClick: () => handleDelete(record),
+                    },
+                ]}
+                search={{
+                    placeholder: "Search projects",
+                    value: searchTerm,
+                    onChange: setSearchTerm,
+                    disabled: isLoading,
+                }}
                 primaryActions={
                     canEdit ? (
                         <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>

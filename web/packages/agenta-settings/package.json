@@ -17,8 +17,10 @@
         ".": "./src/index.ts"
     },
     "dependencies": {
+        "@agenta/navigation": "workspace:../agenta-navigation",
         "@agenta/shared": "workspace:../agenta-shared",
-        "@agenta/ui": "workspace:../agenta-ui"
+        "@agenta/ui": "workspace:../agenta-ui",
+        "@phosphor-icons/react": "^2.1.10"
     },
     "peerDependencies": {
         "jotai": ">=2.0.0",

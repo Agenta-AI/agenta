@@ -9,12 +9,12 @@
 import {useCallback, useEffect, useState} from "react"
 
 import {BillingPage} from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 import {currentCatalogEntryAtom, isOnFreePlanAtom} from "@/oss/state/access/atoms"
 

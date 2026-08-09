@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
-import {activeUserIdAtom, setProjectIdAtom} from "@agenta/shared/state"
+import {activeUserIdAtom, setProjectIdAtom, setUserAtom} from "@agenta/shared/state"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
@@ -12,7 +12,16 @@ export const ContextSync = () => {
     const router = useRouter()
     const setProjectId = useSetAtom(setProjectIdAtom)
     const setActiveUserId = useSetAtom(activeUserIdAtom)
-    const {user, isPending, error} = useProfile()
+    const setSharedUser = useSetAtom(setUserAtom)
+    const {user} = useProfile()
+
+    // The identity half of the app context, and this app's answer to the desktop's
+    // `UserListener`. Entity queries scoped by user gate on it — the vault's secrets key is
+    // `["vault", "secrets", user?.id, projectId]` with `enabled: !!user` — so without this the
+    // Secrets and LLMs tabs sat on their skeletons forever, waiting on a query never enabled.
+    useEffect(() => {
+        setSharedUser(user)
+    }, [user, setSharedUser])
 
     // Per-user preferences (the Experiments switches) are scoped by this id, and they are read
     // far from Settings — the chat composer asks whether voice is on. Written only once the

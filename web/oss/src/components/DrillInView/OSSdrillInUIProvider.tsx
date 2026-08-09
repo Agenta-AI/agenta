@@ -62,6 +62,7 @@ import {
     type WorkflowRevisionUI,
     type WorkflowEnvironmentUI,
 } from "@agenta/entity-ui/drill-in"
+import {isToolsEnabled} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {KNOWN_ENVELOPE_SLOTS} from "@agenta/shared/utils"
 import {EditorProvider} from "@agenta/ui/editor"
@@ -72,7 +73,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {useLLMProviderConfig} from "@/oss/hooks/useLLMProviderConfig"
-import {isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
 interface OSSdrillInUIProviderProps {

@@ -25,7 +25,6 @@ import {
     type DataTableColumn,
 } from "@agenta/ui/ui"
 import {
-    ArrowClockwise,
     ArrowsClockwise,
     ListChecks,
     PencilSimpleLine,
@@ -254,22 +253,12 @@ export default function TriggerSubscriptionsSection({
                     }
                     columns={columns}
                     rowKey={(record) => record.key}
+                    onReload={reloadAll}
+                    reloading={reloading}
+                    reloadLabel="Reload all event triggers"
                     primaryActions={
                         <>
                             <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            aria-label="Reload all event triggers"
-                                            disabled={reloading}
-                                            onClick={reloadAll}
-                                        >
-                                            <ArrowClockwise size={14} />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Reload all event triggers</TooltipContent>
-                                </Tooltip>
                                 {/* Subscribing needs a connected app, so say so on the disabled
                                     button rather than leaving it inert and unexplained. */}
                                 <Tooltip>

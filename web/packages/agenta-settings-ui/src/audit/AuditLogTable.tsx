@@ -10,7 +10,7 @@
  * viewport — owns the scroll.
  */
 
-import {useCallback, useMemo, type ReactNode} from "react"
+import {useCallback, useMemo, useRef, type ReactNode} from "react"
 
 import {
     clearEventsCacheAtom,
@@ -137,8 +137,20 @@ export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTablePro
         [],
     )
 
+    // The filter bar commits its debounced id draft before a reload reads it.
+    const flushFiltersRef = useRef<() => void>(() => undefined)
+    const handleReload = useCallback(() => {
+        flushFiltersRef.current()
+        refreshTable()
+    }, [refreshTable])
+
     const filters: ReactNode = (
-        <AuditLogFilters onRefresh={refreshTable} renderDateRange={renderDateRange} />
+        <AuditLogFilters
+            registerRefresh={useCallback((flush: () => void) => {
+                flushFiltersRef.current = flush
+            }, [])}
+            renderDateRange={renderDateRange}
+        />
     )
 
     return (
@@ -158,6 +170,9 @@ export const AuditLogTable = ({onSelectEvent, renderDateRange}: AuditLogTablePro
                     },
                 ]}
                 filters={filters}
+                onReload={handleReload}
+                reloading={paginationInfo.isFetching}
+                reloadLabel="Reload audit log"
                 empty={
                     <EmptyState
                         image="simple"

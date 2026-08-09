@@ -14,17 +14,8 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {ActiveToggle, TriggerScheduleDrawer} from "@agenta/entity-ui/gatewayTrigger"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
-import {
-    Button,
-    DataTable,
-    EmptyState,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
-import {ArrowClockwise, ListChecks, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
+import {ListChecks, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 // Resolve the bound workflow's display name from its artifact; fall back to the id.
@@ -226,23 +217,11 @@ export default function TriggerSchedulesSection({readOnly}: TriggerSchedulesSect
                     }
                     columns={columns}
                     rowKey={(record) => record.key}
+                    onReload={reloadAll}
+                    reloading={reloading}
+                    reloadLabel="Reload all scheduled runs"
                     primaryActions={
                         <>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            aria-label="Reload all scheduled runs"
-                                            disabled={reloading}
-                                            onClick={reloadAll}
-                                        >
-                                            <ArrowClockwise size={14} />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Reload all scheduled runs</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
                             {readOnly ? null : (
                                 <Button onClick={handleCreate} disabled={isLoading || isMutating}>
                                     <Plus size={14} />
