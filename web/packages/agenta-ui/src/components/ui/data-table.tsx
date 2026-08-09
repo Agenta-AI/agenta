@@ -152,38 +152,29 @@ export function DataTable<T>({
     const hasActions = Boolean(onReload || primaryActions)
     const hasHeader = Boolean(title) || hasFilterRow || hasActions
 
-    // Actions ride the title's row when there is a title, so a section with no search does not
-    // leave a band of empty space between its heading and its buttons. Without a title they sit
-    // at the end of the filter row instead.
-    //
-    // Narrow: the row stacks and the buttons span it, rather than wrapping to a hard-right
-    // cluster under the description.
-    const toolbarActions = hasActions ? (
-        <div className="flex shrink-0 items-center gap-2 max-sm:w-full sm:ml-auto">
-            {onReload ? (
-                <SimpleTooltip title={reloadLabel}>
-                    <Button
-                        variant="outline"
-                        aria-label={reloadLabel}
-                        disabled={reloading}
-                        // Callers pass zero-arg reloaders; bound directly,
-                        // React would hand them the click event.
-                        onClick={() => onReload()}
-                    >
-                        <ArrowClockwise size={14} />
-                    </Button>
-                </SimpleTooltip>
-            ) : null}
-            {/* The empty state carries its own call to action, and on a phone the two sit far
-                enough apart to read as different controls — so show only that one. */}
-            <div
-                className={clsx(
-                    "flex flex-1 items-center gap-2 [&>*]:flex-1 sm:flex-none sm:[&>*]:flex-none",
-                    showEmpty && empty && "max-sm:hidden",
-                )}
+    const reloadButton = onReload ? (
+        <SimpleTooltip title={reloadLabel}>
+            <Button
+                variant="outline"
+                aria-label={reloadLabel}
+                disabled={reloading}
+                onClick={() => onReload()}
             >
-                {primaryActions}
-            </div>
+                <ArrowClockwise size={14} />
+            </Button>
+        </SimpleTooltip>
+    ) : null
+
+    // The empty state carries its own call to action, and on a phone the two sit far enough
+    // apart to read as different controls — so show only that one.
+    const primaryGroup = primaryActions ? (
+        <div
+            className={clsx(
+                "flex items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1",
+                showEmpty && empty && "max-sm:hidden",
+            )}
+        >
+            {primaryActions}
         </div>
     ) : null
 
@@ -205,9 +196,20 @@ export function DataTable<T>({
                         // `min-h` holds the row's height when a host suppresses the actions (a
                         // read-only surface), so the rhythm from header to table does not
                         // change tab to tab.
-                        <div className="flex min-h-control flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
-                            {title ? <div className="min-w-0">{title}</div> : null}
-                            {title || !hasFilterRow ? toolbarActions : null}
+                        //
+                        // Reload keeps the title's line at every width — an icon button does not
+                        // earn a row of its own. The primary button is wide enough to want one,
+                        // so below sm it wraps full-width; from sm it rejoins the line.
+                        <div className="flex min-h-control flex-wrap items-start gap-2">
+                            {title ? <div className="min-w-0 flex-1">{title}</div> : null}
+                            {title || !hasFilterRow ? (
+                                <>
+                                    {reloadButton ? (
+                                        <div className="shrink-0">{reloadButton}</div>
+                                    ) : null}
+                                    {primaryGroup}
+                                </>
+                            ) : null}
                         </div>
                     ) : null}
 
@@ -225,7 +227,12 @@ export function DataTable<T>({
                                 />
                             ) : null}
                             {filters}
-                            {title ? null : toolbarActions}
+                            {title ? null : (
+                                <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+                                    {reloadButton}
+                                    {primaryGroup}
+                                </div>
+                            )}
                         </div>
                     ) : null}
                 </div>
