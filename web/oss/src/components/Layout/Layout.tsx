@@ -61,11 +61,6 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
     const isAnnotations = pathname.includes("/annotations")
     const isRegistry = pathname.includes("/variants")
     const isObservability = pathname.includes("/observability") || pathname.includes("/traces")
-    // The Audit Log settings tab hosts a full-height InfiniteVirtualTable.
-    // Scoped to the `tab` query param so other settings tabs keep the default
-    // (content-flow) layout.
-    const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab
-    const isAuditLog = pathname.includes("/settings") && tab === "auditLog"
     // The agent-templates gallery has its own fixed header + rail with an
     // internally-scrolling card grid, so it needs the bounded full-height frame.
     const isAgentTemplates = pathname.includes("/agent-templates")
@@ -89,7 +84,6 @@ const layoutRouteFlagsAtom = atom<LayoutRouteFlags>((get) => {
             isAnnotations ||
             isRegistry ||
             isObservability ||
-            isAuditLog ||
             isAgentTemplates ||
             isAgents ||
             isSessions ||
