@@ -1,4 +1,4 @@
-import type {ReactNode} from "react"
+import {Fragment, type ReactNode} from "react"
 
 import {DotsThreeVertical} from "@phosphor-icons/react"
 import clsx from "clsx"
@@ -52,6 +52,12 @@ export interface DataTableProps<T> {
     /** Above the toolbar — a heading for the table itself. */
     title?: ReactNode
     onRowClick?: (record: T) => void
+    /**
+     * Detail rendered in a full-width row beneath the record. Return null for rows that have
+     * none — there is no expand/collapse control, so use this for detail that should always
+     * show (setup instructions, a pending state), not for optional drill-down.
+     */
+    expandedContent?: (record: T) => ReactNode
     className?: string
 }
 
@@ -77,6 +83,7 @@ export function DataTable<T>({
     primaryActions,
     title,
     onRowClick,
+    expandedContent,
     className,
 }: DataTableProps<T>) {
     const showSkeleton = loading && rows.length === 0
@@ -130,40 +137,62 @@ export function DataTable<T>({
                                       {actions ? <td className={CELL} /> : null}
                                   </tr>
                               ))
-                            : rows.map((record) => (
-                                  <tr
-                                      key={rowKey(record)}
-                                      onClick={onRowClick ? () => onRowClick(record) : undefined}
-                                      className={clsx(
-                                          "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
-                                          onRowClick && "cursor-pointer",
-                                      )}
-                                  >
-                                      {columns.map((column) => (
-                                          <td
-                                              key={column.key}
+                            : rows.map((record) => {
+                                  const detail = expandedContent?.(record)
+                                  return (
+                                      <Fragment key={rowKey(record)}>
+                                          <tr
+                                              onClick={
+                                                  onRowClick ? () => onRowClick(record) : undefined
+                                              }
                                               className={clsx(
-                                                  CELL,
-                                                  "text-colorText",
-                                                  column.mono && "font-mono tabular-nums",
-                                                  column.align === "right" && "text-right",
-                                                  column.align === "center" && "text-center",
-                                                  column.className,
+                                                  "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
+                                                  onRowClick && "cursor-pointer",
+                                                  // The detail row carries the boundary instead.
+                                                  detail && "border-b-0",
                                               )}
                                           >
-                                              {column.render(record)}
-                                          </td>
-                                      ))}
-                                      {actions ? (
-                                          <td
-                                              className={clsx(CELL, "text-right")}
-                                              onClick={(event) => event.stopPropagation()}
-                                          >
-                                              <RowActions items={actions(record)} record={record} />
-                                          </td>
-                                      ) : null}
-                                  </tr>
-                              ))}
+                                              {columns.map((column) => (
+                                                  <td
+                                                      key={column.key}
+                                                      className={clsx(
+                                                          CELL,
+                                                          "text-colorText",
+                                                          column.mono && "font-mono tabular-nums",
+                                                          column.align === "right" && "text-right",
+                                                          column.align === "center" &&
+                                                              "text-center",
+                                                          column.className,
+                                                      )}
+                                                  >
+                                                      {column.render(record)}
+                                                  </td>
+                                              ))}
+                                              {actions ? (
+                                                  <td
+                                                      className={clsx(CELL, "text-right")}
+                                                      onClick={(event) => event.stopPropagation()}
+                                                  >
+                                                      <RowActions
+                                                          items={actions(record)}
+                                                          record={record}
+                                                      />
+                                                  </td>
+                                              ) : null}
+                                          </tr>
+                                          {detail ? (
+                                              <tr className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0">
+                                                  <td
+                                                      colSpan={columns.length + (actions ? 1 : 0)}
+                                                      className="px-3 pb-3 pt-0"
+                                                  >
+                                                      {detail}
+                                                  </td>
+                                              </tr>
+                                          ) : null}
+                                      </Fragment>
+                                  )
+                              })}
                     </tbody>
                 </table>
 
