@@ -17,10 +17,12 @@ const SidebarToggleButton = ({className}: SidebarToggleButtonProps) => {
         <EnhancedButton
             type="text"
             size="small"
-            className={clsx("shrink-0 !h-[28px]", className)}
+            // A square the exact height of the 22px wordmark: top-aligned in the brand row, both
+            // optical centres land on the same line. The old 28px pill rode 3px low.
+            className={clsx("shrink-0 !h-[22px] !w-[22px] !p-0", className)}
             icon={
                 <Sidebar
-                    size={14}
+                    size={16}
                     className={clsx("transition-transform", collapsed ? "rotate-180" : "")}
                 />
             }
