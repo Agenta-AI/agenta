@@ -39,6 +39,7 @@
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
+        "@rc-component/form": "^1.8.1",
         "clsx": "^2.1.1",
         "fflate": "0.4.8",
         "js-yaml": "^4.3.0",
