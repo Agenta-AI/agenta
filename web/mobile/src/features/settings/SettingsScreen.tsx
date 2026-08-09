@@ -91,7 +91,7 @@ const TabBody = ({
 
     // A project carries its organization, which saves resolving one from the workspace id.
     const organizationId = projects.data?.find(
-        (project) => project.organization_id,
+        (project) => project.organization_id && project.workspace_id === workspaceId,
     )?.organization_id
     // The roster lives on the org's default workspace, not behind a members endpoint — same
     // source the desktop reads, so the two surfaces cannot disagree.
