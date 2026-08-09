@@ -23,9 +23,17 @@ const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
                 collapsed ? "justify-center" : "justify-between px-1.5",
             ].join(" ")}
         >
-            <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
+            {/* Collapsed leads with the TOGGLE — the spot every collapsed rail puts it — and
+                Back takes the next band. Expanded: Back left, toggle right, one row. */}
+            {collapsed ? <SidebarToggleButton /> : <SidebarBackButton collapsed={false} lastPath={lastPath} />}
             {!collapsed && <SidebarToggleButton />}
         </div>
+
+        {collapsed && (
+            <div className="w-full h-[45px] shrink-0 flex items-center justify-center border-0 border-b border-solid border-[var(--ag-shell-line)]">
+                <SidebarBackButton collapsed lastPath={lastPath} />
+            </div>
+        )}
 
         <div
             className={[
@@ -35,13 +43,6 @@ const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
         >
             <WorkflowPicker collapsed={collapsed} />
         </div>
-
-        {/* Not stacked under Back like Settings: that shifts both rules off the header's y. */}
-        {collapsed && (
-            <div className="w-full shrink-0 flex justify-center py-1">
-                <SidebarToggleButton />
-            </div>
-        )}
     </>
 )
 
