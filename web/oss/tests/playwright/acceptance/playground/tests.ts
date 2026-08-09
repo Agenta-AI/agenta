@@ -1,7 +1,8 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
-import {RoleType, VariantFixtures} from "./assets/types"
 import {getKnownLatestRevisionId} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
+
+import {RoleType, VariantFixtures} from "./assets/types"
 
 const SECRET_PROPAGATION_TIMEOUT_MS = 65_000
 const SECRET_PROPAGATION_POLL_MS = 5_000
@@ -85,22 +86,23 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 .poll(
                     async () => {
                         const hasInput =
-                            (await page
-                                .locator(
-                                    ".agenta-variable-card, .agenta-shared-editor [role='textbox']",
-                                )
-                                .first()
-                                .isVisible()
-                                .catch(() => false)) ||
-                            (await page
-                                .locator(".agenta-shared-editor [role='textbox']")
-                                .first()
-                                .isVisible()
-                                .catch(() => false))
-                        const hasSpinner = await page
-                            .locator(".ant-spin-spinning")
-                            .isVisible()
-                            .catch(() => false)
+                            (await pollLocatorState(() =>
+                                page
+                                    .locator(
+                                        ".agenta-variable-card, .agenta-shared-editor [role='textbox']",
+                                    )
+                                    .first()
+                                    .isVisible(),
+                            )) ||
+                            (await pollLocatorState(() =>
+                                page
+                                    .locator(".agenta-shared-editor [role='textbox']")
+                                    .first()
+                                    .isVisible(),
+                            ))
+                        const hasSpinner = await pollLocatorState(() =>
+                            page.locator(".ant-spin-spinning").isVisible(),
+                        )
                         return hasInput && !hasSpinner
                     },
                     {timeout: 20000},
@@ -190,14 +192,14 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // If no editor is visible (empty messages array / json mode), click
                 // "Message" / "Add message" to create an initial user turn, then re-query.
-                const editorVisible = await targetTextbox
-                    .isVisible({timeout: 5000})
-                    .catch(() => false)
+                const editorVisible = await pollLocatorState(() =>
+                    targetTextbox.isVisible({timeout: 5000}),
+                )
                 if (!editorVisible) {
                     const addMsgButton = page
                         .getByRole("button", {name: /^(Message|Add message)$/i})
                         .first()
-                    if (await addMsgButton.isVisible({timeout: 5000}).catch(() => false)) {
+                    if (await pollLocatorState(() => addMsgButton.isVisible({timeout: 5000}))) {
                         await addMsgButton.click()
                         await expect(getChatEditorLocator()).toBeVisible({timeout: 10000})
                     }
@@ -378,11 +380,11 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                         const variantInputById = commitModal.locator("#entity-name")
                         const variantInputByPlaceholder =
                             commitModal.getByPlaceholder("Enter a name...")
-                        const variantInput = (await variantInputByLabel
-                            .isVisible()
-                            .catch(() => false))
+                        const variantInput = (await pollLocatorState(() =>
+                            variantInputByLabel.isVisible(),
+                        ))
                             ? variantInputByLabel
-                            : (await variantInputById.isVisible().catch(() => false))
+                            : (await pollLocatorState(() => variantInputById.isVisible()))
                               ? variantInputById
                               : variantInputByPlaceholder
                         await expect(variantInput).toBeVisible({timeout: 15000})

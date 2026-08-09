@@ -1,10 +1,3 @@
-import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-
-import {expect} from "@agenta/web-tests/utils"
-import {expectAuthenticatedSession} from "../utils/auth"
-import {createScenarios} from "../utils/scenarios"
-import {buildAcceptanceTags} from "../utils/tags"
-import type {ApiHelpers} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers/types"
 import {
     TestCoverage,
     TestcaseType,
@@ -16,6 +9,13 @@ import {
     TestRoleType,
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import type {ApiHelpers} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers/types"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
+
+import {expectAuthenticatedSession} from "../utils/auth"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
 
 const scenarios = createScenarios(test)
 
@@ -114,9 +114,9 @@ const runPlaygroundAndGoToObservability = async (
     // Enable auto-refresh (the Switch next to "auto-refresh" label). This makes
     // the page re-fetch traces every 15 s without any manual Refresh clicks.
     const autoRefreshSwitch = page.getByRole("switch").first()
-    const isSwitchVisible = await autoRefreshSwitch.isVisible().catch(() => false)
+    const isSwitchVisible = await pollLocatorState(() => autoRefreshSwitch.isVisible())
     if (isSwitchVisible) {
-        const isChecked = await autoRefreshSwitch.isChecked().catch(() => false)
+        const isChecked = await pollLocatorState(() => autoRefreshSwitch.isChecked())
         if (!isChecked) {
             await autoRefreshSwitch.click()
         }
@@ -135,9 +135,9 @@ const runPlaygroundAndGoToObservability = async (
     const POLL_INTERVAL_MS = 15000
     const MAX_POLLS = 16
     for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
-        if (await firstDataRow.isVisible().catch(() => false)) return
+        if (await pollLocatorState(() => firstDataRow.isVisible())) return
 
-        if (await refreshButton.isVisible().catch(() => false)) {
+        if (await pollLocatorState(() => refreshButton.isVisible())) {
             await refreshButton.click()
         }
         await page.waitForTimeout(POLL_INTERVAL_MS)
