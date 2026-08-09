@@ -257,14 +257,18 @@ class ApiCachingConfig(BaseModel):
 class WorkflowsConfig(BaseModel):
     """Workflow-revision behavior toggles."""
 
-    # The ordered-operations change set (agent-config-editing, slice S1b). OFF is today's
-    # surface exactly: the catalog advertises only `set`/`remove`, and a delta carrying
-    # `operations` is refused as an unknown field, the same answer it gets today. Turning
-    # it on adds the ordered arm to the request model and the catalog schema. The flag
-    # exists so the API can ship dark, ahead of the SDK catalog and the runner, per the
-    # mixed-version rollout order.
+    # The ordered-operations change set (agent-config-editing). ON is the default: the
+    # request model carries the ordered arm and the catalog advertises it. The variable
+    # is an escape hatch — set it falsy and the deployment falls back to the legacy
+    # surface, where only `set`/`remove` exist and a delta carrying `operations` is
+    # refused as an unknown field.
+    # The SDK reads this SAME variable in `agenta/sdk/agents/flags.py` to decide what to
+    # advertise to the model and what the build-an-agent skill teaches, and cannot import
+    # this parser. Its default and its accepted spellings must match this one in both
+    # directions, or the model is shown one payload shape while the server accepts
+    # another. Pinned by `oss/tests/pytest/unit/workflows/test_ordered_operations_flag.py`.
     ordered_operations_enabled: bool = _parse_bool_env(
-        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", False
+        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", True
     )
 
     model_config = ConfigDict(extra="ignore")

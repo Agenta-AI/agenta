@@ -1,7 +1,9 @@
 """The `read_config` catalog entry (slice S2).
 
 `read_config` and ordered operations are one feature, the read-then-edit loop, so one flag
-gates both. A deployment never advertises the read without the write it feeds.
+gates both. Both are on by default; a deployment that takes the escape hatch back to the
+legacy surface loses both together, and never advertises the read without the write it
+feeds.
 
 The flag is read at import time, so each state needs its own interpreter. These tests run
 the check in a subprocess rather than reloading the module graph in place, which would
@@ -64,19 +66,33 @@ def catalog_on():
 
 @pytest.fixture(scope="module")
 def catalog_off():
+    return _catalog("false")
+
+
+@pytest.fixture(scope="module")
+def catalog_default():
     return _catalog(None)
 
 
 class TestFlagGating:
-    def test_the_op_is_absent_by_default(self, catalog_off):
-        assert catalog_off["present"] is False
+    def test_the_op_is_present_by_default(self, catalog_default):
+        assert catalog_default["present"] is True
 
-    def test_the_op_appears_with_the_flag(self, catalog_on):
+    def test_the_op_stays_with_the_flag_set_on(self, catalog_on):
         assert catalog_on["present"] is True
 
-    @pytest.mark.parametrize("value", ["false", "0", "", "no"])
-    def test_only_a_truthy_value_enables_it(self, value):
+    def test_the_escape_hatch_removes_it(self, catalog_off):
+        assert catalog_off["present"] is False
+
+    @pytest.mark.parametrize("value", ["false", "0", "no", "off", "disabled"])
+    def test_every_falsy_spelling_removes_it(self, value):
         assert _catalog(value)["present"] is False
+
+    @pytest.mark.parametrize("value", ["", "   "])
+    def test_a_blank_value_takes_the_default(self, value):
+        # Blank is not a way to say "off": both parsers strip it and fall back to the
+        # default, and the API parser does the same, so the two stay in step.
+        assert _catalog(value)["present"] is True
 
 
 class TestCatalogEntry:
