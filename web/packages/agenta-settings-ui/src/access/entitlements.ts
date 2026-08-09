@@ -66,6 +66,37 @@ export const fetchCurrentSubscription = async (
     return data
 }
 
+/**
+ * Never retry a 4xx, and never hammer a billing service that is answering 502/503/504 —
+ * entitlements degrade to "not included" on their own, so failing fast beats three slow
+ * attempts competing with render-critical traffic. Same policy the desktop's atoms use.
+ */
+const entitlementRetry = (failureCount: number, error: unknown) => {
+    const status = (error as {response?: {status?: number}})?.response?.status
+    if (status != null && status >= 400 && status < 500) return false
+    if (status === 502 || status === 503 || status === 504) return false
+    return failureCount < 2
+}
+
+export interface UseBillingSubscriptionParams {
+    projectId?: string | null
+    enabled?: boolean
+}
+
+/**
+ * The organization's current subscription. One query for both callers — the entitlement gates
+ * and whoever wants to name the plan — so they share a cache entry instead of racing.
+ */
+export const useBillingSubscription = ({projectId, enabled = true}: UseBillingSubscriptionParams) =>
+    useQuery({
+        queryKey: ["billing", "subscription", projectId],
+        queryFn: () => fetchCurrentSubscription(projectId as string),
+        staleTime: 1000 * 60 * 5,
+        refetchOnWindowFocus: false,
+        enabled: enabled && Boolean(projectId),
+        retry: entitlementRetry,
+    })
+
 export interface UseEntitlementsParams {
     projectId?: string | null
     /** Off on OSS, and off where the billing service is not deployed — both leave every flag false. */
@@ -84,15 +115,10 @@ export const useEntitlements = ({
         staleTime: 1000 * 60 * 10,
         refetchOnWindowFocus: false,
         enabled: canQuery,
+        retry: entitlementRetry,
     })
 
-    const subscription = useQuery({
-        queryKey: ["billing", "subscription", projectId],
-        queryFn: () => fetchCurrentSubscription(projectId as string),
-        staleTime: 1000 * 60 * 5,
-        refetchOnWindowFocus: false,
-        enabled: canQuery,
-    })
+    const subscription = useBillingSubscription({projectId, enabled: canQuery})
 
     if (!canQuery) return NO_ENTITLEMENTS
 
