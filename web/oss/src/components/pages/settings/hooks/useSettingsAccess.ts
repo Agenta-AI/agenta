@@ -5,8 +5,9 @@ import {isBillingEnabled, isEE, isToolsEnabled} from "@/oss/lib/helpers/isEE"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 
-import type {SettingsAccess} from "../assets/navigation"
+import type {SettingsAccess} from "@agenta/settings"
 
+/** This app's edition/permission flags, fed to `SettingsAccessProvider`. */
 export const useSettingsAccess = (): SettingsAccess => {
     const {selectedOrg} = useOrgData()
     const {user} = useProfileData()

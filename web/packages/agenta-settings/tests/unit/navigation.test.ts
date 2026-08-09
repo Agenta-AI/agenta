@@ -7,7 +7,7 @@ import {
     SETTINGS_SCOPES,
     SETTINGS_TABS,
     type SettingsAccess,
-} from "./navigation"
+} from "../../src/navigation"
 
 const baseAccess: SettingsAccess = {
     billingEnabled: true,
