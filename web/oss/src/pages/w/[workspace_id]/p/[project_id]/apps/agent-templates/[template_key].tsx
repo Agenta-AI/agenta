@@ -1,8 +1,11 @@
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+// Client-only: the AGENTS.md renderer pulls in katex's stylesheet, which Node can't parse
+// during prerender.
 const TemplateDetail = dynamic(
     () => import("@/oss/components/pages/agent-home/components/TemplateDetail"),
+    {ssr: false},
 )
 
 /** One template in full, reached from the gallery. */
