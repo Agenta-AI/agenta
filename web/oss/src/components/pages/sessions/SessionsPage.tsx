@@ -22,7 +22,7 @@ import {
 } from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 
 import {toSessionMenuEntries} from "./assets/menuEntries"
-import SessionFiltersRail from "./components/SessionFiltersRail"
+import SessionFiltersBar from "./components/SessionFiltersBar"
 
 interface Props {
     /** Route-supplied agent scope (`/apps/[app_id]/sessions`). Omit for the project-wide list. */
@@ -108,15 +108,14 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     )
 
     return (
-        <PageLayout className="grow min-h-0 !p-0">
-            <div className="flex min-h-0 w-full flex-1 flex-col lg:flex-row">
-                <SessionFiltersRail
-                    title={title}
+        <PageLayout className="grow min-h-0" title={title}>
+            <div className="flex flex-col flex-1 min-h-0">
+                <SessionFiltersBar
                     waitingCount={list.waitingCount}
                     hideAgentFilter={Boolean(scopedAgentId)}
                 />
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+                <div className="flex-1 min-h-0 overflow-y-auto">
                     {list.isError ? (
                         <SessionListError onRetry={list.refetch} />
                     ) : list.isPending ? (

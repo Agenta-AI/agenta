@@ -1,7 +1,7 @@
 /**
  * @agenta/sessions-ui — antd-free components over `@agenta/sessions`.
  *
- * The package exports controls and rows; each app owns its shell (the rail, a sheet). Anything
+ * The package exports controls and rows; each app owns its shell (a toolbar, a sheet). Anything
  * not yet portable — the agent picker — is a slot the app injects, never an antd import here
  * (eslint-enforced, see eslint.config.mjs).
  */
@@ -17,7 +17,7 @@ export {
 } from "./SessionListStates"
 export {
     SessionSearchControl,
-    SessionStatusListControl,
+    SessionStatusControl,
     SessionModeControl,
     SessionArchivedControl,
 } from "./controls/SessionFilterControls"

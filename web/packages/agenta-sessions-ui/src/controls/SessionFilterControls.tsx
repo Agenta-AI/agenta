@@ -1,28 +1,28 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
 import {useSessionFilters, type SessionStatusFilter} from "@agenta/sessions/state"
-import {SearchInput, Switch} from "@agenta/ui/ui"
+import {SearchInput, Segmented, Switch} from "@agenta/ui/ui"
 import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {Tip} from "../assets/Tip"
 
 /**
  * The session filter CONTROLS — each binds to `useSessionFilters`, so every surface narrows the
- * same set. Shells stay per-surface: a 280px rail and a mobile filter sheet are two shells over
- * these same controls, which is why no rail markup lives here. The agent picker is not among
+ * same set. Shells stay per-surface: a toolbar row and a mobile filter sheet are two shells over
+ * these same controls, which is why no shell markup lives here. The agent picker is not among
  * them — it stays an app-injected slot (`EntityPicker`/antd `Select` are out of scope).
  */
-
-const STATUSES: {value: SessionStatusFilter; label: string}[] = [
-    {value: "all", label: "All sessions"},
-    {value: "live", label: "Live"},
-    {value: "waiting", label: "Waiting on you"},
-]
 
 /** Applied filter writes are debounced; every keystroke would otherwise refetch both lists. */
 const SEARCH_DEBOUNCE_MS = 300
 
-export const SessionSearchControl = ({placeholder = "Search sessions"}: {placeholder?: string}) => {
+export const SessionSearchControl = ({
+    placeholder = "Search sessions",
+    className,
+}: {
+    placeholder?: string
+    className?: string
+}) => {
     const {search, setSearch} = useSessionFilters()
     const [draft, setDraft] = useState(search)
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -56,6 +56,7 @@ export const SessionSearchControl = ({placeholder = "Search sessions"}: {placeho
             allowClear
             value={draft}
             placeholder={placeholder}
+            className={className}
             prefix={<MagnifyingGlassIcon size={14} className="text-colorTextTertiary" />}
             onChange={(event) => {
                 const value = event.target.value
@@ -73,32 +74,23 @@ export const SessionSearchControl = ({placeholder = "Search sessions"}: {placeho
     )
 }
 
-/** The status choice as a list you read, not a segmented control you decode. */
-export const SessionStatusListControl = ({waitingCount}: {waitingCount?: number}) => {
+/** The status choice, sized for a toolbar row: three exclusive options on one line. */
+export const SessionStatusControl = ({waitingCount}: {waitingCount?: number}) => {
     const {status, setStatus} = useSessionFilters()
     return (
-        <nav className="flex flex-col gap-0.5">
-            {STATUSES.map((option) => (
-                <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={option.value === status}
-                    onClick={() => setStatus(option.value)}
-                    className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors ${
-                        option.value === status
-                            ? "bg-colorFillSecondary text-colorText"
-                            : "bg-transparent text-colorTextSecondary hover:bg-colorFillQuaternary"
-                    }`}
-                >
-                    <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                    {option.value === "waiting" && waitingCount ? (
-                        <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText">
-                            {waitingCount}
-                        </span>
-                    ) : null}
-                </button>
-            ))}
-        </nav>
+        <Segmented
+            value={status}
+            onChange={(value) => setStatus(value as SessionStatusFilter)}
+            // The default track is colorBgLayout, which this palette paints white — on a white
+            // toolbar the track and its thumb both disappear.
+            className="bg-colorFillTertiary"
+            options={[
+                {value: "all", label: "All"},
+                {value: "live", label: "Live"},
+                // The count rides in the label — a toolbar has no room for a separate badge.
+                {value: "waiting", label: waitingCount ? `Waiting ${waitingCount}` : "Waiting"},
+            ]}
+        />
     )
 }
 
