@@ -15,7 +15,7 @@ import {
     deleteOrganizationProvider,
     type OrganizationProvider,
 } from "@agenta/entities/organization"
-import {AccessControlsSection, type AuthFlagKey} from "@agenta/settings-ui"
+import {AccessControlsSection, DomainsSection, type AuthFlagKey} from "@agenta/settings-ui"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {
     PlusOutlined,
@@ -24,7 +24,6 @@ import {
     DeleteOutlined,
     EditOutlined,
     InfoCircleOutlined,
-    ReloadOutlined,
 } from "@ant-design/icons"
 import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
 import {
@@ -105,7 +104,11 @@ const Organization: FC = () => {
     )
 
     // Domain Verification queries and mutations
-    const {data: domains = [], refetch: refetchDomains} = useQuery({
+    const {
+        data: domains = [],
+        refetch: refetchDomains,
+        isPending: domainsLoading,
+    } = useQuery({
         queryKey: ["organization-domains", selectedOrg?.id],
         queryFn: fetchOrganizationDomains,
         enabled: !!selectedOrg?.id,
@@ -177,96 +180,65 @@ const Organization: FC = () => {
         })
     }, [domainForm, createDomainMutation])
 
-    const domainColumns = [
-        {
-            title: "Domain",
-            dataIndex: "slug",
-            key: "slug",
-            ellipsis: true,
-        },
-        {
-            title: "Expiration",
-            key: "expires_at",
-            render: (_: any, record: OrganizationDomain) => {
-                if (record.flags?.is_verified) {
-                    return <Text type="secondary">-</Text>
+    /** The DNS record to publish, and what to do after. Slotted under each pending domain. */
+    const renderDomainInstructions = useCallback((record: OrganizationDomain) => {
+        const txtRecordName = `_agenta-verification.${record.slug}`
+        const txtRecordValue = `_agenta-verification=${record.token}`
+        const mono = {fontFamily: "monospace", fontSize: "12px"} as const
+
+        return (
+            <Alert
+                type="info"
+                showIcon
+                icon={<InfoCircleOutlined />}
+                message={
+                    <span style={{fontSize: "15px", fontWeight: 500}}>
+                        Verification Instructions
+                    </span>
                 }
-                // Calculate expiration: created_at + 48 hours
-                const createdAt = new Date(record.created_at)
-                const expiresAt = new Date(createdAt.getTime() + 48 * 60 * 60 * 1000)
-                const now = new Date()
-                const isExpired = now > expiresAt
-
-                return (
-                    <Text type={isExpired ? "danger" : "secondary"}>
-                        {expiresAt.toLocaleString()}
-                        {isExpired && " (Expired)"}
-                    </Text>
-                )
-            },
-        },
-        {
-            title: "Status",
-            dataIndex: ["flags", "is_verified"],
-            key: "is_verified",
-            render: (_: any, record: OrganizationDomain) => {
-                const isVerified = record.flags?.is_verified || false
-                return isVerified ? (
-                    <Tag icon={<CheckCircleOutlined />} color="success">
-                        Verified
-                    </Tag>
-                ) : (
-                    <Tag icon={<ClockCircleOutlined />} color="warning">
-                        Pending
-                    </Tag>
-                )
-            },
-        },
-        {
-            title: "Actions",
-            key: "actions",
-            render: (_: any, record: OrganizationDomain) => (
-                <div className="flex items-center gap-2">
-                    {!record.flags?.is_verified && (
-                        <Button
-                            type="primary"
-                            size="small"
-                            onClick={() => verifyDomainMutation.mutate(record.id)}
-                            loading={verifyDomainMutation.isPending}
-                        >
-                            Verify
-                        </Button>
-                    )}
-                    <Button
-                        icon={<ReloadOutlined />}
-                        size="small"
-                        onClick={() => refreshDomainTokenMutation.mutate(record.id)}
-                        loading={refreshDomainTokenMutation.isPending}
-                        title="Refresh token"
-                    />
-                    <Popconfirm
-                        title="Delete domain"
-                        description="Are you sure you want to delete this domain?"
-                        onConfirm={() => deleteDomainMutation.mutate(record.id)}
-                        okText="Delete"
-                        okType="danger"
-                        cancelText="Cancel"
-                    >
-                        <Button
-                            danger
-                            size="small"
-                            icon={<DeleteOutlined />}
-                            loading={deleteDomainMutation.isPending}
-                        />
-                    </Popconfirm>
-                </div>
-            ),
-        },
-    ]
-
-    const pendingDomainRowKeys = domains
-        .filter((domain) => !domain.flags?.is_verified && !!domain.token)
-        .map((domain) => domain.id)
+                description={
+                    <div className="flex w-full flex-col gap-4">
+                        <Text style={{fontSize: "14px"}}>1. Add the following DNS TXT record:</Text>
+                        <Descriptions bordered size="small" column={1} className="org-instructions">
+                            <Descriptions.Item label={<span style={mono}>Type</span>}>
+                                <span style={mono}>TXT</span>
+                            </Descriptions.Item>
+                            <Descriptions.Item label={<span style={mono}>Host</span>}>
+                                <div>
+                                    <TooltipWithCopyAction
+                                        copyText={txtRecordName}
+                                        title="Copy host"
+                                    >
+                                        <span style={mono}>{txtRecordName}</span>
+                                    </TooltipWithCopyAction>
+                                    <div style={{marginTop: 4}}>
+                                        <Text type="secondary" style={{fontSize: "11px"}}>
+                                            Some DNS providers (e.g. Namecheap, GoDaddy, Cloudflare)
+                                            automatically append your domain. If so, enter only:{" "}
+                                            <Text code style={{fontSize: "11px"}}>
+                                                _agenta-verification
+                                            </Text>
+                                        </Text>
+                                    </div>
+                                </div>
+                            </Descriptions.Item>
+                            <Descriptions.Item label={<span style={mono}>Value</span>}>
+                                <TooltipWithCopyAction copyText={txtRecordValue} title="Copy value">
+                                    <span style={mono}>{txtRecordValue}</span>
+                                </TooltipWithCopyAction>
+                            </Descriptions.Item>
+                        </Descriptions>
+                        <Text style={{fontSize: "14px"}}>
+                            2. Wait a few minutes for DNS propagation.
+                        </Text>
+                        <Text style={{fontSize: "14px"}}>
+                            3. Click the &quot;Verify&quot; button.
+                        </Text>
+                    </div>
+                }
+            />
+        )
+    }, [])
 
     // SSO Provider queries and mutations
     const {data: providers = [], refetch: refetchProviders} = useQuery({
@@ -585,185 +557,24 @@ const Organization: FC = () => {
 
             {hasDomains ? (
                 <section>
-                    <div className="flex w-full flex-col gap-3">
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "flex-start",
-                            }}
-                        >
-                            <div>
-                                <Title level={5} className="!mb-1">
-                                    Verified Domains
-                                </Title>
-                                <Text type="secondary">
-                                    Domains that belong to your organization
-                                </Text>
-                            </div>
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={() => setDomainModalVisible(true)}
-                            >
-                                Add Domain
-                            </Button>
-                        </div>
-
-                        <Table
-                            columns={domainColumns}
-                            dataSource={domains}
-                            rowKey="id"
-                            pagination={false}
-                            size="small"
-                            tableLayout="fixed"
-                            className="no-expand-indent no-expand-col org-domains-table"
-                            expandable={{
-                                expandedRowKeys: pendingDomainRowKeys,
-                                expandedRowRender: (record: OrganizationDomain) => {
-                                    // Only show DNS instructions for unverified domains with a token
-                                    if (record.flags?.is_verified || !record.token) {
-                                        return null
-                                    }
-
-                                    const txtRecordName = `_agenta-verification.${record.slug}`
-                                    const txtRecordValue = `_agenta-verification=${record.token}`
-
-                                    return (
-                                        <Alert
-                                            message={
-                                                <span style={{fontSize: "15px", fontWeight: 500}}>
-                                                    Verification Instructions
-                                                </span>
-                                            }
-                                            description={
-                                                <div className="flex w-full flex-col gap-4">
-                                                    <Text style={{fontSize: "14px"}}>
-                                                        1. Add the following DNS TXT record:
-                                                    </Text>
-                                                    <Descriptions
-                                                        bordered
-                                                        size="small"
-                                                        column={1}
-                                                        className="org-instructions"
-                                                    >
-                                                        <Descriptions.Item
-                                                            label={
-                                                                <span
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                >
-                                                                    Type
-                                                                </span>
-                                                            }
-                                                        >
-                                                            <span
-                                                                style={{
-                                                                    fontFamily: "monospace",
-                                                                    fontSize: "12px",
-                                                                }}
-                                                            >
-                                                                TXT
-                                                            </span>
-                                                        </Descriptions.Item>
-                                                        <Descriptions.Item
-                                                            label={
-                                                                <span
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                >
-                                                                    Host
-                                                                </span>
-                                                            }
-                                                        >
-                                                            <div>
-                                                                <TooltipWithCopyAction
-                                                                    copyText={txtRecordName}
-                                                                    title="Copy host"
-                                                                >
-                                                                    <span
-                                                                        style={{
-                                                                            fontFamily: "monospace",
-                                                                            fontSize: "12px",
-                                                                        }}
-                                                                    >
-                                                                        {txtRecordName}
-                                                                    </span>
-                                                                </TooltipWithCopyAction>
-                                                                <div style={{marginTop: 4}}>
-                                                                    <Text
-                                                                        type="secondary"
-                                                                        style={{fontSize: "11px"}}
-                                                                    >
-                                                                        Some DNS providers (e.g.
-                                                                        Namecheap, GoDaddy,
-                                                                        Cloudflare) automatically
-                                                                        append your domain. If so,
-                                                                        enter only:{" "}
-                                                                        <Text
-                                                                            code
-                                                                            style={{
-                                                                                fontSize: "11px",
-                                                                            }}
-                                                                        >
-                                                                            _agenta-verification
-                                                                        </Text>
-                                                                    </Text>
-                                                                </div>
-                                                            </div>
-                                                        </Descriptions.Item>
-                                                        <Descriptions.Item
-                                                            label={
-                                                                <span
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                >
-                                                                    Value
-                                                                </span>
-                                                            }
-                                                        >
-                                                            <TooltipWithCopyAction
-                                                                copyText={txtRecordValue}
-                                                                title="Copy value"
-                                                            >
-                                                                <span
-                                                                    className="break-all"
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                >
-                                                                    {txtRecordValue}
-                                                                </span>
-                                                            </TooltipWithCopyAction>
-                                                        </Descriptions.Item>
-                                                    </Descriptions>
-                                                    <Text style={{fontSize: "14px"}}>
-                                                        2. Wait a few minutes for DNS propagation.
-                                                    </Text>
-                                                    <Text style={{fontSize: "14px"}}>
-                                                        3. Click the "Verify" button.
-                                                    </Text>
-                                                </div>
-                                            }
-                                            type="info"
-                                            icon={<InfoCircleOutlined />}
-                                            showIcon
-                                        />
-                                    )
-                                },
-                                rowExpandable: (record: OrganizationDomain) =>
-                                    !record.flags?.is_verified && !!record.token,
-                                expandIcon: () => null,
-                            }}
-                        />
-                    </div>
+                    <DomainsSection
+                        domains={domains ?? []}
+                        loading={domainsLoading}
+                        onAdd={() => setDomainModalVisible(true)}
+                        onVerify={(domain: OrganizationDomain) =>
+                            verifyDomainMutation.mutate(domain.id)
+                        }
+                        onRefreshToken={(domain: OrganizationDomain) =>
+                            refreshDomainTokenMutation.mutate(domain.id)
+                        }
+                        onDelete={(domain: OrganizationDomain) =>
+                            deleteDomainMutation.mutate(domain.id)
+                        }
+                        verifying={verifyDomainMutation.isPending}
+                        refreshing={refreshDomainTokenMutation.isPending}
+                        deleting={deleteDomainMutation.isPending}
+                        renderInstructions={renderDomainInstructions}
+                    />
 
                     <Modal
                         title="Add Domain"

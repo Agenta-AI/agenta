@@ -24,3 +24,4 @@ export {
 } from "./access/AccessControlsSection"
 export {SettingToggleRow, type SettingToggleRowProps} from "./access/SettingToggleRow"
 export {UpgradeNotice, type UpgradeNoticeProps} from "./access/UpgradeNotice"
+export {DomainsSection, type DomainsSectionProps} from "./access/DomainsSection"
