@@ -141,7 +141,10 @@ const openAutoEvaluationModal = async (page: Page) => {
     await ensureAutoEvaluationsContext(page)
     await (await getAutoEvaluationCreateButton(page)).click()
 
-    const modal = page.locator(".ant-modal").first()
+    // NewEvaluationModal renders via EnhancedModal, a facade over the @agenta/ui
+    // (Radix) Dialog — DialogContent carries data-slot="dialog-content", not the
+    // antd .ant-modal wrapper this used to match.
+    const modal = page.locator('[data-slot="dialog-content"]').first()
     await expect(modal).toBeVisible()
     await expect(modal.getByText(AUTO_EVALUATION_MODAL_TITLE).first()).toBeVisible()
     await expect(
