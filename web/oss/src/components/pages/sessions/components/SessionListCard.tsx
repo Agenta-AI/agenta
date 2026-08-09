@@ -2,10 +2,10 @@ import {useCallback, useMemo} from "react"
 
 import {type SessionRowVm} from "@agenta/sessions/row"
 import {applySessionScopeAtom, useSessionCardList, useSessionPins} from "@agenta/sessions/state"
-import {SessionAgentName} from "@agenta/sessions-ui"
+import {SessionAgentName, SessionPinButton, SessionStatusIcon} from "@agenta/sessions-ui"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
-import {ArrowRightIcon, ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
-import {Dropdown, Skeleton, Tooltip} from "antd"
+import {ArrowRightIcon} from "@phosphor-icons/react"
+import {Dropdown, Skeleton} from "antd"
 import {useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 import Link from "next/link"
@@ -125,20 +125,7 @@ const SessionListCard = ({
                         }}
                         className="group box-border flex w-full cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
                     >
-                        {/* A glyph for the KIND of row, with the status as a dot on its shoulder.
-                            Two lists in the same column read as one long list when every row leads
-                            with the same dot; the clock and the chat bubble separate them without
-                            a heading. */}
-                        <Tooltip title={vm.status.label}>
-                            <span className="relative mt-0.5 flex shrink-0 text-colorTextTertiary">
-                                {origin ? <ClockIcon size={18} /> : <ChatCircleIcon size={18} />}
-                                <span
-                                    className={`absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-solid border-colorBgContainer ${vm.status.dotClassName} ${
-                                        vm.status.pulse ? "motion-safe:animate-pulse" : ""
-                                    }`}
-                                />
-                            </span>
-                        </Tooltip>
+                        <SessionStatusIcon status={vm.status} automation={Boolean(origin)} />
                         <span className="flex min-w-0 flex-1 flex-col gap-1">
                             <span className="flex w-full items-center gap-2">
                                 <span className="min-w-0 flex-1 truncate text-sm text-colorText">
@@ -164,26 +151,10 @@ const SessionListCard = ({
                                 <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
                                     {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
                                 </span>
-                                <Tooltip title={vm.isPinned ? "Unpin" : "Pin"}>
-                                    <button
-                                        type="button"
-                                        aria-label={vm.isPinned ? "Unpin session" : "Pin session"}
-                                        onClick={(event) => {
-                                            event.stopPropagation()
-                                            togglePin(vm.id)
-                                        }}
-                                        className={`shrink-0 cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary ${
-                                            vm.isPinned
-                                                ? ""
-                                                : "opacity-0 focus:opacity-100 group-hover:opacity-100"
-                                        }`}
-                                    >
-                                        <PushPinIcon
-                                            size={14}
-                                            weight={vm.isPinned ? "fill" : "regular"}
-                                        />
-                                    </button>
-                                </Tooltip>
+                                <SessionPinButton
+                                    pinned={vm.isPinned}
+                                    onToggle={() => togglePin(vm.id)}
+                                />
                             </span>
                             {/* What actually happened, so deciding whether to reopen a session
                             doesn't mean opening it. Indented past the status dot. Absent when the

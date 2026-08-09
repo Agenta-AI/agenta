@@ -70,7 +70,7 @@ export const SessionListLoadMore = ({
 /** A list group's heading. Plain (non-motion) so `sticky` is never fighting a transform. */
 export const SessionGroupHeader = ({label}: {label: string}) => (
     <div className="sticky top-0 z-20 bg-colorBgContainer pb-1 pt-4">
-        <p className="m-0 rounded bg-colorBgElevated px-3 py-1 text-xs text-colorTextTertiary">
+        <p className="m-0 px-2 pt-1 text-[11px] uppercase tracking-wide text-colorTextTertiary">
             {label}
         </p>
     </div>

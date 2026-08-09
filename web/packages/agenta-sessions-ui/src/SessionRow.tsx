@@ -10,12 +10,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {DotsThreeIcon, PushPinIcon, PushPinSlashIcon} from "@phosphor-icons/react"
+import {DotsThreeIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 
-import {Tip} from "./assets/Tip"
 import {isMenuDivider, type SessionMenuEntry} from "./menu"
 import {SessionAgentName} from "./SessionAgentName"
+import {SessionPinButton} from "./SessionPinButton"
+import {SessionStatusIcon} from "./SessionStatusIcon"
 
 export interface SessionRowProps {
     row: SessionRowVm
@@ -57,20 +58,11 @@ const SessionRowImpl = ({
         <div
             onClick={handleOpen}
             className={clsx(
-                "group flex items-center gap-3 px-3 py-2 border-solid border-0 border-b border-colorBorderSecondary",
+                "group flex items-start gap-3 px-2 py-3 border-solid border-0 border-b border-colorBorderSecondary",
                 openable ? "cursor-pointer hover:bg-colorFillQuaternary" : "cursor-default",
             )}
         >
-            <Tip title={row.status.label}>
-                <span
-                    aria-label={row.status.label}
-                    className={clsx(
-                        "shrink-0 w-2 h-2 rounded-full",
-                        row.status.dotClassName,
-                        row.status.pulse && "motion-safe:animate-pulse",
-                    )}
-                />
-            </Tip>
+            <SessionStatusIcon status={row.status} automation={row.isAutomation} />
 
             <button
                 type="button"
@@ -80,96 +72,89 @@ const SessionRowImpl = ({
                     handleOpen()
                 }}
                 className={clsx(
-                    "flex-1 min-w-0 flex flex-col gap-0.5 border-0 bg-transparent p-0 text-left",
+                    "flex-1 min-w-0 flex flex-col gap-1 border-0 bg-transparent p-0 text-left",
                     openable ? "cursor-pointer" : "cursor-default",
                 )}
             >
-                <span className="w-full text-xs text-colorText truncate">{row.title}</span>
+                <span className="w-full text-sm text-colorText truncate">{row.title}</span>
                 {row.subtitle ? (
-                    <span className="w-full truncate text-[11px] text-colorTextTertiary">
+                    <span className="w-full truncate text-[13px] text-colorTextTertiary">
                         {row.subtitle}
                     </span>
                 ) : null}
             </button>
 
-            {row.status.chipLabel ? (
-                <span
-                    className={clsx(
-                        "shrink-0 rounded px-1.5 py-0.5 text-[11px] leading-none",
-                        row.status.chipClassName,
-                    )}
-                >
-                    {row.status.chipLabel}
-                </span>
-            ) : null}
-
-            {showAgent ? (
-                <span className="w-40 shrink-0 truncate">
-                    {renderAgent ? (
-                        renderAgent(row.agentId)
-                    ) : (
-                        <SessionAgentName agentId={row.agentId} />
-                    )}
-                </span>
-            ) : null}
-
-            <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
-                {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
-            </span>
-
-            {onTogglePin ? (
-                <Tip title={row.isPinned ? "Unpin" : "Pin"}>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={row.isPinned ? "Unpin session" : "Pin session"}
+            {/* h-5 = the title's line box, so the trailing controls centre on the TITLE rather
+                than on a row whose height the subtitle decides. */}
+            <div className="flex h-5 shrink-0 items-center gap-3">
+                {row.status.chipLabel ? (
+                    <span
                         className={clsx(
-                            "shrink-0",
-                            !row.isPinned &&
-                                revealActionsOnHover &&
-                                "opacity-0 group-hover:opacity-100 focus:opacity-100",
+                            "shrink-0 rounded px-1.5 py-0.5 text-xs leading-none",
+                            row.status.chipClassName,
                         )}
-                        onClick={(event) => {
-                            event.stopPropagation()
-                            onTogglePin(row.id)
-                        }}
                     >
-                        {row.isPinned ? <PushPinSlashIcon size={14} /> : <PushPinIcon size={14} />}
-                    </Button>
-                </Tip>
-            ) : null}
+                        {row.status.chipLabel}
+                    </span>
+                ) : null}
 
-            {menuItems?.length ? (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="Session actions"
-                            className="shrink-0"
+                {showAgent ? (
+                    <span className="w-40 shrink-0 truncate">
+                        {renderAgent ? (
+                            renderAgent(row.agentId)
+                        ) : (
+                            <SessionAgentName agentId={row.agentId} />
+                        )}
+                    </span>
+                ) : null}
+
+                <span className="w-24 shrink-0 text-xs text-colorTextTertiary text-right">
+                    {row.activityAt ? timeAgo(Date.parse(row.activityAt)) : "—"}
+                </span>
+
+                {onTogglePin ? (
+                    <SessionPinButton
+                        pinned={row.isPinned}
+                        onToggle={() => onTogglePin(row.id)}
+                        revealOnHover={revealActionsOnHover}
+                    />
+                ) : null}
+
+                {menuItems?.length ? (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Session actions"
+                                className="shrink-0"
+                                onClick={(event) => event.stopPropagation()}
+                            >
+                                <DotsThreeIcon size={14} />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                            align="end"
                             onClick={(event) => event.stopPropagation()}
                         >
-                            <DotsThreeIcon size={14} />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-                        {menuItems.map((entry, index) =>
-                            isMenuDivider(entry) ? (
-                                <DropdownMenuSeparator key={`divider-${index}`} />
-                            ) : (
-                                <DropdownMenuItem
-                                    key={entry.key}
-                                    disabled={entry.disabled}
-                                    variant={entry.danger ? "destructive" : "default"}
-                                    onSelect={() => onMenuSelect?.(entry.key)}
-                                >
-                                    {entry.label}
-                                </DropdownMenuItem>
-                            ),
-                        )}
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            ) : null}
+                            {menuItems.map((entry, index) =>
+                                isMenuDivider(entry) ? (
+                                    <DropdownMenuSeparator key={`divider-${index}`} />
+                                ) : (
+                                    <DropdownMenuItem
+                                        key={entry.key}
+                                        disabled={entry.disabled}
+                                        variant={entry.danger ? "destructive" : "default"}
+                                        onSelect={() => onMenuSelect?.(entry.key)}
+                                    >
+                                        {entry.label}
+                                    </DropdownMenuItem>
+                                ),
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                ) : null}
+            </div>
         </div>
     )
 }

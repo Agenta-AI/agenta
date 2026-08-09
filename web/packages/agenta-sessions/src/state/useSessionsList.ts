@@ -91,9 +91,11 @@ export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = 
     const pinnedQuery = useSessionList({
         ...shared,
         sessionIds: pinnedIds,
-        // Pins are mode-independent: without this, default mode's `excludeOrigin` filter would
-        // drop a pinned automation run from its own group.
+        // Default mode is lenient about pins: without this, its `excludeOrigin` filter would drop
+        // a pinned automation run from its own group. The automations mode still narrows, though —
+        // a Pinned group heading a list of automation runs must not hold your own conversations.
         showTriggered: true,
+        origin: showTriggered ? "trigger" : undefined,
         enabled: pinnedIds.length > 0,
     })
     const listQuery = useSessionList({
