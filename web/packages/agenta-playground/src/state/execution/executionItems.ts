@@ -1466,9 +1466,14 @@ export const handleExecutionResultAtom = atom(
             // shared user message" is racy in comparison mode because the
             // first-to-finish variant auto-appends a blank user message
             // before the second variant's result arrives.
-            // rowId format in comparison mode: "turn-<entityUUID>-lt-<msgId>"
+            // rowId format in comparison mode: "turn-<entityUUID>-<logicalId>"
+            // logicalId is "msg-<uuid>" (current) or "lt-<id>" (legacy).
+            // Neither prefix can appear in a hex UUID, so searching for
+            // "-msg-" / "-lt-" unambiguously locates the logical boundary.
+            const msgIndex = rowId.indexOf("-msg-")
             const ltIndex = rowId.indexOf("-lt-")
-            const logicalRowId = ltIndex >= 0 ? rowId.slice(ltIndex + 1) : rowId
+            const sepIndex = msgIndex >= 0 ? msgIndex : ltIndex
+            const logicalRowId = sepIndex >= 0 ? rowId.slice(sepIndex + 1) : rowId
             const flatIds = get(messageIdsAtomFamily(loadableId))
             const flatById = get(messagesByIdAtomFamily(loadableId))
 

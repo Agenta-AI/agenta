@@ -922,7 +922,8 @@ export const runStatusByRowEntityAtom = selectAtom(
             const sepIdx = key.indexOf(":sess:")
             if (sepIdx === -1) continue
             const stepId = key.slice(0, sepIdx)
-            const entityId = key.slice(sepIdx + 5)
+            // ":sess:" is 6 characters; +5 was off-by-one (left a leading ":").
+            const entityId = key.slice(sepIdx + 6)
             const status = result?.status
             const isRunning = status === "running" || status === "pending"
             mapped[`${stepId}:${entityId}`] = {

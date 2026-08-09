@@ -179,10 +179,10 @@ export const triggerExecutionAtom = atom(
         // Multi-entity fan-out: when no specific revision is requested and
         // multiple entities are shown side-by-side, trigger each one.
         if (!requestedRevisionId && Array.isArray(entityIds) && entityIds.length > 1) {
-            const sessionMatch = /^turn-([^-]+)-(lt-.+)$/.exec(String(rowId))
-            const logicalIdFromRow =
-                sessionMatch?.[2] || (String(rowId).startsWith("lt-") ? String(rowId) : "")
-            const lid = logicalIdFromRow || String(rowId)
+            // Extract the logical row ID from a possibly-compound turn-ID.
+            // Use the same sentinel search as extractLogicalRowId so that
+            // both "msg-<uuid>" (current) and "lt-<id>" (legacy) are handled.
+            const lid = extractLogicalRowId(String(rowId))
             for (const revId of entityIds) {
                 if (!revId) continue
                 const rid = `turn-${revId}-${lid}`
@@ -810,9 +810,15 @@ export const handleExecutionResultFromWorkerAtom = atom(
 /**
  * Extract the logical row ID from a turn-style row ID.
  * Turn IDs have format: `turn-<entityId>-<logicalId>`.
- * If it's already a logical ID (starts with "lt-"), return as-is.
+ * logicalId is "msg-<uuid>" (current) or "lt-<id>" (legacy).
+ * Neither prefix can appear inside a hex UUID, so "-msg-" / "-lt-"
+ * unambiguously marks the boundary between the entity segment and the
+ * logical row ID regardless of whether the entity UUID itself contains hyphens.
  */
-function extractLogicalRowId(rowId: string): string {
-    const match = /^turn-([^-]+)-(lt-.+)$/.exec(rowId)
-    return match?.[2] || rowId
+export function extractLogicalRowId(rowId: string): string {
+    const msgIdx = rowId.indexOf("-msg-")
+    if (msgIdx >= 0) return rowId.slice(msgIdx + 1)
+    const ltIdx = rowId.indexOf("-lt-")
+    if (ltIdx >= 0) return rowId.slice(ltIdx + 1)
+    return rowId
 }
