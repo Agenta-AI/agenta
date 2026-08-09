@@ -50,10 +50,7 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
 
     return (
         <Sheet open={open} onOpenChange={(next) => (next ? undefined : onOpenChange(false))}>
-            <SheetContent
-                side="bottom"
-                className="max-h-[90vh] gap-0 overflow-y-auto rounded-t-2xl"
-            >
+            <SheetContent side="responsive">
                 <SheetHeader>
                     <SheetTitle>Cancel auto-renewal</SheetTitle>
                     <SheetDescription>

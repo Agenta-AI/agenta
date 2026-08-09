@@ -53,7 +53,7 @@ export const AccountTab = ({
                         if (!next) onClose()
                     }}
                 >
-                    <SheetContent side="bottom">
+                    <SheetContent side="responsive">
                         <SheetHeader>
                             <SheetTitle>Delete account</SheetTitle>
                             <SheetDescription>This cannot be undone.</SheetDescription>

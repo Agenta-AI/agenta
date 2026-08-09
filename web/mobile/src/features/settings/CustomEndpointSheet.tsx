@@ -42,7 +42,7 @@ export const CustomEndpointSheet = ({
                 if (!next) close()
             }}
         >
-            <SheetContent side="bottom">
+            <SheetContent side="responsive">
                 <SheetHeader>
                     <SheetTitle>{provider ? "Edit endpoint" : "Add endpoint"}</SheetTitle>
                     <SheetDescription>

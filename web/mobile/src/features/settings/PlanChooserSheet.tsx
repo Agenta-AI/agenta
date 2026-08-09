@@ -75,10 +75,7 @@ export const PlanChooserSheet = ({
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent
-                side="bottom"
-                className="max-h-[90vh] gap-0 overflow-y-auto rounded-t-2xl"
-            >
+            <SheetContent side="responsive">
                 <SheetHeader>
                     <SheetTitle>Plans</SheetTitle>
                     <SheetDescription>Choose the plan for this organization.</SheetDescription>

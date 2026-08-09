@@ -125,7 +125,7 @@ export const SecretFormSheet = ({
                 if (!next && !saving) onClose()
             }}
         >
-            <SheetContent side="bottom">
+            <SheetContent side="responsive">
                 <SheetHeader>
                     <SheetTitle>{isEditing ? "Edit secret" : "Create secret"}</SheetTitle>
                     <SheetDescription>
