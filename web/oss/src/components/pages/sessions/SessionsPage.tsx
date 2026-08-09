@@ -11,7 +11,9 @@ import {
     SessionRow,
 } from "@agenta/sessions-ui"
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {Dropdown} from "antd"
+import clsx from "clsx"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {ROW_VARIANTS, SESSION_SPRING} from "@/oss/components/AgentChatSlice/assets/sessionMotion"
@@ -108,7 +110,7 @@ const SessionsPage = ({scopedAgentId, title = "Sessions"}: Props) => {
     )
 
     return (
-        <PageLayout className="grow min-h-0" title={title}>
+        <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title={title}>
             <div className="flex flex-col flex-1 min-h-0">
                 <SessionFiltersBar
                     waitingCount={list.waitingCount}

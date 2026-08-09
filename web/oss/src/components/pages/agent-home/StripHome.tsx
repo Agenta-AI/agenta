@@ -2,10 +2,12 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {PanelScroll, PanelSurface} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
 import {App, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -141,7 +143,7 @@ const StripHome: React.FC = () => {
     }, [message, posthog])
 
     return (
-        <PageLayout className="grow min-h-0 !pb-0">
+        <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")}>
             {/* First run stays a centered document — one question, one answer, nothing to
                 resume yet — and scrolls inside the frame rather than moving the page. A
                 returning user gets a workspace: two columns that fill the frame and scroll
@@ -155,8 +157,8 @@ const StripHome: React.FC = () => {
             <div
                 className={
                     firstRun
-                        ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto px-6 pb-20 pt-14"
-                        : "flex min-h-0 w-full flex-1 gap-10 overflow-hidden pb-6 pl-14 pr-10 pt-8"
+                        ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto"
+                        : "flex min-h-0 w-full flex-1 gap-10 overflow-hidden"
                 }
             >
                 <div

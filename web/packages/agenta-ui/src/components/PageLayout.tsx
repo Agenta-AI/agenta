@@ -1,5 +1,6 @@
 import type {ElementType, ReactNode} from "react"
 
+import {pageGutterClass} from "./pageWidth"
 import {Tabs, TabsList, TabsTrigger} from "./ui/tabs"
 import {cn} from "./ui/utils"
 
@@ -69,7 +70,13 @@ const PageLayout = ({
     )
 
     return (
-        <div className={cn("flex w-full flex-col gap-4 p-4 self-stretch min-h-full", className)}>
+        <div
+            className={cn(
+                "flex w-full flex-col gap-4 self-stretch min-h-full",
+                pageGutterClass,
+                className,
+            )}
+        >
             {title ? (
                 <div
                     className={cn(

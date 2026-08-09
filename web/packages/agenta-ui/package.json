@@ -29,6 +29,7 @@
         "./components/selection": "./src/components/selection/index.ts",
         "./components/presentational": "./src/components/presentational/index.ts",
         "./components/modal": "./src/components/modal/index.ts",
+        "./components/page-width": "./src/components/pageWidth.ts",
         "./styles": "./src/utils/styles.ts",
         "./utils": "./src/utils/index.ts",
         "./hooks": "./src/hooks/index.ts",
