@@ -12,6 +12,21 @@ export const TEMPLATE_URL_PARAM = "template"
 const TEMPLATE_STORAGE_KEY = "pendingTemplate"
 const TEMPLATE_CLAIM_KEY = "pendingTemplateClaim"
 
+/**
+ * The in-app create surface (`/apps?new=1&template=…`, pushed by the New agent menu, the home
+ * strip and the template gallery) reuses `template` to PRE-SELECT a template in its composer.
+ * Consuming that as a website deep-link created an agent — and redirected to its playground — on
+ * every arrival at such a URL, so `new` marks the URLs the deep-link consumer must ignore.
+ */
+const CREATE_SURFACE_URL_PARAM = "new"
+
+// The same accepted values as `useAgentHomeVariants`, which decides whether the create surface
+// actually opens: any looser reading here would skip capture on a URL that then renders Home.
+const isCreateSurfaceUrl = (url: URL): boolean => {
+    const value = url.searchParams.get(CREATE_SURFACE_URL_PARAM)
+    return value === "1" || value === "true"
+}
+
 // A real signup can include email verification and a provider round-trip, so the key must outlive
 // several minutes; thirty is comfortably longer than any real signup and short enough that a
 // forgotten key cannot create an agent later.
@@ -123,10 +138,16 @@ export const persistTemplateToStorage = (pending: PendingTemplate | null) => {
  * measures from arrival and a key that survives many navigations still ages. This also runs on a
  * regional host after a region redirect: the query string is preserved across the switch but
  * localStorage is not shared between hosts, so the key is re-saved under the host the user lands on.
+ *
+ * A create-surface URL (`?new=1&template=…`) neither captures nor restores: there the key seeds a
+ * composer, and arming the consumer made every in-app template pick create an agent. A record
+ * another tab stored from a real deep-link is left in storage, not cleared — this URL says nothing
+ * about that tab's intent, and the TTL already bounds it — so a later non-create load still honours it.
  */
 export const captureTemplateFromUrl = (url: URL): string | null => {
     const store = getDefaultStore()
-    const urlKey = parseTemplateFromUrl(url)
+    const createSurface = isCreateSurfaceUrl(url)
+    const urlKey = createSurface ? null : parseTemplateFromUrl(url)
     const storedRecord = readStoredTemplateRecord()
 
     if (storedRecord && isExpired(storedRecord)) {
@@ -136,6 +157,11 @@ export const captureTemplateFromUrl = (url: URL): string | null => {
             store.set(activeTemplateAtom, null)
             return null
         }
+    }
+
+    if (createSurface) {
+        store.set(activeTemplateAtom, null)
+        return null
     }
 
     if (urlKey) {
