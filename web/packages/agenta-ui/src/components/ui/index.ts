@@ -174,3 +174,9 @@ export {
     BreadcrumbEllipsis,
 } from "./breadcrumb"
 export {cn} from "./utils"
+export {
+    DataTable,
+    type DataTableProps,
+    type DataTableColumn,
+    type DataTableAction,
+} from "./data-table"
