@@ -82,6 +82,9 @@ const VARS: Record<string, [string, string]> = {
     colorWhite: [color(p.surface.white.light), color(p.surface.white.dark)],
     colorFillChip: [color(p.fill.chip.light), color(p.fill.chip.dark)],
     colorErrorBg: [color(p.semantic.errorBg.light), color(p.semantic.errorBg.dark)],
+    // The danger callout on Settings › Account (shared `AccountPage`) draws its box with this
+    // pair; without the border half the callout read as a bare tinted block on mobile.
+    colorErrorBorder: [color(p.semantic.errorBorder.light), color(p.semantic.errorBorder.dark)],
     controlItemBgHover: [
         color(p.fill.quaternary.light),
         color(p.fill.quaternary.dark),

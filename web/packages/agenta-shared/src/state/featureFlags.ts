@@ -34,7 +34,9 @@ const scopedKey = (userId: string, key: string) => `agenta:settings:${userId}:${
  * user would be inherited by the next person to sign in on this browser.
  */
 const userScopedFlagAtom = (key: string) => {
-    const family = atomFamily((userId: string) => atomWithStorage<boolean>(scopedKey(userId, key), false))
+    const family = atomFamily((userId: string) =>
+        atomWithStorage<boolean>(scopedKey(userId, key), false),
+    )
 
     return atom(
         (get) => {

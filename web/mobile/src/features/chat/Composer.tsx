@@ -1,11 +1,18 @@
 import {useRef} from "react"
 
-import {ChatComposer} from "@agenta/chat/components"
-import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
+import {
+    ChatComposer,
+    MicPermissionNotice,
+    RecordingBar,
+    VoiceInputButton,
+} from "@agenta/chat/components"
+import {stagedFilesToParts, useComposerAttachments, useVoiceComposer} from "@agenta/chat/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import type {FileUIPart} from "ai"
+import {AnimatePresence, motion} from "motion/react"
 
 import {ContentRail} from "@/components/ContentRail"
+import {useMotionPresets} from "@/lib/motion/presets"
 
 /**
  * The mobile composer shell — the SAME `ChatComposer` the desktop dock renders (lazy rich
@@ -13,6 +20,10 @@ import {ContentRail} from "@/components/ContentRail"
  * This wrapper owns only mobile chrome (the safe-area bar + content rail) and the send
  * transport: staged attachments upload to the sessions attachment store and ride the send as
  * reference file parts, exactly like desktop.
+ *
+ * Voice rides the same slots the desktop dock uses — the mic in `extraPrefix`, the recording
+ * takeover over the input, the permission notice above it — so dictation and voice messages
+ * behave identically on both surfaces and stay behind one per-user setting.
  */
 export const Composer = ({
     sessionId,
@@ -33,42 +44,119 @@ export const Composer = ({
     onStop?: () => void
 }) => {
     const attachments = useComposerAttachments({sessionId})
-    // Only so a failed send can put the message back — the editor clears itself on submit,
-    // and nothing else would ever return the typed text.
-    const inputRef = useRef<RichChatInputHandle | null>(null)
+    const richInputRef = useRef<RichChatInputHandle | null>(null)
+    const presets = useMotionPresets()
 
-    const submit = async (text: string) => {
+    /**
+     * `extraFiles` are takes that never entered the tray (a voice message sent outright), so
+     * they upload here before the send — the same seam the desktop dock uses.
+     */
+    const submit = async (text: string, extraFiles: File[] = []) => {
         const staged = attachments.files
+        const uploadedExtras = extraFiles.length
+            ? await attachments.uploadExtraFiles(extraFiles)
+            : []
+        // A failed upload adopts the take into the tray; hold the send so nothing is lost.
+        if (!uploadedExtras) return
+        const outbound = [...staged, ...uploadedExtras]
         try {
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
-            const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
+            const parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
             await onSend({text, parts})
             attachments.clearAttachments(staged.map((file) => file.uid))
         } catch {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
             // uncaught rejection would leave the user with no message, no error, and no idea a
             // send even failed. Keep the attachments staged, put the text back, and say so
-            // through the composer's own inline channel — the same rejections strip the desktop
-            // uses when a staged file can't ride the send.
-            inputRef.current?.setMarkdown(text)
+            // through the composer's own inline channel.
+            richInputRef.current?.setMarkdown(text)
             attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
             attachments.setAttachmentsOpen(true)
         }
     }
 
+    const voice = useVoiceComposer({
+        richInputRef,
+        stagedCount: attachments.files.length,
+        onAttach: (file) => attachments.addFiles([file]),
+        onSendVoiceMessage: (file) => void submit("", [file]),
+    })
+    const {
+        voiceEnabled,
+        voiceRecorder,
+        voiceWillSend,
+        startVoiceMessage,
+        dictating,
+        setDictating,
+        setDictationError,
+        micError,
+        dismissMicError,
+    } = voice
+
+    // A drop or paste landing mid-take could take the tray slot the recording needs, and an
+    // unusable composer is a dead end for a file.
+    const attachmentsBlocked = () => voiceRecorder.active || disabled
+
     return (
         <div className="bg-background shrink-0 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
             <ContentRail>
-                <ChatComposer
-                    inputRef={inputRef}
-                    onSubmit={submit}
-                    attachments={attachments}
-                    disabled={disabled}
-                    waitingOnUser={waitingOnUser}
-                    streaming={streaming}
-                    onStop={onStop}
-                />
+                {voiceEnabled ? (
+                    <MicPermissionNotice
+                        open={!!micError && !voiceRecorder.active}
+                        message={micError}
+                        onDismiss={dismissMicError}
+                    />
+                ) : null}
+                <div className="relative">
+                    <ChatComposer
+                        inputRef={richInputRef}
+                        onSubmit={submit}
+                        attachments={attachments}
+                        attachmentsBlocked={attachmentsBlocked}
+                        disabled={disabled}
+                        composerDisabled={disabled}
+                        dictating={voiceEnabled && dictating}
+                        waitingOnUser={waitingOnUser}
+                        streaming={streaming}
+                        onStop={onStop}
+                        extraPrefix={
+                            voiceEnabled ? (
+                                <VoiceInputButton
+                                    inputRef={richInputRef}
+                                    onStartAudio={startVoiceMessage}
+                                    audioSupported={voiceRecorder.supported}
+                                    audioPending={voiceRecorder.pending}
+                                    // This surface reads no model catalog, so it does not claim
+                                    // the agent can or cannot hear — the menu stays neutral.
+                                    audioPerceivable={null}
+                                    attachmentsFull={attachments.atMax}
+                                    onDictationError={setDictationError}
+                                    onDictatingChange={setDictating}
+                                    disabled={disabled}
+                                />
+                            ) : null
+                        }
+                    />
+                    <AnimatePresence initial={false}>
+                        {voiceEnabled && voiceRecorder.takeoverVisible ? (
+                            <motion.div
+                                key="recording"
+                                variants={presets.crossfade}
+                                initial="initial"
+                                animate="animate"
+                                exit="exit"
+                                className="pointer-events-none absolute inset-0 flex justify-center"
+                            >
+                                <RecordingBar
+                                    recorder={voiceRecorder}
+                                    willSend={voiceWillSend}
+                                    className="h-full w-full"
+                                />
+                            </motion.div>
+                        ) : null}
+                    </AnimatePresence>
+                </div>
             </ContentRail>
         </div>
     )

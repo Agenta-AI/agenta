@@ -5,7 +5,7 @@ import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Check, X} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
-import {SESSION_SPRING} from "../assets/sessionMotion"
+import {SESSION_SPRING} from "../assets/motion"
 import {type AudioRecorder, MAX_RECORDING_MS} from "../hooks/useAudioRecorder"
 
 import RecordingWaveform from "./RecordingWaveform"

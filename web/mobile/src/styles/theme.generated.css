@@ -42,6 +42,7 @@
     --colorWhite: #ffffff;
     --colorFillChip: rgba(5, 23, 41, 0.02);
     --colorErrorBg: #fbe7e7;
+    --colorErrorBorder: #ef9f9f;
     --controlItemBgHover: rgba(5, 23, 41, 0.02);
     --colorBgSpotlight: rgba(5, 23, 41, 0.9);
     --colorTextLightSolid: #ffffff;
@@ -168,6 +169,7 @@
     --colorWhite: #ffffff;
     --colorFillChip: #272727;
     --colorErrorBg: #2c1618;
+    --colorErrorBorder: #5b2526;
     --controlItemBgHover: rgba(255, 255, 255, 0.04);
     --colorBgSpotlight: #424242;
     --colorTextLightSolid: #ffffff;

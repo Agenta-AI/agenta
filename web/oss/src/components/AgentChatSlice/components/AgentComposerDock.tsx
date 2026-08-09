@@ -1,7 +1,17 @@
 import {type RefObject} from "react"
 
-import {ChatComposer} from "@agenta/chat/components"
-import {type QueuedMessage, type useComposerAttachments} from "@agenta/chat/hooks"
+import {
+    ChatComposer,
+    MicPermissionNotice,
+    RecordingBar,
+    RevealCollapse,
+    VoiceInputButton,
+} from "@agenta/chat/components"
+import {
+    type QueuedMessage,
+    type useComposerAttachments,
+    type useVoiceComposer,
+} from "@agenta/chat/hooks"
 import {type getPendingApprovals} from "@agenta/chat/model"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Button, LoadingButton} from "@agenta/ui/ui"
@@ -19,7 +29,6 @@ import {CHAT_COLUMN} from "../assets/conversationLayout"
 import {SESSION_SPRING} from "../assets/sessionMotion"
 import {type useComposerDraft} from "../hooks/useComposerDraft"
 import {type useOnboardingChat} from "../hooks/useOnboardingChat"
-import {type useVoiceComposer} from "../hooks/useVoiceComposer"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock from "./ApprovalDock"
@@ -27,12 +36,8 @@ import type {ClientToolOutputHandler} from "./clientTools"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
 import InteractionDock, {type getPendingConnectInteraction} from "./InteractionDock"
-import MicPermissionNotice from "./MicPermissionNotice"
 import QueuedMessages from "./QueuedMessages"
-import RecordingBar from "./RecordingBar"
-import RevealCollapse from "./RevealCollapse"
 import RunningElsewhereStrip from "./RunningElsewhereStrip"
-import VoiceInputButton from "./VoiceInputButton"
 
 /**
  * Everything below the transcript: the held-message queue, the connect-model banner, the HITL
