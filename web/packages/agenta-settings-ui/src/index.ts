@@ -26,7 +26,20 @@ export {
     type CancelSubscriptionReasonsProps,
 } from "./billing/CancelSubscriptionReasons"
 export {default as UsageProgressBar, type UsageProgressBarProps} from "./billing/UsageProgressBar"
-export {fetchBillingUsage} from "./billing/api"
+export {
+    fetchBillingUsage,
+    fetchBillingPlans,
+    fetchBillingPricing,
+    switchBillingPlan,
+    cancelBillingSubscription,
+    checkoutBillingSubscription,
+    openBillingPortal,
+} from "./billing/api"
+export {
+    useBillingCatalog,
+    type BillingCatalog,
+    type UseBillingCatalogParams,
+} from "./billing/useBillingCatalog"
 export type {
     BillingSubscription,
     BillingUsage,
