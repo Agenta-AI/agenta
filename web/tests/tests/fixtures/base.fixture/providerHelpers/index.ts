@@ -425,31 +425,36 @@ async function selectMockModel(page: Page): Promise<void> {
 
     await modelButton.click()
 
-    // The configure popover contains "Configure" somewhere in its header area.
-    // Use a partial-text match so "Configure model" and "Configure" both match.
+    // The configure popover is a Radix Popover (@agenta/ui), not an antd Popover —
+    // PopoverContent renders with data-slot="popover-content", not .ant-popover.
+    // It contains "Configure" somewhere in its header area; a partial-text match
+    // covers both "Configure model" and "Configure".
     const configurePopover = page
-        .locator(".ant-popover")
+        .locator('[data-slot="popover-content"]')
         .filter({has: page.getByText(/Configure/i)})
         .last()
     await expect(configurePopover).toBeVisible({timeout: 15000})
 
-    // Find the model selector inside the popover. When currentModel is known, narrow
-    // to the select that displays it; otherwise fall back to the first select.
-    const modelSelect =
-        currentModel.length > 0
-            ? configurePopover.locator(".ant-select").filter({hasText: currentModel}).first()
-            : configurePopover.locator(".ant-select").first()
-    await expect(modelSelect).toBeVisible({timeout: 15000})
-    await modelSelect.click()
+    // The model select (SelectLLMProviderBase, also @agenta/ui) is itself a nested
+    // Radix Popover: a disclosure button (aria-haspopup="listbox", deliberately not
+    // role="combobox" — see SelectLLMProviderBase.tsx) that opens a search input plus
+    // a role="listbox"/role="option" list. Not an antd Select/dropdown.
+    const modelSelectTrigger = configurePopover.locator('[aria-haspopup="listbox"]').first()
+    await expect(modelSelectTrigger).toBeVisible({timeout: 15000})
+    await modelSelectTrigger.click()
 
-    const dropdown = page.locator(".ant-select-dropdown").last()
-    await expect(dropdown).toBeVisible({timeout: 15000})
+    // The select's own popover portals to <body> as a sibling of configurePopover, so
+    // grab the most recently opened data-slot="popover-content" instead of nesting.
+    const modelListPopover = page.locator('[data-slot="popover-content"]').last()
+    await expect(modelListPopover).toBeVisible({timeout: 15000})
 
-    const searchInput = dropdown.locator("input").first()
+    const searchInput = modelListPopover.getByPlaceholder("Search")
     await expect(searchInput).toBeVisible({timeout: 15000})
     await searchInput.fill(MOCK_MODEL_NAME)
 
-    const mockModelOption = dropdown.getByText(new RegExp(`(^|/)${MOCK_MODEL_NAME}$`)).last()
+    const mockModelOption = modelListPopover
+        .getByRole("option", {name: new RegExp(`(^|/)${MOCK_MODEL_NAME}$`)})
+        .last()
     await expect(mockModelOption).toBeVisible({timeout: 15000})
     await mockModelOption.click()
 
