@@ -15,6 +15,7 @@ import {
     deleteOrganizationProvider,
     type OrganizationProvider,
 } from "@agenta/entities/organization"
+import {AccessControlsSection, type AuthFlagKey} from "@agenta/settings-ui"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {
     PlusOutlined,
@@ -25,14 +26,12 @@ import {
     InfoCircleOutlined,
     ReloadOutlined,
 } from "@ant-design/icons"
-import {Info, Lock} from "@phosphor-icons/react"
 import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
 import {
     Descriptions,
     Input,
     Modal,
     Skeleton,
-    Switch,
     Typography,
     message,
     Table,
@@ -41,7 +40,6 @@ import {
     Tag,
     Popconfirm,
     Alert,
-    Tooltip,
 } from "antd"
 
 import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
@@ -51,75 +49,6 @@ import {useOrgData} from "@/oss/state/org"
 import {UpgradePrompt} from "./UpgradePrompt"
 
 const {Title, Text} = Typography
-
-interface SettingRowProps {
-    title: string
-    description: string
-    enabled: boolean
-    onChange: (checked: boolean) => void
-    disabled?: boolean
-    disabledReason?: string
-    tooltip?: string
-    loading?: boolean
-    showSuccess?: boolean
-}
-
-const SettingRow: FC<SettingRowProps> = ({
-    title,
-    description,
-    enabled,
-    onChange,
-    disabled,
-    disabledReason,
-    tooltip,
-    loading,
-    showSuccess,
-}) => (
-    <div
-        className={`flex items-start justify-between py-4 border-0 border-b border-solid border-[var(--ant-color-border-secondary)] last:border-0 ${disabled ? "opacity-60" : ""}`}
-    >
-        <div className="pr-8 flex-1">
-            <div className="flex items-center gap-2">
-                <Typography.Text strong>{title}</Typography.Text>
-                {tooltip && (
-                    <Tooltip title={tooltip}>
-                        <Info
-                            size={16}
-                            className="text-[var(--ant-color-text-tertiary)] cursor-help"
-                        />
-                    </Tooltip>
-                )}
-                {showSuccess && (
-                    <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                        <CheckCircleOutlined />
-                        Saved
-                    </span>
-                )}
-            </div>
-            <Typography.Paragraph type="secondary" className="!mb-0 !mt-0.5">
-                {description}
-            </Typography.Paragraph>
-            {disabled && disabledReason && (
-                <p className="text-xs text-amber-600 mt-1 mb-0 flex items-center gap-1">
-                    <Lock size={14} />
-                    {disabledReason}
-                </p>
-            )}
-        </div>
-        <Switch
-            checked={enabled}
-            onChange={onChange}
-            disabled={disabled || loading}
-            loading={loading}
-        />
-    </div>
-)
-
-const SectionLabel: FC<{children: React.ReactNode}> = ({children}) => (
-    <div className="pt-4 pb-2 text-xs font-medium uppercase tracking-wider text-colorTextTertiary">
-        {children}
-    </div>
-)
 
 const Organization: FC = () => {
     const {selectedOrg, loading, refetch} = useOrgData()
@@ -460,14 +389,6 @@ const Organization: FC = () => {
         () => providers.some((provider) => provider.flags?.is_active && provider.flags?.is_valid),
         [providers],
     )
-    const allAuthMethodsDisabled = useMemo(
-        () =>
-            !selectedOrg?.flags?.allow_email &&
-            !selectedOrg?.flags?.allow_social &&
-            !selectedOrg?.flags?.allow_sso,
-        [selectedOrg?.flags],
-    )
-
     const handleFlagChange = useCallback(
         (flag: string, value: boolean) => {
             if (!selectedOrg?.id) return
@@ -647,84 +568,14 @@ const Organization: FC = () => {
     return (
         <div className="flex w-full flex-col gap-8">
             {hasAccessControl ? (
-                <section>
-                    <div className="px-1">
-                        <div className="border-0 border-b border-solid border-[var(--ant-color-border-secondary)] pb-4">
-                            <Title level={5} className="!mb-1">
-                                Access Controls
-                            </Title>
-                            <Text type="secondary">
-                                Configure how users authenticate and join your organization
-                            </Text>
-                        </div>
-
-                        {/* Sign-in methods */}
-                        <SectionLabel>Sign-in methods</SectionLabel>
-                        <SettingRow
-                            title="Email & password"
-                            description="Members can sign in with their email and a password"
-                            enabled={selectedOrg.flags.allow_email}
-                            onChange={(checked) => handleFlagChange("allow_email", checked)}
-                            loading={updating}
-                            showSuccess={lastSavedFlag === "allow_email"}
-                        />
-                        <SettingRow
-                            title="Social login"
-                            description="Allow sign-in with Google, GitHub, or other OAuth providers"
-                            enabled={selectedOrg.flags.allow_social}
-                            onChange={(checked) => handleFlagChange("allow_social", checked)}
-                            loading={updating}
-                            showSuccess={lastSavedFlag === "allow_social"}
-                        />
-                        <SettingRow
-                            title="SSO authentication"
-                            description="Enable single sign-on through your identity provider"
-                            enabled={selectedOrg.flags.allow_sso}
-                            onChange={(checked) => handleFlagChange("allow_sso", checked)}
-                            disabled={!hasActiveVerifiedProvider}
-                            disabledReason="Add an SSO provider below to enable"
-                            tooltip="OIDC supported. Configure your IdP in the SSO Providers section below."
-                            loading={updating}
-                            showSuccess={lastSavedFlag === "allow_sso"}
-                        />
-
-                        {/* Membership */}
-                        <SectionLabel>Membership</SectionLabel>
-                        <SettingRow
-                            title="Auto-join from verified domains"
-                            description="Users with a verified domain email are automatically added to this organization"
-                            enabled={selectedOrg.flags.auto_join}
-                            onChange={(checked) => handleFlagChange("auto_join", checked)}
-                            disabled={!hasVerifiedDomain}
-                            disabledReason="Verify at least one domain first"
-                            loading={updating}
-                            showSuccess={lastSavedFlag === "auto_join"}
-                        />
-                        <SettingRow
-                            title="Restrict invites to verified domains"
-                            description="Only allow inviting users whose email matches a verified domain"
-                            enabled={selectedOrg.flags.domains_only}
-                            onChange={(checked) => handleFlagChange("domains_only", checked)}
-                            disabled={!hasVerifiedDomain}
-                            disabledReason="Verify at least one domain first"
-                            loading={updating}
-                            showSuccess={lastSavedFlag === "domains_only"}
-                        />
-                        {/* Admin */}
-                        <SectionLabel>Admin</SectionLabel>
-                        <SettingRow
-                            title="Owners bypass restrictions"
-                            description="Owners can sign in and invite members regardless of the restrictions above"
-                            enabled={selectedOrg.flags.allow_root}
-                            onChange={(checked) => handleFlagChange("allow_root", checked)}
-                            disabled={allAuthMethodsDisabled && selectedOrg.flags.allow_root}
-                            disabledReason="Enable at least one sign-in method first"
-                            tooltip="Prevents account lockout. Keep enabled if all sign-in methods are disabled."
-                            loading={updating}
-                            showSuccess={lastSavedFlag === "allow_root"}
-                        />
-                    </div>
-                </section>
+                <AccessControlsSection
+                    flags={selectedOrg.flags}
+                    onFlagChange={handleFlagChange}
+                    updating={updating}
+                    lastSavedFlag={lastSavedFlag as AuthFlagKey | null}
+                    hasActiveVerifiedProvider={hasActiveVerifiedProvider}
+                    hasVerifiedDomain={hasVerifiedDomain}
+                />
             ) : (
                 <UpgradePrompt
                     title="Access Controls"
