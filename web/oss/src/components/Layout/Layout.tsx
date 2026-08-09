@@ -296,7 +296,14 @@ const AppWithVariants = memo(
         }, [demoReturnHintDismissed, lastNonDemoProject, navigate, setDemoReturnHintPending])
 
         return (
-            <div className={clsx([{"flex flex-col grow min-h-0": isFullHeight}])}>
+            <div
+                className={clsx([
+                    {"flex flex-col grow min-h-0": isFullHeight},
+                    // The demo banner is `fixed`, so it covers anything the page pins to the
+                    // viewport top. Sticky content reads this var to offset itself past it.
+                    project?.is_demo && "[--ag-demo-banner-h:38px]",
+                ])}
+            >
                 <Modal
                     title="Want to revisit the demo?"
                     open={isDemoReturnModalOpen}

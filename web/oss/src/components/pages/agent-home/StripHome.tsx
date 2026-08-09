@@ -284,9 +284,12 @@ const StripHome: React.FC = () => {
 
                     A third of the width rather than a fixed 400px, which held its proportion
                     only at one screen size — it read as a third on a large display and as a
-                    slab on a laptop. */}
+                    slab on a laptop.
+
+                    `--ag-demo-banner-h` is the layout's fixed demo banner (0 outside a demo
+                    workspace): without it the banner covered the pinned rail's top 22px. */}
                 {!firstRun ? (
-                    <div className="sticky top-4 box-border flex max-h-[calc(100vh-3rem)] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
+                    <div className="sticky top-[calc(1rem+var(--ag-demo-banner-h,0px))] box-border flex max-h-[calc(100vh-3rem-var(--ag-demo-banner-h,0px))] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
                         <PanelSurface>
                             <PanelScroll>
                                 {/* Rows, not the scroller: a 238px card and a six-tab category
