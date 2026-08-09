@@ -7,7 +7,7 @@ import {
     InfiniteVirtualTableFeatureShell,
     type StandardColumnDef,
 } from "@agenta/ui/table"
-import {Alert, Button, EmptyState, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
+import {Alert, Button, EmptyState, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {ArrowClockwise, Plus, Trash} from "@phosphor-icons/react"
 
 export interface ApiKeysPageProps {
@@ -130,7 +130,8 @@ export const ApiKeysPage = ({
             primaryActions={
                 canEdit ? (
                     <>
-                        <Tooltip>
+                        <TooltipProvider>
+                            <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
                                     variant="outline"
@@ -143,6 +144,7 @@ export const ApiKeysPage = ({
                             </TooltipTrigger>
                             <TooltipContent>Reload API keys</TooltipContent>
                         </Tooltip>
+                            </TooltipProvider>
                         <Button disabled={creating || listing} onClick={onCreate}>
                             <Plus size={14} />
                             Generate key

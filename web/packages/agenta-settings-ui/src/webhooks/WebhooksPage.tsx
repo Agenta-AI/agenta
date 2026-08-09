@@ -9,7 +9,7 @@ import {
 import {EmptyState} from "@agenta/ui/ui"
 import {ArrowClockwise, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
 import {message} from "@agenta/ui/app-message"
-import {Button, Input, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
+import {Button, Input, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
 import {useStaticTable} from "@agenta/settings"
@@ -284,7 +284,8 @@ export const WebhooksPage = ({
                 }
                 primaryActions={
                     <>
-                        <Tooltip>
+                        <TooltipProvider>
+                            <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button
                                     variant="outline"
@@ -297,6 +298,7 @@ export const WebhooksPage = ({
                             </TooltipTrigger>
                             <TooltipContent>Reload all webhooks</TooltipContent>
                         </Tooltip>
+                            </TooltipProvider>
                         <Button onClick={handleCreate} disabled={isLoading}>
                             <Plus size={14} />
                             Subscribe

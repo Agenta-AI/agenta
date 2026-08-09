@@ -11,7 +11,7 @@ import {
 import {EmptyState} from "@agenta/ui/ui"
 import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {Tag} from "@agenta/ui/components/presentational"
-import {Button, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 
 import {useStaticTable} from "@agenta/settings"
 import {formatDay} from "@agenta/shared/utils/dateTime"
@@ -225,7 +225,8 @@ export const SecretProviderTable = ({
                     primaryActions={
                         isCustom ? (
                             <>
-                                <Tooltip>
+                                <TooltipProvider>
+                            <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button
                                         variant="outline"
@@ -238,6 +239,7 @@ export const SecretProviderTable = ({
                                 </TooltipTrigger>
                                 <TooltipContent>Reload providers</TooltipContent>
                             </Tooltip>
+                            </TooltipProvider>
                                 <Button
                                     disabled={loading}
                                     onClick={() => setIsConfigProviderOpen(true)}
