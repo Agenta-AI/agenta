@@ -917,28 +917,16 @@ body {
     background: transparent;
 }
 
+/* Solid thumb. Mahmoud's verdict on the always-on gradient: a fade should MEAN "more
+   content this way" (fade at the far end at the top, at the near end at the bottom,
+   none mid-scroll) — a static fade is noise. Until a scroll-position-aware fade is
+   proven to work, the thumb stays plain. */
 ::-webkit-scrollbar-thumb {
     border-radius: 999px;
-    background-color: transparent;
-    background-image: linear-gradient(
-        to bottom,
-        var(--ag-scroll-thumb) 0%,
-        var(--ag-scroll-thumb) 55%,
-        transparent 100%
-    );
-}
-
-::-webkit-scrollbar-thumb:horizontal {
-    background-image: linear-gradient(
-        to right,
-        var(--ag-scroll-thumb) 0%,
-        var(--ag-scroll-thumb) 55%,
-        transparent 100%
-    );
+    background-color: var(--ag-scroll-thumb);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-image: none;
     background-color: var(--ag-scroll-thumb-hover);
 }
 
