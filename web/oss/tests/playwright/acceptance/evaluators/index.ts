@@ -389,12 +389,15 @@ const testEvaluators = () => {
             await createHumanEvaluatorFromDrawer(page, {evaluatorName, feedbackName})
 
             // Step 4: Verify the success message (already checked inside the helper,
-            // but we confirm the final state here as well)
+            // but we confirm the final state here as well).
+            // The HUMAN evaluator path toasts through `@agenta/ui/app-message`, which
+            // renders a `role="status"` notification rather than an antd `.ant-message`
+            // node. The automatic-evaluator assertions elsewhere in this file still use
+            // `.ant-message` and are still correct: that path toasts through antd
+            // (`WorkflowRevisionDrawerWrapper` imports `message` from "antd"). Same
+            // message text, two different emitters.
             await expect(
-                page
-                    .locator(".ant-message")
-                    .getByText(HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE)
-                    .first(),
+                page.getByRole("status").getByText(HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
             ).toBeVisible({timeout: 10000})
 
             // Step 5: Verify the new evaluator appears in the Human tab table.

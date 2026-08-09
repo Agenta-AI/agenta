@@ -135,8 +135,13 @@ test(
                 {timeout: 90000},
             )
             await uiHelpers.clickButton("Create", appCreateDrawer)
+            // Match the dialog by role, not by a component-library class:
+            // `EntityCommitModal` renders through `EnhancedModal`, now a facade over
+            // the @agenta/ui (Radix) `Dialog`, so no `.ant-modal-wrap` exists here.
+            // Radix `aria-hidden`s the launching antd drawer while the modal is open,
+            // so exactly one dialog resolves.
             const confirmModal = page
-                .locator(".ant-modal-wrap")
+                .getByRole("dialog")
                 .filter({has: page.getByRole("button", {name: "Create", exact: true})})
                 .last()
             await expect(confirmModal).toBeVisible({timeout: 15000})

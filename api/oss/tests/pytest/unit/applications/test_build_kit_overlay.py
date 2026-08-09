@@ -73,11 +73,12 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
 
 def _ordered_operations_enabled() -> bool:
     # Spelled out rather than imported, so the expectation cannot move with the code under
-    # test. The accepted spellings are pinned equal in
+    # test. The default (on) and the accepted spellings are pinned equal in
     # `unit/workflows/test_ordered_operations_flag.py`.
-    return environ.get(
-        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", ""
-    ).strip().lower() in {
+    value = environ.get("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", "").strip()
+    if not value:
+        return True
+    return value.lower() in {
         "true",
         "1",
         "t",

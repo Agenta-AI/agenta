@@ -175,3 +175,28 @@ async def test_losing_owner_claim_reports_not_current(lock_engine):
 
     assert result.is_current_turn is False
     assert result.replica_id == "replica-a"
+
+
+@pytest.mark.asyncio
+async def test_new_turn_on_a_previously_run_session_is_current(lock_engine):
+    """The row records the LATEST turn, so a fresh turn always finds a different turn_id on
+    it. That alone must not read as a takeover: after the previous turn ended and its alive
+    lock lapsed, the new turn is simply establishing the nest — exactly the state a brand-new
+    turn is in. Only a lock still held by another turn (the failed nx acquire) means takeover.
+    """
+    svc = _service(lock_engine)
+
+    await svc.heartbeat(project_id=_PROJECT, request=_beat("replica-a", "turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("replica-a", "turn-1", running=False)
+    )
+    # The previous turn's alive lock lapses (TTL) / is cleared before the next turn starts.
+    await force_cancel_alive(lock_engine, project_id=str(_PROJECT), session_id=_SESSION)
+
+    fresh = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("replica-a", "turn-2")
+    )
+
+    assert fresh.is_current_turn is True, (
+        "a new turn must not be aborted just because the row still named the old one"
+    )

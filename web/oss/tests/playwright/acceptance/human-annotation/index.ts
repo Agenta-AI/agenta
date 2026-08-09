@@ -10,6 +10,7 @@ import {errors, type Page} from "@playwright/test"
 
 import {
     expect,
+    humanEvaluationModal,
     goToHumanEvaluationStep,
     openHumanEvaluationModal,
     selectHumanEvaluationModalTableInput,
@@ -186,7 +187,7 @@ const humanAnnotationTests = () => {
                 skipEvaluatorCreation: true,
             })
 
-            await expect(page.locator(".ant-modal").first()).toHaveCount(0)
+            await expect(humanEvaluationModal(page)).toHaveCount(0)
 
             await expect
                 .poll(() => new URL(page.url()).pathname)
@@ -263,7 +264,7 @@ const humanAnnotationTests = () => {
                 evaluatorMetricName: INLINE_EVALUATOR_METRIC_NAME,
             })
 
-            await expect(page.locator(".ant-modal").first()).toHaveCount(0)
+            await expect(humanEvaluationModal(page)).toHaveCount(0)
             await expect
                 .poll(() => new URL(page.url()).pathname)
                 .toContain(`${getProjectScopedBasePath(page)}/apps/${appId}/evaluations/results/`)
@@ -333,7 +334,7 @@ const humanAnnotationTests = () => {
                 evaluatorMetricName: INLINE_EVALUATOR_METRIC_NAME,
             })
 
-            await expect(page.locator(".ant-modal").first()).toHaveCount(0)
+            await expect(humanEvaluationModal(page)).toHaveCount(0)
 
             // Annotate the first scenario (initially shown after run creation)
             await annotateCurrentHumanScenario({

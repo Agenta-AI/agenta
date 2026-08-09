@@ -16,12 +16,14 @@ from oss.src.dbs.redis.sessions.contract import (
     OWNER_TTL_SECONDS,
     RELEASE_IF_OWNER_LUA,
     RUNNING_TTL_SECONDS,
+    SUPERSEDED_TTL_SECONDS,
     alive_key,
     attached_key,
     displaced_channel,
     make_displacement_payload,
     owner_key,
     running_key,
+    superseded_key,
     validate_session_id,  # noqa: F401 — re-exported for callers that import from locks
 )
 
@@ -112,6 +114,47 @@ async def get_alive_owner(
 
 
 # ---------------------------------------------------------------------------
+# Turn supersession tombstones — "this turn lost the nest; it is dead forever"
+#
+# `alive` outlives its turn and a parked turn holds no `running`, so the state
+# "`alive` held by another turn + no `running`" cannot, from the locks alone, tell a
+# lapsed previous turn (a legitimate handover) from a live-but-parked one. Rather than
+# guess, we record the one thing that IS knowable at the moment it happens: a turn that
+# was displaced. A displaced turn's later beats are refused outright, so a zombie beat
+# can never re-take a nest it already lost — which is what made the ambiguity reachable.
+# ---------------------------------------------------------------------------
+
+
+async def mark_turn_superseded(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> None:
+    """Tombstone turn_id: it was displaced (handover, cancel, steer, kill, sweep)."""
+    key = superseded_key(project_id, session_id, turn_id)
+    await engine.set(key, b"1", ex=SUPERSEDED_TTL_SECONDS)
+
+
+async def is_turn_superseded(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """True if turn_id was displaced. Refreshes the TTL on every hit so a long-lived
+    zombie that keeps beating stays dead instead of outliving its own tombstone."""
+    key = superseded_key(project_id, session_id, turn_id)
+    current = await engine.get(key)
+    if current is None:
+        return False
+    await engine.expire(key, SUPERSEDED_TTL_SECONDS)
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Running lock — "a turn is actively executing right now"
 # Nested under alive: a session can be alive-but-idle (running absent) between turns.
 # ---------------------------------------------------------------------------
@@ -145,13 +188,37 @@ async def refresh_running(
     return False
 
 
+async def release_running(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> bool:
+    """Clear the running lock only if turn_id still owns it.
+
+    The unconditional `clear_running` is right for displacement and the orphan sweep, which
+    mean to evict whoever holds it. It is wrong for a turn reporting its own end: a stale
+    turn's final beat would delete the live turn's lock and publish `ended` underneath it.
+    Atomic, so the owner cannot change between the read and the delete.
+    """
+    key = running_key(project_id, session_id)
+    result = await engine.eval(
+        RELEASE_IF_OWNER_LUA,
+        1,
+        key.encode(),
+        turn_id.encode(),
+    )
+    return result == 1
+
+
 async def clear_running(
     engine: LockEngine,
     *,
     project_id: str,
     session_id: str,
 ) -> Optional[str]:
-    """Unconditionally clear the running lock (turn ended/cancelled). Returns prior turn."""
+    """Unconditionally clear the running lock (displacement/sweep). Returns prior turn."""
     key = running_key(project_id, session_id)
     current = await engine.get(key)
     await engine.delete(key)
