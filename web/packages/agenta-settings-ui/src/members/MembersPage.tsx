@@ -14,6 +14,7 @@ interface MemberRow extends WorkspaceMember {
 const usernameFromEmail = (email?: string | null) => (email ? email.split("@")[0] : "")
 
 export interface MembersPageProps {
+    /** The full roster — this page owns the search filter so hosts cannot drift on it. */
     members: WorkspaceMember[]
     loading?: boolean
     searchTerm: string
@@ -59,10 +60,17 @@ export const MembersPage = ({
     onRenameSelf,
     children,
 }: MembersPageProps) => {
-    const rows = useMemo<MemberRow[]>(
-        () => members.map((member) => ({...member, key: member.user.id})),
-        [members],
-    )
+    const rows = useMemo<MemberRow[]>(() => {
+        const term = searchTerm.trim().toLowerCase()
+        const matching = term
+            ? members.filter((member) =>
+                  [member.user?.email, member.user?.username].some((value) =>
+                      value?.toLowerCase().includes(term),
+                  ),
+              )
+            : members
+        return matching.map((member) => ({...member, key: member.user.id}))
+    }, [members, searchTerm])
 
     const isSelf = (member: WorkspaceMember) =>
         member.user?.id === signedInUser?.id || member.user?.email === signedInUser?.email
