@@ -4,26 +4,20 @@ import {appTemplatesQueryAtom, createEphemeralAppFromTemplate} from "@agenta/ent
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
-import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
-import {message} from "antd"
-import type {TableProps} from "antd/es/table"
+import {Input, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import Link from "next/link"
 import {useRouter} from "next/router"
 
+import NewAgentButton from "@/oss/components/NewAgentButton"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
-import {useProjectData} from "@/oss/state/project"
 
-import {
-    createAppWorkflowColumns,
-    type AppWorkflowColumnActions,
-} from "../app-management/components/appWorkflowColumns"
+import type {AgentColumnActions} from "../agent-home/components/YourAgentsTable/columns"
 import {openDeleteAppModalAtom} from "../app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "../app-management/modals/EditAppModal/store/editAppModalStore"
-import type {AppWorkflowRow} from "../app-management/store"
 
-import AgentsTableSection from "./AgentsTableSection"
-import {useAgentsSelection} from "./hooks/useAgentsSelection"
+import AgentsGrid from "./AgentsGrid"
 import {
     agentsSearchTermAtom,
     agentsWorkflowsAtom,
@@ -33,7 +27,6 @@ import {
 
 export default function AgentsPage() {
     const router = useRouter()
-    const {projectId} = useProjectData()
     const {baseAppURL, projectURL} = useURL()
     const {goToPlayground} = usePlaygroundNavigation()
     const setOpenDrawer = useSetAtom(openWorkflowRevisionDrawerAtom)
@@ -46,8 +39,6 @@ export default function AgentsPage() {
     const refetchAgents = useSetAtom(refetchAgentsWorkflowsAtom)
 
     useAtomValue(appTemplatesQueryAtom)
-
-    const {selectedRows, rowSelection, clearSelection} = useAgentsSelection(rows)
 
     const handleCreate = useCallback(async () => {
         try {
@@ -63,24 +54,9 @@ export default function AgentsPage() {
         }
     }, [setOpenDrawer])
 
-    const handleArchived = useCallback(() => {
-        clearSelection()
-        refetchAgents()
-    }, [clearSelection, refetchAgents])
+    const handleArchived = useCallback(() => refetchAgents(), [refetchAgents])
 
-    const handleArchive = useCallback(() => {
-        if (!selectedRows.length) {
-            router.push(`${projectURL}/agents/archived`)
-            return
-        }
-
-        openDeleteAppModal({
-            apps: selectedRows.map((row) => ({id: row.workflowId, name: row.name})),
-            onArchived: handleArchived,
-        })
-    }, [handleArchived, openDeleteAppModal, projectURL, router, selectedRows])
-
-    const columnActions = useMemo<AppWorkflowColumnActions>(
+    const cardActions = useMemo<AgentColumnActions>(
         () => ({
             onOpen: (record) => router.push(`${baseAppURL}/${record.workflowId}/overview`),
             onOpenPlayground: (record) => goToPlayground(undefined, {appId: record.workflowId}),
@@ -88,9 +64,9 @@ export default function AgentsPage() {
                 openEditAppModal({
                     id: record.workflowId,
                     name: record.name,
-                    onRenamed: () => refetchAgents(),
+                    onRenamed: refetchAgents,
                 }),
-            onDelete: (record) =>
+            onArchive: (record) =>
                 openDeleteAppModal({
                     id: record.workflowId,
                     name: record.name,
@@ -98,65 +74,42 @@ export default function AgentsPage() {
                 }),
         }),
         [
+            router,
             baseAppURL,
             goToPlayground,
-            handleArchived,
-            openDeleteAppModal,
             openEditAppModal,
+            openDeleteAppModal,
             refetchAgents,
-            router,
+            handleArchived,
         ],
-    )
-    const columns = useMemo(() => createAppWorkflowColumns(columnActions), [columnActions])
-
-    const tableScope = useMemo<TableScopeConfig>(
-        () => ({
-            scopeId: projectId ? `agents-${projectId}` : "agents",
-            pageSize: Math.max(rows.length, 1),
-            enableInfiniteScroll: false,
-        }),
-        [projectId, rows.length],
-    )
-    const pagination = useMemo<TableFeaturePagination<AppWorkflowRow>>(
-        () => ({
-            rows,
-            loadNextPage: () => undefined,
-            resetPages: () => undefined,
-        }),
-        [rows],
-    )
-    const tableProps = useMemo<TableProps<AppWorkflowRow>>(
-        () => ({
-            bordered: true,
-            size: "small",
-            virtual: true,
-            sticky: true,
-            tableLayout: "fixed",
-            scroll: {x: "max-content"},
-            loading: isLoading,
-            onRow: (record) => ({
-                // Primary click opens the agent in the playground (its main surface), not overview.
-                onClick: () => goToPlayground(undefined, {appId: record.workflowId}),
-                className: "cursor-pointer",
-            }),
-        }),
-        [goToPlayground, isLoading],
     )
 
     return (
         <PageLayout className="grow min-h-0" title="Agents">
-            <AgentsTableSection
-                columns={columns}
+            <div className="flex items-center gap-3">
+                <NewAgentButton />
+                <Input
+                    allowClear
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search agents by name…"
+                    className="max-w-80"
+                />
+                {/* The table's bulk-archive control was also the only route to the archived
+                    list; the grid has no bulk mode, so the link stands on its own. */}
+                <Link
+                    href={`${projectURL}/agents/archived`}
+                    className="ml-auto shrink-0 text-xs !text-colorTextSecondary"
+                >
+                    Archived agents
+                </Link>
+            </div>
+
+            <AgentsGrid
                 rows={rows}
-                tableScope={tableScope}
-                pagination={pagination}
-                rowSelection={rowSelection}
-                tableProps={tableProps}
-                searchTerm={searchTerm}
-                selectedCount={selectedRows.length}
-                onSearchChange={setSearchTerm}
+                isLoading={isLoading}
+                actions={cardActions}
                 onCreate={handleCreate}
-                onArchive={handleArchive}
             />
         </PageLayout>
     )

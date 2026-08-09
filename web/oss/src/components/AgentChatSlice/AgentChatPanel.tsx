@@ -13,11 +13,13 @@ import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
 import {chatPanelMaximizedAtom} from "./state/panelLayout"
+import {pendingSessionOpenAtom} from "./state/pendingSessionOpen"
 import {useReconcileServerSessions} from "./state/projectSessions"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
     addSessionAtomFamily,
+    adoptSessionAtomFamily,
     closeSessionAtomFamily,
     pruneSessionHusksAtomFamily,
     renameSessionAtomFamily,
@@ -89,16 +91,41 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // panel mounts; every additional session pane skips it (no per-switch flash).
     const composerRevealPlayedRef = useRef(false)
 
+    // A session opened from a project-wide surface (sessions page, Home) lands here after the nav.
+    // Adopt it so a session this browser has never seen becomes a real tab; its transcript then
+    // hydrates from records. Consumed once — clearing the slot is what stops it re-firing.
+    const pendingOpen = useAtomValue(pendingSessionOpenAtom)
+    const setPendingOpen = useSetAtom(pendingSessionOpenAtom)
+    const adoptSession = useSetAtom(adoptSessionAtomFamily(scope))
+    const pendingOpenForScope = pendingOpen?.appId === scope ? pendingOpen : null
+    // Strict Mode replays this effect with the same captured value; the ref stops the replay
+    // adding a second session before the atom write lands.
+    const consumedOpenRef = useRef<typeof pendingOpen>(null)
+    useEffect(() => {
+        if (!pendingOpenForScope || consumedOpenRef.current === pendingOpenForScope) return
+        consumedOpenRef.current = pendingOpenForScope
+        if (pendingOpenForScope.sessionId) {
+            adoptSession({id: pendingOpenForScope.sessionId, title: pendingOpenForScope.title})
+        } else {
+            // No id means "start a fresh conversation here" — Home's composer. A new empty session
+            // is also what lets a seeded first message find an empty conversation to send into.
+            addSession()
+        }
+        setPendingOpen(null)
+    }, [pendingOpenForScope, adoptSession, addSession, setPendingOpen])
+
     // Always keep at least one tab. Re-arms when the list drains without double-firing
-    // under StrictMode.
+    // under StrictMode. Held while a deep-linked session is pending: adopting it satisfies the
+    // at-least-one-tab rule, and seeding first would leave a stray blank tab beside it.
     const seeded = useRef(false)
     useEffect(() => {
+        if (pendingOpenForScope) return
         if (sessions.length === 0 && !seeded.current) {
             seeded.current = true
             addSession()
         }
         if (sessions.length > 0) seeded.current = false
-    }, [sessions.length, addSession])
+    }, [sessions.length, addSession, pendingOpenForScope])
 
     // Sweep husks (never-run, untitled, empty sessions) that accumulated in history — from before
     // the close-time cleanup, or orphaned by a reload. Open tabs are untouched, so this never drops

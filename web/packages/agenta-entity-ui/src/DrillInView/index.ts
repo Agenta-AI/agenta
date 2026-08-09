@@ -394,3 +394,7 @@ export type {
     SectionTitleBadgeProps,
     SectionTitleBadgeTone,
 } from "./SchemaControls/agentTemplate/SectionTitleBadge"
+
+// The panel's instructions file row, reused read-only by surfaces that show an agent's brief
+// without editing it (the agent overview).
+export {InstructionsFileRow} from "./SchemaControls/agentTemplate/ItemRow"

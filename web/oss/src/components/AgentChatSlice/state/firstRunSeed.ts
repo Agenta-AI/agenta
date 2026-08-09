@@ -8,7 +8,9 @@ import {atom} from "jotai"
  */
 export interface AgentFirstRunSeed {
     appId: string
-    revisionId: string
+    /** Known only when the agent was just created. Starting a conversation with an EXISTING agent
+     * (Home's composer) has no revision in hand, and matches on the chat scope instead. */
+    revisionId?: string
     seedMessage: string
     /**
      * The seed is an explicit "go" (the onboarding Create-agent click), so send it as soon as the model
@@ -16,6 +18,12 @@ export interface AgentFirstRunSeed {
      * shows Start (Arda: never auto-send a seed that merely arrived with a ready model).
      */
     autoSend?: boolean
+    /**
+     * Files picked before the session existed (Home / an agent's overview). Uploads are
+     * session-scoped, so they cannot be staged there — they ride here and go through the chat's
+     * own `addFiles`, which is what paste and drop already use.
+     */
+    seedFiles?: File[]
 }
 
 export const agentFirstRunSeedAtom = atom<AgentFirstRunSeed | null>(null)

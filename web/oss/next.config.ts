@@ -94,6 +94,8 @@ const COMMON_CONFIG: NextConfig = {
         "@agenta/shared",
         "@agenta/ui",
         "@agenta/chat",
+        "@agenta/sessions",
+        "@agenta/sessions-ui",
         "@agenta/entities",
         "@agenta/entity-ui",
         "@agenta/playground",
