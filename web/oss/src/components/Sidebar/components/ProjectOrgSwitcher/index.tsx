@@ -326,7 +326,8 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     type="button"
                     data-project-org-switcher
                     className={clsx(
-                        "flex items-center rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent cursor-pointer transition-colors hover:bg-[var(--ag-colorFillTertiary)]",
+                        // Borderless at rest; the hover fill is the affordance.
+                        "flex items-center rounded-md border-0 bg-transparent cursor-pointer transition-colors hover:bg-[var(--ag-colorFillTertiary)]",
                         collapsed ? "h-8 w-8 justify-center p-1" : "w-full gap-2 px-1.5 py-1.5",
                     )}
                     title={`${projectLabel} · ${orgLabel}`}
