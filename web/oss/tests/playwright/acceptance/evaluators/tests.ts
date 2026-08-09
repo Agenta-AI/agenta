@@ -1,6 +1,6 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 import type {Locator, Page} from "@playwright/test"
 
 import type {EvaluatorFixtures} from "./assets/types"
@@ -177,7 +177,7 @@ const getEvaluatorCommitModal = (page: Page) =>
 const openEvaluatorViewDrawer = async (page: Page, evaluatorName: string) => {
     // Use the search input to filter the table to just this evaluator
     const searchInput = page.locator('input[placeholder="Search"]').first()
-    if (await searchInput.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => searchInput.isVisible())) {
         await searchInput.fill(evaluatorName)
     }
 
@@ -216,7 +216,7 @@ const expandEvaluatorToPlayground = async (drawer: Locator) => {
         .getByRole("button", {name: new RegExp(EVALUATOR_SELECT_APP_PLACEHOLDER)})
         .first()
 
-    const isAlreadyExpanded = await selectAppButton.isVisible().catch(() => false)
+    const isAlreadyExpanded = await pollLocatorState(() => selectAppButton.isVisible())
 
     if (!isAlreadyExpanded) {
         const testButton = drawer.getByRole("button", {name: EVALUATOR_TEST_BUTTON_LABEL}).first()
@@ -251,7 +251,7 @@ const selectCompletionAppFromDrawer = async (
 
     // Check for empty state — no apps in this environment
     const noItemsText = popover.getByText(EVALUATOR_NO_APPS_TEXT)
-    const isEmptyState = await noItemsText.isVisible().catch(() => false)
+    const isEmptyState = await pollLocatorState(() => noItemsText.isVisible())
     if (isEmptyState) {
         return "no_apps"
     }
@@ -310,14 +310,14 @@ const fillTestcaseField = async (
         .filter({hasText: fieldName})
         .first()
 
-    const isVisible = await fieldHeader.isVisible().catch(() => false)
+    const isVisible = await pollLocatorState(() => fieldHeader.isVisible())
     if (!isVisible) return false
 
     // Navigate up to the field section (parent contains both header and editor)
     const fieldSection = fieldHeader.locator("xpath=..")
     const editor = fieldSection.locator('[contenteditable="true"]').first()
 
-    const editorVisible = await editor.isVisible().catch(() => false)
+    const editorVisible = await pollLocatorState(() => editor.isVisible())
     if (!editorVisible) return false
 
     await editor.click()
@@ -434,7 +434,7 @@ const createHumanEvaluatorFromDrawer = async (
  */
 const openEvaluatorRowMenu = async (page: Page, evaluatorName: string) => {
     const searchInput = page.locator(`input[placeholder="${EVALUATOR_SEARCH_PLACEHOLDER}"]`).first()
-    if (await searchInput.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => searchInput.isVisible())) {
         await searchInput.fill(evaluatorName)
     }
 

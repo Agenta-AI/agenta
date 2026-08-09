@@ -1,4 +1,12 @@
+import {
+    createTagString,
+    TestCoverage,
+    TestPath,
+    TestScope,
+} from "@agenta/web-tests/playwright/config/testTags"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+import {pollLocatorState} from "@agenta/web-tests/utils"
+
 import {
     expect,
     goToAutoEvaluationStep,
@@ -11,12 +19,6 @@ import {
     switchResultsPageTab,
     waitAndClickDeleteForRun,
 } from "./tests"
-import {
-    createTagString,
-    TestCoverage,
-    TestPath,
-    TestScope,
-} from "@agenta/web-tests/playwright/config/testTags"
 
 const getRequiredVariantName = (name: string | null | undefined) => {
     expect(name).toBeTruthy()
@@ -139,9 +141,9 @@ const testAutoEval = () => {
                     hasText: /Expected input variables for selected (variant|revision)\(s\):/i,
                 })
                 .first()
-            const expectedInputsNoteVisible = await expectedInputsNote
-                .isVisible({timeout: 1000})
-                .catch(() => false)
+            const expectedInputsNoteVisible = await pollLocatorState(() =>
+                expectedInputsNote.isVisible({timeout: 1000}),
+            )
             if (expectedInputsNoteVisible) {
                 await expect(expectedInputsNote).not.toContainText(mismatchedColumnName)
             }

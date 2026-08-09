@@ -77,7 +77,7 @@ const deployFirstVariantToDevelopment = async (
         .poll(
             async () => {
                 const radioControl = realRow.locator(radioSelector).first()
-                if (await radioControl.isVisible().catch(() => false)) {
+                if (await pollLocatorState(() => radioControl.isVisible())) {
                     await radioControl.click({force: true}).catch(() => null)
                 } else {
                     await realRow.click({force: true}).catch(() => null)

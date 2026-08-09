@@ -86,7 +86,7 @@ const deployVariantToEnv = async (
         .poll(
             async () => {
                 const radioControl = realRow.locator(radioSelector).first()
-                if (await radioControl.isVisible().catch(() => false)) {
+                if (await pollLocatorState(() => radioControl.isVisible())) {
                     await radioControl.click({force: true}).catch(() => null)
                 } else {
                     await realRow.click({force: true}).catch(() => null)
@@ -189,7 +189,7 @@ const deploymentTests = () => {
                             await row.scrollIntoViewIfNeeded().catch(() => null)
 
                             const radioControl = row.locator(radioSelector).first()
-                            if (await radioControl.isVisible().catch(() => false)) {
+                            if (await pollLocatorState(() => radioControl.isVisible())) {
                                 await radioControl.click({force: true}).catch(() => null)
                             } else {
                                 await row.click({force: true}).catch(() => null)

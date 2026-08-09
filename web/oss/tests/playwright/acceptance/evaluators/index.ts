@@ -10,6 +10,7 @@ import {
     TestRoleType,
     TestcaseType,
 } from "@agenta/web-tests/playwright/config/testTags"
+import {pollLocatorState} from "@agenta/web-tests/utils"
 
 import {buildAcceptanceTags} from "../utils/tags"
 
@@ -183,7 +184,7 @@ const testEvaluators = () => {
             // Use the search input to narrow results, then poll via [data-row-key]
             // (same approach as the auto-evaluation modal row selection).
             const searchInput = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => searchInput.isVisible())) {
                 await searchInput.fill(evaluatorName)
             }
             await expect
@@ -270,7 +271,7 @@ const testEvaluators = () => {
             await expect(popover).toBeVisible({timeout: 5000})
 
             const noItemsText = popover.getByText(EVALUATOR_NO_APPS_TEXT)
-            if (await noItemsText.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => noItemsText.isVisible())) {
                 test.skip(
                     true,
                     "No apps available in this environment to test the evaluator playground",
@@ -312,10 +313,9 @@ const testEvaluators = () => {
                 await item.click()
                 await expect(revisionPanel).toBeVisible({timeout: 5000})
                 const revisionItems = revisionPanel.locator('[role="option"]')
-                const hasRevision = await revisionItems
-                    .first()
-                    .isVisible({timeout: 5000})
-                    .catch(() => false)
+                const hasRevision = await pollLocatorState(() =>
+                    revisionItems.first().isVisible({timeout: 5000}),
+                )
                 if (hasRevision) {
                     revisionItem = revisionItems.first()
                     break
@@ -331,11 +331,9 @@ const testEvaluators = () => {
             await revisionItem.click()
 
             // Step 5: Verify completion-app UI (Testcase Data section) appears.
-            const isCompletionApp = await page
-                .getByText("Testcase Data")
-                .first()
-                .isVisible({timeout: 10000})
-                .catch(() => false)
+            const isCompletionApp = await pollLocatorState(() =>
+                page.getByText("Testcase Data").first().isVisible({timeout: 10000}),
+            )
             if (!isCompletionApp) {
                 test.skip(
                     true,
@@ -403,7 +401,7 @@ const testEvaluators = () => {
             // Step 5: Verify the new evaluator appears in the Human tab table.
             // Use the search input to narrow results, then poll via [data-row-key].
             const searchInput = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => searchInput.isVisible())) {
                 await searchInput.fill(evaluatorName)
             }
             await expect
@@ -676,7 +674,7 @@ const testEvaluators = () => {
             // (validates the registry's row-click handler, not just post-create).
             await navigateToEvaluators()
             const searchInput = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => searchInput.isVisible())) {
                 await searchInput.fill(evaluatorName)
             }
             await expect
@@ -747,7 +745,7 @@ const testEvaluators = () => {
             // Navigate back to the registry, then click the row.
             await navigateToEvaluators()
             const searchInput = page.locator('input[placeholder="Search"]').first()
-            if (await searchInput.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => searchInput.isVisible())) {
                 await searchInput.fill(evaluatorName)
             }
             await expect
