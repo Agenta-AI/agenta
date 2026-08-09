@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
     commandSessionStream,
@@ -24,14 +24,16 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {AgentChatTransport} from "../assets/AgentChatTransport"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
 import {getMessageTraceId} from "../assets/trace"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
+import {acquireSessionChat, isChatBusy, releaseSessionChat} from "../state/chatRegistry"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
+import {useChatScopeKey} from "../state/scope"
 import {
+    openSessionIdsAtomFamily,
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
@@ -50,7 +52,8 @@ import {useSessionHydration} from "./useSessionHydration"
  * composer) consumes this hook's return rather than reaching for `useChat` directly.
  *
  * Design decisions baked in (docs/design/agent-workflows/playground-agent-generation.md):
- *  - D9  teardown: abort the in-flight stream on unmount (tab close / revision swap).
+ *  - D9  teardown: release the chat on unmount; `state/chatRegistry` owns the instance and decides
+ *        whether to preserve it (#5724).
  *  - DT3 cancelled state: a stopped stream tags its partial bubble "Stopped" + offers Resend.
  */
 export const useAgentChatSession = ({
@@ -90,45 +93,53 @@ export const useAgentChatSession = ({
     // turn). Cleared on the next send/resend.
     const [stopped, setStopped] = useState(false)
 
-    // `useChat` pins its `Chat` (and thus this transport) for the life of the session `id`; it is
-    // NOT recreated when `entityId` changes (only on an `id` change). So the request builder must
-    // read the CURRENT entity through a ref — capturing `entityId` by value would send every turn
-    // with the revision that was displayed when the session first mounted, even after a switch or a
-    // self-commit. Reading `entityIdRef.current` at send time keeps runs on the live revision.
-    const entityIdRef = useRef(entityId)
-    entityIdRef.current = entityId
-
-    // Turn Inspector capture write, read via ref so the transport `useMemo` doesn't depend on it.
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
-    const captureRef = useRef(captureTurnRequest)
-    captureRef.current = captureTurnRequest
-
-    // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
-    // placeholder that `prepareSendMessagesRequest` overrides per request.
-    const transport = useMemo(
-        () =>
-            new AgentChatTransport({
-                api: "",
-                prepareSendMessagesRequest: async ({messages, id}) => {
-                    const req = await buildAgentRequest(entityIdRef.current, messages, {
-                        sessionId: id ?? sessionId,
-                    })
-                    if (!req) {
-                        throw new Error(
-                            "This agent workflow has no invocation URL — it can’t be run yet.",
-                        )
-                    }
-                    captureRef.current(buildTurnCapture(req, generateId(), Date.now()))
-                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
-                },
-            }),
-        [sessionId],
-    )
-
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
+
+    // The registry owns the `Chat`, so re-entering the route re-binds to the SAME instance mid-turn
+    // instead of aborting the run (#5724). It rebinds these callbacks on every render, so they always
+    // see the live values — `entityId` included, which is why a run follows a revision switch or a
+    // self-commit instead of sticking to the revision this session first mounted on.
+    const chat = acquireSessionChat({
+        sessionId,
+        initialMessages,
+        hooks: {
+            prepareRequest: async ({messages, id}) => {
+                const req = await buildAgentRequest(entityId, messages, {
+                    sessionId: id ?? sessionId,
+                })
+                if (!req) {
+                    throw new Error(
+                        "This agent workflow has no invocation URL — it can’t be run yet.",
+                    )
+                }
+                captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
+                return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
+            },
+            // Approve AND deny both resume — a deny-only decision must re-send so the runner gets
+            // the denial round-trip and the model continues (no `approval-responded` limbo).
+            sendAutomaticallyWhen: ({messages}) => {
+                const shouldDispatch = agentShouldResumeAfterApproval({
+                    messages,
+                    liveInteraction: liveGateInteractionRef.current,
+                })
+                if (shouldDispatch) liveGateInteractionRef.current = null
+                return shouldDispatch
+            },
+            // The turn's trace may not be ingested yet when the row asks for its summary — marking
+            // it fresh lets the trace queries retry through the ingestion lag. A finished turn may
+            // also have written files, so mark the session's drive data stale; no live channel
+            // exists for it.
+            onFinish: ({message}) => {
+                markTraceAsFresh(getMessageTraceId(message))
+                revalidateSessionMounts(sessionId)
+                revalidateSessionRecords(sessionId)
+            },
+        },
+    })
 
     const {
         messages,
@@ -141,40 +152,13 @@ export const useAgentChatSession = ({
         addToolOutput,
         error,
     } = useChat({
-        id: sessionId,
-        messages: initialMessages,
-        transport,
+        chat,
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
         // render per token; caps commit frequency independently of the per-commit memo win.
         experimental_throttle: 50,
-        // Approve AND deny both resume — a deny-only decision must re-send so the runner
-        // gets the denial round-trip and the model continues (no `approval-responded` limbo).
-        sendAutomaticallyWhen: ({messages}) => {
-            const shouldDispatch = agentShouldResumeAfterApproval({
-                messages,
-                liveInteraction: liveGateInteractionRef.current,
-            })
-            if (shouldDispatch) liveGateInteractionRef.current = null
-            return shouldDispatch
-        },
-        // The turn's trace may not be ingested yet when the row asks for its summary —
-        // marking it fresh lets the trace queries retry through the ingestion lag
-        // (historical traces get no such grace; a 404 there means the trace is gone).
-        // A finished turn may also have written files: mark the session's drive data stale so
-        // every mount surface (open or opened later) refetches — no live channel exists for this.
-        onFinish: ({message}) => {
-            markTraceAsFresh(getMessageTraceId(message))
-            revalidateSessionMounts(sessionId)
-            revalidateSessionRecords(sessionId)
-        },
-        onError: (err) => {
-            // Render the error in-chat (the `error` alert below); swallow it here so an
-            // aborted/errored stream doesn't bubble unhandled to the Next.js dev overlay (F-033).
-            console.warn("[AgentChatPanel] useChat error (rendered in-chat):", err)
-        },
     })
 
-    const busy = status === "submitted" || status === "streaming"
+    const busy = isChatBusy(status)
 
     // `messages`/`busy` change every token; consumers that must stay referentially stable
     // (`handleRewind`, the hydration/SWR adoption guards) read them through refs instead.
@@ -284,7 +268,7 @@ export const useAgentChatSession = ({
     // flips to "submitted", effects run in declaration order, so clearing here is what stops the
     // persist below from filing a locally-extended transcript under a server watermark.
     useEffect(() => {
-        if (status === "submitted" || status === "streaming") recordWatermarkRef.current = undefined
+        if (isChatBusy(status)) recordWatermarkRef.current = undefined
     }, [status])
 
     // Persist the conversation whenever its stream settles (skip mid-stream).
@@ -387,14 +371,17 @@ export const useAgentChatSession = ({
         commandSessionStream({sessionId, projectId}).catch(() => {})
     }, [markStopped, stop, projectId, sessionId, queryClient])
 
-    // ── D9 teardown: abort the in-flight stream on unmount (tab close / revision swap) ──
-    // Keyed on sessionId: closing a tab or swapping the revision unmounts this conversation
-    // and should tear down its stream.
+    // ── D9 teardown: release this mount's claim on the session's chat ──
+    // A route change unmounts this conversation too, so "did the user close this session?" is read
+    // from the open-tab set — the close/delete/archive/reset writers all commit before React runs
+    // this cleanup, and a route change leaves the tab open.
+    const scopeKey = useChatScopeKey()
     useEffect(() => {
         return () => {
-            stop()
+            const stillOpen = store.get(openSessionIdsAtomFamily(scopeKey)).has(sessionId)
+            releaseSessionChat(sessionId, {stillOpen})
         }
-    }, [sessionId, stop])
+    }, [sessionId, scopeKey, store])
 
     // After each commit, mark on-screen messages as seen so they don't re-animate on later renders
     // (e.g. streaming tokens). Done in an effect, not during render, so StrictMode's double invoke
