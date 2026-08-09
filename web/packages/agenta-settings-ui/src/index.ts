@@ -25,3 +25,4 @@ export {
 export {SettingToggleRow, type SettingToggleRowProps} from "./access/SettingToggleRow"
 export {UpgradeNotice, type UpgradeNoticeProps} from "./access/UpgradeNotice"
 export {DomainsSection, type DomainsSectionProps} from "./access/DomainsSection"
+export {SsoProvidersSection, type SsoProvidersSectionProps} from "./access/SsoProvidersSection"

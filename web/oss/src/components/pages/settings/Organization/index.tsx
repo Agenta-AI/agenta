@@ -15,31 +15,16 @@ import {
     deleteOrganizationProvider,
     type OrganizationProvider,
 } from "@agenta/entities/organization"
-import {AccessControlsSection, DomainsSection, type AuthFlagKey} from "@agenta/settings-ui"
+import {
+    AccessControlsSection,
+    DomainsSection,
+    SsoProvidersSection,
+    type AuthFlagKey,
+} from "@agenta/settings-ui"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
-import {
-    PlusOutlined,
-    CheckCircleOutlined,
-    ClockCircleOutlined,
-    DeleteOutlined,
-    EditOutlined,
-    InfoCircleOutlined,
-} from "@ant-design/icons"
+import {InfoCircleOutlined} from "@ant-design/icons"
 import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
-import {
-    Descriptions,
-    Input,
-    Modal,
-    Skeleton,
-    Typography,
-    message,
-    Table,
-    Button,
-    Form,
-    Tag,
-    Popconfirm,
-    Alert,
-} from "antd"
+import {Descriptions, Input, Modal, Skeleton, Typography, message, Form, Alert} from "antd"
 
 import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
@@ -47,7 +32,7 @@ import {useOrgData} from "@/oss/state/org"
 
 import {UpgradePrompt} from "./UpgradePrompt"
 
-const {Title, Text} = Typography
+const {Text} = Typography
 
 const Organization: FC = () => {
     const {selectedOrg, loading, refetch} = useOrgData()
@@ -180,6 +165,75 @@ const Organization: FC = () => {
         })
     }, [domainForm, createDomainMutation])
 
+    const callbackUrlForProvider = useCallback(
+        (provider: OrganizationProvider) =>
+            selectedOrg?.slug
+                ? `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${provider.slug}`
+                : null,
+        [selectedOrg?.slug],
+    )
+
+    /** What to put in the IdP. Slotted under each provider that is not yet valid. */
+    const renderProviderInstructions = useCallback(
+        (record: OrganizationProvider) => {
+            const callbackUrl = callbackUrlForProvider(record)
+            if (!callbackUrl) return null
+            const expectedScopes = "openid email profile"
+            const mono = {fontFamily: "monospace", fontSize: "12px"} as const
+
+            return (
+                <Alert
+                    type="info"
+                    showIcon
+                    icon={<InfoCircleOutlined />}
+                    message={
+                        <span style={{fontSize: "15px", fontWeight: 500}}>
+                            Configuration Instructions
+                        </span>
+                    }
+                    description={
+                        <div className="flex w-full flex-col gap-4">
+                            <Text style={{fontSize: "14px"}}>
+                                1. Edit your IdP with the following details:
+                            </Text>
+                            <Descriptions
+                                bordered
+                                size="small"
+                                column={1}
+                                className="org-instructions"
+                            >
+                                <Descriptions.Item label={<span style={mono}>Callback URL</span>}>
+                                    <TooltipWithCopyAction
+                                        copyText={callbackUrl}
+                                        title="Copy callback URL"
+                                    >
+                                        <span style={mono}>{callbackUrl}</span>
+                                    </TooltipWithCopyAction>
+                                </Descriptions.Item>
+                                <Descriptions.Item label={<span style={mono}>Scopes</span>}>
+                                    <TooltipWithCopyAction
+                                        copyText={expectedScopes}
+                                        title="Copy scopes"
+                                    >
+                                        <span style={mono}>{expectedScopes}</span>
+                                    </TooltipWithCopyAction>
+                                </Descriptions.Item>
+                            </Descriptions>
+                            <Text style={{fontSize: "14px"}}>
+                                2. Ensure your SSO provider&apos;s OIDC discovery endpoint is
+                                accessible.
+                            </Text>
+                            <Text style={{fontSize: "14px"}}>
+                                3. Click the &quot;Enable&quot; button.
+                            </Text>
+                        </div>
+                    }
+                />
+            )
+        },
+        [callbackUrlForProvider],
+    )
+
     /** The DNS record to publish, and what to do after. Slotted under each pending domain. */
     const renderDomainInstructions = useCallback((record: OrganizationDomain) => {
         const txtRecordName = `_agenta-verification.${record.slug}`
@@ -241,7 +295,11 @@ const Organization: FC = () => {
     }, [])
 
     // SSO Provider queries and mutations
-    const {data: providers = [], refetch: refetchProviders} = useQuery({
+    const {
+        data: providers = [],
+        refetch: refetchProviders,
+        isPending: providersLoading,
+    } = useQuery({
         queryKey: ["organization-providers", selectedOrg?.id],
         queryFn: fetchOrganizationProviders,
         enabled: !!selectedOrg?.id,
@@ -354,9 +412,6 @@ const Organization: FC = () => {
         [providerForm],
     )
 
-    const pendingProviderRowKeys = providers
-        .filter((provider) => provider.flags?.is_valid === false)
-        .map((provider) => provider.id)
     const hasActiveVerifiedProvider = useMemo(
         () => providers.some((provider) => provider.flags?.is_active && provider.flags?.is_valid),
         [providers],
@@ -428,97 +483,6 @@ const Organization: FC = () => {
         },
         [handleUpdateOrganization, hasActiveVerifiedProvider, hasVerifiedDomain, selectedOrg],
     )
-
-    const providerColumns = [
-        {
-            title: "Provider",
-            dataIndex: "slug",
-            key: "slug",
-            ellipsis: true,
-        },
-        {
-            title: "Callback URL",
-            key: "callback_url",
-            render: (_: any, record: OrganizationProvider) => {
-                if (!selectedOrg?.slug) {
-                    return <Text type="secondary">Set org slug</Text>
-                }
-                const callbackUrl = `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${record.slug}`
-                return (
-                    <Text ellipsis style={{maxWidth: 300}}>
-                        {callbackUrl}
-                    </Text>
-                )
-            },
-        },
-        {
-            title: "Status",
-            key: "status",
-            render: (_: any, record: OrganizationProvider) => {
-                const isEnabled = record.flags?.is_enabled !== false
-                const isValid = record.flags?.is_valid !== false
-
-                if (!isEnabled) {
-                    return <Tag color="default">Disabled</Tag>
-                }
-                if (isValid) {
-                    return (
-                        <Tag icon={<CheckCircleOutlined />} color="success">
-                            Active
-                        </Tag>
-                    )
-                }
-                return (
-                    <Tag icon={<ClockCircleOutlined />} color="warning">
-                        Pending
-                    </Tag>
-                )
-            },
-        },
-        {
-            title: "Actions",
-            key: "actions",
-            render: (_: any, record: OrganizationProvider) => {
-                const isEnabled = record.flags?.is_enabled !== false
-                const isValid = record.flags?.is_valid !== false
-                return (
-                    <div className="flex items-center gap-2">
-                        {(!isEnabled || !isValid) && (
-                            <Button
-                                type="primary"
-                                size="small"
-                                onClick={() => testProviderMutation.mutate(record.id)}
-                                loading={testProviderMutation.isPending}
-                            >
-                                Enable
-                            </Button>
-                        )}
-                        <Button
-                            size="small"
-                            icon={<EditOutlined />}
-                            aria-label="Edit provider"
-                            onClick={() => handleEditProvider(record)}
-                        ></Button>
-                        <Popconfirm
-                            title="Delete SSO provider"
-                            description="Are you sure you want to delete this SSO provider?"
-                            onConfirm={() => deleteProviderMutation.mutate(record.id)}
-                            okText="Delete"
-                            okType="danger"
-                            cancelText="Cancel"
-                        >
-                            <Button
-                                danger
-                                size="small"
-                                icon={<DeleteOutlined />}
-                                loading={deleteProviderMutation.isPending}
-                            />
-                        </Popconfirm>
-                    </div>
-                )
-            },
-        },
-    ]
 
     if (loading || entitlementsLoading) {
         return (
@@ -619,37 +583,30 @@ const Organization: FC = () => {
 
             {hasSSO ? (
                 <section>
-                    <div className="flex w-full flex-col gap-3">
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "flex-start",
-                            }}
-                        >
-                            <div>
-                                <Title level={5} className="!mb-1">
-                                    SSO Providers
-                                </Title>
-                                <Text type="secondary">
-                                    Configure identity providers for single sign-on
-                                </Text>
-                            </div>
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={() => {
-                                    if (!selectedOrg?.slug) {
-                                        setSlugValue("")
-                                        setSlugModalVisible(true)
-                                        return
-                                    }
-                                    setProviderModalVisible(true)
-                                }}
-                            >
-                                {selectedOrg?.slug ? "Add Provider" : "Set Slug"}
-                            </Button>
-                        </div>
+                    <SsoProvidersSection
+                        providers={providers ?? []}
+                        loading={providersLoading}
+                        callbackUrlFor={callbackUrlForProvider}
+                        addLabel={selectedOrg?.slug ? "Add Provider" : "Set Slug"}
+                        onAdd={() => {
+                            if (!selectedOrg?.slug) {
+                                setSlugValue("")
+                                setSlugModalVisible(true)
+                                return
+                            }
+                            setProviderModalVisible(true)
+                        }}
+                        onEdit={handleEditProvider}
+                        onEnable={(provider: OrganizationProvider) =>
+                            testProviderMutation.mutate(provider.id)
+                        }
+                        onDelete={(provider: OrganizationProvider) =>
+                            deleteProviderMutation.mutate(provider.id)
+                        }
+                        enabling={testProviderMutation.isPending}
+                        deleting={deleteProviderMutation.isPending}
+                        renderInstructions={renderProviderInstructions}
+                    >
                         <Descriptions
                             size="small"
                             column={1}
@@ -692,122 +649,7 @@ const Organization: FC = () => {
                                 showIcon
                             />
                         )}
-
-                        <Table
-                            columns={providerColumns}
-                            dataSource={providers}
-                            rowKey="id"
-                            pagination={false}
-                            size="small"
-                            tableLayout="fixed"
-                            className="no-expand-indent no-expand-col org-providers-table"
-                            expandable={{
-                                expandedRowKeys: pendingProviderRowKeys,
-                                expandedRowRender: (record: OrganizationProvider) => {
-                                    // Only show configuration instructions for providers that are not valid
-                                    if (record.flags?.is_valid !== false) {
-                                        return null
-                                    }
-
-                                    if (!selectedOrg?.slug) {
-                                        return null
-                                    }
-
-                                    const callbackUrl = `${getAgentaWebUrl()}/auth/callback/sso:${selectedOrg.slug}:${record.slug}`
-                                    const expectedScopes = "openid email profile"
-
-                                    return (
-                                        <Alert
-                                            message={
-                                                <span style={{fontSize: "15px", fontWeight: 500}}>
-                                                    Configuration Instructions
-                                                </span>
-                                            }
-                                            description={
-                                                <div className="flex w-full flex-col gap-4">
-                                                    <Text style={{fontSize: "14px"}}>
-                                                        1. Edit your IdP with the following details:
-                                                    </Text>
-                                                    <Descriptions
-                                                        bordered
-                                                        size="small"
-                                                        column={1}
-                                                        className="org-instructions"
-                                                    >
-                                                        <Descriptions.Item
-                                                            label={
-                                                                <span
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                >
-                                                                    Callback URL
-                                                                </span>
-                                                            }
-                                                        >
-                                                            <TooltipWithCopyAction
-                                                                copyText={callbackUrl}
-                                                                title="Copy callback URL"
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                >
-                                                                    {callbackUrl}
-                                                                </span>
-                                                            </TooltipWithCopyAction>
-                                                        </Descriptions.Item>
-                                                        <Descriptions.Item
-                                                            label={
-                                                                <span
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                >
-                                                                    Scopes
-                                                                </span>
-                                                            }
-                                                        >
-                                                            <TooltipWithCopyAction
-                                                                copyText={expectedScopes}
-                                                                title="Copy scopes"
-                                                            >
-                                                                <span
-                                                                    style={{
-                                                                        fontFamily: "monospace",
-                                                                        fontSize: "12px",
-                                                                    }}
-                                                                >
-                                                                    {expectedScopes}
-                                                                </span>
-                                                            </TooltipWithCopyAction>
-                                                        </Descriptions.Item>
-                                                    </Descriptions>
-                                                    <Text style={{fontSize: "14px"}}>
-                                                        2. Ensure your SSO provider's OIDC discovery
-                                                        endpoint is accessible.
-                                                    </Text>
-                                                    <Text style={{fontSize: "14px"}}>
-                                                        3. Click the "Enable" button.
-                                                    </Text>
-                                                </div>
-                                            }
-                                            type="info"
-                                            icon={<InfoCircleOutlined />}
-                                            showIcon
-                                        />
-                                    )
-                                },
-                                rowExpandable: (record: OrganizationProvider) =>
-                                    record.flags?.is_valid === false,
-                                expandIcon: () => null,
-                            }}
-                        />
-                    </div>
+                    </SsoProvidersSection>
 
                     <Modal
                         title={editingProvider ? "Edit SSO Provider" : "Add SSO Provider"}
