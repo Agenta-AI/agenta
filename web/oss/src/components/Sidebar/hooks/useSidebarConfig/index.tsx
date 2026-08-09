@@ -166,7 +166,9 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Overview",
                 link: `${appURL || recentlyVisitedAppURL}/overview`,
                 icon: <DesktopIcon size={14} />,
-                isHidden: isHidden || hideAdvancedNav,
+                // Overview is available in both navs — simplified mode hides the advanced
+                // surfaces around it, not the workflow's own overview.
+                isHidden,
                 // Enabled for evaluators too — scoped by the workflow id as the `application` reference.
                 disabled: !hasProjectURL,
             },
