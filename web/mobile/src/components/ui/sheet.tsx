@@ -57,8 +57,11 @@ function SheetContent({
                         "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
                     side === "top" &&
                         "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+                    // A bottom sheet is full-bleed on a phone, but a window this wide would
+                    // stretch a two-field form across the whole screen — so it caps and centres,
+                    // and rounds its top the way it does against a phone's edge.
                     side === "bottom" &&
-                        "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:border-x",
                     className,
                 )}
                 {...props}
@@ -89,7 +92,12 @@ function SheetFooter({className, ...props}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="sheet-footer"
-            className={cn("mt-auto flex flex-col gap-2 p-4", className)}
+            // Stacked on a phone (primary within thumb reach, first in DOM order), one row
+            // from sm up — reversed, so the primary still lands on the right.
+            className={cn(
+                "mt-auto flex flex-col gap-2 p-4 sm:flex-row-reverse sm:justify-start",
+                className,
+            )}
             {...props}
         />
     )

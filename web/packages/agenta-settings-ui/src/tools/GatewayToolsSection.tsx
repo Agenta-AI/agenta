@@ -17,17 +17,7 @@ import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    DataTable,
-    EmptyState,
-    Input,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, Play, Plus, Trash, XCircle} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -299,32 +289,17 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                             onClick: () => confirmDelete(record),
                         },
                     ]}
-                    filters={
-                        <Input
-                            placeholder="Search tools"
-                            className="w-[260px]"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            disabled={isLoading}
-                        />
-                    }
+                    search={{
+                        placeholder: "Search tools",
+                        value: searchTerm,
+                        onChange: setSearchTerm,
+                        disabled: isLoading,
+                    }}
+                    onReload={reloadAll}
+                    reloading={reloading}
+                    reloadLabel="Reload all connections"
                     primaryActions={
                         <>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            aria-label="Reload all connections"
-                                            disabled={reloading}
-                                            onClick={reloadAll}
-                                        >
-                                            <ArrowClockwise size={14} />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Reload all connections</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
                             {readOnly ? null : (
                                 <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
                                     <Plus size={14} />

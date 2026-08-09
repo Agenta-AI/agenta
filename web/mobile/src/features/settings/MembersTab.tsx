@@ -120,7 +120,7 @@ export const MembersTab = ({
             }}
         >
             <Sheet open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
-                <SheetContent side="bottom" className="gap-0 rounded-t-2xl">
+                <SheetContent side="bottom">
                     <SheetHeader>
                         <SheetTitle>Invite members</SheetTitle>
                         <SheetDescription>
@@ -137,7 +137,9 @@ export const MembersTab = ({
                         />
                         {roles.data?.length ? (
                             <Select value={role} onValueChange={setRole}>
-                                <SelectTrigger>
+                                {/* Full width, like the field above it — the trigger's
+                                    default is fit-to-content, which left it stranded. */}
+                                <SelectTrigger className="w-full">
                                     <SelectValue placeholder="Role" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -176,7 +178,7 @@ export const MembersTab = ({
                 open={Boolean(pendingRemoval)}
                 onOpenChange={(next) => (next ? undefined : setPendingRemoval(null))}
             >
-                <SheetContent side="bottom" className="gap-0 rounded-t-2xl">
+                <SheetContent side="bottom">
                     <SheetHeader>
                         <SheetTitle>Remove member</SheetTitle>
                         <SheetDescription>They lose access to this organization.</SheetDescription>

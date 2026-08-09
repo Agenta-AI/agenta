@@ -3,7 +3,7 @@ import {useMemo} from "react"
 
 import type {Org} from "@agenta/entities/organization"
 import {Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, Input, type DataTableColumn} from "@agenta/ui/ui"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowsLeftRight, PencilSimpleLine, Plus, SignOut, Trash} from "@phosphor-icons/react"
 
 interface OrgRow extends Org {
@@ -146,15 +146,12 @@ export const OrganizationsPage = ({
                         onClick: () => onDelete?.(record),
                     },
                 ]}
-                filters={
-                    <Input
-                        placeholder="Search organizations"
-                        className="w-[260px]"
-                        value={searchTerm}
-                        onChange={(event) => onSearchChange(event.target.value)}
-                        disabled={loading}
-                    />
-                }
+                search={{
+                    placeholder: "Search organizations",
+                    value: searchTerm,
+                    onChange: onSearchChange,
+                    disabled: loading,
+                }}
                 primaryActions={createButton()}
                 empty={
                     searchTerm.trim() ? (

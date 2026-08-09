@@ -6,11 +6,11 @@
  */
 
 import {AuditLogPage} from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {useAtomValue} from "jotai"
 import Link from "next/link"
 
 import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
-import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {appIdentifiersAtom} from "@/oss/state/appState/atoms"
 

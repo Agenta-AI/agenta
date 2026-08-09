@@ -70,7 +70,7 @@ export const ProjectsTab = ({projects, isLoading, workspaceId}: Props) => {
             )}
             renderDeleteDialog={({open, onClose, onSubmit, pending, project}) => (
                 <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-                    <SheetContent side="bottom" className="gap-0 rounded-t-2xl">
+                    <SheetContent side="bottom">
                         <SheetHeader>
                             <SheetTitle>Delete project</SheetTitle>
                             <SheetDescription>This cannot be undone.</SheetDescription>
@@ -120,7 +120,7 @@ const NameSheet = ({
     onSubmit: () => void
 }) => (
     <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-        <SheetContent side="bottom" className="gap-0 rounded-t-2xl">
+        <SheetContent side="bottom">
             <SheetHeader>
                 <SheetTitle>{title}</SheetTitle>
                 {description ? <SheetDescription>{description}</SheetDescription> : null}

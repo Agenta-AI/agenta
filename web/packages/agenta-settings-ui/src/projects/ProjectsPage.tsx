@@ -4,7 +4,7 @@ import {createProject, deleteProject, patchProject} from "@agenta/entities/proje
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, Input, type DataTableColumn} from "@agenta/ui/ui"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {CheckCircle, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
 
@@ -237,15 +237,12 @@ export const ProjectsPage = ({
                         onClick: () => handleDelete(record),
                     },
                 ]}
-                filters={
-                    <Input
-                        placeholder="Search projects"
-                        className="w-[260px]"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        disabled={isLoading}
-                    />
-                }
+                search={{
+                    placeholder: "Search projects",
+                    value: searchTerm,
+                    onChange: setSearchTerm,
+                    disabled: isLoading,
+                }}
                 primaryActions={
                     <Button onClick={() => setCreateModalOpen(true)} disabled={isLoading}>
                         <Plus size={14} />

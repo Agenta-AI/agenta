@@ -1,8 +1,9 @@
 import {Fragment, type ReactNode} from "react"
 
-import {DotsThreeVertical} from "@phosphor-icons/react"
+import {ArrowClockwise, DotsThreeVertical} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import {Button} from "./button"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -10,7 +11,9 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "./dropdown-menu"
+import {Input} from "./input"
 import {SkeletonBlock} from "./skeleton"
+import {SimpleTooltip} from "./tooltip-composed"
 
 export interface DataTableColumn<T> {
     key: string
@@ -35,6 +38,13 @@ export interface DataTableAction<T> {
     onClick: (record: T) => void
 }
 
+export interface DataTableSearch {
+    placeholder: string
+    value: string
+    onChange: (value: string) => void
+    disabled?: boolean
+}
+
 export interface DataTableProps<T> {
     columns: DataTableColumn<T>[]
     rows: T[]
@@ -45,9 +55,23 @@ export interface DataTableProps<T> {
     empty?: ReactNode
     loading?: boolean
     skeletonRows?: number
-    /** Left of the toolbar — search and filters. */
+    /**
+     * The toolbar's search box. Pass this rather than an `Input` in `filters`: every list
+     * searches the same way, at the same width, in the same place.
+     */
+    search?: DataTableSearch
+    /** Left of the toolbar, after the search — this list's own filters. */
     filters?: ReactNode
-    /** Right of the toolbar — the primary buttons. */
+    /**
+     * The toolbar's reload control. Pass this rather than a button in `primaryActions`: it
+     * renders first in the right group, so refresh sits in one place on every list.
+     */
+    onReload?: () => void
+    /** Reload is in flight — disables the control. */
+    reloading?: boolean
+    /** Tooltip and accessible name for reload, e.g. "Reload webhooks". */
+    reloadLabel?: string
+    /** Right of the toolbar, after reload — this list's primary buttons. */
     primaryActions?: ReactNode
     /** Above the toolbar — a heading for the table itself. */
     title?: ReactNode
@@ -58,6 +82,14 @@ export interface DataTableProps<T> {
      * show (setup instructions, a pending state), not for optional drill-down.
      */
     expandedContent?: (record: T) => ReactNode
+    /**
+     * Pin the header area — the title and the toolbar — to the top of the scroll container
+     * while this section's rows scroll past. On by default: a settings page stacks several
+     * sections, and scrolling into a long one otherwise leaves rows with nothing naming them
+     * or acting on them. Turn it off for a table on a surface the page background would clash
+     * with (the bar has to paint opaquely to cover the rows sliding under it).
+     */
+    stickyHeader?: boolean
     className?: string
 }
 
@@ -79,24 +111,72 @@ export function DataTable<T>({
     empty,
     loading = false,
     skeletonRows = 5,
+    search,
     filters,
+    onReload,
+    reloading = false,
+    reloadLabel = "Reload",
     primaryActions,
     title,
     onRowClick,
     expandedContent,
+    stickyHeader = true,
     className,
 }: DataTableProps<T>) {
     const showSkeleton = loading && rows.length === 0
     const showEmpty = !loading && rows.length === 0
+    const hasToolbar = Boolean(search || filters || onReload || primaryActions)
+    const hasHeader = Boolean(title) || hasToolbar
 
     return (
         <div className={clsx("flex min-w-0 flex-col gap-2", className)}>
-            {title ? <div>{title}</div> : null}
+            {hasHeader ? (
+                <div
+                    className={clsx(
+                        "flex flex-col gap-2",
+                        // Sticks within its own section, so the next section's header takes
+                        // over as that one arrives rather than stacking on top of this one.
+                        // `--ag-sticky-top` is whatever the page pins above it (the Settings
+                        // shell publishes its header height); 0 when nothing does.
+                        stickyHeader &&
+                            "sticky top-[var(--ag-sticky-top,0px)] z-10 bg-colorBgContainer pb-2 pt-2",
+                    )}
+                >
+                    {title ? <div>{title}</div> : null}
 
-            {filters || primaryActions ? (
-                <div className="flex flex-wrap items-center gap-2">
-                    {filters}
-                    <div className="ml-auto flex items-center gap-2">{primaryActions}</div>
+                    {hasToolbar ? (
+                        // One shape for every list: search then filters on the left, reload
+                        // then the primary buttons on the right. `min-h` holds the row's
+                        // height when a host suppresses the actions (a read-only surface),
+                        // so the rhythm from header to table does not change tab to tab.
+                        <div className="flex min-h-control flex-wrap items-center gap-2">
+                            {search ? (
+                                <Input
+                                    placeholder={search.placeholder}
+                                    className="w-[260px]"
+                                    value={search.value}
+                                    onChange={(event) => search.onChange(event.target.value)}
+                                    disabled={search.disabled}
+                                />
+                            ) : null}
+                            {filters}
+                            <div className="ml-auto flex items-center gap-2">
+                                {onReload ? (
+                                    <SimpleTooltip title={reloadLabel}>
+                                        <Button
+                                            variant="outline"
+                                            aria-label={reloadLabel}
+                                            disabled={reloading}
+                                            onClick={onReload}
+                                        >
+                                            <ArrowClockwise size={14} />
+                                        </Button>
+                                    </SimpleTooltip>
+                                ) : null}
+                                {primaryActions}
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
 

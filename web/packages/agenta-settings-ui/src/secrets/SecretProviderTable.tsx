@@ -5,17 +5,8 @@ import type {LlmProvider} from "@agenta/shared/types"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {Tag} from "@agenta/ui/components/presentational"
 import {LLMIconMap} from "@agenta/ui/llm-icons"
-import {
-    Button,
-    DataTable,
-    EmptyState,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
+import {PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 export interface ProviderDialogState {
     selectedProvider: LlmProvider | null
@@ -44,6 +35,10 @@ export const SecretProviderTable = ({
     const [isAddProviderSecretModalOpen, setIsAddProviderSecretModalOpen] = useState(false)
 
     const isCustom = type === "custom"
+    // Every write here opens a surface the host renders. Without one the control would open
+    // nothing, so each hides itself rather than going dead.
+    const canConfigure = isCustom ? Boolean(renderConfigureDrawer) : Boolean(renderConfigureDialog)
+    const canDelete = Boolean(renderDeleteDialog)
 
     interface ProviderRow extends LlmProvider {
         // `key` is the virtual table's unique row identity. The provider's own key (the API
@@ -93,6 +88,9 @@ export const SecretProviderTable = ({
                           render: (record: ProviderRow) => {
                               const apiKey = record.source.key
                               if (!apiKey) {
+                                  if (!canConfigure) {
+                                      return <span className="text-colorTextSecondary">-</span>
+                                  }
                                   return (
                                       <Button
                                           size="sm"
@@ -151,7 +149,7 @@ export const SecretProviderTable = ({
                         : "-",
             },
         ],
-        [isCustom],
+        [isCustom, canConfigure],
     )
 
     return (
@@ -168,7 +166,7 @@ export const SecretProviderTable = ({
                             key: "edit",
                             label: isCustom ? "Edit endpoint" : "Edit key",
                             icon: <PencilSimpleLine size={16} />,
-                            hidden: !isCustom && !record.source.key,
+                            hidden: !canConfigure || (!isCustom && !record.source.key),
                             onClick: () => {
                                 setSelectedProvider(record.source)
                                 if (isCustom) setIsConfigProviderOpen(true)
@@ -180,7 +178,7 @@ export const SecretProviderTable = ({
                             label: isCustom ? "Delete endpoint" : "Remove key",
                             icon: <Trash size={16} />,
                             danger: true,
-                            hidden: !isCustom && !record.source.key,
+                            hidden: !canDelete || (!isCustom && !record.source.key),
                             onClick: () => {
                                 setSelectedProvider(record.source)
                                 setIsDeleteModalOpen(true)
@@ -199,32 +197,18 @@ export const SecretProviderTable = ({
                             ) : null}
                         </div>
                     }
+                    onReload={mutate}
+                    reloading={loading}
+                    reloadLabel="Reload providers"
                     primaryActions={
-                        isCustom ? (
-                            <>
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                aria-label="Reload providers"
-                                                disabled={loading}
-                                                onClick={mutate}
-                                            >
-                                                <ArrowClockwise size={14} />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Reload providers</TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                                <Button
-                                    disabled={loading}
-                                    onClick={() => setIsConfigProviderOpen(true)}
-                                >
-                                    <Plus size={14} />
-                                    Add endpoint
-                                </Button>
-                            </>
+                        isCustom && canConfigure ? (
+                            <Button
+                                disabled={loading}
+                                onClick={() => setIsConfigProviderOpen(true)}
+                            >
+                                <Plus size={14} />
+                                Add endpoint
+                            </Button>
                         ) : null
                     }
                     empty={
@@ -243,13 +227,15 @@ export const SecretProviderTable = ({
                                     </div>
                                 }
                             >
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setIsConfigProviderOpen(true)}
-                                >
-                                    <Plus size={14} />
-                                    Add endpoint
-                                </Button>
+                                {canConfigure ? (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setIsConfigProviderOpen(true)}
+                                    >
+                                        <Plus size={14} />
+                                        Add endpoint
+                                    </Button>
+                                ) : null}
                             </EmptyState>
                         ) : (
                             <EmptyState

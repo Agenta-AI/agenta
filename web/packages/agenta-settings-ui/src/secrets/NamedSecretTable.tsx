@@ -4,17 +4,8 @@ import {CustomSecretFormat, useVaultSecret, type NamedSecretRow} from "@agenta/e
 import type {LlmProvider} from "@agenta/shared/types"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 import {Tag} from "@agenta/ui/components/presentational"
-import {
-    Button,
-    DataTable,
-    EmptyState,
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
+import {PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 /**
  * Mask stored secret content for display. `text` is masked like an API key
@@ -112,6 +103,7 @@ export const NamedSecretTable = ({
                             key: "edit",
                             label: "Edit",
                             icon: <PencilSimpleLine size={16} />,
+                            hidden: !renderConfigureDialog,
                             onClick: () => {
                                 setSelectedSecret(record)
                                 setIsConfigModalOpen(true)
@@ -123,29 +115,20 @@ export const NamedSecretTable = ({
                             label: "Delete",
                             icon: <Trash size={16} />,
                             danger: true,
+                            hidden: !renderDeleteDialog,
                             onClick: () => {
                                 setSelectedSecret(record)
                                 setIsDeleteModalOpen(true)
                             },
                         },
                     ]}
+                    onReload={mutate}
+                    reloading={loading}
+                    reloadLabel="Reload secrets"
                     primaryActions={
-                        <>
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            aria-label="Reload secrets"
-                                            disabled={loading}
-                                            onClick={mutate}
-                                        >
-                                            <ArrowClockwise size={14} />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Reload secrets</TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                        // The form is the host's; without one this would open nothing, so it
+                        // is absent rather than dead.
+                        renderConfigureDialog ? (
                             <Button
                                 disabled={loading}
                                 onClick={() => {
@@ -156,7 +139,7 @@ export const NamedSecretTable = ({
                                 <Plus size={14} />
                                 Create secret
                             </Button>
-                        </>
+                        ) : null
                     }
                     empty={
                         <EmptyState
@@ -173,16 +156,18 @@ export const NamedSecretTable = ({
                                 </div>
                             }
                         >
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    setSelectedSecret(null)
-                                    setIsConfigModalOpen(true)
-                                }}
-                            >
-                                <Plus size={14} />
-                                Create secret
-                            </Button>
+                            {renderConfigureDialog ? (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        setSelectedSecret(null)
+                                        setIsConfigModalOpen(true)
+                                    }}
+                                >
+                                    <Plus size={14} />
+                                    Create secret
+                                </Button>
+                            ) : null}
                         </EmptyState>
                     }
                 />

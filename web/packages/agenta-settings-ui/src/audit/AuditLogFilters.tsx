@@ -18,8 +18,7 @@ import {
     requestIdFilterAtom,
     requestTypeFilterAtom,
 } from "@agenta/entities/event"
-import {Button, Cascader, Input, type CascaderOption} from "@agenta/ui/ui"
-import {ArrowsClockwiseIcon} from "@phosphor-icons/react"
+import {Cascader, Input, type CascaderOption} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
 const HIDDEN_EVENT_TYPE_PREFIXES = ["applications.revisions.", "evaluators.revisions."]
@@ -68,7 +67,12 @@ const ID_DEBOUNCE_MS = 400
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export interface AuditLogFiltersProps {
-    onRefresh: () => void
+    /**
+     * Hands the table a refresh that first flushes the debounced id draft, so a reload
+     * clicked straight after typing uses the value on screen. The control itself lives in
+     * the table's toolbar, where every list keeps its reload.
+     */
+    registerRefresh: (refresh: () => void) => void
     /**
      * The date-range control. The desktop's picker carries its own presets and calendar; a
      * host without one simply gets the default 24-hour window.
@@ -79,7 +83,7 @@ export interface AuditLogFiltersProps {
     }) => ReactNode
 }
 
-export const AuditLogFilters = ({onRefresh, renderDateRange}: AuditLogFiltersProps) => {
+export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFiltersProps) => {
     const [timestampRange, setTimestampRange] = useAtom(eventTimestampRangeFilterAtom)
     const [eventType, setEventType] = useAtom(eventTypeFilterAtom)
     const [eventId, setEventId] = useAtom(eventIdFilterAtom)
@@ -108,22 +112,12 @@ export const AuditLogFilters = ({onRefresh, renderDateRange}: AuditLogFiltersPro
 
     // Flush the debounced id before refreshing so a refresh clicked right after
     // typing uses the value on screen rather than the previously committed one.
-    const handleRefresh = useCallback(() => {
-        commitEventId()
-        onRefresh()
-    }, [commitEventId, onRefresh])
+    useEffect(() => {
+        registerRefresh(commitEventId)
+    }, [commitEventId, registerRefresh])
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <Button
-                variant="outline"
-                size="icon"
-                aria-label="Refresh audit log data"
-                title="Refresh data"
-                onClick={handleRefresh}
-            >
-                <ArrowsClockwiseIcon size={14} />
-            </Button>
             {renderDateRange?.({value: timestampRange, onChange: setTimestampRange})}
             <Cascader
                 allowClear
