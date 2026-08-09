@@ -15,3 +15,4 @@ export {
     type ProjectsPageProps,
     type ProjectDialogState,
 } from "./projects/ProjectsPage"
+export {MembersPage, type MembersPageProps} from "./members/MembersPage"
