@@ -44,6 +44,14 @@ export {
 } from "./access/AccessControlsSection"
 export {SettingToggleRow, type SettingToggleRowProps} from "./access/SettingToggleRow"
 export {UpgradeNotice, type UpgradeNoticeProps} from "./access/UpgradeNotice"
+export {
+    useEntitlements,
+    fetchAccessPlans,
+    fetchCurrentSubscription,
+    type Entitlements,
+    type PlanFlags,
+    type PlansCatalog,
+} from "./access/entitlements"
 export {DomainsSection, type DomainsSectionProps} from "./access/DomainsSection"
 export {SsoProvidersSection, type SsoProvidersSectionProps} from "./access/SsoProvidersSection"
 export {
