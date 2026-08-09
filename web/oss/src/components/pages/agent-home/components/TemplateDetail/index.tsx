@@ -82,7 +82,10 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                 </div>
             </div>
 
-            <div className="flex min-h-0 w-full flex-1 flex-col gap-10 lg:flex-row">
+            {/* One scroller, as in the gallery: `/agent-templates*` is a full-height route, so the
+                layout frame is bounded and unscrolled content below the fold was unreachable.
+                Scrolling here keeps the back link and "Use this template" pinned. */}
+            <div className="flex min-h-0 w-full flex-1 flex-col gap-10 overflow-y-auto pb-2 pr-1 lg:flex-row">
                 {/* What it needs, beside what it does — the same main + rail split the agent
                     overview uses, on one background. */}
                 <aside className="box-border flex w-full shrink-0 flex-col gap-6 lg:order-last lg:w-1/3 lg:min-w-[280px] lg:max-w-[340px]">
