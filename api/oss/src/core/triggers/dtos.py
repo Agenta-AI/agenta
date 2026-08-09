@@ -361,6 +361,9 @@ class TriggerScheduleQuery(BaseModel):
 
 class TriggerDeliveryData(BaseModel):
     event_key: Optional[str] = None
+    # The session this delivery produced. Minted by the dispatcher rather than read back from the
+    # run, so the link survives the detached path (which returns only a run id).
+    session_id: Optional[str] = None
     #
     references: Optional[Dict[str, Reference]] = None
     inputs: Optional[Dict[str, Any]] = None
