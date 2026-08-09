@@ -4,7 +4,9 @@ import {appTemplatesQueryAtom, createEphemeralAppFromTemplate} from "@agenta/ent
 import {openWorkflowRevisionDrawerAtom} from "@agenta/playground-ui/workflow-revision-drawer"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {Input, message} from "antd"
+import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -85,7 +87,7 @@ export default function AgentsPage() {
     )
 
     return (
-        <PageLayout className="grow min-h-0" title="Agents">
+        <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")} title="Agents">
             <div className="flex items-center gap-3">
                 <NewAgentButton />
                 <Input
