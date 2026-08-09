@@ -32,3 +32,10 @@ export {
 } from "./triggers/TriggerConnectionsSection"
 export {default as TriggerSchedulesSection} from "./triggers/TriggerSchedulesSection"
 export {default as TriggerSubscriptionsSection} from "./triggers/TriggerSubscriptionsSection"
+export {
+    default as GatewayToolsSection,
+    type GatewayToolsSectionProps,
+} from "./tools/GatewayToolsSection"
+export {default as IntegrationGrid} from "./tools/IntegrationGrid"
+export {default as IntegrationDetail} from "./tools/IntegrationDetail"
+export {useToolsConnections, type CreateConnectionInput} from "./tools/hooks/useToolsConnections"

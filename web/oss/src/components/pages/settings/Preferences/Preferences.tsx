@@ -1,14 +1,11 @@
 import {PreferencesPage} from "@agenta/settings-ui"
+import {agentVoiceInputEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {navSimplifiedOverrideAtom} from "@/oss/lib/onboarding/atoms"
 import {advancedNavHiddenAtom} from "@/oss/state/onboarding/selectors"
-import {
-    agentVoiceInputEnabledAtom,
-    playgroundInspectorEnabledAtom,
-} from "@/oss/state/settings/featureFlags"
 
 /** OSS binding: this app's theme control and its experiment flags on the shared page. */
 const Preferences = () => {

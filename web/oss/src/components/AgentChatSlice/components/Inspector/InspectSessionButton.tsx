@@ -3,11 +3,10 @@
  * first-class session entry point (the old panel only reached session view via the in-panel
  * toggle). Placed in the thread's session controls; clicking again collapses the panel.
  */
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {playgroundInspectorEnabledAtom} from "@/oss/state/settings/featureFlags"
 
 import {inspectorTargetAtom, toggleInspectorSessionAtom} from "./state"
 

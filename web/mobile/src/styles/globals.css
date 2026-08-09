@@ -113,6 +113,10 @@
     --color-colorWarningBg: var(--colorWarningBg);
     --color-colorWarningText: var(--colorWarningText);
     --color-colorError: var(--colorError);
+    /* The danger callout (shared AccountPage, the composer's mic-permission notice) paints with
+       this pair; unmapped, its box rendered as untinted text on mobile. */
+    --color-colorErrorBg: var(--colorErrorBg);
+    --color-colorErrorBorder: var(--colorErrorBorder);
     --color-colorInfoBorder: var(--colorInfoBorder);
     /* Portaled overlays + status dots. The kit's Tooltip paints bg-colorBgSpotlight /
        text-colorTextLightSolid and its DropdownMenu bg-colorSplit separators; with these

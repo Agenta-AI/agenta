@@ -1,11 +1,10 @@
 import {useState, useMemo} from "react"
 
 import type {ToolCatalogIntegration} from "@agenta/entities/gatewayTool"
+import {EmptyState, Input, Spinner} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
-import {Card, Empty, Input, Spin, Typography} from "antd"
-import Image from "next/image"
 
-import {useToolsIntegrations} from "../hooks/useToolsIntegrations"
+import {useToolsIntegrations} from "./hooks/useToolsIntegrations"
 
 interface Props {
     onSelect: (integrationKey: string) => void
@@ -29,24 +28,28 @@ export default function IntegrationGrid({onSelect}: Props) {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
-                <Spin />
+                <Spinner />
             </div>
         )
     }
 
     return (
         <section className="flex flex-col gap-4">
-            <Input
-                placeholder="Search integrations…"
-                prefix={<MagnifyingGlass size={16} />}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="max-w-[320px]"
-                allowClear
-            />
+            <div className="relative max-w-[320px]">
+                <MagnifyingGlass
+                    size={16}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-colorTextTertiary"
+                />
+                <Input
+                    placeholder="Search integrations…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                />
+            </div>
 
             {filtered.length === 0 ? (
-                <Empty description="No integrations found" />
+                <EmptyState image="simple" description="No integrations found" />
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filtered.map((integration) => (
@@ -70,31 +73,32 @@ function IntegrationCard({
     onClick: () => void
 }) {
     return (
-        <Card hoverable onClick={onClick} className="cursor-pointer" size="small">
+        <button
+            type="button"
+            onClick={onClick}
+            className="cursor-pointer rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left hover:border-colorPrimary"
+        >
             <div className="flex items-start gap-3">
+                {/* Catalog logos are remote and arbitrary; next/image would need every host
+                    allow-listed, and a package cannot own that config. */}
                 {integration.logo && (
-                    <Image
+                    <img
                         src={integration.logo}
                         alt={integration.name}
-                        width={32}
-                        height={32}
-                        className="w-8 h-8 rounded object-contain shrink-0"
-                        unoptimized
+                        className="size-8 shrink-0 rounded object-contain"
                     />
                 )}
-                <div className="flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                        <Typography.Text strong className="truncate">
-                            {integration.name}
-                        </Typography.Text>
-                    </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                    <span className="truncate text-xs font-medium text-colorText">
+                        {integration.name}
+                    </span>
                     {integration.description && (
-                        <Typography.Text type="secondary" className="text-xs line-clamp-2">
+                        <span className="line-clamp-2 text-xs text-colorTextSecondary">
                             {integration.description}
-                        </Typography.Text>
+                        </span>
                     )}
                 </div>
             </div>
-        </Card>
+        </button>
     )
 }

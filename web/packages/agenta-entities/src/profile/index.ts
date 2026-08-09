@@ -7,6 +7,16 @@ import {useQuery} from "@tanstack/react-query"
 export const fetchProfile = async (ignoreAxiosError = false) =>
     axios.get(`${getAgentaApiUrl()}/profile`, {_ignoreError: ignoreAxiosError} as never)
 
+/**
+ * Permanently delete the signed-in account (an EE capability). Removes the user and the
+ * organizations they own — with every workspace, project and application inside them — from
+ * the database, the auth provider, Stripe and the mailing list. Irreversible; the caller is
+ * expected to sign out once it resolves.
+ */
+export const deleteAccount = async (): Promise<void> => {
+    await axios.delete(`${getAgentaApiUrl()}/profile`)
+}
+
 export interface UseProfileOptions {
     /** Skip the request until the host knows a session exists. */
     enabled?: boolean

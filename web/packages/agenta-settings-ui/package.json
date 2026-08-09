@@ -21,7 +21,9 @@
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
-        "clsx": "^2.1.1"
+        "clsx": "^2.1.1",
+        "jotai": "^2.16.1",
+        "jotai-tanstack-query": "^0.11.0"
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",

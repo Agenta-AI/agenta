@@ -28,10 +28,9 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import type {ClientToolMeta, SettleClientTool} from "@agenta/chat/skin"
+import {useToolsConnections} from "@agenta/settings-ui"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-
-import {useToolsConnections} from "../../../pages/settings/Tools/hooks/useToolsConnections"
 
 /**
  * No terminal signal within this bound settles the call as a timeout so the run can't wait forever.
