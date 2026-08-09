@@ -20,7 +20,12 @@ const TEMPLATE_CLAIM_KEY = "pendingTemplateClaim"
  */
 const CREATE_SURFACE_URL_PARAM = "new"
 
-const isCreateSurfaceUrl = (url: URL): boolean => !!url.searchParams.get(CREATE_SURFACE_URL_PARAM)
+// The same accepted values as `useAgentHomeVariants`, which decides whether the create surface
+// actually opens: any looser reading here would skip capture on a URL that then renders Home.
+const isCreateSurfaceUrl = (url: URL): boolean => {
+    const value = url.searchParams.get(CREATE_SURFACE_URL_PARAM)
+    return value === "1" || value === "true"
+}
 
 // A real signup can include email verification and a provider round-trip, so the key must outlive
 // several minutes; thirty is comfortably longer than any real signup and short enough that a
