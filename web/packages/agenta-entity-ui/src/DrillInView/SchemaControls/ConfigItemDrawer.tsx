@@ -139,10 +139,10 @@ export function ConfigItemDrawer({
                             {badge ? (
                                 <Badge
                                     variant={badgeVariantFor(badge.color)}
-                                    // `text-[11px]` displaces Badge's `text-badge-md` and
+                                    // `text-xs` displaces Badge's `text-badge-md` and
                                     // brings no line-height; antd Tag keeps its absolute
                                     // tagLineHeight (lineHeightSM x fontSizeSM = 22.4px).
-                                    className="shrink-0 text-[11px] font-normal leading-[22.4px]"
+                                    className="shrink-0 text-xs font-normal leading-[22.4px]"
                                 >
                                     {badge.text}
                                 </Badge>

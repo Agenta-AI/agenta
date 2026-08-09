@@ -24,7 +24,7 @@ const TemplateSection = ({
                 <span className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--ag-colorTextSecondary)]">
                     {category}
                 </span>
-                <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
                     {templates.length} {templates.length === 1 ? "template" : "templates"}
                 </span>
             </div>

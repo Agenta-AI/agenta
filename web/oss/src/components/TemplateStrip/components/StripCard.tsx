@@ -63,11 +63,11 @@ const StripCard = ({
             <IntegrationBadges slugs={templateProviderSlugs(template)} />
         </div>
         <div
-            className={`${fluid ? "mb-1.5 text-[15px]" : "mb-1 text-[14.5px]"} font-semibold text-[var(--ag-colorText)]`}
+            className={`${fluid ? "mb-1.5 text-base" : "mb-1 text-base"} font-semibold text-[var(--ag-colorText)]`}
         >
             {template.name}
         </div>
-        <div className="text-[12.5px] leading-[1.5] text-[var(--ag-colorTextSecondary)]">
+        <div className="text-xs leading-[1.5] text-[var(--ag-colorTextSecondary)]">
             {template.description}
         </div>
     </button>

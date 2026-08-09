@@ -38,7 +38,7 @@ const ToolsPreview = ({template}: {template: AgentTemplate}) => {
                                 <span className="text-xs text-[var(--ag-colorText)]">
                                     {tool.name}
                                 </span>
-                                <span className="line-clamp-1 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="line-clamp-1 text-xs text-[var(--ag-colorTextTertiary)]">
                                     {tool.description}
                                 </span>
                             </div>

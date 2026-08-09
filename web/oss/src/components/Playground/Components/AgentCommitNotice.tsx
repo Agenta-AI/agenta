@@ -68,7 +68,7 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                                     <div className="flex min-w-0 flex-col items-start gap-0.5">
                                         <p
                                             ref={messageRef}
-                                            className={`m-0 min-w-0 break-words text-[11px] leading-4 text-colorTextSecondary ${
+                                            className={`m-0 min-w-0 break-words text-xs leading-4 text-colorTextSecondary ${
                                                 expanded
                                                     ? "max-h-24 overflow-y-auto pr-1"
                                                     : "line-clamp-2 overflow-hidden"
@@ -79,7 +79,7 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                                         {overflowing || expanded ? (
                                             <button
                                                 type="button"
-                                                className="cursor-pointer border-0 bg-transparent p-0 text-[11px] font-medium leading-4 text-colorPrimary hover:underline"
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium leading-4 text-colorPrimary hover:underline"
                                                 onClick={() => setExpanded((v) => !v)}
                                             >
                                                 {expanded ? "Show less" : "Show more"}

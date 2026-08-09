@@ -19,7 +19,7 @@ export const CopyRow = ({value, label}: {value: string; label: string}) => {
     }
     return (
         <div className="flex items-center gap-2 rounded-lg border border-solid border-colorBorder bg-colorFillQuaternary px-2.5 py-1.5">
-            <span className="flex-1 truncate font-mono text-[11.5px] text-colorTextSecondary">
+            <span className="flex-1 truncate font-mono text-xs text-colorTextSecondary">
                 {value}
             </span>
             <button
@@ -36,7 +36,7 @@ export const CopyRow = ({value, label}: {value: string; label: string}) => {
 
 /** Kind pill (Agent / Chat / …) — the same badge the rename modal header shows. */
 export const TypeBadge = ({label}: {label: string}) => (
-    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-colorFillTertiary px-2 py-0.5 text-[11px] font-medium text-[var(--ag-c-13C2C2)]">
+    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-colorFillTertiary px-2 py-0.5 text-xs font-medium text-[var(--ag-c-13C2C2)]">
         <span className="h-1.5 w-1.5 rounded-full bg-[var(--ag-c-13C2C2)]" />
         {label}
     </span>

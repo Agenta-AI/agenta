@@ -69,7 +69,7 @@ const WorkflowIdentityView = ({
                 <span className="truncate leading-5" title={name}>
                     {name}
                 </span>
-                <span className="text-[10px] leading-3 text-colorTextTertiary">{label}</span>
+                <span className="text-[12px] leading-3 text-colorTextTertiary">{label}</span>
             </div>
             {selected && <Check size={16} className="shrink-0" />}
         </div>

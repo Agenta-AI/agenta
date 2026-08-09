@@ -31,13 +31,13 @@ interface ProjectOrgSwitcherProps {
 type Panel = "projects" | "orgs"
 
 const ROW_CLASS =
-    "flex w-full items-center gap-2 h-8 px-2 rounded-md text-[13.5px] leading-none text-left cursor-pointer border-0 bg-transparent [font:inherit] text-[var(--ag-colorText)] hover:bg-[var(--ag-colorFillTertiary)] transition-colors"
+    "flex w-full items-center gap-2 h-8 px-2 rounded-md text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font:inherit] text-[var(--ag-colorText)] hover:bg-[var(--ag-colorFillTertiary)] transition-colors"
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
 const ITEM_ROW_CLASS = "shrink-0"
 
 const CAPTION_CLASS =
-    "px-2 pt-1.5 pb-1 text-[11.5px] font-medium text-[var(--ag-colorTextTertiary)] truncate"
+    "px-2 pt-1.5 pb-1 text-xs font-medium text-[var(--ag-colorTextTertiary)] truncate"
 
 /** Capped scroll list (3 h-8 rows) with the scrollbar hidden. */
 const SCROLL_LIST_CLASS =
@@ -336,10 +336,10 @@ const ProjectOrgSwitcher = ({collapsed}: ProjectOrgSwitcherProps) => {
                     {!collapsed && (
                         <>
                             <div className="flex min-w-0 flex-1 flex-col text-left">
-                                <span className="truncate text-[13px] font-medium leading-tight text-[var(--ag-colorText)]">
+                                <span className="truncate text-sm font-medium leading-tight text-[var(--ag-colorText)]">
                                     {projectLabel}
                                 </span>
-                                <span className="truncate text-[11.5px] leading-tight text-[var(--ag-colorTextSecondary)]">
+                                <span className="truncate text-xs leading-tight text-[var(--ag-colorTextSecondary)]">
                                     {orgLabel}
                                 </span>
                             </div>

@@ -52,7 +52,7 @@ const ProviderKeyNotice = ({revisionId}: {revisionId: string}) => {
                                     "API key added"
                                 )}
                             </span>
-                            <span className="text-[11px] leading-4 text-colorTextSecondary">
+                            <span className="text-xs leading-4 text-colorTextSecondary">
                                 The agent is ready to run.
                             </span>
                         </div>

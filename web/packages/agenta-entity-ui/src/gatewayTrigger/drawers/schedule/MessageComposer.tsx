@@ -48,7 +48,7 @@ export function MessageComposer({
             <div className="flex flex-col gap-1.5">
                 <button
                     type="button"
-                    className={`${LINK_CLASS} self-start text-[11px]`}
+                    className={`${LINK_CLASS} self-start text-xs`}
                     onClick={() => setRawMode(false)}
                 >
                     ← Back to message
@@ -65,7 +65,7 @@ export function MessageComposer({
                     />
                 </div>
                 <span
-                    className={`text-[11px] leading-snug ${
+                    className={`text-xs leading-snug ${
                         rawValid
                             ? "text-[var(--ag-colorTextDescription)]"
                             : "text-[var(--ag-colorErrorText)]"
@@ -95,7 +95,7 @@ export function MessageComposer({
             />
             <div className="flex items-center justify-between gap-2">
                 <span
-                    className={`text-[11px] leading-snug ${
+                    className={`text-xs leading-snug ${
                         wouldReplace
                             ? "text-[var(--ag-colorWarningText)]"
                             : "text-[var(--ag-colorTextDescription)]"
@@ -113,7 +113,7 @@ export function MessageComposer({
                 </span>
                 <button
                     type="button"
-                    className={`${LINK_CLASS} shrink-0 text-[11px]`}
+                    className={`${LINK_CLASS} shrink-0 text-xs`}
                     onClick={() => setRawMode(true)}
                 >
                     Advanced — raw JSON

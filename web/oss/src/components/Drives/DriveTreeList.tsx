@@ -69,7 +69,7 @@ export function DriveTreeList({
     download: (path: string, isFolder: boolean) => void
 }) {
     return flatRows.length === 0 ? (
-        <Text type="secondary" className="px-1 !text-[11px]">
+        <Text type="secondary" className="px-1 !text-xs">
             {searchLoading ? "Searching all files…" : "No files match."}
         </Text>
     ) : (

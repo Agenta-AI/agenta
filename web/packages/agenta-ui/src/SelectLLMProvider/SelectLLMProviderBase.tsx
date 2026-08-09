@@ -276,21 +276,21 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     const renderTooltipContent = (metadata: Record<string, unknown>) => (
         <div className="flex flex-col gap-0.5">
             {typeof metadata.description === "string" && metadata.description && (
-                <span className="mb-0.5 inline-block max-w-[220px] text-[10px]">
+                <span className="mb-0.5 inline-block max-w-[220px] text-[12px]">
                     {metadata.description}
                 </span>
             )}
             {(metadata.input !== undefined || metadata.output !== undefined) && (
                 <>
                     <div className="flex justify-between gap-4">
-                        <span className="text-nowrap text-[10px]">Input:</span>
-                        <span className="text-nowrap text-[10px]">
+                        <span className="text-nowrap text-[12px]">Input:</span>
+                        <span className="text-nowrap text-[12px]">
                             ${formatCost(metadata.input as number)} / 1M
                         </span>
                     </div>
                     <div className="flex justify-between gap-4">
-                        <span className="text-nowrap text-[10px]">Output: </span>
-                        <span className="text-nowrap text-[10px]">
+                        <span className="text-nowrap text-[12px]">Output: </span>
+                        <span className="text-nowrap text-[12px]">
                             ${formatCost(metadata.output as number)} / 1M
                         </span>
                     </div>

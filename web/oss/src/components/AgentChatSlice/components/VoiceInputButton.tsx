@@ -142,7 +142,7 @@ const VoiceInputButton = ({
             m.key === "audio" && audioNotHeard ? (
                 <span className="flex flex-col">
                     <span>{MODE_LABEL[m.key]}</span>
-                    <span className="text-[11px] text-colorTextTertiary">
+                    <span className="text-xs text-colorTextTertiary">
                         This model can’t listen to audio
                     </span>
                 </span>

@@ -42,7 +42,7 @@ const AgentRow = ({
         <span className="min-w-0 flex-1 truncate text-sm text-colorText">{record.name}</span>
 
         {waiting > 0 ? (
-            <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-[11px] leading-none text-colorWarningText">
+            <span className="shrink-0 rounded bg-colorWarningBg px-1.5 py-0.5 text-xs leading-none text-colorWarningText">
                 {waiting}
             </span>
         ) : null}

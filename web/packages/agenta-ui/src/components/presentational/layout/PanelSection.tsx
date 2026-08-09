@@ -106,10 +106,8 @@ export const PanelSection = ({
             >
                 <div className="flex min-w-0 items-center gap-2">
                     <h3
-                        className={`m-0 truncate text-[15px] ${
-                            isRail
-                                ? "font-semibold text-colorText"
-                                : "font-medium text-colorTextSecondary"
+                        className={`m-0 truncate text-base font-semibold ${
+                            isRail ? "text-colorText" : "text-colorTextSecondary"
                         }`}
                     >
                         {title}

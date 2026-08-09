@@ -29,7 +29,7 @@ export function PillEditor({
         span.dataset.token = inner
         span.contentEditable = "false"
         span.className =
-            "mx-0.5 inline-flex select-none items-center rounded bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ag-colorPrimary)]"
+            "mx-0.5 inline-flex select-none items-center rounded bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)]"
         span.textContent = selectorLabel(selector)
         return span
     }, [])

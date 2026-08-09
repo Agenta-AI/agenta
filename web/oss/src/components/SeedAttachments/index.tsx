@@ -71,7 +71,7 @@ export const SeedAttachmentChips = ({
             {files.map((file, index) => (
                 <span
                     key={`${file.name}-${index}`}
-                    className="inline-flex items-center gap-1 rounded border border-solid border-colorBorderSecondary px-1.5 py-0.5 text-[11px] text-colorTextSecondary"
+                    className="inline-flex items-center gap-1 rounded border border-solid border-colorBorderSecondary px-1.5 py-0.5 text-xs text-colorTextSecondary"
                 >
                     <span className="max-w-40 truncate">{file.name}</span>
                     <button

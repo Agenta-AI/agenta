@@ -77,7 +77,7 @@ const DiffBlock = ({diff}: {diff: ManifestDiff}) => {
                     {formatBytes(diff.oldBytes)} → {formatBytes(diff.newBytes)}
                 </span>
             </div>
-            <pre className="m-0 max-h-80 overflow-auto rounded border border-solid border-colorBorderSecondary bg-colorBgContainer p-2 text-[11px] leading-snug">
+            <pre className="m-0 max-h-80 overflow-auto rounded border border-solid border-colorBorderSecondary bg-colorBgContainer p-2 text-xs leading-snug">
                 {shown.map((line, index) => (
                     <div
                         key={index}
@@ -99,13 +99,13 @@ const DiffBlock = ({diff}: {diff: ManifestDiff}) => {
                 <button
                     type="button"
                     onClick={() => setExpanded((s) => !s)}
-                    className="cursor-pointer self-start border-0 bg-transparent p-0 text-[11px] text-colorTextTertiary transition-colors hover:text-colorText"
+                    className="cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-colorTextTertiary transition-colors hover:text-colorText"
                 >
                     {expanded ? "Show less" : `Show all ${lines.length} diff lines`}
                 </button>
             ) : null}
             {diff.diffTruncated ? (
-                <div className="text-[11px] text-colorTextTertiary">
+                <div className="text-xs text-colorTextTertiary">
                     The diff is shortened for display; the counts above cover the whole change.
                 </div>
             ) : null}
@@ -127,7 +127,7 @@ const ApprovedContentManifest = ({manifest}: {manifest: ApprovedContentManifestV
                 {manifest.files.map((file) => (
                     <div
                         key={`${file.relativePath}-${file.digest}`}
-                        className="flex flex-wrap items-baseline gap-x-2 text-[11px] text-colorTextSecondary"
+                        className="flex flex-wrap items-baseline gap-x-2 text-xs text-colorTextSecondary"
                     >
                         <span className="font-mono">{file.relativePath}</span>
                         <span className="text-colorTextTertiary">{formatBytes(file.bytes)}</span>
@@ -151,7 +151,7 @@ const ApprovedContentManifest = ({manifest}: {manifest: ApprovedContentManifestV
         {/* Contract: the card must say the digest covers the FULL content, not the shown view. */}
         {manifest.contentDigest ? (
             <div
-                className="text-[11px] text-colorTextTertiary"
+                className="text-xs text-colorTextTertiary"
                 title="Digest over the fully resolved arguments, including every file's bytes"
             >
                 Approving commits exactly this content (whole-change digest{" "}

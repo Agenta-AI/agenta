@@ -138,19 +138,19 @@ export const TreeRow = ({
                     {/* Size flows right after the name (not right-aligned) — a right-aligned size would
                         sit off-screen at the group's scroll edge. */}
                     {!node.isFolder && !pending && node.size != null ? (
-                        <span className="shrink-0 text-[11px] text-colorTextQuaternary">
+                        <span className="shrink-0 text-xs text-colorTextQuaternary">
                             {humanSize(node.size)}
                         </span>
                     ) : null}
                     {/* In-flight upload status, trailing the name — the row is otherwise a normal file row. */}
                     {pending && !pending.error && pending.percent < 100 ? (
-                        <span className="flex shrink-0 items-center gap-1 text-[11px] text-colorTextTertiary">
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-colorTextTertiary">
                             <CircleNotch size={10} className="animate-spin" />
                             {pending.percent}%
                         </span>
                     ) : null}
                     {pending?.error ? (
-                        <span className="flex shrink-0 items-center gap-1.5 text-[11px]">
+                        <span className="flex shrink-0 items-center gap-1.5 text-xs">
                             <span className="text-colorError">Failed</span>
                             {onRetryUpload ? (
                                 <button
