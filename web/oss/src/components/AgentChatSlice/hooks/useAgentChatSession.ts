@@ -127,6 +127,7 @@ export const useAgentChatSession = ({
 
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
 
@@ -162,10 +163,15 @@ export const useAgentChatSession = ({
         // (historical traces get no such grace; a 404 there means the trace is gone).
         // A finished turn may also have written files: mark the session's drive data stale so
         // every mount surface (open or opened later) refetches — no live channel exists for this.
+        // Liveness too: nothing else invalidates it at turn end, so the project-wide poll's cached
+        // `is_running: true` outlived the answer by up to 15s (#5844). Safe to refetch immediately —
+        // the runner awaits its `is_running: false` heartbeat BEFORE closing this stream
+        // (services/runner/src/server.ts `aliveWatchdog.release()`), so the flag is already cleared.
         onFinish: ({message}) => {
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            void queryClient.invalidateQueries({queryKey: ["session-liveness"]})
         },
         onError: (err) => {
             // Render the error in-chat (the `error` alert below); swallow it here so an
@@ -360,7 +366,6 @@ export const useAgentChatSession = ({
     }, [messages])
 
     const projectId = useAtomValue(projectIdAtom)
-    const queryClient = useQueryClient()
 
     const handleStop = useCallback(() => {
         markStopped()
