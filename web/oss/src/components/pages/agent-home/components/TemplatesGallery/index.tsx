@@ -6,6 +6,8 @@ import {App, Input, Typography} from "antd"
 import {Search} from "lucide-react"
 import {useRouter} from "next/router"
 
+import useURL from "@/oss/hooks/useURL"
+
 import {TEMPLATES_GALLERY} from "../../assets/constants"
 import {
     AGENT_TEMPLATES,
@@ -30,6 +32,7 @@ const matchesQuery = (template: AgentTemplate, query: string) => {
 const TemplatesGalleryPage = () => {
     const router = useRouter()
     const {message} = App.useApp()
+    const {baseAppURL} = useURL()
 
     const categories = useMemo(() => templateCategories(), [])
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
