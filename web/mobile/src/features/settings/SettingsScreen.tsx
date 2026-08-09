@@ -54,6 +54,7 @@ import {SecretsTab} from "./SecretsTab"
 import {useSettingsNavScope} from "./settingsNavScope"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
+import {useConfirmSheet} from "./useConfirmSheet"
 import {WebhooksTab} from "./WebhooksTab"
 
 const THEME_OPTIONS = [
@@ -129,6 +130,9 @@ const TabBody = ({
         projectId,
         enabled: access.isEE && (tab === "organization" || tab === "auditLog"),
     })
+    // Destructive actions in the shared tool/trigger sections ask for confirmation through an
+    // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
+    const {confirm, sheet: confirmSheet} = useConfirmSheet()
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
 
@@ -181,16 +185,22 @@ const TabBody = ({
             return <BillingTab projectId={projectId} />
         case "webhooks":
             return <WebhooksTab />
-        // Read-only: the create/edit drawers still render antd forms, which have no
-        // ConfigProvider here and would come out light on a dark page.
+        // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
+        // no antd theming and render correctly here.
         case "tools":
-            return <GatewayToolsSection readOnly />
+            return (
+                <>
+                    <GatewayToolsSection confirm={confirm} />
+                    {confirmSheet}
+                </>
+            )
         case "triggers":
             return (
                 <div className="flex flex-col gap-8">
-                    <TriggerConnectionsSection readOnly />
-                    <TriggerSubscriptionsSection readOnly />
-                    <TriggerSchedulesSection readOnly />
+                    <TriggerConnectionsSection confirm={confirm} />
+                    <TriggerSubscriptionsSection />
+                    <TriggerSchedulesSection />
+                    {confirmSheet}
                 </div>
             )
         case "projects":
