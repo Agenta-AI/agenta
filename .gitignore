@@ -74,6 +74,7 @@ services/runner/tests/results/
 !.github/**
 !.husky/
 !.husky/**
+!.coderabbit.yaml
 !.dockerignore
 !api/.dockerignore
 !services/.dockerignore
