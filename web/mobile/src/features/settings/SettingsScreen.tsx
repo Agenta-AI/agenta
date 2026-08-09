@@ -25,7 +25,6 @@ import {
     type AuthFlagKey,
     DomainsSection,
     GatewayToolsSection,
-    MembersPage,
     NamedSecretTable,
     OrganizationsPage,
     SsoProvidersSection,
@@ -53,6 +52,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AccountTab} from "./AccountTab"
+import {MembersTab} from "./MembersTab"
 import {PreferencesTab} from "./PreferencesTab"
 import {ProjectsTab} from "./ProjectsTab"
 
@@ -223,13 +223,16 @@ const TabBody = ({
             )
         case "workspace":
             return (
-                <MembersPage
+                <MembersTab
                     members={org.data?.default_workspace?.members ?? []}
                     loading={projects.isPending || org.isPending}
                     searchTerm={memberSearch}
                     onSearchChange={setMemberSearch}
                     signedInUser={user}
                     ownerId={org.data?.owner_id}
+                    organizationId={organizationId}
+                    workspaceId={org.data?.default_workspace?.id}
+                    onChanged={() => void org.refetch()}
                 />
             )
         case "organizationGeneral":
