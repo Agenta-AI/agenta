@@ -44,6 +44,8 @@ export interface TemplateStripProps {
      * doesn't have, so rows stack and the categories collapse into a menu.
      */
     layout?: "scroll" | "grid" | "list"
+    /** Template whose agent is being created by `onPick` — spins that card, dims the rest. */
+    pendingTemplateKey?: string | null
     className?: string
 }
 
@@ -88,6 +90,7 @@ const TemplateStrip = ({
     onHide,
     surfaceColorVar = "--ag-colorBgContainer",
     layout = "scroll",
+    pendingTemplateKey = null,
     className,
 }: TemplateStripProps) => {
     const hideable = surface !== "home"
@@ -337,6 +340,8 @@ const TemplateStrip = ({
                             fluid
                             selected={template.key === selectedTemplateKey}
                             onPick={onPick}
+                            loading={template.key === pendingTemplateKey}
+                            disabled={!!pendingTemplateKey && template.key !== pendingTemplateKey}
                         />
                     ))}
                 </div>

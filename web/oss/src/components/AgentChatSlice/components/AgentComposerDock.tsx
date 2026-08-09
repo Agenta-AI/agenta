@@ -125,7 +125,6 @@ const AgentComposerDock = ({
         streamIdeBubble,
         ideHandoffActive,
         handleStartOver,
-        handleCodingAgentCopy,
         showBareOnboardingHero,
     } = onboardingChat
     const {
@@ -377,7 +376,6 @@ const AgentComposerDock = ({
                                         // (shared component), with the one-click copy + toast handoff.
                                         <AgentIntentActions
                                             onCreate={handleCreateAgent}
-                                            onCodingAgentCopy={handleCodingAgentCopy}
                                             loading={!!onboarding?.committing}
                                         />
                                     ) : (

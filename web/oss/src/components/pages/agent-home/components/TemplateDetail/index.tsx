@@ -4,12 +4,12 @@ import {ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, LightningIcon} from "@ph
 import {Button, Empty, Tag, Tooltip} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
-import {useRouter} from "next/router"
 
 import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import useURL from "@/oss/hooks/useURL"
 
 import {AGENT_TEMPLATES, PROVIDERS} from "../../assets/templates"
+import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate"
 
 const SectionLabel = ({children}: {children: React.ReactNode}) => (
     <h2 className="m-0 text-[11px] font-semibold uppercase tracking-wide text-colorTextTertiary">
@@ -26,8 +26,8 @@ const SectionLabel = ({children}: {children: React.ReactNode}) => (
  * so they are absent rather than invented.
  */
 const TemplateDetail = ({templateKey}: {templateKey: string}) => {
-    const router = useRouter()
     const {baseAppURL} = useURL()
+    const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("template_detail")
     const template = AGENT_TEMPLATES.find((entry) => entry.key === templateKey)
 
     if (!template) {
@@ -69,15 +69,16 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                         </h1>
                     </div>
 
+                    {/* Creates the agent and lands in its playground — no bounce back through the
+                        create surface to press the same button again. */}
                     <Button
                         type="primary"
                         size="large"
-                        onClick={() =>
-                            void router.push(`${baseAppURL}?new=1&template=${template.key}`)
-                        }
+                        loading={pendingKey === template.key}
+                        onClick={() => void createFromTemplate(template)}
                     >
                         Use this template
-                        <ArrowRightIcon size={14} />
+                        {pendingKey === template.key ? null : <ArrowRightIcon size={14} />}
                     </Button>
                 </div>
             </div>

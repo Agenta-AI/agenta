@@ -1,5 +1,6 @@
 import {forwardRef, type ReactNode, useEffect, useImperativeHandle, useRef, useState} from "react"
 
+import {modifierKeyLabel} from "@agenta/shared/utils"
 import {CodeHighlightNode, CodeNode} from "@lexical/code"
 import {HistoryExtension} from "@lexical/history"
 import {LinkNode} from "@lexical/link"
@@ -84,7 +85,7 @@ export interface RichChatInputProps {
     size?: "compact" | "comfortable"
     /** Font-size class for the editor text + placeholder (default `text-xs`). */
     textSizeClassName?: string
-    /** Hide just the Bold/Italic/Send/Newline shortcut hints (keep prefix + trailing). */
+    /** Hide just the Send/Newline shortcut hints (keep prefix + trailing). */
     hideShortcutHints?: boolean
     /** Whether plain Enter submits. Default true (chat); set false for description-style inputs. */
     submitOnEnter?: boolean
@@ -148,13 +149,11 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         const editorRef = useRef<LexicalEditor | null>(null)
         const dictationRef = useRef<DictationSession | null>(null)
         const [focused, setFocused] = useState(false)
+        // Resolved after mount: SSR has no platform, and answering during render would mismatch on
+        // hydration. `SubmitPlugin` accepts meta OR ctrl, so the binding matches the label on both.
         const [modKey, setModKey] = useState("⌘")
 
-        useEffect(() => {
-            if (typeof navigator !== "undefined" && !/Mac|iPhone|iPad/.test(navigator.userAgent)) {
-                setModKey("Ctrl")
-            }
-        }, [])
+        useEffect(() => setModKey(modifierKeyLabel()), [])
 
         // Seed once at mount. EditorRefBridge (a child) binds the editor in its own effect,
         // which runs before this one, so the ref is live here. Mount-only by design — the
@@ -279,8 +278,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 )}
                                 aria-hidden={!hintsVisible}
                             >
-                                <ShortcutHint keys={`${modKey} B`} label="Bold" />
-                                <ShortcutHint keys={`${modKey} I`} label="Italic" />
+                                {/* Bold/Italic still work (Cmd/Ctrl+B/I) — they just no longer
+                                    advertise themselves; the send/newline pair is the only pair
+                                    you need told to you. */}
                                 <ShortcutHint keys="↵" label="Send" />
                                 <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
                             </div>

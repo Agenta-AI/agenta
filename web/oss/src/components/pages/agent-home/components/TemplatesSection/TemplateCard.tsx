@@ -1,3 +1,5 @@
+import {CircleNotchIcon} from "@phosphor-icons/react"
+
 import {templateProviderSlugs, type AgentTemplate} from "../../assets/templates"
 
 import ProviderMarks from "./ProviderMarks"
@@ -5,6 +7,10 @@ import ProviderMarks from "./ProviderMarks"
 interface TemplateCardProps {
     template: AgentTemplate
     onSelect: (template: AgentTemplate) => void
+    /** This card's agent is being created — swaps the monogram for a spinner and blocks re-clicks. */
+    loading?: boolean
+    /** Another card's create is in flight. */
+    disabled?: boolean
 }
 
 /**
@@ -15,19 +21,28 @@ interface TemplateCardProps {
  * design's "1.2k uses" has no telemetry behind it — the footer carries what the template actually
  * declares (its tools and when it fires) instead of an invented popularity number.
  */
-const TemplateCard = ({template, onSelect}: TemplateCardProps) => {
+const TemplateCard = ({template, onSelect, loading, disabled}: TemplateCardProps) => {
+    const busy = loading || disabled
     return (
         <button
             type="button"
+            disabled={busy}
+            aria-busy={loading}
             onClick={() => onSelect(template)}
-            className="group relative box-border flex h-full cursor-pointer flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors hover:border-colorBorder"
+            className={`group relative box-border flex h-full flex-col gap-2.5 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated p-5 pt-8 text-left transition-colors ${
+                busy ? "cursor-default" : "cursor-pointer hover:border-colorBorder"
+            } ${disabled ? "opacity-60" : ""}`}
         >
             <span
                 aria-hidden
                 className="absolute -top-5 left-4 flex size-10 shrink-0 items-center justify-center rounded-full border-2 border-solid border-colorBgContainer text-sm font-semibold text-white"
                 style={{backgroundColor: template.color}}
             >
-                {template.initials}
+                {loading ? (
+                    <CircleNotchIcon size={16} className="animate-spin" />
+                ) : (
+                    template.initials
+                )}
             </span>
 
             <span className="truncate text-[15px] font-semibold text-colorText">
