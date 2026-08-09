@@ -1,3 +1,6 @@
+import {expectAuthenticatedSession} from "@agenta/oss/tests/playwright/acceptance/utils/auth"
+import {createScenarios} from "@agenta/oss/tests/playwright/acceptance/utils/scenarios"
+import {buildAcceptanceTags} from "@agenta/oss/tests/playwright/acceptance/utils/tags"
 import {
     TestCoverage,
     TestcaseType,
@@ -10,11 +13,7 @@ import {
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
-
-import {expectAuthenticatedSession} from "@agenta/oss/tests/playwright/acceptance/utils/auth"
-import {createScenarios} from "@agenta/oss/tests/playwright/acceptance/utils/scenarios"
-import {buildAcceptanceTags} from "@agenta/oss/tests/playwright/acceptance/utils/tags"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 
 const scenarios = createScenarios(test)
 
@@ -72,17 +71,16 @@ const openInviteMembersModal = async (page: any) => {
 
     for (let attempt = 0; attempt < 3; attempt++) {
         // Ensure any previous dialog is closed before clicking again.
-        const alreadyOpen = await inviteModal.isVisible().catch(() => false)
+        const alreadyOpen = await pollLocatorState(() => inviteModal.isVisible())
         if (!alreadyOpen) {
             await inviteButton.click()
         }
 
         // Wait for the email input to become visible. This is the most reliable
         // signal that both the modal wrapper AND its dynamic content are ready.
-        const inputAppeared = await emailInput
-            .waitFor({state: "visible", timeout: 15000})
-            .then(() => true)
-            .catch(() => false)
+        const inputAppeared = await pollLocatorState(() =>
+            emailInput.waitFor({state: "visible", timeout: 15000}).then(() => true),
+        )
 
         if (inputAppeared) {
             return {inviteModal, emailInput}
@@ -124,7 +122,7 @@ const memberRow = (page: any, email: string) =>
  */
 const dismissInvitedUserLinkDialog = async (page: any) => {
     const dialog = page.getByRole("dialog", {name: "Invited user link"})
-    if (!(await dialog.isVisible().catch(() => false))) return
+    if (!(await pollLocatorState(() => dialog.isVisible()))) return
     // `exact` matters: the footer also carries a "Copy & Close" button.
     await dialog.getByRole("button", {name: "Close", exact: true}).click()
     await expect(dialog).toBeHidden({timeout: 10000})
