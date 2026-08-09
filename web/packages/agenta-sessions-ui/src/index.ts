@@ -7,6 +7,8 @@
  */
 export {SessionRow, type SessionRowProps} from "./SessionRow"
 export {SessionAgentName} from "./SessionAgentName"
+export {SessionPinButton} from "./SessionPinButton"
+export {SessionStatusIcon} from "./SessionStatusIcon"
 export {type SessionMenuEntry, isMenuDivider} from "./menu"
 export {
     SessionListSkeleton,
