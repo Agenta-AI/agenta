@@ -8,7 +8,7 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
 import {App, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
@@ -24,6 +24,7 @@ import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTem
 import UsageSummary from "@/oss/components/UsageSummary"
 import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 
 import {HERO, RETURNING_HERO} from "./assets/constants"
 import {captureFirstAgentIntent, truncateForCapture} from "./assets/onboardingAnalytics"
@@ -62,11 +63,20 @@ const StripHome: React.FC = () => {
     useAtomValue(appTemplatesQueryAtom)
 
     const agents = useAtomValue(agentsWorkflowsAtom)
+    const requestFullHeight = useSetAtom(layoutFullHeightRequestAtom)
     const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
     const isFirstRun = firstRunOverride ?? (!agentsLoading && agents.length === 0)
     // The create-an-agent surface IS the first-run surface — describe it, pick a template, send.
     // A returning user gets there via `?new=1` rather than through the task composer.
     const firstRun = isFirstRun || creatingAgent
+
+    // Only the centred first-run document wants the layout's bounded frame. The workspace scrolls
+    // with the page, so it must NOT ask — see `layoutFullHeightRequestAtom`.
+    useEffect(() => {
+        if (!firstRun) return
+        requestFullHeight(true)
+        return () => requestFullHeight(false)
+    }, [firstRun, requestFullHeight])
 
     const provenance = useTemplateProvenance({
         composerApi: {
@@ -144,21 +154,18 @@ const StripHome: React.FC = () => {
 
     return (
         <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")}>
-            {/* First run stays a centered document — one question, one answer, nothing to
-                resume yet — and scrolls inside the frame rather than moving the page. A
-                returning user gets a workspace: two columns that fill the frame and scroll
-                independently, so starting work and resuming it are both always on screen
-                instead of one being scrolled past.
+            {/* First run stays a centered document in the layout's bounded frame — one question,
+                one answer, nothing to resume yet — and scrolls inside it.
 
-                Both fill the layout's own full-height frame (`isFullHeight`, which is what
-                puts the `100dvh` calc on the content wrapper) instead of restating a viewport
-                height here. Asserting one locally on a route the layout thinks is a normal
-                flowing document gave the body its own scrollbar underneath the columns'. */}
+                The workspace scrolls with the PAGE instead: one scrollbar, the browser's own,
+                wherever the pointer is. Only the rail is pinned, and it scrolls internally just
+                when it outgrows the viewport. `items-start` is what lets it: a stretched flex
+                item is as tall as the row and has nothing to travel within. */}
             <div
                 className={
                     firstRun
                         ? "mx-auto flex w-full min-h-0 max-w-[1040px] flex-1 flex-col overflow-y-auto"
-                        : "flex min-h-0 w-full flex-1 gap-10 overflow-hidden"
+                        : "flex w-full flex-1 items-start gap-10"
                 }
             >
                 <div
@@ -166,7 +173,7 @@ const StripHome: React.FC = () => {
                         firstRun
                             ? "flex w-full flex-col"
                             : // `min-w-0` or a wide table would push the column past its share.
-                              "box-border flex min-w-0 flex-1 flex-col gap-14 overflow-y-auto pr-4"
+                              "box-border flex min-w-0 flex-1 flex-col gap-14"
                     }
                 >
                     <div
@@ -268,13 +275,16 @@ const StripHome: React.FC = () => {
                     )}
                 </div>
 
-                {/* Right column, post-swap: what you could start. Scrolls on its own.
+                {/* Right column, post-swap: what you could start. Pinned while the page scrolls;
+                    the cap is what lets `PanelScroll` inside take over once the rail outgrows the
+                    viewport. Both the sticky offset and the height it subtracts are the page's own
+                    56/32 gutters.
 
                     A third of the width rather than a fixed 400px, which held its proportion
                     only at one screen size — it read as a third on a large display and as a
                     slab on a laptop. */}
                 {!firstRun ? (
-                    <div className="box-border flex min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
+                    <div className="sticky top-14 box-border flex max-h-[calc(100vh-5.5rem)] min-h-0 w-1/3 min-w-[340px] max-w-[520px] shrink-0 grow-0 flex-col pr-1">
                         <PanelSurface>
                             <PanelScroll>
                                 {/* Rows, not the scroller: a 238px card and a six-tab category
