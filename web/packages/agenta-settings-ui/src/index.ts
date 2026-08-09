@@ -31,3 +31,4 @@ export {
     type TriggerConnectionsSectionProps,
 } from "./triggers/TriggerConnectionsSection"
 export {default as TriggerSchedulesSection} from "./triggers/TriggerSchedulesSection"
+export {default as TriggerSubscriptionsSection} from "./triggers/TriggerSubscriptionsSection"
