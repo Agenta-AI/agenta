@@ -1,10 +1,9 @@
 import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 import {Lock} from "lucide-react"
-
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import RevealCollapse from "./RevealCollapse"
 

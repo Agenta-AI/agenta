@@ -7,12 +7,12 @@ import {
     removeEmptyFromObjects as sharedRemoveEmptyFromObjects,
     safeJson5Parse,
 } from "@agenta/shared/utils"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import {notification} from "antd"
 import JSON5 from "json5"
 import Router from "next/router"
 import {v4 as uuidv4} from "uuid"
 
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {waitForValidURL} from "@/oss/state/url"
 
 import {GenericObject} from "../Types"

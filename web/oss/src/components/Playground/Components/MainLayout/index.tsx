@@ -1,5 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui"
 import {
@@ -19,7 +20,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
-import {chatPanelMaximizedAtom} from "@/oss/components/AgentChatSlice/state/panelLayout"
 // Direct file import — the SessionInspector barrel would statically pull the (dynamic,
 // open-on-demand) inspector drawer back into this chunk.
 import OverlayScrollbar from "@/oss/components/OverlayScrollbar"

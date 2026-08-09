@@ -2,12 +2,12 @@ import {useMemo} from "react"
 
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {ArrowClockwise, GearSix, Trash} from "@phosphor-icons/react"
 import {Button, Table, Tag, Tooltip, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 import {useToolsConnections} from "../hooks/useToolsConnections"
 

@@ -12,7 +12,6 @@ import {App} from "antd"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-
 import {urlAtom} from "@/oss/state/url"
 
 import {TEMPLATES_GALLERY} from "../../assets/constants"
@@ -28,7 +27,6 @@ const TemplatesGalleryPage = () => {
     const {message} = App.useApp()
     const {baseAppURL} = useAtomValue(urlAtom)
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
-
 
     // Deep link: `?category=engineering` opens with that rail item active.
     useEffect(() => {

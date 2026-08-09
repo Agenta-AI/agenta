@@ -25,6 +25,13 @@ import {
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {ContextRail} from "@agenta/entity-ui/drive"
+import {DriveSessionProvider} from "@agenta/entity-ui/drive"
+import {
+    SessionFilesDrawer,
+    filesDrawerOpenAtomFamily,
+    filesDrawerStagedAtomFamily,
+} from "@agenta/entity-ui/drive"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {modal} from "@agenta/ui/app-message"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -32,14 +39,7 @@ import {UploadSimple} from "@phosphor-icons/react"
 import {type FileUIPart, type UIMessage} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
-import {ContextRail} from "@agenta/entity-ui/drive"
 import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvider"
-import {DriveSessionProvider} from "@agenta/entity-ui/drive"
-import {
-    SessionFilesDrawer,
-    filesDrawerOpenAtomFamily,
-    filesDrawerStagedAtomFamily,
-} from "@agenta/entity-ui/drive"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"

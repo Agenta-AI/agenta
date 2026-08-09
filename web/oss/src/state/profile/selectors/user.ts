@@ -1,3 +1,4 @@
+import {fetchProfile} from "@agenta/entities/profile"
 import {catalogPersister} from "@agenta/shared/api/persist"
 import {logAtom} from "@agenta/shared/state"
 import type {User} from "@agenta/shared/types"
@@ -7,7 +8,7 @@ import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 import Router from "next/router"
 
-import {fetchProfile, getJWT} from "@/oss/services/api"
+import {getJWT} from "@/oss/services/api"
 
 import {sessionExistsAtom} from "../../session"
 

@@ -12,6 +12,8 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {ActiveToggle, TriggerScheduleDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import {useStaticTable} from "@agenta/settings"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
@@ -21,9 +23,6 @@ import {EmptyState} from "@agenta/ui/ui"
 import {ArrowClockwise, ListChecks, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {Button, message, Tooltip, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 // Resolve the bound workflow's display name from its artifact; fall back to the id.
 function BoundWorkflowCell({wfId}: {wfId: string | null}) {

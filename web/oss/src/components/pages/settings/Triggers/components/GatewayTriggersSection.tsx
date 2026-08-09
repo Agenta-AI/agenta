@@ -10,6 +10,8 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {TriggerCatalogDrawer, TriggerEventsDrawer} from "@agenta/entity-ui/gatewayTrigger"
+import {useStaticTable} from "@agenta/settings"
+import {formatDay} from "@agenta/shared/utils/dateTime"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
@@ -21,8 +23,6 @@ import {Button, message, Tag, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 
 const DEFAULT_PROVIDER = "composio"
 

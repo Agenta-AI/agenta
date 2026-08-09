@@ -1,9 +1,9 @@
+import {dayjs} from "@agenta/shared/utils/dateTime"
 import duration from "dayjs/plugin/duration"
 import relativeTime from "dayjs/plugin/relativeTime"
 import {atom} from "jotai"
 
 import {BannerConfig} from "@/oss/components/SidebarBanners/types"
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {freePlanSlugAtom} from "@/oss/state/access/atoms"

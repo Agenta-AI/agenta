@@ -52,7 +52,7 @@ vi.mock("antd", () => {
     }
 })
 
-vi.mock("@/oss/hooks/useAlwaysAllowTool", () => ({
+vi.mock("@agenta/chat/hooks", () => ({
     useAlwaysAllowTool: () => ({infoFor: () => null, grant: () => undefined}),
 }))
 

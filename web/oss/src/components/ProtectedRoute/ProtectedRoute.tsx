@@ -1,10 +1,10 @@
 import {memo, type FC, type PropsWithChildren} from "react"
 
+import {sidebarCollapsedAtom} from "@agenta/navigation"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {useSession} from "@/oss/hooks/useSession"
-import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {selectedOrgAtom, selectedOrgQueryAtom} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"

@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {isHarnessBuiltinTool} from "@agenta/entity-ui/tool-utils"
 import {Tag} from "@agenta/ui/components/presentational"
@@ -10,8 +11,6 @@ import {useAtomValue} from "jotai"
 // Safe: assets/constants is a leaf (imports only dynamicEnv), unlike the agent-home components.
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import Reveal from "@/oss/components/pages/agent-home/PlaygroundOnboarding/Reveal"
-
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 /** Copy for the onboarding ("what do you want to build?") empty state — kept local to avoid a circular
  * import with the agent-home module (which itself imports from this slice). */

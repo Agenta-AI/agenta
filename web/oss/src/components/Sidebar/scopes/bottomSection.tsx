@@ -1,6 +1,7 @@
 import {useCallback, useMemo, type MouseEvent} from "react"
 
 import {buildHelpDocsNavItem} from "@agenta/navigation"
+import type {SidebarConfig, SidebarSection} from "@agenta/navigation"
 import {GithubFilled} from "@ant-design/icons"
 import {
     ChatCircleIcon,
@@ -22,8 +23,6 @@ import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {openWidgetAtom} from "@/oss/lib/onboarding"
 import {useOrgData} from "@/oss/state/org"
-
-import type {SidebarConfig, SidebarSection} from "../engine/types"
 
 interface SidebarBottomSectionOptions {
     includeSettingsLink?: boolean

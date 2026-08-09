@@ -10,6 +10,7 @@ import {attachmentIdForPart, fileKind, filePartName} from "@agenta/chat/assets"
 import {AudioPlayer} from "@agenta/chat/components"
 import {isToolPart, toolIdentity} from "@agenta/chat/model"
 import {errorKey, expandedValueAtomFamily, reasoningKey, setExpandedAtom} from "@agenta/chat/state"
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {buildRenderMap} from "@agenta/playground"
 import {nowTickAtom} from "@agenta/shared/state"
@@ -41,7 +42,6 @@ import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/st
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 import Markdown from "../assets/markdown"
-import {chatPanelMaximizedAtom} from "../state/panelLayout"
 import {messageCreatedAtAtomFamily, timeAgo} from "../state/sessions"
 
 import {ClientToolPart, isClientToolPart, type ClientToolOutputHandler} from "./clientTools"

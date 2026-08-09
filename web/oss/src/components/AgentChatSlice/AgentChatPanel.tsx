@@ -1,5 +1,6 @@
 import {lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties} from "react"
 
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {pendingSessionOpenAtom} from "@agenta/sessions/state"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {SplitPane} from "@agenta/ui/ui"
@@ -12,7 +13,6 @@ import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSk
 import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
 import SessionHistoryMenu from "./components/SessionHistoryMenu"
-import {chatPanelMaximizedAtom} from "./state/panelLayout"
 import {useReconcileServerSessions} from "./state/projectSessions"
 import {useChatScopeKey} from "./state/scope"
 import {
