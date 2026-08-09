@@ -148,6 +148,16 @@ describe("captureTemplateFromUrl", () => {
         expect(win.location.href).not.toContain("template=")
     })
 
+    it("ignores the key on the in-app create surface, where it only seeds the composer", () => {
+        installWindow(`/apps?new=1&template=${KNOWN_KEY}`)
+        const url = new URL(`https://cloud.agenta.ai/apps?new=1&template=${KNOWN_KEY}`)
+        expect(captureTemplateFromUrl(url)).toBeNull()
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+        expect(readTemplateFromStorage()).toBeNull()
+        // The param stays put — the create surface reads it to pre-select the template.
+        expect(url.searchParams.get("template")).toBe(KNOWN_KEY)
+    })
+
     it("falls back to the stored key when the URL has none (region recapture leaves storage intact)", () => {
         installWindow("/")
         persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
