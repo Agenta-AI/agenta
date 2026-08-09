@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import SidebarBackButton from "../components/SidebarBackButton"
+import SidebarToggleButton from "../components/SidebarToggleButton"
 import WorkflowPicker from "../components/WorkflowPicker"
 import type {SidebarScope, SidebarSection, SidebarSlotContext} from "../engine/types"
 
@@ -19,10 +20,11 @@ const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
         <div
             className={[
                 "w-full h-[45px] shrink-0 flex items-center border-0 border-b border-solid border-[var(--ag-shell-line)]",
-                collapsed ? "justify-center" : "px-1.5",
+                collapsed ? "justify-center" : "justify-between px-1.5",
             ].join(" ")}
         >
             <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
+            {!collapsed && <SidebarToggleButton />}
         </div>
 
         <div
@@ -33,6 +35,13 @@ const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
         >
             <WorkflowPicker collapsed={collapsed} />
         </div>
+
+        {/* Not stacked under Back like Settings: that shifts both rules off the header's y. */}
+        {collapsed && (
+            <div className="w-full shrink-0 flex justify-center py-1">
+                <SidebarToggleButton />
+            </div>
+        )}
     </>
 )
 
