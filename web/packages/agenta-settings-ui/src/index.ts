@@ -9,3 +9,4 @@ export {
     type PreferenceFlag,
 } from "./PreferencesPage"
 export {AccountPage, type AccountPageProps} from "./AccountPage"
+export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
