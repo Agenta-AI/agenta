@@ -39,6 +39,8 @@
 @source "../../node_modules/@agenta/sessions/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/sessions-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/home-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/settings/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/settings-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/navigation/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/navigation-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/auth-ui/src/**/*.{ts,tsx}";
