@@ -2,19 +2,19 @@ import {useMemo, useState} from "react"
 
 import {CustomSecretFormat, useVaultSecret, type NamedSecretRow} from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
-import {
-    createStandardColumns,
-    InfiniteVirtualTableFeatureShell,
-    type StandardColumnDef,
-} from "@agenta/ui/table"
-import {EmptyState} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
-import {Tag} from "@agenta/ui/components/presentational"
-import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-
-import {useStaticTable} from "@agenta/settings"
 import {formatDay} from "@agenta/shared/utils/dateTime"
-
+import {Tag} from "@agenta/ui/components/presentational"
+import {
+    Button,
+    DataTable,
+    EmptyState,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    type DataTableColumn,
+} from "@agenta/ui/ui"
+import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 /**
  * Mask stored secret content for display. `text` is masked like an API key
@@ -69,54 +69,50 @@ export const NamedSecretTable = ({
         [namedSecrets],
     )
 
-    const columns = useMemo(
-        () =>
-            createStandardColumns<SecretRow>([
-                {type: "text", key: "name", title: "Name", width: 200, fixed: "left"},
-                {type: "slug", key: "slug", title: "Slug", width: 240},
-                {
-                    type: "text",
-                    key: "content",
-                    title: "Value",
-                    width: 200,
-                    render: (_value, record) => (
-                        <span className="ph-no-capture">
-                            {maskContent(record)}
-                        </span>
-                    ),
-                },
-                {
-                    type: "text",
-                    key: "format",
-                    title: "Format",
-                    width: 120,
-                    render: (_value, record) => (
-                        <Tag
-                            className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                        >
-                            {record.format}
-                        </Tag>
-                    ),
-                },
-                {
-                    type: "text",
-                    key: "created_at",
-                    title: "Created",
-                    width: 160,
-                    render: (_value, record) =>
-                        record.created_at
-                            ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
-                            : "-",
-                },
-                {
-                    type: "actions",
-                    showCopyId: false,
-                    items: [
+    const columns = useMemo<DataTableColumn<SecretRow>[]>(
+        () => [
+            {key: "name", title: "Name", width: 200, render: (record) => record.name},
+            {key: "slug", title: "Slug", width: 240, mono: true, render: (record) => record.slug},
+            {
+                key: "content",
+                title: "Value",
+                width: 200,
+                render: (record) => <span className="ph-no-capture">{maskContent(record)}</span>,
+            },
+            {
+                key: "format",
+                title: "Format",
+                width: 120,
+                render: (record) => <Tag>{record.format}</Tag>,
+            },
+            {
+                key: "created_at",
+                title: "Created",
+                width: 160,
+                render: (record) =>
+                    record.created_at
+                        ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
+                        : "-",
+            },
+        ],
+        [],
+    )
+
+    return (
+        <>
+            <div className="flex flex-col gap-2">
+                <DataTable<SecretRow>
+                    className="ph-no-capture"
+                    columns={columns}
+                    rows={rows}
+                    rowKey={(record) => record.key}
+                    loading={loading}
+                    actions={(record) => [
                         {
                             key: "edit",
                             label: "Edit",
                             icon: <PencilSimpleLine size={16} />,
-                            onClick: (record: SecretRow) => {
+                            onClick: () => {
                                 setSelectedSecret(record)
                                 setIsConfigModalOpen(true)
                             },
@@ -127,46 +123,28 @@ export const NamedSecretTable = ({
                             label: "Delete",
                             icon: <Trash size={16} />,
                             danger: true,
-                            onClick: (record: SecretRow) => {
+                            onClick: () => {
                                 setSelectedSecret(record)
                                 setIsDeleteModalOpen(true)
                             },
                         },
-                    ],
-                } satisfies StandardColumnDef<SecretRow>,
-            ]),
-        [],
-    )
-
-    const {tableScope, pagination} = useStaticTable<SecretRow>("settings-vault-secrets", rows, {
-        loading,
-    })
-    return (
-        <>
-            <div className="flex flex-col gap-2">
-                <InfiniteVirtualTableFeatureShell<SecretRow>
-                    className="ph-no-capture"
-                    tableScope={tableScope}
-                    autoHeight={false}
-                    columns={columns}
-                    rowKey={(record) => record.key}
-                    pagination={pagination}
+                    ]}
                     primaryActions={
                         <>
                             <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        aria-label="Reload secrets"
-                                        disabled={loading}
-                                        onClick={mutate}
-                                    >
-                                        <ArrowClockwise size={14} />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Reload secrets</TooltipContent>
-                            </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            aria-label="Reload secrets"
+                                            disabled={loading}
+                                            onClick={mutate}
+                                        >
+                                            <ArrowClockwise size={14} />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Reload secrets</TooltipContent>
+                                </Tooltip>
                             </TooltipProvider>
                             <Button
                                 disabled={loading}
@@ -180,40 +158,33 @@ export const NamedSecretTable = ({
                             </Button>
                         </>
                     }
-                    tableProps={{
-                        size: "small",
-                        bordered: true,
-                        tableLayout: "fixed",
-                        locale: {
-                            emptyText: (
-                                <EmptyState
-                                    image="simple"
-                                    description={
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-xs font-medium text-colorText">
-                                                No secrets yet
-                                            </span>
-                                            <span>
-                                                Store a named secret to reference credentials
-                                                without exposing their values.
-                                            </span>
-                                        </div>
-                                    }
-                                >
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => {
-                                            setSelectedSecret(null)
-                                            setIsConfigModalOpen(true)
-                                        }}
-                                    >
-                                        <Plus size={14} />
-                                        Create secret
-                                    </Button>
-                                </EmptyState>
-                            ),
-                        },
-                    }}
+                    empty={
+                        <EmptyState
+                            image="simple"
+                            description={
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs font-medium text-colorText">
+                                        No secrets yet
+                                    </span>
+                                    <span>
+                                        Store a named secret to reference credentials without
+                                        exposing their values.
+                                    </span>
+                                </div>
+                            }
+                        >
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setSelectedSecret(null)
+                                    setIsConfigModalOpen(true)
+                                }}
+                            >
+                                <Plus size={14} />
+                                Create secret
+                            </Button>
+                        </EmptyState>
+                    }
                 />
             </div>
 
@@ -234,7 +205,6 @@ export const NamedSecretTable = ({
                     setIsDeleteModalOpen(false)
                 },
             })}
-
         </>
     )
 }

@@ -2,19 +2,20 @@ import {useMemo, useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
 import type {LlmProvider} from "@agenta/shared/types"
-import {LLMIconMap} from "@agenta/ui"
-import {
-    createStandardColumns,
-    InfiniteVirtualTableFeatureShell,
-    type StandardColumnDef,
-} from "@agenta/ui/table"
-import {EmptyState} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
-import {Tag} from "@agenta/ui/components/presentational"
-import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-
-import {useStaticTable} from "@agenta/settings"
 import {formatDay} from "@agenta/shared/utils/dateTime"
+import {Tag} from "@agenta/ui/components/presentational"
+import {LLMIconMap} from "@agenta/ui/llm-icons"
+import {
+    Button,
+    DataTable,
+    EmptyState,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    type DataTableColumn,
+} from "@agenta/ui/ui"
+import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 export interface ProviderDialogState {
     selectedProvider: LlmProvider | null
@@ -65,112 +66,110 @@ export const SecretProviderTable = ({
         [sourceRows],
     )
 
-    const columns = useMemo(
-        () =>
-            createStandardColumns<ProviderRow>([
-                {
-                    type: "text",
-                    key: "name",
-                    title: isCustom ? "Name" : "Provider",
-                    width: 320,
-                    fixed: "left",
-                    render: (_value, record) => {
-                        const Icon = LLMIconMap[record.title as string]
-                        return isCustom ? (
-                            record?.name
-                        ) : (
-                            <div className="flex items-center gap-2 min-w-0">
-                                {Icon && <Icon className="w-5 h-5 shrink-0" />}
-                                <span className="truncate">{record?.title}</span>
-                            </div>
-                        )
-                    },
+    const columns = useMemo<DataTableColumn<ProviderRow>[]>(
+        () => [
+            {
+                key: "name",
+                title: isCustom ? "Name" : "Provider",
+                width: 320,
+                render: (record) => {
+                    const Icon = LLMIconMap[record.title as string]
+                    return isCustom ? (
+                        record?.name
+                    ) : (
+                        <div className="flex min-w-0 items-center gap-2">
+                            {Icon && <Icon className="size-5 shrink-0" />}
+                            <span className="truncate">{record?.title}</span>
+                        </div>
+                    )
                 },
-                ...(!isCustom
-                    ? [
-                          {
-                              type: "text",
-                              key: "key",
-                              title: "API key",
-                              width: 260,
-                              render: (_value: unknown, record: ProviderRow) => {
-                                  const apiKey = record.source.key
-                                  if (!apiKey) {
-                                      return (
-                                          <Button
-                                              size="sm"
-                                              onClick={(e) => {
-                                                  e.stopPropagation()
-                                                  setIsAddProviderSecretModalOpen(true)
-                                                  setSelectedProvider(record.source)
-                                              }}
-                                          >
-                                              Configure now
-                                          </Button>
-                                      )
-                                  }
+            },
+            ...(!isCustom
+                ? [
+                      {
+                          key: "key",
+                          title: "API key",
+                          width: 260,
+                          render: (record: ProviderRow) => {
+                              const apiKey = record.source.key
+                              if (!apiKey) {
                                   return (
-                                      <span className="font-mono text-xs">
-                                          {`${apiKey.slice(0, 3)}...${apiKey.slice(-3)}`}
-                                      </span>
+                                      <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={(e) => {
+                                              e.stopPropagation()
+                                              setIsAddProviderSecretModalOpen(true)
+                                              setSelectedProvider(record.source)
+                                          }}
+                                      >
+                                          Configure now
+                                      </Button>
                                   )
-                              },
-                          } satisfies StandardColumnDef<ProviderRow>,
-                      ]
-                    : []),
-                ...(isCustom
-                    ? [
-                          {
-                              type: "text",
-                              key: "provider",
-                              title: "Provider",
-                              width: 180,
-                              render: (_value: unknown, record: ProviderRow) => (
-                                  <Tag
-                                      className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                                  >
-                                      {record?.provider}
-                                  </Tag>
-                              ),
-                          } satisfies StandardColumnDef<ProviderRow>,
-                          {
-                              type: "text",
-                              key: "models",
-                              title: "Models",
-                              width: 260,
-                              render: (_value: unknown, record: ProviderRow) => {
-                                  const models = record?.models ?? []
-                                  if (models.length === 0)
-                                      return <span className="text-colorTextSecondary">-</span>
-                                  return (
-                                      <span className="truncate" title={models.join(", ")}>
-                                          {models.join(", ")}
-                                      </span>
-                                  )
-                              },
-                          } satisfies StandardColumnDef<ProviderRow>,
-                      ]
-                    : []),
-                {
-                    type: "text",
-                    key: "created_at",
-                    title: "Connected",
-                    width: 170,
-                    render: (_value, record) =>
-                        record.created_at
-                            ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
-                            : "-",
-                },
-                {
-                    type: "actions",
-                    showCopyId: false,
-                    items: [
+                              }
+                              return (
+                                  <span className="font-mono text-xs">
+                                      {`${apiKey.slice(0, 3)}...${apiKey.slice(-3)}`}
+                                  </span>
+                              )
+                          },
+                      } satisfies DataTableColumn<ProviderRow>,
+                  ]
+                : []),
+            ...(isCustom
+                ? [
+                      {
+                          key: "provider",
+                          title: "Provider",
+                          width: 180,
+                          render: (record: ProviderRow) => <Tag>{record?.provider}</Tag>,
+                      } satisfies DataTableColumn<ProviderRow>,
+                      {
+                          key: "models",
+                          title: "Models",
+                          width: 260,
+                          render: (record: ProviderRow) => {
+                              const models = record?.models ?? []
+                              if (models.length === 0)
+                                  return <span className="text-colorTextSecondary">-</span>
+                              return (
+                                  <span className="block truncate" title={models.join(", ")}>
+                                      {models.join(", ")}
+                                  </span>
+                              )
+                          },
+                      } satisfies DataTableColumn<ProviderRow>,
+                  ]
+                : []),
+            {
+                key: "created_at",
+                title: "Connected",
+                width: 170,
+                render: (record) =>
+                    record.created_at
+                        ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
+                        : "-",
+            },
+        ],
+        [isCustom],
+    )
+
+    return (
+        <>
+            <section className="flex flex-col gap-2">
+                <DataTable<ProviderRow>
+                    className="ph-no-capture"
+                    columns={columns}
+                    rows={rows}
+                    rowKey={(record) => record.key}
+                    loading={loading}
+                    actions={(record) => [
                         {
                             key: "edit",
                             label: isCustom ? "Edit endpoint" : "Edit key",
                             icon: <PencilSimpleLine size={16} />,
-                            hidden: (record: ProviderRow) => !isCustom && !record.source.key,
-                            onClick: (record: ProviderRow) => {
+                            hidden: !isCustom && !record.source.key,
+                            onClick: () => {
                                 setSelectedProvider(record.source)
                                 if (isCustom) setIsConfigProviderOpen(true)
                                 else setIsAddProviderSecretModalOpen(true)
@@ -181,35 +180,13 @@ export const SecretProviderTable = ({
                             label: isCustom ? "Delete endpoint" : "Remove key",
                             icon: <Trash size={16} />,
                             danger: true,
-                            hidden: (record: ProviderRow) => !isCustom && !record.source.key,
-                            onClick: (record: ProviderRow) => {
+                            hidden: !isCustom && !record.source.key,
+                            onClick: () => {
                                 setSelectedProvider(record.source)
                                 setIsDeleteModalOpen(true)
                             },
                         },
-                    ],
-                } satisfies StandardColumnDef<ProviderRow>,
-            ]),
-        [isCustom],
-    )
-
-    const {tableScope, pagination} = useStaticTable<ProviderRow>(
-        isCustom ? "settings-llm-custom" : "settings-llm-standard",
-        rows,
-        {loading},
-    )
-    return (
-        <>
-            <section className="flex flex-col gap-2">
-                <InfiniteVirtualTableFeatureShell<ProviderRow>
-                    className="ph-no-capture"
-                    tableScope={tableScope}
-                    columns={columns}
-                    rowKey="key"
-                    pagination={pagination}
-                    // Fixed height sized to row count; autoHeight would grow unbounded here.
-                    autoHeight={false}
-                    rowHeight={40}
+                    ]}
                     title={
                         <div className="flex flex-col gap-1">
                             <p className="m-0 font-medium text-colorText">
@@ -226,20 +203,20 @@ export const SecretProviderTable = ({
                         isCustom ? (
                             <>
                                 <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        aria-label="Reload providers"
-                                        disabled={loading}
-                                        onClick={mutate}
-                                    >
-                                        <ArrowClockwise size={14} />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Reload providers</TooltipContent>
-                            </Tooltip>
-                            </TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                aria-label="Reload providers"
+                                                disabled={loading}
+                                                onClick={mutate}
+                                            >
+                                                <ArrowClockwise size={14} />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Reload providers</TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
                                 <Button
                                     disabled={loading}
                                     onClick={() => setIsConfigProviderOpen(true)}
@@ -250,52 +227,47 @@ export const SecretProviderTable = ({
                             </>
                         ) : null
                     }
-                    tableProps={{
-                        size: "small",
-                        bordered: true,
-                        tableLayout: "fixed",
-                        locale: {
-                            emptyText: isCustom ? (
-                                <EmptyState
-                                    image="simple"
-                                    description={
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-xs font-medium text-colorText">
-                                                No custom endpoints
-                                            </span>
-                                            <span>
-                                                Point Agenta at a self-hosted or proxied model that
-                                                speaks the OpenAI API.
-                                            </span>
-                                        </div>
-                                    }
+                    empty={
+                        isCustom ? (
+                            <EmptyState
+                                image="simple"
+                                description={
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-colorText">
+                                            No custom endpoints
+                                        </span>
+                                        <span>
+                                            Point Agenta at a self-hosted or proxied model that
+                                            speaks the OpenAI API.
+                                        </span>
+                                    </div>
+                                }
+                            >
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsConfigProviderOpen(true)}
                                 >
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => setIsConfigProviderOpen(true)}
-                                    >
-                                        <Plus size={14} />
-                                        Add endpoint
-                                    </Button>
-                                </EmptyState>
-                            ) : (
-                                <EmptyState
-                                    image="simple"
-                                    description={
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-xs font-medium text-colorText">
-                                                No providers to show
-                                            </span>
-                                            <span>
-                                                The provider list could not be loaded. Reload the
-                                                page to try again.
-                                            </span>
-                                        </div>
-                                    }
-                                />
-                            ),
-                        },
-                    }}
+                                    <Plus size={14} />
+                                    Add endpoint
+                                </Button>
+                            </EmptyState>
+                        ) : (
+                            <EmptyState
+                                image="simple"
+                                description={
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-colorText">
+                                            No providers to show
+                                        </span>
+                                        <span>
+                                            The provider list could not be loaded. Reload the page
+                                            to try again.
+                                        </span>
+                                    </div>
+                                }
+                            />
+                        )
+                    }
                 />
             </section>
 
@@ -325,7 +297,6 @@ export const SecretProviderTable = ({
                     setIsConfigProviderOpen(false)
                 },
             })}
-
         </>
     )
 }

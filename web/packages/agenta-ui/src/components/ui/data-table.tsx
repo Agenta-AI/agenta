@@ -29,6 +29,9 @@ export interface DataTableAction<T> {
     label: ReactNode
     icon?: ReactNode
     danger?: boolean
+    disabled?: boolean
+    /** Drop the item entirely for this row — e.g. "Set as default" on the default row. */
+    hidden?: boolean
     onClick: (record: T) => void
 }
 
@@ -46,6 +49,9 @@ export interface DataTableProps<T> {
     filters?: ReactNode
     /** Right of the toolbar — the primary buttons. */
     primaryActions?: ReactNode
+    /** Above the toolbar — a heading for the table itself. */
+    title?: ReactNode
+    onRowClick?: (record: T) => void
     className?: string
 }
 
@@ -69,6 +75,8 @@ export function DataTable<T>({
     skeletonRows = 5,
     filters,
     primaryActions,
+    title,
+    onRowClick,
     className,
 }: DataTableProps<T>) {
     const showSkeleton = loading && rows.length === 0
@@ -76,6 +84,8 @@ export function DataTable<T>({
 
     return (
         <div className={clsx("flex min-w-0 flex-col gap-2", className)}>
+            {title ? <div>{title}</div> : null}
+
             {filters || primaryActions ? (
                 <div className="flex flex-wrap items-center gap-2">
                     {filters}
@@ -123,7 +133,11 @@ export function DataTable<T>({
                             : rows.map((record) => (
                                   <tr
                                       key={rowKey(record)}
-                                      className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary"
+                                      onClick={onRowClick ? () => onRowClick(record) : undefined}
+                                      className={clsx(
+                                          "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
+                                          onRowClick && "cursor-pointer",
+                                      )}
                                   >
                                       {columns.map((column) => (
                                           <td
@@ -141,11 +155,11 @@ export function DataTable<T>({
                                           </td>
                                       ))}
                                       {actions ? (
-                                          <td className={clsx(CELL, "text-right")}>
-                                              <RowActions
-                                                  items={actions(record)}
-                                                  record={record}
-                                              />
+                                          <td
+                                              className={clsx(CELL, "text-right")}
+                                              onClick={(event) => event.stopPropagation()}
+                                          >
+                                              <RowActions items={actions(record)} record={record} />
                                           </td>
                                       ) : null}
                                   </tr>
@@ -166,7 +180,15 @@ const RowActions = <T,>({
     items: (DataTableAction<T> | {type: "divider"})[]
     record: T
 }) => {
-    if (items.length === 0) return null
+    const visible = items.filter((item) => "type" in item || !item.hidden)
+    // Hiding every action can leave a divider stranded at either end.
+    const trimmed = visible.filter(
+        (item, index) =>
+            !("type" in item) ||
+            (visible.slice(0, index).some((prior) => !("type" in prior)) &&
+                visible.slice(index + 1).some((next) => !("type" in next))),
+    )
+    if (!trimmed.some((item) => !("type" in item))) return null
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -179,13 +201,14 @@ const RowActions = <T,>({
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[180px]">
-                {items.map((item, index) =>
+                {trimmed.map((item, index) =>
                     "type" in item ? (
                         <DropdownMenuSeparator key={`divider-${index}`} />
                     ) : (
                         <DropdownMenuItem
                             key={item.key}
-                            className={clsx(item.danger && "!text-colorError")}
+                            disabled={item.disabled}
+                            className={clsx(item.danger && !item.disabled && "!text-colorError")}
                             onSelect={() => item.onClick(record)}
                         >
                             {item.icon}
