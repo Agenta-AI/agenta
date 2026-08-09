@@ -628,8 +628,8 @@
     --ag-strip-card-border: #232327;
     --ag-strip-card-border-hover: #3a3a40;
     --ag-strip-card-hover-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
-    --ag-shell-rail-bg: #121316;
-    --ag-shell-line: #2b2d32;
+    --ag-shell-rail-bg: #101010;
+    --ag-shell-line: #2c2c2c;
     --ag-scroll-thumb: rgba(255, 255, 255, 0.20);
     --ag-scroll-thumb-hover: rgba(255, 255, 255, 0.34);
     --ag-sidebar-bg: var(--ag-shell-rail-bg);

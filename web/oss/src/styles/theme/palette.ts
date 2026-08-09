@@ -462,8 +462,8 @@ export const templateStrip = {
 // bars from the content. The rail sits one step darker (light: greyer) than the
 // content beside it, and every frame line shares one colour so they read as one frame.
 export const shell = {
-    railBg: {light: "#ffffff", dark: "#121316"},
-    line: {light: "#e3e5e9", dark: "#2b2d32"},
+    railBg: {light: "#ffffff", dark: "#101010"}, // neutral hue (was #121316, read bluish next to #141414)
+    line: {light: "#e3e5e9", dark: "#2c2c2c"},
     scrollThumb: {light: "rgba(15, 23, 42, 0.22)", dark: "rgba(255, 255, 255, 0.20)"},
     scrollThumbHover: {light: "rgba(15, 23, 42, 0.38)", dark: "rgba(255, 255, 255, 0.34)"},
 } satisfies Record<string, Pair>
