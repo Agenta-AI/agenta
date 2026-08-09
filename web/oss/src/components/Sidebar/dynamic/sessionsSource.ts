@@ -78,8 +78,7 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
  * Pinned sessions first, then the rest by activity.
  *
  * Pins are pulled to the top rather than left in place because a pinned conversation is one you
- * return to over days — exactly what a recency-ordered list buries. The group headings the
- * registry renders depend on this ordering.
+ * return to over days — exactly what a recency-ordered list buries.
  */
 const sidebarSessionRefsAtom = atom<SessionSidebarRef[]>((get) => {
     const pinned = new Set(get(pinnedSessionIdsAtom))
