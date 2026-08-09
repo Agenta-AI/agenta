@@ -1,6 +1,8 @@
 import {PageLayout} from "@agenta/ui"
+import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, LightningIcon} from "@phosphor-icons/react"
 import {Button, Empty, Tag, Tooltip} from "antd"
+import clsx from "clsx"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
@@ -41,38 +43,30 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
     )
 
     return (
-        <PageLayout className="grow min-h-0 !px-14 !pt-0">
-            <div className="flex min-h-0 w-full flex-1 flex-col gap-10 lg:flex-row lg:gap-0">
-                {/* Identity and what it needs — a rail, not a column: it bleeds to the page's own
-                    edges and carries the divider, so the decision half is a distinct surface from
-                    the reading half rather than the same page with a gap down the middle. */}
-                <aside className="box-border flex w-full shrink-0 flex-col gap-6 lg:-mb-4 lg:-ml-14 lg:w-[344px] lg:border-0 lg:border-r lg:border-solid lg:border-colorBorderSecondary lg:bg-colorFillQuaternary lg:px-6 lg:py-6">
-                    <Link
-                        href={`${baseAppURL}/agent-templates`}
-                        className="inline-flex w-fit items-center gap-1 text-xs !text-colorTextSecondary"
-                    >
-                        <ArrowLeftIcon size={14} />
-                        All templates
-                    </Link>
+        <PageLayout className={clsx(pageContentWidthClass, "grow min-h-0")}>
+            {/* Top bar: where you are, how to get back, and the one action — on the page's own
+                top line, like every other detail surface. */}
+            <div className="flex flex-col gap-3">
+                <Link
+                    href={`${baseAppURL}/agent-templates`}
+                    className="inline-flex w-fit items-center gap-1 text-xs !text-colorTextSecondary"
+                >
+                    <ArrowLeftIcon size={14} />
+                    All templates
+                </Link>
 
-                    <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex min-w-0 items-center gap-3">
                         <span
                             aria-hidden
-                            className="flex size-12 items-center justify-center rounded-full text-base font-semibold text-white"
+                            className="flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
                             style={{backgroundColor: template.color}}
                         >
                             {template.initials}
                         </span>
-                        <h1 className="m-0 text-2xl font-semibold text-colorText">
+                        <h1 className="m-0 truncate text-2xl font-semibold text-colorText">
                             {template.name}
                         </h1>
-                        <p className="m-0 text-sm leading-relaxed text-colorTextSecondary">
-                            {template.overview || template.description}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                            <Tag>{template.category}</Tag>
-                            <Tag>{template.trigger}</Tag>
-                        </div>
                     </div>
 
                     <Button
@@ -85,6 +79,25 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                         Use this template
                         <ArrowRightIcon size={14} />
                     </Button>
+                </div>
+            </div>
+
+            {/* One scroller, as in the gallery: `/agent-templates*` is a full-height route, so the
+                layout frame is bounded and unscrolled content below the fold was unreachable.
+                Scrolling here keeps the back link and "Use this template" pinned. */}
+            <div className="flex min-h-0 w-full flex-1 flex-col gap-10 overflow-y-auto pb-2 pr-1 lg:flex-row">
+                {/* What it needs, beside what it does — the same main + rail split the agent
+                    overview uses, on one background. */}
+                <aside className="box-border flex w-full shrink-0 flex-col gap-6 lg:order-last lg:w-1/3 lg:min-w-[280px] lg:max-w-[340px]">
+                    <div className="flex flex-col gap-3">
+                        <p className="m-0 text-sm leading-relaxed text-colorTextSecondary">
+                            {template.overview || template.description}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <Tag>{template.category}</Tag>
+                            <Tag>{template.trigger}</Tag>
+                        </div>
+                    </div>
 
                     {template.requiredIntegrations.length ? (
                         <section className="flex flex-col gap-2">
@@ -128,7 +141,7 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                 </aside>
 
                 {/* What it will actually do. */}
-                <div className="flex min-w-0 flex-1 flex-col gap-6 lg:py-4 lg:pl-10">
+                <div className="flex min-w-0 flex-1 flex-col gap-6">
                     {template.example ? (
                         <section className="flex flex-col gap-2">
                             <SectionLabel>Example session</SectionLabel>
@@ -182,7 +195,9 @@ const TemplateDetail = ({templateKey}: {templateKey: string}) => {
                         </section>
                     ) : null}
 
-                    <div className="grid min-w-0 grid-cols-1 items-start gap-6 xl:grid-cols-2">
+                    {/* Stacked, not side by side: the main column is now bounded, and AGENTS.md
+                        at half of it wrapped every other word. */}
+                    <div className="grid min-w-0 grid-cols-1 items-start gap-6">
                         <section className="flex min-w-0 flex-col gap-2">
                             <SectionLabel>Instructions · AGENTS.md</SectionLabel>
                             {/* AGENTS.md is markdown — headings and lists are how it's written,
