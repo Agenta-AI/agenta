@@ -16,3 +16,4 @@ export {
     type ProjectDialogState,
 } from "./projects/ProjectsPage"
 export {MembersPage, type MembersPageProps} from "./members/MembersPage"
+export {OrganizationsPage, type OrganizationsPageProps} from "./organizations/OrganizationsPage"

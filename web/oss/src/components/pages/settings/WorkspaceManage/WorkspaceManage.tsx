@@ -26,7 +26,7 @@ const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr
 const WorkspaceManage: FC = () => {
     const {user: signedInUser, refetch: refetchProfile} = useProfileData()
     const {selectedOrg, loading, refetch} = useOrgData()
-    const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
+    const {members, searchTerm, setSearchTerm} = useWorkspaceMembers()
     const {hasRBAC} = useEntitlements()
     const {canInviteMembers, canRemoveMembers} = useWorkspacePermissions()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -104,7 +104,7 @@ const WorkspaceManage: FC = () => {
 
     return (
         <MembersPage
-            members={filteredMembers}
+            members={members}
             loading={loading}
             searchTerm={searchTerm}
             onSearchChange={setSearchTerm}

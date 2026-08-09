@@ -1,10 +1,6 @@
 import {useMemo, useState} from "react"
 
-import {
-    fetchAllOrgsList,
-    fetchSingleOrg,
-    fetchWorkspaceMembers,
-} from "@agenta/entities/organization"
+import {fetchAllOrgsList, fetchSingleOrg} from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
 import {
@@ -20,6 +16,7 @@ import {
     ApiKeysPage,
     MembersPage,
     NamedSecretTable,
+    OrganizationsPage,
     PreferencesPage,
     ProjectsPage,
     SecretProviderTable,
@@ -54,6 +51,7 @@ const AVAILABLE: SettingsTabKey[] = [
     "llms",
     "secrets",
     "webhooks",
+    "organizationGeneral",
     "workspace",
     "projects",
     "account",
@@ -74,7 +72,7 @@ const TabBody = ({
 }: {
     tab: SettingsTabKey
     access: SettingsAccess
-    user: {username?: string | null; email?: string | null} | null
+    user: {id?: string | null; username?: string | null; email?: string | null} | null
     theme: {options: {mode: string; label: string}[]; mode: string; onSelect: (m: string) => void}
     workspaceId: string
 }) => {
@@ -89,25 +87,27 @@ const TabBody = ({
     const projects = useQuery({
         queryKey: ["projects", workspaceId],
         queryFn: () => fetchAllProjects(workspaceId),
-        enabled: tab === "projects",
+        enabled: tab === "projects" || tab === "workspace" || tab === "organizationGeneral",
     })
 
-    const members = useQuery({
-        queryKey: ["workspace", workspaceId, "members"],
-        queryFn: () => fetchWorkspaceMembers(workspaceId, true),
-        enabled: tab === "workspace" && Boolean(workspaceId),
-    })
-    // The roster names its owner, and only the org response carries `owner_id`.
+    // A project carries its organization, which saves resolving one from the workspace id.
+    const organizationId = projects.data?.find(
+        (project) => project.organization_id,
+    )?.organization_id
+    // The roster lives on the org's default workspace, not behind a members endpoint — same
+    // source the desktop reads, so the two surfaces cannot disagree.
     const org = useQuery({
-        queryKey: ["selectedOrg", "forMembers"],
-        queryFn: async () => {
-            const orgs = await fetchAllOrgsList()
-            const first = orgs[0]
-            return first ? await fetchSingleOrg({organizationId: first.id}) : null
-        },
-        enabled: tab === "workspace",
+        queryKey: ["selectedOrg", organizationId],
+        queryFn: () => fetchSingleOrg({organizationId: organizationId!}),
+        enabled: tab === "workspace" && Boolean(organizationId),
+    })
+    const organizations = useQuery({
+        queryKey: ["orgs"],
+        queryFn: () => fetchAllOrgsList(),
+        enabled: tab === "organizationGeneral",
     })
     const [memberSearch, setMemberSearch] = useState("")
+    const [orgSearch, setOrgSearch] = useState("")
 
     switch (tab) {
         case "preferences":
@@ -149,18 +149,23 @@ const TabBody = ({
         case "workspace":
             return (
                 <MembersPage
-                    members={(members.data ?? []).filter((member) => {
-                        const term = memberSearch.trim().toLowerCase()
-                        if (!term) return true
-                        return [member.user?.username, member.user?.email].some((value) =>
-                            value?.toLowerCase().includes(term),
-                        )
-                    })}
-                    loading={members.isPending}
+                    members={org.data?.default_workspace?.members ?? []}
+                    loading={projects.isPending || org.isPending}
                     searchTerm={memberSearch}
                     onSearchChange={setMemberSearch}
                     signedInUser={user}
                     ownerId={org.data?.owner_id}
+                />
+            )
+        case "organizationGeneral":
+            return (
+                <OrganizationsPage
+                    organizations={organizations.data ?? []}
+                    loading={organizations.isPending}
+                    searchTerm={orgSearch}
+                    onSearchChange={setOrgSearch}
+                    selectedOrgId={organizationId}
+                    currentUserId={user?.id}
                 />
             )
         default:
