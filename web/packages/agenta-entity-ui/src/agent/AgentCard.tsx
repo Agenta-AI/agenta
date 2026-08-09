@@ -202,7 +202,9 @@ export const AgentCard = ({
                     </div>
                 </>
             ) : (
-                <div className="flex items-start gap-3">
+                {/* items-center, not start: without a description the title is one 24px line
+                    against a 40px avatar, and top-alignment left the name riding high. */}
+                <div className="flex items-center gap-3">
                     {avatar}
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                         {title}
