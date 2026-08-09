@@ -40,10 +40,24 @@ export const markSessionFresh = (sessionId: string) => freshSessionIds.add(sessi
 export const isSessionFresh = (sessionId: string) => freshSessionIds.has(sessionId)
 export const clearSessionFresh = (sessionId: string) => freshSessionIds.delete(sessionId)
 
+/**
+ * Sessions whose local transcript holds turns the durable record log does NOT. Only a rewind fork
+ * makes this true: its pre-rewind prefix was logged under the OLD session id, so this session's log
+ * can't rebuild it and the next request must send the whole transcript rather than the trailing
+ * message. Cleared once a turn settles — from then on the runner's own session continuity carries
+ * the context. In-memory only: a reload drops the marker, and by then a turn has settled.
+ */
+export const unloggedHistorySessionIds = new Set<string>()
+export const markUnloggedHistory = (sessionId: string) => unloggedHistorySessionIds.add(sessionId)
+export const hasUnloggedHistory = (sessionId: string) => unloggedHistorySessionIds.has(sessionId)
+export const clearUnloggedHistory = (sessionId: string) =>
+    unloggedHistorySessionIds.delete(sessionId)
+
 /** Drop every ephemeral trace of a permanently deleted session. */
 export const clearSessionEphemera = (sessionId: string) => {
     virtStateBySession.delete(sessionId)
     composerDraftBySession.delete(sessionId)
     attachmentsBySession.delete(sessionId)
     freshSessionIds.delete(sessionId)
+    unloggedHistorySessionIds.delete(sessionId)
 }

@@ -296,12 +296,13 @@ const withQuery = (url: string, params: Record<string, string | undefined>): str
  * @param entityId  revision id of the agent workflow
  * @param messages  `useChat`'s `UIMessage[]` (sent under `data.inputs.messages`)
  * @param opts.sessionId  the conversation's session id (envelope `session_id`)
+ * @param opts.replayHistory  this session's durable log can't supply the prior turns — send them
  * @param opts.store      optional store override (tests inject a seeded store)
  */
 export async function buildAgentRequest(
     entityId: string,
     messages: unknown[],
-    opts: {sessionId: string; store?: StoreLike},
+    opts: {sessionId: string; replayHistory?: boolean; store?: StoreLike},
 ): Promise<AgentRequest | null> {
     const store = opts.store ?? getDefaultStore()
 
@@ -406,9 +407,14 @@ export async function buildAgentRequest(
     // turns from the durable record log — smaller request + trace payloads. A HITL resume, whose
     // trailing turn carries the settled answer (not a user turn), keeps the full history so the
     // answer still binds to its tool call.
+    // `replayHistory` opts out per request: a rewind fork's prior turns were logged under the OLD
+    // session id, so this session's log has nothing to rebuild from and the transcript must travel.
     const lastMessage = history[history.length - 1] as {role?: unknown} | undefined
     const outboundMessages =
-        isSessionsLastMessageOnlyEnabled() && opts.sessionId && lastMessage?.role === "user"
+        isSessionsLastMessageOnlyEnabled() &&
+        !opts.replayHistory &&
+        opts.sessionId &&
+        lastMessage?.role === "user"
             ? [lastMessage]
             : history
 

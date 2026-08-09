@@ -247,6 +247,19 @@ describe("buildAgentRequest", () => {
         it("sends the full history when there is no session id", async () => {
             expect(await outMessages([u1, a1, u2], "")).toEqual([u1, a1, u2])
         })
+
+        // A rewind fork runs under a NEW session id, so the durable log it would be rebuilt from
+        // holds none of the kept prefix — the transcript has to travel with the first request.
+        it("sends the full history when the caller asks to replay it", async () => {
+            seed(store, "e", {})
+            const req = await buildAgentRequest("e", [u1, a1, u2], {
+                sessionId: "fork-1",
+                replayHistory: true,
+                store,
+            })
+            expect((req!.requestBody.data as any).inputs.messages).toEqual([u1, a1, u2])
+            expect(req!.requestBody.session_id).toBe("fork-1")
+        })
     })
 
     it("nests messages under data.inputs + draft-aware parameters under data, with session_id", async () => {
