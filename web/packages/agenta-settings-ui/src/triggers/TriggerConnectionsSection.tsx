@@ -31,9 +31,14 @@ const DEFAULT_PROVIDER = "composio"
 export interface TriggerConnectionsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
     confirm?: (args: {title: string; message: string; onOk: () => Promise<void>}) => void
+    /** Hides connect/refresh and skips the catalog drawer. */
+    readOnly?: boolean
 }
 
-export default function TriggerConnectionsSection({confirm}: TriggerConnectionsSectionProps) {
+export default function TriggerConnectionsSection({
+    confirm,
+    readOnly,
+}: TriggerConnectionsSectionProps) {
     const {connections, isLoading, refetch} = useTriggerConnectionsQuery()
     const {handleDelete, handleRefresh, handleRevoke, invalidateConnections} =
         useTriggerConnectionActions()
@@ -194,6 +199,7 @@ export default function TriggerConnectionsSection({confirm}: TriggerConnectionsS
                             key: "refresh",
                             label: "Refresh",
                             icon: <ArrowClockwise size={16} />,
+                            hidden: readOnly,
                             onClick: () => onRefresh(record),
                         },
                         {
@@ -241,10 +247,12 @@ export default function TriggerConnectionsSection({confirm}: TriggerConnectionsS
                                     <TooltipContent>Reload all connections</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
-                            <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
-                                <Plus size={14} />
-                                Connect app
-                            </Button>
+                            {readOnly ? null : (
+                                <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
+                                    <Plus size={14} />
+                                    Connect app
+                                </Button>
+                            )}
                         </>
                     }
                     empty={
@@ -262,16 +270,18 @@ export default function TriggerConnectionsSection({confirm}: TriggerConnectionsS
                                 </div>
                             }
                         >
-                            <Button variant="outline" onClick={() => setCatalogOpen(true)}>
-                                <Plus size={14} />
-                                Connect app
-                            </Button>
+                            {readOnly ? null : (
+                                <Button variant="outline" onClick={() => setCatalogOpen(true)}>
+                                    <Plus size={14} />
+                                    Connect app
+                                </Button>
+                            )}
                         </EmptyState>
                     }
                 />
             </section>
 
-            <TriggerCatalogDrawer onConnectionCreated={refetch} />
+            {readOnly ? null : <TriggerCatalogDrawer onConnectionCreated={refetch} />}
             <TriggerEventsDrawer />
         </>
     )

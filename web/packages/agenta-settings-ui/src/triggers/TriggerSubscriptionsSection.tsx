@@ -35,7 +35,14 @@ import {
 } from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
-export default function TriggerSubscriptionsSection() {
+export interface TriggerSubscriptionsSectionProps {
+    /** Hides create/edit and skips the drawer, whose form is still antd-backed. */
+    readOnly?: boolean
+}
+
+export default function TriggerSubscriptionsSection({
+    readOnly,
+}: TriggerSubscriptionsSectionProps = {}) {
     const {subscriptions, isLoading, refetch} = useTriggerSubscriptions()
     const {connections} = useTriggerConnectionsQuery()
     const {revoke, refresh, remove, setActive, isMutating} = useTriggerSubscription()
@@ -192,7 +199,7 @@ export default function TriggerSubscriptionsSection() {
                     className="ph-no-capture"
                     rows={rows}
                     loading={isLoading || isMutating}
-                    onRowClick={handleEdit}
+                    onRowClick={readOnly ? undefined : handleEdit}
                     actions={(record) => [
                         {
                             key: "deliveries",
@@ -208,18 +215,21 @@ export default function TriggerSubscriptionsSection() {
                         },
                         {
                             key: "edit",
+                            hidden: readOnly,
                             label: "Edit",
                             icon: <PencilSimpleLine size={16} />,
                             onClick: () => handleEdit(record),
                         },
                         {
                             key: "refresh",
+                            hidden: readOnly,
                             label: "Refresh",
                             icon: <ArrowsClockwise size={16} />,
                             onClick: () => handleRefresh(record),
                         },
                         {
                             key: "revoke",
+                            hidden: readOnly,
                             label: "Revoke",
                             icon: <XCircle size={16} />,
                             onClick: () => handleRevoke(record),
@@ -230,6 +240,7 @@ export default function TriggerSubscriptionsSection() {
                             label: "Delete",
                             icon: <Trash size={16} />,
                             danger: true,
+                            hidden: readOnly,
                             onClick: () => handleDelete(record),
                         },
                     ]}
@@ -263,7 +274,7 @@ export default function TriggerSubscriptionsSection() {
                                     button rather than leaving it inert and unexplained. */}
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <span>
+                                        <span className={readOnly ? "hidden" : undefined}>
                                             <Button
                                                 onClick={handleCreate}
                                                 disabled={
@@ -313,17 +324,19 @@ export default function TriggerSubscriptionsSection() {
                                     </div>
                                 }
                             >
-                                <Button variant="outline" onClick={handleCreate}>
-                                    <Plus size={14} />
-                                    Subscribe
-                                </Button>
+                                {readOnly ? null : (
+                                    <Button variant="outline" onClick={handleCreate}>
+                                        <Plus size={14} />
+                                        Subscribe
+                                    </Button>
+                                )}
                             </EmptyState>
                         )
                     }
                 />
             </section>
 
-            <TriggerSubscriptionDrawer />
+            {readOnly ? null : <TriggerSubscriptionDrawer />}
         </>
     )
 }

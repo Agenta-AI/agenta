@@ -21,16 +21,18 @@ import {
 import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
     AccessControlsSection,
-    AccountPage,
-    DomainsSection,
     ApiKeysPage,
     type AuthFlagKey,
+    DomainsSection,
+    GatewayToolsSection,
     MembersPage,
     NamedSecretTable,
     OrganizationsPage,
-    PreferencesPage,
-    SsoProvidersSection,
     ProjectsPage,
+    SsoProvidersSection,
+    TriggerConnectionsSection,
+    TriggerSchedulesSection,
+    TriggerSubscriptionsSection,
     SecretProviderTable,
     SettingsPageShell,
     WebhooksPage,
@@ -51,6 +53,8 @@ import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {AccountTab} from "./AccountTab"
+import {PreferencesTab} from "./PreferencesTab"
 import {SettingsLoadError, SettingsSectionSkeleton} from "./states/SettingsStates"
 
 const THEME_OPTIONS = [
@@ -65,6 +69,8 @@ const AVAILABLE: SettingsTabKey[] = [
     "llms",
     "secrets",
     "webhooks",
+    "tools",
+    "triggers",
     "organizationGeneral",
     "workspace",
     "organization",
@@ -74,9 +80,10 @@ const AVAILABLE: SettingsTabKey[] = [
 ]
 
 /**
- * One tab's body. Every page comes from @agenta/settings-ui; this host passes no create/edit
- * dialogs, so each renders read-only — the lists and their empty states, none of the write
- * affordances, which the desktop supplies through its own modals.
+ * One tab's body. Every page comes from @agenta/settings-ui; apart from the personal tabs
+ * (account deletion, preferences) this host passes no create/edit dialogs, so each renders
+ * read-only — the lists and their empty states, none of the write affordances, which the
+ * desktop supplies through its own modals.
  */
 const TabBody = ({
     tab,
@@ -169,9 +176,9 @@ const TabBody = ({
 
     switch (tab) {
         case "preferences":
-            return <PreferencesPage theme={theme} />
+            return <PreferencesTab theme={theme} />
         case "account":
-            return <AccountPage username={user?.username} email={user?.email} />
+            return <AccountTab user={user} />
         case "apiKeys":
             return (
                 <ApiKeysPage
@@ -196,6 +203,18 @@ const TabBody = ({
             return <NamedSecretTable />
         case "webhooks":
             return <WebhooksPage />
+        // Read-only: the create/edit drawers still render antd forms, which have no
+        // ConfigProvider here and would come out light on a dark page.
+        case "tools":
+            return <GatewayToolsSection readOnly />
+        case "triggers":
+            return (
+                <div className="flex flex-col gap-8">
+                    <TriggerConnectionsSection readOnly />
+                    <TriggerSubscriptionsSection readOnly />
+                    <TriggerSchedulesSection readOnly />
+                </div>
+            )
         case "projects":
             return (
                 <ProjectsPage
@@ -315,8 +334,8 @@ export const SettingsScreen = ({
     const access: SettingsAccess = useMemo(
         () => ({
             billingEnabled: false,
-            canShowTools: false,
-            canShowTriggers: false,
+            canShowTools: true,
+            canShowTriggers: true,
             canViewApiKeys: true,
             canViewEvents: false,
             isEE,
