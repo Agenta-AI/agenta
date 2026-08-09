@@ -64,6 +64,7 @@
         "./testset": "./src/testset/index.ts",
         "./trace": "./src/trace/index.ts",
         "./trace/etl": "./src/trace/etl/index.ts",
+        "./webhook": "./src/webhook/index.ts",
         "./workflow": "./src/workflow/index.ts",
         "./workflow/commitDiff": "./src/workflow/commitDiff/index.ts",
         "./workflow/snapshotAdapter": "./src/workflow/snapshotAdapter.ts",
