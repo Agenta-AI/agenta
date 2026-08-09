@@ -102,7 +102,12 @@ export const AgentCard = ({
 
     const title = (
         <div className="flex min-w-0 items-center gap-2">
-            <span className="min-w-0 truncate text-base font-semibold text-colorText">
+            {/* Rail rows read like session rows (14/regular); the grid card keeps a heading. */}
+            <span
+                className={`min-w-0 truncate text-colorText ${
+                    isGrid ? "text-base font-semibold" : "text-sm"
+                }`}
+            >
                 {agent.name}
             </span>
             {waiting > 0 ? (
