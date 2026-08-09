@@ -41,7 +41,11 @@ function SheetContent({
     showCloseButton = true,
     ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
-    side?: "top" | "right" | "bottom" | "left"
+    /**
+     * `responsive` is the app's form-panel idiom: a bottom sheet on a phone, the right-edge
+     * drawer the desktop uses from `lg` up. The literal edges stay literal.
+     */
+    side?: "top" | "right" | "bottom" | "left" | "responsive"
     showCloseButton?: boolean
 }) {
     return (
@@ -62,6 +66,14 @@ function SheetContent({
                     // and rounds its top the way it does against a phone's edge.
                     side === "bottom" &&
                         "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:border-x",
+                    // Bottom sheet on a phone…
+                    side === "responsive" &&
+                        "inset-x-0 bottom-0 mx-auto h-auto max-h-[85vh] w-full max-w-[560px] overflow-y-auto rounded-t-2xl border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+                    // …and the app's right-edge drawer from lg up, which is where the settings
+                    // rail also stops being a phone layout. Every bottom-sheet property is
+                    // unset explicitly — Tailwind would otherwise keep the narrower rule.
+                    side === "responsive" &&
+                        "lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:mx-0 lg:h-full lg:max-h-none lg:w-[480px] lg:max-w-[90vw] lg:rounded-none lg:border-l lg:border-t-0 lg:data-[state=closed]:slide-out-to-right lg:data-[state=open]:slide-in-from-right lg:data-[state=closed]:slide-out-to-bottom-0 lg:data-[state=open]:slide-in-from-bottom-0",
                     className,
                 )}
                 {...props}
