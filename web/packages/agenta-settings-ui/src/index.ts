@@ -10,3 +10,5 @@ export {
 } from "./PreferencesPage"
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
+export {SecretProviderTable, type SecretProviderTableProps, type ProviderDialogState} from "./secrets/SecretProviderTable"
+export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
