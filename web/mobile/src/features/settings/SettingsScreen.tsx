@@ -28,7 +28,6 @@ import {
     MembersPage,
     NamedSecretTable,
     OrganizationsPage,
-    ProjectsPage,
     SsoProvidersSection,
     TriggerConnectionsSection,
     TriggerSchedulesSection,
@@ -55,7 +54,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {AccountTab} from "./AccountTab"
 import {PreferencesTab} from "./PreferencesTab"
-import {SettingsLoadError, SettingsSectionSkeleton} from "./states/SettingsStates"
+import {ProjectsTab} from "./ProjectsTab"
 
 const THEME_OPTIONS = [
     {mode: "light", label: "Light"},
@@ -80,10 +79,9 @@ const AVAILABLE: SettingsTabKey[] = [
 ]
 
 /**
- * One tab's body. Every page comes from @agenta/settings-ui; apart from the personal tabs
- * (account deletion, preferences) this host passes no create/edit dialogs, so each renders
- * read-only — the lists and their empty states, none of the write affordances, which the
- * desktop supplies through its own modals.
+ * One tab's body. Every page comes from @agenta/settings-ui. Tabs with a *Tab wrapper bring
+ * this app's own bottom sheets for their writes; the rest render read-only — the lists and
+ * their empty states, none of the write affordances.
  */
 const TabBody = ({
     tab,
@@ -217,7 +215,7 @@ const TabBody = ({
             )
         case "projects":
             return (
-                <ProjectsPage
+                <ProjectsTab
                     projects={projects.data ?? []}
                     isLoading={projects.isPending}
                     workspaceId={workspaceId}
