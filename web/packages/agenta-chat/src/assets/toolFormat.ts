@@ -14,11 +14,26 @@
  * (a JSON string or an object) instead of dumping a single compact line.
  */
 
+/** One `[\w-]` character — the language-tag alphabet the fence prefix accepts. */
+const isFenceTagChar = (c: string): boolean =>
+    (c >= "0" && c <= "9") ||
+    (c >= "A" && c <= "Z") ||
+    (c >= "a" && c <= "z") ||
+    c === "_" ||
+    c === "-"
+
 /** Strip a surrounding markdown code fence — backends wrap tool output/errors in ```…```. Only a
- * fence that spans the WHOLE string is stripped, so inner fenced blocks are left intact. */
+ * fence that spans the WHOLE string is stripped, so inner fenced blocks are left intact.
+ *
+ * A single linear scan, NOT the old `^```[\w-]*\n?([\s\S]*?)\n?```$` match: `[\w-]*` and `[\s\S]*?`
+ * both accept '-', so an unclosed fence followed by many '-' made the engine retry every split
+ * point and rescan the tail — quadratic on uncontrolled tool output (CodeQL polynomial-ReDoS). */
 export const stripFence = (value: string): string => {
-    const m = value.trim().match(/^```[\w-]*\n?([\s\S]*?)\n?```$/)
-    return m ? m[1].trim() : value
+    const s = value.trim()
+    if (s.length < 6 || !s.startsWith("```") || !s.endsWith("```")) return value
+    let i = 3
+    while (i < s.length - 3 && isFenceTagChar(s[i])) i++
+    return s.slice(i, s.length - 3).trim()
 }
 
 /** Pretty-print `value` for a monospace block: JSON string → indented JSON, object → indented JSON,

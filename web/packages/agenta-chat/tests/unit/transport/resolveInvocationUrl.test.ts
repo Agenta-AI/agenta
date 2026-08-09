@@ -27,10 +27,37 @@ describe("invocationUrlFromRevisionData", () => {
         )
     })
 
+    it("trims a run of trailing slashes, keeping internal ones", () => {
+        expect(invocationUrlFromRevisionData({url: "https://host/services/agent///"})).toBe(
+            "https://host/services/agent/invoke",
+        )
+        expect(invocationUrlFromRevisionData({url: "https://host/services/agent"})).toBe(
+            "https://host/services/agent/invoke",
+        )
+    })
+
     it("returns null when neither url nor a parsable uri exists", () => {
         expect(invocationUrlFromRevisionData(null)).toBeNull()
         expect(invocationUrlFromRevisionData({uri: "not-agenta"})).toBeNull()
         expect(invocationUrlFromRevisionData({uri: "agenta:only-two"})).toBeNull()
+    })
+
+    it("does not fall back to uri when url is present but empty or all slashes", () => {
+        expect(
+            invocationUrlFromRevisionData({url: "", uri: "agenta:custom:my-agent:v0"}),
+        ).toBeNull()
+        expect(
+            invocationUrlFromRevisionData({url: "///", uri: "agenta:custom:my-agent:v0"}),
+        ).toBeNull()
+    })
+
+    // CodeQL "polynomial regular expression used on uncontrolled data": the old /\/+$/ backtracked
+    // from every start offset on a slash-heavy URL. 200k slashes took ~11s; the scan is ~0.1ms.
+    it("stays linear on a url with many slashes", () => {
+        const hostile = "https://host" + "/".repeat(200_000) + "x"
+        const start = performance.now()
+        expect(invocationUrlFromRevisionData({url: hostile})).toBe(`${hostile}/invoke`)
+        expect(performance.now() - start).toBeLessThan(250)
     })
 })
 

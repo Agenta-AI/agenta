@@ -22,11 +22,21 @@ const serviceUrlFromUri = (uri: string | null | undefined): string | null => {
     return `${origin}/services/${rest.join("/")}`
 }
 
+/** Strip trailing '/' in a single linear scan — NOT `/\/+$/`, whose end-anchored `+` backtracks
+ * quadratically on a backend-supplied URL with many '/' (CodeQL polynomial-ReDoS). `47` is '/'. */
+const stripTrailingSlashes = (s: string): string => {
+    let end = s.length
+    while (end > 0 && s.charCodeAt(end - 1) === 47) end--
+    return end === s.length ? s : s.slice(0, end)
+}
+
 /** Apply the `data.url|uri → /invoke` rule to a fetched revision. Exported for tests. */
 export const invocationUrlFromRevisionData = (
     data: {url?: string | null; uri?: string | null} | null | undefined,
 ): string | null => {
-    const serviceUrl = data?.url?.replace(/\/+$/, "") ?? serviceUrlFromUri(data?.uri)
+    // `!= null` not a truthiness check: an empty `data.url` must NOT fall back to `uri`.
+    const serviceUrl =
+        data?.url != null ? stripTrailingSlashes(data.url) : serviceUrlFromUri(data?.uri)
     return serviceUrl ? `${serviceUrl}/invoke` : null
 }
 
