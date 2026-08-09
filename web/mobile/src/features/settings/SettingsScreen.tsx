@@ -2,9 +2,12 @@ import {useMemo, useState} from "react"
 
 import {
     fetchAllOrgsList,
+    fetchOrganizationDomains,
+    fetchOrganizationProviders,
     fetchSingleOrg,
     updateOrganization,
     type OrganizationFlags,
+    type OrganizationProvider,
 } from "@agenta/entities/organization"
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
@@ -19,12 +22,14 @@ import {useApiKeys, type SettingsAccess} from "@agenta/settings"
 import {
     AccessControlsSection,
     AccountPage,
+    DomainsSection,
     ApiKeysPage,
     type AuthFlagKey,
     MembersPage,
     NamedSecretTable,
     OrganizationsPage,
     PreferencesPage,
+    SsoProvidersSection,
     ProjectsPage,
     SecretProviderTable,
     SettingsPageShell,
@@ -114,6 +119,16 @@ const TabBody = ({
         queryFn: () => fetchAllOrgsList(),
         enabled: tab === "organizationGeneral",
     })
+    const domains = useQuery({
+        queryKey: ["organization-domains", organizationId],
+        queryFn: () => fetchOrganizationDomains(),
+        enabled: tab === "organization" && Boolean(organizationId),
+    })
+    const providers = useQuery({
+        queryKey: ["organization-providers", organizationId],
+        queryFn: () => fetchOrganizationProviders(),
+        enabled: tab === "organization" && Boolean(organizationId),
+    })
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
 
@@ -193,17 +208,34 @@ const TabBody = ({
         case "organization": {
             const flags = org.data?.flags as OrganizationFlags | undefined
             if (!flags) return null
+            const domainList = domains.data ?? []
+            const providerList = providers.data ?? []
+            const orgSlug = org.data?.slug
             return (
-                <AccessControlsSection
-                    flags={flags}
-                    onFlagChange={(flag, value) => void setFlag(flag, value)}
-                    updating={Boolean(savingFlag)}
-                    lastSavedFlag={lastSavedFlag}
-                    // Domains and SSO providers are configured on the desktop, so these two
-                    // gates read from the flags already in effect rather than from those lists.
-                    hasActiveVerifiedProvider={flags.allow_sso}
-                    hasVerifiedDomain={flags.auto_join || flags.domains_only}
-                />
+                <div className="flex flex-col gap-8">
+                    <AccessControlsSection
+                        flags={flags}
+                        onFlagChange={(flag, value) => void setFlag(flag, value)}
+                        updating={Boolean(savingFlag)}
+                        lastSavedFlag={lastSavedFlag}
+                        hasActiveVerifiedProvider={providerList.some(
+                            (provider) => provider.flags?.is_active && provider.flags?.is_valid,
+                        )}
+                        hasVerifiedDomain={domainList.some((domain) => domain.flags?.is_verified)}
+                    />
+                    {/* Read-only here: adding a domain or provider means DNS records and IdP
+                        setup, which belong on the desktop. */}
+                    <DomainsSection domains={domainList} loading={domains.isPending} />
+                    <SsoProvidersSection
+                        providers={providerList}
+                        loading={providers.isPending}
+                        callbackUrlFor={(provider: OrganizationProvider) =>
+                            orgSlug
+                                ? `${window.location.origin}/auth/callback/sso:${orgSlug}:${provider.slug}`
+                                : null
+                        }
+                    />
+                </div>
             )
         }
         default:
