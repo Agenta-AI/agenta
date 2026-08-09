@@ -159,6 +159,29 @@ describe("captureTemplateFromUrl", () => {
         expect(win.location.href).toContain(`template=${KNOWN_KEY}`)
     })
 
+    it("does not restore a stored key on the create surface, and leaves it for a later load", () => {
+        installWindow(`/apps?new=1&template=${KNOWN_KEY}`)
+        // A record another tab captured from a real website deep-link.
+        persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
+
+        const url = new URL(`https://cloud.agenta.ai/apps?new=1&template=${KNOWN_KEY}`)
+        expect(captureTemplateFromUrl(url)).toBeNull()
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+
+        // The record survives: this URL says nothing about the other tab's intent.
+        expect(readTemplateFromStorage()?.key).toBe(KNOWN_KEY)
+        expect(captureTemplateFromUrl(new URL("https://cloud.agenta.ai/apps"))).toBe(KNOWN_KEY)
+    })
+
+    it("disarms an already-active template when the user reaches the create surface", () => {
+        installWindow("/")
+        const pending = capturePending()
+        expect(getDefaultStore().get(activeTemplateAtom)).toEqual(pending)
+
+        captureTemplateFromUrl(new URL("https://cloud.agenta.ai/apps?new=1"))
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+    })
+
     it("falls back to the stored key when the URL has none (region recapture leaves storage intact)", () => {
         installWindow("/")
         persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})

@@ -139,12 +139,15 @@ export const persistTemplateToStorage = (pending: PendingTemplate | null) => {
  * regional host after a region redirect: the query string is preserved across the switch but
  * localStorage is not shared between hosts, so the key is re-saved under the host the user lands on.
  *
- * A create-surface URL (`?new=1&template=…`) is never captured: there the key seeds a composer,
- * and treating it as a deep-link made every in-app template pick create an agent.
+ * A create-surface URL (`?new=1&template=…`) neither captures nor restores: there the key seeds a
+ * composer, and arming the consumer made every in-app template pick create an agent. A record
+ * another tab stored from a real deep-link is left in storage, not cleared — this URL says nothing
+ * about that tab's intent, and the TTL already bounds it — so a later non-create load still honours it.
  */
 export const captureTemplateFromUrl = (url: URL): string | null => {
     const store = getDefaultStore()
-    const urlKey = isCreateSurfaceUrl(url) ? null : parseTemplateFromUrl(url)
+    const createSurface = isCreateSurfaceUrl(url)
+    const urlKey = createSurface ? null : parseTemplateFromUrl(url)
     const storedRecord = readStoredTemplateRecord()
 
     if (storedRecord && isExpired(storedRecord)) {
@@ -154,6 +157,11 @@ export const captureTemplateFromUrl = (url: URL): string | null => {
             store.set(activeTemplateAtom, null)
             return null
         }
+    }
+
+    if (createSurface) {
+        store.set(activeTemplateAtom, null)
+        return null
     }
 
     if (urlKey) {
