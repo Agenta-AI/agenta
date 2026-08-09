@@ -51,6 +51,7 @@ export {
 } from "./access/AccessUpgradeNotice"
 export {
     useEntitlements,
+    useBillingSubscription,
     fetchAccessPlans,
     fetchCurrentSubscription,
     type Entitlements,
