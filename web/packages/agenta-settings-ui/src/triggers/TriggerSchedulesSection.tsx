@@ -104,7 +104,6 @@ export default function TriggerSchedulesSection() {
                 key: "name",
                 title: "Name",
                 width: 180,
-                fixed: "left",
                 render: (record) => <span>{record.name || record.id || "-"}</span>,
             },
             {
