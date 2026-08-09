@@ -399,6 +399,12 @@ importers:
       '@agenta/sessions-ui':
         specifier: workspace:../packages/agenta-sessions-ui
         version: link:../packages/agenta-sessions-ui
+      '@agenta/settings':
+        specifier: workspace:../packages/agenta-settings
+        version: link:../packages/agenta-settings
+      '@agenta/settings-ui':
+        specifier: workspace:../packages/agenta-settings-ui
+        version: link:../packages/agenta-settings-ui
       '@agenta/shared':
         specifier: workspace:../packages/agenta-shared
         version: link:../packages/agenta-shared
@@ -559,6 +565,12 @@ importers:
       '@agenta/sessions-ui':
         specifier: workspace:../packages/agenta-sessions-ui
         version: link:../packages/agenta-sessions-ui
+      '@agenta/settings':
+        specifier: workspace:../packages/agenta-settings
+        version: link:../packages/agenta-settings
+      '@agenta/settings-ui':
+        specifier: workspace:../packages/agenta-settings-ui
+        version: link:../packages/agenta-settings-ui
       '@agenta/shared':
         specifier: workspace:../packages/agenta-shared
         version: link:../packages/agenta-shared
@@ -1800,6 +1812,68 @@ importers:
       '@tanstack/react-query':
         specifier: 5.100.9
         version: 5.100.9(react@19.2.6)
+      '@types/node':
+        specifier: ^20.19.20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      jotai:
+        specifier: ^2.15.0
+        version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      next:
+        specifier: 15.5.18
+        version: 15.5.18(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/agenta-settings:
+    dependencies:
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.20
+        version: 20.19.39
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      react:
+        specifier: ^19.0.0
+        version: 19.2.6
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.6(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(@vitest/coverage-v8@4.1.6)(jsdom@26.1.0)(vite@8.1.5(@types/node@20.19.39)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.47.0)(tsx@4.22.4)(yaml@2.8.4))
+
+  packages/agenta-settings-ui:
+    dependencies:
+      '@agenta/settings':
+        specifier: workspace:../agenta-settings
+        version: link:../agenta-settings
+      '@agenta/shared':
+        specifier: workspace:../agenta-shared
+        version: link:../agenta-shared
+      '@agenta/ui':
+        specifier: workspace:../agenta-ui
+        version: link:../agenta-ui
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+    devDependencies:
       '@types/node':
         specifier: ^20.19.20
         version: 20.19.39

@@ -39,6 +39,8 @@
         "@agenta/sdk": "workspace:../packages/agenta-sdk",
         "@agenta/sessions": "workspace:../packages/agenta-sessions",
         "@agenta/sessions-ui": "workspace:../packages/agenta-sessions-ui",
+        "@agenta/settings": "workspace:../packages/agenta-settings",
+        "@agenta/settings-ui": "workspace:../packages/agenta-settings-ui",
         "@agenta/shared": "workspace:../packages/agenta-shared",
         "@agenta/ui": "workspace:../packages/agenta-ui",
         "@agenta/web-tests": "workspace:../tests",
