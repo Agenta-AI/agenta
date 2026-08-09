@@ -4,8 +4,11 @@
  * The app layout used to give pages 24px side padding; it was dropped when pages moved onto
  * `PageLayout`, which only carried 16px, and every page has felt cramped since. `PageLayout`
  * applies this for the pages that use it; a page with its own shell applies it directly.
+ *
+ * `box-border` is load-bearing, not decoration: Tailwind preflight is off app-wide, so a plain div
+ * is content-box and `w-full` + `px-16` would size the box 128px wider than its parent.
  */
-export const pageGutterClass = "px-16 pb-8 pt-14"
+export const pageGutterClass = "box-border px-16 pb-8 pt-14"
 
 /**
  * The shared cap for a centered page column, applied to the box that carries
@@ -24,4 +27,4 @@ export const pageGutterClass = "px-16 pb-8 pt-14"
  * <PageLayout className={pageContentWidthClass}>…</PageLayout>
  * ```
  */
-export const pageContentWidthClass = "mx-auto w-full max-w-[1248px]"
+export const pageContentWidthClass = "box-border mx-auto w-full max-w-[1248px]"
