@@ -126,6 +126,13 @@ const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
  * its delete until the server stops listing it — at which point the tombstone is dropped. Pruning
  * against the server list is what bounds this: an id the server never had (a purely local husk)
  * clears on the first reconcile after the delete.
+ *
+ * That pruning only applies where a reconcile actually runs. `projectSessions`'s query is gated on
+ * `isQueryableScope` (a real app UUID), so the `__global__`, `drawer:<entityId>` and `onboarding`
+ * scopes never reconcile at all — which is also why `serverKnown` was never set there and the
+ * delete stayed local FOREVER rather than for one poll cycle (#5831). Nothing can re-adopt in those
+ * scopes either, so a tombstone has nothing to guard there; it is simply never pruned. Bounded by
+ * how many sessions a user deletes in that scope, so it is left as-is rather than special-cased.
  */
 const deletedIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
     "agenta:agent-chat:deleted-sessions",
