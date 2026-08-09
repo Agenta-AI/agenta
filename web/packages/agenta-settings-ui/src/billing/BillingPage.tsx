@@ -29,21 +29,36 @@ const SectionTitle = ({children}: {children: ReactNode}) => (
     <span className="text-xs font-medium text-colorText">{children}</span>
 )
 
+/**
+ * The tier out of a plan slug. Slugs are namespaced (`cloud_v0_hobby`) but need not be — a
+ * deployment setting `AGENTA_ACCESS_PLANS` can name a plan anything. Taking the last segment
+ * reads both; indexing a fixed one rendered an empty name for every unnamespaced slug.
+ */
+const planName = (plan?: string | null) => (plan ? (plan.split("_").pop() ?? plan) : null)
+
+/** A period boundary the backend actually sent, as a date. Absent on plans that never renew. */
+const periodEnd = (subscription?: BillingSubscription | null) => {
+    if (!subscription?.period_end) return null
+    const end = dayjs.unix(subscription.period_end)
+    return end.isValid() ? end : null
+}
+
 /** The plan's name, plus how long a free trial has left (or how long ago it ran out). */
 const PlanSummary = ({subscription}: {subscription?: BillingSubscription | null}) => {
-    if (!subscription) return null
+    const name = planName(subscription?.plan)
+    if (!name) return <span className="text-colorTextTertiary">—</span>
 
-    const end = dayjs.unix(subscription.period_end)
-    const isFuture = end.isAfter(dayjs())
-    const trialText = subscription.free_trial
-        ? isFuture
-            ? `trial ends in ${end.fromNow(true)}`
-            : `trial ended ${end.fromNow(true)} ago`
-        : ""
+    const end = periodEnd(subscription)
+    const trialText =
+        subscription?.free_trial && end
+            ? end.isAfter(dayjs())
+                ? `trial ends in ${end.fromNow(true)}`
+                : `trial ended ${end.fromNow(true)} ago`
+            : ""
 
     return (
         <>
-            {subscription.plan?.split("_")[2]} <span className="lowercase">{trialText}</span>
+            {name} <span className="lowercase">{trialText}</span>
         </>
     )
 }
@@ -103,21 +118,29 @@ export const BillingPage = ({
 
     const upgradeButton = onUpgrade ? <Button onClick={onUpgrade}>Upgrade plan</Button> : null
 
+    const renewsAt = periodEnd(subscription)
+    // A subscription is worth showing even where nothing can be changed about it, so a host
+    // that only reads (the mobile app) still names the plan. Billing being on keeps the card
+    // up while the subscription is still resolving, so its buttons don't pop in late.
+    const showPlanCard = billingEnabled || Boolean(subscription)
+
     return (
         <section className="flex flex-col gap-4">
-            {billingEnabled ? (
+            {showPlanCard ? (
                 <Section>
                     <SectionTitle>Current plan</SectionTitle>
                     <span className="text-base font-bold capitalize text-colorText">
                         <PlanSummary subscription={subscription} />
                     </span>
-                    {!isOnFreePlan && subscription ? (
+                    {/* Only with a real boundary from the backend: plans that never renew leave
+                        `period_end` unset, which used to render "Invalid Date". */}
+                    {!isOnFreePlan && renewsAt ? (
                         <span className="text-colorTextSecondary">
-                            {subscription.free_trial
+                            {subscription?.free_trial
                                 ? "Trial period will end on "
                                 : "Auto renews on "}
                             <span className="font-medium text-colorText">
-                                {dayjs.unix(subscription.period_end).format("MMM D, YYYY")}
+                                {renewsAt.format("MMM D, YYYY")}
                             </span>
                         </span>
                     ) : null}

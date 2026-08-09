@@ -8,9 +8,10 @@
 export interface BillingSubscription {
     /** Plan slug. Dynamic at runtime (env-overridable), so never branch on equality with a literal. */
     plan: string
-    period_start: number
-    period_end: number
-    free_trial: boolean
+    /** Optional: a plan that never renews carries no period at all. */
+    period_start?: number
+    period_end?: number
+    free_trial?: boolean
 }
 
 /** `null` period means non-periodic (a gauge rather than a window). */

@@ -14,6 +14,8 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {useQuery} from "@tanstack/react-query"
 
+import type {BillingSubscription} from "../billing/types"
+
 export interface PlanFlags {
     access?: boolean
     domains?: boolean
@@ -57,7 +59,7 @@ export const fetchAccessPlans = async (): Promise<PlansCatalog> => {
 
 export const fetchCurrentSubscription = async (
     projectId: string,
-): Promise<{plan?: string} | null> => {
+): Promise<BillingSubscription | null> => {
     const {data} = await axios.get(`${getAgentaApiUrl()}/billing/subscription`, {
         params: {project_id: projectId},
     })
