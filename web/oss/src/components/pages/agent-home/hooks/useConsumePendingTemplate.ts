@@ -76,8 +76,12 @@ export function useConsumePendingTemplate(): boolean {
                 // the winner). Drop the key rather than leaving it stored to re-arm this hook — and
                 // flash the onboarding loader — on every later page.
                 clearTemplate(pendingGeneration)
-                if (startedRef.current === generationId) startedRef.current = null
-                setHolding(false)
+                // Only drop the loader if this generation is still the current one — a later
+                // capture may have re-armed it while this claim was in flight.
+                if (startedRef.current === generationId) {
+                    startedRef.current = null
+                    setHolding(false)
+                }
                 return
             }
 
