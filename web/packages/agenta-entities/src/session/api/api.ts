@@ -8,6 +8,8 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
+import type {AgentaApi} from "@agentaai/api-client"
+
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
     mountFileContentResponseSchema,
@@ -87,7 +89,11 @@ export interface SessionScopedParams {
     abortSignal?: AbortSignal
 }
 
-export interface QueryInteractionsParams extends SessionScopedParams {
+export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
+    /** Omit for a PROJECT-WIDE query — the backend treats `session_id` as optional, so one call
+     * returns every matching interaction across the project (the pending-approvals badge
+     * primitive). */
+    sessionId?: string
     kind?: SessionInteractionKind
     status?: SessionInteractionStatusCode
     /** Only requests still awaiting an answer. */
@@ -95,9 +101,9 @@ export interface QueryInteractionsParams extends SessionScopedParams {
 }
 
 /**
- * List a session's HITL interactions (pending approvals etc.). Used to know whether a
- * record-rendered request is still actionable — NOT as the render source (the record renders
- * the question; interactions hold the answer-state).
+ * List HITL interactions (pending approvals etc.) — one session's, or the whole project's when
+ * `sessionId` is omitted. Used to know whether a record-rendered request is still actionable —
+ * NOT as the render source (the record renders the question; interactions hold the answer-state).
  */
 export async function queryInteractions({
     sessionId,
@@ -108,7 +114,7 @@ export async function queryInteractions({
     status,
     actionableOnly,
 }: QueryInteractionsParams): Promise<SessionInteraction[] | null> {
-    if (!projectId || !sessionId) return null
+    if (!projectId) return null
 
     const data = await callFern("[queryInteractions]", () =>
         getSessionsClient().queryInteractions(
@@ -163,13 +169,22 @@ export interface RespondInteractionParams extends InteractionScopedParams {
     answer: Record<string, unknown>
 }
 
+/** True for the backend's `409 Interaction is no longer pending` (someone already answered).
+ * Fern stashes the HTTP status on the thrown `AgentaApiError` as `statusCode`. */
+export const isInteractionConflict = (error: unknown): boolean =>
+    (error as {statusCode?: number} | null)?.statusCode === 409
+
 /**
- * Resolve a HITL interaction (approve/deny/input). Returns the updated record, or `null`.
+ * Resolve a HITL interaction (approve/deny/input) — the detached respond dispatcher.
  *
- * NOTE (2026-06): per JP, decoupled interactions are deferred/"not a priority" — approvals +
- * tool-calls currently flow through MESSAGES (the live `addToolApprovalResponse` +
- * `tool_approvals` transport path), which stays. This is the durable replacement, ready but
- * not yet wired (runner doesn't auto-create rows; respond doesn't transition status).
+ * The backend CAS-flips the row to `responded` and enqueues the resume invoke, which rebuilds
+ * the turn's history from the durable records and replays the gate's stamped effective config.
+ * A caller must NOT hand-build an `/invoke` resume instead: that lands as a fresh turn and
+ * leaves the row `pending`.
+ *
+ * Unlike the read wrappers here this THROWS on failure rather than returning `null` — it is a
+ * mutation, and the caller has to tell a real failure from an already-answered gate
+ * (`isInteractionConflict`). Identify the row by its `id`, not its `token`.
  */
 export async function respondInteraction({
     interactionId,
@@ -180,13 +195,10 @@ export async function respondInteraction({
 }: RespondInteractionParams): Promise<SessionInteraction | null> {
     if (!projectId || !interactionId) return null
 
-    const data = await callFern("[respondInteraction]", () =>
-        getSessionsClient().respondInteraction(
-            {interaction_id: interactionId, answer},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
+    const data = await getSessionsClient().respondInteraction(
+        {interaction_id: interactionId, answer},
+        projectScopedRequest(projectId, appId, abortSignal),
     )
-    if (!data) return null
 
     const validated = safeParseWithLogging(
         sessionInteractionResponseSchema,
@@ -246,32 +258,61 @@ export interface QuerySessionsParams {
      * hide them by display filter, rather than mistake an archived row for a hard-delete and prune
      * it. Set false only for a view that wants strictly non-archived rows. */
     includeArchived?: boolean
+    /** Case-insensitive substring match over the session title (`session_streams.name`). */
+    search?: string
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
+    /** Page size — omit for the server default (no `windowing` sent at all, preserving prior
+     * unpaginated behavior). */
+    limit?: number
+    /** Cursor: the `id` of the last row from the previous page. */
+    next?: string
+    /** Cursor: the activity value (`updated_at ?? created_at`, server-coalesced) of the last
+     * row from the previous page (pairs with `next`). */
+    newest?: string
 }
 
 /**
  * The durable session list for the project: merged stream rows (id, `name` title, flags,
  * `created_at`, `deleted_at`=ended), filtered by the turns' workflow `references`. This is the
- * server source the reconciling sidebar merges over its localStorage cache. Returns `null` on
- * failure / missing project scope.
+ * server source the reconciling sidebar merges over its localStorage cache. Ordered by last
+ * activity (`updated_at`) server-side. Returns `null` on failure / missing project scope.
  */
 export async function querySessions({
     projectId,
     references,
     includeEnded = true,
     includeArchived = true,
+    search,
     appId,
     abortSignal,
     lowPriority,
+    limit,
+    next,
+    newest,
 }: QuerySessionsParams): Promise<SessionStream[] | null> {
     if (!projectId) return null
+
+    // Only attach `windowing` when a caller actually opts into pagination — an absent
+    // field preserves the prior unwindowed (server-default-ordered) query shape.
+    const windowing =
+        limit !== undefined || next !== undefined || newest !== undefined
+            ? {limit, next, newest}
+            : undefined
 
     const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
     const data = await callFern("[querySessions]", () =>
         client.querySessions(
-            {references, include_ended: includeEnded, include_archived: includeArchived},
+            {
+                references,
+                include_ended: includeEnded,
+                include_archived: includeArchived,
+                windowing,
+                // TODO(fern-regen): `search` isn't in the generated SessionQueryRequest yet
+                // (regen out of scope) — widen the type until the client picks it up.
+                search,
+            } as AgentaApi.SessionQueryRequest & {search?: string},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
@@ -358,11 +399,10 @@ export interface CommandSessionStreamParams extends SessionScopedParams {
  * delivered out-of-band (see the agent-chat transport). Use `force` to steal the lock,
  * `detached` for fire-and-forget.
  *
- * FOLLOWUP(sessions,lifecycle): steer/cancel/attach are NOT surfaced in the user-facing chat on
- * purpose — on the product path they only edit Redis locks; the runner doesn't cooperatively
- * cancel/steer, and there's no live-turn re-watch, so wiring them into chat would be a no-op stub.
- * The chat's send/stop (via `/invoke` + useChat abort) and `killSession` are the real ops. Revisit
- * when the runner cooperates. See docs/designs/sessions/frontend-integration.md.
+ * FOLLOWUP(sessions,lifecycle): steer/attach remain unwired in the user-facing desktop chat;
+ * cancel IS consumed by the mobile StopButton (cooperative ≤30s; clean "cancelled" settle
+ * arrives with the agent-cancel-steer runner work). There's still no live-turn re-watch.
+ * See docs/designs/sessions/frontend-integration.md.
  */
 export async function commandSessionStream({
     sessionId,

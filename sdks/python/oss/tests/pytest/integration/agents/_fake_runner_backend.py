@@ -57,6 +57,7 @@ class FakeRunnerSession(Session):
         trace: Optional[TraceContext],
         run_context: Optional[RunContext],
         session_id: Optional[str],
+        effective_parameters: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._backend = backend
         self._config = config
@@ -64,6 +65,7 @@ class FakeRunnerSession(Session):
         self._trace = trace
         self._run_context = run_context
         self._session_id = session_id
+        self._effective_parameters = effective_parameters
 
     @property
     def id(self) -> Optional[str]:
@@ -79,6 +81,7 @@ class FakeRunnerSession(Session):
             trace=self._trace,
             run_context=self._run_context,
             session_id=self._session_id,
+            effective_parameters=self._effective_parameters,
         )
 
     def _absorb_result(self, result: AgentResult) -> None:
@@ -154,6 +157,7 @@ class FakeRunnerBackend(Backend):
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
+        effective_parameters: Optional[Dict[str, Any]] = None,
     ) -> FakeRunnerSession:
         return FakeRunnerSession(
             self,
@@ -162,6 +166,7 @@ class FakeRunnerBackend(Backend):
             trace=trace,
             run_context=run_context,
             session_id=session_id,
+            effective_parameters=effective_parameters,
         )
 
     async def _deliver_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:

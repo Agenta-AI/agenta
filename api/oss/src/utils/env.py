@@ -257,14 +257,18 @@ class ApiCachingConfig(BaseModel):
 class WorkflowsConfig(BaseModel):
     """Workflow-revision behavior toggles."""
 
-    # The ordered-operations change set (agent-config-editing, slice S1b). OFF is today's
-    # surface exactly: the catalog advertises only `set`/`remove`, and a delta carrying
-    # `operations` is refused as an unknown field, the same answer it gets today. Turning
-    # it on adds the ordered arm to the request model and the catalog schema. The flag
-    # exists so the API can ship dark, ahead of the SDK catalog and the runner, per the
-    # mixed-version rollout order.
+    # The ordered-operations change set (agent-config-editing). ON is the default: the
+    # request model carries the ordered arm and the catalog advertises it. The variable
+    # is an escape hatch — set it falsy and the deployment falls back to the legacy
+    # surface, where only `set`/`remove` exist and a delta carrying `operations` is
+    # refused as an unknown field.
+    # The SDK reads this SAME variable in `agenta/sdk/agents/flags.py` to decide what to
+    # advertise to the model and what the build-an-agent skill teaches, and cannot import
+    # this parser. Its default and its accepted spellings must match this one in both
+    # directions, or the model is shown one payload shape while the server accepts
+    # another. Pinned by `oss/tests/pytest/unit/workflows/test_ordered_operations_flag.py`.
     ordered_operations_enabled: bool = _parse_bool_env(
-        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", False
+        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", True
     )
 
     model_config = ConfigDict(extra="ignore")
@@ -1409,6 +1413,27 @@ class SessionsRedisConfig(BaseModel):
     concurrency_limit: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
+    )
+    # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
+    # runner golden fixture; safe to tune without touching the TS side.
+    watch_heartbeat_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_HEARTBEAT_SECONDS")
+        or 15
+    )
+    # SSE `retry:` preamble — the browser's OWN auto-reconnect delay after a
+    # server-side drop (restart/deploy). Without it the interval is
+    # implementation-defined, and a restart reconnect-storms the API.
+    watch_retry_milliseconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_RETRY_MILLISECONDS")
+        or 5000
+    )
+    # API-side only (turn-supersession tombstones) — NOT part of the runner golden
+    # fixture; the runner never reads this key, it learns supersession from
+    # `is_current_turn`. Defaults to the alive TTL so a tombstone always outlives the
+    # lock whose displacement created it.
+    superseded_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_SUPERSEDED_TTL_SECONDS")
+        or 3600
     )
 
     model_config = ConfigDict(extra="ignore")

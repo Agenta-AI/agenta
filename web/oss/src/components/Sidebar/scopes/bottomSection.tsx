@@ -11,7 +11,8 @@ import {
     ScrollIcon,
     SlackLogoIcon,
 } from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {loadable} from "jotai/utils"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
@@ -30,6 +31,9 @@ interface SidebarBottomSectionOptions {
 // Hidden pending the new onboarding widget; flip back to true to restore the sidebar entry.
 const SHOW_GET_STARTED_GUIDE = false
 
+// Lazy-load package.json so its version stays out of the initial bundle.
+const versionAtom = loadable(atom(async () => (await import("../../../../package.json")).version))
+
 export const useSidebarBottomSection = ({
     includeSettingsLink = true,
 }: SidebarBottomSectionOptions = {}): SidebarSection => {
@@ -40,6 +44,8 @@ export const useSidebarBottomSection = ({
     const {projectURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)
+    const versionState = useAtomValue(versionAtom)
+    const version = versionState.state === "hasData" ? versionState.data : undefined
 
     const handleOpenWidget = useCallback(
         (e: MouseEvent) => {
@@ -100,6 +106,11 @@ export const useSidebarBottomSection = ({
                 key: "help-docs-link",
                 title: "Help & Docs",
                 icon: <QuestionIcon size={14} />,
+                suffix: version ? (
+                    <span className="text-[10px] leading-none text-colorTextTertiary">
+                        v{version}
+                    </span>
+                ) : undefined,
                 submenu: [
                     {
                         key: "docs",
@@ -139,7 +150,14 @@ export const useSidebarBottomSection = ({
                 ],
             },
         ],
-        [doesSessionExist, handleOpenWidget, handleToggleSupport, isCrispEnabled, isVisible],
+        [
+            doesSessionExist,
+            handleOpenWidget,
+            handleToggleSupport,
+            isCrispEnabled,
+            isVisible,
+            version,
+        ],
     )
 
     return useMemo(

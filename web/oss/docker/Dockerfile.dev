@@ -27,6 +27,7 @@ RUN PNPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[
 
 # Copy app package manifests
 COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.yaml* ./oss/.npmrc* ./oss/
+COPY mobile/package.json ./mobile/
 
 # Copy workspace package manifests (required for workspace:* resolution)
 COPY packages/agenta-shared/package.json ./packages/agenta-shared/
@@ -38,6 +39,7 @@ COPY packages/agenta-playground-ui/package.json ./packages/agenta-playground-ui/
 COPY packages/agenta-annotation/package.json ./packages/agenta-annotation/
 COPY packages/agenta-annotation-ui/package.json ./packages/agenta-annotation-ui/
 COPY packages/agenta-sdk/package.json ./packages/agenta-sdk/
+COPY packages/agenta-chat/package.json ./packages/agenta-chat/
 
 # `agenta-api-client` runs `tsc` as a `prepare` lifecycle script during install.
 # Its source (src/, tsconfig.json) must be present before `pnpm i` runs, so we
@@ -54,7 +56,7 @@ COPY tests/package.json ./tests/
 COPY ./pnpm-workspace.yaml ./turbo.json ./
 RUN groupadd --gid 10001 agenta && \
     useradd --uid 10001 --gid 10001 --shell /bin/false --create-home agenta && \
-    mkdir -p /app/.turbo /app/oss/.next/cache && \
+    mkdir -p /app/.turbo /app/oss/.next/cache /app/mobile/.next/cache && \
     chown -R agenta:agenta /app
 
 USER 10001
@@ -88,6 +90,8 @@ COPY --chown=agenta:agenta packages/agenta-annotation/src ./packages/agenta-anno
 COPY --chown=agenta:agenta packages/agenta-annotation/tsconfig.json ./packages/agenta-annotation/
 COPY --chown=agenta:agenta packages/agenta-annotation-ui/src ./packages/agenta-annotation-ui/src
 COPY --chown=agenta:agenta packages/agenta-annotation-ui/tsconfig.json ./packages/agenta-annotation-ui/
+COPY --chown=agenta:agenta packages/agenta-chat/src ./packages/agenta-chat/src
+COPY --chown=agenta:agenta packages/agenta-chat/tsconfig.json ./packages/agenta-chat/
 
 COPY --chown=agenta:agenta oss/src ./oss/src
 COPY --chown=agenta:agenta oss/public ./oss/public
@@ -99,6 +103,9 @@ COPY --chown=agenta:agenta oss/next.config.ts ./oss/next.config.ts
 
 COPY --chown=agenta:agenta oss/tailwind.config.ts ./oss/tailwind.config.ts
 
+COPY --chown=agenta:agenta mobile/src ./mobile/src
+COPY --chown=agenta:agenta mobile/public ./mobile/public
+COPY --chown=agenta:agenta mobile/tsconfig.json mobile/next-env.d.ts mobile/next.config.ts mobile/postcss.config.mjs mobile/components.json ./mobile/
 
 ENTRYPOINT ["./entrypoint.sh"]
 EXPOSE 3000

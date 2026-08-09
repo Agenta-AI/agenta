@@ -63,7 +63,9 @@ def ordered():
 
 @pytest.fixture(scope="module")
 def legacy():
-    return _skill(None)
+    # Explicitly off: ordered operations are the default now, so an unset variable is the
+    # ordered state, not this one.
+    return _skill("false")
 
 
 def _commit_surface(skill):
@@ -162,6 +164,17 @@ class TestOrderedModeTeachesTheOrderedShape:
             "remove_item",
             '{"key": "code-review-checklist", "list": "skills"}',
         ) in (shapes)
+
+    def test_an_unset_flag_teaches_the_ordered_shape(self):
+        # The default is what a fresh deployment serves, so it is what the skill has to
+        # teach. Asserted separately from the `ordered` fixture, which sets the variable:
+        # a default that drifted back to legacy would leave that fixture green.
+        default = _skill(None)
+        assert "delta.operations" in default["body"]
+        for name, content in _commit_surface(default).items():
+            assert "delta.set" not in content, (
+                f"{name} teaches the legacy commit shape on a default deployment"
+            )
 
     def test_every_example_validates_against_the_real_commit_schema(self, ordered):
         # Field for field against what the catalog advertises: the schema is closed at every
