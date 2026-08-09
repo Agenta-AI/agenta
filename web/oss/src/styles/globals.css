@@ -892,11 +892,19 @@ body {
 }
 
 /* Global scrollbars: slim, no track, and the thumb dissolves toward its tail end
-   instead of ending in a hard edge. Firefox gets the slim/no-track half (its
-   scrollbar-color cannot paint a gradient). The opt-in classes below override this. */
-* {
-    scrollbar-width: thin;
-    scrollbar-color: var(--ag-scroll-thumb) transparent;
+   instead of ending in a hard edge. Chromium and Safari paint that gradient through the
+   WebKit pseudo-elements below; Firefox gets the slim/no-track half from the standard
+   properties (its scrollbar-color cannot paint a gradient). The opt-in classes below
+   override this.
+
+   The standard properties are scoped to browsers without the pseudo-elements on purpose:
+   since Chrome 121 a non-auto scrollbar-width/scrollbar-color makes Chromium ignore every
+   ::-webkit-scrollbar rule, which would drop the gradient everywhere it is the point. */
+@supports not selector(::-webkit-scrollbar) {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--ag-scroll-thumb) transparent;
+    }
 }
 
 ::-webkit-scrollbar {
@@ -939,13 +947,20 @@ body {
    only appears while the pointer or focus is inside the scroller. */
 .ag-scroll-quiet {
     scrollbar-gutter: stable;
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
 }
 
-.ag-scroll-quiet:hover,
-.ag-scroll-quiet:focus-within {
-    scrollbar-color: var(--ag-scroll-thumb) transparent;
+/* Same split as above: the standard properties would otherwise switch off this class's own
+   WebKit rules in Chromium. */
+@supports not selector(::-webkit-scrollbar) {
+    .ag-scroll-quiet {
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+    }
+
+    .ag-scroll-quiet:hover,
+    .ag-scroll-quiet:focus-within {
+        scrollbar-color: var(--ag-scroll-thumb) transparent;
+    }
 }
 
 .ag-scroll-quiet::-webkit-scrollbar {
