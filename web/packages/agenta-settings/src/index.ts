@@ -1,9 +1,5 @@
 export * from "./navigation"
 export {useStaticTable} from "./useStaticTable"
-export {
-    SettingsAccessProvider,
-    useSettingsAccess,
-    CLOSED_SETTINGS_ACCESS,
-} from "./access"
+export {SettingsAccessProvider, useSettingsAccess, CLOSED_SETTINGS_ACCESS} from "./access"
 export {fetchAllListApiKeys, createApiKey, deleteApiKey} from "./api/apiKeys"
 export {useApiKeys, type ApiKey, type ApiKeyRow, type UseApiKeysOptions} from "./useApiKeys"

@@ -1,6 +1,7 @@
 import {useMemo} from "react"
 
 import {useProfile} from "@agenta/entities/profile"
+import {fetchAllProjects} from "@agenta/entities/project"
 import {
     getSettingsSidebarTabs,
     getSettingsTabDescription,
@@ -21,6 +22,7 @@ import {
 } from "@agenta/settings-ui"
 import {getEnv} from "@agenta/shared/api"
 import {useThemeMode} from "@agenta/ui/theme"
+import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -60,18 +62,26 @@ const TabBody = ({
     access,
     user,
     theme,
+    workspaceId,
 }: {
     tab: SettingsTabKey
     access: SettingsAccess
     user: {username?: string | null; email?: string | null} | null
     theme: {options: {mode: string; label: string}[]; mode: string; onSelect: (m: string) => void}
+    workspaceId: string
 }) => {
     const keys = useApiKeys({
-        workspaceId: "",
+        workspaceId,
         canView: tab === "apiKeys" && access.canViewApiKeys,
         canEdit: false,
         confirmDelete: async () => false,
         onCreated: () => undefined,
+    })
+
+    const projects = useQuery({
+        queryKey: ["projects", workspaceId],
+        queryFn: () => fetchAllProjects(workspaceId),
+        enabled: tab === "projects",
     })
 
     switch (tab) {
@@ -104,7 +114,13 @@ const TabBody = ({
         case "webhooks":
             return <WebhooksPage />
         case "projects":
-            return <ProjectsPage projects={[]} isLoading={false} />
+            return (
+                <ProjectsPage
+                    projects={projects.data ?? []}
+                    isLoading={projects.isPending}
+                    workspaceId={workspaceId}
+                />
+            )
         default:
             return null
     }
@@ -221,6 +237,7 @@ export const SettingsScreen = ({
                                     tab={active}
                                     access={access}
                                     user={user}
+                                    workspaceId={workspaceId}
                                     theme={{
                                         options: THEME_OPTIONS,
                                         mode: themeMode,

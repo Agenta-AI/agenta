@@ -1,5 +1,12 @@
 import {useCallback, useMemo, useState} from "react"
 
+import type {Org, OrgDetails} from "@agenta/entities/organization"
+import {
+    createOrganization,
+    deleteOrganization,
+    transferOrganizationOwnership,
+    updateOrganization,
+} from "@agenta/entities/organization"
 import {useStaticTable} from "@agenta/settings"
 import {InitialsAvatar} from "@agenta/ui"
 import {EnhancedModal} from "@agenta/ui/components/modal"
@@ -15,13 +22,6 @@ import {App, Button, Form, Input, Select, Typography} from "antd"
 import clsx from "clsx"
 
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
-import type {Org, OrgDetails} from "@/oss/lib/Types"
-import {
-    createOrganization,
-    deleteOrganization,
-    transferOrganizationOwnership,
-    updateOrganization,
-} from "@/oss/services/organization/api"
 import {resetOrganizationData, useOrgData} from "@/oss/state/org"
 import {clearWorkspaceOrgCache} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"

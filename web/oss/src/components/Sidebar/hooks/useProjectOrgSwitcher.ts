@@ -1,5 +1,7 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import type {OrgDetails} from "@agenta/entities/organization"
+import {checkOrganizationAccess} from "@agenta/entities/organization"
 import type {ProjectsResponse} from "@agenta/entities/project"
 import {useMutation} from "@tanstack/react-query"
 import {App} from "antd"
@@ -11,8 +13,6 @@ import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
 import {buildProjectSwitchHref} from "@/oss/lib/navigation/projectSwitchHref"
-import type {OrgDetails} from "@/oss/lib/Types"
-import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {appIdentifiersAtom} from "@/oss/state/appState"
 import {useOrgData} from "@/oss/state/org"
 import {
@@ -152,7 +152,7 @@ export const useProjectOrgSwitcher = () => {
 
     const createOrgMutation = useMutation({
         mutationFn: async (values: {name: string}) => {
-            const {createOrganization} = await import("@/oss/services/organization/api")
+            const {createOrganization} = await import("@agenta/entities/organization")
             return createOrganization({name: values.name.trim()})
         },
         onSuccess: async (createdOrg) => {

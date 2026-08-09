@@ -133,3 +133,16 @@ export async function getAuthToken(): Promise<string | undefined> {
         return undefined
     }
 }
+
+/**
+ * Request flags the app's response interceptor reads. Declared here so callers can set them
+ * without an `as any` cast — the desktop's interceptor owns the behaviour, this only types it.
+ */
+declare module "axios" {
+    interface AxiosRequestConfig {
+        /** Skip the global error toast; the caller handles the failure itself. */
+        _ignoreError?: boolean
+        /** Do not redirect to the auth-upgrade flow on a 401/403. */
+        _skipAuthUpgradeRedirect?: boolean
+    }
+}

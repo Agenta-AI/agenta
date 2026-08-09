@@ -1,5 +1,20 @@
 import {type FC, useState, useCallback, useMemo} from "react"
 
+import {
+    updateOrganization,
+    fetchOrganizationDomains,
+    createOrganizationDomain,
+    verifyOrganizationDomain,
+    refreshOrganizationDomainToken,
+    deleteOrganizationDomain,
+    type OrganizationDomain,
+    fetchOrganizationProviders,
+    createOrganizationProvider,
+    updateOrganizationProvider,
+    testOrganizationProvider,
+    deleteOrganizationProvider,
+    type OrganizationProvider,
+} from "@agenta/entities/organization"
 import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {
     PlusOutlined,
@@ -31,21 +46,6 @@ import {
 
 import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
-import {
-    updateOrganization,
-    fetchOrganizationDomains,
-    createOrganizationDomain,
-    verifyOrganizationDomain,
-    refreshOrganizationDomainToken,
-    deleteOrganizationDomain,
-    type OrganizationDomain,
-    fetchOrganizationProviders,
-    createOrganizationProvider,
-    updateOrganizationProvider,
-    testOrganizationProvider,
-    deleteOrganizationProvider,
-    type OrganizationProvider,
-} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
 
 import {UpgradePrompt} from "./UpgradePrompt"

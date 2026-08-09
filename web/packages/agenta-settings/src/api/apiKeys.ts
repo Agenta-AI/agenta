@@ -1,7 +1,6 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
-import {getDefaultStore} from "jotai"
-
 import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
 
 const currentProjectId = () => getDefaultStore().get(projectIdAtom) ?? ""
 

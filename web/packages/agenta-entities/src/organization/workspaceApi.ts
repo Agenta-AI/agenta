@@ -1,7 +1,11 @@
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {WorkspaceRole, Workspace, WorkspaceMember} from "@/oss/lib/Types"
-import {getProjectValues} from "@/oss/state/project"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {getDefaultStore} from "jotai"
+
+import type {Workspace, WorkspaceMember, WorkspaceRole} from "./types"
+
+/** The scoping project id — the app layer's `getProjectValues()` is unreachable from a package. */
+const getProjectValues = () => ({projectId: getDefaultStore().get(projectIdAtom) ?? ""})
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -15,7 +19,7 @@ export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false) => {
     // `{role_name, role_description}` shape callers expect.
     const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
         _ignoreError: ignoreAxiosError,
-    } as any)
+    })
     const data = response.data as Record<
         "organization" | "workspace" | "project",
         {role: string; description?: string | null; permissions: string[]}[]
@@ -43,7 +47,7 @@ export const assignWorkspaceRole = async (
         {email, organization_id: organizationId, role},
         {
             _ignoreError: ignoreAxiosError,
-        } as any,
+        },
     )
     return response.data
 }
@@ -64,7 +68,7 @@ export const unAssignWorkspaceRole = async (
         {
             params: {email, organization_id: organizationId, role},
             _ignoreError: ignoreAxiosError,
-        } as any,
+        },
     )
     return response.data
 }
@@ -89,7 +93,7 @@ export const inviteToWorkspace = async (
         data,
         {
             _ignoreError: ignoreAxiosError,
-        } as any,
+        },
     )
     return response.data
 }
@@ -109,7 +113,7 @@ export const resendInviteToWorkspace = async (
         {email},
         {
             _ignoreError: ignoreAxiosError,
-        } as any,
+        },
     )
     return response.data
 }
@@ -135,7 +139,7 @@ export const acceptWorkspaceInvite = async (
         {token, ...(email ? {email} : {})},
         {
             _ignoreError: ignoreAxiosError,
-        } as any,
+        },
     )
     return response.data
 }
@@ -152,7 +156,7 @@ export const removeFromWorkspace = async (
 
     const response = await axios.delete(
         `${getAgentaApiUrl()}/workspaces/${workspaceId}/users?project_id=${projectId}`,
-        {params: {email, organization_id: organizationId}, _ignoreError: ignoreAxiosError} as any,
+        {params: {email, organization_id: organizationId}, _ignoreError: ignoreAxiosError},
     )
     return response.data
 }
@@ -170,7 +174,7 @@ export const updateWorkspace = async (
     const response = await axios.put(
         `${getAgentaApiUrl()}/organizations/${organizationId}/workspaces/${workspaceId}?project_id=${projectId}`,
         {name},
-        {_ignoreError: ignoreAxiosError} as any,
+        {_ignoreError: ignoreAxiosError},
     )
     return response.data
 }
@@ -185,7 +189,7 @@ export const fetchWorkspaceDetails = async (
         `${getAgentaApiUrl()}/workspaces/${workspaceId}?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
-        } as any,
+        },
     )
     return response.data as Workspace
 }
@@ -200,7 +204,7 @@ export const fetchWorkspaceMembers = async (
         `${getAgentaApiUrl()}/workspaces/${workspaceId}/members?project_id=${projectId}`,
         {
             _ignoreError: ignoreAxiosError,
-        } as any,
+        },
     )
     return response.data as WorkspaceMember[]
 }

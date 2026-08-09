@@ -1,6 +1,7 @@
 import {useCallback, useMemo} from "react"
 
 import {writeLastAuthMethod} from "@agenta/auth"
+import {fetchAllOrgsList} from "@agenta/entities/organization"
 import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
@@ -15,7 +16,6 @@ import {
     onboardingStorageUserIdAtom,
 } from "@/oss/lib/onboarding/atoms"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
-import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
 import {resolvePreferredWorkspaceId, resolveWorkspaceIdForOrg} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"

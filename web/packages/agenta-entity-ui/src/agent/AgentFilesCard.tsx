@@ -1,14 +1,19 @@
 import {useMemo, useState} from "react"
 
+import {AGENT_FILES_DIR, agentMountQueryFamily, useSessionDrive} from "@agenta/entities/drive"
 import {latestMountFilesQueryFamily, type MountFile} from "@agenta/entities/session"
+import {timeAgo} from "@agenta/shared/utils"
 import {PANEL_ACTION_CLASS, PanelSection} from "@agenta/ui/components/presentational"
-import {SkeletonBlock, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    SkeletonBlock,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {FileIcon, FolderIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
-
-import {AGENT_FILES_DIR, agentMountQueryFamily, useSessionDrive} from "@agenta/entities/drive"
-import {timeAgo} from "@agenta/shared/utils"
 
 // The whole drive explorer, pulled in only once the drawer is actually opened.
 const FilesDrawer = dynamic(

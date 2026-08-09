@@ -24,8 +24,7 @@ export interface ApiKeysPageProps {
     onDelete: (prefix: string) => void
 }
 
-const formatDate = (value?: string | null) =>
-    value ? new Date(value).toLocaleDateString() : "—"
+const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString() : "—")
 
 const COLUMNS: DataTableColumn<ApiKeyRow>[] = [
     {

@@ -97,29 +97,32 @@ export const AccountPage = ({
 
             {deletion ? (
                 <div className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                    <h2 className="m-0 text-base font-semibold text-colorText">Delete account</h2>
-                    <span className="text-colorTextSecondary">
-                        Permanently delete your account and the organizations you own.
-                    </span>
-                </div>
+                    <div className="flex flex-col gap-1">
+                        <h2 className="m-0 text-base font-semibold text-colorText">
+                            Delete account
+                        </h2>
+                        <span className="text-colorTextSecondary">
+                            Permanently delete your account and the organizations you own.
+                        </span>
+                    </div>
 
-                <DangerCallout>
-                    Deletes your account, every organization you own, and all of their workspaces,
-                    projects, applications, and data. You will be signed out immediately.
-                </DangerCallout>
+                    <DangerCallout>
+                        Deletes your account, every organization you own, and all of their
+                        workspaces, projects, applications, and data. You will be signed out
+                        immediately.
+                    </DangerCallout>
 
-                <div>
-                    <Button
-                        variant="destructive"
-                        disabled={!address}
-                        onClick={() => setOpen(true)}
-                        className="w-fit"
-                    >
-                        <Trash size={14} />
-                        Delete account
-                    </Button>
-                </div>
+                    <div>
+                        <Button
+                            variant="destructive"
+                            disabled={!address}
+                            onClick={() => setOpen(true)}
+                            className="w-fit"
+                        >
+                            <Trash size={14} />
+                            Delete account
+                        </Button>
+                    </div>
                 </div>
             ) : null}
 
@@ -130,30 +133,30 @@ export const AccountPage = ({
                       onConfirm: () => void deletion.onDeleteAccount(),
                       confirmed,
                       body: (
-                    <div className="flex flex-col gap-3">
-                        <DangerCallout>
-                            Permanently deletes your account and every organization you own,
-                            including all workspaces, projects, applications, and data.
-                        </DangerCallout>
-                        <div className="flex flex-col gap-2">
-                            <div className="flex flex-wrap items-center gap-2 text-colorText">
-                                <span>Type</span>
-                                <code className="rounded border border-solid border-colorErrorBorder bg-colorErrorBg px-1 text-colorError">
-                                    {address}
-                                </code>
-                                <span>to confirm:</span>
-                            </div>
-                            <Input
-                                autoFocus
-                                value={typed}
-                                onChange={(event) => setTyped(event.target.value)}
-                                placeholder="Your email"
-                                autoComplete="off"
-                                spellCheck={false}
-                            />
-                        </div>
-                    </div>
-                    ),
+                          <div className="flex flex-col gap-3">
+                              <DangerCallout>
+                                  Permanently deletes your account and every organization you own,
+                                  including all workspaces, projects, applications, and data.
+                              </DangerCallout>
+                              <div className="flex flex-col gap-2">
+                                  <div className="flex flex-wrap items-center gap-2 text-colorText">
+                                      <span>Type</span>
+                                      <code className="rounded border border-solid border-colorErrorBorder bg-colorErrorBg px-1 text-colorError">
+                                          {address}
+                                      </code>
+                                      <span>to confirm:</span>
+                                  </div>
+                                  <Input
+                                      autoFocus
+                                      value={typed}
+                                      onChange={(event) => setTyped(event.target.value)}
+                                      placeholder="Your email"
+                                      autoComplete="off"
+                                      spellCheck={false}
+                                  />
+                              </div>
+                          </div>
+                      ),
                   })
                 : null}
         </section>
