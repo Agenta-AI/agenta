@@ -34,7 +34,9 @@ const AgentsGrid = ({
     // `pt-5` is the room the grid variant's overhanging avatar needs. It belongs to the grid, not
     // to each card — on the card it left the avatar-less dashed cell misaligned.
     return (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-4 gap-y-10 pt-5">
+        // auto-rows-fr: every row the same height. The h-full cards stretch to their row, and
+        // the create cell's min-h made the LAST row taller than the rest without it.
+        <div className="grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-x-4 gap-y-10 pt-5">
             {rows.map((record) => (
                 <AgentCard
                     key={record.key}
