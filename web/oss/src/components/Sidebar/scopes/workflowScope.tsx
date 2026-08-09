@@ -25,7 +25,11 @@ const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
         >
             {/* Collapsed leads with the TOGGLE — the spot every collapsed rail puts it — and
                 Back takes the next band. Expanded: Back left, toggle right, one row. */}
-            {collapsed ? <SidebarToggleButton /> : <SidebarBackButton collapsed={false} lastPath={lastPath} />}
+            {collapsed ? (
+                <SidebarToggleButton />
+            ) : (
+                <SidebarBackButton collapsed={false} lastPath={lastPath} />
+            )}
             {!collapsed && <SidebarToggleButton />}
         </div>
 
