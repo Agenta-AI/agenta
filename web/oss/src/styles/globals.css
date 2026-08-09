@@ -891,6 +891,49 @@ body {
     display: block;
 }
 
+/* Global scrollbars: slim, no track, and the thumb dissolves toward its tail end
+   instead of ending in a hard edge. Firefox gets the slim/no-track half (its
+   scrollbar-color cannot paint a gradient). The opt-in classes below override this. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--ag-scroll-thumb) transparent;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background-color: transparent;
+    background-image: linear-gradient(
+        to bottom,
+        var(--ag-scroll-thumb) 0%,
+        var(--ag-scroll-thumb) 55%,
+        transparent 100%
+    );
+}
+
+::-webkit-scrollbar-thumb:horizontal {
+    background-image: linear-gradient(
+        to right,
+        var(--ag-scroll-thumb) 0%,
+        var(--ag-scroll-thumb) 55%,
+        transparent 100%
+    );
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-image: none;
+    background-color: var(--ag-scroll-thumb-hover);
+}
+
 /* Quiet scrollbars. The gutter is reserved at the thumb's width whether or not the
    content overflows, so revealing the thumb never shifts the content, and the thumb
    only appears while the pointer or focus is inside the scroller. */
@@ -906,8 +949,8 @@ body {
 }
 
 .ag-scroll-quiet::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 .ag-scroll-quiet::-webkit-scrollbar-track {
@@ -916,8 +959,9 @@ body {
 
 .ag-scroll-quiet::-webkit-scrollbar-thumb {
     background-color: transparent;
+    background-image: none;
     background-clip: content-box;
-    border: 2px solid transparent;
+    border: 1px solid transparent;
     border-radius: 999px;
     transition: background-color 150ms ease;
 }
