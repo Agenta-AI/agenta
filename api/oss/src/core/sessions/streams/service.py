@@ -30,6 +30,7 @@ from oss.src.dbs.redis.sessions.locks import (
     clear_running,
     force_cancel_alive,
     force_clear_owner,
+    get_alive_owner,
     get_session_liveness,
     refresh_alive,
     refresh_running,
@@ -284,16 +285,23 @@ class SessionStreamsService:
             )
 
         # True only when this turn_id still (or again, uninterrupted) owns the alive lock at
-        # the moment of this heartbeat. A cancel/steer/kill deletes the alive key entirely,
-        # which the nx=True re-acquire below would otherwise silently re-establish under the
-        # SAME turn_id, masking the interruption from the runner's watchdog (W7.4 — this is
-        # what `is_current_turn` exists to surface). An absent key is ambiguous by itself: it
-        # is also the normal state before this turn's VERY FIRST heartbeat (the API's
-        # `_start_turn` acquire may not have landed yet, or this beat wins a race with it), and
-        # that is NOT an interruption. Disambiguate with the durable row's `turn_id`: if it
-        # already recorded THIS turn_id as established (a prior heartbeat's write), the key
-        # being gone now is something else's doing; if the row shows no turn yet, or a
-        # different one, this is establishment.
+        # the moment of this heartbeat. A cancel/steer/kill deletes the alive key (cancel)
+        # or replaces it with a new turn_id (steer), which the nx=True re-acquire below would
+        # otherwise silently re-establish under the SAME turn_id, masking the interruption from
+        # the runner's watchdog (W7.4 -- this is what `is_current_turn` exists to surface).
+        #
+        # An absent key is ambiguous by itself: it is also the normal state before this turn's
+        # VERY FIRST heartbeat (the API's `_start_turn` acquire may not have landed yet, or
+        # this beat wins a race with it), and that is NOT an interruption. Disambiguate via the
+        # alive lock's current owner:
+        #   - lock held by a different turn_id   --> steer displaced us (is_current_turn=False)
+        #   - lock absent + row already has our turn_id --> cancel cleared it (is_current_turn=False)
+        #   - lock absent + row shows no/other turn_id  --> first-beat race, treat as establishment
+        #
+        # Comparing against the lock (not the durable row) is correct here: a steer calls
+        # `_start_turn`, which overwrites the durable row's turn_id with the new turn before
+        # the old turn's next heartbeat fires, so the row-based check always sees a "different"
+        # turn_id and cannot distinguish "displaced" from "first beat of new turn".
         prior_stream = await self._dao.get_by_session_id(
             project_id=project_id,
             session_id=request.session_id,
@@ -305,14 +313,23 @@ class SessionStreamsService:
 
         if request.turn_id and request.is_running:
             # Acquire-then-refresh: the first heartbeat must establish the nest locks
-            # itself (acquire_* is nx=True — a no-op if _start_turn already holds them).
+            # itself (acquire_* is nx=True -- a no-op if _start_turn already holds them).
             if not await refresh_alive(
                 self._lock,
                 project_id=str(project_id),
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             ):
-                if turn_was_established:
+                alive_holder = await get_alive_owner(
+                    self._lock,
+                    project_id=str(project_id),
+                    session_id=request.session_id,
+                )
+                if alive_holder is not None and alive_holder != request.turn_id:
+                    # Another turn holds the lock -- we were displaced by a steer.
+                    is_current_turn = False
+                elif turn_was_established:
+                    # Lock is absent and this turn was previously established -- cancelled.
                     is_current_turn = False
                 await acquire_alive(
                     self._lock,

@@ -1,7 +1,7 @@
 """WP7 (W7.4): the control signal from cancel/steer/kill must reach the runner's heartbeat.
 
 Before this, `heartbeat()`'s acquire-then-refresh fallback silently re-acquired a lost alive
-lock under the SAME turn_id (nx=True is a no-op only when the key is gone) — a cancel/steer/
+lock under the SAME turn_id (nx=True is a no-op only when the key is gone) -- a cancel/steer/
 kill that raced a heartbeat was invisible to the runner: the beat still looked like a normal
 `ok` heartbeat. `is_current_turn` on `SessionHeartbeatResult` surfaces the interruption so the
 runner's watchdog can abort the in-flight run (`services/runner/src/sessions/alive.ts`'s
@@ -13,6 +13,8 @@ Covers:
     is_current_turn to False (the lock was gone, then silently re-acquired);
   - a steer (different turn_id takes the lock) also reports the OLD turn's next beat as
     is_current_turn=False, and does not steal the lock back for the old turn;
+  - a steer via command() (the real write path) flips the old turn's heartbeat: regression
+    for issue #5790 where the durable-row comparison masked the displacement;
   - a replica that lost the owner claim entirely reports is_current_turn=False.
 """
 
@@ -23,9 +25,12 @@ from uuid import UUID, uuid4
 import pytest
 import pytest_asyncio
 
+from agenta.sdk.models.workflows import WorkflowServiceRequestData
+
 from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatRequest,
     SessionStream,
+    SessionStreamCommandRequest,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.redis.sessions.locks import force_cancel_alive, get_alive_owner
@@ -34,6 +39,7 @@ from unit.sessions.test_project_scoped_locks import _FakeRedis
 
 
 _PROJECT = uuid4()
+_USER = uuid4()
 _SESSION = "session_interrupt"
 
 
@@ -175,3 +181,81 @@ async def test_losing_owner_claim_reports_not_current(lock_engine):
 
     assert result.is_current_turn is False
     assert result.replica_id == "replica-a"
+
+
+@pytest.mark.asyncio
+async def test_steer_via_command_flips_old_turn_heartbeat_to_not_current(lock_engine):
+    """Regression for issue #5790.
+
+    The old code compared against the durable row's turn_id to detect whether a lock loss
+    was an interruption or a first-beat race. A steer calls _start_turn(), which overwrites
+    the durable row with the new turn_id before the old turn's next heartbeat fires. The old
+    turn therefore saw `prior_stream.turn_id != request.turn_id`, treated the lock loss as a
+    first-beat race, and kept reporting is_current_turn=True even though it had been displaced.
+
+    The fix compares against the alive lock's current holder (not the durable row): if the
+    lock is held by a different turn_id, the old turn is displaced regardless of what the row
+    says.
+
+    This test drives the real steer write path (command() with force=True) instead of
+    manually simulating it, so it catches the exact sequence that triggered the bug.
+    """
+    session_id = f"session_steer_cmd_{uuid4().hex[:8]}"
+    svc = _service(lock_engine)
+
+    # Start turn-1 via the command endpoint (send path).
+    send_resp = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(
+            session_id=session_id,
+            data=WorkflowServiceRequestData(inputs={"messages": ["hello"]}),
+            force=False,
+        ),
+    )
+    old_turn_id = send_resp.turn_id
+    assert old_turn_id is not None
+
+    # Runner's heartbeat establishes turn-1 in the durable row.
+    first_beat = await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-a",
+            turn_id=old_turn_id,
+            is_running=True,
+        ),
+    )
+    assert first_beat.is_current_turn is True
+
+    # Steer: a new message displaces turn-1 via the command endpoint's write path.
+    # This calls _start_turn(), which overwrites the durable row with the new turn_id --
+    # the exact condition that caused the bug.
+    steer_resp = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=SessionStreamCommandRequest(
+            session_id=session_id,
+            data=WorkflowServiceRequestData(inputs={"messages": ["steer"]}),
+            force=True,
+        ),
+    )
+    new_turn_id = steer_resp.turn_id
+    assert new_turn_id is not None
+    assert new_turn_id != old_turn_id
+
+    # Old turn's next heartbeat must report is_current_turn=False now that the durable row
+    # shows new_turn_id and the alive lock is held by new_turn_id, not old_turn_id.
+    old_turn_next_beat = await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-a",
+            turn_id=old_turn_id,
+            is_running=True,
+        ),
+    )
+    assert old_turn_next_beat.is_current_turn is False, (
+        "displaced turn's heartbeat must report is_current_turn=False after a steer "
+        "via command(), not just after a manually simulated lock cancellation"
+    )
