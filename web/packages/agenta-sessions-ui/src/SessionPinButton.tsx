@@ -26,7 +26,10 @@ export const SessionPinButton = ({
                 onToggle()
             }}
             className={clsx(
-                "shrink-0 cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary",
+                "relative shrink-0 cursor-pointer border-0 bg-transparent p-0 text-colorTextTertiary",
+                // Transparent ::after hit extender: a ~26px pointer target around the unchanged
+                // 14px icon. Absolute, so the trailing controls' h-5 box and the row do not grow.
+                "after:absolute after:inset-[-6px] after:content-['']",
                 !pinned && revealOnHover && "opacity-0 focus:opacity-100 group-hover:opacity-100",
             )}
         >
