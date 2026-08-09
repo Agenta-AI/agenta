@@ -40,7 +40,12 @@ function BoundWorkflowCell({wfId}: {wfId: string | null}) {
     )
 }
 
-export default function TriggerSchedulesSection() {
+export interface TriggerSchedulesSectionProps {
+    /** Hides create/edit and skips the drawer, which is still antd-backed. */
+    readOnly?: boolean
+}
+
+export default function TriggerSchedulesSection({readOnly}: TriggerSchedulesSectionProps = {}) {
     const {schedules, isLoading, refetch} = useTriggerSchedules()
     const {remove, setActive, isMutating} = useTriggerSchedule()
     const openDrawer = useSetAtom(triggerScheduleDrawerAtom)
@@ -180,7 +185,7 @@ export default function TriggerSchedulesSection() {
                     className="ph-no-capture"
                     rows={rows}
                     loading={isLoading || isMutating}
-                    onRowClick={handleEdit}
+                    onRowClick={readOnly ? undefined : handleEdit}
                     actions={(record) => [
                         {
                             key: "deliveries",
@@ -198,6 +203,7 @@ export default function TriggerSchedulesSection() {
                             key: "edit",
                             label: "Edit",
                             icon: <PencilSimpleLine size={16} />,
+                            hidden: readOnly,
                             onClick: () => handleEdit(record),
                         },
                         {type: "divider"},
@@ -206,6 +212,7 @@ export default function TriggerSchedulesSection() {
                             label: "Delete",
                             icon: <Trash size={16} />,
                             danger: true,
+                            hidden: readOnly,
                             onClick: () => handleDelete(record),
                         },
                     ]}
@@ -236,10 +243,12 @@ export default function TriggerSchedulesSection() {
                                     <TooltipContent>Reload all scheduled runs</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
-                            <Button onClick={handleCreate} disabled={isLoading || isMutating}>
-                                <Plus size={14} />
-                                Schedule
-                            </Button>
+                            {readOnly ? null : (
+                                <Button onClick={handleCreate} disabled={isLoading || isMutating}>
+                                    <Plus size={14} />
+                                    Schedule
+                                </Button>
+                            )}
                         </>
                     }
                     empty={
@@ -256,16 +265,18 @@ export default function TriggerSchedulesSection() {
                                 </div>
                             }
                         >
-                            <Button variant="outline" onClick={handleCreate}>
-                                <Plus size={14} />
-                                Schedule
-                            </Button>
+                            {readOnly ? null : (
+                                <Button variant="outline" onClick={handleCreate}>
+                                    <Plus size={14} />
+                                    Schedule
+                                </Button>
+                            )}
                         </EmptyState>
                     }
                 />
             </section>
 
-            <TriggerScheduleDrawer />
+            {readOnly ? null : <TriggerScheduleDrawer />}
         </>
     )
 }

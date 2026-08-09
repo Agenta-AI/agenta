@@ -26,7 +26,9 @@ const MicPermissionNotice = ({
 
     return (
         <RevealCollapse open={open} className={className}>
-            <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-solid border-[var(--ag-colorErrorBorder)] bg-[var(--ant-color-error-bg)] px-3 py-2">
+            {/* Token classes, not `--ant-color-*`: antd generates those, and this now renders on
+                mobile too, where nothing defines them. */}
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-md border border-solid border-colorErrorBorder bg-colorErrorBg px-3 py-2">
                 <span className="flex min-w-0 items-center gap-2 text-xs text-colorError">
                     <WarningCircle size={14} weight="fill" className="shrink-0" />
                     <span className="truncate">{messageRef.current}</span>

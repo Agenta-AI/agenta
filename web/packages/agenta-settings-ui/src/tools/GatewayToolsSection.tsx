@@ -39,9 +39,11 @@ const AUTH_SCHEME_LABELS: Record<string, string> = {
 export interface GatewayToolsSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
     confirm?: (args: {title: string; message: string; onOk: () => void | Promise<void>}) => void
+    /** Hides connect/run and skips the catalog drawer, whose schema form is still antd-backed. */
+    readOnly?: boolean
 }
 
-export default function GatewayToolsSection({confirm}: GatewayToolsSectionProps) {
+export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSectionProps) {
     const {connections, isLoading, refetch} = useToolConnectionsQuery()
     const {handleDelete, handleRefresh, handleRevoke, invalidateConnections} =
         useToolConnectionActions()
@@ -264,16 +266,18 @@ export default function GatewayToolsSection({confirm}: GatewayToolsSectionProps)
                     rows={rows}
                     rowKey={(record) => record.key}
                     loading={isLoading}
-                    onRowClick={openExecution}
+                    onRowClick={readOnly ? undefined : openExecution}
                     actions={(record) => [
                         {
                             key: "run",
+                            hidden: readOnly,
                             label: "Run tool",
                             icon: <Play size={16} />,
                             onClick: () => openExecution(record),
                         },
                         {
                             key: "refresh",
+                            hidden: readOnly,
                             label: "Refresh",
                             icon: <ArrowClockwise size={16} />,
                             onClick: () => onRefresh(record),
@@ -321,10 +325,12 @@ export default function GatewayToolsSection({confirm}: GatewayToolsSectionProps)
                                     <TooltipContent>Reload all connections</TooltipContent>
                                 </Tooltip>
                             </TooltipProvider>
-                            <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
-                                <Plus size={14} />
-                                Connect tool
-                            </Button>
+                            {readOnly ? null : (
+                                <Button disabled={isLoading} onClick={() => setCatalogOpen(true)}>
+                                    <Plus size={14} />
+                                    Connect tool
+                                </Button>
+                            )}
                         </>
                     }
                     empty={
@@ -345,18 +351,20 @@ export default function GatewayToolsSection({confirm}: GatewayToolsSectionProps)
                                     </div>
                                 }
                             >
-                                <Button variant="outline" onClick={() => setCatalogOpen(true)}>
-                                    <Plus size={14} />
-                                    Connect tool
-                                </Button>
+                                {readOnly ? null : (
+                                    <Button variant="outline" onClick={() => setCatalogOpen(true)}>
+                                        <Plus size={14} />
+                                        Connect tool
+                                    </Button>
+                                )}
                             </EmptyState>
                         )
                     }
                 />
             </section>
 
-            <CatalogDrawer onConnectionCreated={refetch} />
-            <ToolExecutionDrawer />
+            {readOnly ? null : <CatalogDrawer onConnectionCreated={refetch} />}
+            {readOnly ? null : <ToolExecutionDrawer />}
         </>
     )
 }
