@@ -1,6 +1,6 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import {expect} from "@agenta/web-tests/utils"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 import {
     deriveEvaluationKind,
     type EvaluationRunForKindDetection,
@@ -83,7 +83,7 @@ const getVisibleButtonByLabels = async (page: Page, labels: readonly (string | R
 
         for (let index = 0; index < buttonCount; index += 1) {
             const button = buttons.nth(index)
-            if (await button.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => button.isVisible())) {
                 return button
             }
         }
@@ -176,7 +176,7 @@ const selectAutoEvaluationModalTableInput = async ({
         '.ant-checkbox, .ant-checkbox-wrapper, .ant-radio, .ant-radio-wrapper, [role="checkbox"], [role="radio"]'
     const selectedTags = modal.locator(".ant-tabs-tab .ant-tag")
 
-    if (rowText && (await searchInput.isVisible().catch(() => false))) {
+    if (rowText && (await pollLocatorState(() => searchInput.isVisible()))) {
         await typeIntoLocator(searchInput, rowText)
         await expect(searchInput).toHaveValue(rowText)
         await expect
@@ -212,7 +212,7 @@ const selectAutoEvaluationModalTableInput = async ({
 
         const selectionInput = stableRow.locator(inputSelector).first()
         if ((await selectionInput.count().catch(() => 0)) > 0) {
-            return await selectionInput.isChecked().catch(() => false)
+            return await pollLocatorState(() => selectionInput.isChecked())
         }
 
         if (typeof rowText === "string") {
@@ -257,7 +257,7 @@ const openAutoEvaluationRunFromList = async ({
     await ensureAutoEvaluationsContext(page)
 
     const evaluationsSearchInput = page.locator('input[placeholder="Search evaluations"]').first()
-    if (await evaluationsSearchInput.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => evaluationsSearchInput.isVisible())) {
         await typeIntoLocator(evaluationsSearchInput, evaluationName)
         await expect(evaluationsSearchInput).toHaveValue(evaluationName)
     }
@@ -275,7 +275,7 @@ const openAutoEvaluationRunFromList = async ({
             const count = await candidates.count()
             for (let index = 0; index < count; index += 1) {
                 const row = candidates.nth(index)
-                if (await row.isVisible().catch(() => false)) {
+                if (await pollLocatorState(() => row.isVisible())) {
                     return row
                 }
             }
@@ -461,19 +461,19 @@ const waitAndClickDeleteForRun = async (
             async () => {
                 try {
                     const row = getRow()
-                    if (!(await row.isVisible().catch(() => false))) return false
+                    if (!(await pollLocatorState(() => row.isVisible()))) return false
                     await row.hover()
                     const moreButton = row
                         .locator("button")
                         .filter({has: page.locator('[aria-label="more"]')})
                         .first()
-                    if (!(await moreButton.isVisible().catch(() => false))) return false
+                    if (!(await pollLocatorState(() => moreButton.isVisible()))) return false
                     await moreButton.click()
                     await page.waitForTimeout(300)
                     const deleteItem = page
                         .getByRole("menuitem", {name: AUTO_EVAL_DELETE_MENU_LABEL})
                         .first()
-                    if (!(await deleteItem.isVisible().catch(() => false))) {
+                    if (!(await pollLocatorState(() => deleteItem.isVisible()))) {
                         await page.keyboard.press("Escape")
                         return false
                     }
