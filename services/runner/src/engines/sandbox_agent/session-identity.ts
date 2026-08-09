@@ -37,13 +37,15 @@ const APPROVAL_TTL_ENV = "AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS";
 const POOL_MAX_ENV = "AGENTA_RUNNER_SESSION_POOL_MAX";
 
 const DEFAULT_TTL_MS = 60_000;
-// Thirty minutes. An approval park by definition has a pending interaction row waiting on a
-// human, and answers increasingly arrive from a phone minutes later (mobile approvals plan,
+// Ten minutes. An approval park by definition has a pending interaction row waiting on a human,
+// and answers increasingly arrive from a phone minutes later (mobile approvals plan,
 // 2026-07-27 §4b-4): a 5-minute window pushed most of those onto the slower cold-replay path.
+// Thirty was the first attempt at covering that; ten covers the same phone-latency case without
+// holding a pool slot for half an hour on a gate nobody is coming back to.
 // The window is still bounded by the mount-credential expiry check, expiry degrades to cold
 // (never fails the turn), and an awaiting_approval entry keeps holding a pool slot — override
 // via AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS if warm slots are contended.
-const DEFAULT_APPROVAL_TTL_MS = 1_800_000;
+const DEFAULT_APPROVAL_TTL_MS = 600_000;
 const DEFAULT_POOL_MAX = 8;
 const DAYTONA_TTL_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS";
 const DAYTONA_POOL_MAX_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM";
