@@ -143,15 +143,15 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
             async () => {
                 const pathname = new URL(page.url()).pathname
                 const hasScopedSettingsPath = /\/w\/[^/]+\/p\/[^/]+\/settings$/.test(pathname)
-                const headingVisible = await page
-                    .getByRole("heading", {name: "LLMs"})
-                    .isVisible()
-                    .catch(() => false)
-                const sectionVisible = await customProvidersSection.isVisible().catch(() => false)
-                const hasVisibleSpinner = await customProvidersSection
-                    .locator(".ant-spin-spinning")
-                    .isVisible()
-                    .catch(() => false)
+                const headingVisible = await pollLocatorState(() =>
+                    page.getByRole("heading", {name: "LLMs"}).isVisible(),
+                )
+                const sectionVisible = await pollLocatorState(() =>
+                    customProvidersSection.isVisible(),
+                )
+                const hasVisibleSpinner = await pollLocatorState(() =>
+                    customProvidersSection.locator(".ant-spin-spinning").isVisible(),
+                )
                 // `.first()` matters: the section renders this button twice (once in the
                 // header, once in the empty-state row). Without it the locator is strict-mode
                 // ambiguous and `isEnabled()` throws — pollLocatorState lets that throw
@@ -318,7 +318,9 @@ async function createMockProvider(page: Page, uiHelpers: UIHelpers): Promise<voi
         exact: true,
     })
 
-    const providerVisible = await providerNameCell.isVisible({timeout: 5000}).catch(() => false)
+    const providerVisible = await pollLocatorState(() =>
+        providerNameCell.isVisible({timeout: 5000}),
+    )
     if (providerVisible) {
         await expect(providerNameCell).toBeVisible({timeout: 15000})
     }
