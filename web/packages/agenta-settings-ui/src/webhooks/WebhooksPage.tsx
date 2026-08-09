@@ -1,22 +1,5 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
-import {
-    InfiniteVirtualTableFeatureShell,
-    createStandardColumns,
-    type StandardColumnDef,
-} from "@agenta/ui/table"
-import {EmptyState} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
-import {message} from "@agenta/ui/app-message"
-import {Button, Input, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {useAtom, useSetAtom} from "jotai"
-
-import {useStaticTable} from "@agenta/settings"
-import {
-    WEBHOOK_TEST_FAILURE_MESSAGE,
-    handleTestResult,
-} from "@agenta/entities/webhook"
 import type {WebhookProvider, WebhookSubscription} from "@agenta/entities/webhook"
 import {WEBHOOK_TEST_FAILURE_MESSAGE, handleTestResult} from "@agenta/entities/webhook"
 import {setWebhookActiveAtom, testWebhookAtom, webhooksAtom} from "@agenta/entities/webhook"
@@ -26,15 +9,18 @@ import {
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
 import {ActiveToggle} from "@agenta/entity-ui/gatewayTrigger"
-import {useStaticTable} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {
-    InfiniteVirtualTableFeatureShell,
-    createStandardColumns,
-    type StandardColumnDef,
-} from "@agenta/ui/table"
-import {EmptyState} from "@agenta/ui/ui"
-import {Button, Input, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
+    Button,
+    DataTable,
+    EmptyState,
+    Input,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    type DataTableColumn,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, PencilSimpleLine, Play, Plus, Trash} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 
@@ -177,113 +163,94 @@ export const WebhooksPage = ({
         )
     }, [webhooks, searchTerm])
 
-    const columns = useMemo(
-        () =>
-            createStandardColumns<WebhookRow>([
-                {
-                    type: "text",
-                    key: "name",
-                    title: "Name",
-                    width: 200,
-                    fixed: "left",
-                    render: (_value, record) => <span>{record.name || "-"}</span>,
+    const columns = useMemo<DataTableColumn<WebhookRow>[]>(
+        () => [
+            {key: "name", title: "Name", width: 200, render: (record) => record.name || "-"},
+            {
+                key: "provider",
+                title: "Type",
+                width: 110,
+                render: (record) =>
+                    getProviderLabel(record.data?.url) === "github" ? "GitHub" : "Webhook",
+            },
+            {
+                key: "url",
+                title: "Target",
+                width: 320,
+                render: (record) => {
+                    const url = record.data?.url
+                    return (
+                        <span className="block truncate" title={url}>
+                            {formatDestination(url)}
+                        </span>
+                    )
                 },
-                {
-                    type: "text",
-                    key: "provider",
-                    title: "Type",
-                    width: 110,
-                    render: (_value, record) =>
-                        getProviderLabel(record.data?.url) === "github" ? "GitHub" : "Webhook",
+            },
+            {
+                key: "events",
+                title: "Events",
+                width: 220,
+                render: (record) => {
+                    const value = record.data?.event_types?.join(", ") || "-"
+                    return (
+                        <span className="block truncate" title={value}>
+                            {value}
+                        </span>
+                    )
                 },
-                {
-                    type: "text",
-                    key: "url",
-                    title: "Target",
-                    width: 320,
-                    render: (_value, record) => {
-                        const url = record.data?.url
-                        return (
-                            <span className="block truncate" title={url}>
-                                {formatDestination(url)}
-                            </span>
-                        )
-                    },
-                },
-                {
-                    type: "text",
-                    key: "events",
-                    title: "Events",
-                    width: 220,
-                    render: (_value, record) => {
-                        const value = record.data?.event_types?.join(", ") || "-"
-                        return (
-                            <span className="block truncate" title={value}>
-                                {value}
-                            </span>
-                        )
-                    },
-                },
-                {
-                    // The toggle shows the state and changes it, so it lives in Status.
-                    type: "text",
-                    key: "status",
-                    title: "Status",
-                    width: 120,
-                    render: (_value, record) => (
-                        <div onClick={(event) => event.stopPropagation()}>
-                            <ActiveToggle
-                                active={isWebhookActive(record)}
-                                onToggle={handleToggle(record)}
-                                activatedMessage="Webhook resumed"
-                                pausedMessage="Webhook paused"
-                                errorMessage="Failed to update webhook"
-                            />
-                        </div>
-                    ),
-                },
-                {
-                    type: "actions",
-                    showCopyId: false,
-                    items: [
-                        {
-                            key: "test",
-                            label: "Test",
-                            icon: <Play size={16} />,
-                            disabled: () => testingWebhookId !== null,
-                            onClick: (record: WebhookRow) => handleTestWebhook(record),
-                        },
-                        {
-                            key: "edit",
-                            label: "Edit",
-                            icon: <PencilSimpleLine size={16} />,
-                            onClick: (record: WebhookRow) => handleEdit(record),
-                        },
-                        {type: "divider"},
-                        {
-                            key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            onClick: (record: WebhookRow) => handleDeleteClick(record),
-                        },
-                    ],
-                } satisfies StandardColumnDef<WebhookRow>,
-            ]),
-        [handleDeleteClick, handleEdit, handleTestWebhook, handleToggle, testingWebhookId],
+            },
+            {
+                // The toggle shows the state and changes it, so it lives in Status.
+                key: "status",
+                title: "Status",
+                width: 120,
+                render: (record) => (
+                    <div onClick={(event) => event.stopPropagation()}>
+                        <ActiveToggle
+                            active={isWebhookActive(record)}
+                            onToggle={handleToggle(record)}
+                            activatedMessage="Webhook resumed"
+                            pausedMessage="Webhook paused"
+                            errorMessage="Failed to update webhook"
+                        />
+                    </div>
+                ),
+            },
+        ],
+        [handleToggle],
     )
 
-    const {tableScope, pagination} = useStaticTable<WebhookRow>("settings-webhooks", rows, {
-        loading: isLoading,
-    })
     return (
         <div className="flex flex-col gap-2">
-            <InfiniteVirtualTableFeatureShell<WebhookRow>
-                tableScope={tableScope}
-                autoHeight={false}
+            <DataTable<WebhookRow>
                 columns={columns}
-                rowKey="key"
-                pagination={pagination}
+                rows={rows}
+                rowKey={(record) => record.key}
+                loading={isLoading}
+                onRowClick={handleEdit}
+                actions={(record) => [
+                    {
+                        key: "test",
+                        label: "Test",
+                        icon: <Play size={16} />,
+                        disabled: testingWebhookId !== null,
+                        onClick: () => handleTestWebhook(record),
+                    },
+                    {
+                        key: "edit",
+                        label: "Edit",
+                        icon: <PencilSimpleLine size={16} />,
+                        onClick: () => handleEdit(record),
+                    },
+                    {type: "divider"},
+                    {
+                        key: "delete",
+                        label: "Delete",
+                        icon: <Trash size={16} />,
+                        danger: true,
+                        onClick: () => handleDeleteClick(record),
+                    },
+                ]}
                 filters={
                     <Input
                         placeholder="Search webhooks"
@@ -297,62 +264,53 @@ export const WebhooksPage = ({
                     <>
                         <TooltipProvider>
                             <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    aria-label="Reload all webhooks"
-                                    disabled={reloading}
-                                    onClick={reloadAll}
-                                >
-                                    <ArrowClockwise size={14} />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Reload all webhooks</TooltipContent>
-                        </Tooltip>
-                            </TooltipProvider>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        aria-label="Reload all webhooks"
+                                        disabled={reloading}
+                                        onClick={reloadAll}
+                                    >
+                                        <ArrowClockwise size={14} />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Reload all webhooks</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                         <Button onClick={handleCreate} disabled={isLoading}>
                             <Plus size={14} />
                             Subscribe
                         </Button>
                     </>
                 }
-                tableProps={{
-                    size: "small",
-                    bordered: true,
-                    tableLayout: "fixed",
-                    locale: {
-                        emptyText: searchTerm.trim() ? (
-                            <EmptyState
-                                image="simple"
-                                description={`No webhooks match “${searchTerm.trim()}”`}
-                            />
-                        ) : (
-                            <EmptyState
-                                image="simple"
-                                description={
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-colorText">
-                                            No webhooks yet
-                                        </span>
-                                        <span>
-                                            Subscribe an endpoint to receive workflow events as
-                                            signed HTTP requests.
-                                        </span>
-                                    </div>
-                                }
-                            >
-                                <Button variant="outline" onClick={handleCreate}>
-                                    <Plus size={14} />
-                                    Subscribe
-                                </Button>
-                            </EmptyState>
-                        ),
-                    },
-                    onRow: (record: WebhookRow) => ({
-                        onClick: () => handleEdit(record),
-                        className: "cursor-pointer",
-                    }),
-                }}
+                empty={
+                    searchTerm.trim() ? (
+                        <EmptyState
+                            image="simple"
+                            description={`No webhooks match “${searchTerm.trim()}”`}
+                        />
+                    ) : (
+                        <EmptyState
+                            image="simple"
+                            description={
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs font-medium text-colorText">
+                                        No webhooks yet
+                                    </span>
+                                    <span>
+                                        Subscribe an endpoint to receive workflow events as signed
+                                        HTTP requests.
+                                    </span>
+                                </div>
+                            }
+                        >
+                            <Button variant="outline" onClick={handleCreate}>
+                                <Plus size={14} />
+                                Subscribe
+                            </Button>
+                        </EmptyState>
+                    )
+                }
             />
 
             {renderDrawer?.({onSuccess: handleModalSuccess})}

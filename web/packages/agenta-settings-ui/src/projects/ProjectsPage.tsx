@@ -2,33 +2,21 @@ import {useCallback, useMemo, useState} from "react"
 
 import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
 import type {ProjectsResponse} from "@agenta/entities/project"
-import {useStaticTable} from "@agenta/settings"
-import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components/presentational"
-import {
-    createStandardColumns,
-    InfiniteVirtualTableFeatureShell,
-    type StandardColumnDef,
-} from "@agenta/ui/table"
-import {EmptyState} from "@agenta/ui/ui"
-import {Button, Input} from "@agenta/ui/ui"
+import {Button, DataTable, EmptyState, Input, type DataTableColumn} from "@agenta/ui/ui"
 import {CheckCircle, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
-
-/**
- * Mutation failures arrive either as an axios-style payload (`response.data.detail`) or as a
- * plain `Error`. `extractApiErrorMessage` reads both, but stringifies anything it cannot read —
- * so when that is all it found, show the per-action copy instead of `[object Object]`.
- */
-const mutationErrorMessage = (error: unknown, fallback: string): string => {
-    const detail = extractApiErrorMessage(error)
-    return !detail || detail === String(error) ? fallback : detail
-}
 
 interface ProjectFormValues {
     name: string
     make_default?: boolean
+}
+
+/** Axios surfaces the backend's reason on `response.data.detail`. */
+const errorDetail = (error: unknown, fallback: string): string => {
+    const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
+    return axiosLike?.response?.data?.detail || axiosLike?.message || fallback
 }
 
 interface ProjectRow extends ProjectsResponse {
@@ -100,8 +88,8 @@ export const ProjectsPage = ({
             void invalidateProjects()
             setCreateModalOpen(false)
         },
-        onError: (error: unknown) => {
-            message.error(mutationErrorMessage(error, "Unable to create project"))
+        onError: (error) => {
+            message.error(errorDetail(error, "Unable to create project"))
         },
     })
 
@@ -114,8 +102,8 @@ export const ProjectsPage = ({
             setRenameModalOpen(false)
             setActiveProject(null)
         },
-        onError: (error: unknown) => {
-            message.error(mutationErrorMessage(error, "Unable to rename project"))
+        onError: (error) => {
+            message.error(errorDetail(error, "Unable to rename project"))
         },
     })
 
@@ -125,8 +113,8 @@ export const ProjectsPage = ({
             message.success("Default project updated")
             void invalidateProjects()
         },
-        onError: (error: unknown) => {
-            message.error(mutationErrorMessage(error, "Unable to set default"))
+        onError: (error) => {
+            message.error(errorDetail(error, "Unable to set default"))
         },
     })
 
@@ -136,8 +124,8 @@ export const ProjectsPage = ({
             message.success("Project deleted")
             void invalidateProjects()
         },
-        onError: (error: unknown) => {
-            message.error(mutationErrorMessage(error, "Unable to delete project"))
+        onError: (error) => {
+            message.error(errorDetail(error, "Unable to delete project"))
         },
     })
 
@@ -183,81 +171,72 @@ export const ProjectsPage = ({
         setRenameModalOpen(true)
     }, [])
 
-    const columns = useMemo(
-        () =>
-            createStandardColumns<ProjectRow>([
-                {
-                    type: "entity",
-                    key: "project_name",
-                    title: "Project",
-                    width: 260,
-                    fixed: "left",
-                    getName: (record) => record.project_name,
-                    getChips: (record) => (record.is_default_project ? [{label: "Default"}] : []),
-                },
-                // Its own column, not a second line under the name.
-                {type: "slug", key: "project_id", title: "Project ID", width: 330},
-                {
-                    type: "text",
-                    key: "user_role",
-                    title: "Your role",
-                    width: 140,
-                    render: (_value, record) =>
-                        record.user_role ? <Tag className="m-0" label={record.user_role} /> : "—",
-                },
-                {
-                    type: "actions",
-                    showCopyId: false,
-                    items: [
-                        {
-                            key: "rename",
-                            label: "Rename",
-                            icon: <PencilSimpleLine size={16} />,
-                            onClick: (record: ProjectRow) => openRenameModal(record),
-                        },
-                        {
-                            key: "default",
-                            label: "Set as default",
-                            icon: <CheckCircle size={16} />,
-                            hidden: (record: ProjectRow) => Boolean(record.is_default_project),
-                            disabled: () => defaultMutation.isPending,
-                            onClick: (record: ProjectRow) => handleMakeDefault(record),
-                        },
-                        {type: "divider"},
-                        {
-                            key: "delete",
-                            label: "Delete project",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            // The last project in a workspace cannot be removed, and the
-                            // default project must be reassigned first.
-                            disabled: (record: ProjectRow) =>
-                                !canDeleteProjects || Boolean(record.is_default_project),
-                            onClick: (record: ProjectRow) => handleDelete(record),
-                        },
-                    ],
-                } satisfies StandardColumnDef<ProjectRow>,
-            ]),
-        [
-            canDeleteProjects,
-            defaultMutation.isPending,
-            handleDelete,
-            handleMakeDefault,
-            openRenameModal,
+    const columns = useMemo<DataTableColumn<ProjectRow>[]>(
+        () => [
+            {
+                key: "project_name",
+                title: "Project",
+                width: 260,
+                render: (record) => (
+                    <div className="flex min-w-0 items-center gap-2">
+                        <span className="truncate font-medium">{record.project_name}</span>
+                        {record.is_default_project ? <Tag className="m-0" label="Default" /> : null}
+                    </div>
+                ),
+            },
+            // Its own column, not a second line under the name.
+            {
+                key: "project_id",
+                title: "Project ID",
+                width: 330,
+                mono: true,
+                render: (r) => r.project_id,
+            },
+            {
+                key: "user_role",
+                title: "Your role",
+                width: 140,
+                render: (record) =>
+                    record.user_role ? <Tag className="m-0" label={record.user_role} /> : "—",
+            },
         ],
+        [],
     )
 
-    const {tableScope, pagination} = useStaticTable<ProjectRow>("settings-projects", rows, {
-        loading: isLoading,
-    })
     return (
         <div className="flex flex-col gap-2">
-            <InfiniteVirtualTableFeatureShell<ProjectRow>
-                tableScope={tableScope}
-                autoHeight={false}
+            <DataTable<ProjectRow>
                 columns={columns}
-                rowKey="key"
-                pagination={pagination}
+                rows={rows}
+                rowKey={(record) => record.key}
+                loading={isLoading}
+                actions={(record) => [
+                    {
+                        key: "rename",
+                        label: "Rename",
+                        icon: <PencilSimpleLine size={16} />,
+                        onClick: () => openRenameModal(record),
+                    },
+                    {
+                        key: "default",
+                        label: "Set as default",
+                        icon: <CheckCircle size={16} />,
+                        hidden: Boolean(record.is_default_project),
+                        disabled: defaultMutation.isPending,
+                        onClick: () => handleMakeDefault(record),
+                    },
+                    {type: "divider"},
+                    {
+                        key: "delete",
+                        label: "Delete project",
+                        icon: <Trash size={16} />,
+                        danger: true,
+                        // The last project in a workspace cannot be removed, and the
+                        // default project must be reassigned first.
+                        disabled: !canDeleteProjects || Boolean(record.is_default_project),
+                        onClick: () => handleDelete(record),
+                    },
+                ]}
                 filters={
                     <Input
                         placeholder="Search projects"
@@ -273,39 +252,34 @@ export const ProjectsPage = ({
                         New project
                     </Button>
                 }
-                tableProps={{
-                    size: "small",
-                    bordered: true,
-                    tableLayout: "fixed",
-                    locale: {
-                        emptyText: searchTerm.trim() ? (
-                            <EmptyState
-                                image="simple"
-                                description={`No projects match “${searchTerm.trim()}”`}
-                            />
-                        ) : (
-                            <EmptyState
-                                image="simple"
-                                description={
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-xs font-medium text-colorText">
-                                            No projects in this workspace yet
-                                        </span>
-                                        <span>
-                                            Create a project to organize your agents, datasets, and
-                                            deployments.
-                                        </span>
-                                    </div>
-                                }
-                            >
-                                <Button variant="outline" onClick={() => setCreateModalOpen(true)}>
-                                    <Plus size={14} />
-                                    New project
-                                </Button>
-                            </EmptyState>
-                        ),
-                    },
-                }}
+                empty={
+                    searchTerm.trim() ? (
+                        <EmptyState
+                            image="simple"
+                            description={`No projects match “${searchTerm.trim()}”`}
+                        />
+                    ) : (
+                        <EmptyState
+                            image="simple"
+                            description={
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-xs font-medium text-colorText">
+                                        No projects in this workspace yet
+                                    </span>
+                                    <span>
+                                        Create a project to organize your agents, datasets, and
+                                        deployments.
+                                    </span>
+                                </div>
+                            }
+                        >
+                            <Button variant="outline" onClick={() => setCreateModalOpen(true)}>
+                                <Plus size={14} />
+                                New project
+                            </Button>
+                        </EmptyState>
+                    )
+                }
             />
 
             {renderCreateDialog?.({
