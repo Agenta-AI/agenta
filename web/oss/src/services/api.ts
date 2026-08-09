@@ -49,11 +49,7 @@ export const getJWT = async () => {
     return undefined
 }
 
-export const fetchProfile = async (ignoreAxiosError = false) => {
-    return axios.get(`${getAgentaApiUrl()}/profile`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
-}
+export {fetchProfile} from "@agenta/entities/profile"
 
 export const fetchData = async (url: string): Promise<any> => {
     const response = await fetch(url)

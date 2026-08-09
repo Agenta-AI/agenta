@@ -1,9 +1,10 @@
+import {useProfile} from "@agenta/entities/profile"
 import {
     CLOSED_SETTINGS_ACCESS,
     getSettingsTabDescription,
     getSettingsTabLabel,
 } from "@agenta/settings"
-import {PreferencesPage, SettingsPageShell} from "@agenta/settings-ui"
+import {AccountPage, PreferencesPage, SettingsPageShell} from "@agenta/settings-ui"
 import {useThemeMode} from "@agenta/ui/theme"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -40,6 +41,7 @@ export const SettingsScreen = ({
     useBindProjectContext(projectId)
     const project = useCurrentProject(workspaceId, projectId)
     const {themeMode, setMode} = useThemeMode()
+    const {user} = useProfile()
 
     return (
         <>
@@ -71,6 +73,20 @@ export const SettingsScreen = ({
                                     onSelect: (mode) => setMode(mode as typeof themeMode),
                                 }}
                             />
+                        </SettingsPageShell>
+
+                        <SettingsPageShell
+                            variant="form"
+                            title={getSettingsTabLabel("account", CLOSED_SETTINGS_ACCESS)}
+                            description={getSettingsTabDescription(
+                                "account",
+                                CLOSED_SETTINGS_ACCESS,
+                            )}
+                        >
+                            {/* Identity only: deleting an account is an EE capability and this
+                                app has no EE surface, so the page renders without it rather
+                                than with a button that cannot work. */}
+                            <AccountPage username={user?.username} email={user?.email} />
                         </SettingsPageShell>
                     </ContentRail>
                 </ScreenScaffold>

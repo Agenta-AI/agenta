@@ -6,14 +6,17 @@ import {Trash} from "@phosphor-icons/react"
 export interface AccountPageProps {
     username?: string | null
     email?: string | null
-    /** Runs the deletion. The host owns the call and the sign-out that follows it. */
-    onDeleteAccount: () => void | Promise<void>
+    /**
+     * Runs the deletion. Omit — with `renderConfirm` — on a host that cannot delete accounts
+     * (it is an EE capability), and the page renders identity only rather than a dead button.
+     */
+    onDeleteAccount?: () => void | Promise<void>
     deleting?: boolean
     /**
      * The host's confirm dialog. Deletion is irreversible and each app confirms in its own
      * idiom, so the page owns the typed-email gate and hands over a ready dialog body.
      */
-    renderConfirm: (args: {
+    renderConfirm?: (args: {
         open: boolean
         onClose: () => void
         onConfirm: () => void
@@ -64,6 +67,9 @@ export const AccountPage = ({
     const [open, setOpen] = useState(false)
     const [typed, setTyped] = useState("")
 
+    // Narrowed as a pair: the section and its dialog are meaningless apart, and this keeps
+    // both call sites free of non-null assertions.
+    const deletion = onDeleteAccount && renderConfirm ? {onDeleteAccount, renderConfirm} : null
     const address = email ?? ""
     const confirmed = Boolean(address) && typed.trim() === address
 
@@ -89,7 +95,8 @@ export const AccountPage = ({
                 />
             </div>
 
-            <div className="flex flex-col gap-3">
+            {deletion ? (
+                <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
                     <h2 className="m-0 text-base font-semibold text-colorText">Delete account</h2>
                     <span className="text-colorTextSecondary">
@@ -113,14 +120,16 @@ export const AccountPage = ({
                         Delete account
                     </Button>
                 </div>
-            </div>
+                </div>
+            ) : null}
 
-            {renderConfirm({
-                open,
-                onClose: close,
-                onConfirm: () => void onDeleteAccount(),
-                confirmed,
-                body: (
+            {deletion
+                ? deletion.renderConfirm({
+                      open,
+                      onClose: close,
+                      onConfirm: () => void deletion.onDeleteAccount(),
+                      confirmed,
+                      body: (
                     <div className="flex flex-col gap-3">
                         <DangerCallout>
                             Permanently deletes your account and every organization you own,
@@ -144,8 +153,9 @@ export const AccountPage = ({
                             />
                         </div>
                     </div>
-                ),
-            })}
+                    ),
+                  })
+                : null}
         </section>
     )
 }
