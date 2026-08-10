@@ -5,17 +5,16 @@ import {RichChatInput} from "@agenta/ui/rich-chat-input"
 import {useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
+import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
 import {
     SeedAttachButton,
     SeedAttachmentChips,
     useSeedAttachments,
 } from "@/oss/components/SeedAttachments"
-import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
 import UsageSummary from "@/oss/components/UsageSummary"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
-
 
 interface Props {
     appId: string
@@ -52,13 +51,24 @@ const AgentOverview = ({appId, agentName}: Props) => {
     }, [requestFullHeight])
 
     // "View all" stays on this agent's rail rather than dropping you on the project list with a
-    // filter you then have to trust.
-    const {appURL} = useURL()
-    const sessionsHref = appURL ? `${appURL}/sessions` : undefined
+    // filter you then have to trust. That route needs the app id to have reached URL state, which
+    // lags the project's; until it does the project list — which DOES take the agent as a filter,
+    // hence the flag below — stands in, so the affordance never links to `""` (the current route,
+    // i.e. a click that does nothing). While even the project is unresolved there is no honest
+    // target and the cards render without one, rather than holding the whole page for it.
+    const {appURL, projectURL} = useURL()
+    const sessionsHref = appURL
+        ? `${appURL}/sessions`
+        : projectURL
+          ? `${projectURL}/sessions`
+          : undefined
 
     const verbs = useSessionCardVerbs()
     const {goToPlayground} = usePlaygroundNavigation()
-    const openConfig = useCallback(() => goToPlayground(undefined, {appId}), [goToPlayground, appId])
+    const openConfig = useCallback(
+        () => goToPlayground(undefined, {appId}),
+        [goToPlayground, appId],
+    )
 
     const attachments = useSeedAttachments()
 
@@ -74,7 +84,8 @@ const AgentOverview = ({appId, agentName}: Props) => {
     return (
         <AgentOverviewBody
             agentId={appId}
-            sessionsHref={sessionsHref ?? ""}
+            sessionsHref={sessionsHref}
+            sessionsHrefScopesAgent={Boolean(appURL)}
             onEditConfig={openConfig}
             usage={<UsageSummary variant="strip" />}
             {...verbs}

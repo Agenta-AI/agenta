@@ -85,6 +85,10 @@ export const AgentOverviewScreen = ({
                         `h-full`, so a plain block here leaves them with no definite height and
                         the left column scrolls inside a stunted box. */}
                     <ContentRail className="flex min-h-0 flex-1 flex-col px-2 pb-4 pt-2 lg:max-w-none lg:px-16 lg:pb-6 lg:pt-5">
+                        {/* `sessionsHref` is the PROJECT-wide list — /m has no agent-scoped
+                            sessions route — hence no `sessionsHrefScopesAgent`: the cards hand
+                            this agent over as a filter, or "View all" lands on a list of
+                            everyone else's sessions too. */}
                         <AgentOverviewBody
                             alwaysShowPin
                             composer={
