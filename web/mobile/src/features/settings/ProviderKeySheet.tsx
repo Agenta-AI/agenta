@@ -31,14 +31,20 @@ export const ProviderKeySheet = ({
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    const isSet = Boolean(provider?.id)
+
+    // Never seed the field from the stored key: the vault returns it in the clear, so seeding
+    // would put a live credential on screen. The field is always "the key to write" — a save
+    // replaces what is stored, and leaving it empty saves nothing.
     useEffect(() => {
         if (!open) return
-        setKey(provider?.key ?? "")
+        setKey("")
         setError(null)
         setSaving(false)
     }, [open, provider])
 
     const submit = async () => {
+        if (!key.trim()) return
         setSaving(true)
         setError(null)
         try {
@@ -46,7 +52,7 @@ export const ProviderKeySheet = ({
                 name: provider?.name,
                 id: provider?.id,
                 title: provider?.title,
-                key,
+                key: key.trim(),
             })
             onClose()
         } catch (cause) {
@@ -67,14 +73,18 @@ export const ProviderKeySheet = ({
                 <SheetHeader>
                     <SheetTitle>{provider?.title ?? "Provider"} API key</SheetTitle>
                     <SheetDescription>
-                        Stored in this project&apos;s vault and never shown in full again.
+                        Stored in this project&apos;s vault and never shown again.
                     </SheetDescription>
                 </SheetHeader>
 
                 <div className="flex flex-col gap-3 px-4">
-                    <Field label="API key">
+                    <Field
+                        label="API key"
+                        hint={isSet ? "Saving replaces the key already stored." : undefined}
+                    >
                         <Input
                             autoFocus
+                            type="password"
                             value={key}
                             onChange={(event) => setKey(event.target.value)}
                             placeholder="sk-…"

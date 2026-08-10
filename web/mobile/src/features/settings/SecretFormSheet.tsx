@@ -67,6 +67,9 @@ export const SecretFormSheet = ({
 
     const isEditing = Boolean(secret?.id)
 
+    // The value field never shows the stored secret — the vault returns it in the clear, so
+    // rendering it would put a live credential on screen. On edit an empty field means "leave
+    // the stored value alone", which is what lets a rename save without retyping the secret.
     useEffect(() => {
         if (!open) return
         setError(null)
@@ -75,14 +78,12 @@ export const SecretFormSheet = ({
         setName(secret?.name ?? "")
         setSlug(secret?.slug ?? "")
         setFormat(secret?.format ?? CustomSecretFormat.Text)
-        if (!secret) {
-            setValue("")
-        } else if (secret.format === CustomSecretFormat.Json) {
-            setValue(JSON.stringify(secret.content ?? {}, null, 2))
-        } else {
-            setValue(typeof secret.content === "string" ? secret.content : "")
-        }
+        setValue("")
     }, [open, secret])
+
+    // Only while the format is the one the stored value was written in — switching format has
+    // to be given a new value, since text and a JSON map are not convertible.
+    const keepsStoredValue = isEditing && !value.trim() && format === secret?.format
 
     // On create the slug follows the name until it is edited directly.
     const changeName = (next: string) => {
@@ -92,7 +93,7 @@ export const SecretFormSheet = ({
 
     const submit = async () => {
         const isJson = format === CustomSecretFormat.Json
-        const parsed = isJson ? parseJsonContent(value) : null
+        const parsed = isJson && !keepsStoredValue ? parseJsonContent(value) : null
         if (parsed?.error) {
             setError(parsed.error)
             return
@@ -106,7 +107,11 @@ export const SecretFormSheet = ({
                 name: name.trim(),
                 slug: slug.trim(),
                 format,
-                content: isJson ? (parsed?.content ?? {}) : value,
+                content: keepsStoredValue
+                    ? (secret?.content ?? "")
+                    : isJson
+                      ? (parsed?.content ?? {})
+                      : value,
             } as NamedSecretRow)
             onClose()
         } catch (cause) {
@@ -116,7 +121,8 @@ export const SecretFormSheet = ({
         }
     }
 
-    const canSubmit = Boolean(name.trim() && slug.trim() && value.trim()) && !saving
+    const canSubmit =
+        Boolean(name.trim() && slug.trim() && (value.trim() || keepsStoredValue)) && !saving
 
     return (
         <Sheet
@@ -183,9 +189,16 @@ export const SecretFormSheet = ({
                     <Field
                         label="Value"
                         hint={
-                            format === CustomSecretFormat.Json
-                                ? "A flat JSON object — no nesting or arrays."
-                                : undefined
+                            [
+                                isEditing && format === secret?.format
+                                    ? "Leave blank to keep the stored value."
+                                    : null,
+                                format === CustomSecretFormat.Json
+                                    ? "A flat JSON object — no nesting or arrays."
+                                    : null,
+                            ]
+                                .filter(Boolean)
+                                .join(" ") || undefined
                         }
                     >
                         <textarea
