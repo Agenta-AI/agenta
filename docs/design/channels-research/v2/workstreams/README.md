@@ -12,7 +12,11 @@ the source of truth and a spec that disagrees with them is a bug in the spec.
 Clean-up work that belongs to no package goes in that wave's `tasks-cu-*.md` ledger
 and is done at the checkpoint, not in a worktree.
 [`tasks-cu.md`](tasks-cu.md) covered wave 3 and is closed;
-[`tasks-cu-wave4.md`](tasks-cu-wave4.md) is wave 4's.
+[`tasks-cu-wave4.md`](tasks-cu-wave4.md) is wave 4's;
+[`tasks-cu-wave5.md`](tasks-cu-wave5.md) is wave 5's.
+
+**Each wave also has a `wave{k}.md`** stating its exit condition, cycle, package
+list, file ownership and collisions. [`wave5.md`](wave5.md) is the current one.
 
 **A wave is a cycle, not a fan-out.** Wave k runs from C(k-1) to Ck as:
 
@@ -27,7 +31,7 @@ packages themselves, and the conflict-free green C2 merge still yielded four def
 on its first integration run.
 
 Anything that outlives a single package — a cross-package seam, a pre-existing
-defect, something blocked on a checkpoint — goes in [`../findings.md`](../findings.md),
+defect, something blocked on a checkpoint — goes in [`../review-findings.md`](../review-findings.md),
 not in a `tasks-*` ledger. A finding records what was *verified*, with file and
 line; a passing suite is not evidence that two packages agree.
 
@@ -168,8 +172,18 @@ and the checklist that says C1 has actually been reached.
 | [specs-wp17.md](specs-wp17.md) | [tasks-wp17.md](tasks-wp17.md) | A bridge process, at test level |
 | [specs-wp18.md](specs-wp18.md) | [tasks-wp18.md](tasks-wp18.md) | Connect what wave 3 built |
 | [specs-wp19.md](specs-wp19.md) | [tasks-wp19.md](tasks-wp19.md) | The bridge `source` contract |
+| [specs-wp20.md](specs-wp20.md) | [tasks-wp20.md](tasks-wp20.md) | Inbound actions |
+| [specs-wp21.md](specs-wp21.md) | [tasks-wp21.md](tasks-wp21.md) | The adapter interface |
+| [specs-wp22.md](specs-wp22.md) | [tasks-wp22.md](tasks-wp22.md) | Schema: connections, grants, secrets |
+| [specs-wp23.md](specs-wp23.md) | [tasks-wp23.md](tasks-wp23.md) | The connections write path |
+| [specs-wp24.md](specs-wp24.md) | [tasks-wp24.md](tasks-wp24.md) | The Agenta channel |
+| [specs-wp25.md](specs-wp25.md) | [tasks-wp25.md](tasks-wp25.md) | The Agenta surface |
 | — | [tasks-cu.md](tasks-cu.md) | Clean-up before wave 3 (closed) |
 | — | [tasks-cu-wave4.md](tasks-cu-wave4.md) | Wave 4's three clean-up phases |
+| — | [tasks-cu-wave5.md](tasks-cu-wave5.md) | Wave 5's three clean-up phases |
+
+Wave 5 runs WP0 and WP20–WP25; its cycle, ownership and collisions are in
+[wave5.md](wave5.md).
 
 ## Migrations are never verified by pytest
 

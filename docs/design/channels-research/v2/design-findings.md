@@ -186,12 +186,9 @@ the UI is throwaway**, built together so the API is not designed against nothing
 
 Three questions it forces, all answered there: a connection is a bot in a project
 (no credentials at all, which the credential schema should survive); a space is a
-conversation; and **the ingress is the same one** — `/channels/agenta/events/` is an
-ordinary literal route that is simply absent from the public-endpoint list, so auth
-applies and the same `_ingest` runs. Exactly one step differs, in implementation
-rather than shape: verification proves the caller may speak for the connection, and
-a session proves that as well as an HMAC does. Nothing after the inbox row may
-branch on the channel.
+conversation; and **the ingress is the same one, public like every other channel** —
+the adapter verifies its own credential, which here is an Agenta API key. No branch
+anywhere, and the credential path is exercised at C5 rather than waiting for Slack.
 
 The UI goes **in web behind a feature flag**, using the per-user atom mechanism that
 already carries two flags, because the thing being tested is our node vocabulary and

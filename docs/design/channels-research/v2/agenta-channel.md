@@ -90,36 +90,57 @@ assumed.
 
 ### 3. What does the ingress verify, when the caller is us?
 
-The question that looked like it forced a divergence, and does not.
+**`/channels/agenta/events/` is a public route like every other channel's**, listed
+in `_PUBLIC_ENDPOINTS` as its four trailing-slashed variants, and the adapter
+verifies its own credential. Nothing about the path is special.
 
-**`/channels/agenta/events/` is an ordinary literal route beside
-`/channels/slack/events/`, calling the same `_ingest`.** The only difference is that
-it is **not added to `_PUBLIC_ENDPOINTS`**. That list is per literal route — a route
-is public precisely by being named there — so omitting it leaves the normal auth
-middleware in force. No new mechanism, no second path.
+The credential is **an Agenta API key**, presented on the request. That is not a
+workaround for having no HMAC — it is the same act every other adapter performs:
 
-Walking `_ingest`, exactly one step differs:
+| | Slack | bridge | Agenta |
+| --- | --- | --- | --- |
+| credential | signing secret | bridge secret | **an API key** |
+| verified by | HMAC over the body | HMAC over the body | key validation |
+| returns | the installation id | the bridge's id | the connection's key |
+| a bad one | 401, no detail | 401, no detail | 401, no detail |
 
-| step | Slack | Agenta |
-| --- | --- | --- |
-| resolve the candidate connection | from the body's claim | from the request |
-| **verify** | **HMAC over the body** | **the session** |
-| verified id must match the connection | same | same |
-| `parse_event` | same | same |
-| write the inbox row, dispatch, 202 | same | same |
+`verify_signature` means *"prove the caller may speak for this connection, and
+return the id it speaks for"*. `contract.md` already commits to verification and
+identification being one act; it never said the act had to be an HMAC.
 
-Even that step is the same *shape*. `verify_signature` already means **"prove the
-caller may speak for this connection, and return the installation id it speaks
-for"** — it is not intrinsically about HMAC, and `contract.md` already commits to
-verification and identification being one act. Agenta's implementation reads the
-authenticated project, checks the connection belongs to it, and returns its
-`external_key`. No session, or a session from another project, refuses **identically
-to a bad signature**: same exception, same 401, same absence of detail.
+**Two earlier drafts of this section were wrong**, and both errors are worth keeping
+visible because they pulled in opposite directions. The first invented a separate
+authenticated route outside the ingress. The second kept the ingress but left the
+route off `_PUBLIC_ENDPOINTS` so session middleware would run — which still made
+Agenta the one channel whose credential the adapter did not check, and would have
+left the whole credential path unexercised until Slack landed a wave later.
 
-So there is no divergence to justify. An earlier draft of this document claimed
-Agenta needed its own authenticated route outside the ingress; that was wrong, and
-the correction is worth keeping because the wrong version would have built a second
-inbound path for no reason.
+So the ingress has **no branch at all**, not even a small one, and the credential
+path is proven at C5 rather than assumed.
+
+### What is genuinely different about Agenta
+
+The port is identical; four facts about the platform are not. Worth listing
+precisely, because "it is the same except…" is how a special case gets in.
+
+**The credential belongs to the caller, not the installation.** Slack's signing
+secret is the workspace's; an API key is a person's. That is why identity linking is
+skipped here (`identity.md`) — the account is known from the credential itself
+rather than resolved from a payload.
+
+**We are both ends.** `discover_spaces` returns rows we already hold rather than
+calling a platform, and `post_message` writes where our read route can see it rather
+than making an outbound HTTP call.
+
+**Delivery is pull, not push.** Every other channel is posted to; here the surface
+polls. The outbox is unchanged — it still calls the adapter's `post_message` — but
+that method's implementation terminates in our own store.
+
+**Setup is empty.** All three slots of the provisioning contract are unfilled: no
+instructions, no document, no calls. The degenerate case, not an exception.
+
+None of these reach `_ingest`, the inbox worker, routing, policy, threads, offsets
+or the outbox. If any of them ever does, that is the finding.
 
 ### The interface consequence
 

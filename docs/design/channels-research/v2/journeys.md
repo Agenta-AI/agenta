@@ -260,13 +260,12 @@ fixes for every channel rather than for this one.
 
 **What happens:**
 
-1. `POST /channels/agenta/events/` — a literal route beside
-   `/channels/slack/events/`, and **not** in `_PUBLIC_ENDPOINTS`, so ordinary auth
-   applies.
+1. `POST /channels/agenta/events/` — a public route exactly like
+   `/channels/slack/events/`, registered in `_PUBLIC_ENDPOINTS` the same four ways.
 2. `_ingest` runs unchanged. `connection_locator` reads the bot from the request;
-   `verify_signature` checks the session's project owns that connection and returns
-   its key. No session, or the wrong project, refuses exactly as a bad signature
-   does.
+   `verify_signature` validates the **API key** on the request and returns the
+   connection's key. A missing or wrong key, or one whose project does not own the
+   connection, refuses identically to a bad signature — 401, no detail.
 3. `parse_event` builds the inbound event. One `channel_inbox_events` row. 202.
 4. The inbox worker resolves space, agent, policy, thread; mints a `turn_id`;
    invokes detached.
