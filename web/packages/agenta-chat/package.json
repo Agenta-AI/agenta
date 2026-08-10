@@ -40,6 +40,7 @@
         "@ai-sdk/react": ">=3.0.0-beta.0",
         "ai": ">=6.0.0-beta.0",
         "jotai": ">=2.0.0",
+        "jotai-family": ">=0.1.0",
         "react": ">=18.0.0"
     },
     "devDependencies": {
@@ -49,8 +50,9 @@
         "@types/react": "^19.0.10",
         "@vitest/coverage-v8": "^4.1.4",
         "ai": "6.0.0-beta.150",
-        "jsdom": "^26.1.0",
         "jotai": "^2.15.0",
+        "jotai-family": "^1.0.1",
+        "jsdom": "^26.1.0",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "typescript": "^5.9.3",

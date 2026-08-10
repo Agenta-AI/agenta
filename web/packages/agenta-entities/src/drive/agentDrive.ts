@@ -5,7 +5,7 @@
  * row simply stays gated until a mount appears, and lights up by itself once one does.
  */
 import {projectIdAtom} from "@agenta/shared/state"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {queryAgentMounts, type Mount} from "@agenta/entities/session"

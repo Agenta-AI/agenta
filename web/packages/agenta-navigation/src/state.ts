@@ -1,6 +1,7 @@
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
-import {atomFamily, atomWithStorage, createJSONStorage} from "jotai/utils"
+import {atomWithStorage, createJSONStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 const SIDEBAR_OPEN_GROUPS_STORAGE_KEY = "agenta:sidebar:open-groups"
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "agenta:sidebar:collapsed"

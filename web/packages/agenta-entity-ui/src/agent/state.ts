@@ -1,6 +1,6 @@
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 /**

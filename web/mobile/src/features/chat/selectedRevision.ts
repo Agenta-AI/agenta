@@ -1,5 +1,5 @@
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 /**
  * The revision the workspace is pinned to, per session. Null = follow the agent's latest, which is

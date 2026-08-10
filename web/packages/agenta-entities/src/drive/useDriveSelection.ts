@@ -11,7 +11,7 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {atom, useAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {ancestorPaths} from "./driveTree"
 
