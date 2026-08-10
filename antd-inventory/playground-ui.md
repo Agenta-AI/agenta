@@ -36,14 +36,23 @@ Restart Storybook after touching `next.config.mjs`; HMR does not pick it up.
 
 ## Where the package stands
 
-78 files, **31 import antd**, about 8,000 lines. **Zero Storybook coverage today**, which is
-the larger half of this job: the inventory matters as much as the migration.
-
-> **Both halves are now DONE.** antd: 31 → 2 files, both type-only (the Phase-3 carve-out).
-> Stories: **82 ids covering all 49 renderable components**, a11y + `render-check` green in
-> light and dark. See [`wave-3/storybook-map.md`](wave-3/storybook-map.md).
+> ## ⚠️ Everything below this box is the PRE-MIGRATION baseline, kept as history
 >
-> The prediction above held, and then some — the inventory was not just the larger half, it was
+> **Both halves are DONE. antd: 31 → 0 files** — including the two type-only imports this guide
+> still describes as a carve-out; they were retyped onto `@agenta/ui`'s `EnhancedButtonProps` /
+> `EnhancedModalProps`, and `antd` + `@ant-design/icons` are out of `peerDependencies`. Stories:
+> **82 ids covering all 49 renderable components.** See
+> [`wave-3/storybook-map.md`](wave-3/storybook-map.md) for the current state.
+>
+> Gate scope, precisely: `render-check` covers **light and dark**; `parity/a11y.mjs` runs
+> **light only** (it hardcodes `globals=theme:light`), so dark-mode accessibility is checked by
+> eye, not gated.
+>
+> Do not follow the chunk plan, the DoD, or the carve-out sections below as instructions — they
+> describe work that is finished. They are retained because the sequencing rationale is still
+> useful reading.
+>
+> The prediction below held, and then some — the inventory was not just the larger half, it was
 > the half that found the bugs. Six defects the merged migration had already shipped surfaced
 > only once each component had its own story, four of them accessibility failures that every
 > existing gate passed. The sharpest case: `VariableCard` and `VariableControlAdapter` were
@@ -53,6 +62,9 @@ the larger half of this job: the inventory matters as much as the migration.
 > **So do not defer the story while migrating a component.** Doing chunks 2–6 first and
 > backfilling later cost more than it saved: reconstructing what a component needs after the
 > fact is slower than writing it with the antd markup still in front of you.
+
+78 files, **31 import antd**, about 8,000 lines. **Zero Storybook coverage today**, which is
+the larger half of this job: the inventory matters as much as the migration.
 
 | Directory     | files | antd | jotai files | atom hooks |
 | ------------- | ----: | ---: | ----------: | ---------: |

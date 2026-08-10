@@ -9,9 +9,9 @@
  *
  * Covered: open · onClose · title · footer · extra · placement→side · width/height · closable ·
  * maskClosable · keyboard(Esc) · afterOpenChange · styles(body/header/footer) · className/rootClassName ·
- * zIndex · getContainer · destroyOnClose/Hidden (lazy) · closeOnLayoutClick (Radix outside-click).
- * Deferred (rare / unused): `mask={false}` (Radix always renders the overlay), custom `closeIcon`,
- * `push`, `loading`. Add if a call-site needs them.
+ * zIndex · getContainer · destroyOnClose/Hidden (lazy) · closeOnLayoutClick (Radix outside-click) ·
+ * mask (true / false / `{enabled, blur}`).
+ * Deferred (rare / unused): custom `closeIcon`, `push`, `loading`. Add if a call-site needs them.
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -35,15 +35,22 @@ type DrawerClosable = boolean | object
 type DrawerMask = boolean | object
 
 /**
- * antd `mask` → overlay classes. Radix always renders an overlay (it owns outside-click and
- * focus trapping), so `mask={false}` cannot remove the element — it makes it transparent, which
- * is the same thing visually while keeping the behaviour Radix depends on.
+ * antd `mask={false}` / `mask={{enabled:false}}` — no mask element at all.
+ *
+ * A transparent overlay is NOT an equivalent substitute: it still spans the viewport and becomes
+ * the target of every click behind the drawer. See finding WAVE3-F29.
  */
+function isMaskless(mask: DrawerMask | undefined): boolean {
+    if (mask === false) return true
+    if (mask == null || mask === true) return false
+    return (mask as {enabled?: boolean}).enabled === false
+}
+
 function maskClasses(mask: DrawerMask | undefined): string | undefined {
     if (mask === undefined || mask === true) return undefined
-    if (mask === false) return "bg-transparent"
+    if (mask === false) return undefined
     const cfg = mask as {enabled?: boolean; blur?: boolean}
-    return cn(cfg.enabled === false && "bg-transparent", cfg.blur && "backdrop-blur-sm")
+    return cn(cfg.blur && "backdrop-blur-sm")
 }
 
 /** antd `Drawer.styles` semantic-DOM style slots (index sig accepts any antd semantic key). */
@@ -223,22 +230,31 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
           ? {height: effHeight, maxHeight: "100%"}
           : {}
 
+    // antd's maskless drawer is NON-MODAL: no mask element, clicks reach the page behind it.
+    // `modal={false}` is what stops Radix pinning `pointer-events: none` on <body>; outside-click
+    // still closes because DismissableLayer listens on document, not on the overlay.
+    const maskless = isMaskless(mask)
+
     return (
-        <Sheet open={open} onOpenChange={handleOpenChange}>
+        <Sheet open={open} onOpenChange={handleOpenChange} modal={!maskless}>
             <SheetContent
                 side={side}
                 container={container}
+                maskless={maskless}
                 overlayClassName={maskClasses(mask)}
                 className={cn(rootClassName, className)}
                 style={{...sizeStyle, ...(zIndex != null ? {zIndex} : {}), ...styles?.content}}
                 onEscapeKeyDown={(e) => {
                     if (!keyboard) e.preventDefault()
                 }}
+                // `maskClosable` means "clicking the MASK closes". With no mask there is nothing
+                // to click, so antd never auto-closed either — the caller's own outside-click
+                // logic owns it (and can now see the real click target again).
                 onPointerDownOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!maskClosable || maskless) e.preventDefault()
                 }}
                 onInteractOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!maskClosable || maskless) e.preventDefault()
                 }}
             >
                 {title != null || extra != null || closable !== false ? (

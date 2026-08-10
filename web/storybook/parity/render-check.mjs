@@ -116,94 +116,98 @@ const notes = []
 const browser = await chromium.launch()
 const page = await browser.newPage({viewport: {width: 1280, height: 900}})
 
-for (const id of ids) {
-    for (const theme of THEMES) {
-        const consoleErrors = []
-        const pageErrors = []
-        const onConsole = (msg) => {
-            if (msg.type() !== "error") return
-            const text = msg.text()
-            if (IGNORED_CONSOLE.some((re) => re.test(text))) return
-            consoleErrors.push(text)
-        }
-        const onPageError = (err) => {
-            const text = String(err)
-            if (IGNORED_PAGE_ERRORS.some((re) => re.test(text))) return
-            pageErrors.push(text)
-        }
-        page.on("console", onConsole)
-        page.on("pageerror", onPageError)
+try {
+    for (const id of ids) {
+        for (const theme of THEMES) {
+            const consoleErrors = []
+            const pageErrors = []
+            const onConsole = (msg) => {
+                if (msg.type() !== "error") return
+                const text = msg.text()
+                if (IGNORED_CONSOLE.some((re) => re.test(text))) return
+                consoleErrors.push(text)
+            }
+            const onPageError = (err) => {
+                const text = String(err)
+                if (IGNORED_PAGE_ERRORS.some((re) => re.test(text))) return
+                pageErrors.push(text)
+            }
+            page.on("console", onConsole)
+            page.on("pageerror", onPageError)
 
-        const url = `${URL}/iframe.html?id=${id}&globals=theme:${theme}&viewMode=story`
-        try {
-            // NOT networkidle — Storybook holds a websocket open, so it never fires.
-            await page.goto(url, {waitUntil: "domcontentloaded", timeout: 60_000})
-            // `attached`, not the default `visible` — an intentionally empty root is "hidden",
-            // and treating that as a load failure would hide the real "rendered nothing" check
-            // behind a timeout.
-            await page.waitForSelector("#storybook-root", {
-                state: "attached",
-                timeout: 20_000,
+            const url = `${URL}/iframe.html?id=${id}&globals=theme:${theme}&viewMode=story`
+            try {
+                // NOT networkidle — Storybook holds a websocket open, so it never fires.
+                await page.goto(url, {waitUntil: "domcontentloaded", timeout: 60_000})
+                // `attached`, not the default `visible` — an intentionally empty root is "hidden",
+                // and treating that as a load failure would hide the real "rendered nothing" check
+                // behind a timeout.
+                await page.waitForSelector("#storybook-root", {
+                    state: "attached",
+                    timeout: 20_000,
+                })
+                // Let effects, portals and fixture-backed queries settle.
+                await page.waitForTimeout(1200)
+            } catch (e) {
+                failures.push(`${id} [${theme}] — did not load: ${e.message}`)
+                page.off("console", onConsole)
+                page.off("pageerror", onPageError)
+                continue
+            }
+
+            const {rootText, bodyText, hasOverlay} = await page.evaluate(() => {
+                const el = document.querySelector("#storybook-root")
+                return {
+                    rootText: (el?.innerText ?? "").trim(),
+                    bodyText: (document.body.innerText ?? "").trim(),
+                    // Storybook/Next render runtime errors into an overlay outside the root.
+                    hasOverlay: Boolean(
+                        document.querySelector("nextjs-portal, #nextjs__container_errors_label"),
+                    ),
+                }
             })
-            // Let effects, portals and fixture-backed queries settle.
-            await page.waitForTimeout(1200)
-        } catch (e) {
-            failures.push(`${id} [${theme}] — did not load: ${e.message}`)
+
             page.off("console", onConsole)
             page.off("pageerror", onPageError)
-            continue
-        }
 
-        const {rootText, bodyText, hasOverlay} = await page.evaluate(() => {
-            const el = document.querySelector("#storybook-root")
-            return {
-                rootText: (el?.innerText ?? "").trim(),
-                bodyText: (document.body.innerText ?? "").trim(),
-                // Storybook/Next render runtime errors into an overlay outside the root.
-                hasOverlay: Boolean(
-                    document.querySelector("nextjs-portal, #nextjs__container_errors_label"),
-                ),
+            const expectEmpty = EXPECT_EMPTY.has(id)
+            const visible = rootText.length > 0 || bodyText.length > 0
+
+            if (hasOverlay) failures.push(`${id} [${theme}] — Next.js error overlay present`)
+            if (pageErrors.length)
+                failures.push(`${id} [${theme}] — uncaught: ${pageErrors[0].slice(0, 200)}`)
+            if (consoleErrors.length)
+                failures.push(`${id} [${theme}] — console.error: ${consoleErrors[0].slice(0, 200)}`)
+
+            const marker = ERROR_MARKERS.find((re) => re.test(rootText))
+            if (marker)
+                failures.push(`${id} [${theme}] — error text in root: ${rootText.slice(0, 160)}`)
+
+            if (!visible && !expectEmpty) {
+                // Retry once before calling it a blank. On the dev server a story loaded while
+                // webpack is still rebuilding serves an empty root — indistinguishable from a real
+                // "renders nothing", and it produced a false failure the first time this ran.
+                // `vrt.mjs` retries navigation for the same reason.
+                const retried = await reloadAndReadText(page, url)
+                if (retried.length === 0)
+                    failures.push(`${id} [${theme}] — rendered nothing (no text in root or body)`)
+                else
+                    notes.push(
+                        `${id} [${theme}] — empty on first load, fine on retry (dev-server rebuild)`,
+                    )
             }
-        })
 
-        page.off("console", onConsole)
-        page.off("pageerror", onPageError)
-
-        const expectEmpty = EXPECT_EMPTY.has(id)
-        const visible = rootText.length > 0 || bodyText.length > 0
-
-        if (hasOverlay) failures.push(`${id} [${theme}] — Next.js error overlay present`)
-        if (pageErrors.length)
-            failures.push(`${id} [${theme}] — uncaught: ${pageErrors[0].slice(0, 200)}`)
-        if (consoleErrors.length)
-            failures.push(`${id} [${theme}] — console.error: ${consoleErrors[0].slice(0, 200)}`)
-
-        const marker = ERROR_MARKERS.find((re) => re.test(rootText))
-        if (marker)
-            failures.push(`${id} [${theme}] — error text in root: ${rootText.slice(0, 160)}`)
-
-        if (!visible && !expectEmpty) {
-            // Retry once before calling it a blank. On the dev server a story loaded while
-            // webpack is still rebuilding serves an empty root — indistinguishable from a real
-            // "renders nothing", and it produced a false failure the first time this ran.
-            // `vrt.mjs` retries navigation for the same reason.
-            const retried = await reloadAndReadText(page, url)
-            if (retried.length === 0)
-                failures.push(`${id} [${theme}] — rendered nothing (no text in root or body)`)
-            else
+            if (expectEmpty && visible && rootText.length > 400)
                 notes.push(
-                    `${id} [${theme}] — empty on first load, fine on retry (dev-server rebuild)`,
+                    `${id} [${theme}] — listed in EXPECT_EMPTY but rendered ${rootText.length} chars; re-check the exemption`,
                 )
         }
-
-        if (expectEmpty && visible && rootText.length > 400)
-            notes.push(
-                `${id} [${theme}] — listed in EXPECT_EMPTY but rendered ${rootText.length} chars; re-check the exemption`,
-            )
     }
+} finally {
+    // Must close even if `page.evaluate` throws mid-loop (a crashed or navigating page),
+    // otherwise chromium leaks and the run exits with no summary.
+    await browser.close()
 }
-
-await browser.close()
 
 for (const [id, reason] of EXPECT_EMPTY) {
     if (ids.includes(id)) console.log(`ℹ EXPECTED EMPTY ${id} — ${reason}`)

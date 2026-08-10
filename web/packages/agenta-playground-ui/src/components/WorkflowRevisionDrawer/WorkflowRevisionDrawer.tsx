@@ -109,9 +109,9 @@ const WorkflowRevisionDrawer = ({playgroundContent}: WorkflowRevisionDrawerProps
             // No visible title (DrawerHeader owns the chrome), so name the dialog explicitly —
             // Radix renders role="dialog" and an unnamed one fails axe's aria-dialog-name.
             ariaLabel={isEvaluatorDrawer ? "Evaluator" : "Workflow revision"}
-            // Radix always renders an overlay (it owns outside-click + focus trapping), so
-            // `mask={false}` maps to a TRANSPARENT overlay rather than no element. Same look,
-            // and the behaviour Radix depends on stays intact.
+            // `mask={false}` must render NO overlay: the click-outside handler below matches on
+            // the real target (`.variant-table-row` swaps content instead of closing), and an
+            // overlay — even a transparent one — would be the target for every click.
             mask={showBlurredMask ? {blur: true} : false}
             onClose={handleClose}
             destroyOnHidden

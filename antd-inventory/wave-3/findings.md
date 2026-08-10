@@ -15,6 +15,22 @@
 
 ## Summary
 
+> ### ⚠️ Read this first: two timeframes live in this file
+>
+> This **Summary**, the **Component map**, the **Recommended sequencing** and the **Appendix
+> census** are the *readiness scan taken on 2026-08-06, before any work started*. They are kept
+> verbatim as the historical baseline — do not read them as the current state.
+>
+> **Current state (2026-08-07): wave 3 is finished.** antd 31 → **0** files (no imports, no
+> types, no peer dependency); **82 story ids** covering all 49 renderable components.
+> **Closed:** F1, F2, F3, F4, F9, F11, F13, F14, F19, F26, F27. Six of those (F1–F4, F9, F11)
+> also had a stale `[OPEN]` heading in this section from the original scan; those headings are
+> now `[CLOSED]` and the detailed record lives in the Closed Findings section below.
+>
+> **Still open:** F5, F6, F7, F8, F10, F12, F13b, F18, F20, F21, F22, F23, F24, F25, F28.
+>
+> Gate scope: `render-check` covers light **and** dark; `parity/a11y.mjs` is **light only**.
+
 The guide is accurate on the parts it covers, and every headline number in it still holds
 (78 files, 31 on antd, 0 stories). This scan re-measured those and then looked at what the
 guide does **not** cover. It found three blockers that stop wave 3 before the first swap
@@ -56,9 +72,12 @@ call site and neither is caught by any existing gate.
 
 ---
 
-## Open Findings
+## Findings, in original scan order
 
-### [OPEN] F1 — Guide instructs contributors to branch off an already-merged stack
+Status is per-heading. Entries marked `[CLOSED]` here were raised by the 2026-08-06 scan and
+resolved during the work; their closure record is in [Closed Findings](#closed-findings) below.
+
+### [CLOSED] F1 — Guide instructs contributors to branch off an already-merged stack
 
 - **ID:** WAVE3-F1 · **Origin:** scan · **Severity:** P0 · **Confidence:** high
 - **Status:** confirmed · **Category:** Correctness (docs)
@@ -74,7 +93,7 @@ call site and neither is caught by any existing gate.
 - **Suggested Fix:** Replace the sentence with "branch off `main`; waves 1 and 2 are
   merged." Re-run the Appendix census in the same edit.
 
-### [OPEN] F2 — `@agenta/storybook` cannot import `@agenta/playground-ui`
+### [CLOSED] F2 — `@agenta/storybook` cannot import `@agenta/playground-ui`
 
 - **ID:** WAVE3-F2 · **Origin:** scan · **Severity:** P0 · **Confidence:** high
 - **Status:** confirmed · **Category:** Completeness (tooling)
@@ -92,7 +111,7 @@ call site and neither is caught by any existing gate.
   setup section as step 0. No `main.ts` alias is needed — `@agenta/*` resolve to real
   `src/` paths already.
 
-### [OPEN] F3 — antd types leak through the package's public API; "zero antd" is a breaking change
+### [CLOSED] F3 — antd types leak through the package's public API; "zero antd" is a breaking change
 
 - **ID:** WAVE3-F3 · **Origin:** scan · **Severity:** P0 · **Confidence:** high
 - **Status:** needs-user-decision · **Category:** Migration / Compatibility
@@ -127,7 +146,7 @@ call site and neither is caught by any existing gate.
   them as a wave-4 item — but then say so in the DoD, because as written the DoD forbids
   them.
 
-### [OPEN] F4 — The guide's parallelism warning names the wrong chunks
+### [CLOSED] F4 — The guide's parallelism warning names the wrong chunks
 
 - **ID:** WAVE3-F4 · **Origin:** scan · **Severity:** P1 · **Confidence:** high
 - **Status:** confirmed · **Category:** Correctness (docs)
@@ -246,7 +265,7 @@ call site and neither is caught by any existing gate.
   exec tsc --noEmit` still passes." Note this is only safe once F3 is resolved — the
   type-only imports need the peer dep to type-check.
 
-### [OPEN] F9 — Ten `type="secondary"` sites: the documented token trap, now located
+### [CLOSED] F9 — Ten `type="secondary"` sites: the documented token trap, now located
 
 - **ID:** WAVE3-F9 · **Origin:** scan · **Severity:** P2 · **Confidence:** high
 - **Status:** open · **Category:** Correctness
@@ -279,7 +298,7 @@ call site and neither is caught by any existing gate.
   `AlertDialog.stories.tsx` or `EnhancedModal.stories.tsx`. Register the `--open-state`
   ids in `DEFAULT_STORIES`.
 
-### [OPEN] F11 — No test or story baseline exists for this package
+### [CLOSED] F11 — No test or story baseline exists for this package
 
 - **ID:** WAVE3-F11 · **Origin:** scan · **Severity:** P2 · **Confidence:** high
 - **Status:** open · **Category:** Testing
@@ -337,7 +356,7 @@ call site and neither is caught by any existing gate.
   text and no error string) to `storybook-map.md`. It found a second defect the same run —
   `ToolCallView` rendering `null` on a wrong-shaped `resultData`, also green on both gates.
 
-### [OPEN] F13-followup — the sibling status backgrounds have the same latent bug
+### [OPEN] F13b — the sibling status backgrounds have the same latent bug
 
 - **ID:** WAVE3-F13b · **Origin:** scan · **Severity:** P3 · **Confidence:** high
 - **Status:** open · **Category:** Consistency
@@ -393,7 +412,7 @@ call site and neither is caught by any existing gate.
 
 ### [OPEN] F20 — Dark-mode `AbortError` on VariableCard's non-string branches
 
-- **ID:** WAVE3-F20 · **Origin:** scan (render-check) · **Severity:** P4
+- **ID:** WAVE3-F20 · **Origin:** scan (render-check) · **Severity:** P3
 - **Status:** open · **Confidence:** medium · **Category:** Performance
 - **Files:** `web/packages/agenta-playground-ui/src/components/PlaygroundInputsBody/VariableCard.tsx`
 - **Summary:** stories rendering a `VariableCard` whose value is **not a string** (the
@@ -559,6 +578,69 @@ call site and neither is caught by any existing gate.
   and VRT green.
 - **Result: `@agenta/playground-ui` is the first genuinely antd-free UI package in the repo** —
   0 imports, 0 types, 0 peer dependency.
+
+### [CLOSED] F29 — `mask={false}` rendered a click-swallowing overlay (antd parity break)
+
+- **ID:** WAVE3-F29 · **Origin:** CodeRabbit review, PR #5806 · **Severity:** P1
+- **Status:** fixed · **Confidence:** high · **Category:** Correctness (regression)
+- **Files:** `agenta-ui/src/components/ui/sheet.tsx`, `agenta-ui/src/drawer/EnhancedDrawer.tsx`,
+  `playground-ui/src/components/WorkflowRevisionDrawer/WorkflowRevisionDrawer.tsx`
+- **Summary:** the migration mapped antd's `mask={false}` to a **transparent** Radix overlay,
+  with a code comment claiming "Same look, and the behaviour Radix depends on stays intact."
+  That was wrong. antd's `mask={false}` renders **no mask element**; the transparent overlay is
+  still `fixed inset-0` and captures every click. On top of that, Radix `Dialog` defaults to
+  `modal={true}`, which pins `pointer-events: none` on `<body>`.
+- **Impact:** `WorkflowRevisionDrawer`'s document click handler matches on `event.target`, which
+  became the overlay for every outside click — so `.variant-table-row`, `.ant-drawer`,
+  `.ant-popover` and `.ant-modal-root` never matched. Clicking another variant row behind the
+  open drawer used to swap the drawer's content; instead the overlay ate the click.
+- **Fix:** `SheetContent` gained `maskless`, which omits the overlay entirely, and
+  `EnhancedDrawer` passes `modal={!maskless}` so Radix stops disabling body pointer events.
+  Outside-click still closes via `DismissableLayer` (a document listener, not the overlay).
+  Also: `maskClosable` means "clicking the MASK closes" — with no mask there is nothing to
+  click, so the maskless path now `preventDefault()`s the Radix outside handlers and leaves
+  closing to the caller's own logic, exactly as antd did.
+- **Lesson:** "Radix always renders an overlay, so map `false` to transparent" was a plausible
+  and wrong equivalence. A prop that removes an element is not the same as one that hides it.
+
+### [OPEN] F30 — Gateway tool executions share one loading slot and can collide
+
+- **ID:** WAVE3-F30 · **Origin:** CodeRabbit review, PR #5806 · **Severity:** P3
+- **Status:** open · **Confidence:** high · **Category:** Correctness
+- **Files:** `playground-ui/src/components/ExecutionItems/GatewayToolExecuteButton.tsx:75,84`
+- **Summary:** `callId` is optional, so `key={p.callId || p.name}` yields duplicate React keys
+  for two same-named payloads, and `executingId` is a single string slot — when two executions
+  overlap, the first one's `finally` clears the second's loading state.
+- **Not a wave-3 regression:** identical code on `main` @ `ecacb20d5f` (same `key`, same single
+  slot). Left out of the migration PR deliberately.
+- **Suggested Fix:** mint a stable per-payload id and track active ids in a `Set`.
+
+### [OPEN] F31 — `ChatTurnView`'s tooltip trigger is not keyboard reachable
+
+- **ID:** WAVE3-F31 · **Origin:** CodeRabbit review, PR #5806 · **Severity:** P3
+- **Status:** open · **Confidence:** high · **Category:** Accessibility
+- **Files:** `playground-ui/src/components/ExecutionItems/assets/ChatTurnView/index.tsx:145`
+- **Summary:** `TooltipTrigger asChild` wraps a `Badge`, which renders a `<span>`. A span is not
+  focusable, so keyboard users can never open the tooltip and never see the node status detail.
+- **Not a wave-3 regression:** the pre-migration antd `Popover trigger="hover"` wrapped an antd
+  `Tag`, also a span, with the same gap. Note axe does **not** flag this, so the a11y gate is
+  green either way.
+- **Suggested Fix:** `tabIndex={0}` plus a visible focus style on the trigger; if
+  `popoverContent` ever becomes interactive, switch to `Popover`.
+
+### [OPEN] F32 — Raw `rgba(255,255,255,0.4)` divider on the run-options button
+
+- **ID:** WAVE3-F32 · **Origin:** CodeRabbit review, PR #5806 · **Severity:** P3
+- **Status:** open · **Confidence:** high · **Category:** Consistency
+- **Files:** `playground-ui/src/components/ExecutionItems/assets/RunOptionsPopover/index.tsx:74`
+- **Summary:** the split-button divider uses a raw rgba literal, which `web/AGENTS.md` forbids in
+  favour of semantic tokens.
+- **Two corrections to the review's reasoning**, both verified: it is **pre-existing** (the antd
+  version carried the identical value as an inline `borderLeft` style), and the stated cause —
+  "does not adapt to the light theme" — is wrong. The divider sits on a **primary** button, which
+  is dark navy in both themes, so white-at-40% is correct in both. It is a token-hygiene issue,
+  not a theming bug.
+- **Suggested Fix:** add an on-primary divider token rather than changing the rendered colour.
 
 ---
 
@@ -769,7 +851,7 @@ than advertised, and correspondingly **more** of the package needs atom fixtures
 
 ## Appendix — census re-measured on this tip
 
-```
+```text
 web/packages/agenta-playground-ui   antd=31  files=78   stories=0   tests=0
 web/packages/agenta-entity-ui       antd=2   files=304  stories=0   tests=19
 web/packages/agenta-ui              antd=14  files=409  stories=0
