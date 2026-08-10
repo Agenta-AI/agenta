@@ -2,7 +2,8 @@
   "class": "self_naming",
   "about": [
     "Naming sessions and agents after the model has enough context to choose a useful label.",
-    "The verdict comes from the stored session or workflow header, never from the reply."
+    "The verdict comes from the stored session or workflow header, never from the reply.",
+    "name-05 seeds the VERBATIM product-default persona (_DEFAULT_AGENTS_MD in sdks/python/agenta/sdk/utils/types.py, drift-locked by the SDK unit test test_default_persona_self_naming.py): live QA showed task-shaped personas self-name while the bare default persona did not, so this scenario is the regression guard for the real new-user experience."
   ],
   "scenarios": [
     {
@@ -115,6 +116,36 @@
           "path": ["name"],
           "pattern": "(?i)^release notes QA-[A-Z0-9]{8}$",
           "text": "{{TOKEN}}"
+        }
+      ]
+    },
+    {
+      "id": "name-05-default-persona-session",
+      "title": "the product-default persona names its session unprompted",
+      "seed": {
+        "instructions": {
+          "agents_md": "You are a friendly hello-world agent running on the Agenta agent service.\n\n- Greet the user warmly.\n- Answer the user's message in one or two short sentences.\n- Once the first exchange makes clear what the session is about, call the\n  `rename_session` tool: `name` is the session's subject in a few words, findable\n  in a list; `description` is a one-sentence recap of where things stand. Rename\n  again only when the topic genuinely shifts.\n- Call the `rename_agent` tool only when your own identity or purpose changes —\n  for example, you were just created or the user repurposes you — with a name\n  that says what you are for."
+        },
+        "skills": []
+      },
+      "turns": [
+        {
+          "prompt": "help me plan the onboarding schedule for the two support engineers starting next month — what should their first two weeks look like?"
+        }
+      ],
+      "tools": [{ "type": "platform", "op": "rename_session" }],
+      "budget": { "max_rename_calls": 1 },
+      "checks": [
+        { "check": "turn_tool_called", "name": "rename_session", "min": 1 },
+        {
+          "check": "session_header",
+          "path": ["name"],
+          "pattern": "(?i)(onboarding|support|engineer)"
+        },
+        {
+          "check": "session_header",
+          "path": ["description"],
+          "pattern": "(?s)^.{1,300}\\Z"
         }
       ]
     }
