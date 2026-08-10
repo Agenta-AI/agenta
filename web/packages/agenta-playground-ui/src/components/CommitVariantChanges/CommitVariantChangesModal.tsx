@@ -210,6 +210,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             variantName,
             variantSlug,
             deployRevision,
+            onAfterCommit,
             onSuccess,
             commitRevision,
         ],
