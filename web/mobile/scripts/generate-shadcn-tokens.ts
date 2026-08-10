@@ -20,7 +20,10 @@ import {palette, type ColorValue} from "../../oss/src/styles/theme/palette"
 const HERE = dirname(fileURLToPath(import.meta.url)) // web/mobile/scripts
 const OUT = resolve(HERE, "../src/styles/theme.generated.css")
 
-/** Palette values are plain color strings except antd() shadow refs (never used here). */
+/**
+ * Palette values are plain strings (a color, or a whole shadow list) except antd() refs, which
+ * defer to antd's algorithm default — mobile has no antd to resolve them, so they are rejected.
+ */
 const color = (v: ColorValue): string => {
     if (typeof v !== "string") {
         throw new Error(`Palette value is an antd() ref, not a color: ${JSON.stringify(v)}`)
@@ -131,6 +134,9 @@ const VARS: Record<string, [string, string]> = {
     ],
     "ag-errorOutline": [color(p.surface.errorOutline.light), color(p.surface.errorOutline.dark)],
     "ag-colorFillQuaternary": [color(p.fill.quaternary.light), color(p.fill.quaternary.dark)],
+    // A full shadow list, not a color — globals.css feeds it to the `shadow-switch-handle`
+    // utility the kit's Switch thumb wears, so it flips with the theme like every other token.
+    "switch-handle-shadow": [color(p.shadow.switchHandle.light), color(p.shadow.switchHandle.dark)],
 }
 
 const block = (selector: string, side: 0 | 1) =>

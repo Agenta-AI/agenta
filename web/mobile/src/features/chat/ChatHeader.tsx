@@ -4,6 +4,7 @@ import Link from "next/link"
 
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
+import {INLINE_LINK} from "@/lib/interactive"
 
 export const ChatHeader = ({
     sessionId,
@@ -33,7 +34,7 @@ export const ChatHeader = ({
                     <div className="flex items-center gap-2">
                         <Link
                             href={`/w/${workspaceId}/p/${projectId}/sessions`}
-                            className="text-muted-foreground -m-3 shrink-0 p-3 text-xs underline underline-offset-4"
+                            className={`text-muted-foreground -m-3 shrink-0 p-3 text-xs underline underline-offset-4 ${INLINE_LINK}`}
                         >
                             Back
                         </Link>

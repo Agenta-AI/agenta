@@ -111,7 +111,7 @@
     --text-field-md--line-height: 1.6666666666666667;
     --text-field-lg: 14px;
     --text-field-lg--line-height: 1.5714285714285714;
-    --shadow-switch-handle: 0 2px 4px 0 rgba(0, 35, 11, 0.2);
+    --shadow-switch-handle: var(--switch-handle-shadow);
     /* Kit control-state tokens — values come from theme.generated.css (palette-bridged). */
     --color-placeholder: var(--placeholder);
     --color-focus-ring: var(--focus-ring);

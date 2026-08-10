@@ -12,6 +12,7 @@ import {useRouter} from "next/router"
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {ICON_LINK} from "@/lib/interactive"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -60,7 +61,7 @@ export const AgentOverviewScreen = ({
                                 <Link
                                     href={`${base}/apps`}
                                     aria-label="Back to home"
-                                    className="text-foreground flex size-8 items-center justify-center"
+                                    className={`text-foreground flex size-8 items-center justify-center ${ICON_LINK}`}
                                 >
                                     <ChevronLeft className="size-5" />
                                 </Link>
