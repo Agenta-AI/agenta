@@ -1,6 +1,7 @@
 import {useState, useMemo} from "react"
 
 import type {ToolCatalogIntegration} from "@agenta/entities/gatewayTool"
+import {cn} from "@agenta/ui/styles"
 import {EmptyState, Input, Spinner} from "@agenta/ui/ui"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 
@@ -42,6 +43,7 @@ export default function IntegrationGrid({onSelect}: Props) {
                 />
                 <Input
                     placeholder="Search integrations…"
+                    aria-label="Search integrations"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9"
@@ -76,7 +78,13 @@ function IntegrationCard({
         <button
             type="button"
             onClick={onClick}
-            className="cursor-pointer rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left hover:border-colorPrimary"
+            className={cn(
+                "cursor-pointer rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-left hover:border-colorPrimary",
+                // The package's shared keyboard-focus ring (Button, Segmented, Checkbox): a 4px
+                // token-driven outline on :focus-visible only, so it follows both themes and
+                // never shows on a mouse click.
+                "outline-none focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
+            )}
         >
             <div className="flex items-start gap-3">
                 {/* Catalog logos are remote and arbitrary; next/image would need every host
