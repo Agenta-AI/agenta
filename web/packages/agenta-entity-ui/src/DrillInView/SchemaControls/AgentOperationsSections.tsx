@@ -20,13 +20,15 @@ import {SkeletonSectionRow} from "./agentTemplate/AgentConfigSkeleton"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
 import {TriggerManagementSection, useAgentTriggers} from "./TriggerManagementSection"
 
-// A visual copy of the Configuration header bar's classes (PlaygroundVariantConfigHeader) — keep
-// the two in sync so the three region headers are indistinguishable.
+// A visual copy of the Configuration header bar's classes (AgentConfigHeader) — keep the two in
+// sync so the three region headers are indistinguishable. Colors come from the shared `--ag-*`
+// layer, never antd's runtime `--ant-*` vars: those don't exist on hosts without antd (/m), where
+// an undefined var drops the tint and the header loses its fill.
 const barClass = (sticky: boolean) =>
     `h-[48px] flex items-center justify-between overflow-hidden ${
         sticky ? "sticky top-0 z-[10]" : ""
-    } w-full border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ant-color-fill-tertiary),var(--ant-color-fill-tertiary))]`
-const titleClass = "text-[13px] font-semibold text-[var(--ant-color-text)]"
+    } w-full border-b border-colorBorderSecondary py-2 px-4 bg-[var(--ag-c-FFFFFF)] bg-[image:linear-gradient(var(--ag-colorFillTertiary),var(--ag-colorFillTertiary))]`
+const titleClass = "text-[13px] font-semibold text-colorText"
 
 /**
  * Loading shape for the operational regions, shown while the panel's hydration/agent-ness is
