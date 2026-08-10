@@ -21,11 +21,13 @@ import {
 } from "@agenta/settings-ui"
 import {getEnv} from "@agenta/shared/api"
 import {useThemeMode} from "@agenta/ui/theme"
+import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {ContentRail} from "@/components/ContentRail"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {fetchProjects} from "@/lib/context"
 import {cn} from "@/lib/utils"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -60,19 +62,33 @@ const TabBody = ({
     access,
     user,
     theme,
+    workspaceId,
 }: {
     tab: SettingsTabKey
     access: SettingsAccess
     user: {username?: string | null; email?: string | null} | null
     theme: {options: {mode: string; label: string}[]; mode: string; onSelect: (m: string) => void}
+    workspaceId: string
 }) => {
     const keys = useApiKeys({
-        workspaceId: "",
+        workspaceId,
         canView: tab === "apiKeys" && access.canViewApiKeys,
         canEdit: false,
         confirmDelete: async () => false,
         onCreated: () => undefined,
     })
+
+    // The app's own projects query — same key and staleTime as the drawer switcher and
+    // `useCurrentProject`, so this tab reuses their cache instead of issuing its own request.
+    const projects = useQuery({
+        queryKey: ["mobile", "projects"],
+        queryFn: () => fetchProjects(),
+        staleTime: 30_000,
+    })
+    const projectRows = useMemo(
+        () => (projects.data?.kind === "ok" ? projects.data.projects : []),
+        [projects.data],
+    )
 
     switch (tab) {
         case "preferences":
@@ -104,7 +120,13 @@ const TabBody = ({
         case "webhooks":
             return <WebhooksPage />
         case "projects":
-            return <ProjectsPage projects={[]} isLoading={false} />
+            return (
+                <ProjectsPage
+                    projects={projectRows}
+                    isLoading={projects.isLoading}
+                    workspaceId={workspaceId}
+                />
+            )
         default:
             return null
     }
@@ -221,6 +243,7 @@ export const SettingsScreen = ({
                                     tab={active}
                                     access={access}
                                     user={user}
+                                    workspaceId={workspaceId}
                                     theme={{
                                         options: THEME_OPTIONS,
                                         mode: themeMode,
