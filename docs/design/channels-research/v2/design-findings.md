@@ -19,9 +19,9 @@ Maintained here. Status is one of **decided** (settled, no doc needed), **writte
 | 2 | Provisioning, incl. both app models | **written** | `provisioning.md` |
 | 3 | Rendering across unequal surfaces | **written** | `rendering.md` |
 | 4 | Identity linking | **written** | `identity.md` |
-| 5 | Agenta as a channel | **open** | — |
-| 6 | The configuration surface | **open** | — |
-| 7 | Button clicks — the parsing half | **partial** | `rendering.md` decides resolution |
+| 5 | Agenta as a channel | **written** | `agenta-channel.md` |
+| 6 | The configuration surface | **partial** | `agenta-channel.md` drives it credential-free |
+| 7 | Button clicks — the parsing half | **partial** | `rendering.md` resolves; `agenta-channel.md` gives it a route |
 | 8 | What the connection key identifies | **written** | `channel-connections.md` |
 | 9 | The bridge | **decided: keep** | measured, below |
 | 10 | User journeys | **open** | three to write, below |
@@ -84,33 +84,56 @@ against the user's own authenticated session. Agenta-as-a-channel skips it entir
 
 ### 5 — Agenta as a channel
 
-The mock adapter is real but has no surface — nothing posts to it over HTTP, so no
-journey can be driven end to end without a platform.
+**Written**: `agenta-channel.md`. It is a real first-party channel, not a harness —
+same registry, same port, same ingress-to-outbox path. The **API is permanent and
+the UI is throwaway**, built together so the API is not designed against nothing.
 
-The ask is a **usable channel UI**, not a throwaway harness: it drives
-provisioning-time *and* run-time, so the whole journey is testable before Slack
-credentials exist. Since it must render our node vocabulary and answer choices, it
-is the same work as a web surface — so build it as a web package rather than a
-scratch app. It is then the reference renderer for the vocabulary, and plausibly a
-product surface later.
+Three questions it forces, all answered there: a connection is a bot in a project
+(no credentials at all, which the credential schema should survive); a space is a
+conversation; and **inbound does not use the public ingress** — an authenticated
+project-scoped route writes the same inbox row, because the ingress exists to
+establish a tenant a session has already established. That divergence is recorded
+deliberately, and nothing after the row is written may branch on the channel.
+
+The UI goes **in web behind a feature flag**, using the per-user atom mechanism that
+already carries two flags, because the thing being tested is our node vocabulary and
+rebuilding that outside the app would test a second implementation of it.
+
+The mock adapter is the warning this answers: real, complete, and with no surface,
+so no journey can be driven with it.
+
+**The earlier framing here was "a usable channel UI, not a throwaway harness".**
+That is refined rather than reversed: the split is between the two halves. The
+**API** is the permanent, usable thing and gets the tests; the **UI** is explicitly
+throwaway, kept behind a flag until web implements it properly. Both are built
+together, because an API designed against no consumer is how the mock adapter ended
+up complete and undriveable.
 
 This is what makes items 2, 3 and 8 testable without a platform.
 
 Both comparable products treat their own surface as a channel alongside Slack. Doing
-the same makes item 6 not a mock but a **first-party channel** — which is why it
+the same makes this a **first-party channel** rather than a mock — which is why it
 needs no credentials and can drive the whole journey.
 
 It also sets the capability ceiling from the other end: we own the surface, so it
 renders everything, and every platform degrades from it.
 
 To settle: whether this replaces the existing chat/session UI or sits beside it —
-new surface, or re-plumbing of one that exists.
+new surface, or re-plumbing of one that exists. Web already has an agent chat, and
+if a channel conversation is a session viewed differently, these may be one surface
+with two entry points.
 
 ### 6 — The configuration surface
 
 What a user actually sees: which agents on which spaces, which commands enabled,
-which spaces discovered. `provisioning.md` assumes this exists. Related to 6 — the
-same web work.
+which spaces discovered. `provisioning.md` assumes this exists.
+
+**Partly answered by item 5.** Creating a bot, a roster and grants is the same
+configuration flow every channel needs, and the Agenta channel is the first that can
+drive it with no credentials — so the flow gets exercised before any platform is
+involved. What remains is the per-platform half: the credential form generated from
+the declared schema, the manifest and its drift state, and the verification step.
+Those need item 1's credential schema, which is why 1 blocks this.
 
 ### 7 — Button clicks
 
