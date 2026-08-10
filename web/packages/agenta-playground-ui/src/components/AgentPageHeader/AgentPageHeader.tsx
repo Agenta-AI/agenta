@@ -36,6 +36,10 @@ export interface AgentPageHeaderProps {
  * shorthand-before-longhand ordering, which the desktop's Tailwind v3 gives but mobile's v4 does
  * not guarantee. Colours stay on shared `--ag-*`/token utilities — `--ant-color-*` exists only
  * where antd runs, i.e. never on mobile.
+ *
+ * The agent glyph's `text-cyan-6` is the generated antd scale token (`cyan.6` = #13c2c2), the same
+ * one the desktop's other agent badges use so the two cannot drift. It comes from the desktop
+ * Tailwind config's antd token dump; mobile's theme has to carry a `cyan-6` before it renders this.
  */
 export const AgentPageHeader = ({
     leading,
@@ -57,7 +61,7 @@ export const AgentPageHeader = ({
             {name ? (
                 <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                     <SimpleTooltip title="Agent">
-                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-[var(--ag-c-13C2C2)]">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-cyan-6">
                             <Robot size={15} weight="fill" />
                         </span>
                     </SimpleTooltip>
