@@ -660,6 +660,7 @@ session_turns_service = SessionTurnsService(
 workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
     static_catalog=StaticWorkflowCatalog(),
+    watch_publisher=_sessions_watch_publisher,
 )
 
 environments_service = EnvironmentsService(

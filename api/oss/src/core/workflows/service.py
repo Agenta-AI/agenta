@@ -25,6 +25,7 @@ from agenta.sdk.engines.running.utils import (
 from agenta.sdk.engines.tracing.propagation import inject
 
 from oss.src.core.git.interfaces import GitDAOInterface
+from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.git.dtos import (
     ArtifactCreate,
@@ -239,11 +240,13 @@ class WorkflowsService:
         environments_service: Optional["EnvironmentsService"] = None,  # type: ignore
         embeds_service: Optional["EmbedsService"] = None,  # type: ignore
         static_catalog: Optional[StaticWorkflowProvider] = None,
+        watch_publisher: Optional[SessionsWatchPublisherInterface] = None,
     ):
         self.workflows_dao = workflows_dao
         self.environments_service = environments_service
         self.embeds_service = embeds_service
         self.static_catalog = static_catalog
+        self._watch = watch_publisher
 
     @staticmethod
     def _artifact_cache_key(artifact_id: UUID) -> str:
@@ -982,6 +985,20 @@ class WorkflowsService:
             project_id=project_id,
             workflow=workflow,
         )
+
+        if self._watch is not None:
+            try:
+                await self._watch.changed(
+                    project_id=str(project_id),
+                    entity="workflow",
+                    id=str(workflow_edit.id),
+                )
+            except Exception:
+                log.warning(
+                    "[WATCH] workflow change publish failed",
+                    project_id=str(project_id),
+                    workflow_id=str(workflow_edit.id),
+                )
 
         return workflow
 

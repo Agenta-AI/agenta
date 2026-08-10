@@ -170,7 +170,10 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         VariantDBE=EnvironmentVariantDBE,
         RevisionDBE=EnvironmentRevisionDBE,
     )
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        watch_publisher=SessionsWatchPublisher(),
+    )
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -222,7 +225,10 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
         VariantDBE=EnvironmentVariantDBE,
         RevisionDBE=EnvironmentRevisionDBE,
     )
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        watch_publisher=SessionsWatchPublisher(),
+    )
     environments_service = EnvironmentsService(environments_dao=environments_dao)
     embeds_service = EmbedsService(
         workflows_service=workflows_service,
@@ -291,7 +297,10 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
         testsets_dao=testsets_dao, testcases_service=testcases_service
     )
     SimpleTestsetsService(testsets_service=testsets_service)
-    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    workflows_service = WorkflowsService(
+        workflows_dao=workflows_dao,
+        watch_publisher=SessionsWatchPublisher(),
+    )
     evaluators_service = EvaluatorsService(workflows_service=workflows_service)
     simple_evaluators_service = SimpleEvaluatorsService(
         evaluators_service=evaluators_service
