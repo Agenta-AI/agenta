@@ -448,6 +448,11 @@ def _choose_default(
         raise MissingProviderError(
             model=model.model, hint_provider=_harness_default_provider(harness)
         )
+    if not pool:
+        # Zero candidates with a known provider is a MISSING credential, not an ambiguous
+        # one — falling through to AmbiguousConnectionError told users with an empty vault
+        # "multiple connections for provider 'X'" and sent them hunting phantom secrets.
+        raise MissingCredentialError(provider=model.provider or "")
     if len(pool) == 1:
         return pool[0]
     default_named = [candidate for candidate in pool if candidate.slug == "default"]
