@@ -783,6 +783,17 @@ class WorkflowsRouter:
                 detail="Workflow ID in path does not match workflow ID in request body.",
             )
 
+        # A present name must not be empty or whitespace-only: a blank artifact name renders as an
+        # unreadable row in every list, and the shared ArtifactEdit shape carries no constraint (an
+        # omitted name still means "no change"). The LLM-facing rename_agent schema already rejects
+        # this; the check closes the direct-API hole.
+        edit_name = workflow_edit_request.workflow.name
+        if edit_name is not None and not edit_name.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="workflow.name must contain a non-whitespace character.",
+            )
+
         workflow = await self.workflows_service.edit_workflow(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),

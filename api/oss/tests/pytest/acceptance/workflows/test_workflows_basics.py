@@ -231,6 +231,34 @@ class TestWorkflowsBasics:
         assert body["count"] == 1
         assert body["workflow"]["flags"] == original_flags
 
+    def test_edit_workflow_rejects_blank_name(
+        self,
+        authed_api,
+    ):
+        # A present name must not be empty or whitespace-only: a blank artifact name
+        # renders as an unreadable row in every list. The LLM-facing rename_agent
+        # schema already rejects this; the endpoint must too.
+        workflow = _create_workflow(authed_api, flags={"is_application": True})
+        workflow_id = workflow["id"]
+        original_name = workflow["name"]
+
+        for blank in ("   ", ""):
+            response = authed_api(
+                "PUT",
+                f"/workflows/{workflow_id}",
+                json={
+                    "workflow": {
+                        "id": workflow_id,
+                        "name": blank,
+                    }
+                },
+            )
+            assert response.status_code == 422
+
+        response = authed_api("GET", f"/workflows/{workflow_id}")
+        assert response.status_code == 200
+        assert response.json()["workflow"]["name"] == original_name
+
     def test_edit_workflow_rejects_id_mismatch(
         self,
         authed_api,
