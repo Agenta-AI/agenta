@@ -1,4 +1,4 @@
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -75,7 +75,7 @@ export const createWebhookAtom = atom(
     async (get, _set, payload: WebhookSubscriptionCreateRequest) => {
         const projectId = get(projectIdAtom)
         const res = await createWebhookSubscription(payload, projectId ?? undefined)
-        await queryClient.invalidateQueries({queryKey: ["webhooks"]})
+        await getHostQueryClient().invalidateQueries({queryKey: ["webhooks"]})
         return res
     },
 )
@@ -96,7 +96,7 @@ export const updateWebhookAtom = atom(
             payload,
             projectId ?? undefined,
         )
-        await queryClient.invalidateQueries({queryKey: ["webhooks"]})
+        await getHostQueryClient().invalidateQueries({queryKey: ["webhooks"]})
         return res
     },
 )
@@ -104,7 +104,7 @@ export const updateWebhookAtom = atom(
 export const deleteWebhookAtom = atom(null, async (get, _set, webhookSubscriptionId: string) => {
     const projectId = get(projectIdAtom)
     await deleteWebhookSubscription(webhookSubscriptionId, projectId ?? undefined)
-    await queryClient.invalidateQueries({queryKey: ["webhooks"]})
+    await getHostQueryClient().invalidateQueries({queryKey: ["webhooks"]})
 })
 
 // Optimistic play/pause: flip `flags.is_active` in the list cache, call the
@@ -113,6 +113,7 @@ export const setWebhookActiveAtom = atom(
     null,
     async (get, _set, {id, active}: {id: string; active: boolean}) => {
         const projectId = get(projectIdAtom)
+        const queryClient = getHostQueryClient()
         const listKey = ["webhooks", projectId]
         const prev = queryClient.getQueryData<WebhookSubscription[]>(listKey)
         if (prev) {
@@ -141,6 +142,7 @@ export const testWebhookAtom = atom(
     async (get, _set, payload: WebhookSubscriptionTestRequest) => {
         const projectId = get(projectIdAtom)
         const res = await testWebhookSubscription(payload, projectId ?? undefined)
+        const queryClient = getHostQueryClient()
         await queryClient.invalidateQueries({queryKey: ["webhooks"]})
         await queryClient.invalidateQueries({queryKey: ["webhook-deliveries"]})
         return res

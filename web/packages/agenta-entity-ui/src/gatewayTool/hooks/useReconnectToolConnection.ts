@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useToolConnectionActions} from "@agenta/entities/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
+import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 
 const invalidate = () => {
+    const queryClient = getHostQueryClient()
     queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
     queryClient.invalidateQueries({queryKey: ["tools", "catalog"]})
     queryClient.invalidateQueries({queryKey: ["triggers", "connections"]})

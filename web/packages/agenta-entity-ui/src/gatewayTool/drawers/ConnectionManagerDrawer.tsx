@@ -9,7 +9,7 @@ import {
     useToolConnectionQuery,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
+import {getAgentaApiUrl, getAgentaWebUrl, getHostQueryClient} from "@agenta/shared/api"
 import {dayjs} from "@agenta/shared/utils"
 import {modal} from "@agenta/ui/app-message"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -63,7 +63,7 @@ export default function ConnectionManagerDrawer() {
     const setConnectionInCache = useCallback(
         (nextConnection: ToolConnection | null) => {
             if (!connectionId) return
-            queryClient.setQueryData(["tools", "connections", connectionId], {
+            getHostQueryClient().setQueryData(["tools", "connections", connectionId], {
                 count: nextConnection ? 1 : 0,
                 connection: nextConnection,
             })
