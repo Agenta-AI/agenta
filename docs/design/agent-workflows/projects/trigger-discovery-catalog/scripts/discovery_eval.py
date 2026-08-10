@@ -48,7 +48,7 @@ SERVICE = _repo_root() / "api" / "oss" / "src" / "core" / "triggers" / "service.
 # status.md). It lives only in this local cache and is fetched live when absent.
 CATALOG_CACHE = Path.home() / ".cache" / "agenta-discovery-eval" / "catalog.json"
 
-COMPOSIO_API_URL = "https://backend.composio.dev/api/v3"
+COMPOSIO_API_URL = "https://backend.composio.dev/api/v3.1"
 
 WANTED = {
     "_DISCOVERY_MIN_PRIMARY_TERMS",
