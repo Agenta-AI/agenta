@@ -1,10 +1,4 @@
-/**
- * Unit tests for the resolveHarnessKindValue function used by the model harness UI.
- *
- * These tests lock in the fallback behavior for omitted or undefined harness values and confirm
- * that explicit harness selections such as `pi_agenta` and `claude` are preserved unchanged.
- * Runs under @agenta/entity-ui's own vitest runner.
- */
+// Tests harness-kind fallback and explicit values.
 import {describe, expect, it} from "vitest"
 
 import {resolveHarnessKindValue} from "../../src/DrillInView/SchemaControls/agentTemplate/useModelHarness"
