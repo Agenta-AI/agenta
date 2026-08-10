@@ -1,8 +1,3 @@
-/**
- * A session row is only openable when its latest turn names an owning agent. Turn-less rows and
- * non-UUID reference ids must resolve to `null` so the UI disables the action instead of navigating
- * to a bad app route.
- */
 import type {SessionStream} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 

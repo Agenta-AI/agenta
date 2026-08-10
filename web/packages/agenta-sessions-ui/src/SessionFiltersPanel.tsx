@@ -1,9 +1,4 @@
-/**
- * The session filters — the whole panel, extracted from the desktop rail. The controls bind to
- * the shared filter atoms (`useSessionFilters` / the control components), so desktop's 280px
- * rail and mobile's stacked sheet render the same filter state. The agent picker runs on the
- * kit Select and takes the host's agent list (each app resolves its roster differently).
- */
+/** The whole filters panel, bound to the shared filter atoms; the host supplies its agent list. */
 import type {ReactNode} from "react"
 
 import {useSessionFilters} from "@agenta/sessions/state"
@@ -82,8 +77,7 @@ export const SessionFiltersPanel = ({
                 </section>
             )}
 
-            {/* Two different kinds of switch, so two headings: one picks WHICH sessions, the
-                other widens the set. Under one "Include" label they read as the same thing. */}
+            {/* Two headings: one switch picks WHICH sessions, the other widens the set. */}
             <section className="flex flex-col gap-3">
                 <RailLabel>Show</RailLabel>
                 <SessionModeControl />

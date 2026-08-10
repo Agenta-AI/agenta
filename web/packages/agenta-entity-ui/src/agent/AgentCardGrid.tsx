@@ -1,9 +1,4 @@
-/**
- * The agents roster as a card grid — the SHELL from the desktop Agents page: responsive grid
- * geometry, the dashed "New agent" cell, and the loading/empty states. Cards arrive as
- * children (each host maps its roster rows onto `AgentCard` and fills the data-connected
- * slots), so the grid owns only what the roster's layout IS.
- */
+/** The roster's grid SHELL — geometry, the "New agent" cell, loading/empty. Cards are children. */
 import type {ReactNode} from "react"
 
 import {EmptyState, SkeletonBlock} from "@agenta/ui/ui"
