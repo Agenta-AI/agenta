@@ -1,0 +1,124 @@
+{
+  "class": "edit_text",
+  "about": [
+    "Editing instruction prose. This is the action users perform most and the one with the most",
+    "ways to be almost-right: the sentence gets replaced but the document gets rewritten, or the",
+    "edit lands and the escalation code two sections down disappears with it.",
+    "",
+    "Every scenario here therefore checks the SURROUNDINGS as hard as it checks the change, and",
+    "`{{TOKEN}}` sits in a section nobody was asked to touch: if it is gone, the model rewrote the",
+    "document instead of editing it, whatever the diff looks like."
+  ],
+  "scenarios": [
+    {
+      "id": "edit-01-replace-sentence",
+      "title": "replace one sentence, leave the document alone",
+      "turns": [
+        {
+          "prompt": "in my instructions we don't want the manual fallback any more. make it say to run the release-qa skill instead. leave the rest as it is."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_not_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "Run the checks manually"
+        },
+        {
+          "check": "stored_matches",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "pattern": "(?i)release[- ]qa"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "# Release QA agent"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "Do not use emojis."
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "instructions"
+          ]
+        },
+        {
+          "check": "revision_created"
+        },
+        {
+          "check": "no_stored_marker"
+        }
+      ]
+    },
+    {
+      "id": "edit-02-add-a-line",
+      "title": "add a line to one section",
+      "turns": [
+        {
+          "prompt": "add a line under Tone telling you to avoid jargon."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_matches",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "pattern": "(?i)jargon"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "Be brief."
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            "instructions",
+            "agents_md"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "instructions"
+          ]
+        },
+        {
+          "check": "revision_created"
+        },
+        {
+          "check": "no_stored_marker"
+        }
+      ]
+    }
+  ]
+}

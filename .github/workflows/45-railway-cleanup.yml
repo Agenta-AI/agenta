@@ -4,8 +4,9 @@ on:
   pull_request:
     types: [closed, converted_to_draft]
   schedule:
-    # Run daily at 06:00 UTC to clean up stale previews
-    - cron: "0 6 * * *"
+    # Hourly. The sweep, not the age limit, sets the real ceiling on how long a
+    # preview can live: a daily sweep left a 6h-old preview running for up to 24h.
+    - cron: "0 * * * *"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -13,10 +14,10 @@ on:
         required: false
         type: string
       max_age_hours:
-        description: "Max age in hours for stale cleanup (default: 24)"
+        description: "Max age in hours for stale cleanup (default: 6)"
         required: false
         type: string
-        default: "24"
+        default: "6"
       dry_run:
         description: "Dry run mode (true/false)"
         required: false
@@ -29,6 +30,11 @@ permissions:
 
 env:
   RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  # Template location (issue #5650). The repo variables let a future template
+  # project move happen without a code change; the scripts carry the same
+  # defaults, so local runs and CI agree.
+  RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
+  RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
 
 jobs:
   destroy-pr-preview:
@@ -37,23 +43,20 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli@latest
-          railway --version
-
       - name: Install jq
         run: |
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y jq
           fi
 
+      # The preview is an environment in the template project (issue #5650) —
+      # delete just that environment (idempotent: absent = success).
       - name: Destroy preview environment
         env:
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
-          chmod +x hosting/railway/oss/scripts/preview-destroy.sh
-          hosting/railway/oss/scripts/preview-destroy.sh
+          chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
+          hosting/railway/oss/scripts/preview-clone-destroy.sh
 
       - name: Update preview comment on PR
         if: github.event_name == 'pull_request'
@@ -97,11 +100,15 @@ jobs:
 
       - name: Summary
         if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: |
-          echo "### Railway Preview Cleanup" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **PR:** #${{ github.event.pull_request.number || inputs.pr_number }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Action:** Destroyed preview environment" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Railway Preview Cleanup"
+            echo ""
+            echo "- **PR:** #${PR_NUMBER}"
+            echo "- **Action:** Destroyed preview environment"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   cleanup-stale:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.pr_number == '')
@@ -109,29 +116,40 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli@latest
-          railway --version
-
       - name: Install jq
         run: |
           if ! command -v jq >/dev/null 2>&1; then
             sudo apt-get update && sudo apt-get install -y jq
           fi
 
-      - name: Clean up stale previews
+      # Safety net for previews that outlived their PR (a cancelled run that
+      # died mid-cycle, a workflow bug): delete pr-* preview environments in
+      # the template project older than the max age. A sweep with nothing to
+      # delete costs ~3 API calls.
+      - name: Clean up stale preview environments
         env:
-          RAILWAY_PREVIEW_MAX_AGE_HOURS: ${{ inputs.max_age_hours || '24' }}
           RAILWAY_PREVIEW_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+          # Dispatch inputs reach the shell as env values, never as ${{ }} inside
+          # `run:`: template expansion happens before the shell parses the script,
+          # so an interpolated input can inject commands onto the runner.
+          MAX_AGE_HOURS: ${{ inputs.max_age_hours || '6' }}
         run: |
-          chmod +x hosting/railway/oss/scripts/preview-cleanup-stale.sh
-          hosting/railway/oss/scripts/preview-cleanup-stale.sh
+          case "$MAX_AGE_HOURS" in
+            '' | *[!0-9]*) echo "max_age_hours must be a whole number of hours" >&2; exit 1 ;;
+          esac
+          chmod +x hosting/railway/oss/scripts/preview-clone-destroy.sh
+          hosting/railway/oss/scripts/preview-clone-destroy.sh \
+            --stale-hours "$MAX_AGE_HOURS"
 
       - name: Summary
         if: always()
+        env:
+          MAX_AGE_HOURS: ${{ inputs.max_age_hours || '6' }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
         run: |
-          echo "### Railway Stale Preview Cleanup" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Max age:** ${{ inputs.max_age_hours || '24' }}h" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Dry run:** ${{ inputs.dry_run || 'false' }}" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Railway Stale Preview Cleanup"
+            echo ""
+            echo "- **Max age:** ${MAX_AGE_HOURS}h"
+            echo "- **Dry run:** ${DRY_RUN}"
+          } >> "$GITHUB_STEP_SUMMARY"

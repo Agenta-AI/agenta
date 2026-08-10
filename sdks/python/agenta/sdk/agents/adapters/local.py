@@ -20,7 +20,7 @@ runner-delivery decision and the ``claude-agent-sdk`` wiring land.
 
 from __future__ import annotations
 
-from typing import Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from ..dtos import HarnessAgentTemplate, HarnessKind, RunContext, TraceContext
 from ..interfaces import Backend, Sandbox, Session
@@ -47,6 +47,7 @@ class LocalBackend(Backend):
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
+        effective_parameters: Optional[Dict[str, Any]] = None,
     ) -> Session:
         raise NotImplementedError(
             "LocalBackend is not implemented yet (Phase 3: Pi via bundled JS, "

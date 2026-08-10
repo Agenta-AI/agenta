@@ -1,9 +1,10 @@
-import {useEffect, useState} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {Stop} from "@phosphor-icons/react"
-import {Button} from "antd"
 
+import {Button} from "../../components/ui/button"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../components/ui/tooltip"
 import {$isBlankMessage, submitEditorAsMarkdown} from "../assets/submit"
 import {ComposerSendButton} from "../ComposerSendButton"
 
@@ -12,6 +13,8 @@ interface SendButtonProps {
     /** Keep enabled even with empty text (e.g. attachments are queued) — sends an empty message. */
     forceEnabled?: boolean
     disabled?: boolean
+    /** Tooltip shown when a caller blocks submit. */
+    disabledReason?: ReactNode
     /** When true, the button becomes a Stop button that aborts the in-flight stream. */
     streaming?: boolean
     /** Abort the in-flight stream — required for the `streaming` state. */
@@ -21,7 +24,14 @@ interface SendButtonProps {
 /** Circular send button. Mirrors the Cmd/Ctrl+Enter path via the shared submit helper.
  * While a stream is in flight it morphs into a Stop button (single affordance, no extra
  * stop control alongside it). */
-export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}: SendButtonProps) {
+export function SendButton({
+    onSubmit,
+    forceEnabled,
+    disabled,
+    disabledReason,
+    streaming,
+    onStop,
+}: SendButtonProps) {
     const [editor] = useLexicalComposerContext()
     const [empty, setEmpty] = useState(true)
 
@@ -59,22 +69,31 @@ export function SendButton({onSubmit, forceEnabled, disabled, streaming, onStop}
                     }}
                 />
                 <Button
-                    type="text"
-                    shape="circle"
+                    size="icon"
+                    variant="ghost"
+                    className="rounded-control-round"
                     aria-label="Stop"
-                    icon={
-                        <Stop
-                            size={13}
-                            weight="fill"
-                            className="text-[var(--ag-colorTextSecondary)]"
-                        />
-                    }
                     onClick={onStop}
-                />
+                >
+                    <Stop size={13} weight="fill" className="text-[var(--ag-colorTextSecondary)]" />
+                </Button>
             </span>
         )
     }
 
     const sendDisabled = disabled || (empty && !forceEnabled)
-    return <ComposerSendButton onClick={handleClick} disabled={sendDisabled} />
+    const button = <ComposerSendButton onClick={handleClick} disabled={sendDisabled} />
+    if (!sendDisabled || !disabledReason) return button
+
+    // The span keeps the tooltip reachable: a disabled button emits no pointer events.
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="inline-flex">{button}</span>
+                </TooltipTrigger>
+                <TooltipContent>{disabledReason}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
 }

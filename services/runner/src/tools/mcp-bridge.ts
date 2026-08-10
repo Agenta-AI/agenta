@@ -21,6 +21,7 @@
 import type { ResolvedToolSpec } from "../protocol.ts";
 import type { McpServerHttp } from "../engines/sandbox_agent/mcp.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
+import type { ExecutableToolGate } from "./executable-tool-gate.ts";
 import { startInternalToolMcpServer } from "./tool-mcp-http.ts";
 
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
@@ -31,12 +32,13 @@ export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
  * `[]` for Pi), so a user MCP server attached to a Pi run would be DROPPED — silently, with no
  * log and an HTTP 200. That is exactly the silent-drop F-032 forbids. The `run-plan.ts` gate
  * refuses it up front (the way the stdio-MCP and code-tool gates do) so the failure is loud
- * instead of a "successful" empty run. HTTP MCP is a Claude-only capability for now; pick a
- * non-Pi harness to use one.
+ * instead of a "successful" empty run. Both non-Pi harnesses accept HTTP MCP: Claude Code and,
+ * since v0.108.0, codex. Naming only Claude here sent codex users looking for a harness they
+ * were already allowed to use.
  */
 export const PI_USER_MCP_UNSUPPORTED_MESSAGE =
   "User MCPs are not supported on the Pi harness (Pi delivers tools through its bundled " +
-  "extension, not MCP). Use a non-Pi harness (e.g. claude) for a user MCP server, or remove " +
+  "extension, not MCP). Use the claude or codex harness for a user MCP server, or remove " +
   "mcpServers.";
 
 // The ACP `McpServerStdio` shape lives in `engines/sandbox_agent/mcp.ts` (ACP entry
@@ -54,10 +56,12 @@ export interface ToolMcpServersResult {
 
 const NO_OP_CLOSE = async (): Promise<void> => {};
 
-/** Options for the internal channel: the client-tool relay and the engine pause/teardown signal. */
+/** Options for the internal channel's tool seams and engine pause/teardown signal. */
 export interface BuildToolMcpServersOptions {
-  /** When set (local Claude), `client` tools are advertised and paused in `tools/call`. */
+  /** When set (local non-Pi), `client` tools are advertised and paused in `tools/call`. */
   clientToolRelay?: ClientToolRelay;
+  /** When set, executable calls are gated before the runner dispatches them. */
+  executableToolGate?: ExecutableToolGate;
   /** Engine abort signal; destroys an in-flight `tools/call` on pause/teardown. */
   signal?: AbortSignal;
   log?: Log;
@@ -66,9 +70,8 @@ export interface BuildToolMcpServersOptions {
 /**
  * Build the INTERNAL tool MCP channel: start a loopback HTTP MCP server advertising the run's
  * tools and return a `type: "http"` server entry pointing at it. An empty spec list is a no-op
- * (`{ servers: [], close }`). `client` tools are included ONLY when a `clientToolRelay` is wired
- * (local Claude), where the server's `tools/call` pauses them; without one they are dropped here
- * (no pause path), so an all-`client` list with no relay stays a no-op as before.
+ * (`{ servers: [], close }`). `client` tools are included only when a `clientToolRelay` is wired
+ * for a local non-Pi harness; without one they are dropped.
  *
  * The returned `close()` MUST be called when the run ends (the engine does this in its `finally`)
  * to release the bound port. The HTTP entry carries a per-server bearer token so another local
@@ -80,10 +83,15 @@ export async function buildToolMcpServers(
   relayDir: string,
   options: BuildToolMcpServersOptions = {},
 ): Promise<ToolMcpServersResult> {
-  const { clientToolRelay, signal, log = () => {} } = options;
+  const {
+    clientToolRelay,
+    executableToolGate,
+    signal,
+    log = () => {},
+  } = options;
   if (!specs || specs.length === 0) return { servers: [], close: NO_OP_CLOSE };
   // Without a relay, a `client` tool has no pause path over this channel, so drop it and deliver
-  // only executable (`code`/`callback`) specs. With a relay (local Claude), keep client tools —
+  // only executable (`code`/`callback`) specs. With a local non-Pi relay, keep client tools:
   // the server advertises them and pauses the call.
   const deliverable = clientToolRelay
     ? specs
@@ -92,6 +100,7 @@ export async function buildToolMcpServers(
 
   const server = await startInternalToolMcpServer(deliverable, relayDir, {
     clientToolRelay,
+    executableToolGate,
     signal,
     log,
   });

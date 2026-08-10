@@ -24,8 +24,10 @@ from __future__ import annotations
 
 import jsonschema
 import pytest
+from pydantic import ValidationError
 
 from agenta.sdk.agents.wire_models import (
+    WireMcpServer,
     WireRunRequest,
     WireRunResult,
     run_contract_schemas,
@@ -80,6 +82,7 @@ def test_request_schema_properties_equal_known_request_keys():
     [
         ("run_request.pi_core.json", WireRunRequest),
         ("run_request.claude.json", WireRunRequest),
+        ("run_request.attachment.json", WireRunRequest),
         ("run_result.ok.json", WireRunResult),
         ("run_result.error.json", WireRunResult),
     ],
@@ -96,6 +99,7 @@ def test_goldens_parse_into_the_wire_models(golden, golden_name, model):
     [
         ("run_request.pi_core.json", "run_request"),
         ("run_request.claude.json", "run_request"),
+        ("run_request.attachment.json", "run_request"),
         ("run_result.ok.json", "run_result"),
         ("run_result.error.json", "run_result"),
     ],
@@ -119,3 +123,33 @@ def test_minimal_result_validates():
     payload = {"ok": True}
     jsonschema.validate(payload, CATALOG_TYPES["run_result"])
     assert WireRunResult.model_validate(payload).ok is True
+
+
+def test_mcp_wire_schema_separates_public_headers_and_credentials():
+    # Public headers and secret header credentials stay separate by protocol role inside the
+    # server's `connection` object.
+    server = WireMcpServer.model_validate(
+        {
+            "name": "linear",
+            "connection": {
+                "type": "http",
+                "url": "https://mcp.linear.app/sse",
+                "headers": {"X-Client": "agenta"},
+                "credentials": [
+                    {
+                        "binding": {"kind": "header", "name": "Authorization"},
+                        "value": "secret-marker",
+                        "usage": "opaque_http",
+                    }
+                ],
+            },
+            "policy": {"tools": {"mode": "all"}},
+        }
+    )
+    assert server.connection.credentials
+    assert server.connection.credentials[0].binding.name == "Authorization"
+    # The retired flat stdio shape (mixed secret env) is not part of the schema anymore.
+    with pytest.raises(ValidationError):
+        WireMcpServer.model_validate(
+            {"name": "legacy", "transport": "stdio", "env": {"TOKEN": "secret"}}
+        )

@@ -96,7 +96,7 @@ export const ExecutionRowRunControl = ({
                         : runLabel
                 }
                 icon={<PlayIcon size={14} />}
-                size="small"
+                size="sm"
                 options={stepOptions}
                 onClick={isBusy ? onCancel : onRun}
                 onOptionSelect={onOptionSelect}
@@ -107,7 +107,7 @@ export const ExecutionRowRunControl = ({
     }
 
     if (isBusy) {
-        return <RunButton isCancel onClick={onCancel} className={className} />
+        return <RunButton mode="cancel" onClick={onCancel} className={className} />
     }
 
     return (

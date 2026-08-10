@@ -23,7 +23,9 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, TypedDict
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.redaction.context import get_active_redactor
 
+from .effective_config import stamp_effective_parameters
 from ..permission_rules import PermissionRule
+from ..errors import AgentRunFailed
 from ..dtos import (
     Event,
     AgentResult,
@@ -47,7 +49,9 @@ class PermissionsConfig(TypedDict, total=False):
 
 # The user-facing error must not carry an internal stack/path dump. Cap the surfaced line and
 # strip the patterns that leak implementation detail; the full text is logged, never shown.
-_ERROR_MAX_LEN = 300
+# The cap bounds SIZE, not content: first-line-only, the stack-frame strip, and the redactor below
+# are what protect the user, so it is set wide enough for a real actionable message to arrive whole.
+_ERROR_MAX_LEN = 2000
 # A stack frame leaked into the message ("at fn (/abs/path:12:3)" / 'File "/abs/path", line 12').
 _STACK_FRAME_RE = re.compile(r"\b(at\s+\S+\s*\(|File\s+\"|/[\w./-]+:\d+)")
 
@@ -85,12 +89,12 @@ def request_to_wire(
     sandbox: str,
     config: HarnessAgentTemplate,
     messages: Sequence[Message],
-    secrets: Optional[Dict[str, str]] = None,
     trace: Optional[TraceContext] = None,
     run_context: Optional[RunContext] = None,
     session_id: Optional[str] = None,
     turn_id: Optional[str] = None,
     project_id: Optional[str] = None,
+    effective_parameters: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Serialize one turn into the ``/run`` request JSON.
 
@@ -103,15 +107,11 @@ def request_to_wire(
     packages, likewise omitted when there are none (skills ride their own seam, not the tool
     wire). ``config.wire_sandbox_permission()`` adds the declared sandbox security boundary,
     omitted when unset (plumbing only; the runner does not enforce it yet).
-    ``config.wire_model_ref()`` adds the non-secret provider/connection fields, omitted when no
-    structured ``model_ref`` is set so a string-only config's payload is unchanged (the secret
-    still rides ``secrets``; ``model`` stays the plain string).
-    ``config.wire_resolved_connection()`` adds the resolved-connection descriptor
-    (``provider`` / ``model`` / ``deployment`` / ``credentialMode`` / ``endpoint``), omitted when
-    no ``resolved_connection`` is threaded so a config without one is unchanged. It is spread
-    LAST among the model fields so the resolved ``provider``/``model`` override the base ``model``
-    and ``wire_model_ref``'s ``provider`` (its ``env`` never reaches the wire; the secret rides
-    ``secrets``).
+    ``config.wire_connection_ref()`` adds the author's connection CHOICE (``self_managed``, or an
+    Agenta connection named by slug), omitted for the project default because it carries nothing
+    beyond the model. ``config.wire_model_connection()`` adds what that choice RESOLVED to: the
+    model route and typed credentials as one consumer-owned object. It is omitted when no
+    connection was resolved and overrides the base model id with the exact resolved model.
     ``config.wire_harness_files()`` adds the generic ``harnessFiles`` array: files the active
     harness's config rendered from its own ``permissions`` / ``extras`` slice, to materialize in the session
     cwd before the session starts (``path`` relative to cwd, ``content`` the file text). Omitted
@@ -123,6 +123,16 @@ def request_to_wire(
     set it rides as ``runContext`` and is consumed by tool context bindings at dispatch
     (``call.context`` on direct-call specs and ``contextBindings`` on callRef specs) (direct-call tools, Phase 3a). Omitted when unset (and when its ``to_wire`` is empty),
     so a run that needs no binding stays byte-identical to before.
+
+    ``effective_parameters`` is the POST-HYDRATION config this turn actually runs (the handler's
+    resolved ``data.parameters``). It rides as the opaque ``effectiveParameters`` ONLY on a
+    session run — a non-session run has no interaction row to stamp it onto, so its payload stays
+    byte-identical to the golden contract. The runner echoes it onto the durable interaction row
+    of any HITL gate this turn parks, so a client that answers the gate without being able to
+    reproduce the config (mobile, the M2 dispatcher) can replay the exact turn instead of
+    hydrating the referenced variant's HEAD. Redacted and size-capped by
+    ``effective_config.stamp_effective_parameters``, which returns ``None`` (key omitted) when
+    there is nothing safe to stamp.
     """
     payload: Dict[str, Any] = {
         "harness": harness.value,
@@ -131,7 +141,6 @@ def request_to_wire(
         "agentsMd": config.agents_md,
         "model": config.model,
         "messages": [message.to_wire() for message in messages],
-        "secrets": dict(secrets or {}),
         # The run's tracing inputs ride the wire grouped by role (see the trace/telemetry interface
         # restructure): `context.propagation` carries the per-call W3C trace-context headers, and
         # `telemetry` carries the operator-owned exporter config + capture policy. Both come from the
@@ -144,8 +153,9 @@ def request_to_wire(
         **config.wire_mcp(),
         **config.wire_skills(),
         **config.wire_sandbox_permission(),
-        **config.wire_model_ref(),
-        **config.wire_resolved_connection(),
+        **config.wire_connection_ref(),
+        **config.wire_model_connection(),
+        **config.wire_harness_mode(),
         **config.wire_harness_files(),
     }
     if run_context is not None:
@@ -156,20 +166,23 @@ def request_to_wire(
         payload["turnId"] = turn_id
     if project_id is not None:
         payload["projectId"] = project_id
+    if session_id:
+        stamped = stamp_effective_parameters(effective_parameters)
+        if stamped:
+            payload["effectiveParameters"] = stamped
     return payload
 
 
 def result_from_wire(data: Dict[str, Any]) -> AgentResult:
     """Parse a ``/run`` result JSON into an :class:`AgentResult`.
 
-    Raises ``RuntimeError`` when the runner reported a failure, so the caller surfaces a
-    clear message rather than handing the model an empty reply. The runner ``error`` is
+    Raises :class:`AgentRunFailed` when the runner reported a failure, so the caller gets a
+    stable code and a clear message rather than an empty reply. The runner ``error`` is
     sanitized at this boundary (one clean line, no stack/path leak); the full detail is logged.
     """
+    data = get_active_redactor().redact_json(data, sink="runner_result")
     if not data.get("ok"):
-        raise RuntimeError(
-            f"Agent run failed: {sanitize_runner_error(data.get('error'))}"
-        )
+        raise AgentRunFailed(sanitize_runner_error(data.get("error")))
 
     messages: List[Message] = []
     for raw in data.get("messages") or []:

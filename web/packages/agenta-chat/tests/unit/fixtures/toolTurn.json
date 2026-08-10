@@ -1,0 +1,24 @@
+[
+    {
+        "id": "a1",
+        "role": "assistant",
+        "parts": [
+            {"type": "text", "text": "Let me check a couple of things."},
+            {
+                "type": "tool-read_file",
+                "toolCallId": "call_1",
+                "state": "output-available",
+                "input": {"path": "a.txt"},
+                "output": {"content": "a"}
+            },
+            {
+                "type": "tool-read_file",
+                "toolCallId": "call_2",
+                "state": "output-error",
+                "input": {"path": "missing.txt"},
+                "errorText": "not found"
+            },
+            {"type": "text", "text": "Here's what I found."}
+        ]
+    }
+]

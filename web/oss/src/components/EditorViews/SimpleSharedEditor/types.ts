@@ -1,7 +1,6 @@
+import type {EnhancedButtonProps} from "@agenta/ui/components/presentational"
 import {SharedEditorProps} from "@agenta/ui/shared-editor"
 import {DropdownProps} from "antd"
-
-import {EnhancedButtonProps} from "../../EnhancedUIs/Button/types"
 
 export interface SimpleSharedEditorProps extends SharedEditorProps {
     headerClassName?: string

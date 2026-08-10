@@ -11,14 +11,23 @@
  *    approved call is recorded as an execution grant (`onPiGateAllowed` / the parked-approval
  *    resume). The guard consumes exactly one grant per record, so a forged or replayed record
  *    for an `ask` tool fails closed. Byte-identical to the pre-factoring inline guard.
- *  - Non-Pi MCP harnesses (Claude, and future MCP clients): the ask dialog is enforced by the
- *    harness itself — the rendered `mcp__agenta-tools__<tool>` ask rules plus the ACP
+ *  - Non-Pi MCP harnesses (Claude, Codex, and future MCP clients): the ask dialog is enforced by
+ *    the harness itself — the rendered `mcp__agenta-tools__<tool>` ask rules plus the ACP
  *    permission flow gate a call BEFORE it reaches the shim — so the runner records no grant
  *    for a legitimately approved call, and requiring one would refuse every approved call.
  *    The guard therefore passes `ask` and enforces only the hard deny boundary against forged
  *    files. Residual, stated honestly: on this path a forged request file can still trigger
  *    an ask-tool WITHOUT a dialog; full ask-grant parity for MCP harnesses (reflecting the
  *    harness approval into the grant ledger) is a documented follow-up.
+ *
+ * This branch's correctness DEPENDS on the harness actually raising a gate, and Codex did not
+ * until the D-008 amendment (2026-07-31). Its bridge preset hardcoded `approvalPolicy: "never"`,
+ * so on Daytona — where the runner's own `agenta-tools` seam gate is off and the shim relays
+ * straight here — an `ask` tool executed with NO approval at all. Reproduced live before the fix.
+ * Both images now patch the preset to `on-request` (the runner image via
+ * `scripts/patch-codex-acp-approvals.ts`, the Daytona snapshot via
+ * `images/sandbox/daytona/build_snapshot.py`), so Codex raises the gate and this branch holds.
+ * A harness added here in future must raise its own ask gate, or it needs a grant like Pi's.
  *
  * The deny reason becomes the tool's result text (same shape as a dialog deny), so the model
  * loop continues instead of crashing.
@@ -28,6 +37,10 @@ import {
   ConversationDecisions,
   type ApprovedExecutionGrants,
 } from "../../responder.ts";
+import {
+  declinedByUserText,
+  deniedByPolicyText,
+} from "../../tools/denial-text.ts";
 import {
   redactContextBoundArgs,
   type RelayExecutionGuard,
@@ -71,10 +84,9 @@ export function buildRelayExecutionGuard(
     );
     if (verdict.kind === "allow") return { allow: true };
     if (verdict.kind === "deny") {
-      return {
-        allow: false,
-        reason: `Tool '${spec.name}' is denied by the permission policy.`,
-      };
+      // `decide` runs here against an EMPTY stored-decision store, so a deny is always the
+      // policy's, never a human's replayed answer.
+      return { allow: false, reason: deniedByPolicyText(spec.name) };
     }
     // `ask`. Non-Pi: the harness's own dialog is the ask gate (see the module comment for the
     // rationale and the stated residual); pass without touching the grant ledger.
@@ -89,8 +101,10 @@ export function buildRelayExecutionGuard(
     )
       ? { allow: true }
       : {
+          // No grant means the dialog was answered no, or the record was forged. The first is the
+          // case a model needs to act on.
           allow: false,
-          reason: `Tool '${spec.name}' was not approved via the permission dialog.`,
+          reason: declinedByUserText(spec.name),
         };
   };
 }

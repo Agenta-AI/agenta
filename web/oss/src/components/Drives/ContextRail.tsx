@@ -25,6 +25,7 @@ import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {useDriveArtifactId} from "./driveSessionContext"
 import {relativeTime} from "./driveTree"
+import {type DroppedFile} from "./dropEntries"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
 import {type FileDropProps, useStageDrop} from "./useDriveDrop"
@@ -65,7 +66,7 @@ export function ContextRail({
     onOpenFiles: () => void
     /** Files dropped on the rail → stage them and open the drawer to pick a destination. Omit to
      * disable drop-to-stage. */
-    onStageFiles?: (files: File[]) => void
+    onStageFiles?: (files: DroppedFile[]) => void
 }) {
     const [open, setOpen] = useAtom(contextRailOpenAtom)
     // Drop-to-stage: a file drag over the rail (strip or expanded) opens the drawer with the files

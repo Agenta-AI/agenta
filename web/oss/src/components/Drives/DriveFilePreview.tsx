@@ -98,7 +98,7 @@ export const DriveFilePreview = ({
                                     text={shown}
                                     buttonText={null}
                                     icon
-                                    size="small"
+                                    size="icon-sm"
                                     aria-label="Copy file path"
                                     successMessage=""
                                     className="!h-7 !w-7 !p-0 !text-colorTextTertiary hover:!text-colorText"

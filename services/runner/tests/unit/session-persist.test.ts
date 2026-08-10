@@ -63,7 +63,19 @@ describe("buildPersistingEmitter", () => {
       (e) => live.push(e),
     );
 
-    persist({ type: "message", text: "what time is it?" }, "user");
+    persist(
+      {
+        type: "message",
+        text: "what time is it?",
+        attachments: [
+          {
+            attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+            filename: "clock.png",
+          },
+        ],
+      },
+      "user",
+    );
     emit({ type: "message", text: "it is noon" });
     emit({ type: "done" });
     await flush();
@@ -82,6 +94,12 @@ describe("buildPersistingEmitter", () => {
     );
     const userPayload = bodies[0]["attributes"] as Record<string, unknown>;
     assert.equal(userPayload["text"], "what time is it?");
+    assert.deepEqual(userPayload["attachments"], [
+      {
+        attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+        filename: "clock.png",
+      },
+    ]);
   });
 
   it("coalesces message_start/delta/end into a single persisted message", async () => {

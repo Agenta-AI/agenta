@@ -17,6 +17,7 @@ import MessageRow from "./MessageRow"
  */
 const TranscriptPlaceholder = ({
     entityId,
+    sessionId,
     pendingFirstTurn,
     pendingFirstMessage,
     onboardingActive,
@@ -31,6 +32,7 @@ const TranscriptPlaceholder = ({
     onClientToolOutput,
 }: {
     entityId: string
+    sessionId: string
     pendingFirstTurn: string | null
     pendingFirstMessage: UIMessage
     onboardingActive: boolean
@@ -52,6 +54,7 @@ const TranscriptPlaceholder = ({
             <MessageRow mid="pending-first-turn" enter>
                 <AgentMessage
                     message={pendingFirstMessage}
+                    sessionId={sessionId}
                     isLastMessage
                     onRewind={onRewind}
                     onClientToolOutput={onClientToolOutput}

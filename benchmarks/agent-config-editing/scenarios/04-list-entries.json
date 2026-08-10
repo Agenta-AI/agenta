@@ -1,0 +1,246 @@
+{
+  "class": "list_entries",
+  "about": [
+    "List-entry operations, including the nested one. `list-03` addresses a file inside a skill",
+    "inside the configuration:",
+    "",
+    "    [\"parameters\",\"agent\",{\"list\":\"skills\",\"key\":\"release-qa\"},",
+    "     {\"list\":\"files\",\"key\":\"checklist.md\"},\"content\"]",
+    "",
+    "The v1 spike measured the selector as the cause of 62 percent of all failures, and that is",
+    "why the key is `list` and why the wrapper normalizes a repeated list name. This row is where",
+    "that decision is re-measured against live small models."
+  ],
+  "scenarios": [
+    {
+      "id": "list-01-remove-mcp",
+      "title": "remove one entry, keep the other",
+      "turns": [
+        {
+          "prompt": "we dropped context7. take the context7 mcp server off my config \u2014 keep deepwiki."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "mcps"
+          ],
+          "value": 1
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "mcps",
+              "key": "deepwiki"
+            }
+          ]
+        },
+        {
+          "check": "stored_absent",
+          "path": [
+            {
+              "list": "mcps",
+              "key": "context7"
+            }
+          ]
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "mcps"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "seed": {
+        "mcps": [
+          {
+            "name": "deepwiki",
+            "connection": {
+              "type": "http",
+              "url": "https://mcp.deepwiki.com/mcp"
+            }
+          },
+          {
+            "name": "context7",
+            "connection": {
+              "type": "http",
+              "url": "https://mcp.context7.com/mcp"
+            }
+          }
+        ]
+      },
+      "unsupported_harness": [
+        "pi_core"
+      ],
+      "unsupported_reason": "The Pi harness rejects user MCP servers outright (\"User MCPs are not supported on the Pi harness\"), so the run fails before the model sees the task. Counting that as a config-editing failure would be measuring the wrong thing."
+    },
+    {
+      "id": "list-02-add-mcp",
+      "title": "add one entry, keep what is there",
+      "turns": [
+        {
+          "prompt": "add a notion mcp server for me, it's at https://mcp.notion.com/mcp \u2014 keep the ones i already have."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "mcps"
+          ],
+          "value": 3
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "mcps",
+              "key": "notion"
+            },
+            "connection",
+            "url"
+          ],
+          "text": "mcp.notion.com"
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "mcps",
+              "key": "deepwiki"
+            }
+          ]
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "mcps",
+              "key": "context7"
+            }
+          ]
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "mcps"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "seed": {
+        "mcps": [
+          {
+            "name": "deepwiki",
+            "connection": {
+              "type": "http",
+              "url": "https://mcp.deepwiki.com/mcp"
+            }
+          },
+          {
+            "name": "context7",
+            "connection": {
+              "type": "http",
+              "url": "https://mcp.context7.com/mcp"
+            }
+          }
+        ]
+      },
+      "unsupported_harness": [
+        "pi_core"
+      ],
+      "unsupported_reason": "The Pi harness rejects user MCP servers outright (\"User MCPs are not supported on the Pi harness\"), so the run fails before the model sees the task. Counting that as a config-editing failure would be measuring the wrong thing."
+    },
+    {
+      "id": "list-03-nested-file-entry",
+      "title": "edit a file bundled inside a skill",
+      "prompt_note": "The two-selector target. The user says none of that; they say 'the checklist in my release qa skill'.",
+      "turns": [
+        {
+          "prompt": "the checklist in my release qa skill is missing a line \u2014 add a checkbox for the release notes. keep the two that are there."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_matches",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            {
+              "list": "files",
+              "key": "checklist.md"
+            },
+            "content"
+          ],
+          "pattern": "(?i)release notes"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            {
+              "list": "files",
+              "key": "checklist.md"
+            },
+            "content"
+          ],
+          "text": "smoke suite"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            {
+              "list": "files",
+              "key": "checklist.md"
+            },
+            "content"
+          ],
+          "text": "deploy logs"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "pytest -m smoke"
+        },
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 3
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ]
+    }
+  ]
+}

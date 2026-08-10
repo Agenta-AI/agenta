@@ -1,0 +1,27 @@
+[
+    {
+        "id": "a1",
+        "role": "assistant",
+        "parts": [
+            {
+                "type": "tool-write_file",
+                "toolCallId": "call_gate",
+                "state": "approval-responded",
+                "input": {"p": 1}
+            },
+            {
+                "type": "tool-write_file",
+                "toolCallId": "call_gate_replay",
+                "state": "output-available",
+                "input": {"p": 1},
+                "output": {"ok": true}
+            },
+            {
+                "type": "tool-send_mail",
+                "toolCallId": "call_mail_gate",
+                "state": "approval-responded",
+                "input": {"q": 2}
+            }
+        ]
+    }
+]

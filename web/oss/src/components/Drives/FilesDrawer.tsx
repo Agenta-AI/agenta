@@ -17,6 +17,7 @@ import dynamic from "next/dynamic"
 
 import {type DriveId, type DriveScope} from "./DriveExplorer"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
+import {type DroppedFile} from "./dropEntries"
 import {type SessionDriveData} from "./useSessionDrive"
 
 // Normal vs. expanded drawer width — the header's expand toggle flips between them, mirroring the
@@ -68,8 +69,8 @@ export interface FilesDrawerProps {
     /** Preselect this path on open — and, while open, re-select when it changes (a chat link/tile). */
     initialPath?: string | null
     /** Files staged by a drop on a recents peek, awaiting a destination — the host owns the list. */
-    stagedFiles?: File[]
-    onStagedChange?: (files: File[]) => void
+    stagedFiles?: DroppedFile[]
+    onStagedChange?: (files: DroppedFile[]) => void
 }
 
 export function FilesDrawer({

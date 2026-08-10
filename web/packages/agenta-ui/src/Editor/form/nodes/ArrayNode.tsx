@@ -1,10 +1,15 @@
-import {FC, useCallback, useMemo} from "react"
+import {FC, type ReactNode, useCallback, useMemo} from "react"
 
-import {PlusOutlined, DeleteOutlined} from "@ant-design/icons"
-import {Input} from "antd"
-import {Dropdown} from "antd"
+import {Plus, Trash} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../../../components/ui/dropdown-menu"
+import {Input} from "../../../components/ui/input"
 import styles from "../FormView.module.css"
 import NodeHeader from "../shared/NodeHeader"
 import TreeRow from "../shared/TreeRow"
@@ -16,9 +21,37 @@ interface ArrayNodeProps extends BaseNodeProps {
     value: unknown[]
 }
 
+interface AddItemMenuItem {
+    key: string
+    label: string
+    onClick: () => void
+}
+
+const AddItemMenu: FC<{items: AddItemMenuItem[]; children: ReactNode}> = ({items, children}) => (
+    <DropdownMenu>
+        <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+            {items.map((item) => (
+                <DropdownMenuItem key={item.key} onSelect={item.onClick}>
+                    {item.label}
+                </DropdownMenuItem>
+            ))}
+        </DropdownMenuContent>
+    </DropdownMenu>
+)
+
+const addTrigger = (
+    <button
+        type="button"
+        aria-label="Add item"
+        className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText !mx-0"
+    >
+        <Plus size={14} />
+    </button>
+)
+
 const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
     const {
-        form,
         path,
         k,
         value,
@@ -33,37 +66,22 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
 
     const removeItem = useCallback(
         (idx: number) => {
-            const currentRoot = structuredClone(
-                form.getFieldsValue(true) as Record<string, unknown>,
-            )
-            const arrTarget = path.reduce<unknown>(
-                (acc, key) => (acc as Record<string, unknown>)[key],
-                currentRoot,
-            ) as unknown[]
-            if (!Array.isArray(arrTarget)) return
-
+            const arrTarget = [...value]
             arrTarget.splice(idx, 1)
 
             onChange(path, arrTarget)
         },
-        [form, path, value, onChange],
+        [path, value, onChange],
     )
 
     const addItemWithTypeAt = useCallback(
         (index: number, type: "primitive" | "object" | "array") => {
-            const currentRoot = structuredClone(
-                form.getFieldsValue(true) as Record<string, unknown>,
-            )
-            const arrTarget = path.reduce<unknown>(
-                (acc, key) => (acc as Record<string, unknown>)[key],
-                currentRoot,
-            ) as unknown[]
-            if (!Array.isArray(arrTarget)) return
+            const arrTarget = [...value]
             const newItem = type === "object" ? {} : type === "array" ? [] : ""
             arrTarget.splice(index, 0, newItem)
             onChange(path, arrTarget)
         },
-        [form, path, onChange],
+        [path, value, onChange],
     )
 
     const addItemWithType = (type: "primitive" | "object" | "array") =>
@@ -122,7 +140,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
             >
                 <Input
                     defaultValue={k as string}
-                    variant="borderless"
+                    variant="ghost"
                     className="w-32 text-xs font-semibold p-0"
                     onBlur={(e) => {
                         const newKey = e.target.value.trim()
@@ -137,9 +155,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                     <TreeRow depth={1} className={clsx("no-line flex", "ml-2")}>
                         <div className={clsx(styles["between-hover"])}>
                             <div className={styles["add-between"]}>
-                                <Dropdown menu={{items: getMenuItems(0)}} trigger={["click"]}>
-                                    <PlusOutlined className="!mx-0" />
-                                </Dropdown>
+                                <AddItemMenu items={getMenuItems(0)}>{addTrigger}</AddItemMenu>
                             </div>
                         </div>
                     </TreeRow>
@@ -153,25 +169,28 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                             {idx >= 0 && (
                                 <div className={clsx(styles["between-hover"])}>
                                     <div className={styles["add-between"]}>
-                                        <Dropdown
-                                            menu={{items: getMenuItems(idx)}}
-                                            trigger={["click"]}
-                                        >
-                                            <PlusOutlined className="!mx-0" />
-                                        </Dropdown>
+                                        <AddItemMenu items={getMenuItems(idx)}>
+                                            {addTrigger}
+                                        </AddItemMenu>
                                     </div>
                                 </div>
                             )}
 
                             <div className={styles["on-hover"]}>
                                 <div className={styles["add-between"]}>
-                                    <DeleteOutlined onClick={() => removeItem(idx)} />
+                                    <button
+                                        type="button"
+                                        aria-label="Remove item"
+                                        className="box-border border-0 bg-transparent p-0 cursor-pointer text-colorText"
+                                        onClick={() => removeItem(idx)}
+                                    >
+                                        <Trash size={14} />
+                                    </button>
                                 </div>
                             </div>
 
                             <TreeRow depth={2} className={clsx("array-item-wrapper flex", "ml-2")}>
                                 {renderNode({
-                                    form,
                                     path: [...path, idx],
                                     k: idx,
                                     value: item,
@@ -192,9 +211,9 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                         <TreeRow depth={1} className={clsx("no-line flex", "ml-2")}>
                             <div className={clsx(styles["between-hover"])}>
                                 <div className={styles["add-between"]}>
-                                    <Dropdown menu={{items: addToEndMenuItems}} trigger={["click"]}>
-                                        <PlusOutlined className="!mx-0" />
-                                    </Dropdown>
+                                    <AddItemMenu items={addToEndMenuItems}>
+                                        {addTrigger}
+                                    </AddItemMenu>
                                 </div>
                             </div>
                         </TreeRow>
@@ -204,9 +223,7 @@ const ArrayNodeComponent: FC<ArrayNodeProps> = (props) => {
                         <TreeRow depth={1} className={clsx("no-line flex", "ml-2")}>
                             <div className={clsx(styles["between-hover"])}>
                                 <div className={styles["add-between"]}>
-                                    <Dropdown menu={{items: getMenuItems(0)}} trigger={["click"]}>
-                                        <PlusOutlined className="!mx-0" />
-                                    </Dropdown>
+                                    <AddItemMenu items={getMenuItems(0)}>{addTrigger}</AddItemMenu>
                                 </div>
                             </div>
                         </TreeRow>

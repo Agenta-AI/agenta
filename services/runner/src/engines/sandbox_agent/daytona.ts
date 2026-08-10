@@ -11,7 +11,11 @@ import {
   serializePiModelsJson,
   type PiModelConfigPlan,
 } from "./pi-model-config.ts";
-import { type RunPlan } from "./run-plan.ts";
+import {
+  type RunPlan,
+  type RunPlanPrompt,
+  type RunPlanWorkspace,
+} from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -34,7 +38,7 @@ export const DAYTONA_PI_COMMAND = `${DAYTONA_PI_INSTALL_DIR}/node_modules/.bin/p
  */
 export function daytonaEnvVars(
   piExtEnv: Record<string, string>,
-  secrets: Record<string, string>,
+  environment: Record<string, string>,
 ): Record<string, string> {
   return {
     PI_CODING_AGENT_DIR: DAYTONA_PI_DIR,
@@ -42,8 +46,9 @@ export function daytonaEnvVars(
     // snapshot bakes Pi there; a custom image gets the pinned install before the session.
     PI_ACP_PI_COMMAND: DAYTONA_PI_COMMAND,
     ...piExtEnv,
-    // Provider API keys from the vault: the in-sandbox harness authenticates with these.
-    ...secrets,
+    // Non-secret config and explicitly local-use values. Opaque HTTP credentials attach through
+    // Daytona's `secrets` create field and never enter this plaintext environment map.
+    ...environment,
   };
 }
 
@@ -189,14 +194,13 @@ export async function removePiModelsConfigFromSandbox(
 
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
-  plan: Pick<
-    RunPlan,
-    | "isPi"
-    | "skillDirs"
-    | "hasSystemPrompt"
-    | "systemPrompt"
-    | "appendSystemPrompt"
-  >;
+  plan: Pick<RunPlan, "isPi"> & {
+    workspace: Pick<RunPlanWorkspace, "skillDirs">;
+    prompt: Pick<
+      RunPlanPrompt,
+      "hasSystemPrompt" | "systemPrompt" | "appendSystemPrompt"
+    >;
+  };
   /**
    * A managed OpenAI-compatible custom run's Pi provider config. When set, its `models.json` is
    * uploaded before the ACP session starts; when absent, any stale `models.json` on a reused
@@ -242,15 +246,20 @@ export async function prepareDaytonaPiAssets({
   } else {
     await removePiModelsConfigFromSandbox(sandbox, DAYTONA_PI_DIR, log);
   }
-  if (plan.skillDirs.length > 0) {
-    await uploadSkillsToSandbox(sandbox, DAYTONA_PI_DIR, plan.skillDirs, log);
+  if (plan.workspace.skillDirs.length > 0) {
+    await uploadSkillsToSandbox(
+      sandbox,
+      DAYTONA_PI_DIR,
+      plan.workspace.skillDirs,
+      log,
+    );
   }
-  if (plan.hasSystemPrompt) {
+  if (plan.prompt.hasSystemPrompt) {
     await uploadSystemPromptToSandbox(
       sandbox,
       DAYTONA_PI_DIR,
-      plan.systemPrompt,
-      plan.appendSystemPrompt,
+      plan.prompt.systemPrompt,
+      plan.prompt.appendSystemPrompt,
       log,
     );
   }

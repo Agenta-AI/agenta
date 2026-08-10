@@ -167,6 +167,37 @@ lanes that touch disjoint files (e.g. `web/**` vs `api/**`) can sit anywhere in 
   workspace (including uncommitted changes) to any prior snapshot — this is how
   you undo a botched unapply/apply and get a collapsed stack's series back. Take
   a `but oplog snapshot -m "..."` before risky operations.
+- **A dropped-hunk commit can damage the working tree, not just the commit.**
+  When `but commit --only` warns "Some selected changes could not be committed",
+  check the FILE in the tree afterwards, not only the commit: the reconcile can
+  rewrite the working copy and silently lose the uncommitted hunks. Recover the
+  exact bytes from a snapshot's worktree subtree:
+  `git cat-file -p <oplog-sha>:worktree/<path>` (every oplog entry stores one).
+- **Hunks land on the lane whose commits own their line regions — put the file
+  there instead of fighting.** If a file's edits sit in regions a higher lane's
+  commit created, committing them to the lower lane drops them and `but absorb`
+  amends the higher lane's commit anyway (and an absorb that amends a LOWER
+  commit can leave a `{conflicted}` commit above it; if that happens, restore
+  the snapshot rather than uncommitting around it). Keep code and its tests
+  together on whichever lane attribution chooses.
+- **Parse cliIds from `but status --json`** (`filePath`/`cliId` pairs), never by
+  grepping the human output — the graph art breaks naive extraction and a wrong
+  token silently rubs the wrong thing. Commit cliIds also rotate after every
+  background sync, so re-read them in the same breath as the command that uses
+  them.
+- **Lane a test with the half that appears LAST, not the half you were thinking
+  about.** A test that drives two halves (a DAO and its wrapper, an API parser
+  and the SDK catalog) fails in isolation on every lane between them if it lands
+  below the upper half — and a green local run proves nothing, because the
+  working tree has all lanes applied. The cheap check before landing any new
+  test file: ask which lane's tip FIRST contains every symbol the test touches,
+  and put the test there. (Three instances in one day before this rule.)
+- **Remote-tracking refs go stale under `but push` and lie convincingly.**
+  `git show <remote>/<branch>:<file>` can show old content long after the push
+  landed (observed: the tracking ref pointing at neither the local ref nor the
+  real remote head). Verify pushes ONLY with `git ls-remote` against
+  `git rev-parse <branch>`, and inspect remote content via the commit object,
+  never via the remote-tracking shortcut.
 
 ## Before committing
 

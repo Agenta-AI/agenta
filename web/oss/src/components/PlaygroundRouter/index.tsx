@@ -6,6 +6,7 @@ import {useRouter} from "next/router"
 
 import {PLAYGROUND_NATIVE_ONBOARDING} from "@/oss/components/pages/agent-home/assets/constants"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
+import PageTitle from "@/oss/components/PageTitle"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 import {prewarmCurrentWorkflowQueries} from "@/oss/state/workflow/prewarmCurrentWorkflow"
 
@@ -63,10 +64,13 @@ const PlaygroundRouter = () => {
         // (mint-once `startedRef` + `realEntityId`) and never re-mints, falling through to the generic
         // empty playground instead of a fresh onboarding for the new project.
         return (
-            <OnboardingPlayground
-                key={`onboarding-${String(router.query.project_id ?? "")}`}
-                onboarding
-            />
+            <>
+                <PageTitle title="Home" />
+                <OnboardingPlayground
+                    key={`onboarding-${String(router.query.project_id ?? "")}`}
+                    onboarding
+                />
+            </>
         )
     }
 

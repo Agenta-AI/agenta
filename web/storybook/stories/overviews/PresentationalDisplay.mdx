@@ -1,0 +1,25 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Display/Overview" />
+
+# Presentational · Display
+
+Small **presentational** components that render an entity or metric. They are composites
+built from `@agenta/ui` primitives (and occasionally a plain antd part) rather than a
+re-skin of one antd component — so there is no single antd counterpart to diff against, and
+their stories are shown alone with a note explaining what they compose.
+
+| Component                   | What it is                                                              | antd inside?           |
+| --------------------------- | ----------------------------------------------------------------------- | ---------------------- |
+| **EntityCard**              | Catalog-style tile: icon + title + description + tag pills + meta slot. | none (pure)            |
+| **EntityTypeIcon**          | Icon keyed off an entity/workflow type.                                 | none (pure)            |
+| **ExecutionMetricsDisplay** | Compact latency / token / cost readout.                                 | reference in its story |
+
+**How to read these stories**
+
+- The **antd** column carries a note (e.g. _"composite of @agenta/ui primitives"_) instead of
+  a side-by-side, because these have no 1:1 antd equivalent.
+- Where a composite still uses an antd part internally (not yet migrated), the note names it —
+  that doubles as a migration to-do.
+
+Open a component's **Docs** tab for its full prop table.

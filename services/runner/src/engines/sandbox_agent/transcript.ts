@@ -2,10 +2,13 @@ import {
   type AgentRunRequest,
   type ChatMessage,
   type ContentBlock,
+  currentUserTurn,
   messageText,
   resolvePromptText,
+  userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
+import { attachmentMention } from "./attachments.ts";
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
   DEFERRED_NOT_EXECUTED_PREFIX,
@@ -201,6 +204,23 @@ export function messageTranscript(
           );
         }
       }
+    } else if (
+      block.type === "attachment" &&
+      typeof block.attachmentId === "string"
+    ) {
+      try {
+        parts.push(
+          attachmentMention({
+            attachmentId: block.attachmentId,
+            filename: block.filename,
+            mediaType: block.mimeType,
+            size: block.size,
+          }),
+        );
+      } catch {
+        // Preflight sees unverified display fields; runTurn rebuilds after API restore.
+        parts.push("[attachment pending verification]");
+      }
     } else if (block.type === "image") {
       parts.push("[image]");
     } else if (block.type === "resource") {
@@ -220,6 +240,13 @@ const CLIENT_RESUME_CLOSING =
   "prompt); the result is shown in the history. Continue the task from where it paused, using " +
   "that result; do not restart the task or ask again for anything the user already provided.";
 
+/**
+ * The cold frame's closing label, immediately before the latest user text. Attachment mention
+ * placement keys on it, so both sides must read the same string.
+ */
+export const COLD_FRAME_USER_LABEL =
+  "Continue the conversation. The user now says:\n";
+
 export type ResumeKind = "approval" | "client";
 
 /** A client-tool settle (elicitation answer, connection reference, decline/cancel) rides back as
@@ -235,7 +262,7 @@ function isClientToolSettle(block: ContentBlock): boolean {
  * re-issues the approved call (cold-replay failure report, turn 6d34b1ea) or, for a client tool,
  * re-asks for input the user just gave (issue #5357).
  *
- * Two shapes, detected conservatively as content AFTER the last user text message:
+ * Two shapes, detected conservatively as content AFTER the last user message carrying content:
  *   - approval: an unresolved approved call (`lastPending`) — needs the execute-the-call frame.
  *   - client:  a client-tool settle in an ASSISTANT message — the settled `tool_result` rides back
  *     in the assistant turn it paused on (the Vercel adapter preserves that role), so an executed
@@ -247,13 +274,16 @@ function resumeKindFor(
   hints: Map<ContentBlock, ApprovalRenderHint>,
 ): ResumeKind | null {
   const messages = request.messages ?? [];
-  let lastUserTextIndex = -1;
+  let lastUserContentIndex = -1;
   let lastPendingApprovalIndex = -1;
   let lastClientSettleIndex = -1;
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
-    if (message.role === "user" && messageText(message.content)) {
-      lastUserTextIndex = i;
+    // An attachment-only or image-only turn is new user content just as much as text is, so it
+    // moves the boundary; otherwise a settled call before it reads as a resume and the model is
+    // told to repeat that call instead of answering the new turn.
+    if (userTurnCarriesContent(currentUserTurn({ messages: [message] }))) {
+      lastUserContentIndex = i;
     }
     const content = message.content;
     if (!Array.isArray(content)) continue;
@@ -264,10 +294,13 @@ function resumeKindFor(
       lastClientSettleIndex = i;
     }
   }
-  if (lastPendingApprovalIndex >= 0 && lastPendingApprovalIndex > lastUserTextIndex) {
+  if (
+    lastPendingApprovalIndex >= 0 &&
+    lastPendingApprovalIndex > lastUserContentIndex
+  ) {
     return "approval";
   }
-  if (lastClientSettleIndex >= 0 && lastClientSettleIndex > lastUserTextIndex) {
+  if (lastClientSettleIndex >= 0 && lastClientSettleIndex > lastUserContentIndex) {
     return "client";
   }
   return null;
@@ -284,10 +317,11 @@ export function buildTurnText(
   request: AgentRunRequest,
   log?: (msg: string) => void,
 ): string {
-  const latest = resolvePromptText(request);
   const messages = request.messages ?? [];
   const resumeKind = resumeKindFor(request, approvalRenderHints(messages));
   const resume = resumeKind !== null;
+  const turn = currentUserTurn(request);
+  const latest = turn.message ? turn.text : resolvePromptText(request);
   // Normal turn: drop the prompt user message from the replay (it closes the frame).
   // Resume: nothing is re-presented in the frame, so replay every message — including the
   // stale command in place and the settled interaction (approval envelope or client-tool result).
@@ -323,7 +357,7 @@ export function buildTurnText(
       ? APPROVAL_RESUME_CLOSING
       : resumeKind === "client"
         ? CLIENT_RESUME_CLOSING
-        : `Continue the conversation. The user now says:\n${latest}`;
+        : `${COLD_FRAME_USER_LABEL}${latest}`;
   const turnText = `Conversation so far:\n${transcript}\n\n${closing}`;
   log?.(
     `[HITL] cold replay: transcript ${full.length}->${transcript.length} chars, ` +

@@ -47,6 +47,7 @@ _REQUIRED_STRING_FIELDS: Dict[str, List[str]] = {
 # These chunks are strict objects with an EXACT allowed key set (no extra agenta-only fields may
 # leak onto them). `tool-output-denied` is `{type, toolCallId}` only — no errorText/output.
 _EXACT_KEYS = {
+    "error": {"type", "errorText"},
     "tool-approval-request": {"type", "approvalId", "toolCallId"},
     "tool-output-denied": {"type", "toolCallId"},
 }
@@ -73,6 +74,20 @@ def assert_conforms(part: Dict[str, Any]) -> None:
         assert set(part.keys()) == exact, (
             f"{ptype!r} part has unexpected keys: {part!r}"
         )
+
+
+def assert_error_pair(
+    parts: List[Dict[str, Any]], *, code: str, error_text: str
+) -> None:
+    error_index = next(
+        index for index, part in enumerate(parts) if part["type"] == "error"
+    )
+    assert error_index > 0
+    assert parts[error_index - 1] == {
+        "type": "data-agent-error",
+        "data": {"code": code, "errorText": error_text},
+    }
+    assert parts[error_index] == {"type": "error", "errorText": error_text}
 
 
 async def _records(items: List[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
@@ -196,6 +211,9 @@ async def test_zero_content_run_emits_conforming_error_frame() -> None:
     for part in parts:
         assert_conforms(part)
     assert any(p["type"] == "error" for p in parts)
+    assert_error_pair(
+        parts, code="no_output", error_text="The agent produced no output."
+    )
 
 
 @pytest.mark.asyncio
@@ -216,6 +234,9 @@ async def test_dropped_only_content_part_still_triggers_zero_content_guard() -> 
         p["type"] == "error" and p.get("errorText") == "The agent produced no output."
         for p in parts
     )
+    assert_error_pair(
+        parts, code="no_output", error_text="The agent produced no output."
+    )
 
 
 @pytest.mark.asyncio
@@ -230,6 +251,9 @@ async def test_dropped_only_content_part_still_triggers_zero_content_guard_dev_t
     assert any(
         p["type"] == "error" and p.get("errorText") == "The agent produced no output."
         for p in parts
+    )
+    assert_error_pair(
+        parts, code="no_output", error_text="The agent produced no output."
     )
 
 
@@ -277,6 +301,7 @@ async def test_swallowed_provider_error_emits_exactly_one_error_frame() -> None:
         f"expected exactly one error frame, got {error_parts!r}"
     )
     assert error_parts[0]["errorText"] == real_error
+    assert_error_pair(parts, code="runner_error", error_text=real_error)
     assert not any(p.get("errorText") == "The agent produced no output." for p in parts)
 
 
@@ -312,6 +337,7 @@ async def test_swallowed_provider_error_emits_exactly_one_error_frame_dev_twin()
         f"expected exactly one error frame, got {error_parts!r}"
     )
     assert error_parts[0]["errorText"] == real_error
+    assert_error_pair(parts, code="runner_error", error_text=real_error)
     assert not any(p.get("errorText") == "The agent produced no output." for p in parts)
 
 

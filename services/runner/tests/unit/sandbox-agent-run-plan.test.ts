@@ -17,6 +17,7 @@ import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
 const previousPiDir = process.env.PI_CODING_AGENT_DIR;
 const previousDenyPermissions = process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
+const previousOpaqueSecrets = process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
 
 // These cases exercise Daytona runs, so enable it (with a provisioning credential) on top of the
 // hermetic scrub, then drop the memoized config so buildRunPlan reads the enabled set.
@@ -32,6 +33,9 @@ afterEach(() => {
   if (previousDenyPermissions === undefined)
     delete process.env.SANDBOX_AGENT_DENY_PERMISSIONS;
   else process.env.SANDBOX_AGENT_DENY_PERMISSIONS = previousDenyPermissions;
+  if (previousOpaqueSecrets === undefined)
+    delete process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS;
+  else process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = previousOpaqueSecrets;
 });
 
 describe("buildRunPlan", () => {
@@ -55,6 +59,253 @@ describe("buildRunPlan", () => {
     assert.equal(created, false);
   });
 
+  it("accepts an attachment-only current user turn", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "attachment",
+                attachmentId: "019a52c2-14c0-7c14-b874-2f5798f9cd21",
+              },
+            ],
+          },
+        ],
+      } as unknown as AgentRunRequest,
+      { createLocalCwd: () => "local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.plan.prompt.text, "");
+  });
+
+  it("accepts both legacy image-only current user turn shapes", () => {
+    for (const content of [
+      [{ type: "image", uri: "data:image/png;base64,AQID" }],
+      [{ type: "image", data: "AQID", mimeType: "image/webp" }],
+    ]) {
+      const result = buildRunPlan(
+        {
+          messages: [{ role: "user", content }],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "local-cwd" },
+      );
+
+      assert.equal(result.ok, true);
+      assert.equal(result.ok && result.plan.prompt.text, "");
+    }
+  });
+
+  it("rejects more than the configured current-turn attachment count", () => {
+    // Override the cap rather than generating a default-sized batch, so the case stays small.
+    process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN = "2";
+    const attachmentIds = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+    ];
+    try {
+      const result = buildRunPlan(
+        {
+          messages: [
+            {
+              role: "user",
+              content: attachmentIds.map((attachmentId) => ({
+                type: "attachment",
+                attachmentId,
+              })),
+            },
+          ],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "local-cwd" },
+      );
+
+      assert.deepEqual(result, {
+        ok: false,
+        error: "A user turn may carry at most 2 attachments.",
+      });
+    } finally {
+      delete process.env.AGENTA_ATTACHMENTS_MAX_PER_TURN;
+    }
+  });
+
+  it("still refuses a request whose only message is an unresolved tool call", () => {
+    // No user text AND no approval envelope: a caller bug, not an approval reply.
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "No user message to send (prompt/messages empty).",
+    });
+  });
+
+  it("refuses a stalled history whose newest tool envelope is an unresolved call", () => {
+    // The approval was answered earlier; the newest envelope is a call nobody replied to, so
+    // this is not an approval reply and there is still no prompt to send.
+    const result = buildRunPlan(
+      {
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-2", toolName: "Bash" },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+
+    assert.deepEqual(result, {
+      ok: false,
+      error: "No user message to send (prompt/messages empty).",
+    });
+  });
+
+  it("accepts an out-of-band approval reply that carries no user text", () => {
+    // What a caller answering from the durable interaction row sends: the parked call plus its
+    // {approved} envelope, and nothing else. The conversation is rebuilt from the record log
+    // inside runTurn, which happens after this plan is built.
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        sessionId: "s1",
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-1", toolName: "Write" },
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.plan.prompt.text, "");
+    assert.ok(
+      result.ok && result.plan.prompt.turnText.includes("user APPROVED Write"),
+      "the plan's turn text carries the approval-resume frame",
+    );
+  });
+
+  it("accepts an in-band approval reply carrying the full transcript", () => {
+    const result = buildRunPlan(
+      {
+        harness: "claude",
+        messages: [
+          { role: "user", content: "write the report" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_call",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                input: { path: "report.md" },
+              },
+            ],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "Write",
+                output: { approved: true, interactionToken: "tok-1" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
+  it("accepts a tool-role tail when an earlier user message supplies the prompt", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          { role: "user", content: "inspect the repository" },
+          {
+            role: "tool",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-1",
+                toolName: "read",
+                output: "contents",
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
+  it("accepts a client-tool-result tail when an earlier user message supplies the prompt", () => {
+    const result = buildRunPlan(
+      {
+        messages: [
+          { role: "user", content: "collect the form response" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "client-1",
+                toolName: "request_input",
+                output: { value: "approved by finance" },
+              },
+            ],
+          },
+        ],
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/local-cwd" },
+    );
+
+    assert.equal(result.ok, true);
+  });
+
   it("normalizes an Agenta/Pi local run and filters executable tools", () => {
     process.env.PI_CODING_AGENT_DIR = "/tmp/pi-agent";
     const logs: string[] = [];
@@ -72,7 +323,19 @@ describe("buildRunPlan", () => {
         skills: [
           { name: "alpha", description: "Alpha skill.", body: "Do alpha." },
         ],
-        secrets: { OPENAI_API_KEY: "key" },
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "key",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       {
         createLocalCwd: () => "/tmp/local-cwd",
@@ -92,32 +355,33 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.harness, "pi_agenta");
     assert.equal(result.plan.acpAgent, "pi");
     assert.equal(result.plan.sandboxId, "local");
-    assert.equal(result.plan.cwd, "/tmp/local-cwd");
+    assert.equal(result.plan.workspace.cwd, "/tmp/local-cwd");
     // The relay dir + usage capture are ephemeral runner files kept OFF the (possibly geesefs)
     // cwd: an ephemeral sibling whose leaf is the cwd basename.
-    assert.ok(!result.plan.relayDir.startsWith(result.plan.cwd));
-    assert.ok(result.plan.relayDir.endsWith("/agenta/relay/local-cwd"));
+    assert.ok(!result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd));
+    assert.ok(result.plan.workspace.relayDir.endsWith("/agenta/relay/local-cwd"));
     assert.equal(
-      result.plan.usageOutPath,
-      `${result.plan.relayDir}/.agenta-usage.json`,
+      result.plan.workspace.usageOutPath,
+      `${result.plan.workspace.relayDir}/.agenta-usage.json`,
     );
-    assert.equal(result.plan.prompt, " ship it ");
-    assert.equal(result.plan.agentsMd, "instructions");
-    assert.equal(result.plan.systemPrompt, "system");
-    assert.equal(result.plan.appendSystemPrompt, "append");
-    assert.equal(result.plan.hasSystemPrompt, true);
-    assert.equal(result.plan.hasApiKey, true);
-    assert.equal(result.plan.sourcePiAgentDir, "/tmp/pi-agent");
+    assert.equal(result.plan.prompt.text, " ship it ");
+    assert.equal(result.plan.prompt.agentsMd, "instructions");
+    assert.equal(result.plan.prompt.systemPrompt, "system");
+    assert.equal(result.plan.prompt.appendSystemPrompt, "append");
+    assert.equal(result.plan.prompt.hasSystemPrompt, true);
+    assert.equal(result.plan.credentials.hasApiKey, true);
+    assert.deepEqual(result.plan.credentials.modelEnvironment, { OPENAI_API_KEY: "key" });
+    assert.equal(result.plan.workspace.sourcePiAgentDir, "/tmp/pi-agent");
     assert.deepEqual(
-      result.plan.executableToolSpecs.map((tool) => tool.name),
+      result.plan.tools.executableToolSpecs.map((tool) => tool.name),
       ["server_tool"],
     );
     assert.deepEqual(
-      result.plan.toolSpecs.map((tool) => tool.name),
+      result.plan.tools.toolSpecs.map((tool) => tool.name),
       ["server_tool", "client_tool"],
     );
-    assert.equal(result.plan.useToolRelay, true);
-    assert.deepEqual(result.plan.skillDirs, [
+    assert.equal(result.plan.tools.useToolRelay, true);
+    assert.deepEqual(result.plan.workspace.skillDirs, [
       { name: "alpha", dir: "/skills/alpha" },
     ]);
     assert.deepEqual(logs, ["resolved alpha", "skills: alpha"]);
@@ -132,108 +396,42 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.executableToolSpecs, []);
-    assert.equal(result.plan.useToolRelay, true);
+    assert.deepEqual(result.plan.tools.executableToolSpecs, []);
+    assert.equal(result.plan.tools.useToolRelay, true);
   });
 
-  it("turns builtin gating on when blanket allow has a reduced grant set", () => {
+  it("leaves builtin gating off under a blanket allow with no builtin rules", () => {
     const result = buildRunPlan(
       {
         harness: "pi_core",
         messages: [{ role: "user", content: "hello" }],
         permissions: { default: "allow", rules: [] },
-        tools: ["read", "write"],
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
     );
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, ["read", "write"]);
-    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.tools.builtinGatingActive, false);
     // Builtin gating rides the ACP dialog plane, not the relay: no custom tools, no relay.
-    assert.equal(result.plan.useToolRelay, false);
+    assert.equal(result.plan.tools.useToolRelay, false);
   });
 
-  it("turns builtin gating on when grants include Pi-nondefault builtins", () => {
+  it("turns builtin gating on under the default allow_reads mode", () => {
+    // allow_reads is the shipped default permission mode, and it can gate a builtin, so the
+    // fast path above is the blanket-allow case only.
     const result = buildRunPlan(
       {
         harness: "pi_core",
         messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-        tools: ["read", "bash", "edit", "write", "grep", "find", "ls"],
+        permissions: { default: "allow_reads", rules: [] },
       } as AgentRunRequest,
       { createLocalCwd: () => "/tmp/local-cwd" },
     );
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-      "grep",
-      "find",
-      "ls",
-    ]);
-    assert.equal(result.plan.builtinGatingActive, true);
-  });
-
-  it("leaves the all-allow default-grants Pi fast path off", () => {
-    const result = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
-    assert.equal(result.plan.builtinGatingActive, false);
-    assert.equal(result.plan.useToolRelay, false);
-  });
-
-  it("distinguishes omitted tools from an explicit empty grant set", () => {
-    const omitted = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-    const none = buildRunPlan(
-      {
-        harness: "pi_core",
-        messages: [{ role: "user", content: "hello" }],
-        permissions: { default: "allow", rules: [] },
-        tools: [],
-      } as AgentRunRequest,
-      { createLocalCwd: () => "/tmp/local-cwd" },
-    );
-
-    assert.equal(omitted.ok, true);
-    assert.equal(none.ok, true);
-    if (!omitted.ok || !none.ok) return;
-    assert.deepEqual(omitted.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
-    assert.equal(omitted.plan.builtinGatingActive, false);
-    assert.deepEqual(none.plan.builtinGrants, []);
-    assert.equal(none.plan.builtinGatingActive, true);
-    assert.equal(none.plan.useToolRelay, false);
+    assert.equal(result.plan.tools.builtinGatingActive, true);
   });
 
   it("turns builtin gating on when the permission kill switch is set", () => {
@@ -250,14 +448,8 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.builtinGrants, [
-      "read",
-      "bash",
-      "edit",
-      "write",
-    ]);
-    assert.equal(result.plan.builtinGatingActive, true);
-    assert.equal(result.plan.useToolRelay, false);
+    assert.equal(result.plan.tools.builtinGatingActive, true);
+    assert.equal(result.plan.tools.useToolRelay, false);
   });
 
   it("turns builtin gating on when an all-allow policy has a builtin rule", () => {
@@ -275,7 +467,7 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.builtinGatingActive, true);
+    assert.equal(result.plan.tools.builtinGatingActive, true);
   });
 
   it("carries the sandbox permission onto the plan and leaves an unrestricted run alone", () => {
@@ -565,16 +757,16 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.equal(
-        result.plan.toolMcpDir,
+        result.plan.workspace.toolMcpDir,
         "/home/sandbox/agenta/tool-mcp/agenta-fixed",
       );
-      assert.notEqual(result.plan.toolMcpDir, result.plan.relayDir);
+      assert.notEqual(result.plan.workspace.toolMcpDir, result.plan.workspace.relayDir);
       assert.ok(
-        !result.plan.toolMcpDir.startsWith(`${result.plan.relayDir}/`),
+        !result.plan.workspace.toolMcpDir.startsWith(`${result.plan.workspace.relayDir}/`),
         "the shim dir is never nested inside the relay dir (the relay loop sweeps it)",
       );
       assert.equal(
-        result.plan.useToolRelay,
+        result.plan.tools.useToolRelay,
         true,
         "the relay loop still starts (it executes the shim's requests)",
       );
@@ -695,17 +887,14 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.deepEqual(
-        result.plan.toolSpecs.map((tool) => tool.name),
+        result.plan.tools.toolSpecs.map((tool) => tool.name),
         ["server_tool", "request_connection"],
       );
       assert.deepEqual(
-        result.plan.executableToolSpecs.map((tool) => tool.name),
+        result.plan.tools.executableToolSpecs.map((tool) => tool.name),
         ["server_tool"],
       );
-      assert.equal(
-        result.plan.clientToolPauseDisposition,
-        "cold-acknowledge",
-      );
+      assert.equal(result.plan.tools.clientToolPauseDisposition, "cold-acknowledge");
     });
 
     it("allows claude x daytona x client-ONLY tools (the shim advertises them and the relay parks)", () => {
@@ -728,17 +917,17 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       assert.deepEqual(
-        result.plan.toolSpecs.map((tool) => tool.name),
+        result.plan.tools.toolSpecs.map((tool) => tool.name),
         ["request_connection"],
       );
       // No executable tool remains, but the run is no longer refused.
-      assert.deepEqual(result.plan.executableToolSpecs, []);
+      assert.deepEqual(result.plan.tools.executableToolSpecs, []);
       assert.equal(
-        result.plan.clientToolPauseDisposition,
+        result.plan.tools.clientToolPauseDisposition,
         "cold-acknowledge",
         "non-Pi shim path acknowledges a parked client tool with a paused answer",
       );
-      assert.equal(result.plan.useToolRelay, true);
+      assert.equal(result.plan.tools.useToolRelay, true);
     });
 
     it("allows pi x daytona x client-only tools (Pi's extension + file relay deliver them)", () => {
@@ -755,7 +944,7 @@ describe("buildRunPlan", () => {
       assert.equal(result.ok, true);
       if (!result.ok) return;
       // Pi parks through its own extension, so its disposition is "pi-native" (no paused answer).
-      assert.equal(result.plan.clientToolPauseDisposition, "pi-native");
+      assert.equal(result.plan.tools.clientToolPauseDisposition, "pi-native");
     });
 
     it("still refuses claude x daytona x executable tools under strict restricted network", () => {
@@ -926,7 +1115,7 @@ describe("buildRunPlan", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.deepEqual(result.plan.skillDirs, [
+    assert.deepEqual(result.plan.workspace.skillDirs, [
       { name: "alpha", dir: "/skills/alpha" },
       { name: "beta", dir: "/skills/beta" },
     ]);
@@ -956,13 +1145,25 @@ describe("buildRunPlan", () => {
   });
 
   it("normalizes a Daytona Claude run without Pi-only state", () => {
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
     const result = buildRunPlan(
       {
         harness: "claude",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
-        secrets: { ANTHROPIC_API_KEY: "anthropic" },
-        credentialMode: "env",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.anthropic.com" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "anthropic",
+              usage: "opaque_http",
+            },
+          ],
+        },
         systemPrompt: "ignored for non-pi",
       },
       {
@@ -975,15 +1176,111 @@ describe("buildRunPlan", () => {
     assert.equal(result.plan.acpAgent, "claude");
     assert.equal(result.plan.isPi, false);
     assert.equal(result.plan.isDaytona, true);
-    assert.equal(result.plan.cwd, "/home/sandbox/agenta-fixed");
-    assert.equal(result.plan.usageOutPath, undefined);
-    assert.equal(result.plan.legacyHarnessApiKeyVar, "ANTHROPIC_API_KEY");
-    assert.equal(result.plan.hasApiKey, true);
+    assert.equal(result.plan.workspace.cwd, "/home/sandbox/agenta-fixed");
+    assert.equal(result.plan.workspace.usageOutPath, undefined);
+    assert.equal(result.plan.credentials.harnessApiKeyVar, "ANTHROPIC_API_KEY");
+    // The FULL materialized environment sets hasApiKey: on a Daytona Secrets run the opaque key
+    // leaves the plaintext env for the secret plan, but the harness still receives its binding.
+    assert.equal(result.plan.credentials.hasApiKey, true);
+    assert.equal(result.plan.credentials.modelEnvironment.ANTHROPIC_API_KEY, undefined);
+    assert.equal(result.plan.credentials.daytonaSecretPlan?.candidates.length, 1);
     // The resolved credentialMode is carried onto the plan (drives clear-then-apply).
-    assert.equal(result.plan.credentialMode, "env");
-    assert.equal(result.plan.systemPrompt, undefined);
-    assert.equal(result.plan.hasSystemPrompt, false);
-    assert.deepEqual(result.plan.skillDirs, []);
+    assert.equal(result.plan.credentials.credentialMode, "env");
+    assert.equal(result.plan.prompt.systemPrompt, undefined);
+    assert.equal(result.plan.prompt.hasSystemPrompt, false);
+    assert.deepEqual(result.plan.workspace.skillDirs, []);
+  });
+
+  it("keeps a zero-candidate secret plan by default, and none when switched off", () => {
+    // A run with only local_use credentials produces ZERO opaque candidates. The plan must
+    // still ride the run plan while hiding is on: provider.ts applies the Secret wrapper off
+    // plan PRESENCE, and only the wrapper's create-fingerprint check forces a rebuild (instead
+    // of a stale plaintext reconnect) after the local_use credentials rotate.
+    const localUseRequest = {
+      harness: "claude",
+      sandbox: "daytona",
+      messages: [{ role: "user", content: "hello" }],
+      modelConnection: {
+        provider: "bedrock",
+        deployment: "bedrock",
+        credentialMode: "env",
+        credentials: [
+          {
+            binding: { kind: "environment", name: "AWS_ACCESS_KEY_ID" },
+            value: "AKIA-local-use",
+            usage: "local_use",
+          },
+          {
+            binding: { kind: "environment", name: "AWS_SECRET_ACCESS_KEY" },
+            value: "aws-secret-local-use",
+            usage: "local_use",
+          },
+        ],
+      },
+    } as AgentRunRequest;
+    const deps = { createDaytonaCwd: () => "/home/sandbox/agenta-fixed" };
+
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
+    const flagOn = buildRunPlan(localUseRequest, deps);
+    assert.equal(flagOn.ok, true);
+    if (!flagOn.ok) return;
+    assert.ok(flagOn.plan.credentials.daytonaSecretPlan, "flag on keeps the empty plan");
+    assert.equal(flagOn.plan.credentials.daytonaSecretPlan.candidates.length, 0);
+    // local_use values still reach sandbox create as plaintext env (by design).
+    assert.equal(
+      flagOn.plan.credentials.modelEnvironment.AWS_ACCESS_KEY_ID,
+      "AKIA-local-use",
+    );
+    assert.equal(
+      flagOn.plan.credentials.modelEnvironment.AWS_SECRET_ACCESS_KEY,
+      "aws-secret-local-use",
+    );
+
+    // Switched OFF stays exactly the pre-feature behavior: no plan, so no wrapper is applied.
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "off";
+    const flagOff = buildRunPlan(localUseRequest, deps);
+    assert.equal(flagOff.ok, true);
+    if (!flagOff.ok) return;
+    assert.equal(flagOff.plan.credentials.daytonaSecretPlan, undefined);
+    assert.equal(
+      flagOff.plan.credentials.modelEnvironment.AWS_ACCESS_KEY_ID,
+      "AKIA-local-use",
+    );
+  });
+
+  it("normalizes a local managed Codex run", () => {
+    const result = buildRunPlan(
+      {
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "sk-openai",
+              usage: "opaque_http",
+            },
+          ],
+        },
+      },
+      {
+        createLocalCwd: () => "/tmp/local-cwd",
+      },
+    );
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.plan.acpAgent, "codex");
+    assert.equal(result.plan.isPi, false);
+    assert.equal(result.plan.isDaytona, false);
+    assert.equal(result.plan.credentials.harnessApiKeyVar, "OPENAI_API_KEY");
+    assert.equal(result.plan.credentials.hasApiKey, true);
+    assert.equal(result.plan.credentials.credentialMode, "env");
   });
 });
 
@@ -1008,10 +1305,10 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.cwd, "/tmp/agenta/mounts/proj-1/mount-abc");
+    assert.equal(result.plan.workspace.cwd, "/tmp/agenta/mounts/proj-1/mount-abc");
     // Relay dir is an ephemeral sibling (leaf = cwd basename), NOT inside the durable mount.
-    assert.ok(!result.plan.relayDir.startsWith(result.plan.cwd));
-    assert.ok(result.plan.relayDir.endsWith("/agenta/relay/mount-abc"));
+    assert.ok(!result.plan.workspace.relayDir.startsWith(result.plan.workspace.cwd));
+    assert.ok(result.plan.workspace.relayDir.endsWith("/agenta/relay/mount-abc"));
     // createLocalCwd received the durableCwd value.
     assert.deepEqual(localCwdCalls, ["/tmp/agenta/mounts/proj-1/mount-abc"]);
   });
@@ -1036,7 +1333,7 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
     assert.equal(result.ok, true);
     if (!result.ok) return;
     assert.equal(
-      result.plan.cwd,
+      result.plan.workspace.cwd,
       "/home/sandbox/agenta/mounts/proj-1/mount-abc",
     );
     assert.deepEqual(daytonaCwdCalls, [
@@ -1063,7 +1360,7 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
 
     assert.equal(result.ok, true);
     if (!result.ok) return;
-    assert.equal(result.plan.cwd, "/tmp/agenta-sandbox-agent-ephemeral");
+    assert.equal(result.plan.workspace.cwd, "/tmp/agenta-sandbox-agent-ephemeral");
     assert.deepEqual(localCwdCalls, [undefined]);
   });
 
@@ -1092,8 +1389,8 @@ describe("buildRunPlan durableCwd (prefix-derived cwd)", () => {
     assert.equal(r2.ok, true);
     if (!r1.ok || !r2.ok) return;
     // Same prefix -> same cwd across turns.
-    assert.equal(r1.plan.cwd, r2.plan.cwd);
-    assert.equal(r1.plan.cwd, localPath);
+    assert.equal(r1.plan.workspace.cwd, r2.plan.workspace.cwd);
+    assert.equal(r1.plan.workspace.cwd, localPath);
   });
 });
 
@@ -1125,7 +1422,12 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "pi_core",
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       },
       {
         createDaytonaCwd: () => {
@@ -1140,13 +1442,87 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
     assert.equal(created, false);
   });
 
+  it("rejects a local Codex runtime_provided run when CODEX_HOME is unset", () => {
+    withEnv({ CODEX_HOME: undefined }, () => {
+      const result = buildRunPlan({
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
+      });
+
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
+    });
+  });
+
+  it("accepts a local Codex runtime_provided run when CODEX_HOME names a mount", () => {
+    withEnv({ CODEX_HOME: "/agenta/harness/codex" }, () => {
+      const result = buildRunPlan({
+        harness: "codex",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
+      });
+
+      assert.equal(result.ok, true);
+      if (!result.ok) return;
+      assert.equal(result.plan.credentials.credentialMode, "runtime_provided");
+      assert.equal(result.plan.acpAgent, "codex");
+    });
+  });
+
+  it("rejects a Daytona Codex runtime_provided run", () => {
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "codex",
+        sandbox: "daytona",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
+      },
+      {
+        createDaytonaCwd: () => {
+          created = true;
+          return "/home/sandbox/should-not-happen";
+        },
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE);
+    assert.equal(created, false);
+  });
+
   it("rejects a local Pi runtime_provided run when PI_CODING_AGENT_DIR is unset", () => {
     withEnv({ PI_CODING_AGENT_DIR: undefined }, () => {
       const result = buildRunPlan({
         harness: "pi_core",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       });
       assert.equal(result.ok, false);
       if (result.ok) return;
@@ -1160,7 +1536,12 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "claude",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       });
       assert.equal(result.ok, false);
       if (result.ok) return;
@@ -1174,12 +1555,17 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "pi_core",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "runtime_provided",
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          credentialMode: "runtime_provided",
+          credentials: [],
+        },
       });
       assert.equal(result.ok, true);
       if (!result.ok) return;
-      assert.equal(result.plan.credentialMode, "runtime_provided");
-      assert.equal(result.plan.sourcePiAgentDir, "/agenta/harness/pi");
+      assert.equal(result.plan.credentials.credentialMode, "runtime_provided");
+      assert.equal(result.plan.workspace.sourcePiAgentDir, "/agenta/harness/pi");
     });
   });
 
@@ -1189,10 +1575,210 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
         harness: "pi_core",
         sandbox: "local",
         messages: [{ role: "user", content: "hello" }],
-        secrets: { OPENAI_API_KEY: "sk-test" },
-        credentialMode: "env",
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "sk-test",
+              usage: "opaque_http",
+            },
+          ],
+        },
       });
       assert.equal(result.ok, true);
     });
+  });
+});
+
+describe("modelConnection validation", () => {
+  const base = {
+    harness: "pi_core",
+    messages: [{ role: "user", content: "hi" }],
+  } satisfies AgentRunRequest;
+
+  const connection = (overrides: Record<string, unknown> = {}) => ({
+    provider: "openai",
+    deployment: "direct",
+    endpoint: { baseUrl: "https://api.openai.com/v1" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value: "key",
+        usage: "opaque_http",
+      },
+    ],
+    ...overrides,
+  });
+
+  for (const [name, modelConnection, error] of [
+    [
+      "rejects an empty binding name",
+      connection({
+        credentials: [
+          {
+            binding: { kind: "environment", name: "" },
+            value: "key",
+            usage: "opaque_http",
+          },
+        ],
+      }),
+      "modelConnection credential binding and value must be non-empty",
+    ],
+    [
+      "rejects an empty credential value",
+      connection({
+        credentials: [
+          {
+            binding: { kind: "environment", name: "OPENAI_API_KEY" },
+            value: "",
+            usage: "opaque_http",
+          },
+        ],
+      }),
+      "modelConnection credential binding and value must be non-empty",
+    ],
+    [
+      "rejects opaque HTTP credentials without an endpoint",
+      connection({ endpoint: undefined }),
+      "opaque_http model credentials require an effective HTTPS endpoint",
+    ],
+    [
+      "rejects non-HTTPS opaque HTTP routes",
+      connection({ endpoint: { baseUrl: "http://api.openai.com/v1" } }),
+      "opaque_http model credentials require an effective HTTPS endpoint",
+    ],
+    [
+      "rejects credentials under runtime-provided mode",
+      connection({ credentialMode: "runtime_provided" }),
+      "modelConnection credentials require credentialMode env",
+    ],
+    [
+      "rejects env mode without credentials",
+      connection({ credentials: [] }),
+      "modelConnection credentialMode env requires credentials",
+    ],
+  ] as const) {
+    it(name, () => {
+      // The local runtime_provided mount gate runs before credential validation; satisfy it so
+      // the runtime_provided case reaches the validation under test (afterEach restores this).
+      process.env.PI_CODING_AGENT_DIR = "/agenta/harness/pi";
+      let created = false;
+      const result = buildRunPlan(
+        { ...base, modelConnection } as AgentRunRequest,
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/tmp/unused";
+          },
+        },
+      );
+      assert.deepEqual(result, { ok: false, error });
+      assert.equal(created, false);
+    });
+  }
+
+  it("materializes local_use credentials and non-secret config only after validation", () => {
+    const result = buildRunPlan({
+      ...base,
+      modelConnection: connection({
+        provider: "anthropic",
+        deployment: "bedrock",
+        endpoint: {
+          baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+          region: "us-east-1",
+        },
+        environment: { AWS_REGION: "us-east-1" },
+        credentials: [
+          {
+            binding: { kind: "environment", name: "AWS_ACCESS_KEY_ID" },
+            value: "AKIA",
+            usage: "local_use",
+          },
+        ],
+      }),
+    } as AgentRunRequest);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.deepEqual(result.plan.credentials.modelEnvironment, {
+      AWS_REGION: "us-east-1",
+      AWS_ACCESS_KEY_ID: "AKIA",
+    });
+  });
+
+  it("does not require an HTTP endpoint for local_use credentials", () => {
+    const result = buildRunPlan({
+      ...base,
+      modelConnection: connection({
+        provider: "anthropic",
+        deployment: "vertex_ai",
+        endpoint: undefined,
+        credentials: [
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: "/tmp/adc.json",
+            usage: "local_use",
+          },
+        ],
+      }),
+    } as AgentRunRequest);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(
+      result.plan.credentials.modelEnvironment.GOOGLE_APPLICATION_CREDENTIALS,
+      "/tmp/adc.json",
+    );
+  });
+
+  it("fails legacy top-level credential fields instead of treating the run as unmanaged", () => {
+    // `connection` ({mode, slug}) is NOT legacy: it stays tolerated on the wire for the
+    // models.json Pi custom-provider path.
+    for (const field of [
+      "secrets",
+      "provider",
+      "deployment",
+      "credentialMode",
+      "endpoint",
+    ]) {
+      let created = false;
+      const result = buildRunPlan(
+        {
+          ...base,
+          [field]:
+            field === "secrets" ? { OPENAI_API_KEY: "legacy" } : "legacy",
+        } as AgentRunRequest,
+        {
+          createLocalCwd: () => {
+            created = true;
+            return "/unused";
+          },
+        },
+      );
+      assert.equal(result.ok, false, field);
+      if (!result.ok) assert.match(result.error, /modelConnection object/);
+      assert.equal(created, false, field);
+    }
+  });
+
+  it("rejects a legacy field even when modelConnection is also present", () => {
+    // A caller mixing the retired flat fields with the resolved object is ambiguous about which
+    // credential set governs the run; fail loudly instead of silently preferring one.
+    const result = buildRunPlan(
+      {
+        ...base,
+        modelConnection: connection(),
+        secrets: { OPENAI_API_KEY: "legacy" },
+      } as AgentRunRequest,
+      { createLocalCwd: () => "/tmp/unused" },
+    );
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.match(result.error, /modelConnection object/);
   });
 });

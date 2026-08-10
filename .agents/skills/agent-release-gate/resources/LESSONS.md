@@ -91,8 +91,8 @@ ended" does NOT mean "the turn completed". Assert the reason.
 
 The sidecar rejects them: *"Code tools are not supported by the sidecar."* They only work against
 the in-process service — which is what the OLD driver (`run_matrix.py`) targets, and why copying
-its scenarios into a product-path test fails instantly. The product's real tool surface is
-`builtin` / `gateway` / `mcp`.
+its scenarios into a product-path test fails instantly. The product's real tool surface is the
+always-active harness built-ins plus `gateway` / `mcp`.
 
 ## 8. Gateway tools: discovery output is NOT config input, and the action has no prefix
 
@@ -200,6 +200,34 @@ The config entry is a full object, not a URL string:
 `{"name","connection":{"type":"http","url":...},"policy":{"tools":{"mode":"all"}}}`. Assert on the
 wire: a `tool-output-available` frame for a tool named `mcp__<server>__<tool>`.
 
+## 16. A warm multi-turn test cannot see anything the object store cannot represent
+
+The agent's working directory is durable because it is a geesefs mount over S3. It only makes the
+round trip through the store when something **unmounts and remounts** it — an eviction, a rebuild,
+a new replica. A test that stays on the live daemon never takes that trip, so any entry the store
+cannot represent survives in the FUSE cache and the test goes green.
+
+That is how #5692 shipped: the Codex subscription path symlinks `auth.json` into the durable cwd,
+S3 has no symlinks, and the entry came back as a **0-byte object**; an `existsSync` guard read the
+0-byte file as "already linked" and never rebuilt it. Turn 1 worked, every later turn failed. The
+pre-merge QA that covered that configuration was four **single-turn** checks, and the gate's
+multi-turn journey was warm-only. Known siblings of the same class: SQLite WAL (already designed
+around — `CODEX_SQLITE_HOME` is split onto container-local disk) and hard links.
+
+**Two rules.**
+
+- Any claim about durability needs a turn that reads the directory back **from the store**, not
+  from the live mount. `cold1` forces it from the client (change the agent's instructions → the
+  config fingerprint changes → `evict + cold` → unmount + remount); `cold2` needs the replica
+  replaced.
+- **Confirm the store was in play.** With no store configured the runner degrades silently to an
+  ephemeral directory (`mount degraded kind=session_cwd`) and every turn still looks fine, so a
+  continuity pass on such a deployment means nothing. Resolve the session's mount over the API
+  (`GET /api/sessions/mounts/?session_id=…`) and refuse to report green without it — that is what
+  `--require-store` enforces. Read the durable file back with `GET /api/mounts/{id}/files?read=…`:
+  the API reads S3 directly, so a hit is store-side proof, and the same listing shows any 0-byte
+  objects — the fingerprint of this whole bug class.
+
 ## The checklist for the next QA run
 
 1. `docker ps` — is anything restarting? If yes, wait.
@@ -211,3 +239,5 @@ wire: a `tool-output-available` frame for a tool named `mcp__<server>__<tool>`.
 7. Re-run anything that failed once before reporting it.
 8. Before trusting an existing blocker-level finding, check whether the stack has been redeployed
    since it was observed — if so, re-run the decisive experiment.
+9. Is the deployment store-backed? If yes, run the continuity journeys with `--require-store`; if
+   no, do not read their result as durability coverage.

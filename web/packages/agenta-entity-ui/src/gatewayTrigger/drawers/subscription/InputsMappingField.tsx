@@ -3,7 +3,7 @@ import {useEffect, useMemo} from "react"
 
 import {previewValue, resolveSelectorPreview} from "@agenta/entities/gatewayTrigger"
 import {Editor} from "@agenta/ui/editor"
-import {Collapse, Form, Typography} from "antd"
+import {Accordion, AccordionContent, AccordionItem, AccordionTrigger, Field} from "@agenta/ui/ui"
 
 import {buildPreviewContext} from "./helpers"
 
@@ -95,96 +95,106 @@ export function InputsMappingField({
         [context],
     )
     return (
-        <Form.Item
-            label="Inputs mapping"
-            validateStatus={error ? "error" : undefined}
-            help={error ?? "Maps event context to the workflow inputs (JSON)"}
-        >
-            <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorder)]">
-                <Editor
-                    initialValue={value || "{}"}
-                    onChange={({textContent}) => onChange(textContent)}
-                    codeOnly
-                    showToolbar={false}
-                    language="json"
-                    dimensions={{width: "100%", height: 120}}
-                />
-            </div>
-            <Typography.Text type="secondary" className="mt-1 block !text-[11px] leading-snug">
-                String values are selectors against the event payload: <code>$.path</code>{" "}
-                (JSONPath), <code>/path</code> (JSON Pointer), or a literal.
-            </Typography.Text>
-            {payloadKeys.length > 0 && (
-                <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <Typography.Text type="secondary" className="!text-[11px]">
-                        Available:
-                    </Typography.Text>
-                    {payloadKeys.slice(0, 12).map((k) => (
-                        <code
-                            key={k}
-                            className="rounded bg-[var(--ag-colorFillSecondary)] px-1 text-[11px] text-[var(--ag-colorText)]"
-                        >
-                            $.{k}
-                        </code>
-                    ))}
-                    {payloadKeys.length > 12 && (
-                        <Typography.Text type="secondary" className="!text-[11px]">
-                            +{payloadKeys.length - 12} more
-                        </Typography.Text>
-                    )}
+        <Field label="Inputs mapping" error={error ?? undefined}>
+            <div>
+                <div className="overflow-hidden rounded-lg border border-solid border-[var(--ag-colorBorder)]">
+                    <Editor
+                        initialValue={value || "{}"}
+                        onChange={({textContent}) => onChange(textContent)}
+                        codeOnly
+                        showToolbar={false}
+                        language="json"
+                        dimensions={{width: "100%", height: 120}}
+                    />
                 </div>
-            )}
-            {eventPayload && (
-                <Collapse
-                    ghost
-                    size="small"
-                    defaultActiveKey={["sample"]}
-                    className="mt-1 [&_.ant-collapse-content-box]:!p-0 [&_.ant-collapse-header]:!px-0 [&_.ant-collapse-header]:!py-1"
-                    items={[
-                        {
-                            key: "sample",
-                            label: (
-                                <Typography.Text type="secondary" className="!text-[11px]">
+                {!error && (
+                    <span className="mt-1 block text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                        Maps event context to the workflow inputs (JSON)
+                    </span>
+                )}
+                <span className="mt-1 block text-[11px] leading-snug text-[var(--ag-colorTextDescription)]">
+                    String values are selectors against the event payload:{" "}
+                    <code className="mx-[0.2em] rounded-[3px] border border-solid border-[rgba(100,100,100,0.2)] bg-[rgba(150,150,150,0.1)] px-[0.4em] pb-[0.1em] pt-[0.2em] text-[85%]">
+                        $.path
+                    </code>{" "}
+                    (JSONPath),{" "}
+                    <code className="mx-[0.2em] rounded-[3px] border border-solid border-[rgba(100,100,100,0.2)] bg-[rgba(150,150,150,0.1)] px-[0.4em] pb-[0.1em] pt-[0.2em] text-[85%]">
+                        /path
+                    </code>{" "}
+                    (JSON Pointer), or a literal.
+                </span>
+                {payloadKeys.length > 0 && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                        <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
+                            Available:
+                        </span>
+                        {payloadKeys.slice(0, 12).map((k) => (
+                            <code
+                                key={k}
+                                className="rounded bg-[var(--ag-colorFillSecondary)] px-1 text-[11px] text-[var(--ag-colorText)]"
+                            >
+                                $.{k}
+                            </code>
+                        ))}
+                        {payloadKeys.length > 12 && (
+                            <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
+                                +{payloadKeys.length - 12} more
+                            </span>
+                        )}
+                    </div>
+                )}
+                {eventPayload && (
+                    <Accordion
+                        type="multiple"
+                        variant="ghost"
+                        defaultValue={["sample"]}
+                        className="mt-1"
+                    >
+                        <AccordionItem value="sample">
+                            <AccordionTrigger className="px-0 py-1">
+                                <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
                                     test event attributes
-                                </Typography.Text>
-                            ),
-                            children: (
+                                </span>
+                            </AccordionTrigger>
+                            <AccordionContent className="[&>div]:p-0">
                                 <pre className="m-0 max-h-[240px] overflow-auto rounded bg-[var(--ag-colorFillTertiary)] p-2 text-[11px] leading-snug text-[var(--ag-colorText)]">
                                     {JSON.stringify(eventPayload, null, 2)}
                                 </pre>
-                            ),
-                        },
-                    ]}
-                />
-            )}
-            {!parseError && leaves.length > 0 && (
-                <div className="mt-1.5 flex flex-col gap-0.5">
-                    {leaves.map((leaf, i) => (
-                        <div
-                            key={`${leaf.key}-${i}`}
-                            className="flex items-center gap-1.5 text-[11px] leading-snug"
-                        >
-                            <code className="text-[var(--ag-colorTextSecondary)]">{leaf.key}</code>
-                            <span className="text-[var(--ag-colorTextTertiary)]">→</span>
-                            {leaf.isSelector ? (
-                                leaf.resolved === undefined ? (
-                                    <Typography.Text type="warning" className="!text-[11px]">
-                                        no sample value
-                                    </Typography.Text>
+                            </AccordionContent>
+                        </AccordionItem>
+                    </Accordion>
+                )}
+                {!parseError && leaves.length > 0 && (
+                    <div className="mt-1.5 flex flex-col gap-0.5">
+                        {leaves.map((leaf, i) => (
+                            <div
+                                key={`${leaf.key}-${i}`}
+                                className="flex items-center gap-1.5 text-[11px] leading-snug"
+                            >
+                                <code className="text-[var(--ag-colorTextSecondary)]">
+                                    {leaf.key}
+                                </code>
+                                <span className="text-[var(--ag-colorTextTertiary)]">→</span>
+                                {leaf.isSelector ? (
+                                    leaf.resolved === undefined ? (
+                                        <span className="text-[11px] text-[var(--ag-colorWarningText)]">
+                                            no sample value
+                                        </span>
+                                    ) : (
+                                        <code className="max-w-[280px] truncate text-[var(--ag-colorSuccess)]">
+                                            {leaf.resolved}
+                                        </code>
+                                    )
                                 ) : (
-                                    <code className="max-w-[280px] truncate text-[var(--ag-colorSuccess)]">
-                                        {leaf.resolved}
-                                    </code>
-                                )
-                            ) : (
-                                <Typography.Text type="secondary" className="!text-[11px]">
-                                    literal
-                                </Typography.Text>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </Form.Item>
+                                    <span className="text-[11px] text-[var(--ag-colorTextDescription)]">
+                                        literal
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </Field>
     )
 }

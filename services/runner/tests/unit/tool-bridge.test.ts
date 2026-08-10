@@ -30,11 +30,9 @@ import {
   buildToolMcpServers,
   type ToolMcpServersResult,
 } from "../../src/tools/mcp-bridge.ts";
-import {
-  RELAY_REQ_SUFFIX,
-  RELAY_RES_SUFFIX,
-} from "../../src/tools/relay.ts";
+import { RELAY_REQ_SUFFIX, RELAY_RES_SUFFIX } from "../../src/tools/relay.ts";
 import type { ClientToolRelay } from "../../src/tools/client-tool-relay.ts";
+import type { ExecutableToolGate } from "../../src/tools/executable-tool-gate.ts";
 import type { ResolvedToolSpec } from "../../src/protocol.ts";
 
 const relayDir = "/tmp/agenta-tools";
@@ -62,7 +60,10 @@ afterEach(async () => {
 
 function authorizationFor(url: string): string {
   const authorization = authorizationByUrl.get(url);
-  assert.ok(authorization, `missing advertised Authorization header for ${url}`);
+  assert.ok(
+    authorization,
+    `missing advertised Authorization header for ${url}`,
+  );
   return authorization;
 }
 
@@ -139,7 +140,11 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
     });
-    assert.equal(response.status, 401, "a different server's token is rejected");
+    assert.equal(
+      response.status,
+      401,
+      "a different server's token is rejected",
+    );
   });
 
   it("starts the server for a callback run too (executable)", async () => {
@@ -236,8 +241,16 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
           assert.equal(((await response.json()) as any).error.code, -32001);
         }
 
-        assert.deepEqual(readdirSync(dir), [], "the callback executor never publishes a request");
-        assert.equal(clientDispatchCount, 0, "the client relay is never invoked");
+        assert.deepEqual(
+          readdirSync(dir),
+          [],
+          "the callback executor never publishes a request",
+        );
+        assert.equal(
+          clientDispatchCount,
+          0,
+          "the client relay is never invoked",
+        );
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -328,7 +341,7 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       );
     });
 
-    it("routes tools/call through the relay dir (server-side execution)", async () => {
+    it("with no executable gate, routes tools/call through the relay dir as before", async () => {
       const dir = mkdtempSync(join(tmpdir(), "agenta-tool-relay-"));
       try {
         const specs: ResolvedToolSpec[] = [
@@ -382,6 +395,184 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
+    });
+
+    describe("executable tool gate", () => {
+      const executableSpec: ResolvedToolSpec = {
+        name: "publish",
+        kind: "callback",
+        callRef: "platform.publish",
+        inputSchema: {
+          type: "object",
+          required: ["document"],
+          properties: { document: { type: "string" } },
+        },
+      };
+
+      it("returns an MCP tool error when the gate denies", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "agenta-tool-gate-deny-"));
+        const executableToolGate: ExecutableToolGate = {
+          onExecutableTool: async () => ({
+            kind: "deny",
+            reason: "Tool 'publish' was denied by policy.",
+          }),
+        };
+        try {
+          const { servers } = await build([executableSpec], dir, {
+            executableToolGate,
+          });
+          const out = await rpc(servers[0].url, {
+            jsonrpc: "2.0",
+            id: 20,
+            method: "tools/call",
+            params: {
+              name: "publish",
+              arguments: { document: "release-notes" },
+            },
+          });
+
+          assert.equal(out.result.isError, true);
+          assert.equal(
+            out.result.content[0].text,
+            "Tool 'publish' was denied by policy.",
+          );
+          assert.deepEqual(
+            readdirSync(dir),
+            [],
+            "a denied call is never dispatched",
+          );
+        } finally {
+          rmSync(dir, { recursive: true, force: true });
+        }
+      });
+
+      it("parks with no response body and calls onPause exactly once", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "agenta-tool-gate-park-"));
+        let pauseCount = 0;
+        const executableToolGate: ExecutableToolGate = {
+          onExecutableTool: async () => ({ kind: "pendingApproval" }),
+          onPause: () => {
+            pauseCount += 1;
+          },
+        };
+        try {
+          const { servers } = await build([executableSpec], dir, {
+            executableToolGate,
+          });
+          await assert.rejects(async () => {
+            const res = await fetch(servers[0].url, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                accept: "application/json, text/event-stream",
+                authorization: authorizationFor(servers[0].url),
+              },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 21,
+                method: "tools/call",
+                params: {
+                  name: "publish",
+                  arguments: { document: "release-notes" },
+                },
+              }),
+            });
+            await res.text();
+          });
+
+          assert.equal(pauseCount, 1);
+          assert.deepEqual(
+            readdirSync(dir),
+            [],
+            "a parked call is never dispatched",
+          );
+        } finally {
+          rmSync(dir, { recursive: true, force: true });
+        }
+      });
+
+      it("allows execution and reuses the gate call id for dispatch", async () => {
+        const dir = mkdtempSync(join(tmpdir(), "agenta-tool-gate-allow-"));
+        let gatedToolCallId: string | undefined;
+        const executableToolGate: ExecutableToolGate = {
+          onExecutableTool: async (gateRequest) => {
+            gatedToolCallId = gateRequest.toolCallId;
+            return { kind: "allow" };
+          },
+        };
+        try {
+          const { servers } = await build([executableSpec], dir, {
+            executableToolGate,
+          });
+          const watcher = (async () => {
+            for (let i = 0; i < 200; i++) {
+              const reqFile = readdirSync(dir).find((file) =>
+                file.endsWith(RELAY_REQ_SUFFIX),
+              );
+              if (reqFile) {
+                const relayCallId = reqFile.slice(0, -RELAY_REQ_SUFFIX.length);
+                assert.equal(relayCallId, gatedToolCallId);
+                writeFileSync(
+                  join(dir, `${relayCallId}${RELAY_RES_SUFFIX}`),
+                  JSON.stringify({ ok: true, text: "published" }),
+                  "utf-8",
+                );
+                return;
+              }
+              await new Promise((resolve) => setTimeout(resolve, 25));
+            }
+            throw new Error("relay request file never appeared");
+          })();
+
+          const out = await rpc(servers[0].url, {
+            jsonrpc: "2.0",
+            id: 22,
+            method: "tools/call",
+            params: {
+              name: "publish",
+              arguments: { document: "release-notes" },
+            },
+          });
+          await watcher;
+
+          assert.equal(out.result.isError, undefined);
+          assert.equal(out.result.content[0].text, "published");
+          assert.ok(gatedToolCallId);
+        } finally {
+          rmSync(dir, { recursive: true, force: true });
+        }
+      });
+
+      it("validates required arguments before consulting a parking gate", async () => {
+        let gateCalls = 0;
+        let pauseCount = 0;
+        const executableToolGate: ExecutableToolGate = {
+          onExecutableTool: async () => {
+            gateCalls += 1;
+            return { kind: "pendingApproval" };
+          },
+          onPause: () => {
+            pauseCount += 1;
+          },
+        };
+        const { servers } = await build([executableSpec], relayDir, {
+          executableToolGate,
+        });
+        const out = await rpc(servers[0].url, {
+          jsonrpc: "2.0",
+          id: 23,
+          method: "tools/call",
+          params: { name: "publish", arguments: {} },
+        });
+
+        assert.equal(out.result.isError, true);
+        assert.match(
+          out.result.content[0].text,
+          /missing required argument\(s\): document/,
+        );
+        assert.equal(gateCalls, 0);
+        assert.equal(pauseCount, 0);
+      });
     });
 
     it("returns an MCP error for an unknown tool", async () => {
@@ -531,7 +722,11 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       });
       assert.equal(wrong.status, 401);
       assert.equal(((await wrong.json()) as any).error.code, -32001);
-      assert.equal(dispatchCount, 0, "unauthenticated requests dispatch nothing");
+      assert.equal(
+        dispatchCount,
+        0,
+        "unauthenticated requests dispatch nothing",
+      );
     });
 
     it("rejects a batch containing a client tool before executing any item", async () => {
@@ -577,8 +772,16 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         assert.equal(response.status, 400);
         assert.equal(body.error.code, -32600);
         assert.ok(!Array.isArray(body), "the batch gets one JSON-RPC error");
-        assert.equal(clientDispatchCount, 0, "the client relay is never called");
-        assert.deepEqual(readdirSync(dir), [], "the executable sibling is never dispatched");
+        assert.equal(
+          clientDispatchCount,
+          0,
+          "the client relay is never called",
+        );
+        assert.deepEqual(
+          readdirSync(dir),
+          [],
+          "the executable sibling is never dispatched",
+        );
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -593,7 +796,11 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         relayDir,
         { clientToolRelay: relay },
       );
-      assert.equal(servers.length, 1, "the server starts even with a client tool present");
+      assert.equal(
+        servers.length,
+        1,
+        "the server starts even with a client tool present",
+      );
       const list = await rpc(servers[0].url, {
         jsonrpc: "2.0",
         id: 1,
@@ -622,30 +829,27 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       const { servers } = await build([clientSpec], relayDir, {
         clientToolRelay: relay,
       });
-      await assert.rejects(
-        async () => {
-          const res = await fetch(servers[0].url, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              accept: "application/json, text/event-stream",
-              authorization: authorizationFor(servers[0].url),
+      await assert.rejects(async () => {
+        const res = await fetch(servers[0].url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json, text/event-stream",
+            authorization: authorizationFor(servers[0].url),
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 7,
+            method: "tools/call",
+            params: {
+              name: "request_connection",
+              arguments: { integration: "slack" },
             },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: 7,
-              method: "tools/call",
-              params: {
-                name: "request_connection",
-                arguments: { integration: "slack" },
-              },
-            }),
-          });
-          // No body is ever written for a paused call; reading it must fail (socket destroyed).
-          await res.text();
-        },
-        "the paused tools/call is aborted with no JSON-RPC result",
-      );
+          }),
+        });
+        // No body is ever written for a paused call; reading it must fail (socket destroyed).
+        await res.text();
+      }, "the paused tools/call is aborted with no JSON-RPC result");
       assert.equal(onClientToolCalls, 1, "the relay was consulted once");
       assert.equal(pauseCount, 1, "onPause fired exactly once");
     });
@@ -692,8 +896,16 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
       };
       await assert.rejects(post, "the first paused tools/call is aborted");
       await assert.rejects(post, "the duplicate (same id) is aborted too");
-      assert.equal(onClientToolCalls, 2, "each POST consults the relay independently");
-      assert.equal(outputsServed, 0, "neither request was ever answered with a result");
+      assert.equal(
+        onClientToolCalls,
+        2,
+        "each POST consults the relay independently",
+      );
+      assert.equal(
+        outputsServed,
+        0,
+        "neither request was ever answered with a result",
+      );
     });
 
     it("validates required args in the client branch (a normal MCP error, not a pause)", async () => {
@@ -713,14 +925,23 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
         method: "tools/call",
         params: { name: "request_connection", arguments: {} }, // missing `integration`
       });
-      assert.equal(out.result.isError, true, "an under-specified call is a tool error");
-      assert.match(out.result.content[0].text, /missing required argument\(s\): integration/);
+      assert.equal(
+        out.result.isError,
+        true,
+        "an under-specified call is a tool error",
+      );
+      assert.match(
+        out.result.content[0].text,
+        /missing required argument\(s\): integration/,
+      );
       assert.equal(pauseCount, 0, "an under-specified call never pauses");
     });
 
     it("resumes: returns the browser's structured output as MCP content", async () => {
       const relay: ClientToolRelay = {
-        onClientTool: async () => ({ output: { connected: true, account: "a" } }),
+        onClientTool: async () => ({
+          output: { connected: true, account: "a" },
+        }),
       };
       const { servers } = await build([clientSpec], relayDir, {
         clientToolRelay: relay,
@@ -734,7 +955,11 @@ describe("buildToolMcpServers (internal gateway-tool channel)", () => {
           arguments: { integration: "slack" },
         },
       });
-      assert.equal(out.result.isError, undefined, "a resolved client tool is not an error");
+      assert.equal(
+        out.result.isError,
+        undefined,
+        "a resolved client tool is not an error",
+      );
       assert.equal(
         out.result.content[0].text,
         JSON.stringify({ connected: true, account: "a" }),

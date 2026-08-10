@@ -3,8 +3,10 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Export, Trash} from "@phosphor-icons/react"
 import type {MenuProps} from "antd"
-import {Button, Grid, Pagination, Tabs, Tooltip} from "antd"
+import {Grid, Pagination, Tabs, Tooltip} from "antd"
 
+import {Button} from "../../components/ui/button"
+import {LoadingButton} from "../../components/ui/button-composed"
 import {cn} from "../../utils/styles"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
 import TableSettingsDropdown from "../components/columnVisibility/TableSettingsDropdown"
@@ -135,6 +137,11 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
     containerClassName?: string
     tableClassName?: string
     autoHeight?: boolean
+    /**
+     * When autoHeight is false and the table is empty, floor the body to this height so the
+     * empty state has room to render. Defaults to 240px.
+     */
+    emptyMinHeight?: number
     rowHeight?: number
     fallbackControlsHeight?: number
     fallbackHeaderHeight?: number
@@ -246,6 +253,8 @@ export interface InfiniteVirtualTableFeatureProps<Row extends InfiniteTableRowBa
 const DEFAULT_ROW_HEIGHT = 48
 const DEFAULT_CONTROLS_HEIGHT = 72
 const DEFAULT_TABLE_HEADER_HEIGHT = 48
+// Fixed-height tables collapse to one row when empty; give the empty state room to render.
+const DEFAULT_EMPTY_BODY_HEIGHT = 300
 
 interface ColumnVisibilityRendererContext {
     scopeId: string | null
@@ -293,6 +302,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         containerClassName,
         tableClassName,
         autoHeight = true,
+        emptyMinHeight = DEFAULT_EMPTY_BODY_HEIGHT,
         rowHeight: rowHeightProp = DEFAULT_ROW_HEIGHT,
         fallbackControlsHeight = DEFAULT_CONTROLS_HEIGHT,
         fallbackHeaderHeight = DEFAULT_TABLE_HEADER_HEIGHT,
@@ -427,7 +437,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     const visibleRowCount = isPaginated
         ? paginatedSlice?.rows.length || uiPageSize
         : pagination.rows.length || pageSize
-    const bodyHeight = effectiveAutoHeight ? null : rowHeight * Math.max(visibleRowCount, 1)
+    const rowCount = isPaginated ? (paginatedSlice?.rows.length ?? 0) : pagination.rows.length
+    const bodyHeight = effectiveAutoHeight
+        ? null
+        : rowCount === 0
+          ? Math.max(rowHeight * Math.max(visibleRowCount, 1), emptyMinHeight)
+          : rowHeight * Math.max(visibleRowCount, 1)
     const headerHeight = resolvedControlsHeight + resolvedTableHeaderHeight + 32
     // Pagination bar: py-2 (16px) + antd Pagination (~32px) = ~48px
     const paginationBarHeight = isPaginated ? 48 : 0
@@ -515,13 +530,12 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         const {onDelete, disabled, disabledTooltip, label = "Delete"} = deleteAction
         const button = (
             <Button
-                danger
-                type="text"
-                icon={<Trash size={14} className="mt-0.5" />}
+                variant="destructive-outline"
                 className="flex items-center"
                 disabled={disabled}
                 onClick={onDelete}
             >
+                {<Trash size={14} className="mt-0.5" />}
                 {label}
             </Button>
         )
@@ -536,15 +550,15 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         if (!enableExport || !exportAction || hideBuiltInButtons) return null
         const {disabled, disabledTooltip, label = "Export CSV"} = exportAction
         const button = (
-            <Button
+            <LoadingButton
                 disabled={disabled}
                 onClick={exportHandler}
                 loading={isExporting}
-                icon={<Export size={14} />}
-                type="text"
+                variant="ghost"
             >
+                <Export size={14} />
                 {label}
-            </Button>
+            </LoadingButton>
         )
         if (disabled && disabledTooltip) {
             return (

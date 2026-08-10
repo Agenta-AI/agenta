@@ -1,0 +1,53 @@
+{
+  "class": "import",
+  "about": [
+    "Importing a file the user saved into the agent's folder. The scenario seeds the file into the",
+    "DURABLE agent mount, exactly as a user who dropped it there would, and says so the way a user",
+    "says it.",
+    "",
+    "The checks are mechanism-blind on purpose. `@ag.file` is the designed route, but a model that",
+    "reads the file and inlines its text has also given the user what they asked for, and the",
+    "benchmark measures the outcome. What it does NOT tolerate is a marker surviving into storage",
+    "(`no_stored_marker`): a configuration value nobody can read back is a broken agent that",
+    "reports success.",
+    "",
+    "Writing under `.agenta-imports/` needs a workspace write, which raises an approval gate. The",
+    "runner answers every gate the same way, so this row also exercises the approval round trip a",
+    "read-only scenario never touches."
+  ],
+  "scenarios": [
+    {
+      "id": "import-01-skill-from-folder",
+      "title": "add a skill from a file the user saved",
+      "seed_workspace": {
+        "incident-review/SKILL.md": "---\nname: incident-review\ndescription: Run a blameless incident review.\n---\n\n# Incident review\n\nRun this after every incident, within {{TOKEN}} hours.\n\n1. Collect the timeline from the alert channel.\n2. Name the root cause without naming a person.\n3. File a follow-up issue and link the incident.\n"
+      },
+      "turns": [
+        {
+          "prompt": "i wrote up an incident-review skill and saved it in your folder — can you add it to your skills?"
+        }
+      ],
+      "budget": { "max_tool_errors": 0, "max_commit_calls": 1, "max_rounds": 8 },
+      "checks": [
+        { "check": "stored_len", "path": ["skills"], "value": 4 },
+        {
+          "check": "stored_present",
+          "path": [{ "list": "skills", "key": "incident-review" }]
+        },
+        {
+          "check": "stored_contains",
+          "path": [{ "list": "skills", "key": "incident-review" }, "body"],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_contains",
+          "path": [{ "list": "skills", "key": "incident-review" }, "body"],
+          "text": "without naming a person"
+        },
+        { "check": "no_stored_marker" },
+        { "check": "stored_unchanged_except", "allowed": ["skills"] },
+        { "check": "revision_created" }
+      ]
+    }
+  ]
+}
