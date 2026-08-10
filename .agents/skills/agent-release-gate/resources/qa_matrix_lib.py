@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import uuid
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 import httpx
 
@@ -35,10 +36,24 @@ PI_CORE_HAIKU_MODEL = "claude-haiku-4-5"
 
 
 def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.Response:
+    # httpx REPLACES an URL-embedded query string entirely when `params=` is also given,
+    # so a path like "/sessions/streams/?session_id=..." used to silently lose its query
+    # to the hardcoded project_id (the endpoint then 422s with "Field required"). Merge
+    # the path's query into the params dict instead — explicit `params=` kwargs win,
+    # then project_id — so both spellings are safe for every caller. A path WITHOUT a
+    # query and no extra params builds the exact same request as before.
+    params = {"project_id": PROJECT, **(kwargs.pop("params", None) or {})}
+    parsed = urlsplit(f"{BASE}/api{path}")
+    url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", parsed.fragment))
+    if parsed.query:
+        params = {
+            **dict(parse_qsl(parsed.query, keep_blank_values=True)),
+            **params,
+        }
     return httpx.request(
         method,
-        f"{BASE}/api{path}",
-        params={"project_id": PROJECT},
+        url,
+        params=params,
         headers={"Authorization": f"ApiKey {KEY}", "Content-Type": "application/json"},
         timeout=timeout,
         **kwargs,
