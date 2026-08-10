@@ -2,8 +2,9 @@ import type {MouseEvent, ReactNode} from "react"
 import {useMemo, useState} from "react"
 
 import {GearSix} from "@phosphor-icons/react"
-import {Button, Checkbox, Popover, Tooltip} from "antd"
+import {Checkbox, Popover, Tooltip} from "antd"
 
+import {Button} from "../../components/ui/button"
 import type {ColumnVisibilityState} from "../types"
 
 type ColumnVisibilityControls<Row extends object> = ColumnVisibilityState<Row>
@@ -26,7 +27,8 @@ const DefaultVisibilityContent = <Row extends object>({
 
     const renderNodes = (tree: typeof nodes, depth = 0): ReactNode =>
         tree.map((node) => {
-            const label = node.titleNode ?? node.label ?? node.key
+            // String(): React.Key carries an experimental symbol member, so it is NOT a ReactNode.
+            const label = node.titleNode ?? node.label ?? String(node.key)
             const childNodes = node.children?.length ? renderNodes(node.children, depth + 1) : null
             const isGroup = Boolean(node.children?.length)
             return (
@@ -52,12 +54,12 @@ const DefaultVisibilityContent = <Row extends object>({
         <div className="flex flex-col gap-3 min-w-[220px]">
             <div className="text-xs text-zinc-6">Toggle columns</div>
             <div className="max-h-64 overflow-auto pr-1">{renderNodes(nodes)}</div>
-            <div className="border-t border-zinc-2 my-1" />
+            <div className="border-0 border-t border-solid border-zinc-2 my-1" />
             <div className="flex justify-between gap-2">
-                <Button size="small" onClick={() => controls.reset()}>
+                <Button variant="outline" size="sm" onClick={() => controls.reset()}>
                     Reset
                 </Button>
-                <Button size="small" type="primary" onClick={onClose}>
+                <Button size="sm" variant="default" onClick={onClose}>
                     Close
                 </Button>
             </div>
@@ -88,15 +90,17 @@ const ColumnVisibilityTrigger = <Row extends object>({
         variant === "icon" ? (
             <Tooltip title={label}>
                 <Button
-                    type="text"
-                    shape="circle"
-                    size="small"
+                    className="rounded-control-round"
+                    size="icon"
+                    variant="ghost"
                     onClick={stopPropagation}
-                    icon={<GearSix size={16} weight="bold" />}
-                />
+                >
+                    {<GearSix size={16} weight="bold" />}
+                </Button>
             </Tooltip>
         ) : (
-            <Button onClick={stopPropagation} icon={<GearSix size={14} weight="bold" />}>
+            <Button variant="outline" onClick={stopPropagation}>
+                {<GearSix size={14} weight="bold" />}
                 {label} ({visibleLeafCount})
             </Button>
         )

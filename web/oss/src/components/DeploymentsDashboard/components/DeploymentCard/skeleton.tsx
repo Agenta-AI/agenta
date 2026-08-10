@@ -1,4 +1,4 @@
-import {EnvironmentTag, environmentColors} from "@agenta/ui"
+import {Tag, environmentColors} from "@agenta/ui"
 import {Card, Skeleton, Space, Typography} from "antd"
 
 import {deploymentCardClass} from "./styles"
@@ -23,7 +23,7 @@ const DeploymentCardSkeleton = ({envName, isSelected}: DeploymentCardSkeletonPro
                 "--hover-border-color": borderColor,
             }}
         >
-            <EnvironmentTag environment={envName} />
+            <Tag env={envName} />
 
             <Space className="justify-between">
                 <Typography.Text>Variant</Typography.Text>

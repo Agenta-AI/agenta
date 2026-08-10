@@ -153,6 +153,15 @@ export interface ResolvedToolSpec {
     context?: Record<string, string>;
     args_into?: string;
   };
+  /**
+   * Top-level argument names the model may write but the request must NOT carry. The runner
+   * deletes them from the model's arguments before it builds either request (direct or gateway),
+   * so the field reaches the human — the recorded call and the approval card keep it — and never
+   * reaches the API. Today the list holds one name, `description`: the ephemeral per-call note the
+   * agent writes to explain what it is doing (R12). Executor-private, like `contextBindings`: it
+   * never goes to a harness child process.
+   */
+  ephemeralArgs?: string[];
   kind?: "callback" | "code" | "client";
   render?: RenderHint;
   /** MCP behavioral hint: true (read-only), false (mutating), absent (unknown). */
@@ -260,13 +269,49 @@ export interface McpToolPolicy {
   names?: string[];
 }
 
+/**
+ * One secret HTTP header an MCP server needs, e.g. `Authorization: Bearer <token>`.
+ *
+ * The three fields answer three separate questions, and keeping them separate is what makes a
+ * credential substitutable on a remote sandbox:
+ *
+ * - `binding` says WHERE the value goes. Today the only answer for MCP is `header`, because the
+ *   only MCP transport we accept is HTTP and a remote server reads its credential from a header.
+ *   A future stdio MCP server would need `{ kind: "environment", name }` instead, which is why
+ *   this is an object with a `kind` rather than a bare header name.
+ * - `value` is the secret itself.
+ * - `usage` says WHO reads the value, which decides whether we can hide it. See the note on
+ *   `ModelCredential.usage` below for the full reasoning; `opaque_http` means the value is only
+ *   ever read by the remote server on the other end of an HTTPS request, so the sandbox never
+ *   needs to see it and Daytona can substitute it into the outbound request.
+ *
+ * MCP has only `opaque_http` today because every MCP server we support is remote and HTTPS. When
+ * OAuth lands, the token is still an `opaque_http` header credential; what changes is who mints
+ * it and how often, which is a resolver concern upstream of this wire, not a new `usage`. A
+ * gateway MCP server is the same shape too: it is an HTTP MCP server whose URL happens to be
+ * ours. Neither needs a new field here.
+ */
+export interface McpCredential {
+  binding: { kind: "header"; name: string };
+  value: string;
+  usage: "opaque_http";
+}
+
+/**
+ * A user-declared HTTP MCP server attached to the run. Public HTTP headers and secret HTTP
+ * header credentials remain separate by protocol role: `headers` carries non-secret values
+ * only, and every secret header rides a typed `McpCredential` so the runner can materialize
+ * it (plaintext locally; a Daytona Secret placeholder on a remote sandbox).
+ */
 export interface McpServerConfig {
   name: string;
   connection: {
     type: "http";
     url: string;
-    /** Resolved per-run headers. Values may be secret and must never be logged. */
+    /** Resolved per-run PUBLIC headers. Secret headers ride `credentials`. */
     headers?: Record<string, string>;
+    /** Typed secret header bindings. Values must never be logged. */
+    credentials?: McpCredential[];
   };
   policy: {
     tools: McpToolPolicy;
@@ -430,6 +475,101 @@ export interface AgentUsage {
   cost: number;
 }
 
+/**
+ * WHERE a model credential has to land for the harness to pick it up.
+ *
+ * `environment` is the only kind today, and it is not a placeholder for a missing case: every
+ * agent harness we run (Pi, Claude, Codex) reads its provider key from an environment variable,
+ * because that is the convention their underlying SDKs use. A `header` kind would be the natural
+ * addition if we ever call a provider over raw HTTP ourselves instead of handing the key to a
+ * harness, which is exactly what MCP does (see `McpCredential`). Modeling this as an object with
+ * a `kind` rather than a bare variable name is what lets the two consumers share one shape.
+ */
+export interface ModelCredentialBinding {
+  kind: "environment";
+  name: string;
+}
+
+/**
+ * One secret the model provider needs, plus enough information to decide whether the sandbox is
+ * allowed to see it.
+ *
+ * `usage` is the field that decides that, and it has exactly two answers because there are
+ * exactly two ways a provider credential gets consumed:
+ *
+ * - `opaque_http` — the value is a bearer token that only the provider's own server reads, over
+ *   HTTPS, at a host we know in advance. Nothing inside the sandbox ever needs the real string.
+ *   On Daytona we therefore replace it with a `dtn_secret_<id>` placeholder and let Daytona's
+ *   egress proxy substitute the real value into the outbound request, so a compromised agent
+ *   that dumps its own environment gets a useless placeholder. `OPENAI_API_KEY` and
+ *   `ANTHROPIC_API_KEY` are the common cases.
+ * - `local_use` — the value is consumed by a provider SDK running INSIDE the sandbox, which
+ *   signs the request locally rather than sending the secret. AWS SigV4 is the reason this
+ *   exists: `AWS_SECRET_ACCESS_KEY` never travels on the wire, boto derives a signature from it
+ *   on the spot, so an outbound-substitution trick cannot work and the sandbox must hold the
+ *   real value. We accept that and keep the list of names that may claim `local_use` short and
+ *   explicit (`daytona-secret-plan.ts`), so nobody can smuggle an opaque provider key through
+ *   this door and quietly lose the hiding.
+ *
+ * The split is deliberately about the CONSUMER, not the provider name: it is the only property
+ * that determines whether hiding is even possible, and it stays correct when a new provider
+ * arrives.
+ */
+export interface ModelCredential {
+  binding: ModelCredentialBinding;
+  value: string;
+  usage: "opaque_http" | "local_use";
+}
+
+/**
+ * Everything the runner needs to reach the model, grouped under the consumer that owns it.
+ *
+ * The organization mirrors `ResolvedConnection` in the Python SDK
+ * (`sdks/python/agenta/sdk/agents/connections/models.py`), which is the authority: the resolver
+ * builds it from the vault, validates it there, and serializes it onto this wire. The runner
+ * re-validates rather than trusting it, but it does not invent fields. Grouping matters because
+ * the run has more than one credential consumer: the model owns this object, each MCP server
+ * owns its own `connection.credentials`. Before this grouping, every consumer's keys were mixed
+ * into one flat `secrets` map and the runner could not tell whose key was whose, which is
+ * precisely what made hiding them impossible.
+ *
+ * The fields:
+ *
+ * - `provider` is the credential-ownership family (`openai`, `anthropic`, `bedrock`, ...). It
+ *   says who issued the key, not which model runs.
+ * - `deployment` is HOW that provider is reached: `direct` (the provider's own API), `custom`
+ *   (an OpenAI-compatible third party such as OpenRouter or a self-hosted gateway), or `bedrock`
+ *   / `vertex` (a cloud reseller with its own auth scheme).
+ * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is what an
+ *   OpenAI-compatible deployment needs; `apiVersion` is what Azure needs; `region` is what AWS
+ *   and Vertex need; `headers` carries non-secret routing headers some gateways require. A
+ *   given deployment fills in the subset that applies to it and leaves the rest unset. AWS and
+ *   the other cloud resellers are covered by exactly this: `deployment: "bedrock"` plus
+ *   `endpoint.region`, with their access keys arriving as `local_use` credentials because the
+ *   AWS SDK signs locally.
+ * - `credentialMode` says where the credential comes from at all: `env` (we resolved one and it
+ *   is in `credentials`), `runtime_provided` (the harness authenticates with its own login, e.g.
+ *   a Claude or Codex subscription, and we inject nothing), or `none`.
+ * - `environment` is non-secret configuration that still has to reach the process as environment
+ *   variables, such as `AWS_REGION`. It is a separate field from `credentials` so that nothing
+ *   secret can hide in a map we treat as public; the runner enforces a short allowlist of names
+ *   that may appear here.
+ * - `credentials` are the secrets, each one typed as above.
+ */
+export interface ModelConnection {
+  provider: string;
+  deployment: string;
+  endpoint?: {
+    baseUrl?: string;
+    apiVersion?: string;
+    region?: string;
+    headers?: Record<string, string>;
+  };
+  credentialMode: "env" | "runtime_provided" | "none";
+  environment?: Record<string, string>;
+  credentials: ModelCredential[];
+}
+
 export interface AgentRunRequest {
   /**
    * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
@@ -441,8 +581,6 @@ export interface AgentRunRequest {
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
-  /** Provider API keys as env vars ({OPENAI_API_KEY,...}), resolved from the vault. */
-  secrets?: Record<string, string>;
   /** AGENTS.md text injected as the agent's instructions. */
   agentsMd?: string;
   /**
@@ -467,38 +605,26 @@ export interface AgentRunRequest {
    */
   harnessMode?: string;
   /**
-   * Provider family for the run, e.g. "openai" | "anthropic" | <custom-slug>. Non-secret.
-   * Present only when the config carries a structured model ref. See the provider-model-auth
-   * design (Concern 1).
-   */
-  provider?: string;
-  /**
-   * Where the credential comes from, named portably (a slug, never a db id). Non-secret.
-   * Present only when the config carries a structured model ref. See the provider-model-auth
-   * design (Concern 1).
+   * Which connection the author CHOSE, named portably (a slug, never a database id). Non-secret.
+   *
+   * Distinct from `modelConnection`, which is what that choice resolved to: the route and the
+   * credential values. This field carries only the intent (`mode`) and the identity (`slug`).
+   *
+   * It is load-bearing, not informational. A named Agenta connection on a custom
+   * OpenAI-compatible Pi run is registered in Pi's own models.json under a provider named after
+   * this slug (`pi-model-config.ts` gates on `mode === "agenta"` and reads `slug`). Without it
+   * those runs fall back to the generic provider-override path and route differently, which is
+   * a silent behavior change rather than a failure. The SDK emits it from
+   * `HarnessAgentTemplate.wire_connection_ref()` and the schema declares it on
+   * `WireRunRequest`; both are pinned by tests, so do not read this field as optional in
+   * practice for a named connection.
+   *
+   * Omitted for the project default (`agenta` with no slug), which carries no information
+   * beyond the model itself.
    */
   connection?: { mode: string; slug?: string };
-  /**
-   * Deployment surface for the provider: "direct" | "azure" | "bedrock" | "vertex" |
-   * "custom". From a resolved connection; see the provider-model-auth design (Concern 3).
-   */
-  deployment?: string;
-  /**
-   * Non-secret connection config (custom base URL, api version, region, public headers).
-   * Secret values never live here; they ride `secrets`. See the provider-model-auth design
-   * (Concern 3).
-   */
-  endpoint?: {
-    baseUrl?: string;
-    apiVersion?: string;
-    region?: string;
-    headers?: Record<string, string>;
-  };
-  /**
-   * How the credential is delivered: "env" | "runtime_provided" | "none". From a resolved
-   * connection; see the provider-model-auth design (Concern 3).
-   */
-  credentialMode?: string;
+  /** Resolved model routing and credential bindings, grouped under their consumer. */
+  modelConnection?: ModelConnection;
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
   /** Deprecated: accepted and ignored. Pi activates every built-in tool on every run. */
@@ -563,6 +689,18 @@ export interface AgentRunRequest {
    * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.
    */
   projectId?: string;
+  /**
+   * The post-hydration config this turn runs, produced by the SDK (`agents/utils/wire.py`) and
+   * OPAQUE here: the runner never reads inside it and never derives behavior from it. It is
+   * echoed verbatim onto the `data.parameters` of every interaction row this turn writes, so a
+   * client that answers the gate without being able to reproduce the config (mobile, the M2
+   * dispatcher) can replay the exact turn instead of hydrating the referenced variant's HEAD.
+   *
+   * Deliberately NOT part of `configFingerprint` (`session-identity.ts`): it is a projection of
+   * fields already in the fingerprint, so hashing it would let a cosmetic config-serialization
+   * change evict warm sessions. Session runs only; absent otherwise.
+   */
+  effectiveParameters?: Record<string, unknown>;
   /**
    * The session's `session_streams` row id, captured for free from the alive-watchdog's
    * heartbeat response (`sessions/alive.ts`) and threaded here before the engine runs. Present

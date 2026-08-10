@@ -12,6 +12,8 @@ from .errors import (
     ConnectionNotFoundError,
     ConnectionResolutionError,
     EndpointResolutionError,
+    InvalidConnectionConfigurationError,
+    MissingCredentialError,
     MissingProviderError,
     ProviderMismatchError,
     UnsupportedConnectionModeError,
@@ -22,10 +24,13 @@ from .interfaces import ConnectionResolver
 from .models import (
     Connection,
     CredentialMode,
+    CredentialUsage,
     Deployment,
     Endpoint,
+    EnvironmentCredentialBinding,
     ModelRef,
     ResolvedConnection,
+    ResolvedCredential,
     RuntimeAuthContext,
 )
 from .resolver import EnvConnectionResolver, StaticConnectionResolver
@@ -34,10 +39,13 @@ __all__ = [
     # Contracts
     "Connection",
     "Endpoint",
+    "EnvironmentCredentialBinding",
     "ModelRef",
     "ResolvedConnection",
+    "ResolvedCredential",
     "RuntimeAuthContext",
     "CredentialMode",
+    "CredentialUsage",
     "Deployment",
     # Port + adapters
     "ConnectionResolver",
@@ -47,7 +55,9 @@ __all__ = [
     "AgentConnectionError",
     "ConnectionResolutionError",
     "EndpointResolutionError",
+    "InvalidConnectionConfigurationError",
     "ConnectionNotFoundError",
+    "MissingCredentialError",
     "MissingProviderError",
     "AmbiguousConnectionError",
     "ProviderMismatchError",

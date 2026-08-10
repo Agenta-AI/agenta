@@ -43,6 +43,8 @@ interface DraftMessage {
     /** The turn's terminal `done` carried `stopReason:"paused"` — it ended mid-approval, not at a
      *  real boundary. Surfaced on the message so a cold reload's adoption heuristic can compare state. */
     paused?: boolean
+    /** The turn paused for approval and then RESUMED to completion (a second, non-paused `done`). */
+    resumed?: boolean
 }
 
 interface TranscriptIndex {
@@ -232,6 +234,19 @@ function applyEvent(
                 part.state = "approval-requested"
                 part.approval = {id: str(payload.id)}
             }
+            // Mirrors the live egress's sibling data part, so a reloaded transcript renders the
+            // same card. `tool-approval-request` is a strict object and cannot carry this.
+            if (reqPayload.manifest !== undefined) {
+                draft.parts.push({
+                    type: "data-approval-manifest",
+                    id: toolCallId,
+                    data: {
+                        toolCallId,
+                        approvalId: str(payload.id),
+                        manifest: reqPayload.manifest,
+                    },
+                })
+            }
             return
         }
         case "interaction_response": {
@@ -339,6 +354,7 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
                 continue
             }
             // A resumed-then-completed turn is no longer paused.
+            if (current?.paused) current.resumed = true
             if (current) current.paused = false
             current = null
             continue
@@ -350,6 +366,17 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
         }
         if (traceId && !current.traceId) current.traceId = traceId
         applyEvent(current, p, index, row.session_id)
+    }
+
+    // A RESUMED turn's gate was answered by definition — the runner only emits post-pause records
+    // once the user responded (a deny settles its own part via `tool_result denied`). The durable
+    // log doesn't always persist the `interaction_response`, so settle whatever is left awaiting:
+    // otherwise a completed turn replays as still parked and the reload keeps the approval dock up.
+    for (const d of drafts) {
+        if (!d.resumed) continue
+        for (const part of d.parts) {
+            if (part.state === "approval-requested") part.state = "approval-responded"
+        }
     }
 
     const messages = drafts

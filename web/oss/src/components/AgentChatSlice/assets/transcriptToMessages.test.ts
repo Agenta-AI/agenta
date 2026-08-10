@@ -36,6 +36,48 @@ const firstPart = (records: SessionRecord[]): Record<string, unknown> => {
 }
 
 describe("transcriptToMessages approval hydration", () => {
+    it("replays the approved-content manifest as the egress's sibling data part", () => {
+        // `tool-approval-request` is a strict object, so the manifest cannot ride the approval
+        // itself; replay must mirror the live data part or a reload loses the card.
+        const manifest = {
+            version: 1,
+            files: [{relativePath: "notes.md", bytes: 12, digest: "abc", executableBit: false}],
+            diffs: [],
+            totalBytes: 12,
+            contentDigest: "def",
+        }
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "commit_revision",
+                input: {},
+            }),
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", manifest},
+            }),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0].state).toBe("approval-requested")
+        const data = parts.find((p) => p.type === "data-approval-manifest")?.data as Record<
+            string,
+            unknown
+        >
+        expect(data).toBeDefined()
+        expect(data.toolCallId).toBe("tool-1")
+        expect(data.manifest).toEqual(manifest)
+    })
+
+    it("emits no manifest part when the gate carries none", () => {
+        const messages = transcriptToMessages(approvalRecords())
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+        expect(parts.some((p) => p.type === "data-approval-manifest")).toBe(false)
+    })
+
     it("overlays a persisted approval response with the live response shape", () => {
         const part = firstPart([
             ...approvalRecords(),
@@ -282,6 +324,73 @@ describe("transcriptToMessages approval hydration", () => {
         expect((assistant as unknown as {metadata?: {traceId?: string}}).metadata?.traceId).toBe(
             "trace-resume",
         )
+    })
+
+    it("settles a resumed turn's gate even when the log has no interaction_response", () => {
+        // Real shape of an approval answered on ANOTHER device (verified against `records`): the
+        // paused turn carries the request, the resume turn carries only thought/usage/message/done —
+        // no `interaction_response`, no re-emitted call, no `tool_result`. The gate must NOT replay
+        // as pending, or the desktop reload keeps showing "Approval needed to continue".
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            record("r-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "bash",
+                input: {command: "cat > hello.md"},
+            }),
+            record("r-req", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-thought", {type: "thought", text: "the user approved it"}),
+            record("r-msg", {type: "message", text: "Created hello.md"}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(messages).toHaveLength(2)
+        const assistant = messages![1]
+        const parts = assistant.parts as unknown as Record<string, unknown>[]
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+            approval: {id: "approval-1"},
+        })
+        expect(
+            (assistant as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
+    })
+
+    it("keeps a still-parked turn's gate pending (no resume records yet)", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            ...approvalRecords(),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+        ])
+
+        const parts = messages![1].parts as unknown as Record<string, unknown>[]
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-requested",
+        })
+    })
+
+    it("leaves a denied call denied across the pause boundary", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            ...approvalRecords(),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-result-denied", {type: "tool_result", id: "tool-1", denied: true}),
+            record("r-msg", {type: "message", text: "Okay, skipping it."}),
+            record("r-done", {type: "done"}),
+        ])
+
+        const parts = messages![1].parts as unknown as Record<string, unknown>[]
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "output-denied",
+        })
     })
 })
 

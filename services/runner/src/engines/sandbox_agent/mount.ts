@@ -252,7 +252,7 @@ function credEnv(creds: MountCredentials): Record<string, string> {
  * check trusts it, so `mountStorage` short-circuits and the next session inherits a dead cwd.
  * Probe with a real access (`ls -A`) and treat ENOTCONN as NOT-mounted so the caller remounts.
  */
-async function isMounted(
+export async function isMounted(
   cwd: string,
   log: (m: string) => void,
 ): Promise<boolean> {
@@ -507,7 +507,10 @@ export interface TunnelDeps {
  * Resolve the public tunnel URL for the in-network store endpoint. A remote sandbox cannot
  * reach `seaweedfs:8333` on the compose network, so geesefs there must hit a public URL; the
  * `ngrok` service (compose profile `remote`) tunnels the store, and its agent API lists the
- * active tunnels. Returns null when no tunnel is up (then the remote mount is skipped, not fatal).
+ * active tunnels. Returns null when no tunnel is up. The remote mount is then skipped rather than
+ * failing the run, but the skip is NOT silent: the caller warns the operator with the cause named,
+ * and tells the model the durable folder is unreachable this turn, because a model whose history
+ * shows the folder working will otherwise report the user's saved work as lost.
  */
 export async function discoverTunnelEndpoint(
   deps: TunnelDeps = {},

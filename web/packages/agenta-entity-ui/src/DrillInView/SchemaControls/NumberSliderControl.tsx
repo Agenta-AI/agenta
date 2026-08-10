@@ -8,14 +8,20 @@
  * Slider below spanning full width.
  */
 
-import {memo, useCallback, useEffect, useState} from "react"
+import {memo, useCallback, useEffect, useId, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {cn, flexLayouts, gapClasses, textColors} from "@agenta/ui/styles"
+import {
+    Button,
+    InputNumber,
+    Slider,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {X} from "@phosphor-icons/react"
-import {Button, InputNumber, Slider, Tooltip, Typography} from "antd"
-
-const {Text} = Typography
 
 export interface NumberSliderControlProps {
     /** The schema property defining constraints (min, max, type) */
@@ -102,7 +108,8 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     const min = overrideMin ?? constraints.min
     const max = overrideMax ?? constraints.max
     const step = overrideStep ?? constraints.step
-    const precision = schema?.type === "integer" ? 0 : undefined
+    // antd's `precision` is deferred on the @agenta/ui InputNumber; `step` does the constraining.
+    const labelId = useId()
 
     // Get description from schema or prop
     const tooltipText =
@@ -129,48 +136,56 @@ export const NumberSliderControl = memo(function NumberSliderControl({
     const content = (
         <div className={cn(flexLayouts.column, gapClasses.xs, className)}>
             <div className={cn(flexLayouts.rowCenter, "justify-between")}>
-                <Text className={cn("font-medium", textColors.primary)}>{label}</Text>
+                <span id={labelId} className={cn("font-medium text-xs", textColors.primary)}>
+                    {label}
+                </span>
                 <div className={cn(flexLayouts.rowCenter, gapClasses.xs)}>
                     <InputNumber
                         min={min}
                         max={max}
                         step={step}
-                        precision={precision}
                         value={localValue}
                         onChange={handleValueChange}
                         disabled={disabled}
-                        style={{width: 70}}
+                        aria-labelledby={labelId}
+                        className="w-[70px]"
                         placeholder={placeholder}
                     />
                     {allowClear && localValue !== null && (
                         <Button
-                            icon={<X size={14} />}
-                            type="text"
-                            size="small"
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => handleValueChange(null)}
                             disabled={disabled}
                             aria-label={`Reset ${label}`}
-                        />
+                        >
+                            <X size={14} />
+                        </Button>
                     )}
                 </div>
             </div>
+            {/* Radix reports an array of thumb values; this control has exactly one thumb. */}
             <Slider
                 min={min}
                 max={max}
                 step={step}
-                value={localValue ?? min}
-                onChange={handleValueChange}
+                value={[localValue ?? min]}
+                onValueChange={(next) => handleValueChange(next[0])}
                 disabled={disabled}
-                className="!my-0"
+                aria-labelledby={labelId}
+                className="my-0"
             />
         </div>
     )
 
     if (withTooltip && tooltipText && label) {
         return (
-            <Tooltip title={tooltipText} placement="right">
-                {content}
-            </Tooltip>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>{content}</TooltipTrigger>
+                    <TooltipContent side="right">{tooltipText}</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         )
     }
 

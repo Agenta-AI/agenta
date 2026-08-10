@@ -1,9 +1,8 @@
 import {useState} from "react"
 
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
 import {Button, Flex, Splitter} from "antd"
-
-import EnhancedDrawer from "../EnhancedUIs/Drawer"
 
 import {GenericDrawerProps} from "./types"
 
@@ -18,9 +17,9 @@ const GenericDrawer = ({
 
     return (
         <EnhancedDrawer
-            closeIcon={null}
+            closable={false}
             destroyOnHidden
-            size={drawerWidth}
+            width={drawerWidth}
             title={
                 <Flex gap={12} justify="space-between" align="center">
                     <Button

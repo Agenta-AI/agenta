@@ -9,9 +9,12 @@ import {useAtomValue} from "jotai"
 import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
 
 import {isAgentChatSteerEnabled} from "../assets/constants"
-import {partToolName, resolveToolDisplay} from "../assets/toolDisplay"
+import {canonicalToolName, partToolName, resolveToolDisplay} from "../assets/toolDisplay"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
+import ApprovedContentManifest, {
+    parseApprovedContentManifest,
+} from "./approvals/ApprovedContentManifest"
 import {resolveApprovalRenderer} from "./approvals/registry"
 
 const {Text} = Typography
@@ -20,10 +23,26 @@ export interface PendingApproval {
     approvalId: string
     toolName: string
     input: unknown
+    /** Workspace content the runner resolved and froze for this gate, when the call imports any. */
+    manifest?: unknown
 }
 
 interface ApprovalRef {
     id: string
+}
+
+/** Manifests keyed by toolCallId, from the egress's `data-approval-manifest` sibling parts. */
+const manifestsByToolCallId = (parts: UIMessage["parts"] = []): Map<string, unknown> => {
+    const found = new Map<string, unknown>()
+    for (const part of parts) {
+        if ((part as {type?: string}).type !== "data-approval-manifest") continue
+        const data = (part as {data?: Record<string, unknown>}).data
+        const toolCallId = data?.toolCallId
+        if (typeof toolCallId === "string" && data?.manifest !== undefined) {
+            found.set(toolCallId, data.manifest)
+        }
+    }
+    return found
 }
 
 const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
@@ -37,11 +56,17 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     const last = messages[messages.length - 1]
     if (!last || last.role !== "assistant") return []
     const out: PendingApproval[] = []
+    const manifests = manifestsByToolCallId(last.parts)
     for (const part of last.parts ?? []) {
         const p = part as ToolUIPart
         const approval = (p as {approval?: ApprovalRef}).approval
         if (isToolPart(p.type as string) && p.state === "approval-requested" && approval?.id) {
-            out.push({approvalId: approval.id, toolName: partToolName(p), input: p.input})
+            out.push({
+                approvalId: approval.id,
+                toolName: partToolName(p),
+                input: p.input,
+                manifest: manifests.get(p.toolCallId),
+            })
         }
     }
     return out
@@ -204,11 +229,21 @@ const ApprovalDock = ({
         }
     }, [approvals, resolvingIds])
 
-    // Friendly bodies are Chat-mode (maximized) sugar and need a revision to diff against;
-    // Build and the entityId-less host keep the exact-payload card.
+    // Friendly bodies run in BOTH modes: a raw payload is not a readable change, and Build is the
+    // default mode. They still need a revision to diff against, so the entityId-less host keeps
+    // the exact-payload card. Build gets the compact one-column shape (`compact` below).
     const chatMode = useAtomValue(chatPanelMaximizedAtom)
+    // Canonical name: Claude wraps our tools as `mcp__agenta-tools__<tool>`, and keying the
+    // registry on the raw name dropped every Claude commit back to the exact-payload card.
     const renderer =
-        current && entityId && chatMode ? resolveApprovalRenderer(current.toolName) : null
+        current && entityId ? resolveApprovalRenderer(canonicalToolName(current.toolName)) : null
+    // The manifest is a SIBLING of the payload, never inside it, so the generic card has to render
+    // it itself: the frozen content is what the approval binds, in every mode. Skipped when a
+    // specialized body is active, because that body renders the manifest already.
+    const fallbackManifest = useMemo(
+        () => (renderer ? null : parseApprovedContentManifest(current?.manifest)),
+        [renderer, current?.manifest],
+    )
 
     // Chat-mode display name: raw "scary" names stay Build-only; the shared resolver humanizes
     // gateway/MCP/plain names. Raw name stays reachable via the tooltip and the payload expander.
@@ -305,11 +340,11 @@ const ApprovalDock = ({
                             ) : null}
                         </div>
 
-                        {/* Identity + ask. Build keeps the raw tool name (debuggers steer by it);
-                            Chat folds a humanized name into one sentence — the raw name stays
-                            reachable via the tooltip and the payload expander. A friendly body
-                            (headline: null) already says what's happening — nothing extra. */}
-                        {!renderer && !chatMode ? (
+                        {/* Identity + ask. Build always keeps the raw tool name, friendly body or
+                            not (debuggers steer by it); Chat folds a humanized name into one
+                            sentence — the raw name stays reachable via the tooltip and the payload
+                            expander. A friendly body (headline: null) says the rest. */}
+                        {!chatMode ? (
                             <div className="flex min-w-0 items-center gap-2">
                                 <Text
                                     className="!text-xs !font-medium min-w-0 truncate"
@@ -354,14 +389,21 @@ const ApprovalDock = ({
                                 key={current.approvalId}
                                 input={current.input}
                                 entityId={entityId}
+                                manifest={current.manifest}
+                                compact={!chatMode}
                                 fallback={<PayloadBlock input={current.input} />}
                             />
                         ) : (
-                            <PayloadBlock
-                                key={current.approvalId}
-                                input={current.input}
-                                label={chatMode ? "Details" : "Payload"}
-                            />
+                            <div className="flex min-w-0 flex-col gap-2.5">
+                                <PayloadBlock
+                                    key={current.approvalId}
+                                    input={current.input}
+                                    label={chatMode ? "Details" : "Payload"}
+                                />
+                                {fallbackManifest ? (
+                                    <ApprovedContentManifest manifest={fallbackManifest} />
+                                ) : null}
+                            </div>
                         )}
 
                         {/* Actions: trace on the left, decision on the right; Approve is the single

@@ -23,7 +23,7 @@ import {
   type FetchedAttachment,
 } from "../../sessions/attachments.ts";
 import { attachmentDeliveryUnsupportedMessage } from "./capabilities.ts";
-import type { RunPlan } from "./run-plan.ts";
+import type { RunPlan, RunPlanWorkspace } from "./run-plan.ts";
 import { COLD_FRAME_USER_LABEL } from "./transcript.ts";
 
 export type AttachmentDeliveryOutcome =
@@ -83,8 +83,10 @@ export interface AttachmentSandbox {
   }) => Promise<{ exitCode?: number } | undefined>;
 }
 
-type MaterializePlan = Pick<RunPlan, "cwd" | "isDaytona">;
-type DeliveryPlan = Pick<RunPlan, "cwd" | "isDaytona" | "acpAgent" | "harness">;
+type MaterializePlan = Pick<RunPlan, "isDaytona"> & {
+  workspace: Pick<RunPlanWorkspace, "cwd">;
+};
+type DeliveryPlan = MaterializePlan & Pick<RunPlan, "acpAgent" | "harness">;
 type Auth = () => string;
 type Log = (message: string) => void;
 
@@ -398,7 +400,7 @@ export async function materializeWorkingCopy(
   ref: AttachmentRef,
   bytes: Uint8Array,
 ): Promise<"written" | "exists"> {
-  const path = attachmentWorkingPath(plan.cwd, ref);
+  const path = attachmentWorkingPath(plan.workspace.cwd, ref);
   return plan.isDaytona
     ? daytonaMaterialize(sandbox, path, bytes)
     : localMaterialize(path, bytes);
@@ -637,7 +639,7 @@ async function workingCopyExists(
   plan: MaterializePlan,
   ref: AttachmentRef,
 ): Promise<boolean> {
-  const path = attachmentWorkingPath(plan.cwd, ref);
+  const path = attachmentWorkingPath(plan.workspace.cwd, ref);
   if (plan.isDaytona) {
     if (typeof sandbox.statFs !== "function") return false;
     await rejectDaytonaSymlinks(sandbox, [
@@ -839,7 +841,7 @@ export async function resolveCurrentTurnAttachments(input: {
     const authoritative = verifiedRef(ref, fetched);
     let path: AttachmentPath;
     try {
-      path = attachmentWorkingPath(input.plan.cwd, authoritative);
+      path = attachmentWorkingPath(input.plan.workspace.cwd, authoritative);
       await materializeWorkingCopy(
         input.sandbox,
         input.plan,

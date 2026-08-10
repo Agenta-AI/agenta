@@ -26,6 +26,8 @@ import factory, {
   readOtlpAuthFile,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
+import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
+import { refusedAtGateText } from "../../src/tools/denial-text.ts";
 
 const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_PUBLIC_SPECS",
@@ -37,6 +39,7 @@ const TOOL_ENV = [
   "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
   "AGENTA_AGENT_BUILTIN_ACTIVATION",
   "AGENTA_AGENT_BUILTIN_GATING",
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
 ];
 
 /** A fake extension UI context whose `confirm` records its calls and returns a scripted answer. */
@@ -59,13 +62,18 @@ function fakeDialogCtx(answer: boolean | (() => Promise<boolean>)) {
 
 function fakePi(opts: { activeTools?: string[]; allTools?: string[] } = {}) {
   const registered: any[] = [];
+  const registeredProviders: Array<{ name: string; config: unknown }> = [];
   const handlers: Record<string, any[]> = {};
   let activeTools = opts.activeTools ?? [];
   return {
     registered,
+    registeredProviders,
     handlers,
     registerTool(spec: any) {
       registered.push(spec);
+    },
+    registerProvider(name: string, config: unknown) {
+      registeredProviders.push({ name, config });
     },
     on(event: string, handler: any) {
       (handlers[event] ??= []).push(handler);
@@ -87,6 +95,44 @@ function clearEnv() {
 }
 
 afterEach(clearEnv);
+
+describe("agenta extension model provider override", () => {
+  it("overrides the built-in provider during extension initialization", () => {
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "https://proxy.example.test/anthropic",
+    });
+    const pi = fakePi();
+
+    factory(pi as any);
+
+    assert.deepEqual(pi.registeredProviders, [
+      {
+        name: "anthropic",
+        config: { baseUrl: "https://proxy.example.test/anthropic" },
+      },
+    ]);
+    assert.equal(pi.registered.length, 0);
+    assert.deepEqual(pi.handlers, {});
+  });
+
+  it("rejects malformed public override config before registration", () => {
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "http://proxy.example.test",
+    });
+    const pi = fakePi();
+
+    assert.throws(() => factory(pi as any), /must be an HTTPS URL/);
+    assert.deepEqual(pi.registeredProviders, []);
+
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = "";
+    assert.throws(() => factory(pi as any), /must be valid JSON/);
+    assert.deepEqual(pi.registeredProviders, []);
+  });
+});
 
 describe("agenta extension tool registration", () => {
   it("registers one tool per public spec, schema passed through", () => {
@@ -366,6 +412,10 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       fakeDialogCtx(false).ctx,
     );
     assert.equal(denied.block, true, "deny -> block");
+    // What the model reads. The block is only half the behavior; the reason is the half that
+    // decides whether the model asks the user or gives up on the whole tool.
+    assert.equal(denied.reason, refusedAtGateText("bash"));
+    assert.doesNotMatch(denied.reason, /policy/i);
 
     const threw = await hook(
       builtinEvent("bash", {}),
@@ -380,6 +430,12 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       hasUI: false,
     });
     assert.equal(noUi.block, true, "no UI plane fails closed");
+    // The block is only half of it. A broken approval channel used to answer with a bare
+    // statement of fact and no next step, which is the shape that produced "I'll retry as soon
+    // as that is allowed".
+    assert.match(noUi.reason, /Nothing ran/);
+    assert.match(noUi.reason, /Tell the user the approval step is unavailable/);
+    assert.match(threw.reason, /dialog transport gone/, "the cause survives");
   });
 
   it("custom-tool gate: a deny returns the reason WITHOUT relaying (early return)", async () => {
@@ -409,10 +465,12 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
     assert.equal(envelope.gate, "pi-custom-tool");
     assert.equal(envelope.toolName, "park_probe");
     assert.deepEqual(envelope.input, { token: "T" });
-    assert.ok(
-      result.content[0].text.toLowerCase().includes("denied"),
-      "a denied custom tool returns the deny reason as its result",
-    );
+    // The model-visible text, asserted as the SHARED string rather than by substring. It used to
+    // read "Denied by the permission policy.", which names a decider this side cannot know: a
+    // confirm resolves to a boolean, so a policy deny and a human declining one change are
+    // indistinguishable here. See `refusedAtGateText`.
+    assert.equal(result.content[0].text, refusedAtGateText("park_probe"));
+    assert.doesNotMatch(result.content[0].text, /policy/i);
   });
 
   it("custom-tool gate: a malformed call errors to the model BEFORE the dialog is raised", async () => {

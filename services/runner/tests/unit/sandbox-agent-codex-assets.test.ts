@@ -9,7 +9,7 @@ import {
   readFileSync,
   readlinkSync,
   rmSync,
-  statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,6 +22,8 @@ import {
   configureCodexHome,
   configureDaytonaCodexEnv,
   codexDaytonaSqliteHomeDir,
+  CODEX_SUBSCRIPTION_LOGIN_UNUSABLE_MESSAGE,
+  describeCodexSubscriptionAuthFault,
   isManagedCodexRun,
   isSubscriptionCodexRun,
   symlinkCodexSubscriptionAuthFile,
@@ -43,9 +45,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -75,9 +77,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "claude",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -95,9 +97,9 @@ describe("Codex managed-credential assets", () => {
     };
     const plan = {
       acpAgent: "codex",
-      credentialMode: "runtime_provided",
+      credentials: { credentialMode: "runtime_provided" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -119,9 +121,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -135,9 +137,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: true,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -154,9 +156,9 @@ describe("Codex managed-credential assets", () => {
     const env: Record<string, string> = {};
     const plan = {
       acpAgent: "codex",
-      credentialMode: "env",
+      credentials: { credentialMode: "env" },
       isDaytona: false,
-      cwd,
+      workspace: { cwd },
       secrets: { OPENAI_API_KEY: "sk-live" },
       legacyHarnessApiKeyVar: "OPENAI_API_KEY",
     } as any;
@@ -171,35 +173,35 @@ describe("Codex managed-credential assets", () => {
     assert.equal(
       isManagedCodexRun({
         acpAgent: "codex",
-        credentialMode: "env",
+        credentials: { credentialMode: "env" },
       } as any),
       true,
     );
     assert.equal(
       isManagedCodexRun({
         acpAgent: "codex",
-        credentialMode: "none",
+        credentials: { credentialMode: "none" },
       } as any),
       true,
     );
     assert.equal(
       isManagedCodexRun({
         acpAgent: "codex",
-        credentialMode: undefined,
+        credentials: { credentialMode: undefined },
       } as any),
       true,
     );
     assert.equal(
       isManagedCodexRun({
         acpAgent: "codex",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
       } as any),
       false,
     );
     assert.equal(
       isManagedCodexRun({
         acpAgent: "claude",
-        credentialMode: "env",
+        credentials: { credentialMode: "env" },
       } as any),
       false,
     );
@@ -209,21 +211,21 @@ describe("Codex managed-credential assets", () => {
     assert.equal(
       isSubscriptionCodexRun({
         acpAgent: "codex",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
       } as any),
       true,
     );
     assert.equal(
       isSubscriptionCodexRun({
         acpAgent: "codex",
-        credentialMode: "env",
+        credentials: { credentialMode: "env" },
       } as any),
       false,
     );
     assert.equal(
       isSubscriptionCodexRun({
         acpAgent: "claude",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
       } as any),
       false,
     );
@@ -251,13 +253,13 @@ describe("Codex managed-credential assets", () => {
     const subPlan = () =>
       ({
         acpAgent: "codex",
-        credentialMode: "runtime_provided",
+        credentials: { credentialMode: "runtime_provided" },
         isDaytona: false,
-        cwd,
+        workspace: { cwd },
       }) as any;
 
-    it("symlinks <cwd>/.codex/auth.json to the mount's auth.json and links nothing else", () => {
-      symlinkCodexSubscriptionAuthFile(subPlan());
+    it("symlinks <cwd>/.codex/auth.json to the mount's auth.json and links nothing else", async () => {
+      await symlinkCodexSubscriptionAuthFile(subPlan());
       const linkPath = join(codexHomeDir(cwd), "auth.json");
 
       assert.equal(lstatSync(linkPath).isSymbolicLink(), true);
@@ -270,42 +272,193 @@ describe("Codex managed-credential assets", () => {
       });
     });
 
-    it("does not clobber a pre-existing auth.json (idempotent across resume)", () => {
+    it("replaces the 0-byte file geesefs leaves behind, so a resumed session re-authenticates (#5692)", async () => {
+      // The durable cwd is object storage, which has no symlinks: the link the first turn created
+      // comes back from the store as an ordinary empty file. An existence check would treat that
+      // as "already linked" and the run would read an empty token file forever.
       const home = codexHomeDir(cwd);
       mkdirSync(home, { recursive: true });
-      writeFileSync(join(home, "auth.json"), '{"sentinel":true}');
+      const linkPath = join(home, "auth.json");
+      writeFileSync(linkPath, "");
 
-      symlinkCodexSubscriptionAuthFile(subPlan());
+      await symlinkCodexSubscriptionAuthFile(subPlan());
 
-      assert.equal(lstatSync(join(home, "auth.json")).isSymbolicLink(), false);
+      assert.equal(lstatSync(linkPath).isSymbolicLink(), true);
+      assert.equal(readlinkSync(linkPath), join(mount, "auth.json"));
+      assert.deepEqual(JSON.parse(readFileSync(linkPath, "utf-8")), {
+        tokens: { access_token: "x" },
+      });
+      // Self-healing never touches the operator's own login file.
+      assert.deepEqual(
+        JSON.parse(readFileSync(join(mount, "auth.json"), "utf-8")),
+        { tokens: { access_token: "x" } },
+      );
     });
 
-    it("is a no-op when CODEX_HOME (the mount) is unset", () => {
+    it("replaces a symlink pointing at a stale mount path", async () => {
+      const home = codexHomeDir(cwd);
+      mkdirSync(home, { recursive: true });
+      const linkPath = join(home, "auth.json");
+      symlinkSync("/mnt/old-codex-home/auth.json", linkPath);
+
+      await symlinkCodexSubscriptionAuthFile(subPlan());
+
+      assert.equal(readlinkSync(linkPath), join(mount, "auth.json"));
+    });
+
+    it("leaves a correct link alone, including while its target is missing", async () => {
+      // A dangling-but-correct link is kept: the operator mount may not be readable yet, and the
+      // path it points at is still the right one.
+      rmSync(join(mount, "auth.json"));
+      await symlinkCodexSubscriptionAuthFile(subPlan());
+      const linkPath = join(codexHomeDir(cwd), "auth.json");
+      const firstIno = lstatSync(linkPath).ino;
+
+      await symlinkCodexSubscriptionAuthFile(subPlan());
+
+      assert.equal(lstatSync(linkPath).isSymbolicLink(), true);
+      assert.equal(readlinkSync(linkPath), join(mount, "auth.json"));
+      assert.equal(lstatSync(linkPath).ino, firstIno, "link was not recreated");
+    });
+
+    it("logs the link line only when it actually (re)links", async () => {
+      const logs: string[] = [];
+      await symlinkCodexSubscriptionAuthFile(subPlan(), (m) => logs.push(m));
+      await symlinkCodexSubscriptionAuthFile(subPlan(), (m) => logs.push(m));
+
+      assert.equal(logs.length, 1);
+      assert.match(logs[0], /codex subscription auth\.json symlinked/);
+    });
+
+    it("is a no-op when CODEX_HOME (the mount) is unset", async () => {
       delete process.env.CODEX_HOME;
-      symlinkCodexSubscriptionAuthFile(subPlan());
+      await symlinkCodexSubscriptionAuthFile(subPlan());
       assert.equal(existsSync(join(codexHomeDir(cwd), "auth.json")), false);
     });
 
-    it("is a no-op for a managed run, a Daytona subscription run, and a non-codex run", () => {
+    it("is a no-op for a managed run, a Daytona subscription run, and a non-codex run", async () => {
       const plans = [
-        { acpAgent: "codex", credentialMode: "env", isDaytona: false, cwd },
         {
           acpAgent: "codex",
-          credentialMode: "runtime_provided",
+          credentials: { credentialMode: "env" },
+          isDaytona: false,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "codex",
+          credentials: { credentialMode: "runtime_provided" },
           isDaytona: true,
-          cwd,
+          workspace: { cwd },
         },
         {
           acpAgent: "claude",
-          credentialMode: "runtime_provided",
+          credentials: { credentialMode: "runtime_provided" },
           isDaytona: false,
-          cwd,
+          workspace: { cwd },
         },
       ] as any[];
       for (const plan of plans) {
-        symlinkCodexSubscriptionAuthFile(plan);
+        await symlinkCodexSubscriptionAuthFile(plan);
       }
       assert.equal(existsSync(join(codexHomeDir(cwd), "auth.json")), false);
+    });
+  });
+
+  describe("describeCodexSubscriptionAuthFault", () => {
+    let mount: string;
+    let savedCodexHome: string | undefined;
+
+    beforeEach(() => {
+      mount = mkdtempSync(join(tmpdir(), "codex-mount-"));
+      savedCodexHome = process.env.CODEX_HOME;
+      process.env.CODEX_HOME = mount;
+      mkdirSync(codexHomeDir(cwd), { recursive: true });
+    });
+
+    afterEach(() => {
+      if (savedCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = savedCodexHome;
+      rmSync(mount, { recursive: true, force: true });
+    });
+
+    const subPlan = () =>
+      ({
+        acpAgent: "codex",
+        credentials: { credentialMode: "runtime_provided" },
+        isDaytona: false,
+        workspace: { cwd },
+      }) as any;
+
+    it("reports the empty login instead of a missing key, and names no secret", () => {
+      writeFileSync(join(mount, "auth.json"), "");
+      symlinkSync(
+        join(mount, "auth.json"),
+        join(codexHomeDir(cwd), "auth.json"),
+      );
+
+      const fault = describeCodexSubscriptionAuthFault(subPlan());
+
+      assert.equal(fault, CODEX_SUBSCRIPTION_LOGIN_UNUSABLE_MESSAGE);
+      assert.match(fault!, /empty or unreadable/);
+      assert.equal(/vault|api key/i.test(fault!), false);
+      assert.equal(fault!.includes(cwd), false);
+    });
+
+    it("reports an unreadable login (missing file / dangling link)", () => {
+      symlinkSync(
+        join(mount, "auth.json"),
+        join(codexHomeDir(cwd), "auth.json"),
+      );
+      assert.equal(
+        describeCodexSubscriptionAuthFault(subPlan()),
+        CODEX_SUBSCRIPTION_LOGIN_UNUSABLE_MESSAGE,
+      );
+
+      // A read that fails outright (e.g. EACCES on the mount) reads the same to the run.
+      assert.equal(
+        describeCodexSubscriptionAuthFault(subPlan(), {
+          stat: (() => {
+            throw Object.assign(new Error("denied"), { code: "EACCES" });
+          }) as any,
+        }),
+        CODEX_SUBSCRIPTION_LOGIN_UNUSABLE_MESSAGE,
+      );
+    });
+
+    it("stays silent when the login is readable: that failure is something else", () => {
+      writeFileSync(join(mount, "auth.json"), '{"tokens":{"access_token":"x"}}');
+      symlinkSync(
+        join(mount, "auth.json"),
+        join(codexHomeDir(cwd), "auth.json"),
+      );
+
+      assert.equal(describeCodexSubscriptionAuthFault(subPlan()), undefined);
+    });
+
+    it("stays silent for managed, Daytona, and non-codex runs", () => {
+      const plans = [
+        {
+          acpAgent: "codex",
+          credentials: { credentialMode: "env" },
+          isDaytona: false,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "codex",
+          credentials: { credentialMode: "runtime_provided" },
+          isDaytona: true,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "claude",
+          credentials: { credentialMode: "runtime_provided" },
+          isDaytona: false,
+          workspace: { cwd },
+        },
+      ] as any[];
+      for (const plan of plans) {
+        assert.equal(describeCodexSubscriptionAuthFault(plan), undefined);
+      }
     });
   });
 
@@ -314,9 +467,9 @@ describe("Codex managed-credential assets", () => {
       const env: Record<string, string> = {};
       const plan = {
         acpAgent: "codex",
-        credentialMode: "env",
+        credentials: { credentialMode: "env" },
         isDaytona: true,
-        cwd,
+        workspace: { cwd },
       } as any;
 
       configureDaytonaCodexEnv(plan, env);
@@ -332,15 +485,30 @@ describe("Codex managed-credential assets", () => {
 
     it("configureDaytonaCodexEnv is a no-op for local, subscription, and non-codex Daytona runs", () => {
       const plans = [
-        { acpAgent: "codex", credentialMode: "env", isDaytona: false, cwd },
         {
           acpAgent: "codex",
-          credentialMode: "runtime_provided",
-          isDaytona: true,
-          cwd,
+          credentials: { credentialMode: "env" },
+          isDaytona: false,
+          workspace: { cwd },
         },
-        { acpAgent: "claude", credentialMode: "env", isDaytona: true, cwd },
-        { acpAgent: "pi", credentialMode: "env", isDaytona: true, cwd },
+        {
+          acpAgent: "codex",
+          credentials: { credentialMode: "runtime_provided" },
+          isDaytona: true,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "claude",
+          credentials: { credentialMode: "env" },
+          isDaytona: true,
+          workspace: { cwd },
+        },
+        {
+          acpAgent: "pi",
+          credentials: { credentialMode: "env" },
+          isDaytona: true,
+          workspace: { cwd },
+        },
       ] as any[];
       for (const plan of plans) {
         const env: Record<string, string> = {};
@@ -357,9 +525,9 @@ describe("Codex managed-credential assets", () => {
       configureDaytonaCodexEnv(
         {
           acpAgent: "codex",
-          credentialMode: "env",
+          credentials: { credentialMode: "env" },
           isDaytona: true,
-          cwd,
+          workspace: { cwd },
         } as any,
         env,
       );

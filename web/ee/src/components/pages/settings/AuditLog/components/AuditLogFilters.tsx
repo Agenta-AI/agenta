@@ -17,11 +17,12 @@ import {
     requestIdFilterAtom,
     requestTypeFilterAtom,
 } from "@agenta/entities/event"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {Cascader} from "@agenta/ui/ui"
 import {ArrowsClockwiseIcon} from "@phosphor-icons/react"
-import {Cascader, Input} from "antd"
+import {Input} from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
 
 const HIDDEN_EVENT_TYPE_PREFIXES = ["applications.revisions.", "evaluators.revisions."]
@@ -125,7 +126,10 @@ const AuditLogFilters = ({onRefresh}: AuditLogFiltersProps) => {
             <Cascader
                 allowClear
                 showSearch
-                className="w-[280px] [&_.ant-select-selection-item]:font-mono"
+                aria-label="Event type"
+                // `[data-slot=cascader-value]` is the @agenta/ui trigger's selected-value node —
+                // the replacement for antd's `.ant-select-selection-item`.
+                className="w-[280px] [&_[data-slot=cascader-value]]:font-mono"
                 displayRender={renderEventTypePath}
                 placeholder="Event"
                 value={eventTypeToCascaderValue(eventType)}

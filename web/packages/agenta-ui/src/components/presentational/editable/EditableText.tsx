@@ -21,13 +21,23 @@
  *   placeholder="Enter name..."
  * />
  * ```
+ *
+ * antd → @agenta/ui mapping (pre-migration body: antd `Tooltip` + `Typography.Text`, NOT
+ * `Typography.Text editable` — this control has never had antd's pencil button + textarea):
+ * `Tooltip` → Radix `Tooltip`, `Typography.Text` → plain `<span>`, `Input size="small"` →
+ * `Input size="sm"`. Geometry, the click-to-edit affordance (`cursor-pointer` +
+ * hover colour/underline), the "Click to edit" tooltip, the italic placeholder, and the
+ * fixed `w-32` edit input are all carried over unchanged.
+ * Two deliberate deviations from the pre-migration render:
+ *  - text is `text-xs` (12px), was `text-sm` — the app-wide default UI size.
+ *  - `hover:text-blue-600` / `text-gray-400` → the semantic `colorPrimary` /
+ *    `colorTextTertiary` tokens, so both themes are covered.
  */
 
 import {useState, useEffect, useCallback} from "react"
 
-import {Input, Tooltip, Typography} from "antd"
-
-const {Text} = Typography
+import {Input} from "../../ui/input"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 export interface EditableTextProps {
     /** Current value */
@@ -122,29 +132,36 @@ export function EditableText({
     if (isEditing) {
         return (
             <Input
-                size="small"
+                size="sm"
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}
                 autoFocus
-                className={`${inputWidth} ${monospace ? "font-mono" : ""} text-sm`}
+                className={`${inputWidth} ${monospace ? "font-mono" : ""} text-xs`}
             />
         )
     }
 
     return (
-        <Tooltip title={tooltip}>
-            <Text
-                className={`text-sm cursor-pointer hover:text-blue-600 hover:underline ${
-                    monospace ? "font-mono" : ""
-                } ${className}`}
-                onClick={handleStartEdit}
-            >
-                {value || <span className="text-gray-400 italic">{placeholder}</span>}
-            </Text>
-        </Tooltip>
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span
+                        className={`text-xs cursor-pointer hover:text-colorPrimary hover:underline ${
+                            monospace ? "font-mono" : ""
+                        } ${className}`}
+                        onClick={handleStartEdit}
+                    >
+                        {value || (
+                            <span className="text-colorTextTertiary italic">{placeholder}</span>
+                        )}
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent>{tooltip}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }
 

@@ -13,6 +13,9 @@
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
+
 import type {
   AgentEvent,
   AgentRunRequest,
@@ -28,10 +31,16 @@ import {
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
   computeCredentialEpoch,
+  configFingerprint,
   mountExpiryMs,
   type InstalledMountExpiries,
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  appliedStateForRequest,
+  AppliedState,
+  type AppliedEnvironmentState,
+} from "../../src/engines/sandbox_agent/applied-state.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import {
   acquireEnvironment,
@@ -97,6 +106,9 @@ interface TurnScript {
 
 interface DispatchFakeEnv {
   id: number;
+  /** The environment owns what it applied (lifecycle migration, step 2). The pool reads it. */
+  readonly appliedState: AppliedEnvironmentState;
+  commitApplied: (result: AppliedCommit) => void;
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
@@ -135,9 +147,16 @@ function makeApprovalEngine(
   const holds = new Map<number, () => void>();
 
   let nextEnvId = 1;
-  const makeEnv = (): DispatchFakeEnv => {
+  // Seeded from the acquiring request, exactly as `prepareEnvironmentSetup` does. The approval
+  // tests care about this most: a resume must NOT be able to move it.
+  const makeEnv = (request: AgentRunRequest): DispatchFakeEnv => {
+    const applied = appliedStateForRequest(request);
     const env: DispatchFakeEnv = {
       id: nextEnvId++,
+      get appliedState() {
+        return applied.appliedState;
+      },
+      commitApplied: (result) => applied.commitApplied(result),
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
@@ -248,9 +267,9 @@ function makeApprovalEngine(
       calls.resolveMount += 1;
       return signedMount();
     },
-    async acquireEnvironment(_request, _signal, _presigned) {
+    async acquireEnvironment(request, _signal, _presigned) {
       calls.acquire += 1;
-      const env = makeEnv();
+      const env = makeEnv(request);
       const expiry = mountExpiryMs(mountOpts.expiresAt);
       if (expiry !== undefined) env.installedMountExpiries.cwd = expiry;
       calls.acquiredEnvs.push(env);
@@ -1117,13 +1136,27 @@ describe("runWithKeepalive: an approval park from a last-message-only turn", () 
   });
 });
 
-describe("runWithKeepalive: approval resume ignores re-minted credentials/config", () => {
-  // The "approve twice" bug: every approval reply is a fresh /run carrying freshly minted
-  // short-lived material (gateway/Composio secret VALUES, a per-turn tool-callback bearer), so its
-  // credential epoch — and often its config fingerprint (per-turn tokens embed in it) — never match
-  // the parked session's. The parked live process already holds its own baked credentials; the
-  // resume only delivers the human's yes/no, so a mismatch there must NOT evict the live session.
-  async function parkThenResume(resume: AgentRunRequest) {
+describe("runWithKeepalive: approval credential lifecycle", () => {
+  const modelConnection = (
+    value: string,
+  ): NonNullable<AgentRunRequest["modelConnection"]> => ({
+    provider: "openai",
+    deployment: "direct",
+    endpoint: { baseUrl: "https://api.openai.com/v1" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value,
+        usage: "opaque_http",
+      },
+    ],
+  });
+
+  async function parkThenResume(
+    resume: AgentRunRequest,
+    initial: Partial<AgentRunRequest> = {},
+  ) {
     const { engine, calls } = makeApprovalEngine([
       {
         approvalPause: {
@@ -1136,48 +1169,73 @@ describe("runWithKeepalive: approval resume ignores re-minted credentials/config
       { result: { ok: true, output: "resumed", stopReason: "complete" } },
     ]);
     const ctx = makeCtx(engine);
-    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    await runWithKeepalive(
+      { ...pauseTurn(), ...initial },
+      undefined,
+      undefined,
+      ctx,
+    );
     const env1 = calls.acquiredEnvs[0];
     const r2 = await runWithKeepalive(resume, undefined, undefined, ctx);
     return { calls, env1, ctx, r2 };
   }
 
-  it("resumes LIVE when the resume carries a DIFFERENT credential epoch AND config fingerprint but a matching decision + history", async () => {
-    // The resume request re-mints a fresh tool-callback bearer (changes both the config fingerprint
-    // via toolCallback.endpoint and the credential epoch via secrets + toolCallback.authorization).
+  it("resumes live when only per-turn callback authorization rotates", async () => {
     const { calls, env1, r2 } = await parkThenResume(
       approveResume(true, {
         toolCallback: {
           endpoint: "https://gateway/tools/call",
           authorization: "fresh-per-turn-bearer",
         },
-        secrets: { OPENAI_API_KEY: "sk-freshly-minted" },
       }),
+      {
+        toolCallback: {
+          endpoint: "https://gateway/tools/call",
+          authorization: "original-per-turn-bearer",
+        },
+      },
     );
     assert.equal(r2.ok, true);
     assert.equal(
       calls.acquire,
       1,
-      "no cold re-acquire; the live parked session was reused",
+      "transient auth does not recreate the sandbox",
     );
-    assert.equal(env1.destroyed, 0, "the parked session was NOT evicted");
-    assert.equal(
-      calls.resumes.length,
-      1,
-      "the gate was answered live exactly once (respondPermission)",
-    );
-    assert.equal(calls.resumes[0].reply, "once");
-    assert.equal(calls.resumes[0].permissionId, "perm-1");
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.resumes.length, 1, "the parked gate is answered live");
   });
 
-  it("a changed model on the resume still resumes live (config fingerprint no longer gates the approval branch)", async () => {
+  it("evicts and cold-acquires when a model credential baked into the sandbox rotates", async () => {
+    const { calls, env1, r2 } = await parkThenResume(
+      approveResume(true, { modelConnection: modelConnection("sk-model-b") }),
+      { modelConnection: modelConnection("sk-model-a") },
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(
+      env1.destroyed,
+      1,
+      "the stale credential environment is evicted",
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "the approval request cold-acquires with the new key",
+    );
+    assert.equal(
+      calls.resumes.length,
+      0,
+      "the stale live gate is never answered",
+    );
+  });
+
+  it("a changed model without credential rotation still resumes live", async () => {
     const { calls, env1, r2 } = await parkThenResume(
       approveResume(true, { model: "m2" }),
     );
     assert.equal(r2.ok, true);
-    assert.equal(calls.acquire, 1, "no cold re-acquire");
-    assert.equal(env1.destroyed, 0, "the parked session was reused");
-    assert.equal(calls.resumes.length, 1, "answered live exactly once");
+    assert.equal(calls.acquire, 1);
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.resumes.length, 1);
   });
 
   it("the repark after a resume keeps the parked secrets hash AND the installed mount lease", async () => {
@@ -1202,13 +1260,23 @@ describe("runWithKeepalive: approval resume ignores re-minted credentials/config
     const ctx = makeCtx(engine);
     const paused: AgentRunRequest = {
       ...pauseTurn(),
-      secrets: { ANTHROPIC_API_KEY: "baked-at-acquire" },
+      modelConnection: modelConnection("baked-at-acquire"),
+      toolCallback: {
+        endpoint: "https://gateway/tools/call",
+        authorization: "original-per-turn-bearer",
+      },
     };
     await runWithKeepalive(paused, undefined, undefined, ctx);
     assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
 
+    // Same baked model credential (a rotated one would rightly evict), but re-minted per-turn
+    // callback authorization — transient material the epoch hash deliberately excludes.
     const resume = approveResume(true, {
-      secrets: { ANTHROPIC_API_KEY: "re-minted-on-the-resume" },
+      modelConnection: modelConnection("baked-at-acquire"),
+      toolCallback: {
+        endpoint: "https://gateway/tools/call",
+        authorization: "re-minted-on-the-resume",
+      },
     });
     const r2 = await runWithKeepalive(resume, undefined, undefined, ctx);
     assert.equal(r2.ok, true);
@@ -1216,14 +1284,18 @@ describe("runWithKeepalive: approval resume ignores re-minted credentials/config
 
     const parked = ctx.pool.get(POOL_KEY)!;
     assert.equal(
-      parked.credentialEpoch.secretsHash,
-      computeCredentialEpoch(paused).secretsHash,
-      "the repark keeps the hash of the secrets the environment actually baked",
+      parked.credentialEpoch.secrets.equals(
+        computeCredentialEpoch(paused).secrets,
+      ),
+      true,
+      "the repark keeps the secrets the environment actually baked",
     );
-    assert.notEqual(
-      parked.credentialEpoch.secretsHash,
-      computeCredentialEpoch(resume).secretsHash,
-      "the resume's re-minted secrets never entered this environment",
+    assert.equal(
+      computeCredentialEpoch(resume).secrets.equals(
+        parked.credentialEpoch.secrets,
+      ),
+      true,
+      "the re-minted per-turn bearer never enters the baked-credential material",
     );
     assert.equal(
       parked.credentialEpoch.mountExpiresAtMs,
@@ -1494,6 +1566,8 @@ function pausableHarness(
     logs: [] as string[],
     resolvePrompt: undefined as ((value: unknown) => void) | undefined,
     promptCount: 0,
+    /** Ordered marks for the settle-before-terminal-record invariant (see the test at the end). */
+    journal: [] as string[],
   };
   const captured = {
     onEvent: undefined as ((event: any) => void) | undefined,
@@ -1626,6 +1700,8 @@ function pausableHarness(
       },
       setUsage() {},
       finish() {
+        // The real otel hands the terminal `done` straight to its sink here.
+        calls.journal.push("done");
         return "assistant output";
       },
       recordError() {},
@@ -2023,6 +2099,187 @@ describe("runTurn: real approval park + respondPermission resume", () => {
       });
       const resumed = await resumedTurn;
       assert.equal(resumed.ok, true);
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("resolves an in-band answer the harness never re-gated (the orphan fix)", async () => {
+    // The live orphan: a mobile resume trips `approval-mismatch (history)`, evicts, and runs
+    // COLD. The transcript already holds the human's answer, so the agent just proceeds and no
+    // permission request is ever raised — nothing calls the reply path. Meanwhile the turn-start
+    // stale sweep EXEMPTED this token on the promise that the resume would resolve it, so the
+    // row is left `pending` forever, actionable in both inboxes. The turn must settle it itself.
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const coldResume: AgentRunRequest = {
+        harness: "claude",
+        model: "m1",
+        sessionId: "sess-orphan",
+        turnId: "turn-cold-replay",
+        ...auth,
+        messages: [
+          { role: "user", content: "do X" },
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                output: { approved: true, interactionToken: "tok-orphan" },
+              },
+            ],
+          },
+        ],
+      };
+      const acquired = await acquireEnvironment(coldResume, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      // No `resume` opts and NO permission request: exactly a cold replay whose agent proceeds.
+      const turn = runTurn(env, coldResume, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await turn;
+      assert.equal(result.ok, true);
+      assert.notEqual(result.stopReason, "paused");
+      for (
+        let attempt = 0;
+        attempt < 10 &&
+        !posted.some(({ url }) =>
+          url.endsWith("/sessions/interactions/transition"),
+        );
+        attempt += 1
+      ) {
+        await flush();
+      }
+
+      const settled = posted.filter(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.equal(settled.length, 1, JSON.stringify(posted));
+      // `resolved` with the human's real verdict — NOT `cancelled`, which would record a granted
+      // approval as abandoned.
+      assert.deepEqual(settled[0].body, {
+        session_id: "sess-orphan",
+        token: "tok-orphan",
+        status: "resolved",
+        resolution: { verdict: "approved", tool_call_id: "tc-gate" },
+      });
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("does not double-settle a gate the reply path already resolved", async () => {
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps, captured } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const coldResume: AgentRunRequest = {
+        harness: "claude",
+        model: "m1",
+        sessionId: "sess-once",
+        turnId: "turn-cold-regate",
+        ...auth,
+        messages: [
+          { role: "user", content: "do X" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_call",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                input: { message: "hi" },
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                input: { message: "hi" },
+                output: { approved: true, interactionToken: "tok-once" },
+              },
+            ],
+          },
+        ],
+      };
+      const acquired = await acquireEnvironment(coldResume, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const turn = runTurn(env, coldResume, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      // The harness DOES re-raise the same call: the stored decision map answers it and the reply
+      // path resolves the row. The turn-end settle must then be a no-op, not a second write.
+      captured.onPermissionRequest!({
+        id: "perm-regate",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          toolCallId: "tc-gate",
+          name: "commit",
+          rawInput: { message: "hi" },
+        },
+      });
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await turn;
+      assert.equal(result.ok, true);
+      for (let attempt = 0; attempt < 10; attempt += 1) await flush();
+
+      const settled = posted.filter(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.equal(settled.length, 1, JSON.stringify(settled));
+      assert.equal(settled[0].body["token"], "tok-once");
       await env.destroy();
     } finally {
       fetchSpy.mockRestore();
@@ -3315,5 +3572,75 @@ describe("runTurn: real approval park + respondPermission resume", () => {
     );
 
     await env.destroy();
+  });
+});
+
+describe("runTurn: the in-band settle lands before the terminal record", () => {
+  it("resolves the durable row before finish() publishes `done`", async () => {
+    const TOKEN = "tok-inband-order";
+    const TOOL_CALL_ID = "toolu_inband_1";
+    const { calls, deps } = pausableHarness();
+
+    // A cold replay: the transcript already carries the human's yes, so the harness never
+    // re-raises the gate and only the end-of-turn settle can transition the row.
+    const request: AgentRunRequest = {
+      ...engineReq,
+      telemetry: {
+        exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+      },
+      messages: [
+        { role: "user", content: "write out.txt" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: TOOL_CALL_ID,
+              toolName: "Write",
+              input: { path: "out.txt" },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: TOOL_CALL_ID,
+              toolName: "Write",
+              output: { approved: true, interactionToken: TOKEN },
+            },
+          ],
+        },
+      ],
+    } as AgentRunRequest;
+
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: any) => {
+      if (String(input).includes("/sessions/interactions/transition")) {
+        calls.journal.push("resolve");
+      }
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const turn = runTurn(acquired.env, request, undefined, undefined, {});
+      await flush();
+      calls.resolvePrompt?.({});
+      await turn;
+      await acquired.env.destroy();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    assert.deepEqual(
+      calls.journal,
+      ["resolve", "done"],
+      "the API cancels a still-pending gate the moment it consumes `done`; settling after that " +
+        "files a decision the human actually made as an abandonment",
+    );
   });
 });

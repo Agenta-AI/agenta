@@ -21,21 +21,12 @@ import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {getEffectiveAuthConfig} from "@/oss/lib/helpers/dynamicEnv"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import type {AuthUpgradeDetail} from "@/oss/state/org/authUpgrade"
 import {useProfileData} from "@/oss/state/profile"
 
-const {Text} = Typography
+export type {AuthUpgradeDetail}
 
-export interface AuthUpgradeDetail {
-    message?: string
-    required_methods?: string[]
-    session_identities?: string[]
-    user_identities?: string[]
-    sso_providers?: {
-        id: string
-        slug: string
-        third_party_id?: string
-    }[]
-}
+const {Text} = Typography
 
 interface AuthUpgradeModalProps {
     open: boolean

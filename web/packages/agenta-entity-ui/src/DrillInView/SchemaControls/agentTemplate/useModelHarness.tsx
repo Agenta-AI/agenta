@@ -21,16 +21,7 @@ import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {
-    ArrowCounterClockwise,
-    Check,
-    Cube,
-    Lightbulb,
-    ShieldCheck,
-    Sparkle,
-    Warning,
-} from "@phosphor-icons/react"
-import {Alert, Button, Popconfirm, Select, Typography} from "antd"
+import {Check, Cube, Lightbulb, ShieldCheck, Sparkle, Warning} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
@@ -59,7 +50,10 @@ import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
+import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
+import {PermissionPolicySelect} from "./PermissionPolicySelect"
 import ProviderCredentialsSection from "./ProviderCredentialsSection"
+import {RevertGroupButton} from "./RevertGroupButton"
 import {useBuildKit} from "./useBuildKit"
 
 // Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
@@ -389,18 +383,7 @@ export function useModelHarness({
             : null
         return PERMISSION_POLICY_OPTIONS.filter(
             (option) => !schemaValues || schemaValues.has(option.value),
-        ).map((option) => ({
-            value: option.value,
-            title: option.label,
-            label: (
-                <div className="flex flex-col py-0.5">
-                    <span>{option.label}</span>
-                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
-                        {option.help}
-                    </span>
-                </div>
-            ),
-        }))
+        ).map((option) => ({value: option.value, title: option.label, help: option.help}))
     }, [runnerPermissionSchema])
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
     const runnerPermissionSummary = PERMISSION_POLICY_OPTIONS.find(
@@ -449,31 +432,9 @@ export function useModelHarness({
     const revertHarnessKind = useRevertUnder("harness.kind")
     const revertModel = useRevertUnder("llm.model")
     const revertCredentials = useRevertUnder("llm.connection")
-    // Confirmed, because unlike the per-row undo (which is reached THROUGH the popover showing the
-    // exact value it restores — see `RailField`) this one discards every change in the group at once
-    // and names none of them.
+    // Confirmed — see `RevertGroupButton`, which owns the confirm step.
     const revertAction = (onRevert: (() => void) | null) =>
-        onRevert ? (
-            <Popconfirm
-                title="Revert this group?"
-                description="Every unsaved change in it goes back to the committed value."
-                okText="Revert"
-                cancelText="Cancel"
-                placement="bottomRight"
-                onConfirm={onRevert}
-            >
-                <Button
-                    type="text"
-                    icon={<ArrowCounterClockwise size={13} />}
-                    // The header is a toggle — don't collapse the group while undoing inside it.
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={disabled}
-                    className="!h-auto !px-1 !py-0.5 !text-[11px] !text-[var(--ag-colorTextSecondary)]"
-                >
-                    Revert
-                </Button>
-            </Popconfirm>
-        ) : undefined
+        onRevert ? <RevertGroupButton onConfirm={onRevert} disabled={disabled} /> : undefined
 
     // FOCUS (see FocusPathsContext): when a surface narrows to the properties that matter — e.g. the
     // config panel showing only what changed — a group renders only if it owns one of them, and the
@@ -739,27 +700,15 @@ export function useModelHarness({
         <div className="flex flex-col gap-2 py-0.5">
             {modelControl}
             {!focus.active && hasInspectModels ? (
-                <Typography.Text type="secondary" className="!text-[11px] !leading-snug">
+                <span className="text-[11px] leading-snug text-colorTextDescription">
                     Filtered to the models this harness can reach. Selecting a model also sets its
                     provider.
-                </Typography.Text>
+                </span>
             ) : null}
         </div>
     )
 
-    const catalogUnavailableNotice = (
-        <Alert
-            type="warning"
-            showIcon
-            message="Couldn't load the model catalog"
-            description="The harness and model options come from the server. Until it responds, only the basic controls are available."
-            action={
-                <Button size="small" onClick={() => retryCatalog()}>
-                    Retry
-                </Button>
-            }
-        />
-    )
+    const catalogUnavailableNotice = <CatalogUnavailableNotice onRetry={() => retryCatalog()} />
 
     const modelHarnessControls = capabilities ? (
         <>
@@ -938,7 +887,7 @@ export function useModelHarness({
         <>
             {runnerPermissionSchema ? (
                 <RailField label="Policy" align="center" path="runner.permissions.default">
-                    <Select<PermissionPolicy>
+                    <PermissionPolicySelect
                         value={currentRunnerPermission}
                         onChange={(v) =>
                             setSection("runner", {
@@ -947,9 +896,8 @@ export function useModelHarness({
                             })
                         }
                         options={runnerPermissionOptions}
-                        optionLabelProp="title"
                         disabled={disabled}
-                        className="w-full"
+                        aria-label="Policy"
                     />
                 </RailField>
             ) : null}
@@ -1013,13 +961,10 @@ export function useModelHarness({
                           title: "Execution environment",
                           summary: sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined,
                           caption: (
-                              <Typography.Text
-                                  type="secondary"
-                                  className="text-[11px] leading-snug"
-                              >
+                              <span className="text-[11px] leading-snug text-colorTextDescription">
                                   Where the agent&apos;s tools and code run, and what that sandbox
                                   may touch.
-                              </Typography.Text>
+                              </span>
                           ),
                       },
                       executionBody,
@@ -1037,12 +982,9 @@ export function useModelHarness({
                           title: "Permissions",
                           summary: runnerPermissionSummary,
                           caption: (
-                              <Typography.Text
-                                  type="secondary"
-                                  className="text-[11px] leading-snug"
-                              >
+                              <span className="text-[11px] leading-snug text-colorTextDescription">
                                   What the agent may do on its own before it must ask.
-                              </Typography.Text>
+                              </span>
                           ),
                       },
                       permissionsBody,

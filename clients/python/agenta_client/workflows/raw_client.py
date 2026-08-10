@@ -1622,6 +1622,8 @@ class RawWorkflowsClient:
     
     def commit_workflow_revision(self, *, workflow_revision: WorkflowRevisionCommit, workflow_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[WorkflowRevisionResponse]:
         """
+        The human and SDK route: no write scope, the caller owns the whole revision.
+        
         Parameters
         ----------
         workflow_revision : WorkflowRevisionCommit
@@ -3649,6 +3651,8 @@ class AsyncRawWorkflowsClient:
     
     async def commit_workflow_revision(self, *, workflow_revision: WorkflowRevisionCommit, workflow_variant_id: typing.Optional[str] = None, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[WorkflowRevisionResponse]:
         """
+        The human and SDK route: no write scope, the caller owns the whole revision.
+        
         Parameters
         ----------
         workflow_revision : WorkflowRevisionCommit

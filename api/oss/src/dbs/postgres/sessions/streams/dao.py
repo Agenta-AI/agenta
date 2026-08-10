@@ -141,16 +141,42 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                 )
                 if flags_filter:
                     stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
+            term = filter.search.strip() if filter.search else ""
+            if term:
+                # Escape LIKE metacharacters so a literal `%`/`_` in the search term
+                # doesn't act as a wildcard.
+                escaped = (
+                    term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+                )
+                stmt = stmt.where(
+                    SessionStreamDBE.name.ilike(f"%{escaped}%", escape="\\")
+                )
             if windowing:
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=SessionStreamDBE,
-                    attribute="id",
+                    # Last-activity ordering: updated_at is fed by heartbeat/edit/archive,
+                    # so a resumed session bumps to the top instead of sorting by its
+                    # original (uuid7) creation time. The coalesce(updated_at, created_at)
+                    # expression can't use the (project_id, created_at)/archived_at indexes
+                    # (no expression index for it), but per-project session-list sizes keep
+                    # the in-memory sort acceptable — a deliberate choice, not an oversight.
+                    attribute="updated_at",
                     order="descending",
                     windowing=windowing,
                 )
             else:
-                stmt = stmt.order_by(SessionStreamDBE.created_at.desc())
+                # No windowing here means this is the liveness-index caller
+                # (`query_session_streams`), not the paginated session list — ordering
+                # isn't load-bearing there, but keep it consistent with the windowed path,
+                # coalescing onto created_at for rows never touched since creation (same
+                # rationale as `apply_windowing`'s updated_at branch).
+                stmt = stmt.order_by(
+                    func.coalesce(
+                        SessionStreamDBE.updated_at, SessionStreamDBE.created_at
+                    ).desc(),
+                    SessionStreamDBE.id.desc(),
+                )
             result = await session.execute(stmt)
             dbes = result.scalars().all()
         return [map_stream_dbe_to_dto(stream_dbe=dbe) for dbe in dbes]

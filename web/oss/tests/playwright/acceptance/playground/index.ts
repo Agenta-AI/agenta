@@ -422,7 +422,7 @@ const playgroundTests = () => {
 
                     // Wait for testcase rows to appear inside the table body.
                     // This is the authoritative signal that the table has finished loading
-                    // (EntityTable returns <TableLoadingState> — no thead/checkboxes —
+                    // (EntityTable returns <LoadingSkeleton> — no thead/checkboxes —
                     // while isFetching && rows.length === 0). Scoping to .ant-table-row
                     // avoids matching "Germany" in the testset-option label or loading
                     // skeleton that might be visible before the rows arrive.
@@ -576,7 +576,7 @@ const playgroundTests = () => {
 
                 // Wait for testcase rows to appear inside the table body.
                 // This is the authoritative signal that the table has finished loading
-                // (EntityTable returns <TableLoadingState> — no thead/checkboxes —
+                // (EntityTable returns <LoadingSkeleton> — no thead/checkboxes —
                 // while isFetching && rows.length === 0). Scoping to .ant-table-row
                 // avoids matching "Germany" in the testset-option label or loading
                 // skeleton that might be visible before the rows arrive.

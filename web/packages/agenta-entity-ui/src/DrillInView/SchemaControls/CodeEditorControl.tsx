@@ -17,9 +17,9 @@
 import {memo, useCallback, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {LabeledField} from "@agenta/ui/components/presentational"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
+import {Field} from "@agenta/ui/ui"
 
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
@@ -109,10 +109,9 @@ export const CodeEditorControl = memo(function CodeEditorControl({
     )
 
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             direction="vertical"
             className={className}
         >
@@ -137,6 +136,6 @@ export const CodeEditorControl = memo(function CodeEditorControl({
                     syncWithInitialValueChanges
                 />
             </EditorProvider>
-        </LabeledField>
+        </Field>
     )
 })

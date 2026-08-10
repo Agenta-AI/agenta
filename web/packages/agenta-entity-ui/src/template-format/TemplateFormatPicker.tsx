@@ -23,7 +23,7 @@
 
 import {useMemo} from "react"
 
-import {Select} from "antd"
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn} from "@agenta/ui/ui"
 
 import {
     buildTemplateFormatOptions,
@@ -52,16 +52,31 @@ export function TemplateFormatPicker({
     const options = useMemo(() => buildTemplateFormatOptions(resolvedValue), [resolvedValue])
 
     return (
-        <Select<TemplateFormat>
-            size="small"
+        <Select
             value={resolvedValue as TemplateFormat}
             disabled={disabled}
-            onChange={onChange}
-            className={className}
-            style={{minWidth: 180}}
-            popupMatchSelectWidth={false}
-            options={options}
-        />
+            onValueChange={(next) => onChange(next as TemplateFormat)}
+        >
+            {/* `w-auto`: antd's Select sized to its content (the trigger primitive is w-full);
+             *  the 180px floor mirrors the pre-migration `style={{minWidth: 180}}`. */}
+            {/* role=combobox takes no name from content — the visible value text doesn't name it. */}
+            <SelectTrigger
+                size="sm"
+                aria-label="Prompt syntax"
+                className={cn("w-auto min-w-[180px]", className)}
+            >
+                <SelectValue />
+            </SelectTrigger>
+            {/* antd had popupMatchSelectWidth={false}: the panel sizes to its content,
+             *  not the trigger — override the popper width pin accordingly. */}
+            <SelectContent className="w-auto min-w-[var(--radix-select-trigger-width)]">
+                {options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
     )
 }
 

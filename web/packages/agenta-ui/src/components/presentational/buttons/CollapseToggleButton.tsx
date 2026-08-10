@@ -12,7 +12,9 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {CaretLineDown, CaretLineUp} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+
+import {Button, type ButtonProps} from "../../ui/button"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 // ============================================================================
 // HOOK
@@ -42,7 +44,7 @@ export interface UseCollapseToggleReturn {
  * @example
  * ```tsx
  * const {collapsed, toggle, label, icon} = useCollapseToggle()
- * return <Button icon={icon} onClick={toggle} />
+ * return <Button variant="outline"  onClick={toggle}>{icon}</Button>
  * ```
  */
 export function useCollapseToggle(options: UseCollapseToggleOptions = {}): UseCollapseToggleReturn {
@@ -215,8 +217,15 @@ export interface CollapseToggleButtonProps {
     collapsedMaxHeight?: number
     /** Additional CSS class */
     className?: string
-    /** Button size (default: "small") */
-    size?: "small" | "middle" | "large"
+    /**
+     * Button size (default: "icon-sm").
+     *
+     * The button only ever renders a caret — no label — so it must use an ICON size.
+     * The antd original was `<Button size="small" type="text" icon={…} />`, which antd
+     * renders as `.ant-btn-icon-only`: a 24×24 square with zero horizontal padding.
+     * `"sm"` would keep the 24px height but add `px-btn-sm`, making it 30px wide.
+     */
+    size?: ButtonProps["size"]
     /** Icon size in pixels (default: 14) */
     iconSize?: number
 }
@@ -238,7 +247,7 @@ export default function CollapseToggleButton({
     childSelector,
     collapsedMaxHeight = DEFAULT_COLLAPSED_MAX_HEIGHT,
     className,
-    size = "small",
+    size = "icon-sm",
     iconSize = 14,
 }: CollapseToggleButtonProps) {
     const effectiveSelector = contentRef ? (childSelector ?? ".agenta-editor-wrapper") : undefined
@@ -250,15 +259,24 @@ export default function CollapseToggleButton({
     const isDisabled = disabled || (contentRef ? !overflows && !collapsed : false)
 
     return (
-        <Tooltip title={getCollapseLabel(collapsed)}>
-            <Button
-                size={size}
-                type="text"
-                className={className}
-                onClick={onToggle}
-                disabled={isDisabled}
-                icon={getCollapseIcon(collapsed, iconSize)}
-            />
-        </Tooltip>
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Button
+                        size={size}
+                        variant="ghost"
+                        // Icon-only: the tooltip is not an accessible name (it is only
+                        // `aria-describedby`, and only while open) — axe `button-name`.
+                        aria-label={getCollapseLabel(collapsed)}
+                        className={className}
+                        onClick={onToggle}
+                        disabled={isDisabled}
+                    >
+                        {getCollapseIcon(collapsed, iconSize)}
+                    </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">{getCollapseLabel(collapsed)}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }

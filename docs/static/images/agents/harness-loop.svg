@@ -21,7 +21,7 @@
   <!-- Harness -->
   <rect class="accent" x="228" y="140" width="200" height="80" rx="8"/>
   <text class="title" x="328" y="176" text-anchor="middle">Harness</text>
-  <text class="label" x="328" y="198" text-anchor="middle">Claude Code or Pi</text>
+  <text class="label" x="328" y="198" text-anchor="middle">Claude Code, Pi, or Codex</text>
 
   <!-- Model -->
   <rect class="box" x="628" y="140" width="200" height="80" rx="8"/>
