@@ -326,7 +326,7 @@ pre::-webkit-scrollbar {
 }
 
 pre::-webkit-scrollbar-thumb {
-    background: #999;
+    background: var(--ag-scroll-thumb);
 }
 
 .debug-timetravel-panel {

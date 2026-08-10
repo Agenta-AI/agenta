@@ -211,10 +211,10 @@
             height: 0;
         }
         &::-webkit-scrollbar-thumb {
-            background-color: #ddd;
+            background-color: var(--ag-scroll-thumb);
         }
         &::-webkit-scrollbar-track {
-            background-color: #f0f0f0;
+            background-color: transparent;
         }
 
         &:hover::-webkit-scrollbar {
