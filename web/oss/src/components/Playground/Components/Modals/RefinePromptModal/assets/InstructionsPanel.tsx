@@ -152,6 +152,10 @@ const InstructionsPanel: React.FC<InstructionsPanelProps> = ({
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => {
+                            // Let the IME keep the Enter that confirms a composition candidate
+                            // (CJK, etc.) — intercepting it would submit a half-written guideline.
+                            if (e.nativeEvent.isComposing) return
+
                             // Enter sends; Shift+Enter breaks the line (the Sender's contract).
                             if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault()
