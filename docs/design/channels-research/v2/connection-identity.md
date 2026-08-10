@@ -1,5 +1,10 @@
 # Which connection does an inbound event belong to?
 
+> **Superseded in part by `channel-connections.md`.** The platform research below
+> stands and is what the design was built from. The conclusion it reaches — *"the key
+> is the bot, and the tenant is a qualifier"* — is **wrong**, and the "Still open"
+> questions are now answered. Both are corrected at the bottom of this file.
+
 The one query that cannot be project-scoped, because its job is to **establish** the
 project. Everything after it is scoped by what it returned. So the key it resolves on
 must be globally unique and must resolve to exactly one connection.
@@ -86,13 +91,35 @@ So:
 - **Resolution reads the whole request, not the body.** Header, path and body. This
   is the interface change Telegram forces and Slack's two shapes reward.
 
-## Still open
+## Correction: the rule above is wrong
 
-- **Enterprise Grid**: whether an org-wide install is one connection or many. It
-  changes what a connection *means* for one customer class, and the docs do not
-  settle it for us.
-- Whether Slack permits installing the same app twice into one workspace — not
-  stated in the documentation checked. If it cannot, `(api_app_id, team_id)` is
-  sufficient; if it can, it is not.
-- Teams' bot-identity convention is community-sourced, not confirmed. Verify before
-  building, not after.
+*"The key is the bot, and the tenant is a qualifier"* does not hold. It fails at
+both ends of the range it was meant to cover:
+
+- **Enterprise Grid has no single tenant to qualify with.** An org-wide install is
+  one installation with one token spanning many `team_id`s, so there is no tenant
+  value to attach.
+- **The bridge has no bot.** A bridge fronts a platform we never see. "Bot" was a
+  Slack shape generalised into a rule, and our own contract already said so.
+
+It was also right for the wrong reason. The useful observation was never
+*bot-versus-tenant*; it was *always-present versus sometimes-absent*.
+
+What replaces it: **core does not know what identifies a connection — the adapter
+declares it and one function composes it**, exactly as `SPACE` and `THREAD` already
+work. `channel-connections.md` carries the design.
+
+## The open questions, now answered
+
+- **Enterprise Grid**: an org-wide install is **one** connection — installed once at
+  the org level, one token, marked `is_enterprise_install: true`. The finding that
+  changed the schema is that both models **coexist**: the same app can have an
+  org-wide install *and* per-workspace installs in the same org, each with its own
+  token. So `team_id` cannot be in the identity, and the discriminator is
+  `enterprise_id` when the install is org-wide and `team_id` when it is not.
+- **Installing the same app twice into one workspace**: not supported — separate
+  installations require separate apps, with distinct `api_app_id`s. So two bots in
+  one workspace are two apps, and `api_app_id` is what separates them.
+- **Teams' bot-identity convention** remains community-sourced and unconfirmed.
+  Verify before building — the Enterprise Grid result is what happens when a
+  plausible model meets the documentation.

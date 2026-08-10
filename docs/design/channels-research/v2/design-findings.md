@@ -22,10 +22,10 @@ Maintained here. Status is one of **decided** (settled, no doc needed), **writte
 | 5 | Agenta as a channel | **open** | — |
 | 6 | The configuration surface | **open** | — |
 | 7 | Button clicks — the parsing half | **partial** | `rendering.md` decides resolution |
-| 8 | The connection key identifies the bot | **written** | `connection-identity.md` |
+| 8 | What the connection key identifies | **written** | `channel-connections.md` |
 | 9 | The bridge | **decided: keep** | measured, below |
 | 10 | User journeys | **open** | three to write, below |
-| 11 | `channel_connections` table + `external_key` | **decided, to design** | bottom of this file |
+| 11 | `channel_connections` table + `external_key` | **written** | `channel-connections.md` |
 
 **Keep this table current.** It is the only status record — when a design lands,
 change the row, and when a decision is taken, say what was decided rather than
@@ -121,10 +121,12 @@ are the same event. What remains is the parsing and the event kind.
 
 Note this is what made C4's exit condition unreachable as originally written.
 
-### 8 — The connection key identifies the bot
+### 8 — What the connection key identifies
 
-**Written**: `connection-identity.md`, now backed by the four platforms' own docs
-rather than by analogy. Three results changed the design:
+**Written**: `channel-connections.md`. `connection-identity.md` holds the platform
+research it was built from, and is superseded on its conclusion.
+
+Three results from the platforms' own docs changed the design:
 
 - **Telegram carries no bot identity on the payload at all** — confirmed against the
   full `Update` field list. The bot is identified by the transport, so the mechanism
@@ -137,11 +139,19 @@ rather than by analogy. Three results changed the design:
 - **Discord has no tenant for DMs** — `guild_id` is absent, so a tenant-qualified
   key is undefined exactly when someone messages the bot directly.
 
-The rule that falls out: **the bot is the key and the tenant is a qualifier**, since
-the bot half is always present and the tenant half is variously absent, plural or
-missing. The adapter composes its own key; core does not know the shape.
+A fourth result **overturned the rule those three suggested.** "The bot is the key
+and the tenant is a qualifier" is wrong: an Enterprise Grid org-wide install is one
+installation with one token spanning many workspaces — no tenant to qualify with —
+and the two install models **coexist for one app**, so `team_id` cannot be in the
+identity at all. The bridge disproves the other half: it has no bot.
 
-Still open: whether an Enterprise Grid org-wide install is one connection or many.
+The rule that actually holds: **core does not know what identifies a connection —
+the adapter declares it and one function composes it**, exactly as `SPACE` and
+`THREAD` already work.
+
+Settled while designing: an org-wide install is **one** connection, and Slack does
+not permit installing one app twice into a workspace — so two bots in one workspace
+are two apps, separated by `api_app_id`.
 
 ### 9 — The bridge: keep
 
@@ -188,7 +198,21 @@ Journey 1 is the one that would have caught the provisioning gap in week one.
 
 ---
 
-## Decision taken, not yet designed: `channel_connections`
+## Decided and designed: `channel_connections`
+
+**The design is `channel-connections.md`.** What follows is the decision that led to
+it, kept because it records why. Three things changed while designing it:
+
+- **The scope claim was checked.** All eight channel tables live in one head
+  revision, so a ninth is an edit to a file no released database has run.
+- **The global constraint got a precise statement.** The table is project-scoped;
+  the *external identity* is global. Consistent, because one platform installation
+  exists once in the world and so belongs to exactly one project.
+- **`installation_hint(body)` becomes `connection_locator(headers, path, body)`**
+  and returns a locator rather than a string — so core composes the key here as
+  everywhere else.
+
+The original decision, kept because it records why:
 
 **Decided.** Channels stops sharing `gateway_connections` and gets its own
 `channel_connections` table, with `external_key` rather than `integration_key`.
