@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import clsx from "clsx"
+import {cn} from "@agenta/ui/ui"
 
 export interface AgentOverviewLayoutProps {
     /** The reading column: what happened — the activity lists, and a composer where the host has one. */
@@ -33,14 +33,14 @@ export const AgentOverviewLayout = ({
     className,
 }: AgentOverviewLayoutProps) => (
     <div
-        className={clsx(
+        className={cn(
             "flex w-full flex-col items-start gap-10 lg:flex-row",
-            scroll && "min-h-0 flex-1 overflow-y-auto lg:overflow-hidden",
+            scroll && "lg:min-h-0 lg:flex-1 lg:overflow-hidden",
             className,
         )}
     >
         <div
-            className={clsx(
+            className={cn(
                 "flex w-full min-w-0 flex-col gap-6 lg:flex-1",
                 scroll && "lg:h-full lg:overflow-y-auto lg:pr-4",
             )}
@@ -48,7 +48,7 @@ export const AgentOverviewLayout = ({
             {main}
         </div>
         <div
-            className={clsx(
+            className={cn(
                 "flex w-full shrink-0 grow-0 flex-col lg:w-1/3 lg:min-w-[340px] lg:max-w-[520px]",
                 scroll && "min-h-0 lg:h-full lg:pr-1",
             )}
