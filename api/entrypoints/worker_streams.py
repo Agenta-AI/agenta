@@ -26,15 +26,12 @@ from oss.src.tasks.taskiq.shared.broker import (
 from entrypoints.channel_adapters import build_channel_adapter_registry
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
-from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
-from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.events.dao import EventsDAO
-from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
@@ -138,14 +135,9 @@ async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
 async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
     transactions_engine = get_transactions_engine()
 
-    connections_service = ConnectionsService(
-        connections_dao=ConnectionsDAO(engine=transactions_engine),
-        adapter_registry=ConnectionsGatewayRegistry(adapters={}),
-    )
     channels_service = ChannelsService(
         channels_dao=ChannelsDAO(engine=transactions_engine),
         adapter_registry=build_channel_adapter_registry(),
-        connections_service=connections_service,
     )
 
     outbox = ChannelsOutboxWorker(

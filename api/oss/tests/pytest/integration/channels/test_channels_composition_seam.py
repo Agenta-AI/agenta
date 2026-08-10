@@ -32,27 +32,16 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
-from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.sessions.streams.dtos import CommandMode
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
-from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
+from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 pytestmark = pytest.mark.integration
 
 LOCATOR = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
-
-
-class _FakeConnectionsService:
-    def __init__(self, *, connection):
-        self._connection = connection
-
-    async def get_connection(self, *, project_id, connection_id):
-        if connection_id != self._connection.id:
-            return None
-        return self._connection
 
 
 class _FakeStreamsService:
@@ -76,37 +65,19 @@ class _FakeStreamsService:
 @pytest.fixture
 async def registry_scope(channels_scope):
     """The exact registry shape `entrypoints/routers.py` builds, over a
-    `gateway_connections` row switched to `provider_key="mock"` so the
-    registry picks the mock adapter, the same way it would pick `slack` for a
-    real installation."""
+    `channel_connections` row switched to `channel="mock"` so the registry
+    picks the mock adapter, the same way it would pick `slack` for a real
+    installation."""
 
     engine = channels_scope["engine"]
 
     async with engine.session() as session:
         await session.execute(
-            update(ConnectionDBE)
-            .where(ConnectionDBE.id == channels_scope["connection_id"])
-            .values(provider_key="mock")
+            update(ChannelConnectionDBE)
+            .where(ChannelConnectionDBE.id == channels_scope["connection_id"])
+            .values(channel="mock")
         )
         await session.commit()
-
-        result = await session.execute(
-            select(ConnectionDBE).where(
-                ConnectionDBE.id == channels_scope["connection_id"]
-            )
-        )
-        connection_dbe = result.scalar_one()
-
-    # Connection.provider_key is typed ConnectionProviderKind ({composio,
-    # agenta, slack} only); a channels connection's provider_key is really
-    # the channel key string ("slack", "mock") — model_construct bypasses
-    # the enum validation, mirroring the outbox worker's own fixture.
-    connection = Connection.model_construct(
-        id=connection_dbe.id,
-        slug=connection_dbe.slug,
-        provider_key=connection_dbe.provider_key,
-        integration_key=connection_dbe.integration_key,
-    )
 
     registry = ChannelAdapterRegistry(
         adapters={"slack": SlackAdapter(), "mock": MockAdapter()}
@@ -115,7 +86,6 @@ async def registry_scope(channels_scope):
     service = ChannelsService(
         channels_dao=dao,
         adapter_registry=registry,
-        connections_service=_FakeConnectionsService(connection=connection),
     )
 
     yield {**channels_scope, "registry": registry, "service": service, "dao": dao}
@@ -165,11 +135,11 @@ async def test_registry_get_mock_resolves_a_real_adapter_backing_a_real_dispatch
     resolved = registry_scope["registry"].get("mock")
     assert isinstance(resolved, MockAdapter)
 
-    connection = await registry_scope["service"].connections_service.get_connection(
+    connection = await registry_scope["service"].fetch_connection(
         project_id=registry_scope["project_id"],
         connection_id=registry_scope["connection_id"],
     )
-    assert connection.provider_key == "mock"
+    assert connection.channel == "mock"
 
 
 async def test_a_matched_command_travels_through_dispatch_event_and_opens_no_turn(

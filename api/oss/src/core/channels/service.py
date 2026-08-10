@@ -66,15 +66,9 @@ class ChannelsService:
         *,
         channels_dao: ChannelsDAOInterface,
         adapter_registry: "ChannelAdapterRegistry",
-        # Duck-typed on purpose: the gateway's own ConnectionsService, kept
-        # only for the legacy tools/triggers-shaped connection lookups below.
-        # Channels' own connections live in channel_connections, reached
-        # through channels_dao instead.
-        connections_service=None,
     ) -> None:
         self.channels_dao = channels_dao
         self.adapter_registry = adapter_registry
-        self.connections_service = connections_service
 
     # --- connections ---------------------------------------------------------- #
 
@@ -160,7 +154,7 @@ class ChannelsService:
         #
         agent: ChannelAgentCreate,
     ) -> ChannelAgent:
-        connection = await self.connections_service.get_connection(
+        connection = await self.fetch_connection(
             project_id=project_id,
             connection_id=agent.connection_id,
         )
@@ -294,7 +288,7 @@ class ChannelsService:
         #
         space: ChannelSpaceCreate,
     ) -> ChannelSpace:
-        connection = await self.connections_service.get_connection(
+        connection = await self.fetch_connection(
             project_id=project_id,
             connection_id=space.connection_id,
         )
@@ -303,7 +297,7 @@ class ChannelsService:
 
         # external_key is always derived — never taken from the caller.
         capabilities = await self.fetch_capabilities(
-            channel=connection.provider_key, connection=connection
+            channel=connection.channel, connection=connection
         )
         space.external_key = compose_external_key(
             capabilities,
@@ -383,14 +377,14 @@ class ChannelsService:
     ) -> List[ChannelSpaceCandidate]:
         """Ask the adapter which places the app can see. Persists nothing."""
 
-        connection = await self.connections_service.get_connection(
+        connection = await self.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
         if connection is None:
             raise ChannelConnectionNotFound(connection_id=connection_id)
 
-        adapter = self.adapter_registry.get(connection.provider_key)
+        adapter = self.adapter_registry.get(connection.channel)
         candidates = await adapter.discover_spaces(connection=connection)
 
         configured = await self.channels_dao.query_spaces(
@@ -605,14 +599,14 @@ class ChannelsService:
             project_id=project_id, agent_id=agent_id, space_id=space_id
         )
 
-        connection = await self.connections_service.get_connection(
+        connection = await self.fetch_connection(
             project_id=project_id,
             connection_id=agent.connection_id,
         )
         if connection is None:
             raise ChannelConnectionNotFound(connection_id=agent.connection_id)
 
-        adapter = self.adapter_registry.get(connection.provider_key)
+        adapter = self.adapter_registry.get(connection.channel)
         capabilities = await adapter.fetch_capabilities(connection=connection)
         channel_defaults = _channel_defaults(capabilities)
 
@@ -674,7 +668,7 @@ class ChannelsService:
         all read identically to the worker, which is the point.
         """
 
-        connection = await self.connections_service.get_connection(
+        connection = await self.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
@@ -682,7 +676,7 @@ class ChannelsService:
             raise ChannelConnectionNotFound(connection_id=connection_id)
 
         capabilities = await self.fetch_capabilities(
-            channel=connection.provider_key, connection=connection
+            channel=connection.channel, connection=connection
         )
 
         space_key = compose_external_key(

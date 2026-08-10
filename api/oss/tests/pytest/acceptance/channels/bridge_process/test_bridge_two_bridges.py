@@ -42,9 +42,7 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceKind,
 )
 from oss.src.core.channels.service import ChannelsService
-from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
-from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
 
 from oss.tests.pytest.acceptance.channels.bridge_process.harness import run_bridge
 
@@ -133,8 +131,8 @@ async def two_bridges(bridge_scope):
 
     engine = bridge_scope["engine"]
 
-    # The ingress resolves a connection by (provider_key, integration_key)
-    # with no project scope, so integration_key must be unique across every
+    # The ingress resolves a connection by (channel, external_key) with no
+    # project scope, so integration_key must be unique across every
     # concurrently-running test -- exactly as a real bridge installation id
     # is globally unique, not merely unique within one tenant.
     installation_a = f"acme-wecom-{uuid.uuid4().hex[:8]}"
@@ -165,14 +163,9 @@ async def two_bridges(bridge_scope):
             shared_adapter = BridgeAdapter()
             registry = ChannelAdapterRegistry(adapters={"bridge": shared_adapter})
 
-            connections_service = ConnectionsService(
-                connections_dao=ConnectionsDAO(engine=engine),
-                adapter_registry=None,
-            )
             service = ChannelsService(
                 channels_dao=ChannelsDAO(engine=engine),
                 adapter_registry=registry,
-                connections_service=connections_service,
             )
 
             app = FastAPI()
@@ -361,15 +354,11 @@ async def test_two_bridges_interleaved_each_resolve_to_their_own_agent_and_threa
     project_id = two_bridges["project_id"]
     user_id = two_bridges["user_id"]
 
-    connections_service = ConnectionsService(
-        connections_dao=ConnectionsDAO(engine=engine), adapter_registry=None
-    )
     shared_adapter = BridgeAdapter()
     registry = ChannelAdapterRegistry(adapters={"bridge": shared_adapter})
     service = ChannelsService(
         channels_dao=ChannelsDAO(engine=engine),
         adapter_registry=registry,
-        connections_service=connections_service,
     )
 
     await _configure_agent_for_connection(

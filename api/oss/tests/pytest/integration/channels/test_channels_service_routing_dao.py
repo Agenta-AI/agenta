@@ -10,7 +10,6 @@ channels DAO integration tests use.
 import uuid
 
 import pytest
-from sqlalchemy import select
 
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.dtos import (
@@ -31,9 +30,7 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
-from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
-from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
 
 from oss.tests.pytest.unit.channels.contract.fakes import WellBehavedFakeAdapter
 
@@ -43,45 +40,13 @@ pytestmark = pytest.mark.integration
 LOCATOR = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
 
 
-class _FakeConnectionsService:
-    """Stands in for `ConnectionsService`: the real `get_connection` is a
-    thin DAO passthrough; this returns the fixture's own
-    `gateway_connections` row shape without a second DB round trip."""
-
-    def __init__(self, *, connection):
-        self._connection = connection
-
-    async def get_connection(self, *, project_id, connection_id):
-        if connection_id != self._connection.id:
-            return None
-        return self._connection
-
-
 async def _make_service(channels_scope, *, adapter):
     dao = ChannelsDAO(engine=channels_scope["engine"])
     registry = ChannelAdapterRegistry(adapters={"slack": adapter})
 
-    async with channels_scope["engine"].session() as session:
-        result = await session.execute(
-            select(ConnectionDBE).where(
-                ConnectionDBE.id == channels_scope["connection_id"]
-            )
-        )
-        connection_dbe = result.scalar_one()
-
-    connection = Connection(
-        id=connection_dbe.id,
-        slug=connection_dbe.slug,
-        provider_key=connection_dbe.provider_key,
-        integration_key=connection_dbe.integration_key,
-    )
-
-    connections_service = _FakeConnectionsService(connection=connection)
-
     return ChannelsService(
         channels_dao=dao,
         adapter_registry=registry,
-        connections_service=connections_service,
     ), dao
 
 

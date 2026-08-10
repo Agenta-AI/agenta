@@ -18,9 +18,7 @@ from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
 from oss.src.core.channels.adapters.bridge.hello import parse_hello
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelNotSupported
-from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
-from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
 
 from oss.tests.pytest.acceptance.channels.bridge_process.harness import run_bridge
 
@@ -100,10 +98,10 @@ async def single_bridge_seam(bridge_scope):
     engine = bridge_scope["engine"]
     project_id = bridge_scope["project_id"]
 
-    # The ingress resolves a connection by (provider_key, integration_key)
-    # with no project scope (an inbound platform event carries no tenant) --
-    # so integration_key must be unique across every concurrently-running
-    # test, exactly as a real bridge installation id is globally unique.
+    # The ingress resolves a connection by (channel, external_key) with no
+    # project scope (an inbound platform event carries no tenant) -- so
+    # integration_key must be unique across every concurrently-running test,
+    # exactly as a real bridge installation id is globally unique.
     installation_id = f"acme-wecom-{uuid.uuid4().hex[:8]}"
 
     with run_bridge(
@@ -119,14 +117,9 @@ async def single_bridge_seam(bridge_scope):
         adapter = BridgeAdapter()
         registry = _SingleBridgeRegistry({"bridge": adapter})
 
-        connections_service = ConnectionsService(
-            connections_dao=ConnectionsDAO(engine=engine),
-            adapter_registry=None,
-        )
         service = ChannelsService(
             channels_dao=ChannelsDAO(engine=engine),
             adapter_registry=registry,
-            connections_service=connections_service,
         )
 
         app = FastAPI()

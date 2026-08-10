@@ -136,7 +136,7 @@ async def test_two_connections_same_raw_id_key_independently(channels_scope):
     on (project_id, connection_id, external_user_key), not connection alone."""
     import uuid
 
-    from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
+    from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
 
     dao = ChannelIdentityDAO(engine=channels_scope["engine"])
     project_id = channels_scope["project_id"]
@@ -145,12 +145,12 @@ async def test_two_connections_same_raw_id_key_independently(channels_scope):
 
     async with channels_scope["engine"].session() as session:
         session.add(
-            ConnectionDBE(
+            ChannelConnectionDBE(
                 id=other_connection_id,
                 project_id=project_id,
                 slug=f"channels-dao-{other_connection_id.hex[:8]}",
-                provider_key="slack",
-                integration_key=f"T{other_connection_id.hex[:8]}",
+                channel="slack",
+                external_key=uuid.uuid4(),
                 created_by_id=user_id,
             )
         )

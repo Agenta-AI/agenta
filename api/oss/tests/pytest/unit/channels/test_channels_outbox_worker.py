@@ -11,6 +11,7 @@ import pytest
 
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.dtos import (
+    ChannelConnection,
     ChannelDeliveryState,
     ChannelOutboxEvent,
     ChannelOutboxEventCreate,
@@ -48,6 +49,17 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         self.outbox: Dict[UUID, ChannelOutboxEvent] = {}
         self.spaces: Dict[UUID, ChannelSpace] = {}
         self.threads: Dict[UUID, ChannelThread] = {}
+        self.connections: Dict[UUID, ChannelConnection] = {}
+
+    def seed_connection(self, *, channel: str = "fake") -> ChannelConnection:
+        connection = ChannelConnection(
+            id=uuid4(),
+            slug="fake-connection",
+            channel=channel,
+            external_key=uuid4(),
+        )
+        self.connections[connection.id] = connection
+        return connection
 
     def seed_space(self, *, connection_id: UUID) -> ChannelSpace:
         space = ChannelSpace(
@@ -161,8 +173,8 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def create_connection(self, **kwargs):
         raise NotImplementedError
 
-    async def fetch_connection(self, **kwargs):
-        raise NotImplementedError
+    async def fetch_connection(self, *, project_id, connection_id):
+        return self.connections.get(connection_id)
 
     async def edit_connection(self, **kwargs):
         raise NotImplementedError
@@ -330,18 +342,6 @@ def channels_dao():
 
 
 @pytest.fixture
-def connections_service(channels_dao):
-    class _FakeConnectionsService:
-        def __init__(self):
-            self.connections = {}
-
-        async def get_connection(self, *, project_id, connection_id):
-            return self.connections.get(connection_id)
-
-    return _FakeConnectionsService()
-
-
-@pytest.fixture
 def adapter():
     return WellBehavedFakeAdapter()
 
@@ -352,11 +352,10 @@ def adapter_registry(adapter):
 
 
 @pytest.fixture
-def channels_service(channels_dao, adapter_registry, connections_service):
+def channels_service(channels_dao, adapter_registry):
     return ChannelsService(
         channels_dao=channels_dao,
         adapter_registry=adapter_registry,
-        connections_service=connections_service,
     )
 
 
@@ -379,23 +378,8 @@ def worker(channels_service, turns_dao, records_dao):
     )
 
 
-async def _seed_connection_and_thread(channels_dao, connections_service, session_id):
-    from oss.src.core.gateway.connections.dtos import Connection
-
-    # NOTE: Connection.provider_key is typed ConnectionProviderKind (only
-    # {composio, agenta}), but a channels connection's provider_key holds the
-    # channel key string ("slack", "fake") that ChannelsService/adapter
-    # registry actually key on. That is a pre-existing typing gap in
-    # the shared gateway connections DTO — model_construct bypasses the enum
-    # validation so this test can still exercise the real production code path.
-    connection = Connection.model_construct(
-        id=uuid4(),
-        slug="fake-connection",
-        provider_key="fake",
-        integration_key="fake",
-    )
-    connections_service.connections[connection.id] = connection
-
+async def _seed_connection_and_thread(channels_dao, session_id):
+    connection = channels_dao.seed_connection(channel="fake")
     space = channels_dao.seed_space(connection_id=connection.id)
     thread = channels_dao.seed_thread(space_id=space.id, session_id=session_id)
 
@@ -404,12 +388,10 @@ async def _seed_connection_and_thread(channels_dao, connections_service, session
 
 @pytest.mark.asyncio
 async def test_turn_started_produces_exactly_one_created_then_sent_row(
-    worker, channels_dao, connections_service
+    worker, channels_dao
 ):
     session_id = "sess-1"
-    _, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
     await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-1")
 
@@ -421,12 +403,10 @@ async def test_turn_started_produces_exactly_one_created_then_sent_row(
 
 @pytest.mark.asyncio
 async def test_turn_ended_edits_the_same_row_created_at_turn_started(
-    worker, channels_dao, connections_service, records_dao
+    worker, channels_dao, records_dao
 ):
     session_id = "sess-2"
-    _, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
     await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-2")
     assert len(channels_dao.outbox) == 1
@@ -454,12 +434,10 @@ async def test_turn_ended_edits_the_same_row_created_at_turn_started(
 
 @pytest.mark.asyncio
 async def test_redelivery_of_turn_ended_does_not_double_post(
-    worker, channels_dao, connections_service, records_dao, adapter
+    worker, channels_dao, records_dao, adapter
 ):
     session_id = "sess-3"
-    _, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
     await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-3")
     records_dao.seed(
@@ -486,12 +464,10 @@ async def test_redelivery_of_turn_ended_does_not_double_post(
 
 @pytest.mark.asyncio
 async def test_long_answer_splits_into_multiple_independently_editable_rows(
-    worker, channels_dao, connections_service, records_dao, adapter_registry
+    worker, channels_dao, records_dao, adapter_registry
 ):
     session_id = "sess-4"
-    _, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
     # shrink max_chars via a capabilities override on this test's own adapter
     adapter = adapter_registry.get("fake")
     adapter._capabilities["rendering"]["text"]["max_chars"] = 10
@@ -515,12 +491,10 @@ async def test_long_answer_splits_into_multiple_independently_editable_rows(
 
 @pytest.mark.asyncio
 async def test_pending_interaction_renders_card_from_recorded_tool_call(
-    worker, channels_dao, connections_service, records_dao
+    worker, channels_dao, records_dao
 ):
     session_id = "sess-5"
-    _, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
     await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-5")
     records_dao.seed(
@@ -554,7 +528,7 @@ async def test_pending_interaction_renders_card_from_recorded_tool_call(
 
 @pytest.mark.asyncio
 async def test_capabilities_are_fetched_for_the_thread_s_own_connection(
-    worker, channels_dao, connections_service, channels_service
+    worker, channels_dao, channels_service
 ):
     """A per-connection capability override is only reachable if the
     connection travels with the fetch — not just the channel key."""
@@ -562,28 +536,24 @@ async def test_capabilities_are_fetched_for_the_thread_s_own_connection(
     from unittest.mock import AsyncMock
 
     session_id = "sess-6"
-    connection, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    connection, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
     spy = AsyncMock(wraps=channels_service.fetch_capabilities)
     channels_service.fetch_capabilities = spy
 
     await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-6")
 
-    spy.assert_awaited_once_with(channel=connection.provider_key, connection=connection)
+    spy.assert_awaited_once_with(channel=connection.channel, connection=connection)
 
 
 @pytest.mark.asyncio
 async def test_idempotency_key_differs_between_post_and_edit_but_is_stable_on_retry(
-    worker, channels_dao, connections_service, records_dao
+    worker, channels_dao, records_dao
 ):
     from oss.src.core.channels.utils import compose_idempotency_key
 
     session_id = "sess-6"
-    _, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
     await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-6")
     row_after_post = next(iter(channels_dao.outbox.values()))
@@ -615,17 +585,13 @@ async def test_idempotency_key_differs_between_post_and_edit_but_is_stable_on_re
 
 
 @pytest.mark.asyncio
-async def test_handle_turn_event_routes_started_by_kind_alone(
-    worker, channels_dao, connections_service
-):
+async def test_handle_turn_event_routes_started_by_kind_alone(worker, channels_dao):
     """No `latest_turn` re-read: `kind` alone decides the branch, so a
     concurrent second turn on the same session can never be mistaken for
     this one."""
 
     session_id = "sess-7"
-    _, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
     await worker.handle_turn_event(
         project_id=PROJECT_ID,
@@ -640,12 +606,10 @@ async def test_handle_turn_event_routes_started_by_kind_alone(
 
 @pytest.mark.asyncio
 async def test_handle_turn_event_routes_ended_by_kind_alone(
-    worker, channels_dao, connections_service, records_dao
+    worker, channels_dao, records_dao
 ):
     session_id = "sess-8"
-    _, thread = await _seed_connection_and_thread(
-        channels_dao, connections_service, session_id
-    )
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
     await worker.handle_turn_event(
         project_id=PROJECT_ID,
@@ -705,12 +669,10 @@ class TestChannelsOutboxStreamWorker:
 
     @pytest.mark.asyncio
     async def test_process_batch_drives_the_outbox_from_the_events_own_kind(
-        self, worker, channels_dao, connections_service
+        self, worker, channels_dao
     ):
         session_id = "sess-stream-1"
-        _, thread = await _seed_connection_and_thread(
-            channels_dao, connections_service, session_id
-        )
+        _, thread = await _seed_connection_and_thread(channels_dao, session_id)
 
         stream_worker = ChannelsOutboxStreamWorker(
             outbox=worker,

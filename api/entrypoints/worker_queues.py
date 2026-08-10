@@ -87,11 +87,8 @@ from oss.src.dbs.postgres.workflows.dbes import (
 from entrypoints.channel_adapters import build_channel_adapter_registry
 from oss.src.core.channels.identity import ChannelIdentityService
 from oss.src.core.channels.service import ChannelsService
-from oss.src.core.gateway.connections.service import ConnectionsService
-from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
-from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
@@ -203,17 +200,9 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
 def _build_channels_service() -> ChannelsService:
     transactions_engine = get_transactions_engine()
 
-    # Empty adapter registry: channel connections are stored locally, so the
-    # gateway's provider adapters are not on this path.
-    connections_service = ConnectionsService(
-        connections_dao=ConnectionsDAO(engine=transactions_engine),
-        adapter_registry=ConnectionsGatewayRegistry(adapters={}),
-    )
-
     return ChannelsService(
         channels_dao=ChannelsDAO(engine=transactions_engine),
         adapter_registry=build_channel_adapter_registry(),
-        connections_service=connections_service,
     )
 
 

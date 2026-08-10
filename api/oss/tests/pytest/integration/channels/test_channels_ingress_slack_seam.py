@@ -86,7 +86,7 @@ async def slack_seam(channels_scope):
     team_id = channels_scope["external_id"]
 
     dao = ChannelsDAO(engine=engine)
-    connection = await dao.create_connection(
+    await dao.create_connection(
         project_id=project_id,
         user_id=channels_scope["user_id"],
         connection=ChannelConnectionCreate(
@@ -108,14 +108,9 @@ async def slack_seam(channels_scope):
     adapter = SlackAdapter(http_client=httpx.AsyncClient())
     registry = _Registry({"slack": adapter})
 
-    class _Connections:
-        async def get_connection(self, *, project_id, connection_id):
-            return connection
-
     service = ChannelsService(
         channels_dao=dao,
         adapter_registry=registry,
-        connections_service=_Connections(),
     )
 
     from fastapi import FastAPI

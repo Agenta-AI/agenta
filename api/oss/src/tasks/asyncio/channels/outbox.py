@@ -191,7 +191,7 @@ class ChannelsOutboxWorker:
             key=event.key, updated_at=event.updated_at
         )
 
-        adapter = self.channels_service.adapter_registry.get(connection.provider_key)
+        adapter = self.channels_service.adapter_registry.get(connection.channel)
 
         has_receipt = bool(event.data.external_locator)
         can_edit = capabilities.rendering.controls.update
@@ -275,7 +275,7 @@ class ChannelsOutboxWorker:
         if space is None:
             raise ChannelSpaceNotFound(space_id=thread.space_id)
 
-        connection = await self.channels_service.connections_service.get_connection(
+        connection = await self.channels_service.fetch_connection(
             project_id=project_id,
             connection_id=space.connection_id,
         )
@@ -283,7 +283,7 @@ class ChannelsOutboxWorker:
             raise ChannelConnectionNotFound(connection_id=space.connection_id)
 
         capabilities = await self.channels_service.fetch_capabilities(
-            channel=connection.provider_key, connection=connection
+            channel=connection.channel, connection=connection
         )
 
         return connection, capabilities

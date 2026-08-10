@@ -15,6 +15,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentData,
     ChannelAgentFlags,
     ChannelCapabilities,
+    ChannelConnection,
     ChannelEffectivePolicy,
     ChannelEventKind,
     ChannelEventOrigin,
@@ -105,11 +106,9 @@ def _make_resolution(*, agent_id=None, thread_id=None, space_id=None):
     )
 
 
-def _make_connection(*, provider_key="mock"):
-    from oss.src.core.gateway.connections.dtos import Connection
-
-    return Connection.model_construct(
-        id=uuid4(), slug="c", provider_key=provider_key, integration_key=provider_key
+def _make_connection(*, channel="mock"):
+    return ChannelConnection(
+        id=uuid4(), slug="c", channel=channel, external_key=uuid4()
     )
 
 
@@ -135,10 +134,7 @@ def _make_channels_service(
     service = MagicMock()
     service.query_inbox_events = AsyncMock(return_value=query_inbox_events_result or [])
     service.resolve = AsyncMock(return_value=resolution)
-    service.connections_service = MagicMock()
-    service.connections_service.get_connection = AsyncMock(
-        return_value=_make_connection()
-    )
+    service.fetch_connection = AsyncMock(return_value=_make_connection())
     # No command sigil, no backfill support: the no-command/no-backfill
     # branches these tests were written against stay a no-op by default.
     service.fetch_capabilities = AsyncMock(
@@ -318,10 +314,8 @@ class TestBacklogAndInvoke:
         channels_service = _make_channels_service(
             resolution=resolution, trigger=trigger
         )
-        connection = _make_connection(provider_key="slack")
-        channels_service.connections_service.get_connection = AsyncMock(
-            return_value=connection
-        )
+        connection = _make_connection(channel="slack")
+        channels_service.fetch_connection = AsyncMock(return_value=connection)
 
         dispatcher = InboxDispatcher(
             channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
@@ -449,10 +443,7 @@ class TestIndependence:
         channels_service.resolve = AsyncMock(
             side_effect=[triage_resolution, deploy_resolution]
         )
-        channels_service.connections_service = MagicMock()
-        channels_service.connections_service.get_connection = AsyncMock(
-            return_value=_make_connection()
-        )
+        channels_service.fetch_connection = AsyncMock(return_value=_make_connection())
         channels_service.fetch_capabilities = AsyncMock(
             return_value=ChannelCapabilities(channel="mock")
         )
@@ -650,8 +641,7 @@ class TestBackfillWiring:
         channels_service = _make_channels_service(
             resolution=resolution, trigger=trigger
         )
-        channels_service.connections_service = MagicMock()
-        channels_service.connections_service.get_connection = AsyncMock()
+        channels_service.fetch_connection = AsyncMock()
 
         dispatcher = InboxDispatcher(
             channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
@@ -661,11 +651,9 @@ class TestBackfillWiring:
         )
 
         # called once for the capability fetch; backfill's own fetch never runs
-        channels_service.connections_service.get_connection.assert_awaited_once()
+        channels_service.fetch_connection.assert_awaited_once()
 
     async def test_unbackfilled_space_runs_backfill_before_compose_input(self):
-        from oss.src.core.gateway.connections.dtos import Connection
-
         event = _make_event()
         resolution = _make_resolution()
         resolution.space.flags.is_backfilled = False
@@ -687,13 +675,8 @@ class TestBackfillWiring:
 
         channels_service.compose_input = AsyncMock(side_effect=_compose_input)
 
-        connection = Connection.model_construct(
-            id=uuid4(), slug="c", provider_key="mock", integration_key="mock"
-        )
-        channels_service.connections_service = MagicMock()
-        channels_service.connections_service.get_connection = AsyncMock(
-            return_value=connection
-        )
+        connection = _make_connection(channel="mock")
+        channels_service.fetch_connection = AsyncMock(return_value=connection)
 
         adapter = MagicMock()
 
@@ -724,8 +707,6 @@ class TestBackfillWiring:
         it never reaches the trigger row (none exists yet), and the turn is
         still composed and invoked from whatever the live event carries."""
 
-        from oss.src.core.gateway.connections.dtos import Connection
-
         event = _make_event()
         resolution = _make_resolution()
         resolution.space.flags.is_backfilled = False
@@ -739,13 +720,8 @@ class TestBackfillWiring:
             ),
         )
 
-        connection = Connection.model_construct(
-            id=uuid4(), slug="c", provider_key="mock", integration_key="mock"
-        )
-        channels_service.connections_service = MagicMock()
-        channels_service.connections_service.get_connection = AsyncMock(
-            return_value=connection
-        )
+        connection = _make_connection(channel="mock")
+        channels_service.fetch_connection = AsyncMock(return_value=connection)
 
         adapter = MagicMock()
         adapter.fetch_history = AsyncMock(side_effect=Exception("denied"))
@@ -777,8 +753,7 @@ class TestBackfillWiring:
         channels_service = _make_channels_service(
             resolution=resolution, trigger=trigger
         )  # default capabilities: fill.backfill.supported == False
-        channels_service.connections_service = MagicMock()
-        channels_service.connections_service.get_connection = AsyncMock()
+        channels_service.fetch_connection = AsyncMock()
 
         dispatcher = InboxDispatcher(
             channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
@@ -788,7 +763,7 @@ class TestBackfillWiring:
         )
 
         # called once for the capability fetch; backfill's own fetch never runs
-        channels_service.connections_service.get_connection.assert_awaited_once()
+        channels_service.fetch_connection.assert_awaited_once()
         assert resolution.space.flags.is_backfilled is False
         channels_service.settle_turn.assert_awaited_once()  # the ordinary turn still runs
 
@@ -824,8 +799,8 @@ class TestIdentityAttribution:
         channels_service = _make_channels_service(
             resolution=resolution, trigger=trigger
         )
-        channels_service.connections_service.get_connection = AsyncMock(
-            return_value=_make_connection(provider_key="slack")
+        channels_service.fetch_connection = AsyncMock(
+            return_value=_make_connection(channel="slack")
         )
         channels_service.fetch_capabilities = AsyncMock(
             return_value=self._capabilities()
@@ -870,7 +845,7 @@ class TestIdentityAttribution:
         channels_service, identity_service = self._wire(
             link=link, resolution=resolution, trigger=_make_trigger()
         )
-        connection = await channels_service.connections_service.get_connection(
+        connection = await channels_service.fetch_connection(
             project_id=uuid4(), connection_id=uuid4()
         )
         event = _make_event()

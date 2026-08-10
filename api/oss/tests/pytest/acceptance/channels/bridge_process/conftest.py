@@ -14,7 +14,6 @@ import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401
 from oss.src.apis.fastapi.channels.ingress import _placeholder_external_key
 from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
-from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.tests.pytest.utils.postgres import postgres_reachable
 
@@ -109,10 +108,6 @@ async def bridge_scope():
         delivery_url: str,
         capabilities: Optional[Dict[str, Any]] = None,
     ):
-        # Written to both tables under the same id: the ingress candidate
-        # lookup now reads channel_connections, but ChannelsService.create_agent
-        # / create_space still check connection existence against the shared
-        # gateway table (out of this wave's scope) -- see the migration notes.
         connection_id = uuid.uuid4()
         data = {
             "secret": secret,
@@ -122,17 +117,6 @@ async def bridge_scope():
         if capabilities is not None:
             data["capabilities"] = capabilities
         async with engine.session() as session:
-            session.add(
-                ConnectionDBE(
-                    id=connection_id,
-                    project_id=project_id,
-                    slug=f"bridge-{connection_id.hex[:8]}",
-                    provider_key="bridge",
-                    integration_key=integration_key,
-                    created_by_id=user_id,
-                    data=data,
-                )
-            )
             session.add(
                 ChannelConnectionDBE(
                     id=connection_id,
@@ -166,7 +150,6 @@ async def bridge_scope():
             "channel_spaces",
             "channel_agents",
             "channel_connections",
-            "gateway_connections",
         ):
             await session.execute(
                 text(f"DELETE FROM {table} WHERE project_id = :project_id"),

@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401
-from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
+from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 
 
@@ -24,11 +24,10 @@ async def _fresh_engine_per_test():
 
 @pytest.fixture
 async def channels_scope():
-    """A project + a gateway_connections row, cleaned up after the test.
+    """A project + a channel_connections row, cleaned up after the test.
 
-    Channels tables carry no FK to gateway_connections, but every fixture
-    still creates a real connection row so connection_id reads like
-    production data.
+    connection_id columns carry no FK, but every fixture still creates a
+    real connection row so connection_id reads like production data.
     """
 
     engine = get_transactions_engine()
@@ -87,12 +86,12 @@ async def channels_scope():
             },
         )
 
-        connection = ConnectionDBE(
+        connection = ChannelConnectionDBE(
             id=connection_id,
             project_id=project_id,
             slug=f"channels-dao-{connection_id.hex[:8]}",
-            provider_key="slack",
-            integration_key=f"T{connection_id.hex[:8]}",
+            channel="slack",
+            external_key=uuid.uuid4(),
             created_by_id=user_id,
         )
         session.add(connection)
@@ -119,7 +118,6 @@ async def channels_scope():
             "channel_spaces",
             "channel_agents",
             "channel_connections",
-            "gateway_connections",
         ):
             await session.execute(
                 text(f"DELETE FROM {table} WHERE project_id = :project_id"),

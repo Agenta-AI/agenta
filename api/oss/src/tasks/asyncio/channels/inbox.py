@@ -140,7 +140,7 @@ class InboxDispatcher:
         if not platform_user_id:
             return None
 
-        connection = await self.channels_service.connections_service.get_connection(
+        connection = await self.channels_service.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
@@ -148,7 +148,7 @@ class InboxDispatcher:
             raise ChannelConnectionNotFound(connection_id=connection_id)
 
         capabilities = await self.channels_service.fetch_capabilities(
-            channel=connection.provider_key,
+            channel=connection.channel,
             connection=connection,
         )
 
@@ -240,7 +240,7 @@ class InboxDispatcher:
         decided here from the capability declaration, not from that return
         value alone. `capabilities` is the caller's — same connection,
         already fetched for the command parse — so a not-supported channel
-        never even reaches `connections_service`.
+        never even re-fetches the connection.
         """
 
         space = resolution.space
@@ -250,14 +250,14 @@ class InboxDispatcher:
         if not capabilities.fill.backfill.supported:
             return
 
-        connection = await self.channels_service.connections_service.get_connection(
+        connection = await self.channels_service.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
         if connection is None:
             return
 
-        adapter = self.channels_service.adapter_registry.get(connection.provider_key)
+        adapter = self.channels_service.adapter_registry.get(connection.channel)
 
         status = await run_backfill(
             project_id=project_id,
@@ -308,7 +308,7 @@ class InboxDispatcher:
             )
             return
 
-        connection = await self.channels_service.connections_service.get_connection(
+        connection = await self.channels_service.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
@@ -316,7 +316,7 @@ class InboxDispatcher:
             raise ChannelConnectionNotFound(connection_id=connection_id)
 
         capabilities = await self.channels_service.fetch_capabilities(
-            channel=connection.provider_key,
+            channel=connection.channel,
             connection=connection,
         )
 

@@ -36,7 +36,7 @@ from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
-from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
+from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
@@ -220,12 +220,12 @@ async def outbox_scope():
         )
 
         session.add(
-            ConnectionDBE(
+            ChannelConnectionDBE(
                 id=connection_id,
                 project_id=project_id,
                 slug=f"outbox-test-{connection_id.hex[:8]}",
-                provider_key="fake",
-                integration_key=f"T{connection_id.hex[:8]}",
+                channel="fake",
+                external_key=uuid.uuid4(),
                 created_by_id=user_id,
             )
         )
@@ -284,7 +284,7 @@ async def outbox_scope():
             "channel_agents",
             "session_turns",
             "session_streams",
-            "gateway_connections",
+            "channel_connections",
         ):
             await session.execute(
                 text(f"DELETE FROM {table} WHERE project_id = :project_id"),
@@ -308,21 +308,9 @@ def _worker(scope, records_dao):
     adapter = _LocalFakeAdapter()
     registry = ChannelAdapterRegistry(adapters={"fake": adapter})
 
-    class _FakeConnectionsService:
-        async def get_connection(self, *, project_id, connection_id):
-            from oss.src.core.gateway.connections.dtos import Connection
-
-            return Connection.model_construct(
-                id=connection_id,
-                slug="outbox-test",
-                provider_key="fake",
-                integration_key="fake",
-            )
-
     channels_service = ChannelsService(
         channels_dao=scope["channels_dao"],
         adapter_registry=registry,
-        connections_service=_FakeConnectionsService(),
     )
     turns_service = SessionTurnsService(turns_dao=SessionTurnsDAO(engine=None))
     records_service = RecordsService(records_dao)

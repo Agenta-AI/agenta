@@ -1068,7 +1068,6 @@ channels_dao = ChannelsDAO(engine=_transactions_engine)
 channels_service = ChannelsService(
     channels_dao=channels_dao,
     adapter_registry=channels_adapter_registry,
-    connections_service=connections_service,
 )
 
 channels_identity_dao = ChannelIdentityDAO(engine=_transactions_engine)

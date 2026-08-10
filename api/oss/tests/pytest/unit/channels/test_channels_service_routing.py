@@ -10,8 +10,11 @@ from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from oss.src.core.channels.dtos import (
     ChannelAgent,
+    ChannelAgentCreate,
     ChannelAgentData,
     ChannelAgentFlags,
     ChannelConnection,
@@ -39,8 +42,8 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+from oss.src.core.channels.types import ChannelConnectionNotFound
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
-from oss.src.core.gateway.connections.dtos import Connection, ConnectionProviderKind
 
 from .contract.fakes import WellBehavedFakeAdapter
 
@@ -50,6 +53,14 @@ _LOCATOR = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
 
 def _make_fake_dao():
     dao = MagicMock()
+    dao.fetch_connection = AsyncMock(
+        return_value=ChannelConnection(
+            id=uuid4(),
+            slug="conn-1",
+            channel="agenta",
+            external_key=uuid4(),
+        )
+    )
     dao.fetch_space_by_key = AsyncMock(return_value=None)
     dao.get_or_create_space = AsyncMock(side_effect=_default_get_or_create_space)
     dao.fetch_agent_by_slug = AsyncMock(return_value=None)
@@ -89,19 +100,9 @@ async def _default_get_or_create_space(*, project_id, user_id, space):
 def _make_service(*, dao, adapter):
     registry = ChannelAdapterRegistry(adapters={"agenta": adapter})
 
-    connections_service = MagicMock()
-    connection = Connection(
-        id=uuid4(),
-        slug="conn-1",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="T1",
-    )
-    connections_service.get_connection = AsyncMock(return_value=connection)
-
     return ChannelsService(
         channels_dao=dao,
         adapter_registry=registry,
-        connections_service=connections_service,
     )
 
 
@@ -753,3 +754,44 @@ class TestBridgeChannelKey:
             "composio",
             "agenta",
         }
+
+
+class TestConnectionReadsStayOnChannelConnections:
+    """The merge point's own regression guard: every connection read in the
+    domain must resolve through `channels_dao.fetch_connection`
+    (`channel_connections`), never a gateway connections service."""
+
+    async def test_channels_service_carries_no_gateway_connections_attribute(self):
+        dao = _make_fake_dao()
+        adapter = WellBehavedFakeAdapter()
+        service = _make_service(dao=dao, adapter=adapter)
+
+        assert not hasattr(service, "connections_service")
+
+    async def test_a_row_missing_from_channel_connections_is_not_found(self):
+        """A miss in the DAO's own `fetch_connection` must surface as
+        `ChannelConnectionNotFound` -- if the read instead fell through to a
+        gateway connection service, this miss would go unnoticed."""
+
+        dao = _make_fake_dao()
+        dao.fetch_connection = AsyncMock(return_value=None)
+        adapter = WellBehavedFakeAdapter()
+        service = _make_service(dao=dao, adapter=adapter)
+
+        connection_id = uuid4()
+        with pytest.raises(ChannelConnectionNotFound):
+            await service.create_agent(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                agent=ChannelAgentCreate(
+                    slug="triage",
+                    connection_id=connection_id,
+                    data=ChannelAgentData(
+                        references={"workflow_revision": {"id": str(uuid4())}}
+                    ),
+                ),
+            )
+
+        dao.fetch_connection.assert_awaited_once()
+        _, kwargs = dao.fetch_connection.call_args
+        assert kwargs["connection_id"] == connection_id
