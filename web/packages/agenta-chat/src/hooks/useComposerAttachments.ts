@@ -62,10 +62,12 @@ export const useComposerAttachments = ({
     const [files, setFiles] = useState<StagedFile[]>(
         () => (attachmentsBySession.get(sessionId) as StagedFile[] | undefined) ?? [],
     )
-    useEffect(() => {
-        if (files.length > 0) attachmentsBySession.set(sessionId, files)
-        else attachmentsBySession.delete(sessionId)
-    }, [files, sessionId])
+    // Which session the rows in `files` belong to. The initializer above only runs on MOUNT, and
+    // hosts are not required to remount (or key) the composer per session — this repo's chat
+    // workspace keeps tab panes mounted across switches. Without this, a `sessionId` change on a
+    // mounted hook would write session A's staged rows under session B, orphaning A's entry; and
+    // since `attachmentUploader` closes over `sessionId`, a retry would then upload A's file into B.
+    const filesOwnerRef = useRef(sessionId)
     // Files turned away by the guardrails (too big, wrong type, over the count), shown inline.
     // Same-tick guard: a paste and a drop can both fire before React re-renders; the render
     // closure's `files.length` would let both batches validate against the pre-add count.
@@ -77,6 +79,20 @@ export const useComposerAttachments = ({
     // The attachment currently open in the Files-drawer preview (its uid), or null when closed.
     const [viewingUid, setViewingUid] = useState<string | null>(null)
     const [attachmentsOpen, setAttachmentsOpen] = useState(false)
+    useEffect(() => {
+        // Park whatever is on screen under the session it actually belongs to…
+        const owner = filesOwnerRef.current
+        if (files.length > 0) attachmentsBySession.set(owner, files)
+        else attachmentsBySession.delete(owner)
+        if (owner === sessionId) return
+        // …then adopt the incoming session's own staged rows. (This effect re-runs once more with
+        // the two ids equal, which writes the adopted rows back under the same key — a no-op.)
+        filesOwnerRef.current = sessionId
+        setFiles((attachmentsBySession.get(sessionId) as StagedFile[] | undefined) ?? [])
+        // The preview target and the inline rejections belong to the session we just left.
+        setViewingUid(null)
+        setRejections([])
+    }, [files, sessionId])
     // Single limits object so it can later be swapped for capability-derived limits.
     const limits = DEFAULT_ATTACHMENT_LIMITS
     const atMax = files.length >= limits.maxCount
@@ -99,6 +115,16 @@ export const useComposerAttachments = ({
     )
     // Upload lifecycle for the tray (progress / error / retry).
     const uploads = useAttachmentUploads(files, setFiles, attachmentUploader)
+    // In-flight `uploadExtraFiles` requests — see there. Aborted on unmount, mirroring the tray's
+    // own teardown in `useAttachmentUploads`.
+    const extraControllers = useRef(new Set<AbortController>())
+    useEffect(() => {
+        const inFlight = extraControllers.current
+        return () => {
+            inFlight.forEach((controller) => controller.abort())
+            inFlight.clear()
+        }
+    }, [])
     // A staged attachment blocks send until its reference exists; without uploads the inline path
     // only needs every entry to be settled.
     const attachmentsSettled = uploadsEnabled
@@ -137,17 +163,33 @@ export const useComposerAttachments = ({
      * Upload files that never entered the tray (a voice take sent outright) and return their staged
      * entries. A failure adopts them into the tray so the error is visible and retryable, and
      * returns null so the caller holds the send.
+     *
+     * These bypass `useAttachmentUploads.run`, so that hook holds no controller for them — this one
+     * does, or an unmount (session close, pane swap) would leave them running with nothing able to
+     * cancel them.
+     *
+     * NOTE: unlike `addFiles`, this path uploads regardless of `uploadsEnabled`, while
+     * `toUploadFile` marks the same entries settled-without-a-response when the flag is off. Which
+     * of the two is right depends on whether a send-time upload is meant to happen during the
+     * inline-only rollout — no host calls this yet, so the behavior is left as-is rather than
+     * guessed at.
      */
     const uploadExtraFiles = async (extraFiles: File[]): Promise<StagedFile[] | null> => {
         const staged = extraFiles.map((file) => toUploadFile(file, uploadsEnabled))
         const results = await Promise.allSettled(
             staged.map(async (entry) => {
-                const response = await attachmentUploader(entry.originFileObj as File, {
-                    uid: entry.uid,
-                    onProgress: () => undefined,
-                    signal: new AbortController().signal,
-                })
-                return {...entry, status: "done" as const, percent: 100, response}
+                const controller = new AbortController()
+                extraControllers.current.add(controller)
+                try {
+                    const response = await attachmentUploader(entry.originFileObj as File, {
+                        uid: entry.uid,
+                        onProgress: () => undefined,
+                        signal: controller.signal,
+                    })
+                    return {...entry, status: "done" as const, percent: 100, response}
+                } finally {
+                    extraControllers.current.delete(controller)
+                }
             }),
         )
         if (results.every((result) => result.status === "fulfilled")) {

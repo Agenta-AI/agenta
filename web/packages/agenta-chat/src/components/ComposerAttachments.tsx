@@ -109,7 +109,7 @@ const StatusOverlay = ({
     if (file.status === "error") {
         return (
             <SimpleTooltip title={typeof file.error === "string" ? file.error : "Upload failed"}>
-                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-[var(--ant-color-error-bg)] ring-1 ring-inset ring-colorError">
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-colorErrorBg ring-1 ring-inset ring-colorError">
                     {onRetry && canRetry && (
                         <button
                             type="button"
@@ -132,24 +132,57 @@ const StatusOverlay = ({
     return null
 }
 
-/** Shared chip shell: fixed height, one border treatment, room for a trailing remove. */
+/** Shared chip shell: fixed height, one border treatment, room for a trailing remove. Never
+ * interactive itself — see `ViewSurface`. */
 const Chip = ({
     children,
     className,
-    onClick,
+    interactive,
 }: {
     children: ReactNode
     className?: string
-    onClick?: () => void
+    /** The chip contains a view affordance: light up its border on hover like a clickable tile. */
+    interactive?: boolean
 }) => (
     <div
-        role={onClick ? "button" : undefined}
-        onClick={onClick}
-        className={`flex ${TILE} items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 ${onClick ? "cursor-pointer hover:border-colorBorder" : ""} ${className ?? ""}`}
+        className={`flex ${TILE} items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary px-2 ${interactive ? "hover:border-colorBorder" : ""} ${className ?? ""}`}
     >
         {children}
     </div>
 )
+
+/**
+ * The "open this attachment in the viewer" affordance: a real `<button>` when there is somewhere
+ * to open it, an inert box otherwise.
+ *
+ * It wraps only the tile's CONTENT, never the whole tile — every tile also carries a Remove
+ * `<button>`, and a button inside a button is invalid and unreachable. So the two interactive
+ * parts are siblings. (Previously the tile itself took `role="button"` + `onClick` with no
+ * `tabIndex` and no key handling, which left the view action keyboard-inaccessible entirely.)
+ */
+const ViewSurface = ({
+    onView,
+    name,
+    className,
+    children,
+}: {
+    onView?: () => void
+    name: string
+    className?: string
+    children: ReactNode
+}) =>
+    onView ? (
+        <button
+            type="button"
+            aria-label={`View ${name}`}
+            onClick={onView}
+            className={`cursor-pointer border-0 bg-transparent p-0 text-left ${className ?? ""}`}
+        >
+            {children}
+        </button>
+    ) : (
+        <div className={className}>{children}</div>
+    )
 
 interface ComposerAttachmentsProps {
     files: UploadFile[]
@@ -191,20 +224,56 @@ const ComposerAttachments = ({
     const [previewFailed, setPreviewFailed] = useState<Set<string>>(new Set())
     const atMax = files.length >= limits.maxCount
 
-    // Object URLs for image previews and audio playback, recreated when the list changes and
-    // revoked on cleanup (the list is small, ≤ maxCount). Without revoking, removed files leak.
+    // Object URLs for image previews and audio playback, minted ONCE per row and released only
+    // when that row (or its blob) actually goes away.
+    //
+    // Keyed by uid rather than rebuilt from the array: `files` gets a fresh identity on every
+    // upload progress tick (the tray's `patch` maps the whole list), so revoking and re-minting
+    // whenever the identity changes ran many times a second mid-upload — which handed every <img>
+    // and <audio> a new `src` each tick (thumbnail flicker, playback restarting from zero) and let
+    // a decode against a just-revoked URL latch `previewFailed` for the rest of the session.
+    const urlsRef = useRef(new Map<string, {file: File; url: string}>())
     useEffect(() => {
-        const next: Record<string, string> = {}
+        const urls = urlsRef.current
+        const live = new Set<string>()
+        const remade: string[] = []
+        let changed = false
         files.forEach((f) => {
             const file = f.originFileObj as File | undefined
             const type = file?.type || ""
-            if (file && (type.startsWith("image/") || type.startsWith("audio/"))) {
-                next[f.uid] = URL.createObjectURL(file)
-            }
+            if (!file || !(type.startsWith("image/") || type.startsWith("audio/"))) return
+            live.add(f.uid)
+            const existing = urls.get(f.uid)
+            if (existing?.file === file) return
+            if (existing) URL.revokeObjectURL(existing.url)
+            urls.set(f.uid, {file, url: URL.createObjectURL(file)})
+            remade.push(f.uid)
+            changed = true
         })
-        setPreviews(next)
-        return () => Object.values(next).forEach((u) => URL.revokeObjectURL(u))
+        for (const [uid, entry] of urls) {
+            if (live.has(uid)) continue
+            URL.revokeObjectURL(entry.url)
+            urls.delete(uid)
+            changed = true
+        }
+        if (!changed) return
+        setPreviews(Object.fromEntries([...urls].map(([uid, entry]) => [uid, entry.url])))
+        // A fresh URL deserves a fresh attempt, and a gone row shouldn't keep its verdict —
+        // otherwise nothing ever clears this and the fallback sticks.
+        setPreviewFailed((prev) => {
+            const next = new Set([...prev].filter((uid) => live.has(uid)))
+            remade.forEach((uid) => next.delete(uid))
+            return next.size === prev.size ? prev : next
+        })
     }, [files])
+    // Release whatever is still held when the tray goes away.
+    useEffect(() => {
+        const urls = urlsRef.current
+        return () => {
+            urls.forEach((entry) => URL.revokeObjectURL(entry.url))
+            urls.clear()
+        }
+    }, [])
 
     // A newly added tile lands at the end of the band, which may be off-screen once the row
     // scrolls — bring it into view so attaching something always shows it. `scroll-smooth` on the
@@ -249,7 +318,7 @@ const ComposerAttachments = ({
                             exit={{opacity: 0, height: 0}}
                             className="overflow-hidden"
                         >
-                            <div className="flex flex-col gap-1 rounded-md bg-[var(--ant-color-error-bg)] px-2.5 py-1.5">
+                            <div className="flex flex-col gap-1 rounded-md bg-colorErrorBg px-2.5 py-1.5">
                                 {rejections.map((r) => (
                                     <div
                                         key={`${r.name}-${r.reason}`}
@@ -331,20 +400,21 @@ const ComposerAttachments = ({
                                                 </Chip>
                                             ) : type.startsWith("image/") && url ? (
                                                 <div
-                                                    role={onView ? "button" : undefined}
-                                                    aria-label={
-                                                        onView ? `View ${f.name}` : undefined
-                                                    }
-                                                    onClick={() => onView?.(f.uid)}
-                                                    className={`group relative ${TILE} w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary ${onView ? "cursor-pointer" : ""}`}
+                                                    className={`group relative ${TILE} w-12 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary`}
                                                 >
-                                                    {previewFailed.has(f.uid) ? (
-                                                        <div className="flex h-full w-full items-center justify-center bg-colorFillQuaternary text-colorTextTertiary">
-                                                            <ImageBroken size={18} />
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            {/* Local object URL — next/image can't optimize a blob. */}
+                                                    <ViewSurface
+                                                        onView={
+                                                            onView ? () => onView(f.uid) : undefined
+                                                        }
+                                                        name={f.name}
+                                                        className="block h-full w-full"
+                                                    >
+                                                        {previewFailed.has(f.uid) ? (
+                                                            <div className="flex h-full w-full items-center justify-center bg-colorFillQuaternary text-colorTextTertiary">
+                                                                <ImageBroken size={18} />
+                                                            </div>
+                                                        ) : (
+                                                            /* Local object URL — next/image can't optimize a blob. */
                                                             <img
                                                                 src={url}
                                                                 alt={f.name}
@@ -355,8 +425,8 @@ const ComposerAttachments = ({
                                                                 }
                                                                 className="h-full w-full object-cover"
                                                             />
-                                                        </>
-                                                    )}
+                                                        )}
+                                                    </ViewSurface>
                                                     <RemoveButton
                                                         name={f.name}
                                                         onRemove={remove}
@@ -366,29 +436,35 @@ const ComposerAttachments = ({
                                             ) : (
                                                 <Chip
                                                     className="max-w-[200px]"
-                                                    onClick={
-                                                        onView && isViewable(type)
-                                                            ? () => onView(f.uid)
-                                                            : undefined
-                                                    }
+                                                    interactive={!!onView && isViewable(type)}
                                                 >
-                                                    <Icon
-                                                        size={18}
-                                                        className="shrink-0 text-colorTextSecondary"
-                                                    />
-                                                    <div className="flex min-w-0 flex-col">
-                                                        <span
-                                                            className="truncate text-xs text-colorText"
-                                                            title={f.name}
-                                                        >
-                                                            {f.name}
-                                                        </span>
-                                                        {size && (
-                                                            <span className="text-[11px] text-colorTextSecondary">
-                                                                {size}
+                                                    <ViewSurface
+                                                        onView={
+                                                            onView && isViewable(type)
+                                                                ? () => onView(f.uid)
+                                                                : undefined
+                                                        }
+                                                        name={f.name}
+                                                        className="flex min-w-0 flex-1 items-center gap-2"
+                                                    >
+                                                        <Icon
+                                                            size={18}
+                                                            className="shrink-0 text-colorTextSecondary"
+                                                        />
+                                                        <div className="flex min-w-0 flex-col">
+                                                            <span
+                                                                className="truncate text-xs text-colorText"
+                                                                title={f.name}
+                                                            >
+                                                                {f.name}
                                                             </span>
-                                                        )}
-                                                    </div>
+                                                            {size && (
+                                                                <span className="text-[11px] text-colorTextSecondary">
+                                                                    {size}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </ViewSurface>
                                                     <RemoveButton name={f.name} onRemove={remove} />
                                                 </Chip>
                                             )}

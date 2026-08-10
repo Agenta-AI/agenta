@@ -18,6 +18,16 @@ const setup = (sessionId = `attach-${Math.random().toString(36).slice(2)}`) => (
     ...renderHook(() => useComposerAttachments({sessionId, uploadsEnabled: false})),
 })
 
+/** Same hook, but with the session id as a rerender prop — hosts are free to keep the composer
+ * mounted across a session switch (this repo's chat workspace keeps tab panes mounted). */
+const setupSwitchable = (sessionId: string) =>
+    renderHook(
+        ({id}: {id: string}) => useComposerAttachments({sessionId: id, uploadsEnabled: false}),
+        {
+            initialProps: {id: sessionId},
+        },
+    )
+
 afterEach(() => {
     attachmentsBySession.clear()
 })
@@ -101,6 +111,39 @@ describe("useComposerAttachments", () => {
             second.result.current.removeFile(second.result.current.files[0].uid)
         })
         expect(attachmentsBySession.has(sessionId)).toBe(false)
+    })
+
+    // The initializer only runs on mount, so a session swap under a MOUNTED hook used to write
+    // session A's staged rows under session B (orphaning A's, and pointing a retry at B's upload).
+    it("moves staged files back to their own session when the session changes on a mounted hook", () => {
+        const a = `attach-switch-a-${Date.now()}`
+        const b = `attach-switch-b-${Date.now()}`
+        const {result, rerender} = setupSwitchable(a)
+        act(() => {
+            result.current.addFiles([makeFile("a-only.txt")])
+        })
+        expect(attachmentsBySession.get(a)).toHaveLength(1)
+
+        act(() => {
+            rerender({id: b})
+        })
+        // B starts empty, and A kept its own row.
+        expect(result.current.files).toHaveLength(0)
+        expect(attachmentsBySession.get(a)?.map((f) => f.name)).toEqual(["a-only.txt"])
+        expect(attachmentsBySession.has(b)).toBe(false)
+
+        act(() => {
+            result.current.addFiles([makeFile("b-only.txt")])
+        })
+        expect(attachmentsBySession.get(b)?.map((f) => f.name)).toEqual(["b-only.txt"])
+        expect(attachmentsBySession.get(a)?.map((f) => f.name)).toEqual(["a-only.txt"])
+
+        // Switching back restores A's own tray rather than carrying B's over.
+        act(() => {
+            rerender({id: a})
+        })
+        expect(result.current.files.map((f) => f.name)).toEqual(["a-only.txt"])
+        expect(attachmentsBySession.get(b)?.map((f) => f.name)).toEqual(["b-only.txt"])
     })
 
     it("removeFile unstages one; dismissing rejections keeps files; clearAttachments drops only consumed uids", () => {

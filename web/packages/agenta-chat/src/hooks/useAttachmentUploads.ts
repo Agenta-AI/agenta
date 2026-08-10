@@ -19,9 +19,17 @@ export interface AttachmentUploads {
     retry: (uid: string) => void
     /** Whether the failed upload should expose a retry action. */
     canRetry: (uid: string) => boolean
-    /** Abort and release one in-flight upload. */
+    /**
+     * Cancel one in-flight upload for good: aborts the request AND settles the row, so the
+     * resume rule below leaves it alone. The row stays in the tray as a retryable failure —
+     * removing the chip is `removeUploadFile`'s job, not this one's.
+     */
     abort: (uid: string) => void
 }
+
+/** What a user-cancelled row reports. Reuses the `error` status (rather than a fourth one every
+ * surface would have to learn) so the existing retry/remove affordances apply unchanged. */
+export const UPLOAD_CANCELLED_MESSAGE = "Upload cancelled"
 
 interface UploadFailureDetails {
     retryable?: boolean
@@ -53,6 +61,13 @@ export function useAttachmentUploads<TResponse>(
     filesRef.current = files
     const controllers = useRef(new Map<string, AbortController>())
     const queued = useRef(new Set<string>())
+    // Uids the USER cancelled in this mount. The resume rule below deliberately restarts any row
+    // that says "uploading" without a live controller — that is how a remounted tray picks its
+    // in-flight entries back up — so a cancel has to be distinguishable from an unmount abort, or
+    // `abort` would only pause the upload until the next `files` identity (which, mid-upload,
+    // is many times a second). Per-mount by construction: a remount gets a fresh ref, so a genuine
+    // remount still resumes.
+    const cancelled = useRef(new Set<string>())
     const retryAt = useRef(new Map<string, number>())
     const retryable = useRef(new Map<string, boolean>())
     const retryTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
@@ -77,6 +92,8 @@ export function useAttachmentUploads<TResponse>(
             controllers.current.set(uid, controller)
             retryAt.current.delete(uid)
             retryable.current.delete(uid)
+            // Starting this uid again is an explicit un-cancel (a retry, or a re-enqueue).
+            cancelled.current.delete(uid)
 
             clearTimeout(retryTimers.current.get(uid))
             retryTimers.current.delete(uid)
@@ -113,26 +130,39 @@ export function useAttachmentUploads<TResponse>(
         [upload, patch],
     )
 
-    const abort = useCallback((uid: string) => {
-        queued.current.delete(uid)
-        retryAt.current.delete(uid)
-        retryable.current.delete(uid)
-        clearTimeout(retryTimers.current.get(uid))
-        retryTimers.current.delete(uid)
-        const controller = controllers.current.get(uid)
-        controllers.current.delete(uid)
-        controller?.abort()
-    }, [])
+    const abort = useCallback(
+        (uid: string) => {
+            queued.current.delete(uid)
+            retryAt.current.delete(uid)
+            retryable.current.delete(uid)
+            clearTimeout(retryTimers.current.get(uid))
+            retryTimers.current.delete(uid)
+            const controller = controllers.current.get(uid)
+            controllers.current.delete(uid)
+            cancelled.current.add(uid)
+            controller?.abort()
+            // Settle the ROW too. Aborting the request alone left it reading "uploading", which is
+            // exactly the shape the resume rule restarts — and it would also hold `attachmentsSettled`
+            // (and therefore send) forever. `error` gives the tile its retry + remove affordances.
+            patch(uid, {status: "error", percent: undefined, error: UPLOAD_CANCELLED_MESSAGE})
+        },
+        [patch],
+    )
     const enqueue = useCallback((uids: string[]) => {
-        uids.forEach((uid) => queued.current.add(uid))
+        uids.forEach((uid) => {
+            cancelled.current.delete(uid)
+            queued.current.add(uid)
+        })
     }, [])
     useEffect(() => {
-        // A remounted tray resumes in-flight entries with the same uid/idempotency key.
+        // A remounted tray resumes in-flight entries with the same uid/idempotency key — but a row
+        // the user cancelled in THIS mount stays cancelled (see `cancelled`).
         for (const file of files) {
             if (
                 file.status === "uploading" &&
                 file.originFileObj &&
-                !controllers.current.has(file.uid)
+                !controllers.current.has(file.uid) &&
+                !cancelled.current.has(file.uid)
             ) {
                 queued.current.add(file.uid)
             }
@@ -141,6 +171,10 @@ export function useAttachmentUploads<TResponse>(
             if (!files.some((file) => file.uid === uid)) continue
             queued.current.delete(uid)
             run(uid)
+        }
+        // Forget cancellations whose row is gone (removed chip), so the set can't grow unbounded.
+        for (const uid of cancelled.current) {
+            if (!files.some((file) => file.uid === uid)) cancelled.current.delete(uid)
         }
     }, [files, run])
     const retry = useCallback(
