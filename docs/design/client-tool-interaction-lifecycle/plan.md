@@ -15,10 +15,14 @@ Today: the user answers, the resume goes out, the row stays `pending`, the sweep
 marks it `cancelled`. The truth is lost (research Finding 1).
 
 New behavior: when the user answers a card, the browser FIRST tells the server
-"answered" (one small API call that flips the row from `pending` to `responded`). Then
-it sends the resume exactly as today. When the runner consumes the answer, the server
-sets the row to `resolved` and saves the outcome (the form values, or the connection
-result).
+"answered" (one small API call that flips the row from `pending` to `responded` and
+saves the outcome: the form values, or the connection result). Then it sends the
+resume exactly as today. `responded` with a saved outcome IS the settled state for
+form and connect cards; `resolved` stays the approval-only end state. We checked
+whether the runner could later confirm consumption and mark the row `resolved`: it
+cannot know which row it consumed without new plumbing through three layers, for a
+status word nothing displays. So we do not build that. Details are in
+[implementation.md](implementation.md).
 
 Why this order wins: the sweep only closes `pending` rows. A row that is already
 `responded` survives the sweep, with no changes to the sweep at all. Version 1 of the
@@ -63,6 +67,9 @@ slow one day, we can enrich it then.
 - The buttons live ON the card, wherever it is in the chat. The bottom dock becomes a
   pointer to the card, not the owner of the buttons. This kills the dead-card bug at
   its root.
+- Decided (Mahmoud, 2026-08-10): the dock STAYS, as a shortcut. It still appears while
+  a card waits, and clicking it scrolls to the card. This keeps the visible UI change
+  as small as possible.
 - The three code paths that only looked at the last message now scan the whole chat,
   like the status fix (#5913) already does.
 - The one-line dispatch repair from research Finding 3 lands immediately, outside this
