@@ -5,6 +5,7 @@ connections since the point of this suite is two bridges at once.
 """
 
 import uuid
+from typing import Any, Dict, Optional
 
 import pytest
 from sqlalchemy import text
@@ -99,8 +100,17 @@ async def bridge_scope():
 
     connection_ids = []
 
-    async def make_connection(*, integration_key: str, secret: str, delivery_url: str):
+    async def make_connection(
+        *,
+        integration_key: str,
+        secret: str,
+        delivery_url: str,
+        capabilities: Optional[Dict[str, Any]] = None,
+    ):
         connection_id = uuid.uuid4()
+        data = {"secret": secret, "delivery_url": delivery_url}
+        if capabilities is not None:
+            data["capabilities"] = capabilities
         async with engine.session() as session:
             session.add(
                 ConnectionDBE(
@@ -110,7 +120,7 @@ async def bridge_scope():
                     provider_key="bridge",
                     integration_key=integration_key,
                     created_by_id=user_id,
-                    data={"secret": secret, "delivery_url": delivery_url},
+                    data=data,
                 )
             )
             await session.commit()

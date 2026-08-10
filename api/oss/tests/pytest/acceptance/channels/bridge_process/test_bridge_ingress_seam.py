@@ -16,10 +16,8 @@ from sqlalchemy import text
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
 from oss.src.core.channels.adapters.bridge.hello import parse_hello
-from oss.src.core.channels.dtos import ChannelConnection
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelNotSupported
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.gateway.connections.dao import ConnectionsDAO
@@ -115,17 +113,10 @@ async def single_bridge_seam(bridge_scope):
             integration_key=installation_id,
             secret=bridge.secret,
             delivery_url=bridge.deliver_url,
+            capabilities=parse_hello(HELLO_A).model_dump(mode="json"),
         )
 
-        capabilities = parse_hello(HELLO_A)
-        connection = ChannelConnection(
-            id=connection_id,
-            slug="acme-wecom-seam",
-            provider_key=ConnectionProviderKind.BRIDGE,
-            integration_key=installation_id,
-            data={"secret": bridge.secret, "delivery_url": bridge.deliver_url},
-        )
-        adapter = BridgeAdapter(capabilities=capabilities, connection=connection)
+        adapter = BridgeAdapter()
         registry = _SingleBridgeRegistry({"bridge": adapter})
 
         connections_service = ConnectionsService(

@@ -15,7 +15,6 @@ import httpx
 import pytest
 
 from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
-from oss.src.core.channels.adapters.bridge.hello import parse_hello
 from oss.src.core.channels.dtos import ChannelConnection
 from oss.src.core.channels.utils import compose_idempotency_key
 from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
@@ -68,12 +67,8 @@ async def test_delivery_arrives_at_the_right_bridge_and_no_other():
         with run_bridge(
             name="other-feishu", secret="feishu-secret", hello=HELLO_B
         ) as bridge_b:
-            adapter_a = BridgeAdapter(
-                capabilities=parse_hello(HELLO_A), http_client=httpx.AsyncClient()
-            )
-            adapter_b = BridgeAdapter(
-                capabilities=parse_hello(HELLO_B), http_client=httpx.AsyncClient()
-            )
+            adapter_a = BridgeAdapter(http_client=httpx.AsyncClient())
+            adapter_b = BridgeAdapter(http_client=httpx.AsyncClient())
 
             connection_a = _connection(
                 integration_key="acme-wecom",
@@ -118,9 +113,7 @@ async def test_delivery_arrives_at_the_right_bridge_and_no_other():
 
 async def test_a_retried_delivery_command_is_not_recorded_twice_by_the_bridge():
     with run_bridge(name="acme-wecom", secret="acme-secret", hello=HELLO_A) as bridge:
-        adapter = BridgeAdapter(
-            capabilities=parse_hello(HELLO_A), http_client=httpx.AsyncClient()
-        )
+        adapter = BridgeAdapter(http_client=httpx.AsyncClient())
         connection = _connection(
             integration_key="acme-wecom",
             secret=bridge.secret,
@@ -150,9 +143,7 @@ async def test_a_retried_delivery_command_is_not_recorded_twice_by_the_bridge():
 
 async def test_post_then_edit_of_the_same_row_send_two_distinct_idempotency_keys_on_the_wire():
     with run_bridge(name="acme-wecom", secret="acme-secret", hello=HELLO_A) as bridge:
-        adapter = BridgeAdapter(
-            capabilities=parse_hello(HELLO_A), http_client=httpx.AsyncClient()
-        )
+        adapter = BridgeAdapter(http_client=httpx.AsyncClient())
         connection = _connection(
             integration_key="acme-wecom",
             secret=bridge.secret,

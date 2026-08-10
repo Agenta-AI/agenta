@@ -149,19 +149,19 @@ async def two_bridges(bridge_scope):
                 integration_key=installation_a,
                 secret=bridge_a.secret,
                 delivery_url=bridge_a.deliver_url,
+                capabilities=parse_hello(HELLO_A).model_dump(mode="json"),
             )
             connection_b_id = await bridge_scope["make_connection"](
                 integration_key=installation_b,
                 secret=bridge_b.secret,
                 delivery_url=bridge_b.deliver_url,
+                capabilities=parse_hello(HELLO_B).model_dump(mode="json"),
             )
 
             # The one shared adapter instance every bridge is routed through in
-            # production. Capabilities are baked in at construction, same as
-            # `fetch_capabilities` reads them -- there is no per-request slot for
-            # a second declaration, which is exactly what this suite probes.
-            shared_capabilities = parse_hello(HELLO_A)
-            shared_adapter = BridgeAdapter(capabilities=shared_capabilities)
+            # production; each connection carries its own declaration, read at
+            # call time, so nothing is baked into the adapter itself.
+            shared_adapter = BridgeAdapter()
             registry = ChannelAdapterRegistry(adapters={"bridge": shared_adapter})
 
             connections_service = ConnectionsService(
@@ -345,21 +345,15 @@ async def _configure_agent_for_connection(
     return space, agent
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "fetch_capabilities(channel='bridge') returns the one shared adapter's "
-        "baked-in declaration regardless of which connection asked, so a "
-        "second bridge's space is validated against the first bridge's "
-        "declared locator fields and fails composing its own key."
-    ),
-)
 async def test_two_bridges_interleaved_each_resolve_to_their_own_agent_and_thread(
     two_bridges,
 ):
     """Beyond "own connection" (the test above): each bridge's event also
     resolves to its own configured space, its own agent, and its own
-    freshly-created thread -- never the other bridge's."""
+    freshly-created thread -- never the other bridge's. Each connection
+    carries its own capability declaration (chat_id vs room_id identity
+    keys), so this also proves fetch_capabilities resolves per-connection
+    rather than returning one shared adapter's baked-in declaration."""
 
     engine = two_bridges["engine"]
     project_id = two_bridges["project_id"]
@@ -368,8 +362,7 @@ async def test_two_bridges_interleaved_each_resolve_to_their_own_agent_and_threa
     connections_service = ConnectionsService(
         connections_dao=ConnectionsDAO(engine=engine), adapter_registry=None
     )
-    shared_capabilities = parse_hello(HELLO_A)
-    shared_adapter = BridgeAdapter(capabilities=shared_capabilities)
+    shared_adapter = BridgeAdapter()
     registry = ChannelAdapterRegistry(adapters={"bridge": shared_adapter})
     service = ChannelsService(
         channels_dao=ChannelsDAO(engine=engine),
