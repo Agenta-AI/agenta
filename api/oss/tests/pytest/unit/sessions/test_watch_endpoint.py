@@ -15,6 +15,7 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request
 
 from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
+from oss.src.core.access.permissions.types import Permission
 from oss.src.apis.fastapi.sessions.watch import (
     HEARTBEAT_FRAME,
     format_watch_frame,
@@ -22,7 +23,7 @@ from oss.src.apis.fastapi.sessions.watch import (
     retry_frame,
     watch_event_stream,
 )
-from oss.src.dbs.redis.sessions.contract import watch_channel
+from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.utils.env import env
 
@@ -212,11 +213,17 @@ async def test_stream_delivers_publisher_events_end_to_end():
     assert json.loads(frame.split("data: ")[1])["session_id"] == "sess-e2e"
 
 
-def _make_authed_request(app: FastAPI, project_id, user_id) -> Request:
+def _make_authed_request(
+    app: FastAPI,
+    project_id,
+    user_id,
+    *,
+    path: str = "/sessions/streams/watch",
+) -> Request:
     scope = {
         "type": "http",
         "method": "GET",
-        "path": "/sessions/streams/watch",
+        "path": path,
         "headers": [],
         "app": app,
     }
@@ -324,3 +331,74 @@ async def test_ready_is_not_emitted_before_the_subscription_is_live():
     )
 
     await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_project_watch_endpoint_streams_known_events_and_skips_unknown():
+    router = _router()
+    project_id = uuid4()
+    request = _make_authed_request(
+        FastAPI(),
+        project_id,
+        uuid4(),
+        path="/sessions/watch",
+    )
+    pubsub = _FakePubSub(
+        [
+            _msg({"type": "session-changed", "entity": "session", "id": "session-1"}),
+            _msg({"type": "unknown-changed", "entity": "unknown", "id": "unknown-1"}),
+            _msg(
+                {"type": "workflow-changed", "entity": "workflow", "id": "workflow-1"}
+            ),
+        ]
+    )
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.get_streams_engine"
+        ) as streams_engine,
+    ):
+        streams_engine.return_value.get_redis.return_value.pubsub.return_value = pubsub
+        response = await router.watch_project(request=request, project_id=project_id)
+
+        frames = [await response.body_iterator.__anext__() for _ in range(5)]
+        await response.body_iterator.aclose()
+
+    assert frames[0] == retry_frame(env.sessions.watch_retry_milliseconds)
+    assert frames[1] == ready_frame()
+    assert frames[2].startswith("event: session-changed\n")
+    assert frames[3].startswith("event: workflow-changed\n")
+    assert frames[4] == HEARTBEAT_FRAME
+    assert pubsub.subscribed == [project_watch_channel(str(project_id))]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("permissions", [(True, False), (False, True)])
+async def test_project_watch_endpoint_requires_both_view_permissions(permissions):
+    router = _router()
+    project_id = uuid4()
+    request = _make_authed_request(
+        FastAPI(),
+        project_id,
+        uuid4(),
+        path="/sessions/watch",
+    )
+
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        side_effect=permissions,
+    ) as check_access:
+        with pytest.raises(HTTPException) as exc_info:
+            await router.watch_project(request=request, project_id=project_id)
+
+    assert exc_info.value.status_code == 403
+    assert [call.kwargs["permission"] for call in check_access.await_args_list] == [
+        Permission.VIEW_SESSIONS,
+        Permission.VIEW_WORKFLOWS,
+    ]

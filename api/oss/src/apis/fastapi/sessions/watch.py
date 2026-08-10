@@ -37,7 +37,10 @@ _KNOWN_EVENTS = {
     WATCH_EVENT_RECORDS_CHANGED,
     WATCH_EVENT_LIFECYCLE,
     WATCH_EVENT_INTERACTION,
+    "session-changed",
+    "workflow-changed",
 }
+# Each project event family also needs its view permission in the project route's conjunction.
 
 
 def format_watch_frame(raw: Any) -> Optional[str]:
