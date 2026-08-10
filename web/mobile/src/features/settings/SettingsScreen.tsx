@@ -132,7 +132,8 @@ const TabBody = ({
     })
     // Destructive actions in the shared tool/trigger sections ask for confirmation through an
     // imperative callback (the desktop hands them antd's AlertPopup); this is the sheet version.
-    const {confirm, sheet: confirmSheet} = useConfirmSheet()
+    // Scoped to the open tab, so leaving it drops anything staged there.
+    const {confirm, sheet: confirmSheet} = useConfirmSheet(tab)
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
 
@@ -204,8 +205,10 @@ const TabBody = ({
         case "webhooks":
             return <WebhooksTab />
         // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry
-        // no antd theming and render correctly here.
+        // no antd theming and render correctly here. Both gate on access at the boundary, not
+        // only in the rail — otherwise a typed `?tab=tools` reaches writable controls.
         case "tools":
+            if (!access.canShowTools) return null
             return (
                 <>
                     <GatewayToolsSection confirm={confirm} />
@@ -213,6 +216,7 @@ const TabBody = ({
                 </>
             )
         case "triggers":
+            if (!access.canShowTriggers) return null
             return (
                 <div className="flex flex-col gap-8">
                     <TriggerConnectionsSection confirm={confirm} />

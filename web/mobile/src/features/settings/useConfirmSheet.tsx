@@ -1,4 +1,4 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {ConfirmSheet} from "./ConfirmSheet"
 
@@ -13,8 +13,12 @@ interface ConfirmRequest {
  * shared settings sections expect — the desktop passes antd's AlertPopup, which is imperative.
  *
  * Returns the sheet to render; a section given no `confirm` hides its destructive actions.
+ *
+ * `scope` is whatever the staged action belongs to — the open settings tab, say. The host stays
+ * mounted across tabs, so without this a confirmation staged on one tab is still pending on the
+ * next and could be resolved against a screen the user has left.
  */
-export const useConfirmSheet = () => {
+export const useConfirmSheet = (scope?: unknown) => {
     const [request, setRequest] = useState<ConfirmRequest | null>(null)
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -23,6 +27,12 @@ export const useConfirmSheet = () => {
         setError(null)
         setRequest(next)
     }, [])
+
+    useEffect(() => {
+        setRequest(null)
+        setError(null)
+        setPending(false)
+    }, [scope])
 
     const close = useCallback(() => {
         setRequest(null)

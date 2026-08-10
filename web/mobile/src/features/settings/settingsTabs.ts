@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import type {SettingsAccess, SettingsTabKey} from "@agenta/settings"
+import {isSettingsTabVisible, type SettingsAccess, type SettingsTabKey} from "@agenta/settings"
 import {isBillingEnabled, isEE, isToolsEnabled} from "@agenta/shared/api"
 import {useRouter} from "next/router"
 
@@ -55,19 +55,17 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
 }
 
 /**
- * The open tab, from `?tab=`. Anything this app cannot render falls back to Preferences.
- *
- * `null` until the router is ready: `router.query` is empty on the first client render of a
- * statically optimized page, and answering "preferences" there would open the wrong tab on a
- * direct load of `?tab=billing` and start its queries before correcting itself.
+ * The open tab, from `?tab=`. Anything this app cannot render falls back to Preferences — and so
+ * does anything access hides, so a typed `?tab=tools` cannot reach a page the rail never listed.
  */
-export const useActiveSettingsTab = (): SettingsTabKey | null => {
+export const useActiveSettingsTab = (): SettingsTabKey => {
     const router = useRouter()
-    if (!router.isReady) return null
-
+    const access = useMobileSettingsAccess()
     const requested = typeof router.query.tab === "string" ? router.query.tab : null
 
-    return AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)
-        ? (requested as SettingsTabKey)
-        : "preferences"
+    const available =
+        AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey) &&
+        isSettingsTabVisible(requested as SettingsTabKey, access)
+
+    return available ? (requested as SettingsTabKey) : "preferences"
 }
