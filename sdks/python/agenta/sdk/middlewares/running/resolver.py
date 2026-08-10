@@ -546,6 +546,24 @@ async def resolve_embeds(
         return parameters
 
 
+def _caller_supplied_configuration(request: WorkflowInvokeRequest) -> bool:
+    """Whether the CALLER sent its own configuration on the invoke request.
+
+    Only `data.parameters` (an inline config, e.g. the playground running an unsaved
+    draft) and `data.revision` (a fully materialised revision) count. Deliberately does
+    NOT consider the revision returned by `resolve_revision`: that falls back to
+    `RunningContext.revision`, which the decorator pre-seeds with the service's
+    REGISTERED DEFAULT configuration. Treating the default as caller intent makes a
+    references-only invoke look "already configured", so its references are never
+    hydrated and it silently runs the service default instead of the referenced
+    revision's configuration.
+    """
+    if not request.data:
+        return False
+
+    return bool(request.data.parameters or request.data.revision)
+
+
 class ResolverMiddleware:
     """Middleware that resolves workflow components before execution.
 
@@ -568,15 +586,13 @@ class ResolverMiddleware:
         call_next: Callable[[WorkflowInvokeRequest], Any],
     ):
         ctx = RunningContext.get()
-        revision = seed_empty_parameters_from_configuration(
-            await resolve_revision(request=request)
-        )
+        revision = await resolve_revision(request=request)
 
-        request_has_parameters = bool(request.data and request.data.parameters)
+        # Hydration intent is decided purely by what the CALLER sent. `revision` cannot
+        # take part in this decision: it falls back to the decorator's registered default
+        # configuration, which would make every references-only invoke look configured.
         needs_reference_hydration = bool(
-            request.references
-            and not request_has_parameters
-            and (revision is None or not revision.parameters)
+            request.references and not _caller_supplied_configuration(request)
         )
 
         # Resolve references (env/workflow/application refs → revision) when needed
@@ -593,7 +609,11 @@ class ResolverMiddleware:
             _merge_tracing_references(retrieval_references)
             _merge_tracing_selector(retrieval_selector)
             revision = hydrated_revision or existing_revision
-            revision = seed_empty_parameters_from_configuration(revision)
+
+        # Seed from the URI's registered default configuration LAST, so the default only
+        # fills a revision that is still unconfigured — after a hydration attempt has been
+        # made and come back empty (or failed).
+        revision = seed_empty_parameters_from_configuration(revision)
 
         if not request.data:
             request.data = WorkflowRequestData()

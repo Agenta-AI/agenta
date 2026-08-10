@@ -84,6 +84,15 @@ RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --age
 # to `on-request` so Agenta-tool gates park WARM. Fails the build if the preset drifts.
 RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
 
+# Name the offending key when Pi rejects a tool call for an unexpected property. Pi validates tool
+# arguments against the advertised schema before it dispatches, and typebox's stock message names
+# the OBJECT that has an extra property but never the property itself, so a model has to guess
+# which of the keys it sent is the extra one (seen in live QA on `workflow_revision`). The patch is
+# message formatting only: it changes no validation logic, and it exits non-zero if Pi's formatter
+# no longer matches, so a pi-ai bump breaks the build rather than silently restoring the
+# unactionable message. Retires when upstream Pi names the key itself.
+RUN node_modules/.bin/tsx scripts/patch-pi-validation-message.ts
+
 # No USER node here (unlike Dockerfile.gh): dev rebuilds dist/ under /app and mkdir's /pi-agent
 # at container start, both root-owned paths — not a FUSE constraint (fusermount works non-root).
 

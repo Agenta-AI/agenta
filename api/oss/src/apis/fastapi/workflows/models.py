@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Any, Literal, Optional, List
 
 from pydantic import BaseModel, Field
 
@@ -8,6 +8,8 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.git.dtos import RetrievalInfo
 from oss.src.core.workflows.dtos import (
+    #
+    CommitWarning,
     #
     WorkflowCatalogType,
     WorkflowCatalogHarness,
@@ -384,6 +386,37 @@ class WorkflowRevisionsLogRequest(BaseModel):
     )
 
 
+class ReadConfigTarget(BaseModel):
+    workflow_variant_id: Optional[str] = None
+    # Server-bound from $ctx.workflow.is_draft; stripped from the model-visible schema.
+    run_is_draft: Optional[bool] = None
+    path: Optional[List[Any]] = None
+
+
+class ReadConfigRequest(BaseModel):
+    target: ReadConfigTarget
+    max_bytes: Optional[int] = None
+
+
+class ReadConfigRevision(BaseModel):
+    id: str
+    version: Optional[str] = None
+    workflow_variant_id: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ReadConfigResponse(BaseModel):
+    revision: ReadConfigRevision
+    base_revision_id: str = Field(
+        description="Copy this into your next commit's `base_revision_id`.",
+    )
+    is_draft: bool = False
+    path: List[Any] = Field(default_factory=list)
+    value: Any = None
+    bytes: int = 0
+    warnings: Optional[List[CommitWarning]] = None
+
+
 class WorkflowRevisionResponse(BaseModel):
     count: int = Field(
         default=0,
@@ -392,6 +425,19 @@ class WorkflowRevisionResponse(BaseModel):
     workflow_revision: Optional[WorkflowRevision] = Field(
         default=None,
         description="The workflow revision.",
+    )
+    status: Optional[Literal["committed", "no_change"]] = Field(
+        default=None,
+        description=(
+            "Commit outcome. `no_change` means the change produced the stored "
+            "configuration, so no revision was created and `workflow_revision` is the "
+            "current head. Absent on paths that do not run the checked commit; a reader "
+            "must treat absent as `committed`."
+        ),
+    )
+    warnings: Optional[List[CommitWarning]] = Field(
+        default=None,
+        description="Structured advisories about the commit; never an error.",
     )
     resolution_info: Optional[ResolutionInfo] = Field(
         default=None,

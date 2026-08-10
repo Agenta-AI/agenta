@@ -25,6 +25,7 @@ from oss.src.dbs.redis.shared.engine import (
     get_cache_engine,
     get_streams_engine,
 )
+from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 
 from oss.databases.postgres.migrations.core.utils import (
     check_for_new_migrations as check_for_new_core_migrations,
@@ -642,9 +643,14 @@ folders_service = FoldersService(
 
 _lock_engine = get_lock_engine()
 
+# M3 live relay: lifecycle/interaction change notifications for the SSE watch
+# endpoint, published fire-and-forget on the durable plane.
+_sessions_watch_publisher = SessionsWatchPublisher()
+
 session_streams_service = SessionStreamsService(
     streams_dao=session_streams_dao,
     lock_engine=_lock_engine,
+    watch_publisher=_sessions_watch_publisher,
 )
 
 session_turns_service = SessionTurnsService(
@@ -819,6 +825,7 @@ interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 
 interactions_service = SessionInteractionsService(
     interactions_dao=interactions_dao,
+    watch_publisher=_sessions_watch_publisher,
 )
 
 triggers_service = TriggersService(
@@ -854,6 +861,7 @@ _interactions_broker = ProducerOnlyRedisStreamBroker(
 _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
+    records_service=records_service,
     dispatch_fn=_dispatch_detached_run,
 )
 
@@ -1098,6 +1106,7 @@ sessions = SessionsRouter(
     turns_service=session_turns_service,
     sessions_service=sessions_service,
     respond_task=_interactions_worker.respond_interaction,
+    interactions_dispatcher=_interactions_dispatcher,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------

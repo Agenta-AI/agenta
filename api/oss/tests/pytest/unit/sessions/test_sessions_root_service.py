@@ -122,6 +122,16 @@ class _FakeTurnsService:
             ]
         return self.turns
 
+    async def latest_turn_per_session(self, *, project_id, session_ids):
+        by_session: dict = {}
+        for turn in self.turns:
+            if turn.session_id not in session_ids:
+                continue
+            current = by_session.get(turn.session_id)
+            if current is None or turn.turn_index > current.turn_index:
+                by_session[turn.session_id] = turn
+        return by_session
+
     async def delete_by_session_id(self, *, project_id, session_id):
         self.delete_calls.append({"project_id": project_id, "session_id": session_id})
         return len(self.turns)
@@ -286,7 +296,12 @@ async def test_query_sessions_no_filter_returns_all_streams():
 
     result = await svc.query_sessions(project_id=_PROJECT)
 
-    assert result == [stream]
+    # `SessionListItem` (stream fields + `references`), not the bare `SessionStream` --
+    # equality is type-sensitive in pydantic, so compare the inherited fields as a dict
+    # (full-field pinning) and assert the added field separately.
+    assert len(result) == 1
+    assert result[0].model_dump(exclude={"references"}) == stream.model_dump()
+    assert result[0].references is None
     assert streams.query_calls[0]["session_ids"] is None
 
 

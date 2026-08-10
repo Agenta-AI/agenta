@@ -46,7 +46,9 @@ from agenta.sdk.agents import (
     ToolResolver,
     TraceContext,
 )
+from agenta.sdk.agents.utils.effective_config import MAX_STAMPED_BYTES
 from agenta.sdk.agents.utils.wire import (
+    _ERROR_MAX_LEN,
     request_to_wire,
     result_from_wire,
     sanitize_runner_error,
@@ -91,6 +93,17 @@ KNOWN_REQUEST_KEYS = {
     "harnessFiles",
     "turnId",
     "projectId",
+    "effectiveParameters",
+}
+
+# The post-hydration config a session turn runs. Stamped on the wire so the runner can echo it
+# onto a parked gate's interaction row (effective-turn-config plan, T1/T3).
+_EFFECTIVE_PARAMETERS = {
+    "agent": {
+        "instructions": "You are a helpful assistant.",
+        "llm": {"model": "openai-codex/gpt-5.5", "provider": "openai"},
+        "runner": {"permissions": {"default": "allow_reads"}},
+    }
 }
 
 _CUSTOM_TOOL = {
@@ -190,6 +203,7 @@ def _pi_payload():
             ),
         ),
         session_id="sess-1",
+        effective_parameters=dict(_EFFECTIVE_PARAMETERS),
     )
 
 
@@ -232,6 +246,10 @@ def _claude_payload():
         trace=None,
         run_context=RunContext(run=RunContextRun(kind="test")),
         session_id=None,
+        # Deliberately supplied on a NON-session run: the gate is `session_id`, so this golden
+        # pins that an ad-hoc run's payload carries no `effectiveParameters` (nothing will ever
+        # park a gate against it, and the wire stays byte-identical to the pre-change contract).
+        effective_parameters=dict(_EFFECTIVE_PARAMETERS),
     )
 
 
@@ -532,6 +550,145 @@ def test_request_to_wire_omits_project_id_when_none():
         messages=[Message(role="user", content="hi")],
     )
     assert "projectId" not in payload
+
+
+def test_request_to_wire_carries_effective_parameters_on_a_session_run():
+    # The post-hydration config the turn runs, stamped so the runner can echo it onto a parked
+    # gate's interaction row (effective-turn-config plan, T1).
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess-1",
+        effective_parameters=dict(_EFFECTIVE_PARAMETERS),
+    )
+    assert payload["effectiveParameters"] == _EFFECTIVE_PARAMETERS
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_omits_effective_parameters_without_a_session():
+    # A non-session run can never park a gate, so the field is not emitted and the ad-hoc wire
+    # stays byte-identical to the pre-change contract.
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id=None,
+        effective_parameters=dict(_EFFECTIVE_PARAMETERS),
+    )
+    assert "effectiveParameters" not in payload
+
+
+def test_request_to_wire_omits_effective_parameters_when_empty():
+    # Nothing to stamp -> no key (never a noise `"effectiveParameters": {}`).
+    for empty in (None, {}):
+        payload = request_to_wire(
+            harness=HarnessKind.PI,
+            sandbox="local",
+            config=PiAgentTemplate(),
+            messages=[Message(role="user", content="hi")],
+            session_id="sess-1",
+            effective_parameters=empty,
+        )
+        assert "effectiveParameters" not in payload
+
+
+def test_effective_parameters_equal_the_post_hydration_config_either_way():
+    """The stamped blob is whatever the handler ran with, on both invoke shapes.
+
+    The resolver decides hydration purely from what the caller sent
+    (``_caller_supplied_configuration``): a references-only invoke gets the hydrated revision's
+    parameters, an inline-parameters invoke keeps the caller's. Either way the handler is
+    handed ONE ``data.parameters`` dict, and that is exactly what reaches the wire — which is
+    what makes a resume replaying the blob reproduce the turn.
+    """
+    hydrated = {"agent": {"llm": {"model": "anthropic/claude-haiku-4-5"}}}
+    inline_draft = {"agent": {"llm": {"model": "anthropic/claude-sonnet-4-5"}}}
+
+    for post_hydration in (hydrated, inline_draft):
+        payload = request_to_wire(
+            harness=HarnessKind.PI,
+            sandbox="local",
+            config=PiAgentTemplate(),
+            messages=[Message(role="user", content="hi")],
+            session_id="sess-1",
+            effective_parameters=post_hydration,
+        )
+        assert payload["effectiveParameters"] == post_hydration
+
+
+def test_effective_parameters_drop_mcp_connection_headers():
+    # The one place the config schema permits a raw credential VALUE is an MCP server's static
+    # `connection.headers`; the vault-key REFS under `credentials` survive so the replayed run
+    # re-resolves the same secret.
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess-1",
+        effective_parameters={
+            "agent": {
+                "mcps": [
+                    {
+                        "name": "notion",
+                        "connection": {
+                            "type": "http",
+                            "url": "https://mcp.example/sse",
+                            "headers": {"authorization": "Bearer sk-live-1234"},
+                            "credentials": {
+                                "type": "header_secret_refs",
+                                "headers": {"authorization": "NOTION_TOKEN"},
+                            },
+                        },
+                    }
+                ]
+            }
+        },
+    )
+    connection = payload["effectiveParameters"]["agent"]["mcps"][0]["connection"]
+    assert "headers" not in connection
+    assert connection["url"] == "https://mcp.example/sse"
+    assert connection["credentials"]["headers"] == {"authorization": "NOTION_TOKEN"}
+
+
+def test_effective_parameters_preserve_tool_input_schema_properties():
+    # Redaction is scoped to connection descriptors: a tool's JSON-Schema may legitimately
+    # declare a property named `headers`, and mangling it would change the tool contract the
+    # replayed run exposes to the model.
+    tool = {
+        "name": "http_get",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"headers": {"type": "object"}},
+        },
+    }
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess-1",
+        effective_parameters={"agent": {"tools": [tool]}},
+    )
+    assert payload["effectiveParameters"]["agent"]["tools"][0] == tool
+
+
+def test_effective_parameters_over_the_cap_are_dropped_whole():
+    # A truncated config is invalid JSON and a silently-truncated one is worse than none, so an
+    # oversize blob is not stamped at all (the resume degrades to reference hydration).
+    oversize = {"agent": {"instructions": "x" * (MAX_STAMPED_BYTES + 1)}}
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess-1",
+        effective_parameters=oversize,
+    )
+    assert "effectiveParameters" not in payload
 
 
 def test_request_to_wire_claude_matches_golden(golden):
@@ -997,10 +1154,64 @@ def test_sanitize_runner_error_falls_back_when_first_line_is_a_stack_frame():
 
 
 def test_sanitize_runner_error_caps_length():
-    raw = "x" * 1000
+    # Reads the constant instead of a literal: the cap is a size bound that may be retuned, and a
+    # hardcoded number here silently pins it (this test asserted 300 until the cap was raised).
+    raw = "x" * (_ERROR_MAX_LEN + 700)
     result = sanitize_runner_error(raw)
-    assert len(result) <= 300
+    assert len(result) <= _ERROR_MAX_LEN
     assert result.endswith("…")
+
+
+def test_sanitize_runner_error_keeps_a_long_actionable_message_whole():
+    """A real runner error must arrive complete, because nothing downstream can recover the rest.
+
+    The full text goes to the server log only. It is not on the trace and not on the wire, so a
+    message cut here is unreadable for the user whatever the UI does (the error card already
+    reveals everything it is given).
+    """
+    message = (
+        "The runner refused the request: the Daytona API key cannot manage Secrets. "
+        + "Grant that permission to the key in AGENTA_RUNNER_DAYTONA_API_KEY. " * 12
+    ).strip()
+    assert 300 < len(message) <= _ERROR_MAX_LEN
+
+    result = sanitize_runner_error(message)
+
+    assert result == message
+    assert "…" not in result
+
+
+def test_sanitize_runner_error_still_drops_a_stack_dump_after_the_first_line():
+    # A long first line must not let the stack behind it through.
+    raw = (
+        "ValueError: "
+        + "boom " * 200
+        + '\n  File "/abs/secret/path.py", line 12, in run'
+    )
+    result = sanitize_runner_error(raw)
+
+    assert "/abs/secret/path.py" not in result
+    assert "File " not in result
+
+
+def test_sanitize_runner_error_still_falls_back_on_a_long_stack_frame_first_line():
+    raw = 'File "/abs/secret/path.py", line 12, in run - ' + "detail " * 200
+    assert sanitize_runner_error(raw) == "agent run failed"
+
+
+def test_sanitize_runner_error_still_redacts_a_known_secret_in_a_long_message():
+    # The redactor runs last, so a secret cannot ride out inside the extra room the cap now allows.
+    secret = "sk-runner-fake-secret-cccc3333cccc3333"
+    message = (
+        "The runner rejected the credential " + secret + ". Rotate it and retry. " * 40
+    ).strip()
+    assert len(message) <= _ERROR_MAX_LEN
+
+    with redaction_context(Redactor().with_known_secrets([secret])):
+        result = sanitize_runner_error(message)
+
+    assert secret not in result
+    assert "The runner rejected the credential" in result
 
 
 def test_sanitize_runner_error_handles_none_and_empty():

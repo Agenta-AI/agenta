@@ -2,8 +2,10 @@ import {describe, expect, it} from "vitest"
 
 import {
     getSettingsSidebarTabs,
+    getSettingsTabDescription,
     resolveSettingsTab,
     SETTINGS_SCOPES,
+    SETTINGS_TABS,
     type SettingsAccess,
 } from "./navigation"
 
@@ -38,12 +40,13 @@ describe("resolveSettingsTab", () => {
         expect(resolveSettingsTab("projects", baseAccess)).toBe("projects")
     })
 
-    it("gives organization owners the general tab in both editions", () => {
+    it("keeps the organizations tab reachable for members, not just owners", () => {
+        // It lists every organization you belong to; ownership only gates the row actions.
         expect(resolveSettingsTab("organizationGeneral", {...baseAccess, isEE: false})).toBe(
             "organizationGeneral",
         )
         expect(resolveSettingsTab("organizationGeneral", {...baseAccess, isOwner: false})).toBe(
-            "workspace",
+            "organizationGeneral",
         )
     })
 
@@ -54,11 +57,38 @@ describe("resolveSettingsTab", () => {
         )
     })
 
-    it("keeps personal feature flags available in OSS", () => {
+    it("keeps personal preferences available in OSS", () => {
         const ossAccess = {...baseAccess, isEE: false, isOwner: false}
 
-        expect(resolveSettingsTab("featureFlags", ossAccess)).toBe("featureFlags")
+        expect(resolveSettingsTab("preferences", ossAccess)).toBe("preferences")
         expect(resolveSettingsTab("account", ossAccess)).toBe("workspace")
+    })
+})
+
+describe("settings tab descriptions", () => {
+    it("gives every tab a non-empty description", () => {
+        const missing = SETTINGS_TABS.filter(
+            ({key}) => !getSettingsTabDescription(key, baseAccess).trim(),
+        ).map(({key}) => key)
+
+        expect(missing).toEqual([])
+    })
+
+    it("keeps descriptions short enough to stay scannable", () => {
+        // The header subtitle is a summary, not documentation — anything longer than this
+        // belongs behind the docs link. Longest today is 113 characters.
+        const tooLong = SETTINGS_TABS.filter(
+            ({key}) => getSettingsTabDescription(key, baseAccess).length > 140,
+        ).map(({key}) => key)
+
+        expect(tooLong).toEqual([])
+    })
+
+    it("varies the billing description with the billing entitlement", () => {
+        expect(getSettingsTabDescription("billing", baseAccess)).toContain("subscription")
+        expect(
+            getSettingsTabDescription("billing", {...baseAccess, billingEnabled: false}),
+        ).not.toContain("subscription")
     })
 })
 
@@ -86,6 +116,6 @@ describe("settings sidebar scopes", () => {
             "auditLog",
             "billing",
         ])
-        expect(keysForScope("personal")).toEqual(["account", "featureFlags"])
+        expect(keysForScope("personal")).toEqual(["account", "preferences"])
     })
 })

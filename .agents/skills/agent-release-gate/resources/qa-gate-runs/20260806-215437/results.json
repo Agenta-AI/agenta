@@ -1,0 +1,169 @@
+{
+  "C1": {
+    "config": {
+      "harness": "claude",
+      "sandbox": "local",
+      "model": "sonnet",
+      "provider": "anthropic",
+      "connection": {
+        "mode": "self_managed",
+        "slug": null
+      }
+    },
+    "journeys": {
+      "warm": {
+        "pass": true,
+        "why": "warm: 3 turns on one live daemon; the durable cwd token survived (in reply=True), and the turn ledger shows a single harness session + sandbox (stable=True)",
+        "session_id": "153e4da4-0d3a-4433-a265-c628a06d5681",
+        "cwd_token": "QA-CWD-fd3443419b3f-1786046081",
+        "evidence": {
+          "tier": "warm",
+          "transition": "none (same daemon, same live mount)",
+          "mount_id": "019fd8a4-59df-7850-b2fe-dad0f8eb1671",
+          "cwd_token_in_store": true,
+          "times_ms": {
+            "first": 5818,
+            "last": 4734
+          },
+          "agent_session_ids": [
+            "ef8d0d72-65a1-43d9-a916-3062253b2fe7"
+          ],
+          "sandbox_ids": [
+            "local/127.0.0.1:42011"
+          ],
+          "zero_byte_objects_in_cwd": [],
+          "runner_log_grep": "[keepalive] hit-continue",
+          "ledger_available": true,
+          "warm_ids_stable": true
+        },
+        "turn_write": {
+          "http": 200,
+          "ms": 5818,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 4734,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-CWD-fd3443419b3f-1786046081"
+        }
+      },
+      "cold1": {
+        "pass": true,
+        "why": "cold 1: the pooled session was evicted and rebuilt on the same runner (two sandbox ids in the ledger=True \u2014 one id would mean the change was applied in place and this tier measured warm reuse); the cwd token came back from the store (in reply=True) and the agent read a file that only ever existed as an object (store-only file readable=True)",
+        "session_id": "5c6bf75b-ad6f-44fd-a1a0-0dce480babd5",
+        "cwd_token": "QA-CWD-fd3443419b3f-1786046094",
+        "evidence": {
+          "tier": "cold1",
+          "transition": "harnessSession facet change (a permission rule) -> not live-applicable, so the runner evicts the pooled session and rebuilds cold",
+          "mount_id": "019fd8a4-8b16-7151-82e3-b14c2d8f86be",
+          "cwd_token_in_store": true,
+          "times_ms": {
+            "first": 6392,
+            "last": 6074
+          },
+          "agent_session_ids": [
+            "a5e959f1-8d91-49ec-9735-80d885d4e626"
+          ],
+          "sandbox_ids": [
+            "local/127.0.0.1:41555",
+            "local/127.0.0.1:35429"
+          ],
+          "zero_byte_objects_in_cwd": [],
+          "runner_log_grep": "[keepalive] mismatch (config) ...; evict + cold",
+          "ledger_available": true,
+          "rebuilt_sandbox": true
+        },
+        "turn_write": {
+          "http": 200,
+          "ms": 6392,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "WROTE"
+        },
+        "turn_resumed": {
+          "http": 200,
+          "ms": 6074,
+          "finish": "stop",
+          "frames": [
+            "start",
+            "start-step",
+            "tool-input-start",
+            "tool-input-available",
+            "tool-input-available",
+            "tool-output-available",
+            "text-start",
+            "text-delta",
+            "text-delta",
+            "text-end",
+            "finish-step",
+            "finish"
+          ],
+          "tools": [
+            "Terminal"
+          ],
+          "approval": false,
+          "errors": [],
+          "reply": "QA-CWD-fd3443419b3f-1786046094\nQA-STORE-6ffbd10e555a"
+        }
+      }
+    }
+  }
+}
