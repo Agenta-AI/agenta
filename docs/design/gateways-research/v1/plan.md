@@ -1,6 +1,6 @@
 # Gateways: work packages
 
-Assumes the rest of `v2/`. Packages, not a schedule — no sizing, and no sequencing beyond
+Assumes the rest of `v1/`. Packages, not a schedule — no sizing, and no sequencing beyond
 what the dependencies force.
 
 A package is a unit that can be built, reviewed and merged on its own. Where two packages

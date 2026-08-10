@@ -30,7 +30,7 @@ To verify at implementation time:
 ### OR2. Credential lookup signature
 
 The lookup must take the owner as a parameter from the start even while the only answer is
-the project (`secrets-scoping.md`). Review that no call site hardcodes the project, and that
+the project (`secrets.md`). Review that no call site hardcodes the project, and that
 the owner resolves from `AuthScope` rather than being passed separately.
 
 ### OR3. Model routing extraction

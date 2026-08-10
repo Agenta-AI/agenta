@@ -2,10 +2,10 @@
 
 One pair of files per work package: `specs-wp{k}.md` (what to build) and `tasks-wp{k}.md`
 (the ordered checklist). They exist so a package can be handed to someone — or to an agent in
-its own worktree — with no context beyond `v2/`.
+its own worktree — with no context beyond `v1/`.
 
 `specs-*` states the target. `tasks-*` is a working document: check items off, add what was
-missed. Neither carries history; the design documents in `v2/` remain the source of truth,
+missed. Neither carries history; the design documents in `v1/` remain the source of truth,
 and a spec that disagrees with them is a bug in the spec.
 
 **Status: not yet written.** `plan.md` carries candidate packages, and they will not survive

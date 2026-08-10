@@ -18,20 +18,20 @@ dispatcher resolves `secret_id` through the vault service and reads the key off 
 DTO, and the secret itself never appears on the domain's own responses.
 
 So the question is not "how do we store tokens" but **"which secret kinds do we add."** See
-`secrets-scoping.md` for the proposal and the shape of the change.
+`secrets.md` for the proposal and the shape of the change.
 
 Everything that made this look like a new component — encryption at rest, key management,
 scoping, lifecycle — belongs to the secrets service and is already solved there. Adding a
 kind touches the enum, a settings DTO, the discriminated union, and its validation branch.
 
 **Still open:** whether the OAuth token set is one kind or two (a static credential and a
-grant have different lifecycles), and the naming. Recorded in `secrets-scoping.md`.
+grant have different lifecycles), and the naming. Recorded in `secrets.md`.
 
 ---
 
 ## OD2. User-level secrets and the resolution order
 
-**Status: designed, not implemented.** See `secrets-scoping.md`.
+**Status: designed, not implemented.** See `secrets.md`.
 
 The design is settled on paper; what is open is the product default — whether a user
 credential overriding a project one is the norm or the exception, and which upstreams should
@@ -57,7 +57,7 @@ implement, so this is a naming and ergonomics question rather than a routing one
 A call can demand a permission the user never granted, and required scopes may depend on
 the call's own arguments, so they cannot always be pre-granted.
 
-Three options, recorded in `credential-model.md`: over-request at connect time, fail
+Three options, recorded in `raw/credential-model.md`: over-request at connect time, fail
 actionably and send the user back to the dashboard, or pause the run.
 
 **Hinges on** how often it actually fires in practice, which we cannot know before running

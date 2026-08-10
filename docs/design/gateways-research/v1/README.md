@@ -1,11 +1,10 @@
-# Gateways v2
+# Gateways
 
 Design for an LLM gateway and an MCP gateway, built as one policy core with two protocol
 surfaces.
 
-**Status: skeleton.** `v1/` holds the research and the settled positions; this directory is
-where they become a buildable design. Documents here are structured but not complete — each
-states what it must establish and what is still missing.
+**Status: skeleton.** `raw/` holds the source research behind these positions. Documents here
+are structured but not complete — each states what it must establish and what is missing.
 
 ## Posture
 
@@ -48,6 +47,16 @@ Five claims anchor the design and constrain everything downstream:
 10. **`notes.md`** — replaced designs and open observations.
 11. **`workstreams/`** — one spec and one task list per package, plus the file-ownership
     table and the parallel-work rules.
+
+Alongside the design, not part of its argument:
+
+- **`libraries.md`** — what to reuse rather than build, and what was rejected. Read before
+  implementing anything that looks like an OAuth client or a credential store.
+- **`open-designs.md`** — design questions still open, ordered by what depends on them.
+- **`open-reviews.md`** — what to verify against the code when the ports are implemented.
+- **`raw/`** — the research this design grew out of: the codebase surveys, the protocol
+  findings, and the original framing. Read when you want to know why a document says what it
+  says.
 
 **Every document except `decisions.md` and `notes.md` states only what is.** A shape that was
 proposed and replaced lives in `notes.md`; rationale that constrains future work lives in

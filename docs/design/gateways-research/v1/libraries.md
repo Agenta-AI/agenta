@@ -1,6 +1,6 @@
 # What to reuse instead of building
 
-The gap after `existing-gateway-model.md` was "a token store with refresh, plus an OAuth
+The gap after `raw/existing-gateway-model.md` was "a token store with refresh, plus an OAuth
 client." Most of that is already written by other people.
 
 ## MCP OAuth client — use the official SDK
@@ -16,7 +16,7 @@ side of the authorization spec:
 - token refresh, with expiry tracking and automatic refresh when a token is stale but
   refreshable;
 - `401` handling by running discovery and authorization, and **`403` handling for step-up
-  when more scopes are needed** — the case flagged as open in `credential-model.md`;
+  when more scopes are needed** — the case flagged as open in `raw/credential-model.md`;
 - persistence behind a **`TokenStorage` protocol**, so the backend is ours.
 
 It implements the HTTP client library's auth interface, so it drops into a normal async
@@ -45,7 +45,7 @@ So the `TokenStorage` implementation is thin — an adapter that reads and write
 secrets service rather than a persistence layer of its own. Encryption, key management,
 rotation, and deletion are inherited rather than reimplemented.
 
-What this needs instead is **new secret kinds**, covered in `secrets-scoping.md`.
+What this needs instead is **new secret kinds**, covered in `secrets.md`.
 
 ## Model routing — the library already in the tree
 

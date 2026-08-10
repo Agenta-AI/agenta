@@ -103,7 +103,7 @@ chain, both registration mechanisms, PKCE, refresh with expiry tracking, and bot
 unauthorized and insufficient-scope responses — persisting behind a storage protocol we
 implement over the secrets service.
 
-Two things to verify at implementation time, tracked in `v1/open-reviews.md`: no MCP SDK is a
+Two things to verify at implementation time, tracked in `open-reviews.md`: no MCP SDK is a
 direct dependency today in either the runner or the Python projects, and refresh-token
 support was still landing across SDKs during 2026, so pin a version that has it.
 

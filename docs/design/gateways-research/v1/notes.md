@@ -3,7 +3,8 @@
 Replaced positions and observations. Read this when something in the other documents looks
 wrong and you want to know whether it was already considered.
 
-Everything else in `v1/` states only what is. History lives here.
+Everything else here states only what is. History lives in this file and rationale lives in
+`decisions.md`.
 
 ---
 
@@ -11,34 +12,43 @@ Everything else in `v1/` states only what is. History lives here.
 
 ### The principal was not a blocker
 
-An early draft treated identity as the blocking decision, on the reading that connections
-are project-scoped and therefore the platform could not attribute a call to a person.
+An early draft treated identity as the blocking decision, on the reading that connections are
+project-scoped and therefore the platform could not attribute a call to a person.
 
 That conflated two separate things. **Who is calling us** is answered on every request by an
 auth context carrying organization, workspace, project and user, rejected outright if any is
-missing. **Which stored credential we then use** is a different lookup. The first was never
-in question.
+missing. **Which stored credential we then use** is a different lookup. The first was never in
+question.
 
-The correction matters beyond the one point: it is why `secrets-scoping.md` treats
-attribution and credential ownership as independent, and why user-level credentials do not
-require any caller-side change.
+The correction matters beyond the one point: it is why `secrets.md` treats attribution and
+credential ownership as independent, and why user-level credentials need no caller-side
+change.
 
 ### Dual-mode adoption was wrong
 
-An early version offered "gateway and direct paths coexist, defaulting to direct." Rejected:
-a governance boundary with an exception is not a boundary, and one bypass costs every claim
-about policy, audit, spend, and credential containment. See `decisions.md` S1.
+An early version offered "gateway and direct paths coexist, defaulting to direct." Rejected: a
+governance boundary with an exception is not a boundary, and one bypass costs every claim
+about policy, audit, spend and credential containment. See `decisions.md` D1.
 
-The related understatement — that adoption is "a resolver-side change" — was only ever true
-of the runner caller, whose wire already expresses a gateway route. Every other caller is a
-real change.
+The related understatement — that adoption is "a resolver-side change" — was only ever true of
+the runner caller, whose wire already expresses a gateway route. Every other caller is a real
+change.
 
 ### "In-process in the SDK" was the wrong frame
 
 An early argument preferred converting the workflow path first because it runs in-process.
-That framing is wrong regardless of which path goes first: callers depend on ports, and the
-adapter behind the port talks to the gateway. The SDK keeps its secret-fetch and
-secret-injection capabilities; only the implementation behind them changes.
+Wrong regardless of which path goes first: callers depend on ports, and the adapter behind the
+port talks to the gateway. The SDK keeps its secret-fetch and secret-injection capabilities;
+only the implementation behind them changes.
+
+### A token store was invented that should not exist
+
+The design briefly called for a token store with its own encryption. It should never have
+been: the established pattern is that a domain row carries a secret id, the secrets service
+holds the value, and the consumer resolves it at use time — exactly what webhook subscriptions
+and SSO providers already do.
+
+What survived is much smaller: two new secret kinds. See `secrets.md`.
 
 ### The internal tool channel is not a proto-gateway
 
@@ -46,8 +56,8 @@ The runner has an internal channel that delivers first-party tools to a harness 
 was briefly cited as evidence that an MCP gateway already half-exists.
 
 It is a separate concern — internal tool delivery, not third-party server brokering — and
-conflating the two would drag its permission-rule and transport constraints into a design
-that does not need them. Excluded deliberately.
+conflating the two would drag its permission-rule and transport constraints into a design that
+does not need them. Excluded deliberately.
 
 ---
 
@@ -66,39 +76,77 @@ appeared, and the reflex should be to look for the existing shape before proposi
 ### The two-axis credential model came from a real gap
 
 "API key versus OAuth" conflates authentication method with credential ownership. Personal
-access tokens are static and per-user; some OAuth grants are organizational. The existing
-code has the first axis and not the second — correctly, since ownership does not yet vary.
+access tokens are static and per-user; some OAuth grants are organizational. The existing code
+has the first axis and not the second — correctly, since ownership does not yet vary.
 
 ### Statelessness and OAuth get conflated easily
 
 Going stateless removed protocol session state. OAuth is credential lifecycle state. The
-current MCP revision removes the first and leaves the second fully specified. The gain from
-statelessness is a cheaper gateway, not less authorization work.
+current protocol revision removes the first and leaves the second fully specified. The gain
+from statelessness is a cheaper gateway, not less authorization work.
 
 ### The spec now favours intermediaries
 
 Three changes in the current revision are explicitly about things sitting in the middle:
 header-based routing, cacheable list results with a shared-intermediary scope flag, and the
-replacement of server-initiated callbacks with a retry pattern. That last one is what turns
-a gateway from a stateful broker into a plain proxy.
-
-Worth watching: the deprecation of server-side sampling suggests servers needing a model
-should call a model API directly. In a two-gateway world that means an MCP server calling
-the LLM gateway, which is where the two planes touch.
+replacement of server-initiated callbacks with a retry pattern. The last is what turns a
+gateway from a stateful broker into a plain proxy.
 
 ### Folder names mislead on the model side
 
 The SDK folder named after the model client library holds an observability callback handler.
-The actual routing lives in the secrets manager's provider-settings builder. Anyone sizing
-the model work from folder names will size the wrong thing.
+The actual routing lives in the secrets manager's provider-settings builder. Anyone sizing the
+model work from folder names will size the wrong thing.
+
+---
+
+## Structural notes
+
+### There is no sibling domain to mirror
+
+The channels design chose an existing multi-provider integration domain as its structural
+sibling and copied its layout. The gateways have no such sibling **because they extend the
+family that would have been it** — catalog, connections, tools and triggers.
+
+The consequence shaped `entities.md`: most structural questions are already answered by what
+exists, and the design work is additive rather than parallel. The exception is the model
+plane, which has no domain at all today and is therefore the one place where a genuinely new
+structure has to be chosen.
+
+### Why there are two quarantine documents
+
+The channels design pushed platform facts into one document so the neutral documents would
+survive platform churn. The same reasoning applies here twice over, because the two planes
+churn independently: the protocol revises on its own schedule and provider APIs on theirs. One
+combined document would couple them.
+
+### Why there is no capability-declaration document
+
+The channels design needed one because its adapters had genuinely different feature sets and
+core had to decide what was offerable. Here the adapter differences are narrow and already
+expressible — auth mode on the tool side, provider and deployment on the model side — so a
+declaration layer would be ceremony. `policy.md` occupies that slot, since what actually
+varies is policy rather than capability.
+
+Revisit if MCP server differences turn out to be wider than auth mode.
+
+### Why there is no out-of-process adapter contract
+
+The channels design needed a wire contract because third parties would implement bridges. No
+equivalent need has been established here, and inventing one would create a compatibility
+surface with no consumer.
 
 ---
 
 ## Watch list
 
-- Whether refresh-token support in the MCP SDK is complete in the version we would pin.
-  It was still landing across SDKs during 2026.
-- Whether the deprecation window for sampling, roots and logging changes what upstream
-  servers actually do, since it runs at least twelve months.
-- Whether any upstream we care about lacks Client ID Metadata Document support and forces
-  the deprecated dynamic-registration fallback.
+- Whether `policy.md` splits into two documents with little in common. If it does,
+  `decisions.md` D7 is wrong and the gateways should be separate systems.
+- Whether the routing library is usable in-process. This decides whether the model plane is a
+  library integration or a service, and several packages depend on the answer.
+- Whether refresh-token support is complete in the MCP SDK version we would pin. It was still
+  landing across SDKs during 2026.
+- Whether any upstream we care about lacks Client ID Metadata Document support and forces the
+  deprecated registration fallback.
+- Whether the deprecation of server-side sampling changes what upstream servers do, since a
+  server needing a model would then call the LLM gateway — the point where the planes touch.

@@ -1,163 +1,118 @@
-# Decisions
+# Gateways: decisions
 
-Settled entries state what is decided and why. Open entries state what the decision hinges
-on and a current leaning — those leanings are arguments to attack, not conclusions.
+What is settled, and the rationale load-bearing enough to constrain future work. Everything
+else in `v1/` assumes these and states only what is.
 
----
-
-## Settled
-
-### S1. Everything transits the gateway, always
-
-There is no direct path and no bypass. Every model call and every tool call made by
-anything on the platform goes to the gateway first, and the gateway decides what happens
-next.
-
-This explicitly includes the cases that are "custom" today. A custom or self-hosted
-provider does not become an exception — the call goes to our gateway, and the gateway's
-adapter then calls the custom endpoint. Same for a cloud reseller, same for an
-OpenAI-compatible third party, same for a self-hosted model server. What is custom is the
-adapter behind the gateway, never the route to it.
-
-**Why it has to be absolute:** a governance boundary with an exception is not a boundary.
-If any path can reach a provider directly, then no claim about policy, audit, spend, or
-credential containment holds — the answer to "did every call get checked" becomes "every
-call except those." One bypass costs the entire property.
-
-**What this costs:** changes throughout, not in one place. Every current call site that
-resolves a credential and calls a provider becomes a call site that calls the gateway.
-That is the actual scope of this work and it should not be understated.
-
-### S2. The principal is `AuthScope`, and it is user-scoped
-
-Every authenticated call into the platform already resolves `organization_id`,
-`workspace_id`, `project_id`, and `user_id` together, and is rejected if any is missing.
-The gateways inherit this unchanged. There is no new principal to design, and no
-project-only identity to work around.
-
-Which stored credential the gateway then uses on the caller's behalf is a separate binding
-and a separate decision (D3). Caller identity and credential ownership are independent.
-
-### S3. Ports and adapters, everywhere, including inside the SDK
-
-The SDK keeps every capability it has today — including injecting secrets and fetching
-secrets. Those capabilities are not removed and the calling code does not change shape.
-What changes is the implementation behind the port: the adapter that used to resolve a
-credential and call a provider now calls the gateway.
-
-Nothing here is "in-process." A caller depends on a port; the adapter behind it talks to
-the gateway.
-
-### S4. Agent runs and workflows are separate callers
-
-They are different callers of the same gateway, with different ports, and they must be
-designed separately. Reasoning about them as one path produces conclusions that are wrong
-for both.
+Where another document elaborates a decision, that document
+is the authority for detail; this one owns the rationale.
 
 ---
 
-## Open
+## D1. Everything transits a gateway
 
-### D1. One gateway service, or two?
+No direct path and no bypass. Every model call and every tool call from anything on the
+platform goes to a gateway first, and the gateway decides what happens next.
 
-Model traffic and tool traffic share the same six concerns and differ only in protocol
-surface. Options: one deployable with two ingress surfaces, two deployables sharing a
-library, or two independent services.
+This includes everything custom. A custom provider, a self-hosted model server, a cloud
+reseller, an OpenAI-compatible third party — none becomes an exception. The call goes to our
+gateway and the gateway's adapter calls the custom thing. **What is custom lives behind the
+gateway; the route to it is invariant.**
 
-**Hinges on** whether the policy plane is genuinely shared. Given S2 settles the principal
-as identical for both, the main remaining difference is performance profile — model traffic
-is long-lived token streaming, tool traffic is request/response.
+**Why absolute:** a governance boundary with an exception is not a boundary. If any path
+reaches a provider directly, no claim about policy, audit, spend or credential containment
+holds — "did every call get checked" becomes "every call except those." One bypass costs the
+whole property.
 
-**Leaning: one policy core, two protocol surfaces.** Whether that ships as one deployable
-or two is an operational choice that can follow later; what matters is that the policy
-implementation is single.
+**What it costs:** changes throughout, not in one place. Every call site that resolves a
+credential and calls a provider becomes one that calls the gateway. That is the real scope
+and should not be understated.
 
-### D2. Where does the policy plane run relative to the data path?
+## D2. The principal already exists and is user-scoped
 
-The main API holds the vault, RBAC, entitlements, and tracing — everything policy needs.
-It is also the thing whose deploys would then sit in the path of every token of every run.
+Every authenticated call resolves an organization, workspace, project and user together, and
+is rejected if any is missing. API keys included — the key row carries its owning user.
 
-**Hinges on** whether we accept coupling streaming traffic to control-plane deploys and
-failures.
+The gateways inherit this. **There is no principal to design.** Which credential the gateway
+then uses on the caller's behalf is a separate binding, settled in `secrets.md`; caller
+identity and credential ownership are independent, and conflating them is what made this look
+harder than it is.
 
-**Leaning: split the planes.** A thin data plane that routes, injects credentials, and
-streams; a control plane in the API that owns identity, policy, and audit; the data plane
-serving cached policy decisions. The existing two-layer entitlement check — a cached soft
-check at ingestion, a hard check behind it — is the same pattern and the closest precedent
-in this codebase.
+## D3. The gateways hold no credential material
 
-### D3. Which credential does the gateway select, given a caller?
+A domain row carries a secret id; the secrets service holds the value; the consumer resolves
+it at use time. This is the pattern webhook subscriptions and SSO providers already use.
 
-S2 settles who is calling. This is the separate question of what the gateway uses on their
-behalf: a credential owned by the project, by the user, or selected by policy from either.
+**Why it matters beyond tidiness:** encryption, key management, rotation and deletion stay in
+one place instead of gaining a second. It also removes what looked like the design's one new
+component — there is no token store, only new secret kinds.
 
-**Hinges on** a product question rather than a technical one — whether users are meant to
-bring their own provider credentials, or consume a shared organizational one under quota.
-Both are implementable; they imply different vault shapes and different metering.
+## D4. Ports and adapters everywhere, including inside the SDK
 
-**Leaning: policy-selected, defaulting to the project-owned credential.** This preserves
-current behaviour by default while making per-user credentials expressible without a
-redesign.
+The SDK keeps every capability it has today, including injecting and fetching secrets. Those
+are not removed and calling code does not change shape. What changes is the implementation
+behind the port: the adapter that resolved a credential and called a provider now calls the
+gateway.
 
-### D4. Build the provider adapters, or embed an existing gateway?
+Nothing here is "in-process." A caller depends on a port; the adapter behind it talks to the
+gateway.
 
-The prior tool-side research concluded "embed rather than build, and own the auth layer."
-The question is whether the same answer holds for model providers.
+## D5. Agent runs and workflows are separate callers
 
-**Hinges on** whether an embedded gateway can be driven headlessly without inheriting a
-second data model and a second UI; whether its license permits bundling into a self-hosted
-distribution; and whether its policy hooks can express `AuthScope`, or whether we would end
-up bypassing them and maintaining a fork.
+Different callers of the same gateway, with different ports, designed separately. Reasoning
+about them as one path produces conclusions wrong for both.
 
-**Leaning: embed the provider adapters, own the policy plane.** Provider quirks, streaming
-differences, and reseller auth schemes are commodity work that drifts constantly and is
-freely available. Policy and audit are ours. Owning the wrong half is the expensive mistake
-in either direction.
+## D6. Transparent on the data path, never on the consent path
 
-Worth verifying first: a proxy of this shape already exists in the API's dependency tree as
-a library. Whether it is usable as an in-process routing layer or only as a separate
-service materially changes this option's cost.
+The gateway absorbs credential selection, injection, refresh, retry, allowlists and audit. It
+cannot absorb consent, which needs a human at first use and again on a step-up scope
+challenge. No amount of internal configuration changes that.
 
-### D5. Self-hosted posture
+**Consequence:** consent is a dashboard action taken before a run, not a runtime one. A run
+reaching an unconnected upstream fails with something actionable. Every remaining choice in
+this area is about *where the consent moment goes*, not whether there is one.
 
-**Hinges on** whether the gateway is a component of a self-hosted deployment or a service
-we operate.
+## D7. One policy core, two protocol surfaces
 
-**Leaning: a component — the hosted instance runs the same component we ship.** Any other
-answer reintroduces exactly the hosted dependency the tool-side research set out to remove,
-and it would be incoherent to reject a closed hosted gateway for tools while shipping one
-for models.
+The six concerns are the same over different nouns, and building the plane twice is the
+failure this design exists to avoid. Whether it ships as one deployable or two is an
+operational choice that can follow.
 
-### D6. Failure posture
+**This decision is falsifiable and should be watched.** If `policy.md` ends up as two
+documents with little in common, D7 is wrong and the gateways should be separate systems.
 
-Given S1, the gateway is on the critical path of everything. It replaces N provider
-dependencies with one of ours.
+## D8. Target the stateless protocol revision
 
-**Hinges on** whether we accept fail-closed. For a governance boundary fail-open defeats
-the purpose, but a gateway outage then stops every run.
+The current MCP revision removed exactly the features that made a gateway expensive —
+sessions, resumability, server-initiated callbacks — and added three that favour
+intermediaries. Build against it rather than the prior revision the earlier research assumed.
 
-**Leaning: fail-closed on policy, with the data plane serving cached decisions through a
-control-plane outage.** This is D2's split doing real work — streaming survives a
-control-plane deploy, and only genuinely undecidable calls fail.
+## D9. Embed the commodity, own the policy
 
-### D7. Sequencing
+Provider adapters, streaming differences, reseller auth schemes and the MCP OAuth client flow
+are commodity work that drifts constantly and is freely available. Identity, policy, audit and
+metering are ours and no embedded gateway will model them the way we need.
 
-S1 is the end state, not a first commit. Nothing about the end state tells us what order to
-convert call sites in.
+Owning the wrong half is the expensive mistake in either direction.
 
-**Hinges on** which call sites are cheapest to convert and which prove the most. The
-security argument is strongest where long-lived cloud credentials currently enter
-agent-controlled sandboxes; the cheapest conversion is likely elsewhere.
+## D10. Take the credential owner as a parameter now
 
-**Leaning: none yet.** This should be decided once the port shapes for each caller class
-(S4) are drawn.
+User-level credentials are designed and not scheduled. The lookup must still take the owner
+from the outset and answer "the project" for now.
+
+**Why now:** the signature is the expensive part to retrofit. A lookup assuming the project
+spreads that assumption to every call site; a lookup taking an owner absorbs user-level
+credentials as a storage change. The caller side needs nothing either way, since the principal
+already carries the user.
 
 ---
 
-## Verification backlog
+## Still open
 
-- Whether the proxy library already in the dependency tree is usable in-process (D4).
-- How a subscription-authenticated harness — one that authenticates with its own login and
-  has no credential to inject — behaves under S1.
-- What policy checks, if any, exist on each current model call site today.
-- The upstream scoping of stored third-party connections, as input to D3.
+Tracked in [`open-designs.md`](open-designs.md) until they settle here. The ones
+blocking package definition:
+
+- The model call-site count — under D1 the caller list *is* the scope.
+- Whether the routing library runs in-process, which decides whether the model plane is a
+  library integration or a service.
+- The MCP endpoint shape: one merged endpoint with namespaced tools, or one per server.
+- Step-up scope handling.

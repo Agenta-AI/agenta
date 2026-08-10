@@ -1,6 +1,6 @@
 # Gateways: secrets
 
-Secret kinds, credential ownership, and resolution. Carries forward `v1/secrets-scoping.md`;
+Secret kinds, credential ownership, and resolution. Supersedes the scoping draft in `raw/`;
 this is the version the implementation follows.
 
 **Status: the storage pattern and the kinds are settled. Ownership is designed, not
