@@ -49,8 +49,23 @@ export const MAX_RAW_RESPONSE_BYTES = MAX_BODY_BYTES * 4;
  * the usual ~4 bytes/token for English/JSON text. Env-overridable like the other budgets in this
  * file (e.g. TOOL_CALL_TIMEOUT_MS above).
  */
-export const MAX_GATEWAY_RESULT_BYTES = Number(
-  process.env.AGENTA_AGENT_TOOLS_GATEWAY_RESULT_MAX_BYTES ?? 100_000,
+export const DEFAULT_GATEWAY_RESULT_BYTES = 100_000;
+
+/** Parse a gateway-result byte budget from an env value, falling back to `fallback` for anything
+ *  that is not a positive safe integer. A bare `Number()` would accept `"Infinity"` (which would
+ *  disable the cap), negative values (which make the byte slice keep almost the whole result),
+ *  fractions, and `NaN`, so all of those fall back to the default instead. */
+export function resolveGatewayResultBytes(
+  raw: string | undefined,
+  fallback: number = DEFAULT_GATEWAY_RESULT_BYTES,
+): number {
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+export const MAX_GATEWAY_RESULT_BYTES = resolveGatewayResultBytes(
+  process.env.AGENTA_AGENT_TOOLS_GATEWAY_RESULT_MAX_BYTES,
 );
 
 /** Appended in place of the omitted tail when a gateway result is cut at
@@ -85,12 +100,13 @@ function trailingIncompleteUtf8Length(buf: Buffer, end: number): number {
   return 0;
 }
 
-/** Truncate `text` to `maxBytes` (UTF-8) at a character boundary, signaling the cut the same
- *  way the replay transcript does (`transcript.ts` TOOL_RESULT_RENDER_MAX_CHARS) so the model
- *  can tell it was truncated. Guarantees the returned prefix is `<= maxBytes` and the omitted
- *  count is exact and non-negative — a byte-only cut can split a multibyte sequence, which
- *  decodes to U+FFFD and can push the result back over `maxBytes`. An optional `steeringMessage`
- *  is appended after the omitted-count marker, telling the model what to do about the cut
+/** Truncate `text` so the WHOLE returned string (the retained prefix plus the omitted-count
+ *  marker and any `steeringMessage`) stays within `maxBytes` (UTF-8), cutting at a character
+ *  boundary so a multibyte sequence is never split. Room for the suffix is reserved before the
+ *  prefix is chosen, so the budget bounds the entire result, not just the prefix; when `maxBytes`
+ *  is smaller than the suffix itself, the suffix alone is returned. The cut is signaled the same
+ *  way the replay transcript does (`transcript.ts` TOOL_RESULT_RENDER_MAX_CHARS) so the model can
+ *  tell it was truncated, and the optional `steeringMessage` tells it what to do about the cut
  *  (narrow, filter, paginate) instead of leaving it to guess from a bare truncation notice. */
 export function capToolResultText(
   text: string,
@@ -99,10 +115,21 @@ export function capToolResultText(
 ): string {
   const buf = Buffer.from(text, "utf-8");
   if (buf.length <= maxBytes) return text;
-  const safeEnd = maxBytes - trailingIncompleteUtf8Length(buf, maxBytes);
+  // The omitted-byte count is at most the whole buffer length, so `buf.length` bounds the
+  // marker's digit width. Reserving against that upper bound keeps the final string within
+  // `maxBytes` whenever `maxBytes` can hold the suffix at all.
+  const suffixFor = (omitted: number): string => {
+    const marker = ` [... ${omitted} bytes omitted]`;
+    return steeringMessage ? `${marker}\n\n${steeringMessage}` : marker;
+  };
+  const reservedForSuffix = Buffer.byteLength(suffixFor(buf.length), "utf-8");
+  const prefixBudget = Math.max(0, maxBytes - reservedForSuffix);
+  const safeEnd = Math.max(
+    0,
+    prefixBudget - trailingIncompleteUtf8Length(buf, prefixBudget),
+  );
   const truncated = buf.subarray(0, safeEnd).toString("utf-8");
-  const marker = `${truncated} [... ${buf.length - safeEnd} bytes omitted]`;
-  return steeringMessage ? `${marker}\n\n${steeringMessage}` : marker;
+  return `${truncated}${suffixFor(buf.length - safeEnd)}`;
 }
 
 /**
