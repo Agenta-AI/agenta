@@ -28,10 +28,12 @@ const ProjectsSettings = () => {
                     title="Create project"
                     open={open}
                     okText="Create"
-                    onCancel={() => {
-                        onClose()
-                        createForm.resetFields()
-                    }}
+                    onCancel={onClose}
+                    // Reset on CLOSE, not on cancel: Escape, the overlay and a successful
+                    // submit all close the dialog too, and each left the last input sitting
+                    // there for the next open. `afterClose` fires once the dialog has
+                    // animated out, while the form is still mounted.
+                    afterClose={() => createForm.resetFields()}
                     onOk={() => createForm.submit()}
                     confirmLoading={pending}
                 >
@@ -59,17 +61,23 @@ const ProjectsSettings = () => {
                     title="Rename project"
                     open={open}
                     okText="Save"
-                    afterOpenChange={(visible) => {
-                        if (visible) renameForm.setFieldsValue({name: project?.project_name})
-                    }}
-                    onCancel={() => {
-                        onClose()
-                        renameForm.resetFields()
-                    }}
+                    onCancel={onClose}
+                    afterClose={() => renameForm.resetFields()}
                     onOk={() => renameForm.submit()}
                     confirmLoading={pending}
                 >
-                    <Form form={renameForm} layout="vertical" onFinish={onSubmit}>
+                    {/* Seeded by `initialValues` rather than an open-callback: EnhancedModal
+                        accepts antd's `afterOpenChange` in its prop type but never calls it,
+                        so the field was opening empty. The key remounts the form — and so
+                        re-applies the seed — whenever the target project or its name changes,
+                        and `afterClose` above restores the seed for a same-project reopen. */}
+                    <Form
+                        key={`${project?.project_id}:${project?.project_name}`}
+                        form={renameForm}
+                        layout="vertical"
+                        initialValues={{name: project?.project_name}}
+                        onFinish={onSubmit}
+                    >
                         <Form.Item
                             label="Project name"
                             name="name"
