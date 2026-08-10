@@ -1,17 +1,41 @@
 # Status
 
-**Phase:** plan finalized, implementation not started.
+**Phase:** implemented on `feat/agent-self-naming-tools`; live QA (V4) and a benchmark run remain.
 **Last updated:** 2026-08-10.
 
 ## Progress
 
 | Track | Steps | State |
 | --- | --- | --- |
-| Session tool | S1 to S3 | Not started |
-| Agent tool | A1 to A4 | Not started |
-| Chat title | T1 | Not started |
-| Live refresh | W1 to W3 | Not started |
-| Verification | V1 to V4 | Not started |
+| Session tool | S1 to S3 | Done. Unit-tested (runner, SDK catalog, build-kit overlay). |
+| Agent tool | A1 to A4 | Done. A2's regression tests are acceptance tests and need a live stack. |
+| Chat title | T1 | Done, with reconcile-precedence tests. |
+| Live refresh | W1 to W3 | Done. Watch endpoint/publish unit-tested; browser behavior needs live QA. |
+| Verification | V1 to V3 | Done (tests landed with their steps; benchmark scenarios + budget; docs synced). |
+| Verification | V4 | Not started — live QA runs outside this branch. |
+
+## Implementation deviations (all small, each justified)
+
+- S2+S3 landed as one commit (shared files), as the plan itself allowed for S3.
+- A1+A3 landed as one commit: the PUT-allowlist tests and the `rename_agent` tests share
+  `tool-direct.test.ts` and `test_op_catalog.py`, and the plan's own branch-layout note says a
+  shared test file lands with the highest step. A2 is committed **before** them so `rename_agent`
+  never exists in history ahead of the flags fix.
+- A2 gained a `fetch_artifact(include_archived=False)` pre-check in `edit_workflow` — the DAO edit
+  alone cannot distinguish archived from missing, and the plan requires 404 for both.
+- A2's test file (`acceptance/workflows/test_workflows_basics.py`) also corrects pre-existing test
+  data that used variant-level flag keys (`is_custom`, `is_feedback`) where artifact flags belong.
+- One stale runner test (`sandbox-agent-orchestration.test.ts`) asserted the relay gets no run
+  context when the request carries none; S1's augmentation makes that `{session: {id}}`, and the
+  assertion now pins the new shape.
+- W3's shared hook lives at `web/oss/src/hooks/useProjectWatch.ts` (app layer, not a package): only
+  `web/oss` consumes it today, matching the package-placement heuristic. `useSessionRecordsWatch`
+  was mechanically refolded onto it.
+- The project watch route is `GET /sessions/watch?project_id=...` (the sessions root router), the
+  natural reading of the plan's `GET /watch` under that router.
+- V3 also refreshed the stale `DEFAULT_BUILD_KIT_OPS` enumeration in `tools.md` (it predated
+  `test_run`/`read_config`) and synced the interface inventory (four-method allowlist, fail-closed
+  binding errors naming the tool, the runner-filled `session.id`).
 
 ## Open questions
 
