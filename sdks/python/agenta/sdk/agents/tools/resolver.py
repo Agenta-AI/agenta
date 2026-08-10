@@ -282,6 +282,13 @@ class ToolResolver:
                         [gateway_config]
                     )
                 except GatewayToolResolutionError as error:
+                    # Only a per-tool "action not found" (HTTP 404, the F-019 stale-action case)
+                    # is dropped: the backend has told us this specific action left the catalog.
+                    # Any other failure — missing API base, transport error, HTTP 400/500, or a
+                    # malformed backend response — is systemic (it would hit every tool), so it
+                    # must fail the run loudly rather than silently drop every tool.
+                    if error.status != 404:
+                        raise
                     warning = _dropped_gateway_tool_warning(gateway_config, error)
                     log.warning("agent: %s", warning)
                     warnings.append(warning)
