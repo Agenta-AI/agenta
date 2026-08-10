@@ -264,6 +264,9 @@ export {
     isChatModeAtom,
     // Per-entity agent-mode flag
     isAgentModeAtomFamily,
+    // Chat blank-first-row bootstrap (#5344)
+    needsChatBootstrapRowAtom,
+    ensureChatBootstrapRowAtom,
     appTypeAtom,
     type AppType,
     // Row run status

@@ -21,7 +21,7 @@ import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 
 import {playgroundIsChatBehaviorAtom} from "../atoms/modeOverride"
-import {entityIdsAtom, playgroundNodesAtom, playgroundStoreAtom} from "../atoms/playground"
+import {entityIdsAtom, playgroundNodesAtom, primaryEntityIdAtom} from "../atoms/playground"
 import {addUserMessageAtom} from "../chat"
 import {sharedMessageIdsAtomFamily} from "../chat/messageSelectors"
 
@@ -963,15 +963,9 @@ export const generationRowIdsAtom = atom<string[]>((get) => {
     const loadableId = get(derivedLoadableIdAtom)
     if (!loadableId) return []
     const isChat = get(isChatModeAtom)
-    if (isChat) {
-        const rowIds = get(sharedMessageIdsAtomFamily(loadableId))
-        if (rowIds.length === 0) {
-            // Bootstrap first blank user message for chat mode
-            get(playgroundStoreAtom).set(addUserMessageAtom, {loadableId, userMessage: null})
-            return get(sharedMessageIdsAtomFamily(loadableId))
-        }
-        return rowIds
-    }
+    // Reports rows, never creates one. The blank-first-message bootstrap used to live here and
+    // wrote to the store from inside this read — see `ensureChatBootstrapRowAtom` (#5344).
+    if (isChat) return get(sharedMessageIdsAtomFamily(loadableId))
     if (isChat === undefined) return []
 
     // Read directly from the molecule's displayRowIds (global atom) and apply
@@ -1256,6 +1250,47 @@ export const isAgentModeAtomFamily = atomFamily((entityId: string) =>
         return get(workflowMolecule.selectors.workflowType(entityId)) === "agent"
     }),
 )
+
+// ============================================================================
+// CHAT BOOTSTRAP ROW (#5344)
+// ============================================================================
+
+/**
+ * Whether chat mode is missing its blank first user message.
+ *
+ * Pure — this only answers the question. `generationRowIdsAtom` used to answer it AND create the
+ * row from inside its own read, which jotai flags (`Detected store mutation during atom read`) and
+ * which is worse than a warning: `cancelTestsMutationAtom` reads the row ids from inside a write,
+ * so cancelling on an empty chat could re-entrantly create the row mid-write.
+ *
+ * Excludes agents. They carry `is_chat` too (`createEphemeralAppFromTemplate` seeds
+ * `is_chat: type === "chat" || type === "agent"`), so the chat branch runs for them — but the agent
+ * surface renders `AgentGenerationPanel` and never reads `sharedMessageIdsAtomFamily`, so the row
+ * would be write-only cost. Stays `false` while `isChatMode` is undefined (entity still loading),
+ * which is also what keeps this from racing the flags: both come off the same payload.
+ */
+export const needsChatBootstrapRowAtom = atom<boolean>((get) => {
+    const loadableId = get(derivedLoadableIdAtom)
+    if (!loadableId) return false
+    if (get(isChatModeAtom) !== true) return false
+    const primaryEntityId = get(primaryEntityIdAtom)
+    if (primaryEntityId && get(isAgentModeAtomFamily(primaryEntityId))) return false
+    return get(sharedMessageIdsAtomFamily(loadableId)).length === 0
+})
+
+/**
+ * Create chat mode's blank first user message if it is missing.
+ *
+ * Idempotent by construction: the condition is re-checked HERE, inside the write, rather than
+ * trusted from the caller. Jotai writes are synchronous, so a second caller in the same tick
+ * already observes the first one's message and no-ops — which is what makes it safe to drive from
+ * a component that can mount more than once.
+ */
+export const ensureChatBootstrapRowAtom = atom(null, (get, set) => {
+    if (!get(needsChatBootstrapRowAtom)) return
+    const loadableId = get(derivedLoadableIdAtom)
+    set(addUserMessageAtom, {loadableId, userMessage: null})
+})
 
 /**
  * App-level type derived from chat mode.

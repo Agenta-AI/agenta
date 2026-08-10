@@ -78,6 +78,9 @@ export {
     createNegotiatingFetch,
 } from "./state"
 export type {AgentRequest, AgentChannelMode, NegotiatingFetch} from "./state"
+// Chat blank-first-row bootstrap — driven by a null-rendering child of `MainLayout`, the single
+// shared entry that covers both the single and comparison surfaces (#5344).
+export {needsChatBootstrapRowAtom, ensureChatBootstrapRowAtom} from "./state"
 // HITL resume predicate for `useChat`'s `sendAutomaticallyWhen` (approve AND deny resume).
 export {
     agentShouldResumeAfterApproval,

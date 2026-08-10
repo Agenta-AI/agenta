@@ -175,6 +175,8 @@ export {inputVariableNamesAtom} from "./execution"
 // App-level mode selectors
 export {appTypeAtom, isChatModeAtom, type AppType} from "./execution"
 export {isAgentModeAtomFamily} from "./execution"
+// Chat blank-first-row bootstrap (#5344)
+export {needsChatBootstrapRowAtom, ensureChatBootstrapRowAtom} from "./execution"
 export {
     applyBuildKitOverlay,
     buildAgentRequest,

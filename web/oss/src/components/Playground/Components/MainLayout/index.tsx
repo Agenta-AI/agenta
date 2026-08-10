@@ -3,9 +3,11 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode}
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui"
 import {
+    ensureChatBootstrapRowAtom,
     executionController,
     executionItemController,
     isAgentModeAtomFamily,
+    needsChatBootstrapRowAtom,
     playgroundController,
 } from "@agenta/playground"
 import {EmptyState, ExecutionHeader, useEntitySelector} from "@agenta/playground-ui/components"
@@ -119,6 +121,28 @@ const GenerationComparisonRenderer = memo(() => {
             </div>
         </div>
     ))
+})
+
+/**
+ * Creates chat mode's blank first user message. Renders nothing.
+ *
+ * `generationRowIdsAtom` used to create that row from inside its own read (#5344). This lives here
+ * rather than in `ExecutionItems` because comparison-mode chat never goes through that component —
+ * this layout renders `GenerationComparisonRenderer` instead, which reads the row ids directly, so
+ * hosting the effect there would silently cost comparison chat its blank first turn. `MainLayout`
+ * is the single shared entry for every playground surface, so one instance covers the single and
+ * comparison views exactly once. Kept as its own child so the row-count subscription re-renders
+ * this null component rather than the whole layout.
+ */
+const ChatRowBootstrap = memo(() => {
+    const needsRow = useAtomValue(needsChatBootstrapRowAtom)
+    const ensureRow = useSetAtom(ensureChatBootstrapRowAtom)
+
+    useEffect(() => {
+        if (needsRow) ensureRow()
+    }, [needsRow, ensureRow])
+
+    return null
 })
 
 const RunDisabledPlaceholder = memo(({children}: {children?: ReactNode}) => (
@@ -558,6 +582,7 @@ const PlaygroundMainView = ({
                     </SplitterPanel>
                 </Splitter>
                 <PlaygroundFocusDrawer />
+                <ChatRowBootstrap />
             </div>
         </main>
     )
