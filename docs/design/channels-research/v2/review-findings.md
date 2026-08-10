@@ -430,6 +430,47 @@
   `_ingest`, no branch on channel); **provisioning is where they genuinely
   differ**, and nothing in the design covers it for either.
 
+### F52. Slack slash commands are parsed as noise and silently dropped
+
+- ID: `F52`
+- Origin: `wave-5 M2`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: Slack posts a slash command as flat form-encoded fields with no
+  `payload=` wrapper. The adapter's payload parser handles raw JSON and a
+  `payload` form field only, so a slash command falls through to `{}` and
+  `parse_event` classifies it as platform noise. It is acked and discarded.
+- Evidence: found while wiring the connection-grain locator; the parser's two
+  branches are the whole of its input handling.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py`
+- Suggested Fix: recognise the flat form shape. Worth settling alongside the
+  command grammar, since a slash command and a `!command` are the same intent
+  arriving two ways — the same convergence the choice mechanism already uses.
+- Notes: predates this wave. Not a regression.
+
+### F53. Slack's enterprise-install payload shape is reconstructed, not observed
+
+- ID: `F53`
+- Origin: `wave-5 M2`
+- Severity: `P2`
+- Confidence: `low` — that is the finding
+- Status: `open`
+- Category: `Correctness`
+- Summary: A connection's identity now composes from `api_app_id` plus whichever
+  of `enterprise_id`/`team_id` applies, read from the event's `authorizations`
+  with flat and nested fallbacks. Those field positions were derived from
+  documentation, not from a captured payload. If the real shape differs, an
+  org-wide install composes a key that matches no stored connection and every
+  event refuses with a bare 401 — which is indistinguishable from a bad secret.
+- Files: `api/oss/src/core/channels/adapters/slack/adapter.py`
+- Suggested Fix: capture one real payload of each install kind and assert against
+  it. Until then treat the org-wide path as unproven, and note that the failure
+  mode is silent by design, so nothing will report it.
+- Notes: the wave that proves Slack end to end is the place this gets settled;
+  filed now so it is not discovered as a mystery 401 instead.
+
 ### F51. Every DM is silently refused: permission can only be granted to a space that already exists
 
 - ID: `F51`
