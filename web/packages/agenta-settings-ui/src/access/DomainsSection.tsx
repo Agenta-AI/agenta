@@ -6,7 +6,13 @@ import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
 import {ArrowClockwise, Plus, Trash} from "@phosphor-icons/react"
 
-/** An unverified domain's token stops being usable 48 hours after it was issued. */
+/**
+ * An unverified domain's token stops being usable 48 hours after it was issued.
+ *
+ * The API serves no expiry field — `DomainVerificationService` rejects a verify whose
+ * `created_at` is older than its own `TOKEN_EXPIRY_HOURS = 48`, so the client mirrors that
+ * arithmetic rather than inventing a deadline of its own. Keep the two in step.
+ */
 const TOKEN_LIFETIME_MS = 48 * 60 * 60 * 1000
 
 export interface DomainsSectionProps {
@@ -45,10 +51,12 @@ export const DomainsSection = ({
                 width: 220,
                 render: (record) => {
                     if (record.flags?.is_verified) return "-"
-                    const expiresAt = new Date(
-                        new Date(record.created_at).getTime() + TOKEN_LIFETIME_MS,
-                    )
-                    const expired = new Date() > expiresAt
+                    const createdAt = record.created_at ? new Date(record.created_at) : null
+                    // No date, no deadline — better than "Invalid Date (Expired)".
+                    if (!createdAt || Number.isNaN(createdAt.getTime()))
+                        return <span className="text-colorTextSecondary">Unknown</span>
+                    const expiresAt = new Date(createdAt.getTime() + TOKEN_LIFETIME_MS)
+                    const expired = Date.now() > expiresAt.getTime()
                     return (
                         <span className={expired ? "text-colorError" : "text-colorTextSecondary"}>
                             {expiresAt.toLocaleString()}
