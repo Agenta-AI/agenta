@@ -9,7 +9,7 @@ follows, and when the runner takes the input-sequencing work that channels ships
 without.
 
 
-**Where the redesign starts: [`open-design.md`](open-design.md)** — the ten open
+**Where the redesign starts: [`design-findings.md`](design-findings.md)** — the open
 items, what is parked, and the three user journeys. `prior-art.md` is the research
 behind it; `provisioning.md` and `rendering.md` are the two written designs.
 
@@ -53,7 +53,7 @@ tables plus one reused, and a capability-declaring adapter per platform.
 9. **`workstreams/`** — one `specs-wp{k}.md` and `tasks-wp{k}.md` per package, so
    a package can be handed to someone with no context beyond this folder. Its
    `README.md` carries the file-ownership table and the parallel-work rules.
-10. **`findings.md`** — the open defects and gaps found while building, with the
+10. **`review-findings.md`** — the open defects and gaps found while building, with the
     evidence for each. Written during development, not after: a cross-package
     seam that nobody records is one that gets rediscovered at the next merge.
 

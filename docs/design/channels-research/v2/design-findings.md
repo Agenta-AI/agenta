@@ -22,7 +22,7 @@ Maintained here. Status is one of **decided** (settled, no doc needed), **writte
 | 5 | Agenta as a channel | **open** | — |
 | 6 | The configuration surface | **open** | — |
 | 7 | Button clicks — the parsing half | **partial** | `rendering.md` decides resolution |
-| 8 | The connection key identifies the bot | **partial** | researching payloads |
+| 8 | The connection key identifies the bot | **written** | `connection-identity.md` |
 | 9 | The bridge | **decided: keep** | measured, below |
 | 10 | User journeys | **open** | three to write, below |
 
@@ -122,28 +122,25 @@ Note this is what made C4's exit condition unreachable as originally written.
 
 ### 8 — The connection key identifies the bot
 
-`integration_key` holds Slack's `team_id`, which identifies the **workspace**. Two
-bots in one workspace therefore collide, and the ingress lookup takes `LIMIT 1` on
-`(provider_key, integration_key)` — so the second bot is unreachable and the first
-silently wins.
+**Written**: `connection-identity.md`, now backed by the four platforms' own docs
+rather than by analogy. Three results changed the design:
 
-A connection already **is** one bot, so no new entity and no new column: the field is
-right and the value is wrong. It must hold whatever identifies the bot — for Slack
-`team_id` plus `api_app_id`.
+- **Telegram carries no bot identity on the payload at all** — confirmed against the
+  full `Update` field list. The bot is identified by the transport, so the mechanism
+  is `setWebhook`'s `secret_token`, echoed on every request as a header. This
+  **forces an interface change**: `installation_hint(body)` cannot answer, because
+  it never sees headers or path.
+- **Slack has two payload shapes** — flat `team_id` on events and slash commands,
+  nested `team.id` on interactivity. An extractor reading only `team_id` returns
+  nothing for a button click, which is the path we have not built yet.
+- **Discord has no tenant for DMs** — `guild_id` is absent, so a tenant-qualified
+  key is undefined exactly when someone messages the bot directly.
 
-Two consequences worth stating as rules:
+The rule that falls out: **the bot is the key and the tenant is a qualifier**, since
+the bot half is always present and the tenant half is variously absent, plural or
+missing. The adapter composes its own key; core does not know the shape.
 
-- **The ingress resolve is the one query that cannot be project-scoped**, because its
-  job is to *establish* the project. Everything after it is scoped by what it
-  returned. So the key must be **globally** unique, not unique per project — today's
-  constraint is `(project_id, provider_key, integration_key, slug)`, which permits two
-  projects to collide.
-- **`slug` should not be part of the identity.** If a connection is a bot and the key
-  identifies the bot, two rows differing only by slug are two names for one bot —
-  which is exactly what `LIMIT 1` cannot resolve.
-
-Being confirmed against the four platforms' actual payloads before it is written up;
-Telegram in particular may carry no bot id at all.
+Still open: whether an Enterprise Grid org-wide install is one connection or many.
 
 ### 9 — The bridge: keep
 
