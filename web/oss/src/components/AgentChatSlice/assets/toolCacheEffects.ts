@@ -7,7 +7,7 @@
 import type {ToolUIPart, UIMessage} from "ai"
 
 import {isToolPart} from "./messageParts"
-import {partToolName} from "./toolDisplay"
+import {canonicalToolName, partToolName} from "./toolDisplay"
 
 export type ToolCacheEffect = "trigger-schedules" | "trigger-subscriptions"
 
@@ -25,9 +25,10 @@ const BY_TOOL_NAME = new Map<string, ToolCacheEffect>([
     ["resume_subscription", "trigger-subscriptions"],
 ])
 
-/** The cache a tool invalidates, or null when it touches nothing the client caches. */
+/** The cache a tool invalidates, or null when it touches nothing the client caches. Keyed on the
+ * canonical name — Claude and Codex deliver platform ops wrapped in our internal MCP server. */
 export const toolCacheEffect = (toolName: string): ToolCacheEffect | null =>
-    BY_TOOL_NAME.get(toolName) ?? null
+    BY_TOOL_NAME.get(canonicalToolName(toolName)) ?? null
 
 /** Effects owed by `message`'s successful tool calls, skipping ids in `seen` — which this RECORDS
  * every visited call into, so each acts once. */

@@ -9,6 +9,7 @@ import {useAtomValue} from "jotai"
 import {useAlwaysAllowTool} from "@/oss/hooks/useAlwaysAllowTool"
 
 import {isAgentChatSteerEnabled} from "../assets/constants"
+import {isToolPart} from "../assets/messageParts"
 import {canonicalToolName, partToolName, resolveToolDisplay} from "../assets/toolDisplay"
 import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
@@ -45,8 +46,6 @@ const manifestsByToolCallId = (parts: UIMessage["parts"] = []): Map<string, unkn
     return found
 }
 
-const isToolPart = (type: string) => type.startsWith("tool-") || type === "dynamic-tool"
-
 /**
  * Approvals the run is currently blocked on. HITL only ever pauses the LAST assistant turn (see
  * `isHitlPending`), so we read pending tool gates off that turn — a turn can request several at
@@ -60,7 +59,7 @@ export const getPendingApprovals = (messages: UIMessage[]): PendingApproval[] =>
     for (const part of last.parts ?? []) {
         const p = part as ToolUIPart
         const approval = (p as {approval?: ApprovalRef}).approval
-        if (isToolPart(p.type as string) && p.state === "approval-requested" && approval?.id) {
+        if (isToolPart(part) && p.state === "approval-requested" && approval?.id) {
             out.push({
                 approvalId: approval.id,
                 toolName: partToolName(p),

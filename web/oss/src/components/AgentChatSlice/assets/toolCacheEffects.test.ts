@@ -27,6 +27,15 @@ describe("toolCacheEffect", () => {
         expect(toolCacheEffect("bash")).toBeNull()
     })
 
+    it("routes the same op wrapped by a harness's MCP naming (#5781 under Claude/Codex)", () => {
+        expect(toolCacheEffect("mcp__agenta-tools__create_schedule")).toBe("trigger-schedules")
+        expect(toolCacheEffect("mcp.agenta-tools.create_schedule")).toBe("trigger-schedules")
+    })
+
+    it("ignores a third-party MCP tool of the same bare name", () => {
+        expect(toolCacheEffect("mcp__other__create_schedule")).toBeNull()
+    })
+
     it("does not resolve inherited object members for MCP-supplied names", () => {
         for (const name of ["toString", "constructor", "valueOf", "hasOwnProperty"]) {
             expect(toolCacheEffect(name)).toBeNull()
@@ -49,6 +58,12 @@ describe("collectToolCacheEffects", () => {
             state: "output-available",
         }
         expect(effectsOf([part])).toEqual(["trigger-schedules"])
+    })
+
+    it("invalidates for a Claude-harness call, which arrives MCP-wrapped", () => {
+        expect(effectsOf([settled("mcp__agenta-tools__create_schedule")])).toEqual([
+            "trigger-schedules",
+        ])
     })
 
     it("ignores calls that have not succeeded", () => {
