@@ -18,6 +18,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -26,6 +28,35 @@ services:
             - "traefik.http.routers.web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.web.entrypoints=web"
             - "traefik.http.services.web.loadbalancer.server.port=3000"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
+    web-mobile:
+        # === ACTIVATION =========================================== #
+        # Opt-in while the mobile app is pre-GA (run.sh --with-mobile).
+        profiles:
+            - with-web-mobile
+        # === IMAGE ================================================ #
+        # The mobile app is edition-agnostic OSS-repo code: one public image
+        # serves both editions (no internal-ee variant).
+        image: ghcr.io/agenta-ai/${AGENTA_WEB_MOBILE_IMAGE_NAME:-agenta-web-mobile}:${AGENTA_WEB_MOBILE_IMAGE_TAG:-latest}
+        # === EXECUTION ============================================ #
+        command: sh -c "node ./mobile/server.js"
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - AGENTA_MOBILE_GATE=${AGENTA_MOBILE_GATE:-false}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === LABELS =============================================== #
+        # (Path(`/m`) || PathPrefix(`/m/`)) auto-wins over the web catch-all PathPrefix(`/`)
+        # by rule length; no stripprefix — the app is built with basePath /m.
+        labels:
+            - "traefik.http.routers.web-mobile.rule=(Path(`/m`) || PathPrefix(`/m/`))"
+            - "traefik.http.routers.web-mobile.entrypoints=web"
+            - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
         # === LIFECYCLE ============================================ #
         restart: always
 

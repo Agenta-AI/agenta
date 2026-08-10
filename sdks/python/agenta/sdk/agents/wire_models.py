@@ -525,6 +525,12 @@ class WireRunRequest(_WireModel):
     harness_files: Optional[List[WireHarnessFile]] = Field(
         default=None, alias="harnessFiles"
     )
+    # The post-hydration config this turn runs, opaque to the runner: it echoes the blob onto
+    # the interaction row of any HITL gate the turn parks, so the answering client can replay
+    # the exact config instead of re-hydrating references. Session runs only.
+    effective_parameters: Optional[Dict[str, Any]] = Field(
+        default=None, alias="effectiveParameters"
+    )
 
 
 # ---------------------------------------------------------------------------

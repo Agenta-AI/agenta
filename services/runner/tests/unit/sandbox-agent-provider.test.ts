@@ -92,11 +92,6 @@ describe("daytonaNetworkFields", () => {
 });
 
 describe("daytonaCreateFingerprint", () => {
-  const secretPlan = {
-    environment: {},
-    candidates: [],
-  };
-
   it("changes for local_use values and Pi custom endpoint routing", () => {
     const fingerprint = (
       piExtEnv: Record<string, string>,
@@ -110,7 +105,6 @@ describe("daytonaCreateFingerprint", () => {
           environment,
           undefined,
         ),
-        secretPlan,
       });
 
     const base = fingerprint(
@@ -134,6 +128,48 @@ describe("daytonaCreateFingerprint", () => {
         },
         { AWS_PROFILE: "profile-a" },
       ),
+    );
+  });
+
+  it("does NOT change when a hidden credential's VALUE rotates", () => {
+    // THE CREATION-IDENTITY SPLIT (lifecycle migration, step 9), pinned at the production path.
+    //
+    // This is the assertion the whole Q5 route rests on. While credential material was inside the
+    // create fingerprint, a rotated model key made a parked sandbox read as a DIFFERENT sandbox,
+    // so the reconnect comparison deleted it — and a credential-delivery port that rotates a
+    // sandbox which no longer exists delivers nothing. An opaque value is hidden behind a Secret
+    // reference, so it changes nothing about how the sandbox was created; only the value behind
+    // the placeholder moves, and the epoch owns that.
+    const fingerprintForKey = (key: string) => {
+      const plan = buildDaytonaSecretPlan({
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.anthropic.com" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: key,
+              usage: "opaque_http",
+            },
+          ],
+        },
+      });
+      return daytonaCreateFingerprint({
+        image: "runner-image",
+        create: buildDaytonaCreate(
+          daytonaConfig(),
+          {},
+          plan.environment,
+          undefined,
+        ),
+      });
+    };
+
+    assert.equal(
+      fingerprintForKey("sk-ant-old"),
+      fingerprintForKey("sk-ant-new"),
     );
   });
 });

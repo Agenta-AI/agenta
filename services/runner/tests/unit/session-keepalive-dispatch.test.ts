@@ -10,6 +10,9 @@
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
+
 import type {
   AgentEvent,
   AgentRunRequest,
@@ -25,11 +28,17 @@ import {
 } from "../../src/server.ts";
 import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
 import {
+  configFingerprint,
   mountExpiryMs,
   MOUNT_LEASE_SKEW_MS,
   type InstalledMountExpiries,
   type KeepaliveConfig,
 } from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  appliedStateForRequest,
+  AppliedState,
+  type AppliedEnvironmentState,
+} from "../../src/engines/sandbox_agent/applied-state.ts";
 import { TOTAL_DEADLINE_ENV } from "../../src/engines/sandbox_agent/run-limits.ts";
 import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
@@ -60,6 +69,9 @@ interface EngineOptions {
 
 interface FakeEnv {
   id: number;
+  /** The environment owns what it applied (lifecycle migration, step 2). The pool reads it. */
+  readonly appliedState: AppliedEnvironmentState;
+  commitApplied: (result: AppliedCommit) => void;
   destroyed: number;
   turnsCleared: number;
   lastTurnToolCallIds: string[];
@@ -89,9 +101,16 @@ function makeEngine(options: EngineOptions = {}) {
   };
 
   let nextEnvId = 1;
-  const makeEnv = (): FakeEnv => {
+  // The fake acquire seeds applied state from the acquiring request, exactly as the real
+  // `prepareEnvironmentSetup` does. Without it the pool would have nothing to read.
+  const makeEnv = (request: AgentRunRequest): FakeEnv => {
+    const applied = appliedStateForRequest(request);
     const env: FakeEnv = {
       id: nextEnvId++,
+      get appliedState() {
+        return applied.appliedState;
+      },
+      commitApplied: (result) => applied.commitApplied(result),
       destroyed: 0,
       turnsCleared: 0,
       lastTurnToolCallIds: [],
@@ -155,9 +174,9 @@ function makeEngine(options: EngineOptions = {}) {
         options.mountExpiresAtSequence?.[idx] ?? options.mountExpiresAt,
       );
     },
-    async acquireEnvironment(_request, _signal, presigned) {
+    async acquireEnvironment(request, _signal, presigned) {
       calls.acquire += 1;
-      const env = makeEnv();
+      const env = makeEnv(request);
       // The real mount helpers stamp the expiry of the credentials the daemon received; a
       // mount-less acquire leaves the entry unset (no lease at all).
       const cwd = mountExpiryMs(presigned?.expiresAt);

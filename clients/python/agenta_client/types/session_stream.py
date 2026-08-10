@@ -24,6 +24,7 @@ class SessionStream(UniversalBaseModel):
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     turn_id: typing.Optional[str] = None
+    archived_at: typing.Optional[dt.datetime] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
