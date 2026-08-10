@@ -190,7 +190,10 @@ const observabilityTests = () => {
                 })
 
                 await scenarios.then("the trace detail drawer opens", async () => {
-                    const drawer = page.locator(".ant-drawer-content-wrapper")
+                    // TraceDrawer renders through EnhancedDrawer, a facade over the @agenta/ui
+                    // (Radix) Sheet, so the panel is `[data-slot="sheet-content"]`, not an antd
+                    // `.ant-drawer-content-wrapper`.
+                    const drawer = page.locator('[data-slot="sheet-content"]')
                     await expect(drawer).toBeVisible({timeout: 10000})
                 })
             },
@@ -299,7 +302,10 @@ const observabilityTests = () => {
                 // users rely on.
                 await clickFirstTraceRow(page)
 
-                const drawer = page.locator(".ant-drawer-content-wrapper")
+                // TraceDrawer renders through EnhancedDrawer, a facade over the @agenta/ui
+                // (Radix) Sheet, so the panel is `[data-slot="sheet-content"]`, not an antd
+                // `.ant-drawer-content-wrapper`.
+                const drawer = page.locator('[data-slot="sheet-content"]')
                 await expect(drawer).toBeVisible({timeout: 10000})
 
                 // The trace tree panel (CustomTreeComponent, not AntD Tree) renders a
