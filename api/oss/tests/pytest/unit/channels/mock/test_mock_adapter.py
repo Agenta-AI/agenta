@@ -14,6 +14,7 @@ from oss.src.core.channels.dtos import (
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelRequestContext,
     ChannelSpaceCandidate,
     ChannelSpaceKind,
 )
@@ -79,7 +80,10 @@ async def test_installation_id_is_a_constructor_parameter():
     adapter = MockAdapter(installation_id="fixed-install-id")
 
     result = await adapter.verify_signature(
-        headers={"x-fake-signature": "valid"}, body=b"anything"
+        request=ChannelRequestContext(
+            headers={"x-fake-signature": "valid"}, path="/", body=b"anything"
+        ),
+        connection=_connection(),
     )
 
     assert result == "fixed-install-id"
@@ -95,7 +99,10 @@ async def test_custom_signature_scheme_accepts_its_own_header():
     adapter = MockAdapter(signature_header="x-mock-secret", signature_value="s3cr3t")
 
     result = await adapter.verify_signature(
-        headers={"x-mock-secret": "s3cr3t"}, body=b"anything"
+        request=ChannelRequestContext(
+            headers={"x-mock-secret": "s3cr3t"}, path="/", body=b"anything"
+        ),
+        connection=_connection(),
     )
 
     assert result == adapter._installation_id
@@ -107,7 +114,10 @@ async def test_custom_signature_scheme_rejects_the_default_header():
 
     with pytest.raises(ChannelSignatureInvalid):
         await adapter.verify_signature(
-            headers={"x-fake-signature": "valid"}, body=b"anything"
+            request=ChannelRequestContext(
+                headers={"x-fake-signature": "valid"}, path="/", body=b"anything"
+            ),
+            connection=_connection(),
         )
 
 
@@ -143,6 +153,56 @@ async def test_parse_event_with_no_script_returns_none():
     adapter = MockAdapter()
 
     assert await adapter.parse_event(body=b"anything") is None
+
+
+# --------------------------------------------------------------------------- #
+# connection_locator
+# --------------------------------------------------------------------------- #
+
+
+def test_connection_locator_returns_the_fixed_installation_id():
+    adapter = MockAdapter(installation_id="fixed-install-id")
+    request = ChannelRequestContext(headers={}, path="/mock/events/", body=b"{}")
+
+    assert adapter.connection_locator(request=request) == {
+        "installation_id": "fixed-install-id"
+    }
+
+
+class _HeaderLocatorMockAdapter(MockAdapter):
+    """Telegram carries no identity in the body at all -- only a header.
+    Telegram does not exist yet, so this stands in to prove the header
+    channel resolves, without touching the shape MockAdapter ships with."""
+
+    def connection_locator(self, *, request):
+        secret = request.headers.get("x-mock-bot-secret")
+        return {"bot_secret": secret} if secret else None
+
+
+def test_connection_locator_can_resolve_from_a_header_with_no_body_identity():
+    adapter = _HeaderLocatorMockAdapter()
+    request = ChannelRequestContext(
+        headers={"x-mock-bot-secret": "s3cr3t"}, path="/mock/events/", body=b""
+    )
+
+    assert adapter.connection_locator(request=request) == {"bot_secret": "s3cr3t"}
+
+
+class _PathLocatorMockAdapter(MockAdapter):
+    """A per-bot URL is Telegram's other mechanism, and the two compose.
+    Stands in the same way as the header case above."""
+
+    def connection_locator(self, *, request):
+        segments = [s for s in request.path.split("/") if s]
+        bot_id = segments[-2] if len(segments) >= 2 else None
+        return {"bot_id": bot_id} if bot_id else None
+
+
+def test_connection_locator_can_resolve_from_the_path_only():
+    adapter = _PathLocatorMockAdapter()
+    request = ChannelRequestContext(headers={}, path="/mock/bot-42/events/", body=b"")
+
+    assert adapter.connection_locator(request=request) == {"bot_id": "bot-42"}
 
 
 # --------------------------------------------------------------------------- #

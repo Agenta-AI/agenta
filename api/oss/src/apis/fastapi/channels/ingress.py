@@ -1,6 +1,6 @@
 import asyncio
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
@@ -13,6 +13,7 @@ from oss.src.core.channels.dtos import (
     ChannelInboxEventCreate,
     ChannelInboxEventData,
     ChannelEventOrigin,
+    ChannelRequestContext,
 )
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
 
@@ -104,9 +105,12 @@ class ChannelsIngressRouter:
         # disagrees with the credential that signed it.
         return await self._ingest(channel="bridge", request=request)
 
-    async def _resolve_candidate(self, *, channel: str, hint: Optional[str]):
+    async def _resolve_candidate(
+        self, *, channel: str, locator: Optional[Dict[str, Any]]
+    ):
         """The connection an unverified installation claim points at, or None."""
 
+        hint = _external_id_from_locator(locator)
         if not hint:
             return None
 
@@ -137,14 +141,20 @@ class ChannelsIngressRouter:
 
         adapter = self.adapter_registry.get(channel)
 
+        request_context = ChannelRequestContext(
+            headers=dict(request.headers),
+            path=request.url.path,
+            body=body,
+        )
+
         # The signing secret lives on the connection, so the connection has to
-        # be in hand before the signature can be checked. The body's own
-        # installation claim selects which one to check against and grants
-        # nothing: a wrong claim finds no connection, or one whose secret
-        # fails, and both refuse identically below.
+        # be in hand before the signature can be checked. The request's own
+        # locator selects which one to check against and grants nothing: a
+        # wrong claim finds no connection, or one whose secret fails, and
+        # both refuse identically below.
         candidate = await self._resolve_candidate(
             channel=channel,
-            hint=adapter.installation_hint(body=body),
+            locator=adapter.connection_locator(request=request_context),
         )
 
         if candidate is None:
@@ -159,8 +169,7 @@ class ChannelsIngressRouter:
         # Raises ChannelSignatureInvalid on failure -- caught by the decorator,
         # which answers 401 with no verification detail.
         external_id = await adapter.verify_signature(
-            headers=request.headers,
-            body=body,
+            request=request_context,
             connection=connection,
         )
 
@@ -171,7 +180,7 @@ class ChannelsIngressRouter:
         if external_id != connection.integration_key:
             raise ChannelSignatureInvalid(channel=channel)
 
-        inbound = await adapter.parse_event(body=body)
+        inbound = await adapter.parse_event(body=body, connection=connection)
 
         if inbound is None:
             # Platform noise (ack, bot echo) -- not an error, nothing to log.
@@ -214,3 +223,15 @@ class ChannelsIngressRouter:
                 ) from e
 
         return ChannelEventAck(status="accepted")
+
+
+def _external_id_from_locator(locator: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Every locator this package's adapters return names exactly one field —
+    composing a key over several is the connections table's job, not yet
+    built. Standing in for that: the locator's one value, whatever its key."""
+
+    if not locator:
+        return None
+
+    value = next(iter(locator.values()), None)
+    return str(value) if value is not None else None

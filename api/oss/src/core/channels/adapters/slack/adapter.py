@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any, Dict, List, Optional
+from urllib.parse import parse_qs
 from uuid import UUID
 
 import httpx
@@ -24,6 +25,7 @@ from oss.src.core.channels.dtos import (
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelRequestContext,
     ChannelSpaceCandidate,
     ChannelSpaceKind,
 )
@@ -74,59 +76,49 @@ class SlackAdapter(ChannelAdapterInterface):
 
     channel = "slack"
 
-    def __init__(
-        self,
-        *,
-        connection: Optional[ChannelConnection] = None,
-        http_client: Optional[httpx.AsyncClient] = None,
-    ) -> None:
-        # `connection` may be supplied at construction (single-tenant test/dev
-        # use) or per-call (multi-tenant use, against a resolved connection) —
-        # verify_signature/parse_event below accept both, using the
-        # constructor's connection as a fallback.
-        self._connection = connection
+    def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = http_client or httpx.AsyncClient(base_url=_SLACK_API_BASE)
 
     # --- declaration --- #
 
-    async def fetch_capabilities(self) -> ChannelCapabilities:
+    async def fetch_capabilities(
+        self, *, connection: Optional[ChannelConnection] = None
+    ) -> ChannelCapabilities:
         return fetch_slack_capabilities()
 
     # --- ingress --- #
 
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
-        payload = _parse_json(body)
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, Any]]:
+        payload = _parse_slack_payload(request.body)
         team = payload.get("team")
-        return payload.get("team_id") or (
+        team_id = payload.get("team_id") or (
             team.get("id") if isinstance(team, dict) else None
         )
+        return {"team_id": team_id} if team_id else None
 
     async def verify_signature(
-        self,
-        *,
-        headers: Dict[str, str],
-        body: bytes,
-        connection: Optional[ChannelConnection] = None,
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
     ) -> str:
-        conn = connection or self._connection
-        if conn is None:
-            raise ChannelSignatureInvalid(channel=self.channel)
-
-        lowered = {k.lower(): v for k, v in headers.items()}
+        lowered = {k.lower(): v for k, v in request.headers.items()}
         verify_slack_signature(
             headers=lowered,
-            body=body,
-            signing_secret=_signing_secret(conn),
+            body=request.body,
+            signing_secret=_signing_secret(connection),
             channel=self.channel,
         )
 
-        team_id = self.installation_hint(body=body)
+        locator = self.connection_locator(request=request)
+        team_id = locator.get("team_id") if locator else None
         if not team_id:
             raise ChannelSignatureInvalid(channel=self.channel)
 
         return team_id
 
-    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+    async def parse_event(
+        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+    ) -> Optional[ChannelInboundEvent]:
         payload = _parse_json(body)
 
         # URL verification handshake and non-event-callback payloads carry no
@@ -138,7 +130,7 @@ class SlackAdapter(ChannelAdapterInterface):
         team_id = payload.get("team_id") or ""
         channel_id = event.get("channel") or ""
 
-        bot_user_id = _bot_user_id(self._connection) if self._connection else None
+        bot_user_id = _bot_user_id(connection) if connection else None
         if is_bot_authored(event, bot_user_id=bot_user_id):
             return None
 
@@ -318,6 +310,27 @@ def _parse_json(body: bytes) -> Dict[str, Any]:
         return json.loads(body) if body else {}
     except ValueError:
         return {}
+
+
+def _parse_slack_payload(body: bytes) -> Dict[str, Any]:
+    """Events API and slash commands send JSON or flat form fields; block
+    interactivity sends form-encoded body with the JSON under `payload` —
+    without this fallback its nested `team.id` is unreachable."""
+
+    parsed = _parse_json(body)
+    if parsed:
+        return parsed
+
+    try:
+        fields = parse_qs(body.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return {}
+
+    payload_field = fields.get("payload")
+    if not payload_field:
+        return {}
+
+    return _parse_json(payload_field[0].encode("utf-8"))
 
 
 def _render_content(content: List[Dict[str, Any]]) -> tuple:

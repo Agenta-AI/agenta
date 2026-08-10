@@ -21,6 +21,7 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelInboundEvent,
+    ChannelRequestContext,
     ChannelSpaceCandidate,
 )
 from oss.src.core.channels.types import ChannelSignatureInvalid
@@ -62,28 +63,30 @@ class MockAdapter(ChannelAdapterInterface):
 
     # --- declaration --- #
 
-    async def fetch_capabilities(self) -> ChannelCapabilities:
+    async def fetch_capabilities(
+        self, *, connection: Optional[ChannelConnection] = None
+    ) -> ChannelCapabilities:
         return self._capabilities
 
     # --- ingress --- #
 
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, Any]]:
         # Fixed, like the id verification returns: this adapter has one install.
-        return self._installation_id
+        return {"installation_id": self._installation_id}
 
     async def verify_signature(
-        self,
-        *,
-        headers: Dict[str, str],
-        body: bytes,
-        connection: Optional[ChannelConnection] = None,
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
     ) -> str:
-        lowered = {k.lower(): v for k, v in headers.items()}
+        lowered = {k.lower(): v for k, v in request.headers.items()}
         if lowered.get(self._signature_header) != self._signature_value:
             raise ChannelSignatureInvalid(channel=self.channel)
         return self._installation_id
 
-    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+    async def parse_event(
+        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+    ) -> Optional[ChannelInboundEvent]:
         return self._script.pop()
 
     # --- egress --- #

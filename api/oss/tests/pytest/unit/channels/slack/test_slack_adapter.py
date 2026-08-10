@@ -11,7 +11,11 @@ import pytest
 from oss.src.core.channels.adapters.slack.adapter import (
     SlackAdapter,
 )
-from oss.src.core.channels.dtos import ChannelConnection, ChannelSpaceKind
+from oss.src.core.channels.dtos import (
+    ChannelConnection,
+    ChannelRequestContext,
+    ChannelSpaceKind,
+)
 from oss.src.core.channels.types import ChannelSignatureInvalid
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.dtos import ChannelKeyGrain
@@ -49,36 +53,64 @@ def _signed_request(body: bytes, *, secret: str = SIGNING_SECRET):
     }
 
 
+def _request(body: bytes, *, headers=None) -> ChannelRequestContext:
+    return ChannelRequestContext(headers=headers or {}, path="/", body=body)
+
+
+# --- connection_locator -------------------------------------------------------- #
+
+
+def test_connection_locator_reads_team_id_flat_from_events_api_json():
+    adapter = SlackAdapter()
+    body = json.dumps({"team_id": "T1", "event": {}}).encode()
+
+    assert adapter.connection_locator(request=_request(body)) == {"team_id": "T1"}
+
+
+def test_connection_locator_reads_team_id_nested_from_an_interactivity_payload():
+    """Block interactivity sends form-encoded body with the JSON under
+    `payload`, `team` nested rather than flat -- the shape the plain JSON
+    extractor alone cannot reach."""
+
+    from urllib.parse import urlencode
+
+    adapter = SlackAdapter()
+    interactivity_payload = json.dumps({"type": "block_actions", "team": {"id": "T1"}})
+    body = urlencode({"payload": interactivity_payload}).encode()
+
+    assert adapter.connection_locator(request=_request(body)) == {"team_id": "T1"}
+
+
+def test_connection_locator_returns_none_with_no_team_identity_at_all():
+    adapter = SlackAdapter()
+    body = json.dumps({"type": "url_verification"}).encode()
+
+    assert adapter.connection_locator(request=_request(body)) is None
+
+
 # --- verify_signature -------------------------------------------------------- #
 
 
 async def test_verify_signature_returns_team_id_on_success():
     connection = _connection()
-    adapter = SlackAdapter(connection=connection)
+    adapter = SlackAdapter()
     body = json.dumps({"team_id": "T1"}).encode()
     headers = _signed_request(body)
 
-    installation_id = await adapter.verify_signature(headers=headers, body=body)
+    installation_id = await adapter.verify_signature(
+        request=_request(body, headers=headers), connection=connection
+    )
 
     assert installation_id == "T1"
 
 
 async def test_verify_signature_rejects_bad_signature():
     connection = _connection()
-    adapter = SlackAdapter(connection=connection)
+    adapter = SlackAdapter()
     body = json.dumps({"team_id": "T1"}).encode()
 
     with pytest.raises(ChannelSignatureInvalid):
-        await adapter.verify_signature(headers={}, body=body)
-
-
-async def test_verify_signature_no_connection_configured_raises_same_exception():
-    adapter = SlackAdapter(connection=None)
-    body = json.dumps({"team_id": "T1"}).encode()
-    headers = _signed_request(body)
-
-    with pytest.raises(ChannelSignatureInvalid):
-        await adapter.verify_signature(headers=headers, body=body)
+        await adapter.verify_signature(request=_request(body), connection=connection)
 
 
 # --- parse_event -------------------------------------------------------------- #
@@ -98,11 +130,22 @@ async def test_parse_event_ignores_non_event_callback_payloads():
 
 
 async def test_parse_event_ignores_bot_authored_messages():
-    connection = _connection()
-    adapter = SlackAdapter(connection=connection)
+    adapter = SlackAdapter()
     body = _event_callback({"channel": "C1", "bot_id": "B1", "text": "echo"})
 
     assert await adapter.parse_event(body=body) is None
+
+
+async def test_parse_event_ignores_the_connections_own_bot_user_id():
+    """Bot-echo filtering needs the connection's bot_user_id, which the
+    adapter no longer holds on itself -- it must be readable from a
+    same-instance parse_event call that passes it in explicitly."""
+
+    connection = _connection(bot_user_id="UBOT1")
+    adapter = SlackAdapter()
+    body = _event_callback({"channel": "C1", "user": "UBOT1", "text": "echo"})
+
+    assert await adapter.parse_event(body=body, connection=connection) is None
 
 
 async def test_parse_event_extracts_sigils_and_marks_addressed():

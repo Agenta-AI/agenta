@@ -19,6 +19,7 @@ from oss.src.core.channels.dtos import (
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelRequestContext,
     ChannelSpaceKind,
 )
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
@@ -39,22 +40,22 @@ class FakeAdapter:
         self.verify_calls = 0
         self.parse_calls = 0
 
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
-        return self.installation_id
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, str]]:
+        return {"installation_id": self.installation_id}
 
     async def verify_signature(
-        self,
-        *,
-        headers: Dict[str, str],
-        body: bytes,
-        connection: Optional[ChannelConnection] = None,
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
     ) -> str:
         self.verify_calls += 1
-        if headers.get("x-fake-signature") != "valid":
+        if request.headers.get("x-fake-signature") != "valid":
             raise ChannelSignatureInvalid(channel=self.channel)
         return self.installation_id
 
-    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+    async def parse_event(
+        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+    ) -> Optional[ChannelInboundEvent]:
         self.parse_calls += 1
         if body == b"noop":
             return None
@@ -234,13 +235,17 @@ class FakeCrossCheckingBridgeAdapter(FakeAdapter):
     def __init__(self, *, installation_id: str = "acme-wecom"):
         super().__init__(installation_id=installation_id)
 
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
-        return json.loads(body).get("source") if body else None
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, str]]:
+        source = json.loads(request.body).get("source") if request.body else None
+        return {"source": source} if source else None
 
-    async def verify_signature(self, *, headers, body, connection=None):
-        if headers.get("x-fake-signature") != "valid":
+    async def verify_signature(self, *, request, connection):
+        if request.headers.get("x-fake-signature") != "valid":
             raise ChannelSignatureInvalid(channel=self.channel)
 
+        body = request.body
         claimed_source = json.loads(body).get("source") if body else None
         if claimed_source is not None and claimed_source != self.installation_id:
             raise ChannelSignatureInvalid(channel=self.channel)
@@ -343,11 +348,11 @@ def test_stale_timestamp_rejected_even_with_structurally_valid_signature(
     calls it."""
 
     class ReplayGuardedAdapter(FakeAdapter):
-        async def verify_signature(self, *, headers, body, connection=None):
-            if headers.get("x-fake-timestamp") == "stale":
+        async def verify_signature(self, *, request, connection):
+            if request.headers.get("x-fake-timestamp") == "stale":
                 raise ChannelSignatureInvalid(channel=self.channel)
             return await super().verify_signature(
-                headers=headers, body=body, connection=connection
+                request=request, connection=connection
             )
 
     guarded = ReplayGuardedAdapter()

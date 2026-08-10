@@ -8,6 +8,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentEdit,
     ChannelAgentQuery,
     ChannelCapabilities,
+    ChannelConnection,
     ChannelEffectivePolicy,
     ChannelGrant,
     ChannelGrantCreate,
@@ -205,11 +206,16 @@ class ChannelsService:
         #
         space: ChannelSpaceCreate,
     ) -> ChannelSpace:
+        connection = await self.connections_service.get_connection(
+            project_id=project_id,
+            connection_id=space.connection_id,
+        )
+        if connection is None:
+            raise ChannelConnectionNotFound(connection_id=space.connection_id)
+
         # external_key is always derived — never taken from the caller.
         capabilities = await self.fetch_capabilities(
-            channel=await self._resolve_channel(
-                project_id=project_id, connection_id=space.connection_id
-            )
+            channel=connection.provider_key, connection=connection
         )
         space.external_key = compose_external_key(
             capabilities,
@@ -466,9 +472,14 @@ class ChannelsService:
 
     # --- capability + policy: adapter reads, no persistence --------------- #
 
-    async def fetch_capabilities(self, *, channel: str) -> ChannelCapabilities:
+    async def fetch_capabilities(
+        self,
+        *,
+        channel: str,
+        connection: Optional[ChannelConnection] = None,
+    ) -> ChannelCapabilities:
         adapter = self.adapter_registry.get(channel)
-        return await adapter.fetch_capabilities()
+        return await adapter.fetch_capabilities(connection=connection)
 
     async def resolve_effective_policy(
         self,
@@ -503,7 +514,7 @@ class ChannelsService:
             raise ChannelConnectionNotFound(connection_id=agent.connection_id)
 
         adapter = self.adapter_registry.get(connection.provider_key)
-        capabilities = await adapter.fetch_capabilities()
+        capabilities = await adapter.fetch_capabilities(connection=connection)
         channel_defaults = _channel_defaults(capabilities)
 
         return resolve_policy(
@@ -569,7 +580,9 @@ class ChannelsService:
         if connection is None:
             raise ChannelConnectionNotFound(connection_id=connection_id)
 
-        capabilities = await self.fetch_capabilities(channel=connection.provider_key)
+        capabilities = await self.fetch_capabilities(
+            channel=connection.provider_key, connection=connection
+        )
 
         space_key = compose_external_key(
             capabilities,

@@ -7,13 +7,12 @@ import httpx
 import pytest
 
 from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
-from oss.src.core.channels.adapters.bridge.hello import parse_hello
 from oss.src.core.channels.adapters.bridge.receipt import BridgeDeliveryFailed
 from oss.src.core.channels.adapters.bridge.signature import (
     SIGNATURE_HEADER,
     TIMESTAMP_HEADER,
 )
-from oss.src.core.channels.dtos import ChannelConnection
+from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
 from oss.src.core.channels.types import ChannelSignatureInvalid
 from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
@@ -34,13 +33,18 @@ WORKED_CAPABILITIES = {
 }
 
 
-def _connection(*, integration_key: str = "acme-wecom") -> ChannelConnection:
+def _connection(
+    *, integration_key: str = "acme-wecom", capabilities: Any = None
+) -> ChannelConnection:
+    data = {"secret": SECRET, "delivery_url": "https://bridge.example/deliver"}
+    if capabilities is not None:
+        data["capabilities"] = capabilities
     return ChannelConnection(
         id=uuid4(),
         slug="bridge-connection",
         provider_key=ConnectionProviderKind.BRIDGE,
         integration_key=integration_key,
-        data={"secret": SECRET, "delivery_url": "https://bridge.example/deliver"},
+        data=data,
     )
 
 
@@ -56,9 +60,65 @@ def _sign(body: bytes, *, secret: str = SECRET) -> Dict[str, str]:
     return {SIGNATURE_HEADER: signature, TIMESTAMP_HEADER: timestamp}
 
 
-def _adapter(connection: ChannelConnection) -> BridgeAdapter:
-    capabilities = parse_hello(WORKED_CAPABILITIES)
-    return BridgeAdapter(capabilities=capabilities, connection=connection)
+def _request(body: bytes, headers: Dict[str, str]) -> ChannelRequestContext:
+    return ChannelRequestContext(headers=headers, path="/", body=body)
+
+
+# --- fetch_capabilities: no fixed declaration exists ------------------------ #
+
+
+@pytest.mark.asyncio
+async def test_fetch_capabilities_reads_the_connections_own_declaration():
+    """The fix for two bridges sharing one declaration: nothing is baked into
+    the constructor, so the same adapter instance answers differently per
+    connection."""
+
+    adapter = BridgeAdapter()
+    connection = _connection(capabilities=WORKED_CAPABILITIES["capabilities"])
+
+    capabilities = await adapter.fetch_capabilities(connection=connection)
+
+    assert capabilities.conversation.units == ["space"]
+    assert capabilities.identity.scope == "tenant"
+
+
+@pytest.mark.asyncio
+async def test_fetch_capabilities_with_no_stored_declaration_degrades_not_raises():
+    adapter = BridgeAdapter()
+
+    capabilities = await adapter.fetch_capabilities(connection=_connection())
+
+    assert capabilities.channel == "bridge"
+    assert capabilities.rendering.buttons.supported is False
+
+
+@pytest.mark.asyncio
+async def test_fetch_capabilities_with_no_connection_degrades_not_raises():
+    adapter = BridgeAdapter()
+
+    capabilities = await adapter.fetch_capabilities()
+
+    assert capabilities.channel == "bridge"
+
+
+@pytest.mark.asyncio
+async def test_two_connections_get_two_different_declarations():
+    adapter = BridgeAdapter()
+
+    connection_a = _connection(
+        integration_key="acme-wecom",
+        capabilities={"rendering": {"buttons": {"supported": True, "max": 3}}},
+    )
+    connection_b = _connection(
+        integration_key="other-feishu",
+        capabilities={"rendering": {"buttons": {"supported": False, "max": 0}}},
+    )
+
+    capabilities_a = await adapter.fetch_capabilities(connection=connection_a)
+    capabilities_b = await adapter.fetch_capabilities(connection=connection_b)
+
+    assert capabilities_a.rendering.buttons.supported is True
+    assert capabilities_b.rendering.buttons.supported is False
 
 
 # --- verify_signature: credential authoritative, source cross-checked ------ #
@@ -67,11 +127,13 @@ def _adapter(connection: ChannelConnection) -> BridgeAdapter:
 @pytest.mark.asyncio
 async def test_matching_source_and_credential_verifies():
     connection = _connection(integration_key="acme-wecom")
-    adapter = _adapter(connection)
+    adapter = BridgeAdapter()
     body = json.dumps({"source": "bridge/acme-wecom"}).encode()
     headers = _sign(body)
 
-    installation_id = await adapter.verify_signature(headers=headers, body=body)
+    installation_id = await adapter.verify_signature(
+        request=_request(body, headers), connection=connection
+    )
 
     assert installation_id == "acme-wecom"
 
@@ -79,12 +141,14 @@ async def test_matching_source_and_credential_verifies():
 @pytest.mark.asyncio
 async def test_source_credential_mismatch_is_refused_with_no_detail_leaked():
     connection = _connection(integration_key="acme-wecom")
-    adapter = _adapter(connection)
+    adapter = BridgeAdapter()
     body = json.dumps({"source": "bridge/some-other-install"}).encode()
     headers = _sign(body)
 
     with pytest.raises(ChannelSignatureInvalid) as caught:
-        await adapter.verify_signature(headers=headers, body=body)
+        await adapter.verify_signature(
+            request=_request(body, headers), connection=connection
+        )
 
     message = str(caught.value).lower()
     assert "acme-wecom" not in message
@@ -94,18 +158,20 @@ async def test_source_credential_mismatch_is_refused_with_no_detail_leaked():
 @pytest.mark.asyncio
 async def test_missing_source_is_refused_same_as_a_mismatch():
     connection = _connection(integration_key="acme-wecom")
-    adapter = _adapter(connection)
+    adapter = BridgeAdapter()
     body = json.dumps({}).encode()
     headers = _sign(body)
 
     with pytest.raises(ChannelSignatureInvalid):
-        await adapter.verify_signature(headers=headers, body=body)
+        await adapter.verify_signature(
+            request=_request(body, headers), connection=connection
+        )
 
 
 @pytest.mark.asyncio
 async def test_bad_signature_and_source_mismatch_raise_identically():
     connection = _connection(integration_key="acme-wecom")
-    adapter = _adapter(connection)
+    adapter = BridgeAdapter()
 
     bad_sig_body = json.dumps({"source": "bridge/acme-wecom"}).encode()
     bad_sig_headers = _sign(bad_sig_body, secret="wrong-secret")
@@ -117,12 +183,16 @@ async def test_bad_signature_and_source_mismatch_raise_identically():
     mismatch_error = None
 
     try:
-        await adapter.verify_signature(headers=bad_sig_headers, body=bad_sig_body)
+        await adapter.verify_signature(
+            request=_request(bad_sig_body, bad_sig_headers), connection=connection
+        )
     except ChannelSignatureInvalid as e:
         bad_sig_error = e
 
     try:
-        await adapter.verify_signature(headers=mismatch_headers, body=mismatch_body)
+        await adapter.verify_signature(
+            request=_request(mismatch_body, mismatch_headers), connection=connection
+        )
     except ChannelSignatureInvalid as e:
         mismatch_error = e
 
@@ -138,13 +208,15 @@ async def test_credential_for_installation_a_cannot_speak_for_installation_b():
     registration only."""
 
     connection_a = _connection(integration_key="installation-a")
-    adapter_a = _adapter(connection_a)
+    adapter = BridgeAdapter()
 
     body = json.dumps({"source": "bridge/installation-b"}).encode()
     headers = _sign(body, secret=SECRET)
 
     with pytest.raises(ChannelSignatureInvalid):
-        await adapter_a.verify_signature(headers=headers, body=body)
+        await adapter.verify_signature(
+            request=_request(body, headers), connection=connection_a
+        )
 
 
 # --- parse_event ------------------------------------------------------------ #
@@ -152,8 +224,7 @@ async def test_credential_for_installation_a_cannot_speak_for_installation_b():
 
 @pytest.mark.asyncio
 async def test_parse_event_reads_the_envelope():
-    connection = _connection()
-    adapter = _adapter(connection)
+    adapter = BridgeAdapter()
     body = json.dumps(
         {
             "type": "io.agenta.channel.message.received.v1",
@@ -191,8 +262,7 @@ class _StubTransport(httpx.AsyncBaseTransport):
 def _adapter_with_stub(responses: List[Dict[str, Any]]):
     transport = _StubTransport(responses)
     client = httpx.AsyncClient(transport=transport)
-    capabilities = parse_hello(WORKED_CAPABILITIES)
-    return BridgeAdapter(capabilities=capabilities, http_client=client), transport
+    return BridgeAdapter(http_client=client), transport
 
 
 @pytest.mark.asyncio
@@ -277,14 +347,14 @@ async def test_edit_message_sends_a_different_command_type_than_post():
 
 @pytest.mark.asyncio
 async def test_discover_spaces_returns_empty_no_wire_message_exists():
-    adapter = _adapter(_connection())
+    adapter = BridgeAdapter()
     result = await adapter.discover_spaces(connection=_connection())
     assert result == []
 
 
 @pytest.mark.asyncio
 async def test_fetch_history_returns_empty_no_wire_message_exists():
-    adapter = _adapter(_connection())
+    adapter = BridgeAdapter()
     result = await adapter.fetch_history(
         connection=_connection(), locator={"chat_id": "grp_456"}, limit=10
     )

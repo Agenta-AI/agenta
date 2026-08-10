@@ -28,6 +28,7 @@ from oss.src.core.channels.dtos import (
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelRequestContext,
     ChannelSpaceKind,
 )
 from oss.src.core.channels.service import ChannelsService
@@ -50,17 +51,21 @@ class _FakeSlackAdapter:
         self.installation_id = installation_id
         self.external_id = external_id
 
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
-        return self.installation_id
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, str]]:
+        return {"installation_id": self.installation_id}
 
     async def verify_signature(
-        self, *, headers: Dict[str, str], body: bytes, connection=None
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
     ) -> str:
-        if headers.get("x-fake-signature") != "valid":
+        if request.headers.get("x-fake-signature") != "valid":
             raise ChannelSignatureInvalid(channel=self.channel)
         return self.installation_id
 
-    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+    async def parse_event(
+        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+    ) -> Optional[ChannelInboundEvent]:
         return ChannelInboundEvent(
             external_id=self.external_id,
             kind=ChannelEventKind.MESSAGE,

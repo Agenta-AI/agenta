@@ -16,13 +16,16 @@ def test_subclass_missing_one_method_also_raises_type_error():
     class AlmostAdapter(ChannelAdapterInterface):
         channel = "almost"
 
-        async def fetch_capabilities(self):
+        async def fetch_capabilities(self, *, connection=None):
             raise NotImplementedError
 
-        async def verify_signature(self, *, headers, body):
+        def connection_locator(self, *, request):
             raise NotImplementedError
 
-        async def parse_event(self, *, body):
+        async def verify_signature(self, *, request, connection):
+            raise NotImplementedError
+
+        async def parse_event(self, *, body, connection=None):
             raise NotImplementedError
 
         async def post_message(self, *, connection, locator, content, idempotency_key):
@@ -45,7 +48,7 @@ def test_subclass_missing_one_method_also_raises_type_error():
 def test_every_method_is_abstract():
     assert set(ChannelAdapterInterface.__abstractmethods__) == {
         "fetch_capabilities",
-        "installation_hint",
+        "connection_locator",
         "verify_signature",
         "parse_event",
         "post_message",
@@ -55,9 +58,27 @@ def test_every_method_is_abstract():
     }
 
 
+def _methods(class_node: ast.ClassDef):
+    """Every method, sync or async — the guard this file exists to keep
+    honest: a check that only sees one kind is blind to the other."""
+
+    return [
+        node
+        for node in class_node.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+
+
+def _positional_params(node):
+    return [a.arg for a in node.args.args if a.arg != "self"]
+
+
 def test_every_method_parameter_after_self_is_keyword_only():
     """Grep-based check via the AST: no positional parameter besides `self`
-    in any method signature on the interface."""
+    in any method signature on the interface, sync methods included. The
+    expected count is derived from the class's own abstractmethods rather
+    than a literal, so adding a method updates this check instead of
+    silently evading it."""
 
     source = inspect.getsource(interface_module)
     tree = ast.parse(source)
@@ -68,16 +89,55 @@ def test_every_method_parameter_after_self_is_keyword_only():
         if isinstance(node, ast.ClassDef) and node.name == "ChannelAdapterInterface"
     )
 
-    checked = 0
-    for node in class_node.body:
-        if not isinstance(node, ast.AsyncFunctionDef):
-            continue
+    methods = _methods(class_node)
 
-        checked += 1
-        positional = [a.arg for a in node.args.args if a.arg != "self"]
+    for node in methods:
+        positional = _positional_params(node)
         assert positional == [], (
             f"{node.name} has positional parameters besides self: {positional} "
             "— every method must be keyword-only after *."
         )
 
-    assert checked == 7
+    assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__)
+
+
+def test_keyword_only_check_fails_on_a_sync_method_with_a_positional_parameter():
+    """The guard this replaces walked only ast.AsyncFunctionDef, so a sync
+    method with a positional parameter was invisible to it. Proves the fixed
+    check actually catches that shape."""
+
+    source = """
+class Fake:
+    def bad(self, positional):
+        ...
+
+    async def good(self, *, kw):
+        ...
+"""
+    class_node = next(
+        node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.ClassDef)
+    )
+
+    violations = [
+        node.name for node in _methods(class_node) if _positional_params(node)
+    ]
+
+    assert violations == ["bad"]
+
+
+def test_checked_count_is_derived_from_the_method_list_not_a_literal():
+    """A class with a different number of methods must produce a different
+    checked count — the count this guard asserts against is never a
+    hardcoded literal."""
+
+    source = """
+class Fake:
+    def one(self, *, kw): ...
+    async def two(self, *, kw): ...
+    async def three(self, *, kw): ...
+"""
+    class_node = next(
+        node for node in ast.walk(ast.parse(source)) if isinstance(node, ast.ClassDef)
+    )
+
+    assert len(_methods(class_node)) == 3

@@ -19,7 +19,7 @@ EXPECTED = {
     "rendering": {
         "controls": {"update": True, "ephemeral": True},
         "buttons": {"supported": True, "max": 5},
-        "text": {"format": "markdown", "max_chars": 4000},
+        "text": {"format": "markdown", "max_chars": 3000},
         "files": {
             "send": {"supported": True, "max_bytes": 1073741824},
             "receive": {"supported": True, "max_bytes": 1073741824},
@@ -41,6 +41,15 @@ def test_declared_value_matches_spec_field_for_field():
     capabilities = fetch_slack_capabilities()
 
     assert capabilities.model_dump(mode="json") == EXPECTED
+
+
+def test_text_max_chars_is_the_enforced_block_kit_ceiling_not_the_client_guidance():
+    """4000 is Slack's client-side guidance; 3000 is the enforced Block Kit
+    ceiling, which is what the renderer must respect."""
+
+    capabilities = fetch_slack_capabilities()
+
+    assert capabilities.rendering.text.max_chars == 3000
 
 
 def test_identity_keys_included_and_uses_key_grain_vocabulary():

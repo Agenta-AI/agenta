@@ -16,7 +16,7 @@ from oss.src.core.channels.adapters.slack.adapter import (
     ChannelBackfillRefused,
     SlackAdapter,
 )
-from oss.src.core.channels.dtos import ChannelConnection
+from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
 from oss.src.core.channels.types import (
     ChannelConnectionIncomplete,
     ChannelSignatureInvalid,
@@ -453,13 +453,17 @@ async def test_verify_signature_success_against_a_real_signed_body():
         "v0=" + hmac.new(secret.encode(), signed_bytes, hashlib.sha256).hexdigest()
     )
 
-    adapter = SlackAdapter(connection=_connection(signing_secret=secret))
+    adapter = SlackAdapter()
     installation_id = await adapter.verify_signature(
-        headers={
-            "x-slack-signature": signature,
-            "x-slack-request-timestamp": timestamp,
-        },
-        body=body,
+        request=ChannelRequestContext(
+            headers={
+                "x-slack-signature": signature,
+                "x-slack-request-timestamp": timestamp,
+            },
+            path="/",
+            body=body,
+        ),
+        connection=_connection(signing_secret=secret),
     )
 
     assert installation_id == "T1"
@@ -474,13 +478,17 @@ async def test_verify_signature_rejects_a_stale_timestamp():
         "v0=" + hmac.new(secret.encode(), signed_bytes, hashlib.sha256).hexdigest()
     )
 
-    adapter = SlackAdapter(connection=_connection(signing_secret=secret))
+    adapter = SlackAdapter()
 
     with pytest.raises(ChannelSignatureInvalid):
         await adapter.verify_signature(
-            headers={
-                "x-slack-signature": signature,
-                "x-slack-request-timestamp": stale_timestamp,
-            },
-            body=body,
+            request=ChannelRequestContext(
+                headers={
+                    "x-slack-signature": signature,
+                    "x-slack-request-timestamp": stale_timestamp,
+                },
+                path="/",
+                body=body,
+            ),
+            connection=_connection(signing_secret=secret),
         )

@@ -6,6 +6,7 @@ from `full()` and turn exactly the one arm `capabilities.md` describes off.
 from copy import deepcopy
 from typing import Any, Dict
 
+from oss.src.core.channels.adapters.normalise import normalise_capabilities
 from oss.src.core.channels.dtos import ChannelCapabilities
 
 # A shared-secret header scheme matching the contract suite's own fixture, so
@@ -63,7 +64,7 @@ def declare(**overrides: Any) -> ChannelCapabilities:
     needs. Keys are merged by dict path, so `declare(rendering={"buttons":
     {"max": 2}})` leaves every other field at `full()`'s value."""
 
-    return ChannelCapabilities.model_validate(_deep_merge(_FULL, overrides))
+    return normalise_capabilities(_deep_merge(_FULL, overrides))
 
 
 def full() -> ChannelCapabilities:

@@ -16,6 +16,7 @@ from oss.src.core.channels.dtos import (
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelRequestContext,
     ChannelSpaceCandidate,
     ChannelSpaceKind,
 )
@@ -96,24 +97,26 @@ class WellBehavedFakeAdapter(ChannelAdapterInterface):
         self._messages: Dict[str, Dict[str, Any]] = {}
         self._next_id = 0
 
-    async def fetch_capabilities(self) -> ChannelCapabilities:
+    async def fetch_capabilities(
+        self, *, connection: Optional[ChannelConnection] = None
+    ) -> ChannelCapabilities:
         return ChannelCapabilities.model_validate(self._capabilities)
 
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
-        return INSTALLATION_ID
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, Any]]:
+        return {"installation_id": INSTALLATION_ID}
 
     async def verify_signature(
-        self,
-        *,
-        headers: Dict[str, str],
-        body: bytes,
-        connection: Optional[ChannelConnection] = None,
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
     ) -> str:
-        if headers.get(VALID_SIGNATURE_HEADER) != VALID_SIGNATURE_VALUE:
+        if request.headers.get(VALID_SIGNATURE_HEADER) != VALID_SIGNATURE_VALUE:
             raise ChannelSignatureInvalid(channel=self.channel)
         return INSTALLATION_ID
 
-    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+    async def parse_event(
+        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+    ) -> Optional[ChannelInboundEvent]:
         if body == b"ignore-me":
             return None
 
