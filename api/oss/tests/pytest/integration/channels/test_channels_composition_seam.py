@@ -76,9 +76,9 @@ class _FakeStreamsService:
 @pytest.fixture
 async def registry_scope(channels_scope):
     """The exact registry shape `entrypoints/routers.py` builds, over a
-    `gateway_connections` row switched to `provider_key="mock"` so
-    `resolve_channel` picks the mock adapter, the same way it would pick
-    `slack` for a real installation."""
+    `gateway_connections` row switched to `provider_key="mock"` so the
+    registry picks the mock adapter, the same way it would pick `slack` for a
+    real installation."""
 
     engine = channels_scope["engine"]
 
@@ -165,11 +165,11 @@ async def test_registry_get_mock_resolves_a_real_adapter_backing_a_real_dispatch
     resolved = registry_scope["registry"].get("mock")
     assert isinstance(resolved, MockAdapter)
 
-    channel = await registry_scope["service"].resolve_channel(
+    connection = await registry_scope["service"].connections_service.get_connection(
         project_id=registry_scope["project_id"],
         connection_id=registry_scope["connection_id"],
     )
-    assert channel == "mock"
+    assert connection.provider_key == "mock"
 
 
 async def test_a_matched_command_travels_through_dispatch_event_and_opens_no_turn(

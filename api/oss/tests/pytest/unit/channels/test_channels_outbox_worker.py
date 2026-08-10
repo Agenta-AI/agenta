@@ -364,8 +364,7 @@ async def _seed_connection_and_thread(channels_dao, connections_service, session
     # NOTE: Connection.provider_key is typed ConnectionProviderKind (only
     # {composio, agenta}), but a channels connection's provider_key holds the
     # channel key string ("slack", "fake") that ChannelsService/adapter
-    # registry actually key on (service.py's _resolve_channel returns
-    # connection.provider_key verbatim). That is a pre-existing typing gap in
+    # registry actually key on. That is a pre-existing typing gap in
     # the shared gateway connections DTO — model_construct bypasses the enum
     # validation so this test can still exercise the real production code path.
     connection = Connection.model_construct(

@@ -832,25 +832,6 @@ class ChannelsService:
             windowing=windowing,
         )
 
-    # --- helpers ------------------------------------------------------------ #
-
-    async def resolve_channel(self, *, project_id: UUID, connection_id: UUID) -> str:
-        """The connection's channel key, for callers that need capabilities."""
-
-        return await self._resolve_channel(
-            project_id=project_id,
-            connection_id=connection_id,
-        )
-
-    async def _resolve_channel(self, *, project_id: UUID, connection_id: UUID) -> str:
-        connection = await self.connections_service.get_connection(
-            project_id=project_id,
-            connection_id=connection_id,
-        )
-        if connection is None:
-            raise ChannelConnectionNotFound(connection_id=connection_id)
-        return connection.provider_key
-
 
 def _canonical_locator(locator: Optional[dict]) -> str:
     from oss.src.core.channels.utils import canonical_json
