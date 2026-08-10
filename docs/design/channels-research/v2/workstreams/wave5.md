@@ -3,8 +3,13 @@
 Runs from C4 to C5 as one cycle:
 
 ```text
-CU-A  →  packages  →  merge  →  CU-B  →  deploy  →  CU-C  →  C5 reached
+CU-A  →  packages ⇄ merges  →  final merge  →  CU-B  →  deploy  →  CU-C  →  C5
 ```
+
+The packages phase is a **graph**: it may fan out, converge, and merge several times
+along the way. Intermediate merges are rebase points only. **Only the final merge
+earns CU-B, deploy and CU-C** — a seam cannot be verified until both sides have
+landed, and a stack is not worth deploying twice for one checkpoint.
 
 **Exit condition:** an operator creates a bot in the UI, opens a conversation, sends
 a message, gets an answer, and clicks a choice — travelling the public ingress, the
@@ -62,18 +67,55 @@ as current. Package specs are written from these, so this is a prerequisite:
 | [specs-wp25.md](specs-wp25.md) | [tasks-wp25.md](tasks-wp25.md) | The Agenta surface | WP24 |
 | [specs-wp20.md](specs-wp20.md) | [tasks-wp20.md](tasks-wp20.md) | Inbound actions | WP24 |
 
-```text
-WP0  ───────────────────────────────────────────  (independent, starts day one)
+### Merge points
 
-WP21 ── WP22 ── WP23 ── WP24 ──┬── WP25
-                               └── WP20
+The packages phase is a graph, not one fan-out. It has **intermediate merges**, and
+each one is a rebase point and nothing more — **only the final merge earns CU-B,
+deploy and CU-C.**
+
+```text
+WP0 ─────────────────────────────────────────────┐  (independent, day one)
+                                                 │
+WP21 ──M1── WP22 ──M2── ┬─ WP23 ─┐               │
+                        └─ WP24 ─┴─M3── ┬─ WP25 ─┼──M4 ── CU-B → deploy → CU-C
+                                        └─ WP20 ─┘
 ```
 
-**WP0 carries forward unchanged** — its spec is from wave 3 and the work never
-happened (`F3`). It depends on nothing here and should start on day one, because it
-is the item that has slipped every wave and the reason the outbox still polls.
+| | merges | then |
+| --- | --- | --- |
+| **M1** | WP21 — the interface | everyone rebases; the file is frozen again |
+| **M2** | WP22 — schema | WP23 and WP24 branch from it |
+| **M3** | WP23, WP24 | WP25 and WP20 branch from it |
+| **M4** | WP25, WP20, WP0 | **the final merge** — CU-B, deploy, CU-C |
 
-**WP21 and WP22 are the bottleneck** and are one person's first move.
+**Why serial at the top.** WP21 changes a frozen interface and WP22 changes the
+migration; building either against the other unmerged means every later package
+inherits two moving foundations. The stubs-first pattern in [README.md](README.md)
+exists for *interface* dependencies — these are behavioural, so they merge first.
+
+**Why WP23 and WP24 pair.** WP24's adapter needs only WP21 and WP22 to be written,
+but its acceptance test needs a connection to exist, which is WP23's route. They
+develop in parallel against the route contract and land together at M3.
+
+**WP0 carries forward unchanged** — its spec is from wave 3 and the work never
+happened (`F3`). It depends on nothing here and starts on day one. It may merge at
+any point; landing it by M3 lets CU-B verify the outbox consumes events rather than
+polls.
+
+**WP21 and WP22 are the bottleneck** and are one person's first move. If they slip,
+the wave slips — WP0 is the hedge, being the only package that cannot be blocked by
+them.
+
+### At an intermediate merge
+
+Rebase and carry on. No deployment, no acceptance run, no CU phase. What *is* worth
+doing, because it is cheap and the alternative is finding it at M4:
+
+- the branch builds and its own suite passes on the merged base
+- the reachability check for **that package's** new symbols only
+
+The full check is CU-B's, at M4, because a seam between two packages cannot be
+checked until both have landed.
 
 ## File ownership
 
@@ -92,17 +134,18 @@ New and changed, on top of the table in [README.md](README.md):
 
 | File | Who | Handling |
 | --- | --- | --- |
-| `core/channels/adapters/interface.py` | WP21 alone, everyone reads | **This wave's checkpoint conversation.** Frozen again once WP21 merges; no package edits it afterwards. |
+| `core/channels/adapters/interface.py` | WP21 alone, everyone reads | **This wave's checkpoint conversation.** Frozen again at M1; no package edits it afterwards. |
 | the migration `oss000000021` | WP22 alone | Edited **in place**, nothing being released. WP23 and WP24 read the result, never add a revision. |
 | `core/secrets/` | WP22 alone | One enum member, one inner enum, one discriminator branch. Nothing else in that domain is touched. |
 | `middlewares/auth.py` | WP24 alone | Four lines for `/channels/agenta/events/`, trailing-slashed, exactly as the Slack and bridge entries are written. |
-| `api/entrypoints/routers.py` | WP23, WP24 | **Serialised at the checkpoint.** Each prepares a diff; applied in order, never edited mid-stream. |
+| `api/entrypoints/routers.py` | WP23, WP24 | **Serialised at M3**, where both land. Each prepares a diff; applied in order, never edited mid-stream. This is the one file the merge-point structure does not spare — both packages need it and they merge together. |
 | `core/channels/service.py` | WP22, WP23 | WP22 takes the DTO and grain changes; WP23 takes the connections methods. Land WP22 first and WP23 rebases. |
 
-## CU-B — after the merge, before deploy
+## CU-B — after the final merge (M4), before deploy
 
-**The reachability check is the point.** Every symbol either package introduced gets
-grepped for callers outside its own module. Green merges have hidden four
+**The reachability check is the point.** Every symbol any package introduced gets
+grepped for callers outside its own module. Intermediate merges checked each package
+alone; this is where the seams between them get checked. Green merges have hidden four
 disconnections twice, and a passing suite is not evidence that two packages meet.
 
 Specifically: the Agenta adapter registered in **every** composition root, not one;

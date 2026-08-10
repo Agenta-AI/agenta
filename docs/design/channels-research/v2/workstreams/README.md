@@ -20,9 +20,14 @@ list, file ownership and collisions. [`wave5.md`](wave5.md) is the current one.
 
 **A wave is a cycle, not a fan-out.** Wave k runs from C(k-1) to Ck as:
 
+```text
+CU-A  →  packages ⇄ merges  →  final merge  →  CU-B  →  deploy  →  CU-C  →  Ck
 ```
-CU-A  →  packages  →  merge  →  CU-B  →  deploy  →  CU-C  →  Ck reached
-```
+
+The packages phase is a **graph**: it may fan out, converge, and merge several times
+along the way. Intermediate merges are rebase points only. **Only the final merge
+earns CU-B, deploy and CU-C** — a seam cannot be verified until both sides have
+landed, and a stack is not worth deploying twice for one checkpoint.
 
 CU-A unblocks the packages; CU-B catches what only appears when they meet; CU-C
 catches what only a real stack shows. The history justifies all three — 13 of this

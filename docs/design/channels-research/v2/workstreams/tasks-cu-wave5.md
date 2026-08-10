@@ -60,12 +60,15 @@ document is short.
 
 ---
 
-## CU-B — after the merge, before deploy
+## CU-B — after the final merge (M4), before deploy
 
 ### Reachability
 
 Green merges have hidden four disconnections twice. A passing suite is not evidence
 that two packages meet.
+
+Intermediate merges (M1–M3) each checked their own package's new symbols. This phase
+checks the **seams**, which could not be checked before both sides had landed.
 
 - [ ] Every symbol each package introduced, grepped for callers **outside its own
       module**.
