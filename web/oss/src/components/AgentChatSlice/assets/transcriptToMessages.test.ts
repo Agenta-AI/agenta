@@ -622,3 +622,114 @@ describe("transcriptToMessages attachments", () => {
         ).toEqual([{type: "text", text: "Done."}])
     })
 })
+
+/**
+ * A parked client tool (elicitation) must replay with its `data-render` sibling. Dropping it made
+ * every reload / post-turn transcript adoption resolve the call to NO widget, so the fallback
+ * settled it as `{status: "not_handled"}` instead of showing the form (session a21da9cd).
+ */
+describe("transcriptToMessages parked client tool", () => {
+    const toolCallId = "call_4ySJBKMeiDq4u3hUNGJidwkX|fc_05786f8fb9f28034"
+    const elicitationInput = {
+        message: "To configure the PR reviewer, tell me which repository to monitor.",
+        requestedSchema: {
+            type: "object",
+            required: ["repository"],
+            properties: {repository: {type: "string", title: "Repository"}},
+            "x-ag-stepper": true,
+        },
+    }
+    const clientToolRequest = (payload: Record<string, unknown> = {}): SessionRecord =>
+        record("record-interaction", {
+            type: "interaction_request",
+            id: toolCallId,
+            kind: "client_tool",
+            payload: {
+                toolCallId,
+                toolName: "request_input",
+                input: elicitationInput,
+                render: {kind: "elicitation"},
+                toolCall: {id: toolCallId, name: "request_input", rawInput: elicitationInput},
+                ...payload,
+            },
+        })
+
+    it("replays the render hint as the sibling data part the registry dispatches on", () => {
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: toolCallId,
+                name: "request_input",
+                input: elicitationInput,
+            }),
+            clientToolRequest(),
+            record("record-done-paused", {type: "done", stopReason: "paused"}),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            state: "input-available",
+            input: elicitationInput,
+        })
+        expect(parts.find((p) => p.type === "data-render")?.data).toEqual({
+            toolCallId,
+            render: {kind: "elicitation"},
+        })
+    })
+
+    it("synthesizes the tool part when the runner parked without surfacing the call", () => {
+        const messages = transcriptToMessages([clientToolRequest()])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            state: "input-available",
+            input: elicitationInput,
+        })
+        expect(parts.some((p) => p.type === "data-render")).toBe(true)
+    })
+
+    it("refreshes a drifted tool call with the interaction's canonical name and input", () => {
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: toolCallId,
+                name: "__ag__request_input",
+                input: {message: "stale"},
+            }),
+            clientToolRequest(),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            input: elicitationInput,
+        })
+    })
+
+    it("emits no render part when the interaction carries no hint", () => {
+        const messages = transcriptToMessages([clientToolRequest({render: undefined})])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts.some((p) => p.type === "data-render")).toBe(false)
+        expect(parts[0]).toMatchObject({type: "tool-request_input", state: "input-available"})
+    })
+
+    it("leaves a settled client tool settled (a later tool_result still wins)", () => {
+        const messages = transcriptToMessages([
+            clientToolRequest(),
+            record("record-result", {
+                type: "tool_result",
+                id: toolCallId,
+                output: {action: "accept", content: {repository: "octocat/Hello-World"}},
+            }),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({type: "tool-request_input", state: "output-available"})
+    })
+})

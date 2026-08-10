@@ -379,3 +379,92 @@ describe("transcriptToMessages cold approval resume (re-raised tool call id)", (
         expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
     })
 })
+
+/** Parity with the OSS original: a parked client tool replays with its `data-render` sibling, the
+ * only thing the client-tool registry can dispatch on. Without it a reload settles the call as
+ * "not handled by this client" instead of showing the widget. */
+describe("transcriptToMessages parked client tool", () => {
+    const toolCallId = "call_1|fc_1"
+    const input = {message: "Which repository?", requestedSchema: {type: "object", properties: {}}}
+    const clientToolRequest = (payload: Record<string, unknown> = {}): SessionRecord =>
+        record("r-interaction", {
+            type: "interaction_request",
+            id: toolCallId,
+            kind: "client_tool",
+            payload: {
+                toolCallId,
+                toolName: "request_input",
+                input,
+                render: {kind: "elicitation"},
+                ...payload,
+            },
+        })
+
+    it("replays the render hint as a sibling data part", () => {
+        const parts = (transcriptToMessages([
+            record("r-call", {type: "tool_call", id: toolCallId, name: "request_input", input}),
+            clientToolRequest(),
+            record("r-done", {type: "done", stopReason: "paused"}),
+        ])?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            state: "input-available",
+        })
+        expect(parts.find((p) => p.type === "data-render")?.data).toEqual({
+            toolCallId,
+            render: {kind: "elicitation"},
+        })
+    })
+
+    it("synthesizes the tool part when the runner parked without surfacing the call", () => {
+        const parts = (transcriptToMessages([clientToolRequest()])?.[0].parts ??
+            []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            state: "input-available",
+            input,
+        })
+    })
+
+    it("refreshes a drifted tool call with the interaction's canonical name and input", () => {
+        const parts = (transcriptToMessages([
+            record("r-call", {
+                type: "tool_call",
+                id: toolCallId,
+                name: "__ag__request_input",
+                input: {message: "stale"},
+            }),
+            clientToolRequest(),
+        ])?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            input,
+        })
+    })
+
+    it("emits no render part when the interaction carries no hint", () => {
+        const parts = (transcriptToMessages([clientToolRequest({render: undefined})])?.[0].parts ??
+            []) as unknown as Record<string, unknown>[]
+
+        expect(parts.some((p) => p.type === "data-render")).toBe(false)
+    })
+
+    it("leaves a settled client tool settled (a later tool_result still wins)", () => {
+        const parts = (transcriptToMessages([
+            clientToolRequest(),
+            record("r-result", {
+                type: "tool_result",
+                id: toolCallId,
+                output: {action: "accept", content: {repository: "octocat/Hello-World"}},
+            }),
+        ])?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({type: "tool-request_input", state: "output-available"})
+    })
+})

@@ -104,6 +104,51 @@ const isRunnerSentinelError = (part: Part): boolean => {
     )
 }
 
+/**
+ * Replay a parked CLIENT TOOL (`interaction_request` `kind: "client_tool"`): its unsettled tool
+ * part plus the sibling `data-render` part that carries `render.kind` — the ONLY thing that tells
+ * the client-tool registry which widget to dispatch (strict AI SDK tool chunks can't carry it
+ * inline, so the live egress emits the same sibling part). Without it a replayed elicitation
+ * resolves to no widget and the fallback settles it as "not handled by this client".
+ */
+function replayClientTool(
+    draft: DraftMessage,
+    payload: Record<string, unknown>,
+    index: TranscriptIndex,
+    str: (v: unknown) => string,
+): void {
+    const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
+    const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
+    const toolCallId = str(
+        reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
+    )
+    if (!toolCallId) return
+    const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
+    const input = reqPayload.input ?? toolCall.rawInput ?? toolCall.input
+    let part = index.tools.get(toolCallId)
+    if (!part) {
+        // The runner parked without first surfacing the tool call — synthesize one.
+        part = {
+            type: toolPartType(toolName),
+            toolCallId,
+            state: "input-available",
+            input,
+        }
+        draft.parts.push(part)
+        index.tools.set(toolCallId, part)
+    } else {
+        if (toolName) {
+            if (part.type === "dynamic-tool") part.toolName = toolName
+            else part.type = toolPartType(toolName)
+        }
+        if (input !== undefined) part.input = input
+    }
+    const render = reqPayload.render
+    if (render && typeof render === "object" && !Array.isArray(render)) {
+        draft.parts.push({type: "data-render", data: {toolCallId, render}})
+    }
+}
+
 /** Apply one transcript event's payload onto the current assistant/user draft message. */
 function applyEvent(
     draft: DraftMessage,
@@ -199,9 +244,12 @@ function applyEvent(
             return
         }
         case "interaction_request": {
-            // v1 scope: HITL approvals only. The runner emits `kind` `user_approval` for the
-            // Approve/Deny gate; `user_input`/`client_tool` are left to their tool_call/result
-            // parts (a client tool isn't approve/deny) until those are wired.
+            // Two kinds replay: `user_approval` (the Approve/Deny gate, below) and `client_tool`
+            // (a parked browser-fulfilled call). `user_input` is left to its tool_call/result parts.
+            if (payload.kind === "client_tool") {
+                replayClientTool(draft, payload, index, str)
+                return
+            }
             if (payload.kind !== "user_approval") return
             const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
             const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
@@ -311,7 +359,7 @@ function applyEvent(
             draft.usage = next
             return
         }
-        // done / data / render-hints / attachment_delivery carry no renderable message part — drop.
+        // done / data / attachment_delivery carry no renderable message part — drop.
         default:
             return
     }
