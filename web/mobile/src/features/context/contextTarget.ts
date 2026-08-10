@@ -8,9 +8,22 @@ export interface ContextTargetInput {
     /** Pair remembered from a previous visit. */
     shortcut: LastContext | null
     groups: WorkspaceGroup[]
+    /**
+     * True once the projects fetch has answered. Explicit, not `groups.length > 0`: an empty
+     * `groups` means "not fetched yet" far more often than it means "no projects", and the
+     * shortcut's fast path must survive the former.
+     */
+    groupsLoaded: boolean
     /** Desktop's last-used project per workspace. */
     desktopLastUsed: Record<string, string>
 }
+
+const contains = (groups: WorkspaceGroup[], {workspaceId, projectId}: LastContext) =>
+    groups.some(
+        (group) =>
+            group.workspaceId === workspaceId &&
+            group.projects.some((project) => project.project_id === projectId),
+    )
 
 /**
  * Which project `/m/` forwards to. Mirrors the desktop: remembered pair, then desktop
@@ -22,10 +35,13 @@ export const selectContextTarget = ({
     ready,
     shortcut,
     groups,
+    groupsLoaded,
     desktopLastUsed,
 }: ContextTargetInput): LastContext | null => {
     if (!ready) return null
-    if (shortcut) return shortcut
+    // The remembered pair forwards on sight; only a fetched tree that no longer holds it —
+    // project deleted, access revoked — is grounds to drop it and resolve again.
+    if (shortcut && (!groupsLoaded || contains(groups, shortcut))) return shortcut
     if (groups.length === 0) return null
     // Desktop continuity: the desktop's last-used pair, when it still exists in the fetched tree.
     for (const group of groups) {

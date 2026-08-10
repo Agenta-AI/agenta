@@ -24,10 +24,11 @@ export const ContextResolver = () => {
         typeof window === "undefined" ? null : readLastContext(),
     )
 
+    // Always fetched (the shared key every screen uses): a stored pair still forwards on the
+    // first render, but once the tree answers we can tell a stale shortcut from a live one.
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
-        enabled: !stored,
         staleTime: 30_000,
     })
     const result = query.data
@@ -43,20 +44,18 @@ export const ContextResolver = () => {
                 ready: router.isReady,
                 shortcut: stored,
                 groups,
+                groupsLoaded: result?.kind === "ok",
                 desktopLastUsed: readDesktopLastUsed(),
             }),
-        [router.isReady, stored, groups],
+        [router.isReady, stored, groups, result],
     )
 
     useEffect(() => {
         if (target?.projectId) void router.replace(homeUrl(target))
     }, [target])
 
-    // Signed out is not a screen on a phone — the auth page is. Route straight there.
-    const unauthenticated = result?.kind === "unauthenticated"
-    useEffect(() => {
-        if (unauthenticated) void router.replace("/auth")
-    }, [unauthenticated])
+    // Signed out is not a screen on a phone — the auth page is, and AuthGate routes there
+    // from wherever the user landed (this page redirects away too fast to be that gate).
 
     let body
     if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {

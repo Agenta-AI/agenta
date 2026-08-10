@@ -24,6 +24,7 @@ const input = (overrides: Partial<ContextTargetInput> = {}): ContextTargetInput 
     ready: true,
     shortcut: null,
     groups: [],
+    groupsLoaded: true,
     desktopLastUsed: {},
     ...overrides,
 })
@@ -31,7 +32,38 @@ const input = (overrides: Partial<ContextTargetInput> = {}): ContextTargetInput 
 describe("selectContextTarget", () => {
     it("forwards to the remembered pair", () => {
         const shortcut = {workspaceId: "w1", projectId: "p1"}
-        expect(selectContextTarget(input({shortcut}))).toEqual(shortcut)
+        expect(selectContextTarget(input({shortcut, groups: [group("w1", ["p1", "p2"])]}))).toEqual(
+            shortcut,
+        )
+    })
+
+    it("forwards to the remembered pair before the projects have loaded", () => {
+        const shortcut = {workspaceId: "w1", projectId: "p1"}
+        expect(selectContextTarget(input({shortcut, groupsLoaded: false}))).toEqual(shortcut)
+    })
+
+    it("drops a remembered pair the loaded tree no longer holds", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    shortcut: {workspaceId: "w1", projectId: "deleted"},
+                    groups: [group("w1", ["p1"])],
+                    desktopLastUsed: {},
+                }),
+            ),
+        ).toEqual({workspaceId: "w1", projectId: "p1"})
+    })
+
+    it("drops a remembered pair whose workspace is gone, following desktop continuity", () => {
+        expect(
+            selectContextTarget(
+                input({
+                    shortcut: {workspaceId: "gone", projectId: "p1"},
+                    groups: [group("w1", ["p1", "p2"])],
+                    desktopLastUsed: {w1: "p2"},
+                }),
+            ),
+        ).toEqual({workspaceId: "w1", projectId: "p2"})
     })
 
     it("decides nothing until the router is ready", () => {
@@ -58,8 +90,7 @@ describe("selectContextTarget", () => {
     })
 
     it("falls back to the first project when a desktop pair's project is gone", () => {
-        // There is no picker page — switching lives in the drawer, so the resolver always lands
-        // somewhere and the drawer corrects it.
+        // There is no picker page: land somewhere and let the drawer correct it.
         expect(
             selectContextTarget(
                 input({groups: [group("w1", ["p1", "p2"])], desktopLastUsed: {w1: "deleted"}}),
