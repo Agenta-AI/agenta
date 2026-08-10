@@ -1,82 +1,90 @@
-# Plan: one lifecycle contract for interaction cards (v2, post-review)
+# Plan: four changes
 
-Prerequisite reading: [research.md](research.md). Terms: [README.md](README.md).
-This is the reshaped plan after an adversarial review found v1 unsound (the review's
-findings and their adoption are recorded in status.md). It is deliberately smaller.
+Read [research.md](research.md) first. This is version 2 of the plan. An adversarial
+review rejected version 1, mostly for being too big and for one real design error. The
+review history is in [status.md](status.md).
 
-## The contract, in one sentence
+## The idea in one sentence
 
-Answering an interaction flips its row FIRST, before anything else can touch it; replay
-reads outcomes by a fixed precedence; a tab that renders a pending card neither adopts
-over it nor strands it.
+Record the answer first, read it by one rule, listen for changes, and let every card
+work where it appears.
 
-## The four changes
+## Change 1: record the answer before anything else
 
-### C1. The answer is the authoritative first transition (the whole settlement fix)
+Today: the user answers, the resume goes out, the row stays `pending`, the sweep later
+marks it `cancelled`. The truth is lost (research Finding 1).
 
-When the user acts on a client-tool card, desktop first flips the row `pending ->
-responded` through the existing interactions API (the same first step mobile approvals
-already take), THEN dispatches the message-borne resume exactly as today. The runner
-resolves the row (`responded -> resolved`, with the outcome payload) when it consumes
-the answer. No sweep changes at all: the sweep only cancels `pending` rows, so a
-responded row survives it by existing semantics. If the respond call fails, the flow
-degrades to today's behavior (message-borne only), never blocks the user.
+New behavior: when the user answers a card, the browser FIRST tells the server
+"answered" (one small API call that flips the row from `pending` to `responded`). Then
+it sends the resume exactly as today. When the runner consumes the answer, the server
+sets the row to `resolved` and saves the outcome (the form values, or the connection
+result).
 
-Why this shape: it wins the sweep-vs-resolve race by ordering, not by exemption lists;
-it reuses the transition machinery approvals already exercise; and the API change is
-small (accept the respond transition and, on resolve, an outcome payload for
-`client_tool` rows; lift the approval-only guard exactly that far).
+Why this order wins: the sweep only closes `pending` rows. A row that is already
+`responded` survives the sweep, with no changes to the sweep at all. Version 1 of the
+plan tried to record the answer at delivery time; the review proved the sweep runs
+before delivery, so that shape loses the race. Recording first cannot lose it.
 
-Explicit limitation, stated not hidden: mobile cannot fulfill client tools today (its
-dispatcher builds resume history for approvals only). This plan does not change that;
-it documents it and keeps the contract desktop-first.
+If the "answered" call fails, nothing blocks: the flow falls back to today's behavior.
 
-### C2. One replay precedence rule (no new record kind)
+The approval card already works this way. We extend its pattern; we invent nothing.
 
-The closing conversational fact for a client tool already exists: the `tool_result`
-record. Replay (both copies) reads outcomes in fixed precedence:
-1. a real `tool_result` (wins always, preserves the actual answer),
-2. else a post-contract row resolution,
-3. else, for a legacy cancelled row with no result: a neutral, inert "interaction
-   ended" state — never inferred success or decline,
-4. else (still pending): the live, actionable card.
-The v1 idea of emitting `interaction_response` records for client tools is dropped: it
-duplicated an existing fact and created ordering disagreements.
+Known limit, stated openly: mobile still cannot answer form and connect cards. That
+was always true (research Finding 4) and is its own ticket.
 
-### C3. Desktop stops being deaf and stops clobbering
+## Change 2: one rule for what replay shows
 
-Subscribe the desktop records-watch hook to the EXISTING generic interaction event (no
-payload enrichment; it already fires on every transition): on receipt, refetch the
-interaction rows and rederive. Plus one adoption rule: never adopt the server transcript
-while this tab renders a pending card, unless the incoming state settles that same card.
-Payload enrichment and in-place part patching are explicitly deferred until a measured
-refetch cost justifies them.
+When the browser rebuilds a chat, each card's state comes from this list, first match
+wins:
 
-### C4. Cards act where they render
+1. A real recorded answer in the conversation. Show the answered card.
+2. An outcome saved on the row (exists only after Change 1). Show that outcome.
+3. An old row that says `cancelled` with no saved answer. Show a neutral, dead
+   "interaction ended" card. Never guess whether it was answered or abandoned.
+4. Nothing above applies: the card is still open. Show it live and clickable.
 
-A pending client-tool card is actionable inline wherever it renders (the dock, if kept,
-becomes a convenience pointer, not the owner of the actions; its duplicate settle site
-is removed). The small pending-predicates (`isHitlPending`, the dock's scan) read the
-whole transcript like the session-status scan already does. The registry's
-unknown-render-kind dispatch falls through to the tool name (a one-line repair of a
-hazard introduced 2026-08-10; lands immediately, independent of this project).
+Version 1 wanted a new record type for answers. The review showed the conversation
+already records them; a second copy would only create ordering conflicts. Dropped.
 
-## Filed separately, deliberately out of this project
+## Change 3: the browser listens, and stops overwriting
 
-- Mobile client-tool fulfillment (documented limitation above).
-- Model-visibility improvements (uniform outcome framing, connection-validity checks,
-  naming newly available tools) — adjacent defects with their own tickets.
-- Draft-key pruning, the package-loader rejection parity, the null-turn-id sweep gap.
-- Connection reuse (issue #5911).
+Two small things:
 
-## Validation
+1. The desktop web app subscribes to the row-change event the server already sends
+   (today only mobile listens). On the event: re-read the rows, update the cards.
+2. One new adoption rule: while the tab shows a waiting card, the browser must not
+   adopt the server's copy of the chat, unless that copy settles the same card.
 
-- The settlement matrix from research section 5 as tests: after C1, completion and
-  decline produce `responded/resolved` with outcomes on desktop; abandonment still
-  sweep-cancels; the race case (sweep firing between answer and resume) is pinned by a
-  test that answers, delays the resume, runs the sweep, and asserts the row survived.
-- Replay goldens per precedence tier, identical across both copies, including legacy
-  rows with and without `tool_result`.
-- The live acceptance scenario: form, connect, schedule in one conversation with
-  reloads between steps; every card appears once, acts where it is, and nothing
-  resurrects.
+No new event payloads, no per-card patching machinery. If plain refresh proves too
+slow one day, we can enrich it then.
+
+## Change 4: cards work where they appear
+
+- The buttons live ON the card, wherever it is in the chat. The bottom dock becomes a
+  pointer to the card, not the owner of the buttons. This kills the dead-card bug at
+  its root.
+- The three code paths that only looked at the last message now scan the whole chat,
+  like the status fix (#5913) already does.
+- The one-line dispatch repair from research Finding 3 lands immediately, outside this
+  project.
+- The card tool-name list gets one shared source.
+
+## Filed separately (not in this project)
+
+- Mobile answering of form and connect cards.
+- Making the agent's "am I connected?" check verify the connection is valid.
+- Reusing an existing connection (issue #5911).
+- Small cleanups: stale form drafts, one missing error catch, one unreachable sweep
+  edge case.
+
+## How we prove it works
+
+- The table in research Finding 1 becomes a permanent test: every card kind, every
+  outcome, asserted against the real API.
+- Replay tests for every line of the Change 2 rule, identical across both replay code
+  copies, with old-style rows included.
+- One race test: answer a card, delay the resume, run the sweep, assert the row
+  survived.
+- The live scenario that started this project: form, connect, schedule in one
+  conversation with reloads in between. Every card appears once, works where it is,
+  and nothing comes back from the dead.

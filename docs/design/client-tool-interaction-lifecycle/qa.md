@@ -1,86 +1,69 @@
-# QA: the standing checks that make this class undiscoverable no more
+# QA: the tests that catch this class of bug forever
 
-This bug class reached production and was found by a human exploring, much later. This
-file first states plainly why every existing layer missed it, then defines the standing
-checks that go in with the fix. The rule these checks follow: the class lived in the
-seams BETWEEN tested units (park, resume, reload, adopt), while every unit test was
-green, so the new checks are seam tests, each one tied to a mechanism from
-[research.md](research.md).
+This bug class reached production. A human found it, weeks after it started to matter.
+This file explains why every test layer missed it, then lists the standing checks that
+ship with the fix.
 
 ## Why nothing caught it
 
-1. No test anywhere asserted an interaction row's terminal state after a user answered.
-   Handlers and widgets each had unit tests; the row's truth had none.
-2. No test drove the compound journey (form, then connect, then schedule, in ONE
-   conversation) or crossed a reload. Each acceptance test exercises one interaction, in
-   one turn, in a fresh page.
-3. The park-answer-resume cycle barely runs in CI at all: agent-chat acceptance tests
-   mock the run stream, and real gated runs live only in the release-gate matrix, which
-   asserts model behavior, not row truth.
-4. The four state sources (live messages, records, rows, localStorage) had no invariant
-   linking them, so they could disagree forever without any test noticing.
-5. Nothing in production measured the class: an answered interaction recorded as
-   abandoned looks, in every existing metric, like a user who walked away.
+The bugs live BETWEEN the parts, not inside them. Every part had green unit tests.
+Nothing tested the seams: park, answer, resume, reload, adopt. In detail:
 
-## Standing checks, by layer
+1. No test ever checked what the interaction row says after a user answers a card.
+2. No test ever crossed a reload, and no test ran two cards in one conversation.
+3. In CI, the chat tests fake the agent run. Real park-and-resume cycles almost never
+   run.
+4. The four state stores (tab memory, record list, rows, local storage) had no test
+   that forces them to agree.
+5. In production, an answered card recorded as abandoned looks exactly like a user who
+   walked away. No metric could see the difference.
 
-### 1. The settlement matrix as a permanent API acceptance test
+## The six standing checks
 
-For each interaction kind and outcome (approval approve/deny/abandon; form
-submit/decline/abandon; connect complete/decline/abandon): drive the real endpoints
-against a deployed stack and assert the row's terminal status AND resolution payload
-match the contract table. This is the test that says "success is never recorded as
-abandonment" forever. Home: `api/oss/tests/pytest/acceptance/sessions/` beside the
-existing interaction tests; the matrix from research section 5 is the spec.
+### 1. The settlement table as a permanent test
 
-### 2. Replay goldens across both copies and both cache states
+For every card kind and every outcome (complete, decline, walk away): call the real
+API on a deployed stack and assert the row's final state and saved outcome match the
+contract. This single test forbids "success recorded as abandonment" forever.
 
-Golden record fixtures per kind and outcome, including legacy pre-contract rows with
-and without a closing `tool_result`. Assert: the rebuilt conversation renders the card
-in the correct terminal state; both replay copies produce identical output; the result
-is the same whether the row join is warm or cold (the non-determinism found in research
-section 2 becomes a failing test). Home: the transcriptToMessages test families.
+### 2. Replay tests for every rule line
 
-### 3. The geometry invariant: one fixture through every predicate
+Saved example histories for every card kind and outcome, including old rows from
+before the fix. Assert: the rebuilt chat shows the right card state; both replay code
+copies produce the same result; the result is the same with a warm or cold cache.
 
-One shared message fixture containing a pending interaction in a NON-last message must
-simultaneously: publish "awaiting" session status, hold the message queue, and render
-an actionable card. Today three predicates read different slices and disagree; this
-test makes any future divergence a red build. Home: a package-level unit test where the
-predicates live, imported by the app-side suites.
+### 3. The geometry test
 
-### 4. Adoption safety property
+One chat fixture with a waiting card that is NOT in the last message. Assert three
+things at once: the tab reports "awaiting", the message queue holds, and the card is
+clickable. Today three code paths disagree on this; this test makes any future
+disagreement a red build.
 
-Adopting any server transcript while the tab holds (a) a pending card or (b) a settled
-answer not yet dispatched must never drop the answer or resurrect a terminal card.
-Table-driven unit test over the hydration guard with adversarial orderings (relay tick
-during settle, adoption during park, reload mid-answer). This pins mechanisms 1b and
-the parked-window adoption gap permanently.
+### 4. The adoption safety test
 
-### 5. The scripted compound journey as the deploy smoke
+Adopting the server's chat copy must never throw away an unsent answer, and must never
+turn a finished card back into a live one. Tested over hostile orderings: refresh
+during answer, adoption during park, reload mid-answer.
 
-One scripted live scenario on every deployed stack, cheap model, run by the release
-gate and after every deploy: create an agent; first message triggers a form; answer it;
-RELOAD; assert the form renders as answered and the row is resolved; trigger a connect;
-decline it; assert the decline reached the row and the run resumed; trigger a schedule
-approval; approve; RELOAD; assert every card renders exactly once in its correct
-terminal state and the strip never appeared in the driving tab. This is the primary
-user journey that production users actually hit, scripted; it would have caught every
-symptom in context.md on day one. Home: the release-gate skill's scenario set.
+### 5. The scripted user journey as the deploy smoke test
 
-### 6. Production detection (catch it in prod in hours, not weeks)
+One scripted scenario, cheap model, run by the release gate and after every deploy:
+create an agent; answer its form; RELOAD; assert the form shows as answered and the
+row says so; decline a connect card; assert the decline reached the server and the run
+resumed; approve a schedule; RELOAD; assert every card shows once, in its right state,
+and the "running somewhere else" strip never appeared. This is the exact journey that
+broke in production. Scripted, it would have caught every symptom on day one.
 
-Two cheap signals:
-- A scheduled query alerting on the rate of `client_tool` rows ending `cancelled`
-  without resolution. Post-contract, answered rows end `resolved`; a sustained rise in
-  unresolved cancellations is either the class returning or a real UX cliff, and both
-  deserve a look.
-- A frontend console/telemetry event when a card renders interactive for an interaction
-  the rows call terminal (the invariant the resurrections violated). Even as a plain
-  logged warning, support and QA sessions surface it immediately.
+### 6. Production alarms
 
-## What deliberately stays out
+- A scheduled query that alerts when form/connect rows end `cancelled` without a saved
+  answer. After the fix, answered rows end `resolved`; a rise in unresolved
+  cancellations means the class is back, or users are abandoning cards. Both matter.
+- A browser warning event whenever a card renders clickable while the row says it is
+  finished. Support and QA see it immediately.
 
-Model-behavior assertions (does the agent ASK at the right time) stay in the benchmark,
-not here; these checks pin the machinery, not the model. Mobile client-tool answering
-gets its checks when that ticket builds the capability.
+## Out of scope here
+
+Whether the AGENT asks the right things at the right time stays in the benchmark.
+These checks pin the machinery, not the model. Mobile gets its checks when mobile
+answering gets built.
