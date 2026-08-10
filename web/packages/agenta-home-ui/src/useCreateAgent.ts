@@ -1,4 +1,4 @@
-import {useCallback, useRef} from "react"
+import {useCallback} from "react"
 
 import {
     createEphemeralAppFromTemplate,
@@ -32,23 +32,32 @@ export interface UseCreateAgentOptions {
 }
 
 /**
+ * Module-scoped, deliberately: the surfaces that create an agent (the New-agent button, the
+ * composer, the template cards, the setup drawer) each call `useCreateAgent()` for themselves, so
+ * a per-hook ref would only stop ONE button from being double-clicked — click a template card and
+ * then hit send while the commit is still in flight and you get two agents. Home mounts three of
+ * those hook instances at once, so the latch that means anything is the one they share. A create
+ * is a single user intent; a second one landing inside the same round-trip is never wanted.
+ */
+let createInFlight = false
+
+/**
  * Mint an ephemeral agent, commit it, and hand back the real ids.
  *
  * The commit is what turns a `local-*` draft into an agent with an app id, so every create path
  * on every surface goes through it. What happens NEXT — refreshing a roster cache, stashing a
  * first-run seed, where to navigate — is the host's, and stays out of here.
  *
- * A re-entry latch protects every caller (home button, composer, template cards) from a rapid
- * double-click minting two agents; the UI-level disabled/loading guards don't cover every path.
+ * The re-entry latch above protects every caller from a rapid double-click minting two agents;
+ * the UI-level disabled/loading guards are per-surface and don't cover every path.
  */
 export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
     const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
-    const inFlightRef = useRef(false)
 
     return useCallback(
         async ({name, entityId}: CreateAgentParams = {}): Promise<CreatedAgent | null> => {
-            if (inFlightRef.current) return null
-            inFlightRef.current = true
+            if (createInFlight) return null
+            createInFlight = true
             try {
                 const agentName = name?.trim() || "New agent"
                 const ephemeralId =
@@ -97,7 +106,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                 onError?.(extractApiErrorMessage(error))
                 return null
             } finally {
-                inFlightRef.current = false
+                createInFlight = false
             }
         },
         [commitFromEphemeral, onError],
