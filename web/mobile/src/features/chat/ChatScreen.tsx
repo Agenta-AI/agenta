@@ -56,7 +56,7 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
-    const {entityId: latestEntityId, agentId: resolvedAgentId} = useAgentEntity(
+    const {entityId: latestEntityId, agentId: resolvedAgentId, resolving} = useAgentEntity(
         sessionId,
         projectId,
         agentId,
@@ -72,7 +72,12 @@ export const ChatScreen = ({
     // The conversation is ALWAYS mounted — the mode only decides what sits beside it (and, on a
     // narrow frame, which of the two is on screen). Unmounting it on a mode flip would drop a
     // streaming turn.
-    const chat = entityId ? (
+    // Until the agent query settles, `entityId` is null for an agent-backed session too — so
+    // committing to the replay branch here would tell the user the session is read-only when it
+    // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
+    const chat = resolving ? (
+        <ChatLoading />
+    ) : entityId ? (
         <LiveConversation
             key={entityId}
             embedded
