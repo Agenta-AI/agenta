@@ -11,6 +11,17 @@ export interface AnalyticsRangePreset {
     unit?: dayjs.ManipulateType
 }
 
+/**
+ * Second-precision ISO in UTC. The `Z` is load-bearing: the value is re-parsed with `dayjs()`
+ * before the request, and a designator-less string reads as LOCAL time — which shifts the
+ * window by the browser's offset and, west of UTC, inverts short ranges outright.
+ */
+export const toRangeStart = (value: dayjs.Dayjs): string =>
+    value.toISOString().replace(/\.\d+Z$/, "Z")
+
+/** `all time` has no real lower bound; the epoch is the one the range picker has always sent. */
+export const ALL_TIME_START = "1970-01-01T00:00:00Z"
+
 /** The windows every range picker offers. `all time` carries no offset. */
 export const ANALYTICS_RANGE_PRESETS: AnalyticsRangePreset[] = [
     {label: "30 mins", amount: 30, unit: "minute"},
@@ -25,12 +36,16 @@ export const ANALYTICS_RANGE_PRESETS: AnalyticsRangePreset[] = [
     {label: "all time"},
 ]
 
-/** A preset label → the resolved window the query takes. */
+/**
+ * A preset label → the resolved window the query takes. `all time` (and any label with no
+ * offset, e.g. `custom`, which carries its bounds separately) resolves to the epoch rather
+ * than to an empty string, which `fetchDashboardAnalytics` would reject as an invalid start.
+ */
 export const resolveRangePreset = (label: AnalyticsRangeLabel): AnalyticsRange => {
     const preset = ANALYTICS_RANGE_PRESETS.find((entry) => entry.label === label)
     const sorted =
         preset?.amount && preset.unit
-            ? dayjs().utc().subtract(preset.amount, preset.unit).toISOString().split(".")[0]
-            : ""
+            ? toRangeStart(dayjs().utc().subtract(preset.amount, preset.unit))
+            : ALL_TIME_START
     return {type: "standard", sorted, customRange: {}, label}
 }

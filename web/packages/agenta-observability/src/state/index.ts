@@ -6,6 +6,7 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchDashboardAnalytics} from "../api/dashboard"
+import {toRangeStart} from "../core/presets"
 import type {AnalyticsRange, DashboardData} from "../core/types"
 
 dayjs.extend(utc)
@@ -15,7 +16,7 @@ const DEFAULT_RANGE_DAYS = 30
 /** The window every usage surface shares — one picker anywhere moves them all, as before. */
 export const observabilityRangeAtom = atom<AnalyticsRange>({
     type: "standard",
-    sorted: dayjs().utc().subtract(DEFAULT_RANGE_DAYS, "days").toISOString().split(".")[0],
+    sorted: toRangeStart(dayjs().utc().subtract(DEFAULT_RANGE_DAYS, "days")),
     customRange: {},
     label: "1 month",
 })
