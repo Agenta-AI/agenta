@@ -426,6 +426,89 @@
   `_ingest`, no branch on channel); **provisioning is where they genuinely
   differ**, and nothing in the design covers it for either.
 
+### F50. `space_locator` and `thread_locator` are computed by every adapter and dropped by the ingress
+
+- ID: `F50`
+- Origin: `C4 design read`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `ChannelInboundEvent` declares `space_locator` and `thread_locator`, and
+  every adapter fills them. `_ingest` copies only `external_locator` into
+  `ChannelInboxEventData`, which has no field for the other two. Both grains then
+  compose from the one surviving locator via `identity.keys[grain]`. So the two
+  fields are written, never read in production, and cannot affect behaviour.
+- Evidence: `ingress.py` builds `ChannelInboxEventCreate` with
+  `data=ChannelInboxEventData(external_locator=inbound.external_locator,
+  processed=inbound.processed)` — the other two are not referenced.
+  `ChannelInboxEventData` has exactly two fields. Both `compose_external_key` calls
+  in `service.py` (SPACE and THREAD) pass `event.data.external_locator`. Attribute
+  reads of `.space_locator` / `.thread_locator` outside assignment occur **only in
+  tests**.
+- Files: `api/oss/src/apis/fastapi/channels/ingress.py`,
+  `api/oss/src/core/channels/dtos.py`, `api/oss/src/core/channels/service.py`
+- Suggested Fix: decide whether they become real — carried into `data` and composed
+  per grain from their own locator — or are deleted. Either is defensible; the
+  current state is not, because it reads as though grain-specific locators are
+  load-bearing when nothing consumes them.
+- Notes: This is what makes `F28` unable to bite. `F28` reports that backfilled
+  events all carry the request's `thread_locator` rather than their own — a real
+  bug in a field no production code reads. Fixing `F28` without fixing this changes
+  nothing observable. They should be resolved together, and this one first.
+
+### F49. The adapter interface declares a `verify_signature` nobody implements or calls
+
+- ID: `F49`
+- Origin: `C4 design read`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `ChannelAdapterInterface.verify_signature` is declared
+  `(*, headers, body) -> str`. All three adapters implement
+  `(*, headers, body, connection=None)`, and the ingress calls it **with**
+  `connection`. The declared contract therefore describes a method that does not
+  exist in any implementation, and a new adapter written against the interface as
+  documented would break at the ingress.
+- Evidence: `interface.py` declares two parameters; `slack/adapter.py`,
+  `bridge/adapter.py` and `mock/adapter.py` each declare three, with
+  `conn = connection or self._connection`. `ingress.py` passes
+  `connection=connection`.
+- Files: `api/oss/src/core/channels/adapters/interface.py`, all three adapters
+- Suggested Fix: declare `connection` on the interface. It is not optional in
+  practice — the ingress always passes it, and the fallback exists only for
+  single-tenant construction.
+- Notes: The contract suite does not catch it because it calls
+  `verify_signature(headers=…, body=…)` and every adapter defaults the third
+  parameter. That is the same shape as `F45`: **the suite exercises a construction
+  production does not use.** Fourth instance of that defect shape.
+
+### F48. The interface's keyword-only check cannot see sync methods, and hardcodes the method count
+
+- ID: `F48`
+- Origin: `C4 design read`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Test-coverage`
+- Summary: `test_every_method_parameter_after_self_is_keyword_only` walks
+  `ast.AsyncFunctionDef` only, so it skips every synchronous method on the
+  interface, and asserts `checked == 7` against a hardcoded number. The interface
+  has **eight** abstract methods; `installation_hint` is the sole sync one and is
+  therefore unchecked. Any sync method added later is unchecked and the count
+  assertion still passes.
+- Evidence: the test filters `if not isinstance(node, ast.AsyncFunctionDef):
+  continue`, then asserts `checked == 7`. `interface.py` carries eight
+  `@abstractmethod`s, seven `async def` and one `def`.
+- Files: `api/oss/tests/pytest/unit/channels/test_channel_adapter_interface.py`
+- Suggested Fix: walk `ast.FunctionDef` and `ast.AsyncFunctionDef`, and derive the
+  expected count from the abstract methods on the class rather than hardcoding it —
+  so adding a method updates the guard instead of silently evading it.
+- Notes: A guard that skips exactly the method most recently added is worse than no
+  guard, because the green run reads as coverage. Found while checking what
+  constrains an interface change; it constrains less than it appears to.
+
 ### F46. `integration_key` must be globally unique, because its lookup is unscoped
 
 - ID: `F46`
