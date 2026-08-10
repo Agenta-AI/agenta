@@ -40,7 +40,7 @@ const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 const KNOWN_CONNECT_REASONS = new Set(["declined", "cancelled", "timeout"])
 
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
-    const {label, phase, errorText, outcome, manuallyConnected, runConnect, cancel} =
+    const {label, phase, errorText, outcome, manuallyConnected, modeResolving, runConnect, cancel} =
         useConnectFlow(meta, settle)
 
     // A runner-deferred sibling settles as an error carrying the deferral sentinel (not a real
@@ -113,7 +113,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 >
                     {failureDetail ?? "Connection not completed"}
                 </Text>
-                <RetryButton onClick={() => runConnect(false)} />
+                <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
         )
     }
@@ -125,7 +125,7 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 <Text type="danger" className="!text-xs truncate" title={errorText ?? undefined}>
                     {errorText ?? "Connection failed."}
                 </Text>
-                <RetryButton onClick={() => runConnect(false)} />
+                <RetryButton onClick={() => runConnect(false)} disabled={modeResolving} />
             </ChipRow>
         )
     }

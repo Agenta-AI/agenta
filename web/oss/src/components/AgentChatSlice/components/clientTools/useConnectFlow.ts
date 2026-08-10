@@ -43,6 +43,10 @@ import type {ClientToolMeta, SettleClientTool} from "./types"
 const CONNECT_TIMEOUT_MS = 180_000
 /** Popup-closed poll cadence, matching the existing ConnectModal. */
 const POPUP_POLL_MS = 1000
+/** Ceiling on how long Connect/Retry stays disabled waiting for the toolkit's real auth mode —
+ * see `modeResolving` below. Generous for a normal catalog fetch, short enough that a genuinely
+ * stuck lookup doesn't read as a dead button. */
+const MODE_RESOLVE_TIMEOUT_MS = 8_000
 
 /** The settled call's reference shape (what the runner re-resolves against). */
 export interface ConnectOutput {
@@ -121,6 +125,28 @@ const agentaApiOrigin = (): string | null => {
     }
 }
 
+/**
+ * Whether Connect/Retry must stay disabled and `runConnect` must refuse to fire: the toolkit's
+ * real auth mode isn't known yet, so proceeding could send the agent's raw hint (e.g. "oauth" for
+ * a toolkit that only supports "api_key" — the exact telegram 404 this whole flow exists to
+ * avoid). Extracted as a pure predicate so this specific guard — "don't fire an unsupported
+ * request before the catalog lookup resolves" — has direct unit coverage, not just the render's
+ * fallback behavior in `resolveConnectMode`.
+ *
+ * `hasIntegrationKey` false (a malformed call) and `timedOut` true (the bounded wait in
+ * `useConnectFlow` elapsed — a dead network must not disable Connect forever) both force this to
+ * `false`: either says "stop waiting", not "keep waiting".
+ */
+export const isConnectModeResolving = ({
+    hasIntegrationKey,
+    queryIsLoading,
+    timedOut,
+}: {
+    hasIntegrationKey: boolean
+    queryIsLoading: boolean
+    timedOut: boolean
+}): boolean => hasIntegrationKey && queryIsLoading && !timedOut
+
 export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, active = true) => {
     const input = (meta.input ?? {}) as Record<string, unknown>
     const integration = typeof input.integration === "string" ? input.integration : ""
@@ -130,8 +156,33 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
         typeof input.slug === "string" && input.slug ? input.slug : integration || "default"
     const hintedMode = input.mode === "api_key" ? "api_key" : "oauth"
     // The toolkit's real supported schemes override a hint the toolkit doesn't actually
-    // support (see `resolveConnectMode`) — a stale/loading catalog just keeps the hint.
-    const {integration: integrationDetail} = useToolIntegrationDetail(integration)
+    // support (see `resolveConnectMode`). While the catalog lookup is still in flight,
+    // `resolveConnectMode` falls back to the hint — fine for the RENDER, but `runConnect`
+    // below must not let a click land inside that window and fire the (possibly wrong) hinted
+    // mode: `modeResolving`/`modeResolvingRef` gate it shut until the lookup settles.
+    const {integration: integrationDetail, isLoading: integrationDetailLoading} =
+        useToolIntegrationDetail(integration)
+    // Bounded: a stuck/never-resolving lookup (dead network, an endpoint outage) must NOT
+    // permanently disable Connect — past this bound, fall back to the agent's hinted mode same
+    // as `resolveConnectMode` already does for "no schemes reported" (a wrong-but-triable guess
+    // beats a dead button forever). Armed only while genuinely waiting (see
+    // `isConnectModeResolving`'s own bail-outs), so it never fires needlessly.
+    const [modeResolveTimedOut, setModeResolveTimedOut] = useState(false)
+    useEffect(() => {
+        if (!integration || !integrationDetailLoading) {
+            setModeResolveTimedOut(false)
+            return
+        }
+        const timer = window.setTimeout(() => setModeResolveTimedOut(true), MODE_RESOLVE_TIMEOUT_MS)
+        return () => window.clearTimeout(timer)
+    }, [integration, integrationDetailLoading])
+    const modeResolving = isConnectModeResolving({
+        hasIntegrationKey: !!integration,
+        queryIsLoading: integrationDetailLoading,
+        timedOut: modeResolveTimedOut,
+    })
+    const modeResolvingRef = useRef(modeResolving)
+    modeResolvingRef.current = modeResolving
     const mode = resolveConnectMode(hintedMode, integrationDetail?.auth_schemes)
     const label = prettyIntegration(integration)
     // A window name UNIQUE to this parked call. Several connect flows can be live at once; a shared
@@ -210,6 +261,11 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             if (phase === "connecting") return
             if (settleParkedCall && (!activeRef.current || settledRef.current || meta.settled))
                 return
+            // The integration-detail lookup that picks the real auth mode hasn't resolved yet —
+            // proceeding here would send the agent's raw (possibly wrong, e.g. "oauth" for a
+            // toolkit that only supports api_key) hint. The button is disabled for this same
+            // window; this is the defense-in-depth backstop for a click that raced it.
+            if (modeResolvingRef.current) return
             setErrorText(null)
             setPhase("connecting")
             try {
@@ -356,6 +412,9 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
         errorText,
         outcome,
         manuallyConnected,
+        // True while the toolkit's real auth mode is still being looked up — callers should
+        // disable Connect/Retry for this window (see the `runConnect` guard above).
+        modeResolving,
         runConnect,
         cancel,
         decline,
