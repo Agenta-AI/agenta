@@ -9,10 +9,14 @@ from oss.src.core.channels.dtos import (
     ChannelAgentQuery,
     ChannelCapabilities,
     ChannelConnection,
+    ChannelConnectionCreate,
+    ChannelConnectionEdit,
+    ChannelConnectionQuery,
     ChannelEffectivePolicy,
     ChannelGrant,
     ChannelGrantCreate,
     ChannelGrantEdit,
+    ChannelGrantEffect,
     ChannelGrantQuery,
     ChannelInboxEvent,
     ChannelInboxEventCreate,
@@ -23,7 +27,9 @@ from oss.src.core.channels.dtos import (
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelSpaceCreate,
+    ChannelSpaceData,
     ChannelSpaceEdit,
+    ChannelSpaceKind,
     ChannelSpaceQuery,
     ChannelThread,
     ChannelThreadCreate,
@@ -37,15 +43,19 @@ from oss.src.core.channels.interfaces import ChannelsDAOInterface
 from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionNotFound,
+    ChannelGrantRuleInvalid,
     ChannelSpaceNotFound,
     ChannelThreadNotFound,
 )
-from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
+from oss.src.core.channels.utils import (
+    ChannelKeyGrain,
+    compose_external_key,
+    evaluate_grant_effect,
+)
 from oss.src.core.shared.dtos import Status, Windowing
 
 if TYPE_CHECKING:
     from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
-    from oss.src.core.gateway.connections.service import ConnectionsService
 
 
 class ChannelsService:
@@ -56,11 +66,89 @@ class ChannelsService:
         *,
         channels_dao: ChannelsDAOInterface,
         adapter_registry: "ChannelAdapterRegistry",
-        connections_service: "ConnectionsService",
+        # Duck-typed on purpose: the gateway's own ConnectionsService, kept
+        # only for the legacy tools/triggers-shaped connection lookups below.
+        # Channels' own connections live in channel_connections, reached
+        # through channels_dao instead.
+        connections_service=None,
     ) -> None:
         self.channels_dao = channels_dao
         self.adapter_registry = adapter_registry
         self.connections_service = connections_service
+
+    # --- connections ---------------------------------------------------------- #
+
+    async def create_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection: ChannelConnectionCreate,
+    ) -> ChannelConnection:
+        return await self.channels_dao.create_connection(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            connection=connection,
+        )
+
+    async def fetch_connection(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        return await self.channels_dao.fetch_connection(
+            project_id=project_id,
+            #
+            connection_id=connection_id,
+        )
+
+    async def edit_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection: ChannelConnectionEdit,
+    ) -> Optional[ChannelConnection]:
+        return await self.channels_dao.edit_connection(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            connection=connection,
+        )
+
+    async def delete_connection(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> bool:
+        return await self.channels_dao.delete_connection(
+            project_id=project_id,
+            #
+            connection_id=connection_id,
+        )
+
+    async def query_connections(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection: Optional[ChannelConnectionQuery] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[ChannelConnection]:
+        return await self.channels_dao.query_connections(
+            project_id=project_id,
+            #
+            connection=connection,
+            #
+            windowing=windowing,
+        )
 
     # --- agents ------------------------------------------------------------- #
 
@@ -345,6 +433,17 @@ class ChannelsService:
         #
         grant: ChannelGrantEdit,
     ) -> Optional[ChannelGrant]:
+        # effect is immutable (it is part of the row's identity in the
+        # partial unique indexes), so it never rides the edit payload -- but
+        # a DENY row picking up is_default via this edit still needs catching.
+        if grant.flags.is_default:
+            existing_grants = await self.channels_dao.query_grants(
+                project_id=project_id
+            )
+            existing = next((g for g in existing_grants if g.id == grant.id), None)
+            if existing is not None and existing.effect is ChannelGrantEffect.DENY:
+                raise ChannelGrantRuleInvalid(grant_id=grant.id)
+
         return await self.channels_dao.edit_grant(
             project_id=project_id,
             user_id=user_id,
@@ -527,17 +626,17 @@ class ChannelsService:
 
     # --- routing: the inbound path ----------------------------------------- #
 
-    async def get_project_and_connection_by_external_id(
+    async def get_project_and_connection_by_external_key(
         self,
         *,
         channel: str,
-        external_id: str,
+        external_key: UUID,
     ) -> Optional[Tuple[UUID, UUID]]:
         """Unscoped by necessity: an inbound platform event carries no tenant."""
 
-        return await self.channels_dao.get_project_and_connection_by_external_id(
+        return await self.channels_dao.get_project_and_connection_by_external_key(
             channel=channel,
-            external_id=external_id,
+            external_key=external_key,
         )
 
     async def record_inbox_event(
@@ -568,9 +667,11 @@ class ChannelsService:
     ) -> Optional[ChannelResolution]:
         """Who runs, and under what policy.
 
-        Default-deny on an unconfigured space; `None` on no addressed agent or
-        a silent grant refusal -- both read identically to the worker, which
-        is the point.
+        A never-seen space is created on first contact rather than refused —
+        the row's existence stopped being what authorises an agent to answer
+        there; the grant is. `None` on a DENY, on no addressed agent, or on
+        no matching ALLOW for an agent that is not otherwise unrestricted —
+        all read identically to the worker, which is the point.
         """
 
         connection = await self.connections_service.get_connection(
@@ -596,9 +697,16 @@ class ChannelsService:
             external_key=space_key,
         )
         if space is None:
-            # default-deny: no configured space means the agent may not
-            # answer here, regardless of addressing.
-            return None
+            space = await self.channels_dao.get_or_create_space(
+                project_id=project_id,
+                user_id=None,
+                space=ChannelSpaceCreate(
+                    connection_id=connection_id,
+                    kind=event.data.space_kind or ChannelSpaceKind.GROUP,
+                    external_key=space_key,
+                    data=ChannelSpaceData(external_locator=event.data.external_locator),
+                ),
+            )
 
         # the ingress wrote this row before any space existed; attach it before
         # the refusal paths, so an unanswered message still belongs to its space
@@ -618,12 +726,21 @@ class ChannelsService:
         if agent is None:
             return None
 
-        grant = await self.channels_dao.fetch_grant(
+        matching_grants = await self.channels_dao.query_matching_grants(
             project_id=project_id,
             agent_id=agent.id,
             space_id=space.id,
+            kind=space.kind,
         )
-        if grant is None:
+        effect = evaluate_grant_effect(matching_grants)
+
+        grant = None
+        if effect is ChannelGrantEffect.DENY:
+            return None
+        elif effect is ChannelGrantEffect.ALLOW:
+            grant = _admitting_grant(matching_grants, space_id=space.id)
+        else:
+            # no rule names this space or this kind for this agent
             has_any_grant = await self.channels_dao.count_grants(
                 project_id=project_id,
                 agent_id=agent.id,
@@ -631,6 +748,7 @@ class ChannelsService:
             if has_any_grant:
                 # refuse silently and identically to "no such agent"
                 return None
+            # zero grants anywhere for this agent: unrestricted
 
         from oss.src.core.channels.utils import resolve_policy
 
@@ -837,6 +955,19 @@ def _canonical_locator(locator: Optional[dict]) -> str:
     from oss.src.core.channels.utils import canonical_json
 
     return canonical_json(locator or {})
+
+
+def _admitting_grant(
+    grants: List[ChannelGrant], *, space_id: UUID
+) -> Optional[ChannelGrant]:
+    """Which ALLOW row's policy feeds the intersection when more than one
+    matched — the id-specific grant over the kind-level one, since that is
+    the same specificity order the deny-first evaluation already applies to
+    permission."""
+
+    allows = [g for g in grants if g.effect is ChannelGrantEffect.ALLOW]
+    by_space = next((g for g in allows if g.space_id == space_id), None)
+    return by_space or (allows[0] if allows else None)
 
 
 def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:

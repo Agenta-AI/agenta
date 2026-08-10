@@ -1,18 +1,23 @@
 from datetime import datetime
 from json import dumps
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from oss.src.core.channels.dtos import (
     SESSION_SCOPE_ORDER,
     ChannelCapabilities,
     ChannelEffectivePolicy,
+    ChannelGrant,
+    ChannelGrantEffect,
     ChannelKeyGrain,
     ChannelPolicy,
     ChannelPolicyLevel,
     ChannelSessionScope,
 )
-from oss.src.core.channels.types import ChannelLocatorIncomplete
+from oss.src.core.channels.types import (
+    ChannelConnectionKeyUndeclared,
+    ChannelLocatorIncomplete,
+)
 
 
 _CHANNELS = uuid5(uuid5(NAMESPACE_DNS, "agenta"), "channels")
@@ -33,6 +38,9 @@ def compose_external_key(
 
     Returns None at THREAD grain when the declaration names no thread fields —
     the platform-has-no-threads case, which degrades to the space's own scope.
+    Raises ChannelConnectionKeyUndeclared at CONNECTION grain on the same empty
+    declaration: there is no legitimate "no connection identity" case, and a
+    silent None there would resolve to no connection and refuse every event.
     Raises ChannelLocatorIncomplete when a declared field is missing from the
     locator: a key composed from a partial locator is a silent thread fork.
     """
@@ -40,6 +48,8 @@ def compose_external_key(
     fields = capabilities.identity.keys.get(grain) or []
 
     if not fields:
+        if grain is ChannelKeyGrain.CONNECTION:
+            raise ChannelConnectionKeyUndeclared(channel=capabilities.channel)
         return None
 
     subset = {}
@@ -191,3 +201,17 @@ def resolve_policy(
             "forwardfill": forwardfill_by,
         },
     )
+
+
+def evaluate_grant_effect(grants: List[ChannelGrant]) -> Optional[ChannelGrantEffect]:
+    """Deny-first over a set of grants already filtered to "matches this
+    space, by id or by kind". Any DENY refuses regardless of specificity;
+    else any ALLOW admits; else None -- no rule, default-deny at the caller."""
+
+    if any(grant.effect is ChannelGrantEffect.DENY for grant in grants):
+        return ChannelGrantEffect.DENY
+
+    if any(grant.effect is ChannelGrantEffect.ALLOW for grant in grants):
+        return ChannelGrantEffect.ALLOW
+
+    return None

@@ -20,6 +20,7 @@ from oss.src.core.channels.dtos import (
     ChannelEventOrigin,
     ChannelGrantCreate,
     ChannelGrantData,
+    ChannelGrantEffect,
     ChannelInboxEventCreate,
     ChannelInboxEventData,
     ChannelInboxEventProcessed,
@@ -118,8 +119,11 @@ async def _make_inbox_event(dao, *, project_id, connection_id, external_id, text
     )
 
 
-async def test_resolve_unconfigured_space_returns_none(channels_scope):
-    """No `channel_spaces` row for this connection+key -> default-deny."""
+async def test_resolve_unconfigured_space_is_created_not_refused(channels_scope):
+    """No `channel_spaces` row for this connection+key -> get_or_create_space
+    writes one on first contact; the addressed agent still does not exist,
+    so resolve() still returns None, but via the agent lookup, not a
+    default-deny gate on the space's absence."""
 
     adapter = WellBehavedFakeAdapter()
     service, dao = await _make_service(channels_scope, adapter=adapter)
@@ -139,6 +143,15 @@ async def test_resolve_unconfigured_space_returns_none(channels_scope):
     )
 
     assert result is None
+
+    capabilities = await adapter.fetch_capabilities()
+    external_key = compose_external_key(capabilities, ChannelKeyGrain.SPACE, LOCATOR)
+    created_space = await dao.fetch_space_by_key(
+        project_id=channels_scope["project_id"],
+        connection_id=channels_scope["connection_id"],
+        external_key=external_key,
+    )
+    assert created_space is not None
 
 
 async def test_resolve_sigil_creates_thread_and_open_turn_writes_started_row(
@@ -319,6 +332,7 @@ async def test_grant_restricted_agent_not_in_this_space_refuses(channels_scope):
         user_id=channels_scope["user_id"],
         grant=ChannelGrantCreate(
             agent_id=agent.id,
+            effect=ChannelGrantEffect.ALLOW,
             space_id=other_space.id,
             data=ChannelGrantData(),
         ),

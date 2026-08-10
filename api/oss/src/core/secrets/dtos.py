@@ -7,6 +7,7 @@ from oss.src.core.secrets.enums import (
     StandardProviderKind,
     CustomProviderKind,
     CustomSecretFormat,
+    ChannelSecretKind,
 )
 from oss.src.core.shared.dtos import (
     Identifier,
@@ -78,6 +79,16 @@ class CustomSecretDTO(BaseModel):
     secret: CustomSecretSettingsDTO
 
 
+class ChannelSecretSettingsDTO(BaseModel):
+    bot_token: Optional[str] = None
+    signing_secret: Optional[str] = None
+
+
+class ChannelSecretDTO(BaseModel):
+    kind: ChannelSecretKind
+    channel: ChannelSecretSettingsDTO
+
+
 class SecretDTO(BaseModel):
     kind: SecretKind
     data: Union[
@@ -86,6 +97,7 @@ class SecretDTO(BaseModel):
         SSOProviderDTO,
         WebhookProviderDTO,
         CustomSecretDTO,
+        ChannelSecretDTO,
     ]
 
     @model_validator(mode="before")
@@ -194,6 +206,21 @@ class SecretDTO(BaseModel):
                         )
             else:
                 raise ValueError("A custom_secret format must be 'text' or 'json'")
+        elif kind == SecretKind.CHANNEL_SECRET.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for ChannelSecretDTO"
+                )
+            channel_secret_kinds = {member.value for member in ChannelSecretKind}
+            if data.get("kind") not in channel_secret_kinds:
+                raise ValueError(
+                    "The provided kind in data is not a valid ChannelSecretKind enum"
+                )
+            channel = data.get("channel")
+            if not isinstance(channel, dict):
+                raise ValueError(
+                    "The provided request secret dto is missing required fields for ChannelSecretSettingsDTO"
+                )
         else:
             raise ValueError("The provided kind is not a valid SecretKind enum")
 

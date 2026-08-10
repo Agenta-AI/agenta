@@ -21,8 +21,6 @@ from oss.src.core.channels.types import (
     ChannelConnectionIncomplete,
     ChannelSignatureInvalid,
 )
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
-
 from oss.tests.pytest.unit.channels.slack.fake_slack import (
     FakeSlackTransport,
     FakeSlackWorkspace,
@@ -41,8 +39,8 @@ def _connection(**data_overrides) -> ChannelConnection:
     return ChannelConnection(
         id=uuid4(),
         slug="slack-connection",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="slack",
+        channel="slack",
+        external_key=uuid4(),
         data=data,
     )
 

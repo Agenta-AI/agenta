@@ -15,6 +15,7 @@ from oss.src.core.channels.dtos import (
     ChannelGrantCreate,
     ChannelGrantData,
     ChannelGrantEdit,
+    ChannelGrantEffect,
     ChannelGrantQuery,
     ChannelInboxEventCreate,
     ChannelInboxEventData,
@@ -70,7 +71,12 @@ def test_space_variants_instantiate():
 def test_grant_variants_instantiate():
     agent_id, space_id = uuid4(), uuid4()
 
-    ChannelGrantCreate(agent_id=agent_id, space_id=space_id, data=ChannelGrantData())
+    ChannelGrantCreate(
+        agent_id=agent_id,
+        effect=ChannelGrantEffect.ALLOW,
+        space_id=space_id,
+        data=ChannelGrantData(),
+    )
     ChannelGrantEdit(id=uuid4(), data=ChannelGrantData())
     ChannelGrantQuery(agent_id=agent_id, space_id=space_id)
 

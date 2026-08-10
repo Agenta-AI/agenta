@@ -8,15 +8,16 @@ rather than a hand-rolled one.
 
 from uuid import uuid4
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentData,
     ChannelAgentFlags,
+    ChannelConnection,
     ChannelGrant,
     ChannelGrantData,
+    ChannelGrantEffect,
     ChannelGrantFlags,
     ChannelInboxEvent,
     ChannelInboxEventData,
@@ -50,11 +51,13 @@ _LOCATOR = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
 def _make_fake_dao():
     dao = MagicMock()
     dao.fetch_space_by_key = AsyncMock(return_value=None)
+    dao.get_or_create_space = AsyncMock(side_effect=_default_get_or_create_space)
     dao.fetch_agent_by_slug = AsyncMock(return_value=None)
     dao.fetch_default_grant = AsyncMock(return_value=None)
     dao.fetch_default_agent = AsyncMock(return_value=None)
     dao.fetch_agent = AsyncMock(return_value=None)
     dao.fetch_grant = AsyncMock(return_value=None)
+    dao.query_matching_grants = AsyncMock(return_value=[])
     dao.count_grants = AsyncMock(return_value=0)
     dao.fetch_current_thread = AsyncMock(return_value=None)
     dao.create_thread = AsyncMock()
@@ -65,6 +68,22 @@ def _make_fake_dao():
     dao.record_inbox_trigger = AsyncMock()
     dao.transition_inbox_trigger = AsyncMock()
     return dao
+
+
+async def _default_get_or_create_space(*, project_id, user_id, space):
+    """Mirrors the DAO's real get-or-create: mints a row from the Create DTO
+    rather than the test having to pre-build one by hand."""
+
+    from oss.src.core.channels.dtos import ChannelSpace
+
+    return ChannelSpace(
+        id=uuid4(),
+        connection_id=space.connection_id,
+        kind=space.kind,
+        external_key=space.external_key,
+        data=space.data,
+        flags=space.flags,
+    )
 
 
 def _make_service(*, dao, adapter):
@@ -86,7 +105,7 @@ def _make_service(*, dao, adapter):
     )
 
 
-def _make_event(*, event_id=None, text="~triage do it"):
+def _make_event(*, event_id=None, text="~triage do it", space_kind=None):
     return ChannelInboxEvent(
         id=event_id or uuid4(),
         connection_id=uuid4(),
@@ -100,6 +119,7 @@ def _make_event(*, event_id=None, text="~triage do it"):
                 content=[{"type": "text", "text": text}],
                 sender={"id": "U1"},
             ),
+            space_kind=space_kind,
         ),
     )
 
@@ -131,21 +151,131 @@ def _make_agent(*, slug="triage", policy=None):
 
 
 class TestResolveRouting:
-    async def test_unconfigured_space_returns_none(self):
-        """Default-deny: `fetch_space_by_key` returns None -> `resolve`
-        returns None, no further DAO reads."""
+    async def test_unconfigured_space_is_created_not_refused(self):
+        """A never-seen space no longer refuses by itself: get_or_create_space
+        is called and addressing still proceeds -- the row's absence stopped
+        being what gates permission."""
 
         dao = _make_fake_dao()
         adapter = WellBehavedFakeAdapter()
         service = _make_service(dao=dao, adapter=adapter)
-        event = _make_event()
+        event = _make_event()  # "~triage do it" -- has a sigil
+
+        await service.resolve(project_id=uuid4(), connection_id=uuid4(), event=event)
+
+        dao.get_or_create_space.assert_awaited_once()
+        dao.fetch_agent_by_slug.assert_awaited_once()
+
+    async def test_kind_allow_admits_a_never_seen_space(self):
+        """A kind-level ALLOW grant admits a DM whose space row does not
+        exist yet -- no operator pre-created anything."""
+
+        adapter = WellBehavedFakeAdapter()
+        agent = _make_agent(slug="triage")
+
+        dao = _make_fake_dao()  # fetch_space_by_key -> None: never seen before
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        dao.query_matching_grants = AsyncMock(
+            return_value=[
+                ChannelGrant(
+                    id=uuid4(),
+                    agent_id=agent.id,
+                    effect=ChannelGrantEffect.ALLOW,
+                    kind=ChannelSpaceKind.PRIVATE,
+                    data=ChannelGrantData(),
+                )
+            ]
+        )
+        dao.create_thread = AsyncMock(
+            return_value=ChannelThread(
+                id=uuid4(),
+                space_id=uuid4(),
+                agent_id=agent.id,
+                external_key=uuid4(),
+                session_id="sess-1",
+                data=ChannelThreadData(),
+                flags=ChannelThreadFlags(),
+            )
+        )
+
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(text="~triage hello", space_kind=ChannelSpaceKind.PRIVATE)
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.agent.id == agent.id
+        dao.get_or_create_space.assert_awaited_once()
+        _, kwargs = dao.query_matching_grants.call_args
+        assert kwargs["kind"] == ChannelSpaceKind.PRIVATE
+
+    async def test_id_deny_beats_kind_allow_in_resolve(self):
+        """A narrow id-scoped DENY refuses even where a broader kind-level
+        ALLOW would otherwise admit -- deny wins regardless of specificity."""
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(slug="triage")
+
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        dao.query_matching_grants = AsyncMock(
+            return_value=[
+                ChannelGrant(
+                    id=uuid4(),
+                    agent_id=agent.id,
+                    effect=ChannelGrantEffect.ALLOW,
+                    kind=ChannelSpaceKind.GROUP,
+                    data=ChannelGrantData(),
+                ),
+                ChannelGrant(
+                    id=uuid4(),
+                    agent_id=agent.id,
+                    effect=ChannelGrantEffect.DENY,
+                    space_id=space.id,
+                    data=ChannelGrantData(),
+                ),
+            ]
+        )
+
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(text="~triage do the thing")
 
         result = await service.resolve(
             project_id=uuid4(), connection_id=uuid4(), event=event
         )
 
         assert result is None
-        dao.fetch_agent_by_slug.assert_not_called()
+        dao.create_thread.assert_not_called()
+
+    async def test_no_matching_rule_with_grants_elsewhere_refuses(self):
+        """No rule names this space or this kind, and the agent has grants
+        for OTHER spaces -- refused, not treated as unrestricted."""
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(slug="triage")
+
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        dao.query_matching_grants = AsyncMock(return_value=[])
+        dao.count_grants = AsyncMock(return_value=3)  # grants exist, elsewhere
+
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(text="~triage do the thing")
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is None
+        dao.create_thread.assert_not_called()
 
     async def test_no_sigil_no_default_grant_no_default_agent_returns_none(self):
         """Nobody addressed: sigil absent, no default grant, no default
@@ -245,6 +375,7 @@ class TestResolveRouting:
         default_grant = ChannelGrant(
             id=uuid4(),
             agent_id=agent.id,
+            effect=ChannelGrantEffect.ALLOW,
             space_id=space.id,
             data=ChannelGrantData(),
             flags=ChannelGrantFlags(is_default=True),
@@ -581,58 +712,44 @@ class TestOpenTurnAndSettleTurn:
         assert kwargs["state"] == ChannelTriggerState.SETTLED
 
 
-class TestBridgeProviderKey:
-    """A real `Connection`, not a fake, on the bridge's channel key -- proves
-    `ConnectionProviderKind.BRIDGE` actually constructs and resolves through
-    the real registry, the thing a fake adapter/registry cannot catch."""
+class TestBridgeChannelKey:
+    """`bridge` is a plain channel key now, not a `ConnectionProviderKind`
+    member — a third party cannot add a member to a Python enum, which is
+    why every bridge shares this one string instead."""
 
-    def test_connection_constructs_with_bridge_provider_key(self):
-        connection = Connection(
+    def test_bridge_channel_connection_constructs_with_a_plain_string_channel(self):
+        connection = ChannelConnection(
             id=uuid4(),
             slug="acme-wecom",
-            provider_key=ConnectionProviderKind.BRIDGE,
-            integration_key="acme-wecom",
+            channel="bridge",
+            external_key=uuid4(),
         )
 
-        assert connection.provider_key == ConnectionProviderKind.BRIDGE
-        assert connection.provider_key == "bridge"
+        assert connection.channel == "bridge"
 
     async def test_bridge_connection_resolves_through_the_real_adapter_registry(self):
         adapter = WellBehavedFakeAdapter()
         registry = ChannelAdapterRegistry(adapters={"bridge": adapter})
 
-        connection = Connection(
+        connection = ChannelConnection(
             id=uuid4(),
             slug="acme-wecom",
-            provider_key=ConnectionProviderKind.BRIDGE,
-            integration_key="acme-wecom",
+            channel="bridge",
+            external_key=uuid4(),
         )
 
-        resolved = registry.get(connection.provider_key)
+        resolved = registry.get(connection.channel)
 
         assert resolved is adapter
 
-    async def test_bridge_provider_key_raises_typed_error_on_the_connections_registry(
-        self,
-    ):
-        """The new member must not silently resolve to None or KeyError on
-        the unrelated connections-provider registry (composio/agenta) --
-        confirms every `.value` call site there degrades to a typed
-        ProviderNotFoundError rather than crashing or returning nothing."""
+    def test_bridge_is_no_longer_a_connection_provider_kind_member(self):
+        """The gateway's own connections enum returns to the two it
+        actually has -- composio and agenta -- confirming bridge/slack were
+        removed rather than merely unused."""
 
-        from oss.src.core.gateway.connections.exceptions import ProviderNotFoundError
-        from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
+        from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
-        registry = ConnectionsGatewayRegistry(adapters={"composio": MagicMock()})
-
-        connection = Connection(
-            id=uuid4(),
-            slug="acme-wecom",
-            provider_key=ConnectionProviderKind.BRIDGE,
-            integration_key="acme-wecom",
-        )
-
-        with pytest.raises(ProviderNotFoundError) as excinfo:
-            registry.get(connection.provider_key.value)
-
-        assert excinfo.value.provider_key == "bridge"
+        assert {member.value for member in ConnectionProviderKind} == {
+            "composio",
+            "agenta",
+        }

@@ -13,7 +13,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
+from oss.src.apis.fastapi.channels.ingress import (
+    ChannelsIngressRouter,
+    _placeholder_external_key,
+)
 from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelEventKind,
@@ -23,7 +26,6 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceKind,
 )
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 
 LOCATOR = {"team": "T1", "channel": "C1"}
@@ -84,17 +86,6 @@ class FakeAdapterRegistry:
         return self._adapters[channel]
 
 
-class FakeConnectionsService:
-    """Stands in for ConnectionsService -- the one method the ingress needs, to
-    fetch the connection whose secret the signature is verified against."""
-
-    def __init__(self, *, connection: ChannelConnection):
-        self.connection = connection
-
-    async def get_connection(self, *, project_id: UUID, connection_id: UUID):
-        return self.connection
-
-
 class FakeChannelsService:
     """Stands in for ChannelsService -- just the ingress-facing methods:
     resolve a connection, fetch it, and append to the log with the dedup
@@ -105,26 +96,32 @@ class FakeChannelsService:
         *,
         project_id: UUID,
         connection_id: UUID,
-        integration_key: str = "T1",
+        installation_id: str = "T1",
     ):
         self.project_id = project_id
         self.connection_id = connection_id
         self.recorded = []
         self.seen_external_ids = set()
-        self.connections_service = FakeConnectionsService(
-            connection=ChannelConnection(
-                id=connection_id,
-                slug="fake-connection",
-                provider_key=ConnectionProviderKind.SLACK,
-                integration_key=integration_key,
-                data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
-            )
+        self.installation_id = installation_id
+        self.connection = ChannelConnection(
+            id=connection_id,
+            slug="fake-connection",
+            channel="slack",
+            external_key=_placeholder_external_key(installation_id),
+            data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
         )
 
-    async def get_project_and_connection_by_external_id(self, *, channel, external_id):
-        if external_id != "T1":
+    async def get_project_and_connection_by_external_key(
+        self, *, channel, external_key
+    ):
+        if external_key != _placeholder_external_key(self.installation_id):
             return None
         return (self.project_id, self.connection_id)
+
+    async def fetch_connection(self, *, project_id, connection_id):
+        if connection_id != self.connection_id:
+            return None
+        return self.connection
 
     async def record_inbox_event(self, *, project_id, event):
         key = (project_id, event.connection_id, event.external_id)

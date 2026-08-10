@@ -22,7 +22,6 @@ import pytest
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
 from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
 from oss.src.core.channels.types import ChannelSignatureInvalid
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.dtos import ChannelKeyGrain
 
@@ -115,8 +114,8 @@ def _connection() -> ChannelConnection:
     return ChannelConnection(
         id=uuid4(),
         slug="slack-contract-suite",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="slack",
+        channel="slack",
+        external_key=uuid4(),
         data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
     )
 

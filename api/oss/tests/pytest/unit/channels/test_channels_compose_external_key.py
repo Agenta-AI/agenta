@@ -6,7 +6,10 @@ covers two distinct locator SHAPES (not just two grains of the same one) and
 dict key reordering.
 """
 
+import pytest
+
 from oss.src.core.channels.dtos import ChannelCapabilities
+from oss.src.core.channels.types import ChannelConnectionKeyUndeclared
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
 
 
@@ -51,3 +54,39 @@ def test_extra_unrelated_fields_in_the_locator_do_not_change_the_key():
     assert compose_external_key(caps, ChannelKeyGrain.SPACE, locator) == (
         compose_external_key(caps, ChannelKeyGrain.SPACE, locator_with_noise)
     )
+
+
+def test_connection_grain_composes_from_declared_fields():
+    caps = capabilities()
+    caps.identity.keys[ChannelKeyGrain.CONNECTION] = ["team"]
+    locator = {"team": "T1", "channel": "C1"}
+
+    key = compose_external_key(caps, ChannelKeyGrain.CONNECTION, locator)
+
+    assert key is not None
+    assert key == compose_external_key(caps, ChannelKeyGrain.CONNECTION, locator)
+
+
+def test_connection_grain_raises_on_empty_declaration():
+    caps = capabilities()
+    caps.identity.keys[ChannelKeyGrain.CONNECTION] = []
+
+    with pytest.raises(ChannelConnectionKeyUndeclared):
+        compose_external_key(caps, ChannelKeyGrain.CONNECTION, {"team": "T1"})
+
+
+def test_connection_grain_raises_when_undeclared_at_all():
+    caps = capabilities()  # no "connection" key in identity.keys
+
+    with pytest.raises(ChannelConnectionKeyUndeclared):
+        compose_external_key(caps, ChannelKeyGrain.CONNECTION, {"team": "T1"})
+
+
+def test_thread_grain_still_returns_none_on_empty_declaration():
+    """The behaviour CONNECTION grain must NOT inherit: THREAD stays total,
+    not raising, when a platform declares no thread fields at all."""
+
+    caps = capabilities()
+    caps.identity.keys[ChannelKeyGrain.THREAD] = []
+
+    assert compose_external_key(caps, ChannelKeyGrain.THREAD, {"team": "T1"}) is None

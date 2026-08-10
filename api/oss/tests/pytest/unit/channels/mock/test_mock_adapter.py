@@ -19,15 +19,14 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceKind,
 )
 from oss.src.core.channels.types import ChannelSignatureInvalid
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 
 def _connection() -> ChannelConnection:
     return ChannelConnection(
         id=uuid4(),
         slug="mock-connection",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="mock",
+        channel="mock",
+        external_key=uuid4(),
     )
 
 

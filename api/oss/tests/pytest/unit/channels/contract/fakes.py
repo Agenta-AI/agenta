@@ -69,13 +69,11 @@ _BASE_CAPABILITIES: Dict[str, Any] = {
 
 
 def _connection() -> ChannelConnection:
-    from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
-
     return ChannelConnection(
         id=uuid4(),
         slug="fake-connection",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="fake",
+        channel="fake",
+        external_key=uuid4(),
     )
 
 

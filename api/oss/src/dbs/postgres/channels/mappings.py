@@ -6,6 +6,10 @@ from oss.src.core.channels.dtos import (
     ChannelAgentData,
     ChannelAgentEdit,
     ChannelAgentFlags,
+    ChannelConnection,
+    ChannelConnectionCreate,
+    ChannelConnectionEdit,
+    ChannelConnectionFlags,
     ChannelGrant,
     ChannelGrantCreate,
     ChannelGrantData,
@@ -35,6 +39,7 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.shared.dtos import Status
 from oss.src.dbs.postgres.channels.dbes import (
     ChannelAgentDBE,
+    ChannelConnectionDBE,
     ChannelGrantDBE,
     ChannelInboxEventDBE,
     ChannelInboxTriggerDBE,
@@ -42,6 +47,86 @@ from oss.src.dbs.postgres.channels.dbes import (
     ChannelSpaceDBE,
     ChannelThreadDBE,
 )
+
+
+# --- Connection ----------------------------------------------------------- #
+
+
+def map_connection_dto_to_dbe_create(
+    *,
+    project_id: UUID,
+    user_id: UUID,
+    #
+    connection: ChannelConnectionCreate,
+) -> ChannelConnectionDBE:
+    return ChannelConnectionDBE(
+        project_id=project_id,
+        #
+        created_by_id=user_id,
+        #
+        channel=connection.channel,
+        external_key=connection.external_key,
+        slug=connection.slug,
+        #
+        name=connection.name,
+        description=connection.description,
+        tags=connection.tags,
+        meta=connection.meta,
+        #
+        data=connection.data,
+        flags=connection.flags.model_dump(),
+    )
+
+
+def map_connection_dbe_to_dto(
+    *, connection_dbe: ChannelConnectionDBE
+) -> ChannelConnection:
+    return ChannelConnection(
+        id=connection_dbe.id,
+        #
+        created_at=connection_dbe.created_at,
+        updated_at=connection_dbe.updated_at,
+        deleted_at=connection_dbe.deleted_at,
+        created_by_id=connection_dbe.created_by_id,
+        updated_by_id=connection_dbe.updated_by_id,
+        deleted_by_id=connection_dbe.deleted_by_id,
+        #
+        channel=connection_dbe.channel,
+        external_key=connection_dbe.external_key,
+        slug=connection_dbe.slug,
+        #
+        name=connection_dbe.name,
+        description=connection_dbe.description,
+        #
+        tags=connection_dbe.tags,
+        meta=connection_dbe.meta,
+        #
+        data=connection_dbe.data,
+        status=Status.model_validate(connection_dbe.status)
+        if connection_dbe.status
+        else None,
+        flags=ChannelConnectionFlags(**(connection_dbe.flags or {})),
+    )
+
+
+def map_connection_dto_to_dbe_edit(
+    *,
+    connection_dbe: ChannelConnectionDBE,
+    #
+    user_id: UUID,
+    #
+    connection: ChannelConnectionEdit,
+) -> None:
+    connection_dbe.updated_by_id = user_id
+
+    connection_dbe.name = connection.name
+    connection_dbe.description = connection.description
+
+    connection_dbe.tags = connection.tags
+    connection_dbe.meta = connection.meta
+
+    connection_dbe.data = connection.data
+    connection_dbe.flags = connection.flags.model_dump()
 
 
 # --- Agent -------------------------------------------------------------- #
@@ -208,6 +293,8 @@ def map_grant_dto_to_dbe_create(
         created_by_id=user_id,
         #
         agent_id=grant.agent_id,
+        effect=grant.effect,
+        kind=grant.kind,
         space_id=grant.space_id,
         #
         name=grant.name,
@@ -232,6 +319,8 @@ def map_grant_dbe_to_dto(*, grant_dbe: ChannelGrantDBE) -> ChannelGrant:
         deleted_by_id=grant_dbe.deleted_by_id,
         #
         agent_id=grant_dbe.agent_id,
+        effect=grant_dbe.effect,
+        kind=grant_dbe.kind,
         space_id=grant_dbe.space_id,
         #
         name=grant_dbe.name,

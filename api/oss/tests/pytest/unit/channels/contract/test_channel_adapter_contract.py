@@ -49,13 +49,12 @@ def default_suite_connection():
     """
 
     from oss.src.core.channels.dtos import ChannelConnection
-    from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
     return ChannelConnection(
         id=uuid4(),
         slug="contract-suite-connection",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="fake",
+        channel="fake",
+        external_key=uuid4(),
         data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
     )
 
@@ -293,7 +292,6 @@ async def test_suite_drives_egress_with_a_caller_supplied_connection():
     them must still be holdable to the egress assertions."""
 
     from oss.src.core.channels.dtos import ChannelConnection
-    from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
     seen: List[str] = []
 
@@ -308,8 +306,8 @@ async def test_suite_drives_egress_with_a_caller_supplied_connection():
     own = ChannelConnection(
         id=uuid4(),
         slug="own-credentials",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="acme",
+        channel="acme",
+        external_key=uuid4(),
         data={"secret": "shhh", "delivery_url": "https://example.invalid/"},
     )
 

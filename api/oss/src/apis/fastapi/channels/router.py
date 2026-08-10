@@ -12,7 +12,7 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelAgentResponse,
     ChannelAgentsResponse,
     ChannelCapabilitiesResponse,
-    ChannelConnectionsQueryRequest,
+    ChannelConnectionQueryRequest,
     ChannelConnectionsResponse,
     ChannelGrantCreateRequest,
     ChannelGrantEditRequest,
@@ -110,7 +110,7 @@ class ChannelsRouter:
             response_model_exclude_none=True,
         )
 
-        # --- Connections (read-only view over shared gateway_connections) --- #
+        # --- Connections (read-only) ------------------------------------------- #
         self.router.add_api_route(
             "/connections/query",
             self.query_channel_connections,
@@ -373,15 +373,16 @@ class ChannelsRouter:
         self,
         request: Request,
         *,
-        body: ChannelConnectionsQueryRequest,
+        body: ChannelConnectionQueryRequest,
     ) -> ChannelConnectionsResponse:
         await self._check(request, Permission.VIEW_CHANNELS)
 
-        connections = await self.channels_service.connections_service.query_connections(
+        connections = await self.channels_service.query_connections(
             project_id=UUID(request.state.project_id),
-            provider_key=body.provider_key,
-            integration_key=body.integration_key,
-            is_active=body.is_active,
+            #
+            connection=body.connection,
+            #
+            windowing=body.windowing,
         )
         return ChannelConnectionsResponse(
             count=len(connections),
