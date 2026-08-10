@@ -67,6 +67,19 @@ In dependency order — each depends only on lanes below it.
 `pkg/entity-ui-form-engine` must land **before** `mobile/settings` — the mobile Tools/Triggers
 tabs are only writable because that migration removed antd from the drawers.
 
+Every SHA above is abbreviated; validate before use, because at least one was mistyped here
+(`6750033` was written as two tokens). Under `set -euo pipefail`:
+
+```bash
+set -euo pipefail
+for s in <the SHAs for one lane>; do git rev-parse --verify "$s^{commit}" >/dev/null; done
+echo "all SHAs resolve"
+```
+
+The `pkg/settings-spine` row lists 13 commits; the lane as built holds 12
+(`execute-stacked-prs.md`). The branches won that disagreement — one commit was folded into a
+neighbouring lane. Another reason to treat this table as a hypothesis.
+
 ## Mechanics
 
 Do **not** try to assign files lane-by-lane against the live working tree. The root `AGENTS.md`
@@ -85,8 +98,11 @@ working-tree technique in the same section, not hunk assignment.
 Work in this order. Commit nothing to a lane until the lane below it is verified.
 
 1. **Snapshot first.** `but oplog snapshot -m "pre-restack"` if the repo is in GitButler
-   workspace mode; otherwise `git branch backup/pre-restack-112 pkg/settings-spine`. This is
-   the only safe recovery point and you will want it.
+   workspace mode; otherwise `git branch backup/pre-stack-112 pkg/settings-spine`. This is
+   the only safe recovery point and you will want it. **`backup/pre-stack-112` is the one
+   canonical name** — `execute-stacked-prs.md` Phase 0 verifies exactly that ref, and an earlier
+   draft of this file called it `backup/pre-restack-112`, so a recovery point created under the
+   old name satisfies neither runbook's check.
 2. **Confirm the base.** `git fetch origin release/v0.112.0`. Everything stacks on that ref,
    not on `main`.
 3. **Rebase the 20 existing lanes** onto it, bottom-up, in the listed order. After each:
@@ -96,9 +112,25 @@ Work in this order. Commit nothing to a lane until the lane below it is verified
 4. **Build the 12 new lanes** from the 50 commits, using git-stash isolation (below). Same
    per-lane diff check.
 5. **Split the commits that touch two lanes.** `fd30503` is the clearest: it adds the Domains
-   and SSO sections to the package *and* wires them into `/m`. Make the tree the package
-   lane's version, commit that, then edit to add the mobile delta and amend it into the
-   mobile lane. Do not try to assign hunks.
+   and SSO sections to the package *and* wires them into `/m`. Do not try to assign hunks. Use
+   sequential working-tree states, and note that the second half is a **new commit on the upper
+   lane**, not an amend:
+
+   ```bash
+   set -euo pipefail
+   git checkout <package-lane>
+   # make the tree the package lane's version of the file, then
+   git commit -m "<package half>"
+   git checkout -b <mobile-lane> <package-lane>       # upper lane branches off the lower one
+   # edit the same file to add the /m delta, then
+   git commit -m "<mobile half>"
+   ```
+
+   **Never `git commit --amend` here.** Amend rewrites *the commit you are standing on* — on the
+   package lane that folds the mobile delta into the lower lane (so the upper lane's PR shows an
+   empty diff and the lower lane's shows mobile files it should not own), and it rewrites a
+   commit every lane above has already built on. `execute-stacked-prs.md` §"Commits that span two
+   lanes" says the same thing.
 6. **Gates, then push.** Only after every lane's diff is clean.
 7. **Open PRs** bottom-up, each based on the lane below.
 
