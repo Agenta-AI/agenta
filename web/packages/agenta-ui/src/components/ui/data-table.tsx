@@ -190,7 +190,9 @@ export function DataTable<T>({
                                             variant="outline"
                                             aria-label={reloadLabel}
                                             disabled={reloading}
-                                            onClick={onReload}
+                                            // Callers pass zero-arg reloaders; bound directly, React would hand
+                                            // them the click event.
+                                            onClick={() => onReload()}
                                         >
                                             <ArrowClockwise size={14} />
                                         </Button>
