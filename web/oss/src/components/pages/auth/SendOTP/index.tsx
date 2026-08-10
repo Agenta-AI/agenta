@@ -27,7 +27,7 @@ const SendOTP = ({
             onFail={() => setAuthFlow("unauthed")}
             onSuccess={async (payload) => {
                 await handleAuthSuccess(
-                    {createdNewRecipeUser: true, user: payload.user},
+                    {createdNewRecipeUser: payload.createdNewRecipeUser, user: payload.user},
                     {isInvitedUser, authMethod: "email"},
                 )
             }}

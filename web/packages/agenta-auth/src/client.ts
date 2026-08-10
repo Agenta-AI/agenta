@@ -290,7 +290,13 @@ export async function submitEmailCodeDetailed(code: string): Promise<OtpDetailed
     try {
         const response = await Passwordless.consumeCode({userInputCode: code})
         if (response.status === "OK")
-            return {kind: "ok", user: response.user, createdNewRecipeUser: true}
+            // consumeCode reports whether this code created the user or signed an
+            // existing one in — a returning user must not read as a fresh signup.
+            return {
+                kind: "ok",
+                user: response.user,
+                createdNewRecipeUser: response.createdNewRecipeUser,
+            }
         if (response.status === "INCORRECT_USER_INPUT_CODE_ERROR")
             return {
                 kind: "incorrect",

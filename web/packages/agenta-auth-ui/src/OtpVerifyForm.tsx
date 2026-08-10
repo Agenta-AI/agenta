@@ -70,7 +70,10 @@ export const OtpVerifyForm = ({
             if (outcome.kind === "ok") {
                 await clearEmailCodeAttempt()
                 setMessage({message: "Verification successful", type: "success"})
-                await onSuccess({user: outcome.user, createdNewRecipeUser: true})
+                await onSuccess({
+                    user: outcome.user,
+                    createdNewRecipeUser: outcome.createdNewRecipeUser,
+                })
             } else if (outcome.kind === "incorrect") {
                 setMessage({
                     message: "Invalid code, Please try again.",
