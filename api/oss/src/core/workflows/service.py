@@ -943,15 +943,28 @@ class WorkflowsService:
         #
         workflow_edit: WorkflowEdit,
     ) -> Optional[Workflow]:
-        artifact_flags = self._artifact_flags_from_any(workflow_edit.flags)
-        artifact_edit = ArtifactEdit(
-            **workflow_edit.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude={"flags"},
-            ),
-            flags=self._dump_stored_flags(artifact_flags) or None,
+        current_artifact = await self.workflows_dao.fetch_artifact(
+            project_id=project_id,
+            #
+            artifact_ref=Reference(id=workflow_edit.id),
+            #
+            include_archived=False,
         )
+        if not current_artifact:
+            return None
+
+        artifact_edit_kwargs = workflow_edit.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude={"flags"},
+        )
+        if "flags" in workflow_edit.model_fields_set:
+            artifact_flags = self._artifact_flags_from_any(workflow_edit.flags)
+            artifact_edit_kwargs["flags"] = (
+                self._dump_stored_flags(artifact_flags) or None
+            )
+
+        artifact_edit = ArtifactEdit(**artifact_edit_kwargs)
 
         artifact = await self.workflows_dao.edit_artifact(
             project_id=project_id,

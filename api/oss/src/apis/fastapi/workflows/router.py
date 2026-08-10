@@ -778,7 +778,10 @@ class WorkflowsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         if str(workflow_id) != str(workflow_edit_request.workflow.id):
-            return WorkflowResponse()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workflow ID in path does not match workflow ID in request body.",
+            )
 
         workflow = await self.workflows_service.edit_workflow(
             project_id=UUID(request.state.project_id),
@@ -787,8 +790,14 @@ class WorkflowsRouter:
             workflow_edit=workflow_edit_request.workflow,
         )
 
+        if not workflow:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workflow not found.",
+            )
+
         workflow_response = WorkflowResponse(
-            count=1 if workflow else 0,
+            count=1,
             workflow=workflow,
         )
 
