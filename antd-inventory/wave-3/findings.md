@@ -628,19 +628,33 @@ resolved during the work; their closure record is in [Closed Findings](#closed-f
 - **Suggested Fix:** `tabIndex={0}` plus a visible focus style on the trigger; if
   `popoverContent` ever becomes interactive, switch to `Popover`.
 
-### [OPEN] F32 — Raw `rgba(255,255,255,0.4)` divider on the run-options button
+### [CLOSED] F32 — Run-options divider was white-on-yellow in dark mode
 
 - **ID:** WAVE3-F32 · **Origin:** CodeRabbit review, PR #5806 · **Severity:** P3
-- **Status:** open · **Confidence:** high · **Category:** Consistency
+- **Status:** fixed · **Confidence:** high · **Category:** Correctness
 - **Files:** `playground-ui/src/components/ExecutionItems/assets/RunOptionsPopover/index.tsx:74`
-- **Summary:** the split-button divider uses a raw rgba literal, which `web/AGENTS.md` forbids in
-  favour of semantic tokens.
-- **Two corrections to the review's reasoning**, both verified: it is **pre-existing** (the antd
-  version carried the identical value as an inline `borderLeft` style), and the stated cause —
-  "does not adapt to the light theme" — is wrong. The divider sits on a **primary** button, which
-  is dark navy in both themes, so white-at-40% is correct in both. It is a token-hygiene issue,
-  not a theming bug.
-- **Suggested Fix:** add an on-primary divider token rather than changing the rendered colour.
+- **Summary:** the split-button divider was a raw `rgba(255,255,255,0.4)` literal. Measured in
+  both themes, the primary button underneath is **not** the same colour:
+
+  | theme | button bg | text/icon | old divider |
+  | --- | --- | --- | --- |
+  | light | `rgb(28,44,61)` navy | `rgb(255,255,255)` | white 40% — correct |
+  | dark | `rgb(209,209,81)` brand yellow | `rgb(20,20,20)` | white 40% — **near-invisible** |
+
+  `palette.ts:85` sets `primary: {light: "#1c2c3d", dark: "#f2f25c"}` — "[override] navy → brand
+  yellow" — with `primaryColor: "#141414"` as its foreground. So a fixed white divider is wrong
+  in dark, both for contrast and against the near-black icon beside it.
+- **Fix:** `border-l-white/40 dark:border-l-black/40` — a Tailwind colour utility, which
+  `web/AGENTS.md` permits alongside semantic tokens. It could not be tied to a `--ag-*` token
+  directly: the config's `v()` helper emits a bare `var(--ag-x)`, and Tailwind 3 cannot apply an
+  alpha modifier to that (it needs the `rgb(var(--x) / <alpha-value>)` form).
+- **Verified:** re-measured after the change — `rgba(255,255,255,0.4)` in light,
+  `rgba(0,0,0,0.4)` in dark.
+- **A correction worth recording.** The first pass of this finding claimed the review was wrong
+  and that "the button is dark navy in both themes, so white-at-40% is correct". That was
+  **false**, asserted twice from the `bg-primary` class name without measuring the token behind
+  it. Only the pre-existing part held (the antd original carried the same inline value). The
+  lesson matches F13 and F29: a class name is not a colour — read the palette or measure it.
 
 ---
 

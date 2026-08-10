@@ -71,7 +71,9 @@ const RunOptionsPopover = ({isRunning, onRepeatCountChange}: RunOptionsPopoverPr
                     size="sm"
                     disabled={isRunning}
                     aria-label="Run options"
-                    className="w-8 p-0 rounded-l-none border-l border-l-[rgba(255,255,255,0.4)]"
+                    // Split-button divider, tracking the button's own foreground: primary is navy
+                    // with white content in light, brand yellow with near-black content in dark.
+                    className="w-8 p-0 rounded-l-none border-l border-l-white/40 dark:border-l-black/40"
                 >
                     <CaretDown size={14} />
                 </Button>
