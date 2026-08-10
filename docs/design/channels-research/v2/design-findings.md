@@ -25,6 +25,7 @@ Maintained here. Status is one of **decided** (settled, no doc needed), **writte
 | 8 | The connection key identifies the bot | **written** | `connection-identity.md` |
 | 9 | The bridge | **decided: keep** | measured, below |
 | 10 | User journeys | **open** | three to write, below |
+| 11 | `channel_connections` table + `external_key` | **decided, to design** | bottom of this file |
 
 **Keep this table current.** It is the only status record — when a design lands,
 change the row, and when a decision is taken, say what was decided rather than
@@ -184,3 +185,71 @@ The three to write:
    revoked; a connection is removed; a platform stops delivering.
 
 Journey 1 is the one that would have caught the provisioning gap in week one.
+
+---
+
+## Decision taken, not yet designed: `channel_connections`
+
+**Decided.** Channels stops sharing `gateway_connections` and gets its own
+`channel_connections` table, with `external_key` rather than `integration_key`.
+
+Two reasons, in order:
+
+- **Alignment.** Every other external identity in channels is a `*_locator` plus an
+  `external_key` composed over the fields the adapter declares. A connection is the
+  third grain of the same thing, and it should read identically.
+- **Independence.** The gateway may not survive in its current form. Channels should
+  not be coupled to a table whose future is someone else's decision.
+
+Nothing is released, so the existing migration is **edited in place**. No
+backward compatibility, no shims, no rename migration on the shared table.
+
+Scope is small: only four channels files touch the gateway connection today —
+`core/channels/service.py`, `core/channels/dtos.py`,
+`apis/fastapi/channels/router.py`, `dbs/postgres/channels/dao.py`.
+
+### What this unblocks that the shared table could not
+
+- **A globally-unique constraint on `external_key`.** Ingress resolves the tenant
+  *from* this key, so it must be unique across projects. That constraint is wrong
+  for the gateway, where two projects legitimately connect to the same product.
+- **A credential schema per channel**, without imposing one on Composio's rows.
+- **`slug` out of the identity.** Two rows differing only by slug are two names for
+  one connection, which is what makes the current `LIMIT 1` resolve ambiguous.
+
+### The grain, corrected
+
+The grain is **`CONNECTION`**, not `BOT`. Grains name the row they key — `SPACE`
+keys a space, `THREAD` keys a thread. "Bot" is the product word and belongs in the
+UI, not in the enum.
+
+```
+CONNECTION → connection_locator → external_key
+SPACE      → space_locator      → external_key
+THREAD     → thread_locator     → external_key
+```
+
+`compose_external_key` is already generic over grain and needs no change.
+
+### What `external_key` identifies is provider-defined
+
+Not "a bot" — that was a Slack shape generalised into a rule, and it is wrong for
+the bridge. Each provider declares what its unit is:
+
+| provider | the unit a connection is to |
+| --- | --- |
+| slack | a bot in a workspace — `api_app_id` + workspace or enterprise |
+| telegram | a bot — identified by a secret token on the header, not the body |
+| discord | an application; the guild is a qualifier and absent in DMs |
+| bridge | **a bridge**, fronting a platform we do not know, with its own spaces |
+| agenta | a bot in a project |
+
+The bridge row is the one that disproves any universal "bot" framing: many bridges,
+many connections, one `provider_key`.
+
+### Still to design
+
+- `connection_locator(request)` replacing `installation_hint(body)` — it must see
+  headers and path, because Telegram carries no identity in the body at all.
+- Whether an Enterprise Grid org-wide install is one connection or many.
+- What moves with the table: credentials, status, verification state.
