@@ -62,7 +62,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
 
     return (
         <>
-            <PageTitle parts={["Home", project?.project_name]} />
+            <PageTitle title="Home" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={

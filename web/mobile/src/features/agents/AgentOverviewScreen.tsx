@@ -48,7 +48,7 @@ export const AgentOverviewScreen = ({
 
     return (
         <>
-            <PageTitle parts={[name, "Agents"]} />
+            <PageTitle title="Agents" context={name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill

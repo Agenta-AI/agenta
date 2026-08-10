@@ -277,3 +277,11 @@ export type {
     ParseResult,
     SourceSpan,
 } from "./mustache"
+
+export {
+    DEFAULT_PAGE_TITLE,
+    SESSION_TITLE_MAX_LENGTH,
+    formatPageTitle,
+    normalizeTitlePart,
+    truncateTitlePart,
+} from "./pageTitle"

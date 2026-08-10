@@ -5,7 +5,7 @@ import {
     SESSION_TITLE_MAX_LENGTH,
     formatPageTitle,
     truncateTitlePart,
-} from "./utils"
+} from "../../src/utils/pageTitle"
 
 describe("formatPageTitle", () => {
     it("falls back when no semantic title is available", () => {

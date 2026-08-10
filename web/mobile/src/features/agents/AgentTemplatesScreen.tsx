@@ -8,7 +8,6 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -36,14 +35,13 @@ export const AgentTemplatesScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const router = useRouter()
-    const project = useCurrentProject(workspaceId, projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
     const [category, setCategory] = useState(ALL_TEMPLATES_CATEGORY)
 
     return (
         <>
-            <PageTitle parts={["Templates", project?.project_name]} />
+            <PageTitle title="Templates" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     fill
