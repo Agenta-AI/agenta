@@ -103,26 +103,26 @@ export const HomeTaskComposer = ({
                     extraPrefix
                 ) : (
                     <span className="flex items-center gap-1">
-                    <Select value={effectiveAgentId ?? undefined} onValueChange={setAgentId}>
-                        <SelectTrigger
-                            aria-label="Agent"
-                            className="min-w-40 border-0 bg-transparent px-1 shadow-none"
-                        >
-                            <SelectValue placeholder="Select an agent">
-                                <span className="inline-flex items-center gap-1.5">
-                                    <RobotIcon size={14} className="text-colorTextTertiary" />
-                                    {selectedName}
-                                </span>
-                            </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                            {agents.map((agent) => (
-                                <SelectItem key={agent.id} value={agent.id}>
-                                    {agent.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        <Select value={effectiveAgentId ?? undefined} onValueChange={setAgentId}>
+                            <SelectTrigger
+                                aria-label="Agent"
+                                className="min-w-40 border-0 bg-transparent px-1 shadow-none"
+                            >
+                                <SelectValue placeholder="Select an agent">
+                                    <span className="inline-flex items-center gap-1.5">
+                                        <RobotIcon size={14} className="text-colorTextTertiary" />
+                                        {selectedName}
+                                    </span>
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {agents.map((agent) => (
+                                    <SelectItem key={agent.id} value={agent.id}>
+                                        {agent.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         {extraPrefix}
                     </span>
                 )
