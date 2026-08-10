@@ -225,6 +225,7 @@ export function assembleBody(
   call: DirectCall,
   params: unknown,
   runContext?: RunContext,
+  toolName?: string,
 ): Record<string, unknown> {
   // 1. Model args, at args_into (deep-set) or the root.
   let body: Record<string, unknown> = {};
@@ -248,7 +249,8 @@ export function assembleBody(
       const value = resolveCtxToken(runContext, token);
       if (value === undefined) {
         throw new Error(
-          `missing run-context value for direct-call binding '${bodyPath}'`,
+          `missing run-context value for direct-call binding '${bodyPath}'` +
+            (toolName ? ` for tool '${toolName}'` : ""),
         );
       }
       deepSet(body, bodyPath, value);

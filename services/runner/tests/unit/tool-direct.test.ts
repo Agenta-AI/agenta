@@ -51,6 +51,7 @@ import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
 // A fake run context (direct-call tools, Phase 3a). The keys are the snake_case binding namespace
 // a `call.context` value (`"$ctx.<dotted.path>"`) addresses.
 const RUN_CONTEXT: RunContext = {
+  session: { id: "session-self" },
   workflow: {
     variant: { id: "own-variant" },
     revision: { id: "rev_self" },
@@ -184,6 +185,43 @@ describe("assembleBody", () => {
 // ---------------------------------------------------------------------------
 
 describe("assembleBody context binding", () => {
+  it("binds the runner-augmented $ctx.session.id", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/sessions/streams/header?session_id={session_id}",
+      context: { session_id: "$ctx.session.id" },
+    };
+    const body = assembleBody(
+      call,
+      { name: "Agent naming" },
+      RUN_CONTEXT,
+      "rename_session",
+    );
+    assert.deepEqual(body, {
+      name: "Agent naming",
+      session_id: "session-self",
+    });
+  });
+
+  it("names the tool when its session binding is missing", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/sessions/streams/header?session_id={session_id}",
+      context: { session_id: "$ctx.session.id" },
+    };
+    const { session: _session, ...runContextWithoutSession } = RUN_CONTEXT;
+    assert.throws(
+      () =>
+        assembleBody(
+          call,
+          { name: "Agent naming" },
+          runContextWithoutSession,
+          "rename_session",
+        ),
+      /missing run-context value for direct-call binding 'session_id' for tool 'rename_session'/,
+    );
+  });
+
   it("binds a $ctx value from the run context, deep-set at the mapped path", () => {
     const call: DirectCall = {
       method: "POST",
@@ -413,6 +451,46 @@ describe("directCallUrl", () => {
     assert.equal(
       url,
       "https://agenta.example/api/tools/catalog/integrations?search=github",
+    );
+  });
+
+  it("substitutes rename_session's bound id without weakening URL confinement", () => {
+    const call: DirectCall = {
+      method: "POST",
+      path: "/api/sessions/streams/header?session_id={session_id}",
+    };
+    const url = directCallUrl(ENDPOINT, call, {
+      session_id: "session/1?next=https://evil.example",
+    });
+    assert.equal(
+      url,
+      "https://agenta.example/api/sessions/streams/header?session_id=session%2F1%3Fnext%3Dhttps%3A%2F%2Fevil.example",
+    );
+    assert.equal(new URL(url).origin, "https://agenta.example");
+    assert.equal(new URL(url).pathname, "/api/sessions/streams/header");
+
+    for (const unsafePath of [
+      "https://evil.example/api/sessions/streams/header?session_id={session_id}",
+      "//evil.example/api/sessions/streams/header?session_id={session_id}",
+    ]) {
+      assert.throws(
+        () =>
+          directCallUrl(
+            ENDPOINT,
+            { ...call, path: unsafePath },
+            { session_id: "self" },
+          ),
+        /must be an absolute path starting with a single '\/'/,
+      );
+    }
+    assert.throws(
+      () =>
+        directCallUrl(
+          ENDPOINT,
+          { ...call, path: "/admin?session_id={session_id}" },
+          { session_id: "self" },
+        ),
+      /is outside the Agenta API mount '\/api'/,
     );
   });
 
@@ -655,6 +733,31 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
       workflow_variant_id: "own-variant", // bound to the run's own variant, not the model's
       parameters: { temperature: 0.2 },
     });
+  });
+
+  it("passes the tool name through a missing direct-call context error", async () => {
+    const selfSpec: ResolvedToolSpec = {
+      name: "rename_session",
+      kind: "callback",
+      call: {
+        method: "POST",
+        path: "/api/sessions/streams/header?session_id={session_id}",
+        context: { session_id: "$ctx.session.id" },
+      },
+    };
+    const { session: _session, ...runContextWithoutSession } = RUN_CONTEXT;
+    const res = await relayOnce(
+      selfSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      { name: "Agent naming" },
+      runContextWithoutSession,
+    );
+
+    assert.equal(res.ok, false);
+    assert.match(
+      res.error ?? "",
+      /missing run-context value for direct-call binding 'session_id' for tool 'rename_session'/,
+    );
   });
 
   it("strips substituted path params out of the POST body", async () => {
