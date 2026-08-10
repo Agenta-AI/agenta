@@ -7,11 +7,15 @@ or a seam to inspect, not a decision. Close an entry by recording what was found
 
 ## Ports to define
 
-### OR1. `TokenStorage` — implement, do not invent
+### OR1. `TokenStorage` — delegate to the secrets service
 
 The official MCP Python SDK defines a `TokenStorage` protocol and its `OAuthClientProvider`
-handles everything above it. **Implement the protocol against our database; do not write an
-OAuth client.**
+handles everything above it. **Implement the protocol as a thin adapter over the secrets
+service; do not write an OAuth client and do not add a second place credentials live.**
+
+Verify the adapter stores only a `secret_id` on the gateway's own rows and resolves through
+`get_secret_by_id`, matching the webhook dispatcher and SSO provider precedent, and that no
+gateway response can serialize the secret or its id.
 
 To verify at implementation time:
 

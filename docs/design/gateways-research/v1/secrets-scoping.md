@@ -1,9 +1,59 @@
-# Secret scoping and resolution
+# Secret kinds, scoping, and resolution
 
 Designed, **not scheduled for implementation**. Today every secret and every connection is
-project-scoped. This document defines how user-level credentials would work and how the two
-levels resolve against each other, so that the gateway's lookup is built with the dimension
-present from the start rather than retrofitted.
+project-scoped. This document defines the new secret kinds the gateways need, how
+user-level credentials would work, and how the two levels resolve against each other — so
+that the lookup is built with the dimension present from the start rather than retrofitted.
+
+## The storage pattern: reference, do not hold
+
+The gateways store **no credential material**. They follow the pattern already used by
+webhook subscriptions and SSO providers: the domain row carries a `secret_id`, the secrets
+service holds the encrypted material, and the consumer resolves it at use time through
+`get_secret_by_id(project_id, secret_id)`, reading the value off the returned DTO. Domain
+responses exclude the secret and its id.
+
+This settles several things that looked like design work:
+
+- **Encryption** — the secrets layer already encrypts at rest; the gateways inherit it.
+- **Key management** — unchanged, and not duplicated.
+- **Deletion and rotation** — a single place, not one per consumer.
+- **Scoping** — belongs to the secrets service, which is why the ownership design below is a
+  change to *that* service and not to either gateway.
+
+## New secret kinds
+
+Existing kinds are `provider_key`, `custom_provider`, `sso_provider`, `webhook_provider`,
+and `custom_secret`. Adding one touches four places: the `SecretKind` enum, a settings DTO
+plus its wrapper, the discriminated union on the secret DTO, and a validation branch in the
+kind validator.
+
+Two kinds are proposed, because a static credential and an OAuth grant have different
+lifecycles:
+
+### `mcp_provider` — a static credential for an MCP server
+
+The value an MCP server expects in a header — an API key, a personal access token, a bearer
+value. Shape mirrors the webhook provider's: a key, plus the header name when it is not the
+standard authorization header. No expiry, no rotation.
+
+### `oauth_grant` — a token set
+
+Access token, refresh token, expiry, granted scopes, issuing authorization server, and the
+audience the token was minted for. Tokens are audience-bound, so a grant is identified by
+the upstream resource, not merely by the provider.
+
+**Deliberately not named for MCP.** The shape is protocol-agnostic: a model provider
+authenticating by OAuth needs exactly this, and naming it `mcp_oauth` would misplace it the
+first time the model plane wants one.
+
+### The alternative considered
+
+A single `mcp_provider` kind carrying an auth-scheme discriminator, with either a key or a
+token set inside. Fewer enum values, but it merges the one kind that rotates with the one
+that does not, and it puts an MCP name on a structure the model plane will want. Rejected
+for now; noted because the enum already mixes shape-named kinds with consumer-named ones, so
+either convention has precedent.
 
 ## Why design it before building it
 

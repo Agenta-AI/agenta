@@ -7,25 +7,25 @@ Ordered by how much else depends on them.
 
 ---
 
-## OD1. The token store
+## OD1. New secret kinds — not a new store
 
-**Status: open, and it is the only genuinely new component.**
+**Status: narrowed. There is no new store to build.**
 
-Everything else in the credential model exists (`existing-gateway-model.md`). We hold no
-tokens today because the incumbent provider holds them for us. Becoming our own provider
-means storing them.
+The gateway does not store credentials. It follows the established pattern: **the domain row
+holds a `secret_id`, the secrets service holds the material, and the consumer resolves it at
+use time.** Webhook subscriptions and SSO providers already work exactly this way — a
+dispatcher resolves `secret_id` through the vault service and reads the key off the returned
+DTO, and the secret itself never appears on the domain's own responses.
 
-What it has to hold, per credential: access token, refresh token, expiry, granted scopes,
-the issuing authorization server, and the audience the token was minted for. Tokens are
-audience-bound, so the key includes the upstream resource, not just the provider.
+So the question is not "how do we store tokens" but **"which secret kinds do we add."** See
+`secrets-scoping.md` for the proposal and the shape of the change.
 
-Hinges on the owner dimension (OD2) — the key shape differs by whether an owner is a
-project or a user.
+Everything that made this look like a new component — encryption at rest, key management,
+scoping, lifecycle — belongs to the secrets service and is already solved there. Adding a
+kind touches the enum, a settings DTO, the discriminated union, and its validation branch.
 
-**Reuse note:** encryption does not need designing. Secret columns already encrypt at rest
-through a SQLAlchemy type decorator using Postgres symmetric encryption with a
-context-supplied data key. The token store should use the same mechanism rather than
-introduce a second one.
+**Still open:** whether the OAuth token set is one kind or two (a static credential and a
+grant have different lifecycles), and the naming. Recorded in `secrets-scoping.md`.
 
 ---
 

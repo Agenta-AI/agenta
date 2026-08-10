@@ -35,11 +35,17 @@ Two caveats to check at implementation time, tracked in `open-reviews.md`:
   TypeScript SDK landing it first and Python following. Pin a version that has it and
   verify rather than assuming.
 
-## Token storage — reuse the existing encryption
+## Token storage — the secrets service, referenced by id
 
-No new cryptography. Secret columns already encrypt at rest via a SQLAlchemy type decorator
-using Postgres symmetric encryption, with the data key supplied from a context variable. The
-token store should use the same mechanism, which also keeps key management unchanged.
+There is no token store to build. The gateways hold **no credential material**: a domain row
+carries a `secret_id`, the secrets service holds the encrypted value, and the consumer
+resolves it at use time. Webhook subscriptions and SSO providers already do exactly this.
+
+So the `TokenStorage` implementation is thin — an adapter that reads and writes through the
+secrets service rather than a persistence layer of its own. Encryption, key management,
+rotation, and deletion are inherited rather than reimplemented.
+
+What this needs instead is **new secret kinds**, covered in `secrets-scoping.md`.
 
 ## Model routing — the library already in the tree
 
@@ -68,11 +74,12 @@ Moving that function behind the gateway is the whole of it. Nothing new to adopt
 | Piece | Source |
 |---|---|
 | MCP OAuth client flow | official MCP SDK |
-| Token persistence | ours — implement `TokenStorage` |
-| Encryption at rest | existing secret-column mechanism |
+| Token persistence | existing secrets service, referenced by `secret_id` |
+| Encryption, key management, rotation | existing secrets service |
 | Model routing and provider adapters | existing multi-provider client library |
-| Credential resolution and policy | ours |
+| `TokenStorage` adapter over the secrets service | ours — thin |
+| New secret kinds | ours — an enum value, a DTO, a union arm, a validator branch |
+| Credential resolution and policy | ours — the real design work |
 | Audit and metering | existing pipelines |
 
-Only two rows are ours to write, and one of them is a protocol implementation rather than a
-design.
+Only the last three rows are ours, and only one of them is design rather than wiring.
