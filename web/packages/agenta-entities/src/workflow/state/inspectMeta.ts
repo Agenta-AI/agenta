@@ -14,7 +14,7 @@
 
 import {catalogPersister} from "@agenta/shared/api/persist"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {fetchHarnessCapabilities} from "../api"
