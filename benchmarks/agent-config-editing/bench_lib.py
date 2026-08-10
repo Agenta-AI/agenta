@@ -544,6 +544,8 @@ class Ctx:
         token: str,
         baseline_version: int,
         final_version: int | None,
+        session_id: str,
+        workflow_id: str,
     ) -> None:
         self.stored = stored  # parameters.agent of the newest revision
         self.seeded = seeded  # parameters.agent as this trial seeded it
@@ -556,6 +558,8 @@ class Ctx:
         self.token = token
         self.baseline_version = baseline_version
         self.final_version = final_version
+        self.session_id = session_id
+        self.workflow_id = workflow_id
 
     @property
     def replies(self) -> str:
@@ -621,6 +625,55 @@ def _stored_matches(ctx: Ctx, spec: dict) -> str | None:
     if not re.search(pattern, got):
         return f"{_p(spec['path'])} does not match /{pattern}/"
     return None
+
+
+def _header_assertion(ctx: Ctx, spec: dict, row: dict, label: str) -> str | None:
+    """Apply the stored-row assertion grammar to a session or workflow header."""
+    path = spec.get("path") or [spec["field"]]
+    got = resolve(row, path)
+    rendered_path = f"{label}.{_p(path)}"
+
+    if "pattern" in spec:
+        if not isinstance(got, str):
+            return f"{rendered_path} is not a string ({type(got).__name__})"
+        pattern = substitute_token(spec["pattern"], ctx.token)
+        if not re.search(pattern, got):
+            return f"{rendered_path} does not match /{pattern}/"
+
+    if "text" in spec:
+        if not isinstance(got, str):
+            return f"{rendered_path} is not a string ({type(got).__name__})"
+        text = substitute_token(spec["text"], ctx.token)
+        if text not in got:
+            return f"{rendered_path} does not contain {text!r}"
+
+    if "value" in spec and got != spec["value"]:
+        return f"{rendered_path} is {got!r}, expected {spec['value']!r}"
+    return None
+
+
+@check("session_header")
+def _session_header(ctx: Ctx, spec: dict) -> str | None:
+    path = f"/sessions/streams/?session_id={ctx.session_id}"
+    response = wire().api_call("GET", path)
+    if response.status_code != 200:
+        return f"GET {path} returned HTTP {response.status_code}: {response.text[:300]}"
+    stream = response.json().get("stream")
+    if not isinstance(stream, dict):
+        return f"GET {path} returned no session stream"
+    return _header_assertion(ctx, spec, stream, "session")
+
+
+@check("workflow_header")
+def _workflow_header(ctx: Ctx, spec: dict) -> str | None:
+    path = f"/workflows/{ctx.workflow_id}"
+    response = wire().api_call("GET", path)
+    if response.status_code != 200:
+        return f"GET {path} returned HTTP {response.status_code}: {response.text[:300]}"
+    workflow = response.json().get("workflow")
+    if not isinstance(workflow, dict):
+        return f"GET {path} returned no workflow"
+    return _header_assertion(ctx, spec, workflow, "workflow")
 
 
 @check("stored_count")
@@ -1268,6 +1321,11 @@ def create_trial_agent(cell: dict, scenario: dict, token: str, label: str) -> di
     w = wire()
     hexid = uuid.uuid4().hex[:8]
     workflow_id, variant_id = create_workflow_named(hexid, label)
+    if scenario.get("seed_workflow_header"):
+        seed_workflow_header(
+            workflow_id,
+            substitute_token(scenario["seed_workflow_header"], token),
+        )
     agent = agent_config(cell, scenario.get("seed"), token)
     revision_id, version = w.seed_and_baseline(workflow_id, variant_id, agent, hexid)
     trial = {
@@ -1286,6 +1344,30 @@ def create_workflow_named(hexid: str, label: str) -> tuple[str, str]:
     """`qa_matrix_lib.create_workflow` with a benchmark-shaped slug, so an abandoned run's leftovers
     are identifiable in a project by name alone."""
     return wire().create_workflow(hexid, f"bench-{label}"[:40])
+
+
+def seed_workflow_header(workflow_id: str, header: dict) -> None:
+    """Give a trial workflow a known header before the model sees its first task."""
+    path = f"/workflows/{workflow_id}"
+    response = wire().api_call(
+        "PUT",
+        path,
+        json={"workflow": {"id": workflow_id, **header}},
+    )
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"seed workflow header HTTP {response.status_code}: {response.text[:300]}"
+        )
+
+
+def seed_session_header(session_id: str, header: dict) -> None:
+    """Create or update a trial's session header before its first turn."""
+    path = f"/sessions/streams/header?session_id={session_id}"
+    response = wire().api_call("PUT", path, json=header)
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"seed session header HTTP {response.status_code}: {response.text[:300]}"
+        )
 
 
 def write_agent_mount_file(workflow_id: str, path: str, content: str) -> None:
@@ -1505,7 +1587,12 @@ def connected_integrations() -> set | None:
 # Scenario loading
 # ---------------------------------------------------------------------------
 
-DEFAULT_BUDGET = {"max_tool_errors": 0, "max_commit_calls": 1, "max_rounds": 8}
+DEFAULT_BUDGET = {
+    "max_tool_errors": 0,
+    "max_commit_calls": 1,
+    "max_rename_calls": 0,
+    "max_rounds": 8,
+}
 
 
 def load_scenarios(only: list | None = None, classes: list | None = None) -> list:

@@ -163,6 +163,11 @@ def run_trial(cell_id: str, cell: dict, scenario: dict, index: int) -> dict:
 
         session_id = str(__import__("uuid").uuid4())
         record["session_id"] = session_id
+        if scenario.get("seed_session_header"):
+            B.seed_session_header(
+                session_id,
+                B.substitute_token(scenario["seed_session_header"], token),
+            )
         msgs: list = []
         groups: list = []
         gates_total = 0
@@ -221,12 +226,17 @@ def run_trial(cell_id: str, cell: dict, scenario: dict, index: int) -> dict:
             token=token,
             baseline_version=trial["baseline_version"],
             final_version=version,
+            session_id=session_id,
+            workflow_id=trial["workflow_id"],
         )
         checks = B.evaluate_checks(scenario["checks"], ctx)
         flat = ctx.turns
         errors = B.tool_error_details(flat)
         repeats = B.identical_repeat_after_refusal(flat)
         commit_calls = B.count_calls(flat, "commit_revision")
+        rename_calls = sum(
+            B.count_calls(flat, name) for name in ("rename_session", "rename_agent")
+        )
         budget = scenario["budget"]
 
         failures = [c for c in checks if c["failure"]]
@@ -235,6 +245,7 @@ def run_trial(cell_id: str, cell: dict, scenario: dict, index: int) -> dict:
             settled.get("settled", False)
             and len(errors) <= budget["max_tool_errors"]
             and commit_calls <= budget["max_commit_calls"]
+            and rename_calls <= budget["max_rename_calls"]
         )
         # The global instrument. A model that re-sends a refused call verbatim has read `retryable`
         # and ignored `next_step`, and that is a hard fail wherever it happens — including in a
@@ -274,6 +285,7 @@ def run_trial(cell_id: str, cell: dict, scenario: dict, index: int) -> dict:
                     ],
                     "tool_errors": errors,
                     "commit_calls": commit_calls,
+                    "rename_calls": rename_calls,
                     "approval_gates": gates_total,
                     "wire_turns": len(flat),
                     "finish_reasons": [t.finish_reason for t in flat],

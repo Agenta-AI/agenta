@@ -1,0 +1,122 @@
+{
+  "class": "self_naming",
+  "about": [
+    "Naming sessions and agents after the model has enough context to choose a useful label.",
+    "The verdict comes from the stored session or workflow header, never from the reply."
+  ],
+  "scenarios": [
+    {
+      "id": "name-01-session-after-task",
+      "title": "name a session after understanding its task",
+      "turns": [
+        {
+          "prompt": "help me put together a smoke-test plan for the billing migration we're shipping on friday"
+        }
+      ],
+      "tools": [{ "type": "platform", "op": "rename_session" }],
+      "budget": { "max_rename_calls": 1 },
+      "checks": [
+        { "check": "turn_tool_called", "name": "rename_session", "min": 1 },
+        {
+          "check": "session_header",
+          "path": ["name"],
+          "pattern": "(?i)(billing|migration)"
+        },
+        {
+          "check": "session_header",
+          "path": ["description"],
+          "pattern": "(?s)^.{1,300}\\Z"
+        }
+      ]
+    },
+    {
+      "id": "name-02-session-update",
+      "title": "update the session name when the subject changes",
+      "seed_session_header": {
+        "name": "Mobile checkout release",
+        "description": "Planning the release checks for mobile checkout."
+      },
+      "turns": [
+        {
+          "prompt": "outline the release checks we should run for the mobile checkout"
+        },
+        {
+          "prompt": "actually let's switch gears — draft an incident response checklist for a database outage"
+        }
+      ],
+      "tools": [{ "type": "platform", "op": "rename_session" }],
+      "budget": { "max_rename_calls": 1 },
+      "checks": [
+        {
+          "check": "turn_tool_called",
+          "name": "rename_session",
+          "min": 1,
+          "turn": 1
+        },
+        {
+          "check": "session_header",
+          "path": ["name"],
+          "pattern": "(?i)(incident|database|outage)"
+        }
+      ]
+    },
+    {
+      "id": "name-03-agent-first-task",
+      "title": "name a placeholder agent after its first task",
+      "seed_workflow_header": {
+        "name": "Untitled agent",
+        "description": "Waiting for a first task.",
+        "flags": { "is_application": true, "is_evaluator": false }
+      },
+      "turns": [
+        {
+          "prompt": "make me a pre-release checklist for the billing portal and call out what should block the deploy"
+        }
+      ],
+      "tools": [{ "type": "platform", "op": "rename_agent" }],
+      "budget": { "max_rename_calls": 1 },
+      "checks": [
+        { "check": "turn_tool_called", "name": "rename_agent", "min": 1 },
+        {
+          "check": "workflow_header",
+          "path": ["name"],
+          "pattern": "(?i)^(?!untitled agent$).*\\S.*$"
+        },
+        {
+          "check": "workflow_header",
+          "path": ["description"],
+          "pattern": "(?s)^.{1,300}\\Z"
+        },
+        {
+          "check": "workflow_header",
+          "path": ["flags", "is_application"],
+          "value": true
+        },
+        {
+          "check": "workflow_header",
+          "path": ["flags", "is_evaluator"],
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "name-04-no-spurious-rename",
+      "title": "leave a useful session name alone for a trivial request",
+      "seed_session_header": {
+        "name": "Release notes {{TOKEN}}",
+        "description": "Finishing the release notes for this build."
+      },
+      "turns": [{ "prompt": "thanks — just reply with noted" }],
+      "tools": [{ "type": "platform", "op": "rename_session" }],
+      "budget": { "max_rename_calls": 0 },
+      "checks": [
+        {
+          "check": "session_header",
+          "path": ["name"],
+          "pattern": "(?i)^release notes QA-[A-Z0-9]{8}$",
+          "text": "{{TOKEN}}"
+        }
+      ]
+    }
+  ]
+}
