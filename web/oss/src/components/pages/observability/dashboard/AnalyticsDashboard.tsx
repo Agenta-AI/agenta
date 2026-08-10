@@ -1,6 +1,11 @@
 import {useMemo, type ComponentProps} from "react"
 
-import {formatCompactNumber, formatCurrency, formatNumber} from "@agenta/shared/utils"
+import {
+    formatCompactNumber,
+    formatCurrency,
+    formatNumber,
+    formatPercent,
+} from "@agenta/shared/utils"
 import {ChartLineIcon} from "@phosphor-icons/react"
 import {Spin} from "antd"
 import {useAtom} from "jotai"
@@ -100,8 +105,9 @@ const AnalyticsDashboard = ({
                                 <div className={`${statTextClass} danger`}>
                                     <span className="label">Failed:</span>
                                     <span className="value">
+                                        {/* `failure_rate` is a 0-1 fraction, not a percentage. */}
                                         {data?.failure_rate
-                                            ? `${formatNumber(data?.failure_rate)}%`
+                                            ? formatPercent(data.failure_rate)
                                             : "-"}
                                     </span>
                                 </div>
