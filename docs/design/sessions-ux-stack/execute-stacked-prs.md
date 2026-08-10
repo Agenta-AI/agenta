@@ -278,6 +278,11 @@ being deprecated (`repository.pullRequest.projectCards`), and it fails the same 
 `docs/design/sessions-ux-stack/` is untracked. That is how these docs got swept into a
 `git stash -u` and nearly lost once already. Commit them — probably on the bottom lane.
 
+(In the event they went on their own lane at the **top** of the stack, `docs/sessions-ux-stack`
+= PR **#5894**, based on `pkg/ui-data-table-responsive`. A docs-only lane at the top touches no
+code file and so cannot conflict with any lane below it, which turned out to be the better
+placement.)
+
 ---
 
 ## Outcome (executed 2026-08-10)
@@ -305,10 +310,16 @@ lanes. The branches won; the table in that doc is superseded by the list below.
 
 ### The stack as opened
 
-29 draft PRs, `#5865`–`#5893`, bottom to top. Bottom's base is `release/v0.112.0`; every other
-lane's base is the lane directly below it. Verified on GitHub: every PR's base is correct, every
-PR's changed-file count equals `git diff --name-only <below>..<lane>`, all 29 are drafts, and
-`@coderabbitai review` is requested on each.
+29 draft PRs, `#5865`–`#5893`, bottom to top, plus `#5894` for these docs on top of them. Bottom's
+base is `release/v0.112.0`; every other lane's base is the lane directly below it. Verified on
+GitHub: every PR's base is correct, every PR's changed-file count equals
+`git diff --name-only <below>..<lane>`, all are drafts, and `@coderabbitai review` is requested on
+each.
+
+The counts below are **as opened**. Review fixes land on the lanes afterwards, so a lane's live
+commit and file counts will drift above these numbers — that is the cascade working, not a broken
+stack. Re-derive rather than compare against this table:
+`git rev-list --count <below>..<lane>` and `git diff --name-only <below>..<lane> | wc -l`.
 
 | PR | lane | commits | files |
 |---|---|---|---|

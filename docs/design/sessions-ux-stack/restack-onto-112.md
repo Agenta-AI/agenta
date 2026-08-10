@@ -1,6 +1,18 @@
 # Restack the sessions-UX work onto `release/v0.112.0`
 
-## State of the world (verified, 2026-08-10)
+> **Superseded — historical. Do not execute this file.**
+> `execute-stacked-prs.md` is the live runbook and the record of what actually happened. This
+> document is the earlier snapshot from the same day, taken *before* the stack was built, and its
+> state table is now wrong in every row: it reports 88 commits, no lane branches and no PRs, while
+> the stack that exists is 83 commits across 29 lane branches with PRs `#5865`–`#5893` open (plus
+> `#5894` for these docs). Its `@agenta/mobile` TypeScript warning has also settled.
+>
+> Kept for two things that are still useful and are not repeated elsewhere: the reasoning for
+> basing on 112 rather than `main`, and the per-commit lane hypothesis below — which
+> `execute-stacked-prs.md` checked against the branches and partly overturned. Read it as a
+> proposal, never as instructions: running it now would rebuild lanes that already have open PRs.
+
+## State of the world (verified 2026-08-10, superseded — see the banner above)
 
 | fact | value |
 |---|---|
@@ -54,7 +66,7 @@ In dependency order — each depends only on lanes below it.
 | `pkg/ui-data-table` | `DataTable` in `@agenta/ui` + per-row detail + the responsive header fixes | `82aa890`, `550f58d`, `81e8f13`, `710d401`, `5897dfc` |
 | `pkg/shared-edition-gates` | `isEE`/`isToolsEnabled`/`isBillingEnabled` into `@agenta/shared/api`; 15 call sites repointed | `998a53e`, `edf8952` |
 | `pkg/entities-organization` | org + workspace API and types into `@agenta/entities/organization` | `76b9531` |
-| `pkg/settings-spine` | `@agenta/settings` + `@agenta/settings-ui`; Preferences, Account, API keys, secrets, vault, webhooks, projects | `eb45a4e`, `6fa6d45`, `e9733a8`, `51892a4`, `e5d02b2`, `f87c2c7`, `f84d10f`, `ff5e9f0`, `675003 3`, `7d5b56f`, `88de93a`, `babcb59`, `190f7e6` |
+| `pkg/settings-spine` | `@agenta/settings` + `@agenta/settings-ui`; Preferences, Account, API keys, secrets, vault, webhooks, projects | `eb45a4e`, `6fa6d45`, `e9733a8`, `51892a4`, `e5d02b2`, `f87c2c7`, `f84d10f`, `ff5e9f0`, `6750033`, `7d5b56f`, `88de93a`, `babcb59`, `190f7e6` |
 | `oss/drop-reexport-shims` | removes 24 app-layer re-export stubs; repoints ~60 call sites | `102a320` |
 | `pkg/settings-org-pages` | Members, Organizations, Access Controls, Domains, SSO | `06e67c0`, `8d5c308`, `714884a`, `e5de1cd`, `bd3cc1a`, `45896f2`, `fd30503`, `a7ff686`, `5ef55f9` |
 | `pkg/entity-ui-form-engine` | `SchemaForm` + `SubscriptionForm` off antd `Form` onto `@rc-component/form` | `e2db4ba` |
