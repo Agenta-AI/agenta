@@ -692,6 +692,25 @@ describe("transcriptToMessages parked client tool", () => {
         expect(parts.some((p) => p.type === "data-render")).toBe(true)
     })
 
+    it("refreshes a drifted tool call with the interaction's canonical name and input", () => {
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: toolCallId,
+                name: "__ag__request_input",
+                input: {message: "stale"},
+            }),
+            clientToolRequest(),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            input: elicitationInput,
+        })
+    })
+
     it("emits no render part when the interaction carries no hint", () => {
         const messages = transcriptToMessages([clientToolRequest({render: undefined})])
         const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]

@@ -430,10 +430,41 @@ describe("transcriptToMessages parked client tool", () => {
         })
     })
 
+    it("refreshes a drifted tool call with the interaction's canonical name and input", () => {
+        const parts = (transcriptToMessages([
+            record("r-call", {
+                type: "tool_call",
+                id: toolCallId,
+                name: "__ag__request_input",
+                input: {message: "stale"},
+            }),
+            clientToolRequest(),
+        ])?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({
+            type: "tool-request_input",
+            toolCallId,
+            input,
+        })
+    })
+
     it("emits no render part when the interaction carries no hint", () => {
         const parts = (transcriptToMessages([clientToolRequest({render: undefined})])?.[0].parts ??
             []) as unknown as Record<string, unknown>[]
 
         expect(parts.some((p) => p.type === "data-render")).toBe(false)
+    })
+
+    it("leaves a settled client tool settled (a later tool_result still wins)", () => {
+        const parts = (transcriptToMessages([
+            clientToolRequest(),
+            record("r-result", {
+                type: "tool_result",
+                id: toolCallId,
+                output: {action: "accept", content: {repository: "octocat/Hello-World"}},
+            }),
+        ])?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({type: "tool-request_input", state: "output-available"})
     })
 })

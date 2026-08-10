@@ -144,24 +144,25 @@ function replayClientTool(
         reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
     )
     if (!toolCallId) return
+    const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
     const input = reqPayload.input ?? toolCall.rawInput ?? toolCall.input
     let part = index.tools.get(toolCallId)
     if (!part) {
         // The runner parked without first surfacing the tool call — synthesize one.
         part = {
-            type: toolPartType(
-                (reqPayload.toolName as string) ||
-                    (toolCall.name as string) ||
-                    (toolCall.title as string),
-            ),
+            type: toolPartType(toolName),
             toolCallId,
             state: "input-available",
             input,
         }
         draft.parts.push(part)
         index.tools.set(toolCallId, part)
-    } else if (part.input === undefined && input !== undefined) {
-        part.input = input
+    } else {
+        if (toolName) {
+            if (part.type === "dynamic-tool") part.toolName = toolName
+            else part.type = toolPartType(toolName)
+        }
+        if (input !== undefined) part.input = input
     }
     const render = reqPayload.render
     if (render && typeof render === "object" && !Array.isArray(render)) {

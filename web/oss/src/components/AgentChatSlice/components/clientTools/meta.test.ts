@@ -83,6 +83,11 @@ describe("resolveClientToolHandler", () => {
         expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ElicitationWidget)
     })
 
+    it("does not reinterpret an explicit unknown render kind by tool name", () => {
+        const part = toolPart({type: "tool-request_input", state: "input-available"})
+        expect(resolveClientToolHandler(clientToolMeta(part, renderMapFor("display")))).toBeNull()
+    })
+
     it("still resolves the connect widget on both axes", () => {
         const part = toolPart({type: "tool-request_connection", state: "input-available"})
         expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ConnectToolWidget)

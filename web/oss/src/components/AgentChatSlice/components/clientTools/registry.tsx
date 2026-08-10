@@ -49,7 +49,7 @@ const BY_TOOL_NAME: Record<string, ClientToolHandler> = {
 
 /** Resolve the widget for a client tool, or `null` when none is registered. */
 export const resolveClientToolHandler = (meta: ClientToolMeta): ClientToolHandler | null => {
-    if (meta.renderKind && BY_RENDER_KIND[meta.renderKind]) return BY_RENDER_KIND[meta.renderKind]
+    if (meta.renderKind !== undefined) return BY_RENDER_KIND[meta.renderKind] ?? null
     if (BY_TOOL_NAME[meta.toolName]) return BY_TOOL_NAME[meta.toolName]
     return null
 }
