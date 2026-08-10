@@ -112,8 +112,12 @@ tree** (`git show <lane>:<file>`), then the next.
 ## Before pushing
 
 - `pnpm lint-fix` from `web/` — 24/24.
-- `tsc --noEmit` = 0 for `@agenta/ui`, `@agenta/settings-ui`, `@agenta/entities`, `@agenta/oss`,
-  `@agenta/ee`, `@agenta/mobile`.
+- `tsc --noEmit` = 0 for **all eight** packages the stack touches: `@agenta/shared`, `@agenta/ui`,
+  `@agenta/entities`, `@agenta/entity-ui`, `@agenta/settings-ui`, `@agenta/oss`, `@agenta/ee`,
+  `@agenta/mobile`. (An earlier version of this list omitted `@agenta/shared` and
+  `@agenta/entity-ui`, so the gate could pass with two packages never compiled. Use the loop in
+  `execute-stacked-prs.md` Phase 3 — it runs `tsc` directly under `set -euo pipefail` rather than
+  counting `error TS` lines, so a failed `pnpm` cannot read as zero errors.)
 - Per lane, `git diff --name-only <lane-below>..<lane>` must list exactly that lane's files.
 - PR bases: bottom = `release/v0.112.0`, each other = the lane below.
 

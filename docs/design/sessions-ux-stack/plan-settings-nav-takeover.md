@@ -114,18 +114,31 @@ are exercisable. A reviewer should be able to flip one env var and see the other
 
 ## Verification
 
+Save as a file and run with `bash` — `set -e` in an interactive shell exits it on the first failure.
+
 ```bash
+set -euo pipefail
 cd web
 pnpm lint-fix                                   # must be 24/24
 for p in @agenta/settings @agenta/navigation @agenta/oss @agenta/ee @agenta/mobile; do
-  echo "$p: $(pnpm --filter $p exec tsc --noEmit 2>&1 | grep -c 'error TS')"
-done                                            # all must be 0
+  echo "== $p"
+  pnpm --filter "$p" exec tsc --noEmit          # a failure here aborts the gate
+done
+echo "typecheck clean"
 ```
 
+`tsc` runs directly, never as `$(… | grep -c 'error TS')`: inside a command substitution the
+status is `grep`'s, so a `pnpm` that dies for any non-type reason prints `0` and the gate passes
+on a broken build.
+
 Then **actually look at it** — this is a layout change and static gates say nothing about it:
-- `/m` settings with the flag unset → sidebar is the settings nav, no top bar, matches OSS.
-- `/m` settings with `NEXT_PUBLIC_SETTINGS_NESTED_NAV=true` → today's nested rail.
-- Both at phone and `lg` widths.
+
+- `/m` settings with the flag unset, **at `lg`+** → sidebar is the settings nav, no top bar,
+  matches OSS.
+- `/m` settings with the flag unset, **on a phone** → the `lg:hidden` header is there, its button
+  opens the drawer, and the drawer shows the *settings* nav. This is the case the takeover is
+  most likely to break; check it first.
+- `/m` settings with `NEXT_PUBLIC_SETTINGS_NESTED_NAV=true` → today's nested rail, both widths.
 - OSS settings unchanged.
 
 Arda runs the dev servers — ask for a URL rather than starting one.

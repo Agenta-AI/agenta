@@ -3,6 +3,11 @@
 Read this whole file before running anything. Read the root `AGENTS.md` section
 **"Spreading a pile of edits back across an existing stack"** too — its warnings are load-bearing.
 
+Every shell block below opens with `set -euo pipefail` so a failing command stops the block instead
+of letting the next step run on a half-built state. **Save each block to a file and run it with
+`bash <file>`** — pasting `set -e` into an interactive shell means the first failure closes your
+session.
+
 ## Verified state (2026-08-10, re-verify before you start)
 
 | fact | value |
@@ -31,12 +36,16 @@ and CodeRabbit will review the duplicates. Phase 1 exists to rebuild that table 
 ## Phase 0 — confirm nothing moved
 
 ```bash
+set -euo pipefail
 cd .claude/worktrees/sessions-ux
 git fetch origin release/v0.112.0 main
-git rev-parse backup/pre-stack-112                      # must exist
+git rev-parse --verify "backup/pre-stack-112^{commit}"  # must exist; aborts here if it doesn't
 git status --porcelain                                  # only the untracked docs dir
-git log --oneline origin/release/v0.112.0..HEAD | wc -l # 83, or re-derive everything
+git rev-list --count origin/release/v0.112.0..HEAD      # 83, or re-derive everything
 ```
+
+`git rev-list --count`, not `git log | wc -l`: a pipeline reports `wc`'s status, so a `git log`
+that fails still prints a plausible number and the check reads as passing.
 
 If the count differs from 83, more has landed; redo Phase 1 from scratch rather than adjusting.
 
@@ -45,13 +54,17 @@ If the count differs from 83, more has landed; redo Phase 1 from scratch rather 
 For every local lane branch, find what it still contributes:
 
 ```bash
+set -euo pipefail
 for b in pkg/auth pkg/navigation pkg/navigation-ui pkg/ui-primitives pkg/session-surfaces \
          pkg/chat-engine oss/chat-on-shared-engine mobile/chat-and-shell playground/de-antd \
          pkg/ui-styles pkg/observability pkg/entities-drive pkg/entity-ui-drive \
          pkg/navigation-shell pkg/sessions-tabs pkg/home-ui oss/wire-up \
          mobile/agents-templates-settings pkg/agent-overview-layout pkg/agent-overview-body; do
-  n=$(git rev-list --count origin/release/v0.112.0..$b 2>/dev/null)
-  printf "%-38s %s\n" "$b" "$n"
+  if git rev-parse --verify -q "refs/heads/$b" >/dev/null; then
+    printf "%-38s %s\n" "$b" "$(git rev-list --count "origin/release/v0.112.0..$b")"
+  else
+    printf "%-38s %s\n" "$b" "ABSENT"        # a missing branch is a finding, not a zero
+  fi
 done
 ```
 
@@ -99,13 +112,21 @@ the PR body — a package change riding with its consumer is honest; a half-appl
 ## Phase 3 — gates, before anything is pushed
 
 ```bash
+set -euo pipefail
 cd web
 pnpm lint-fix                                   # 24/24
 for p in @agenta/shared @agenta/ui @agenta/entities @agenta/entity-ui @agenta/settings-ui \
          @agenta/oss @agenta/ee @agenta/mobile; do
-  echo "$p: $(pnpm --filter $p exec tsc --noEmit 2>&1 | grep -c 'error TS')"
-done                                            # all 0
+  echo "== $p"
+  pnpm --filter "$p" exec tsc --noEmit          # non-zero exit aborts the whole gate
+done
+echo "typecheck clean for all 8 packages"
 ```
+
+**Run `tsc` directly; never `$(… | grep -c 'error TS')`.** Inside a command substitution the
+pipeline's status is `grep`'s, so `pnpm` failing for any reason that isn't a type error — bad
+filter, missing package, OOM, a crashed compiler — prints `0` and the gate reads as green. The
+`echo "== $p"` before each run is there so a failure tells you *which* package stopped it.
 
 Run `lint-fix` **before** staging, not after committing. Prettier reflows imports once a
 specifier changes length, and a stray reformat on a lower lane shows up in every lane above it.
