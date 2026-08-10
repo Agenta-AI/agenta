@@ -81,7 +81,6 @@ const ENTITIES: SidebarEntity[] = [
         // playground has no way to read that from the route.
         childPath: (session) => `/apps/${session.appId}/playground`,
         getOnClick: (session) => () => {
-            if (!session.appId) return
             getDefaultStore().set(pendingSessionOpenAtom, {
                 appId: session.appId,
                 sessionId: session.sessionId,

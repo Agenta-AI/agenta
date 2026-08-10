@@ -1,7 +1,6 @@
 import type {SidebarConfig, SidebarSection} from "./types"
 
-// Drop hidden entries at every level, not just the section root, so nested hidden items
-// never render, auto-open, or become selected.
+// Hidden entries are dropped at every level, not just the section root.
 export const filterVisibleItems = (items: SidebarConfig[]): SidebarConfig[] =>
     items.flatMap((item) =>
         item.isHidden

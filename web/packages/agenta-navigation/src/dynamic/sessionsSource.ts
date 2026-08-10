@@ -10,7 +10,7 @@ import type {SidebarEntityRef} from "./types"
 /** A session row as the sidebar needs it: enough to label it, dot it, and open it. */
 export interface SessionSidebarRef extends SidebarEntityRef {
     sessionId: string
-    appId: string | null
+    appId: string
     pinned: boolean
     alive: boolean
 }
