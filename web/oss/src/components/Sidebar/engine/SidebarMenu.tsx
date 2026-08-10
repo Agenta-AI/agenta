@@ -91,9 +91,14 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
             return items.flatMap((item): MenuItem[] => {
                 if (item.submenu && !(collapsed && item.isDynamic)) {
                     const titleNode = (
-                        <>
-                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
-                        </>
+                        <span className="flex w-full items-center">
+                            <span className="flex min-w-0 items-center gap-1">
+                                {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                            </span>
+                            {item.suffix && !collapsed && (
+                                <span className="ml-auto shrink-0 pl-2">{item.suffix}</span>
+                            )}
+                        </span>
                     )
                     const labelNode = item.link ? (
                         <Link

@@ -1,10 +1,10 @@
 import {createUseStyles} from "react-jss"
 
-import type {JSSTheme, StyleProps as MainStyleProps} from "@/oss/lib/Types"
+import type {StyleProps as MainStyleProps} from "@/oss/lib/Types"
 
 export type StyleProps = MainStyleProps
 
-export const useStyles = createUseStyles((theme: JSSTheme) => ({
+export const useStyles = createUseStyles(() => ({
     layout: ({themeMode}: StyleProps) => ({
         display: "flex",
         background: themeMode === "dark" ? "#141414" : "#ffffff",
@@ -20,22 +20,6 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         marginBottom: "2rem",
         flex: 1,
         gap: 16,
-    },
-    breadcrumbContainer: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        padding: "8px 1.5rem",
-        borderBottom: "1px solid var(--ag-shell-line)",
-    },
-    topRightBar: {
-        display: "flex",
-        alignItems: "center",
-        gap: "1rem",
-        "& span.ant-typography": {
-            color: theme.colorTextTertiary,
-        },
     },
     banner: {
         position: "sticky",

@@ -816,8 +816,8 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
 # different variant in the project. Defaults to approval.
 # One switch for the API and the model-facing catalog: the SDK runs inside the API
-# process, so both read the same variable. The rollout order needs API support to exist
-# before the catalog advertises the shape (gate 3, plan ruling).
+# process, so both read the same variable. The ordered shape is the default; the variable
+# exists as an escape hatch back to the legacy `set`/`remove` surface.
 # The switch itself lives in `agenta.sdk.agents.flags`, a leaf module, because the
 # `build-an-agent` skill reads it too and an adapter cannot import this package (it reaches
 # the SDK singleton). Re-exported under the private names this module has always used.

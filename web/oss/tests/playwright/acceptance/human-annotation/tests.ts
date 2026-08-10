@@ -499,11 +499,23 @@ const openHumanAnnotateView = async (page: Page) => {
     await expect(page.locator("#focus-section-annotations")).toBeVisible()
 }
 
+/**
+ * The "New Human Evaluation" modal, scoped by its title.
+ *
+ * Callers assert this has closed. Do not use a bare `getByRole("dialog")` for that:
+ * drawers are Radix `Sheet`s and also carry `role="dialog"`, so an unscoped count
+ * fails whenever any drawer happens to be open.
+ */
+const humanEvaluationModal = (page: Page) =>
+    page.getByRole("dialog").filter({hasText: HUMAN_EVALUATION_MODAL_TITLE})
+
 const openHumanEvaluationModal = async (page: Page) => {
     await ensureHumanEvaluationsContext(page)
     await (await getHumanEvaluationCreateButton(page, 60000)).click()
 
-    const modal = page.locator(".ant-modal").first()
+    // Matched by role: this modal renders through `EnhancedModal`, a facade over the
+    // @agenta/ui (Radix) `Dialog`, so there is no `.ant-modal`.
+    const modal = page.getByRole("dialog").first()
     await expect(modal).toBeVisible()
     await expect(modal.getByText(HUMAN_EVALUATION_MODAL_TITLE).first()).toBeVisible()
     await expect(
@@ -846,8 +858,10 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 await expect(createEvaluatorButton).toBeVisible()
                 await createEvaluatorButton.click()
 
+                // Matched by role: this drawer renders through `EnhancedDrawer`, a facade
+                // over the @agenta/ui (Radix) `Sheet`.
                 const evaluatorDrawer = page
-                    .locator(".ant-drawer-content-wrapper")
+                    .getByRole("dialog")
                     .filter({
                         has: page.locator('input[placeholder="Enter a unique slug"]'),
                     })
@@ -882,7 +896,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
 
                 await expect(evaluatorSlugInput).toHaveCount(0)
                 await expect(
-                    page.locator(".ant-message").getByText("Evaluator created successfully"),
+                    page.getByRole("status").getByText("Evaluator created successfully"),
                 ).toBeVisible()
             }
 
@@ -941,7 +955,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 await annotateButton.click()
 
                 await expect(
-                    page.locator(".ant-message").getByText("Annotations saved successfully"),
+                    page.getByRole("status").getByText("Annotations saved successfully"),
                 ).toBeVisible()
 
                 await expect(
@@ -960,6 +974,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
 export {
     testWithHumanFixtures as test,
     expect,
+    humanEvaluationModal,
     openHumanEvaluationModal,
     goToHumanEvaluationStep,
     selectHumanEvaluationModalTableInput,
