@@ -10,13 +10,7 @@ interface PlaygroundSyncStateTagProps {
     loadableId: string
 }
 
-/**
- * Sync state tag slot — renders the sync state badge in each row header.
- * Shown only when connected to an API-backed testset.
- * - "new" (green): row was added locally and is not yet in the connected testset
- * - "modified" (blue): row has local edits not yet synced; shows discard × on hover
- * - "unmodified": no changes — nothing rendered
- */
+/** Renders the sync state badge for connected API-backed testset rows. */
 export function PlaygroundSyncStateTag({rowId, loadableId}: PlaygroundSyncStateTagProps) {
     const mode = useAtomValue(loadableController.selectors.mode(loadableId)) as
         | "local"
