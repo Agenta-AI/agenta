@@ -103,7 +103,8 @@ export const useOnboardingChat = ({
         }
         captureFirstAgentIntent(onboardingPosthog, {
             source: "composer",
-            properties: {action: "coding_agent_copy", message: truncateForCapture(text)},
+            properties: {action: "coding_agent_copy"},
+            intentValue: classifyAgentIntent(text),
         })
     }, [appMessage, onboardingPosthog])
 
