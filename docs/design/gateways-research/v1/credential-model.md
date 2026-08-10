@@ -38,6 +38,18 @@ owns** the resulting credential (`shared` | `per_user`). The gateway needs both 
 credential: the first says what to do, the second says whose to look up, keyed against the
 `AuthScope` already present on every call.
 
+**Status of each axis.** The auth-scheme axis already exists in the codebase — see
+`existing-gateway-model.md` — so it is not a proposal. The ownership axis does **not**:
+connections and secrets are project-level today, which means every entry is effectively
+`shared`. User-level credentials are a wanted later addition for user-specific model and MCP
+authentication.
+
+The design consequence is narrow but important: **the credential lookup should take the
+owner as a parameter from the start**, and answer "the project" for now. Retrofitting a
+per-user dimension into a lookup that assumes the project is the expensive version of that
+change. Nothing on the caller side needs to wait, since `AuthScope` already carries the user
+on every call.
+
 ## What the gateway handles without anyone noticing
 
 Once a credential exists, everything is invisible to the caller:
