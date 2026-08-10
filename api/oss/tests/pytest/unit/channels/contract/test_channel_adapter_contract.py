@@ -20,7 +20,7 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.channels.adapters.interface import ChannelAdapterInterface
-from oss.src.core.channels.dtos import ChannelKeyGrain
+from oss.src.core.channels.dtos import ChannelKeyGrain, ChannelRequestContext
 from oss.src.core.channels.types import ChannelLocatorIncomplete
 from oss.src.core.channels.utils import compose_external_key
 
@@ -143,19 +143,27 @@ async def _assert_backfill(
 
 
 async def _assert_verify_signature_rejects_bad_signature(
-    adapter: ChannelAdapterInterface,
+    adapter: ChannelAdapterInterface, connection
 ) -> None:
     from oss.src.core.channels.types import ChannelSignatureInvalid
 
     with pytest.raises(ChannelSignatureInvalid):
-        await adapter.verify_signature(headers={}, body=b"anything")
+        await adapter.verify_signature(
+            request=ChannelRequestContext(headers={}, path="/", body=b"anything"),
+            connection=connection,
+        )
 
 
 async def _assert_verify_signature_accepts_good_signature(
-    adapter: ChannelAdapterInterface,
+    adapter: ChannelAdapterInterface, connection
 ) -> None:
     installation_id = await adapter.verify_signature(
-        headers={VALID_SIGNATURE_HEADER: VALID_SIGNATURE_VALUE}, body=b"anything"
+        request=ChannelRequestContext(
+            headers={VALID_SIGNATURE_HEADER: VALID_SIGNATURE_VALUE},
+            path="/",
+            body=b"anything",
+        ),
+        connection=connection,
     )
     assert isinstance(installation_id, str) and installation_id, (
         "verify_signature must return a non-empty installation id string on "
@@ -252,14 +260,14 @@ async def run_contract_suite(
     adapter with whatever is passed.
     """
 
-    capabilities = await adapter.fetch_capabilities()
     connection = connection or default_suite_connection()
+    capabilities = await adapter.fetch_capabilities(connection=connection)
 
     await _assert_controls_update(adapter, capabilities, connection)
     await _assert_buttons_max(adapter, capabilities, connection)
     await _assert_backfill(adapter, capabilities, connection)
-    await _assert_verify_signature_rejects_bad_signature(adapter)
-    await _assert_verify_signature_accepts_good_signature(adapter)
+    await _assert_verify_signature_rejects_bad_signature(adapter, connection)
+    await _assert_verify_signature_accepts_good_signature(adapter, connection)
     await _assert_parse_event_addressed_is_bool(adapter)
 
     _assert_identity_distinctness(capabilities, adapter)
@@ -367,7 +375,12 @@ async def test_suite_fails_lying_identity_keys_adapter():
 async def test_verify_signature_returns_installation_id_not_bool():
     adapter = WellBehavedFakeAdapter()
     installation_id = await adapter.verify_signature(
-        headers={VALID_SIGNATURE_HEADER: VALID_SIGNATURE_VALUE}, body=b"x"
+        request=ChannelRequestContext(
+            headers={VALID_SIGNATURE_HEADER: VALID_SIGNATURE_VALUE},
+            path="/",
+            body=b"x",
+        ),
+        connection=default_suite_connection(),
     )
     assert installation_id == INSTALLATION_ID
     assert isinstance(installation_id, str)

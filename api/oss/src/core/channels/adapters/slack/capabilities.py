@@ -1,3 +1,4 @@
+from oss.src.core.channels.adapters.normalise import normalise_capabilities
 from oss.src.core.channels.dtos import ChannelCapabilities
 
 SLACK_CAPABILITIES: dict = {
@@ -17,7 +18,8 @@ SLACK_CAPABILITIES: dict = {
     "rendering": {
         "controls": {"update": True, "ephemeral": True},
         "buttons": {"supported": True, "max": 5},
-        "text": {"format": "markdown", "max_chars": 4000},
+        # 4000 is Slack's client guidance; 3000 is the enforced Block Kit ceiling.
+        "text": {"format": "markdown", "max_chars": 3000},
         "files": {
             "send": {"supported": True, "max_bytes": 1073741824},
             "receive": {"supported": True, "max_bytes": 1073741824},
@@ -36,4 +38,4 @@ SLACK_CAPABILITIES: dict = {
 
 
 def fetch_slack_capabilities() -> ChannelCapabilities:
-    return ChannelCapabilities.model_validate(SLACK_CAPABILITIES)
+    return normalise_capabilities(SLACK_CAPABILITIES)

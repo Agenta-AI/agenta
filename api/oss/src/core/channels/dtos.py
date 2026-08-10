@@ -555,6 +555,17 @@ class ChannelOutboxEventQuery(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ChannelRequestContext(BaseModel):
+    """The inbound request, framework-free: a bridge produces one without ever
+    holding a FastAPI `Request`. Telegram's identity rides a header, a
+    per-bot URL rides the path, so an adapter gets all three rather than the
+    body alone."""
+
+    headers: Dict[str, str]
+    path: str
+    body: bytes
+
+
 class ChannelInboundEvent(BaseModel):
     """What an adapter produces from a platform payload. Not a row: routing
     turns it into a ChannelInboxEventCreate once the space resolves."""

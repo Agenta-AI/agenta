@@ -29,7 +29,7 @@ from oss.src.core.channels.adapters.bridge.signature import (
     SIGNATURE_HEADER,
     TIMESTAMP_HEADER,
 )
-from oss.src.core.channels.dtos import ChannelConnection
+from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
 from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 from ..contract.test_channel_adapter_contract import run_contract_suite
@@ -64,12 +64,17 @@ _HELLO = {
 
 
 def _connection() -> ChannelConnection:
+    capabilities = parse_hello(_HELLO).model_dump(mode="json")
     return ChannelConnection(
         id=uuid4(),
         slug="bridge-contract-connection",
         provider_key=ConnectionProviderKind.BRIDGE,
         integration_key="acme-wecom",
-        data={"secret": SECRET, "delivery_url": "https://bridge.example/deliver"},
+        data={
+            "secret": SECRET,
+            "delivery_url": "https://bridge.example/deliver",
+            "capabilities": capabilities,
+        },
     )
 
 
@@ -91,22 +96,29 @@ class _SignedBridgeAdapter(BridgeAdapter):
     the suite's generic accept/reject pair still exercises this adapter's
     real verify_signature path (credential + source cross-check) end to end."""
 
-    async def verify_signature(self, *, headers, body):
+    async def verify_signature(self, *, request, connection):
         signed_body = b'{"source": "bridge/acme-wecom"}'
-        if headers.get("x-fake-signature") == "valid":
+        if request.headers.get("x-fake-signature") == "valid":
             return await super().verify_signature(
-                headers=_sign(signed_body), body=signed_body
+                request=ChannelRequestContext(
+                    headers=_sign(signed_body), path=request.path, body=signed_body
+                ),
+                connection=connection,
             )
         bad_headers = {
             SIGNATURE_HEADER: "v0=bad",
             TIMESTAMP_HEADER: str(int(time.time())),
         }
-        return await super().verify_signature(headers=bad_headers, body=signed_body)
+        return await super().verify_signature(
+            request=ChannelRequestContext(
+                headers=bad_headers, path=request.path, body=signed_body
+            ),
+            connection=connection,
+        )
 
 
 @pytest.mark.asyncio
 async def test_bridge_adapter_passes_the_shared_contract_suite():
-    capabilities = parse_hello(_HELLO)
-    adapter = _SignedBridgeAdapter(capabilities=capabilities, connection=_connection())
+    adapter = _SignedBridgeAdapter()
 
-    await run_contract_suite(adapter)
+    await run_contract_suite(adapter, connection=_connection())

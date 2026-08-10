@@ -17,15 +17,20 @@ from oss.src.core.channels.adapters.bridge.signature import (
     verify_bridge_signature,
 )
 from oss.src.core.channels.adapters.interface import ChannelAdapterInterface
+from oss.src.core.channels.adapters.normalise import normalise_capabilities
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelInboundEvent,
+    ChannelRequestContext,
     ChannelSpaceCandidate,
 )
 from oss.src.core.channels.types import ChannelSignatureInvalid
 
 _DELIVER_TIMEOUT_SECONDS = 10.0
+
+# Degrades a connection with no recorded bridge.hello rather than raising.
+_DEFAULT_CAPABILITIES = ChannelCapabilities(channel="bridge")
 
 
 def _bridge_secret(connection: ChannelConnection) -> str:
@@ -52,58 +57,57 @@ class BridgeAdapter(ChannelAdapterInterface):
 
     channel = "bridge"
 
-    def __init__(
-        self,
-        *,
-        capabilities: ChannelCapabilities,
-        connection: Optional[ChannelConnection] = None,
-        http_client: Optional[httpx.AsyncClient] = None,
-    ) -> None:
-        # capabilities come from this installation's own bridge.hello, held
-        # by the caller that constructed this adapter for one connection --
-        # unlike SlackAdapter, there is no single fixed declaration to fetch.
-        self._capabilities = capabilities
-        self._connection = connection
+    def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = http_client or httpx.AsyncClient()
 
     # --- declaration --- #
 
-    async def fetch_capabilities(self) -> ChannelCapabilities:
-        return self._capabilities
+    async def fetch_capabilities(
+        self, *, connection: Optional[ChannelConnection] = None
+    ) -> ChannelCapabilities:
+        """No fixed declaration exists -- each bridge is a different
+        platform, so this reads the connection's own recorded bridge.hello
+        rather than a class-level constant, which is what let two bridges
+        share one declaration."""
+
+        data = (
+            connection.data if connection and isinstance(connection.data, dict) else {}
+        )
+        raw = data.get("capabilities")
+        if not raw:
+            return _DEFAULT_CAPABILITIES
+
+        merged = dict(raw)
+        merged.setdefault("channel", "bridge")
+        return normalise_capabilities(merged)
 
     # --- ingress --- #
 
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
-        claimed_source = _parse_json(body).get("source")
-        return _bare_source(claimed_source) if claimed_source else None
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, Any]]:
+        claimed_source = _parse_json(request.body).get("source")
+        return {"source": _bare_source(claimed_source)} if claimed_source else None
 
     async def verify_signature(
-        self,
-        *,
-        headers: Dict[str, str],
-        body: bytes,
-        connection: Optional[ChannelConnection] = None,
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
     ) -> str:
-        conn = connection or self._connection
-        if conn is None:
-            raise ChannelSignatureInvalid(channel=self.channel)
-
-        lowered = {k.lower(): v for k, v in headers.items()}
+        lowered = {k.lower(): v for k, v in request.headers.items()}
         verify_bridge_signature(
             headers=lowered,
-            body=body,
-            secret=_bridge_secret(conn),
+            body=request.body,
+            secret=_bridge_secret(connection),
             channel=self.channel,
         )
 
-        installation_id = conn.integration_key
+        installation_id = connection.integration_key
 
         # The credential resolves identity; `source` is a required
         # cross-check on the self-asserted claim in the signed body. A
         # mismatch gets the same refusal as a bad signature -- no detail on
         # which side disagreed, so neither a credential nor a source value
         # can be enumerated by probing this path.
-        payload = _parse_json(body)
+        payload = _parse_json(request.body)
         claimed_source = payload.get("source")
         if claimed_source is None or not _source_matches(
             claimed_source, installation_id
@@ -112,7 +116,9 @@ class BridgeAdapter(ChannelAdapterInterface):
 
         return installation_id
 
-    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+    async def parse_event(
+        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+    ) -> Optional[ChannelInboundEvent]:
         payload = _parse_json(body)
         return parse_inbound_envelope(payload)
 

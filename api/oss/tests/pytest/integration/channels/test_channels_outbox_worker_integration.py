@@ -22,6 +22,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelDeliveryState,
     ChannelInboundEvent,
+    ChannelRequestContext,
     ChannelSpaceCandidate,
     ChannelSpaceCreate,
     ChannelSpaceData,
@@ -69,16 +70,24 @@ class _LocalFakeAdapter(ChannelAdapterInterface):
         self._messages: Dict[str, Dict[str, Any]] = {}
         self._next_id = 0
 
-    async def fetch_capabilities(self) -> ChannelCapabilities:
+    async def fetch_capabilities(
+        self, *, connection: Optional[ChannelConnection] = None
+    ) -> ChannelCapabilities:
         return self._capabilities
 
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, Any]]:
         raise NotImplementedError
 
-    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
+    async def verify_signature(
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
+    ) -> str:
         raise NotImplementedError
 
-    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+    async def parse_event(
+        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+    ) -> Optional[ChannelInboundEvent]:
         raise NotImplementedError
 
     async def post_message(

@@ -256,7 +256,7 @@ def test_ports_are_abstract():
     assert ChannelsDAOInterface.__abstractmethods__
     assert set(ChannelAdapterInterface.__abstractmethods__) == {
         "fetch_capabilities",
-        "installation_hint",
+        "connection_locator",
         "verify_signature",
         "parse_event",
         "post_message",

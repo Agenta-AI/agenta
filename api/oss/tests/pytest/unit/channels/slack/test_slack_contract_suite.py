@@ -20,7 +20,7 @@ import httpx
 import pytest
 
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
-from oss.src.core.channels.dtos import ChannelConnection
+from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
 from oss.src.core.channels.types import ChannelSignatureInvalid
 from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 from oss.src.core.channels.utils import compose_external_key
@@ -74,8 +74,10 @@ class _SuiteAdaptedSlackAdapter(SlackAdapter):
     header scheme, so the suite's own hardcoded good/bad headers apply. Every
     other method is inherited, unmodified."""
 
-    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
-        if headers.get(VALID_SIGNATURE_HEADER) != VALID_SIGNATURE_VALUE:
+    async def verify_signature(
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
+    ) -> str:
+        if request.headers.get(VALID_SIGNATURE_HEADER) != VALID_SIGNATURE_VALUE:
             raise ChannelSignatureInvalid(channel=self.channel)
         return INSTALLATION_ID
 
@@ -123,9 +125,9 @@ async def test_slack_adapter_passes_wp2_contract_suite():
     client = httpx.AsyncClient(
         transport=_ScriptedTransport(), base_url="https://slack.com/api"
     )
-    adapter = _SuiteAdaptedSlackAdapter(connection=_connection(), http_client=client)
+    adapter = _SuiteAdaptedSlackAdapter(http_client=client)
 
-    await run_contract_suite(adapter)
+    await run_contract_suite(adapter, connection=_connection())
 
 
 async def test_slack_declared_identity_keys_thread_field_set_is_not_too_small():

@@ -6,6 +6,7 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelInboundEvent,
+    ChannelRequestContext,
     ChannelSpaceCandidate,
 )
 
@@ -19,31 +20,43 @@ class ChannelAdapterInterface(ABC):
     # --- declaration ---
 
     @abstractmethod
-    async def fetch_capabilities(self) -> ChannelCapabilities:
-        """Normalised by core, never trusted."""
+    async def fetch_capabilities(
+        self, *, connection: Optional[ChannelConnection] = None
+    ) -> ChannelCapabilities:
+        """Normalised by core, never trusted. A channel with one fixed
+        declaration ignores `connection`; one whose declaration varies by
+        installation reads it."""
 
     # --- ingress ---
 
     @abstractmethod
-    def installation_hint(self, *, body: bytes) -> Optional[str]:
-        """The installation this body claims to come from, read without any
-        secret, so the caller can look up which connection to verify against.
+    def connection_locator(
+        self, *, request: ChannelRequestContext
+    ) -> Optional[Dict[str, Any]]:
+        """The connection this request claims to come from, read without any
+        secret. Returns the platform's own fields; core composes the key.
 
-        Unverified and untrusted: it only selects the secret the signature is
-        then checked with. A wrong or forged hint resolves to no connection, or
-        to one whose secret fails — refused either way, so the signature stays
-        the only thing that decides.
+        Unverified and untrusted: it only selects which credential the
+        signature is then checked with. A wrong or forged locator resolves to
+        no connection, or to one whose credential fails — refused either way,
+        so the signature stays the only thing that decides.
 
         Abstract rather than defaulted: returning None here means the ingress
-        resolves no connection and refuses every event for that channel, which
-        is silent. An adapter must say what its claim is, even if it is fixed.
+        resolves no connection and refuses every event for that channel,
+        which is silent. An adapter must say what its claim is, even if it is
+        fixed.
         """
 
     @abstractmethod
-    async def verify_signature(self, *, headers: Dict[str, str], body: bytes) -> str:
-        """Verify HMAC with timestamp replay protection; return the platform's own
-        installation id. Verification and identification are one act — the caller
-        maps that id to a connection. Raises ChannelSignatureInvalid.
+    async def verify_signature(
+        self, *, request: ChannelRequestContext, connection: ChannelConnection
+    ) -> str:
+        """Prove the caller may speak for this connection, and return the id
+        it speaks for. Verification and identification are one act — the
+        caller maps that id to a connection. Raises ChannelSignatureInvalid.
+
+        Not intrinsically HMAC: an API key validated against its owner
+        satisfies this the same way a signing secret does.
 
         Where the payload also carries a self-asserted sender identity (a
         bridge's envelope `source`), that value is a cross-check against the
@@ -52,11 +65,17 @@ class ChannelAdapterInterface(ABC):
         value."""
 
     @abstractmethod
-    async def parse_event(self, *, body: bytes) -> Optional[ChannelInboundEvent]:
+    async def parse_event(
+        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+    ) -> Optional[ChannelInboundEvent]:
         """Platform payload → the normalised event, or None for anything we do not
         act on (acks, bot echoes, platform noise). Carries `addressed`, which is
         the adapter's answer to trigger-or-fill: the adapter knows its own
-        platform's addressing conventions and core does not."""
+        platform's addressing conventions and core does not.
+
+        `connection` is available for adapters that need one of its own
+        fields to parse correctly (Slack's bot user id, for bot-echo
+        filtering); ignored where nothing in the parse depends on it."""
 
     # --- egress ---
 
