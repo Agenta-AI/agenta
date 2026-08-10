@@ -1,5 +1,19 @@
 # Provisioning a channel
 
+> **Corrected by [journeys.md](journeys.md) §0 on two points.**
+>
+> **Credentials are not a column on the connection.** They are a row in the
+> secrets store under a new `CHANNEL_SECRET` kind, whose nested inner kind is the
+> channel and decides the body — the same nesting `PROVIDER_KEY` already uses. The
+> connection carries a reference. That nesting *is* the credential schema; the
+> declaration's remaining job is what the form renders.
+>
+> **The setup shape below is Slack's, not every channel's.** The general contract
+> is three slots — instructions we give, a document we generate, calls we make —
+> any of which may be empty. Discord fills only the first, Telegram inverts the
+> third (the call is ours to make), Agenta fills none. Empty is a declaration, not
+> a special case.
+
 The gap `F47` names. Nothing writes the credentials the adapters read, no channel
 declares what it needs, and the Slack manifest builder has no callers.
 

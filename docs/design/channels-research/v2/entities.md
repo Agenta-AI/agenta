@@ -34,6 +34,13 @@ apis/fastapi/channels/
 
 ## 1. The tables
 
+> **Superseded by [channel-connections.md](channel-connections.md).** The connection
+> is no longer reused from the gateway: `channel_connections` is a table of this
+> domain, carrying `channel`, `external_key`, the connection locator, a credentials
+> reference and a per-connection capability declaration. Its identity constraint is
+> deliberately not project-scoped, because the ingress resolves the project *from*
+> it. Read the row below as "eight new, none reused".
+
 Seven new, one reused.
 
 | table | what it is | what it is not |
@@ -641,6 +648,13 @@ its most recent thread row, and the current offset is its most recent trigger ro
 the same "latest row wins" rule in both places.
 
 ### 2.5 The default agent is a grant flag
+
+> **Superseded by [grants.md](grants.md)** on one point: a grant is no longer
+> instance-level only. It carries an `effect` (`ALLOW` or `DENY`) and names either
+> a `space_id` or a space `kind`, so a rule can cover every private space without
+> a row per space. Evaluation is deny-first over a default deny. The consequence
+> here is that `uq_channel_grants_default` must cover `kind` as well, and a `DENY`
+> row may never carry `is_default`.
 
 *"Which agent answers here when nobody is named"* is a fact about **an agent in a
 space** — which is precisely what a `channel_grants` row is. So it is a flag on the

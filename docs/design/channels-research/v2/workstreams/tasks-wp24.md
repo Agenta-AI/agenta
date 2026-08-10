@@ -38,9 +38,10 @@ Starts after WP21 and WP23 merge.
 
 ## Registration
 
-- [ ] Registered in **every** composition root, not one. `F42` is the same defect
-      for the mock adapter and it merged green — check `routers.py` and
-      `worker_queues.py` both.
+- [ ] Registered in `entrypoints/channel_adapters.py` — the one factory every
+      composition root now calls. Do **not** add it to `routers.py`,
+      `worker_streams.py` or `worker_queues.py` separately: three hand-built
+      registries drifting is the defect that factory exists to prevent.
 
 ## Tests
 

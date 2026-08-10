@@ -334,10 +334,24 @@ Co-designed with the runner, not an API-only concern.
 
 ## 8. Security posture
 
-1. **Bring your own app.** Self-hosters create their own platform app from a
-   manifest we publish; tokens are issued by their workspace to their deployment
-   and never transit our infrastructure. There is no shared vendor app to
-   compromise.
+1. **Two installation models, and the posture differs between them.**
+
+   - **Bring your own app.** The operator creates a platform app from the
+     instructions and manifest we publish; tokens are issued by their workspace to
+     their deployment. On a self-hosted deployment they never transit our
+     infrastructure, and there is no shared vendor app to compromise.
+   - **A hosted Agenta app.** One app we own, installed into many workspaces
+     through OAuth, because asking someone to create a platform app before they
+     can try the product costs more than it protects. Here there *is* a shared
+     app: its client secret is one credential behind every installation, and a
+     compromise reaches every workspace that installed it. It earns the
+     protections that follow from that — the secret held only where tokens are
+     minted, per-installation tokens stored and rotated separately, and the
+     ability to revoke one installation without touching the others.
+
+   Both models exist for one channel at once, and a self-hosted deployment can
+   decline the hosted app entirely. Claiming the stronger model's posture for both
+   is the error this paragraph previously made.
 2. **Tokens live in the vault**, encrypted at rest, referenced by connections,
    with rotation as an admin flow.
 3. **Credentials and destinations never enter the agent runtime** (§3).

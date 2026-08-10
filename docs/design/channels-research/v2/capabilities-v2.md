@@ -7,16 +7,18 @@ to live.
 
 ## 1. What it needs — the credential schema
 
+> **Superseded by [journeys.md](journeys.md) §0.** This section proposes a typed
+> field list as a new mechanism. It is not needed: the `CHANNEL_SECRET` kind's
+> nested inner kind already discriminates the stored body per channel, so what is
+> stored and what is valid are settled by the secrets domain's own validator. What
+> the declaration still owes is what the **form** renders — label, help text,
+> whether the field is a password box — and that is the three-slot setup contract,
+> not a second type system.
+
 Nothing says what a channel must be **given**. Six credential key names exist across
 two adapters, none documented, one pair invented by the package that wrote it. The
 shared contract suite had to hardcode one platform's field names because there was
 no schema to consult.
-
-Per field: **name, type, secret, required, label.**
-
-Type matters because it decides behaviour, not just widget: a static secret never
-expires, an OAuth token needs a refresh path, mTLS needs a pair. A field list
-without types pushes that difference into every adapter.
 
 This is what lets the configuration form be generated, a save be validated, and the
 contract suite build a valid connection for *any* adapter instead of for one.

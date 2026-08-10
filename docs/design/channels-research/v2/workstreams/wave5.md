@@ -14,7 +14,7 @@ landed, and a stack is not worth deploying twice for one checkpoint.
 **Exit condition:** an operator creates a bot in the UI, opens a conversation, sends
 a message, gets an answer, and clicks a choice — travelling the public ingress, the
 inbox, a detached invoke, session events, the outbox, and back — with **no platform
-credentials**. `poll_turn` is gone from the tree.
+credentials**.
 
 That is C4's unmet exit condition, plus a surface to drive it from.
 
@@ -26,40 +26,31 @@ happened the first time round. Slack's own credentials are C6's business.
 write path is generic, so a Slack connection *can* be created by API once WP23
 lands, and checking that during CU-C is worthwhile — as a diagnostic, not a gate.
 
-## CU-A — before any package
+## CU-A — done
 
 Two kinds of debt, both of which corrupt the packages if left. Ledger:
 `tasks-cu-wave5.md`.
 
-**The guards that lie.** Each reads as coverage it does not provide, and packages
-get written against them:
+**The guards that lie.** Fixed here: the three composition roots that each built
+the adapter registry by hand and had drifted, now one factory; the queue with no
+producer, removed; the two per-grain locators nothing read, deleted; the backfill
+locator, which turned out to be a live defect rather than a dead one.
 
-- the keyword-only AST check walks `AsyncFunctionDef` only and asserts a hardcoded
-  count, so it cannot see the one sync method on the interface (`F48`)
-- `worker_queues.py` builds a queue with no producer, and its registry never got the
-  mock adapter (`F42`, `F43`)
-- Slack bypasses `normalise_capabilities` entirely — `model_validate` direct — so
-  its declaration is never clamped, and it declares `text.max_chars: 4000` where
-  `capabilities.md` says 3000
-- `space_locator` and `thread_locator` are written by every adapter and read by
-  none, with a filed bug in one that therefore cannot bite (`F50`, `F28`)
+Two moved to **WP21**, which owns those files and is about to change them: the AST
+guard that cannot see a sync method, and the normaliser Slack bypasses.
 
-**The reconciliation debt.** Five documents carry superseded material and still read
-as current. Package specs are written from these, so this is a prerequisite:
+**The reconciliation debt.** Five documents carried superseded material and read as
+current. All five now say what changed; `architecture.md` §8.1 was rewritten rather
+than annotated, because it claimed a security posture that only one of two
+installation models will have.
 
-| document | superseded on |
-| --- | --- |
-| `entities.md` §1 | the connection is reused, no channels-specific columns |
-| `entities.md` §2.5 | grants are instance-level only |
-| `provisioning.md` | credentials encrypted on the connection; the Slack setup shape |
-| `capabilities-v2.md` §1 | the credential schema as a new field-list mechanism |
-| `architecture.md` §8.1 | "there is no shared vendor app to compromise" — there will be |
+**What it found.** WP0 was already done — the wave listed it as never having
+happened.
 
 ## Packages
 
 | Spec | Tasks | Package | Depends on |
 | --- | --- | --- | --- |
-| [specs-wp0.md](specs-wp0.md) | [tasks-wp0.md](tasks-wp0.md) | Session events | — |
 | [specs-wp21.md](specs-wp21.md) | [tasks-wp21.md](tasks-wp21.md) | The adapter interface | — |
 | [specs-wp22.md](specs-wp22.md) | [tasks-wp22.md](tasks-wp22.md) | Schema: connections, grants, secrets | WP21 |
 | [specs-wp23.md](specs-wp23.md) | [tasks-wp23.md](tasks-wp23.md) | The connections write path | WP22 |
@@ -74,10 +65,8 @@ each one is a rebase point and nothing more — **only the final merge earns CU-
 deploy and CU-C.**
 
 ```text
-WP0 ─────────────────────────────────────────────┐  (independent, day one)
-                                                 │
-WP21 ──M1── WP22 ──M2── ┬─ WP23 ─┐               │
-                        └─ WP24 ─┴─M3── ┬─ WP25 ─┼──M4 ── CU-B → deploy → CU-C
+WP21 ──M1── WP22 ──M2── ┬─ WP23 ─┐
+                        └─ WP24 ─┴─M3── ┬─ WP25 ─┬──M4 ── CU-B → deploy → CU-C
                                         └─ WP20 ─┘
 ```
 
@@ -86,7 +75,7 @@ WP21 ──M1── WP22 ──M2── ┬─ WP23 ─┐               │
 | **M1** | WP21 — the interface | everyone rebases; the file is frozen again |
 | **M2** | WP22 — schema | WP23 and WP24 branch from it |
 | **M3** | WP23, WP24 | WP25 and WP20 branch from it |
-| **M4** | WP25, WP20, WP0 | **the final merge** — CU-B, deploy, CU-C |
+| **M4** | WP25, WP20 | **the final merge** — CU-B, deploy, CU-C |
 
 **Why serial at the top.** WP21 changes a frozen interface and WP22 changes the
 migration; building either against the other unmerged means every later package
@@ -97,14 +86,14 @@ exists for *interface* dependencies — these are behavioural, so they merge fir
 but its acceptance test needs a connection to exist, which is WP23's route. They
 develop in parallel against the route contract and land together at M3.
 
-**WP0 carries forward unchanged** — its spec is from wave 3 and the work never
-happened (`F3`). It depends on nothing here and starts on day one. It may merge at
-any point; landing it by M3 lets CU-B verify the outbox consumes events rather than
-polls.
+**WP0 is not in this wave, and the earlier claim that it never happened was
+wrong.** CU-A checked: both publishes, the stream consumer and the outbox's
+turn-event handler are merged and wired, and `poll_turn` exists nowhere in the
+tree. That removes the one branch of this graph that could have run in parallel
+with the top of it.
 
-**WP21 and WP22 are the bottleneck** and are one person's first move. If they slip,
-the wave slips — WP0 is the hedge, being the only package that cannot be blocked by
-them.
+**WP21 and WP22 are the bottleneck**, and with WP0 gone there is no longer a hedge
+against them slipping. If they slip, the whole wave slips.
 
 ### At an intermediate merge
 
@@ -138,7 +127,7 @@ New and changed, on top of the table in [README.md](README.md):
 | the migration `oss000000021` | WP22 alone | Edited **in place**, nothing being released. WP23 and WP24 read the result, never add a revision. |
 | `core/secrets/` | WP22 alone | One enum member, one inner enum, one discriminator branch. Nothing else in that domain is touched. |
 | `middlewares/auth.py` | WP24 alone | Four lines for `/channels/agenta/events/`, trailing-slashed, exactly as the Slack and bridge entries are written. |
-| `api/entrypoints/routers.py` | WP23, WP24 | **Serialised at M3**, where both land. Each prepares a diff; applied in order, never edited mid-stream. This is the one file the merge-point structure does not spare — both packages need it and they merge together. |
+| `apis/fastapi/channels/router.py` and `api/entrypoints/routers.py` | WP23, WP24 | **Serialised at M3**, where both land. Each prepares a diff; applied in order, never edited mid-stream. The two files the merge-point structure does not spare — both packages need them and they merge together. |
 | `core/channels/service.py` | WP22, WP23 | WP22 takes the DTO and grain changes; WP23 takes the connections methods. Land WP22 first and WP23 rebases. |
 
 ## CU-B — after the final merge (M4), before deploy
@@ -148,9 +137,10 @@ grepped for callers outside its own module. Intermediate merges checked each pac
 alone; this is where the seams between them get checked. Green merges have hidden four
 disconnections twice, and a passing suite is not evidence that two packages meet.
 
-Specifically: the Agenta adapter registered in **every** composition root, not one;
-the `_PUBLIC_ENDPOINTS` lines present in all four spellings; the connections routes
-mounted; the outbox consuming session events rather than polling.
+Specifically: the Agenta adapter reaching every composition root through the shared
+factory rather than any root building its own registry again; the
+`_PUBLIC_ENDPOINTS` lines present in all four spellings; the connections routes
+mounted; the outbox still consuming session events rather than polling.
 
 ## Deploy
 
@@ -170,6 +160,7 @@ new way, wave 6 learns it before building a setup UI on top.
 
 - A bot is created in the UI, a conversation is opened, a message is answered, and a
   choice is resolved by clicking — no platform credentials anywhere.
-- `poll_turn` does not exist in the tree.
+- The outbox is driven by session events. Already true on entry — WP0 landed in
+  wave 3 and `poll_turn` is gone; CU-B re-checks it rather than building it.
 - The route is public and the adapter refuses a bad credential with a bare 401.
 - Nothing between the inbox row and the posted answer branches on the channel.

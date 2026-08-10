@@ -187,7 +187,7 @@ and the checklist that says C1 has actually been reached.
 | — | [tasks-cu-wave4.md](tasks-cu-wave4.md) | Wave 4's three clean-up phases |
 | — | [tasks-cu-wave5.md](tasks-cu-wave5.md) | Wave 5's three clean-up phases |
 
-Wave 5 runs WP0 and WP20–WP25; its cycle, ownership and collisions are in
+Wave 5 runs WP20–WP25; its cycle, ownership and collisions are in
 [wave5.md](wave5.md).
 
 ## Migrations are never verified by pytest
