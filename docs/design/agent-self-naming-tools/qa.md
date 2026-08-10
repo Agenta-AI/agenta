@@ -31,7 +31,7 @@ Land each with the step it covers, listed in [plan.md](plan.md).
 
 - **Session header write**: covered already by
   `acceptance/sessions/test_stream_header_basics.py` and `test_stream_header_roundtrip.py`. Add one
-  case only if the query-parameter-in-path form exposes something those miss.
+  case only if the query-parameter-in-path form exposes a behavior those tests do not cover.
 - **Workflow edit preserves flags**: a PUT carrying only `{id, name}` leaves `flags` unchanged; a
   PUT carrying flags still replaces them. This is the regression test for the bug A2 fixes and it
   must exist before `rename_agent` ships.

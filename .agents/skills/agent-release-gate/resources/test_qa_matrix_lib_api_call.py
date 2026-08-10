@@ -60,3 +60,11 @@ def test_explicit_params_kwarg_merges_and_wins_over_the_path_query(monkeypatch):
     assert "session_id=new" in url
     assert "session_id=old" not in url
     assert "project_id=proj-1" in url
+
+
+def test_repeated_query_keys_are_preserved(monkeypatch):
+    lib = _lib(monkeypatch)
+    url = _sent_url(lib, "GET", "/workflows/query?workflow_refs=a&workflow_refs=b")
+    assert "workflow_refs=a" in url
+    assert "workflow_refs=b" in url
+    assert "project_id=proj-1" in url

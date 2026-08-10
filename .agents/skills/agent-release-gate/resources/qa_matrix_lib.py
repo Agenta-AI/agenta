@@ -42,14 +42,15 @@ def api_call(method: str, path: str, timeout: float = 60.0, **kwargs) -> httpx.R
     # the path's query into the params dict instead — explicit `params=` kwargs win,
     # then project_id — so both spellings are safe for every caller. A path WITHOUT a
     # query and no extra params builds the exact same request as before.
-    params = {"project_id": PROJECT, **(kwargs.pop("params", None) or {})}
+    explicit = {"project_id": PROJECT, **(kwargs.pop("params", None) or {})}
     parsed = urlsplit(f"{BASE}/api{path}")
     url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", parsed.fragment))
-    if parsed.query:
-        params = {
-            **dict(parse_qsl(parsed.query, keep_blank_values=True)),
-            **params,
-        }
+    # Keep the path's query as PAIRS (a dict would collapse repeated keys like
+    # ?workflow_refs=a&workflow_refs=b); explicit params override any same-named pair.
+    path_pairs = parse_qsl(parsed.query, keep_blank_values=True) if parsed.query else []
+    params = [(k, v) for k, v in path_pairs if k not in explicit] + list(
+        explicit.items()
+    )
     return httpx.request(
         method,
         url,

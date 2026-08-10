@@ -268,7 +268,7 @@ def run_trial(cell_id: str, cell: dict, scenario: dict, index: int) -> dict:
                 "outcome": outcome,
                 "infra_signature": B.infra_signature(flat),
                 "blocked_only_by_harness": B.blocked_only_by_harness(
-                    errors, commit_calls, budget
+                    errors, commit_calls, budget, rename_calls
                 ),
                 "one_shot": bool(functional and within_budget and not hard_fails),
                 "eventual": bool(functional and not hard_fails),

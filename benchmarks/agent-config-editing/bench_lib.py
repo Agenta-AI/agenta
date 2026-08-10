@@ -1176,7 +1176,7 @@ def error_kind(error: dict) -> str:
 
 
 def blocked_only_by_harness(
-    trial_errors: list, commit_calls: int, budget: dict
+    trial_errors: list, commit_calls: int, budget: dict, rename_calls: int = 0
 ) -> bool:
     """True when a trial would have been one-shot except for harness errors.
 
@@ -1186,6 +1186,8 @@ def blocked_only_by_harness(
     if not trial_errors:
         return False
     if commit_calls > budget["max_commit_calls"]:
+        return False
+    if rename_calls > budget.get("max_rename_calls", 0):
         return False
     return all(error_kind(e) == "harness" for e in trial_errors)
 

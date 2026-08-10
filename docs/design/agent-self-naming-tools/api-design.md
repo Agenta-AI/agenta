@@ -79,8 +79,9 @@ argument the runner strips before sending, and this op has a real `description` 
   in.
 - **Permission.** `EDIT_SESSIONS`, checked against the run's own credential. `read_only=False` means
   the call prompts for approval under the default `allow_reads` policy unless the agent's config
-  sets `permission: "allow"` on the tool. Whether the default build kit ships it as `allow` is
-  settled in [status.md](status.md) open question 1.
+  sets `permission: "allow"` on the tool. As implemented, the default build-kit overlay ships BOTH
+  rename ops with `permission: "allow"`, so no approval card appears; server-side RBAC still gates
+  every call.
 - **Empty or blank name.** `minLength: 1` plus the `\S` pattern rejects both an empty string and a
   whitespace-only one, so the tool cannot clear a title.
 - **Description omitted.** The DAO applies only non-`None` fields, so an existing description
