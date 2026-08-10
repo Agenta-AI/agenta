@@ -66,6 +66,7 @@ export const PasswordlessRequestForm = ({
             <input
                 type="email"
                 autoComplete="email"
+                aria-label="Email address"
                 placeholder="Enter valid email address"
                 value={email}
                 disabled={lockEmail}

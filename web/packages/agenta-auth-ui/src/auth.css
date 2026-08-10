@@ -206,7 +206,8 @@
         box-shadow 0.15s ease,
         opacity 0.15s ease;
 }
-.auth-surface-btn:hover:not(:disabled) {
+.auth-surface-btn:hover:not(:disabled),
+.auth-surface-btn:focus-visible {
     box-shadow: var(--a-surface-shadow-strong);
 }
 .auth-surface-btn:disabled {
@@ -246,6 +247,9 @@
 .auth-btn-yellow:hover:not(:disabled) {
     filter: brightness(1.03);
 }
+.auth-btn-yellow:focus-visible {
+    box-shadow: var(--a-yellow-shadow), var(--a-surface-shadow-strong);
+}
 .auth-btn-yellow:disabled {
     opacity: 0.7;
     cursor: default;
@@ -276,11 +280,15 @@
     padding: 0 12px;
     height: 44px;
     border-radius: 8px;
-    border: none;
     background-color: var(--a-surface-bg);
     box-shadow: var(--a-surface-shadow);
     color: var(--a-heading);
     font-size: 14px;
+}
+/* `outline: none` above removes the platform focus ring, so every focusable
+   surface restates one with the same stronger ring the OTP cells use. */
+.auth-redesign .auth-input:focus-visible {
+    box-shadow: var(--a-surface-shadow-strong);
 }
 .auth-redesign .auth-input::placeholder {
     color: var(--a-faint);
@@ -389,9 +397,14 @@
     font-size: 13px;
     line-height: 20px;
     padding: 6px 8px;
+    border-radius: 8px;
 }
 .auth-quiet-btn:hover:not(:disabled) {
     color: var(--a-heading);
+}
+.auth-quiet-btn:focus-visible {
+    color: var(--a-heading);
+    box-shadow: var(--a-surface-shadow-strong);
 }
 .auth-quiet-btn:disabled {
     opacity: 0.6;

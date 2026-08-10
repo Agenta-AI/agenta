@@ -97,7 +97,10 @@ export const EmailPasswordForm = ({
                 setMessage({message: "Something went wrong. Please try again.", type: "error"})
             }
         } catch (error) {
-            onAuthError?.(error)
+            // Report through the caller's channel when there is one; otherwise the form
+            // still has to say something, or the failure is invisible.
+            if (onAuthError) onAuthError(error)
+            else setMessage({message: "Something went wrong. Please try again.", type: "error"})
         } finally {
             security?.clearToken()
             setIsLoading(false)
@@ -109,6 +112,7 @@ export const EmailPasswordForm = ({
             <input
                 type="email"
                 autoComplete="email"
+                aria-label="Email address"
                 placeholder="Enter valid email address"
                 value={email}
                 disabled={lockEmail}
@@ -122,6 +126,7 @@ export const EmailPasswordForm = ({
             <input
                 type="password"
                 autoComplete="current-password"
+                aria-label="Password"
                 placeholder="Enter your password"
                 value={password}
                 className={clsx("auth-input", message.type === "error" && "auth-input-error")}

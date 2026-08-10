@@ -47,7 +47,10 @@ export const OtpInput = forwardRef<
         if (event.key === "Backspace") {
             event.preventDefault()
             const cut = index >= value.length ? value.length - 1 : index
-            setChars(value.slice(0, Math.max(0, cut)))
+            if (cut < 0) return
+            // Delete the one character under the caret and pull the rest left — the
+            // value is a compact string, so truncating here would drop what follows.
+            setChars(value.slice(0, cut) + value.slice(cut + 1))
             focusCell(cut)
         }
         if (event.key === "ArrowLeft") focusCell(index - 1)

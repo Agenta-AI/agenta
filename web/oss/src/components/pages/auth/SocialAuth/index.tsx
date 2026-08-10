@@ -17,7 +17,7 @@ const SocialAuth = ({
     providers,
     variant = "default",
     yellow = false,
-    lastUsed = false,
+    lastUsedProviderId,
 }: SocialAuthProps) => {
     const router = useRouter()
     const inFlight = useRef(false)
@@ -50,7 +50,7 @@ const SocialAuth = ({
             disabled={disabled}
             variant={variant}
             yellow={yellow}
-            lastUsed={lastUsed}
+            lastUsedProviderId={lastUsedProviderId}
         />
     )
 }

@@ -18,8 +18,8 @@ export interface SocialAuthButtonsProps {
     variant?: "default" | "promoted"
     /** Yellow keycap treatment (the one primary action on the screen). */
     yellow?: boolean
-    /** Render the inline "Last used" tag. */
-    lastUsed?: boolean
+    /** Tags exactly one provider with the inline "Last used" badge. */
+    lastUsedProviderId?: string
 }
 
 export const SocialAuthButtons = ({
@@ -29,7 +29,7 @@ export const SocialAuthButtons = ({
     disabled,
     variant = "default",
     yellow = false,
-    lastUsed = false,
+    lastUsedProviderId,
 }: SocialAuthButtonsProps) => {
     if (providers.length === 0) return null
 
@@ -53,7 +53,7 @@ export const SocialAuthButtons = ({
                 >
                     {provider.icon}
                     <span>Continue with {provider.label}</span>
-                    {lastUsed && (
+                    {provider.id === lastUsedProviderId && (
                         <span className="auth-last-used-tag absolute right-3">Last used</span>
                     )}
                 </button>

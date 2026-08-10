@@ -514,7 +514,7 @@ const Auth = () => {
                                                 providers={[promotedProvider]}
                                                 variant="promoted"
                                                 yellow
-                                                lastUsed
+                                                lastUsedProviderId={promotedProvider.id}
                                             />
                                             {(otherProviders.length > 0 ||
                                                 (showEmailEntry && shouldShowEmailFlow)) && (
@@ -580,9 +580,7 @@ const Auth = () => {
                                         <PasswordlessAuth
                                             email={email}
                                             setEmail={setEmail}
-                                            isLoading={isAuthLoading}
                                             message={message}
-                                            setIsLoading={setIsAuthLoading}
                                             setMessage={setMessage}
                                             authErrorMsg={authErrorMsg}
                                             setIsLoginCodeVisible={setIsLoginCodeVisible}

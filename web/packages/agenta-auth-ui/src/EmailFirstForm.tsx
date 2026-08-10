@@ -41,6 +41,10 @@ export const EmailFirstForm = ({
         try {
             setIsLoading(true)
             await onContinue(value)
+        } catch {
+            // A rejected continuation would otherwise vanish as an unhandled rejection,
+            // leaving the form looking like nothing happened.
+            setValidation("Something went wrong. Please try again.")
         } finally {
             setIsLoading(false)
         }
@@ -52,6 +56,7 @@ export const EmailFirstForm = ({
                 <input
                     type="email"
                     autoComplete="email"
+                    aria-label="Email address"
                     placeholder="Enter your email address"
                     value={email}
                     disabled={disabled}
