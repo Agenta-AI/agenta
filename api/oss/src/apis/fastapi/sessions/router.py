@@ -29,6 +29,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import ValidationError
 
 # FastAPI route params need fastapi.UploadFile; request.form() yields starlette's base class.
 from fastapi import UploadFile as FastAPIUploadFile
@@ -132,6 +133,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionInteractionCreateRequest,
     SessionInteractionQueryRequest,
     SessionInteractionRespondRequest,
+    SessionInteractionResolution,
     SessionInteractionResponse,
     SessionInteractionsResponse,
     SessionInteractionTransitionRequest,
@@ -867,9 +869,7 @@ class InteractionsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        resolution = (
-            body.resolution.model_dump() if body.resolution is not None else None
-        )
+        resolution = body.resolution
         if resolution is not None:
             interactions = await self.interactions_service.query_interactions(
                 project_id=project_id,
@@ -888,11 +888,22 @@ class InteractionsRouter:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Interaction not found or already terminal",
                 )
-            if source.kind != SessionInteractionKind.user_approval:
+            if (
+                body.status == SessionInteractionStatus.resolved
+                and source.kind != SessionInteractionKind.user_approval
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail="Resolution is only valid for user approval interactions",
+                    detail=f"Resolved status is not valid for {source.kind.value} interactions",
                 )
+            if source.kind == SessionInteractionKind.user_approval:
+                try:
+                    SessionInteractionResolution.model_validate(resolution)
+                except ValidationError as e:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=e.errors(include_context=False),
+                    ) from e
 
         try:
             interaction = await self.interactions_service.transition_interaction(

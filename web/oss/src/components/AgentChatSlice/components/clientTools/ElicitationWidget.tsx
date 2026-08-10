@@ -14,6 +14,7 @@ import {
     type StepInfo,
     formatReviewValue,
 } from "@agenta/entity-ui/gatewayTool"
+import {isInteractionEndedOutput} from "@agenta/shared/clientTools"
 import {useModifierKey} from "@agenta/shared/hooks"
 import {
     type ElicitationResult,
@@ -205,6 +206,13 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
 
     // Settled replays: chip copy comes from the envelope (`humanFriendlyMessage`), never re-resolved.
     if (partState !== "pending") {
+        if (isInteractionEndedOutput(meta.output)) {
+            return (
+                <Chip icon={<Question size={13} className="shrink-0 text-colorTextTertiary" />}>
+                    Request ended
+                </Chip>
+            )
+        }
         const envelopeMessage =
             meta.output &&
             typeof (meta.output as {humanFriendlyMessage?: unknown}).humanFriendlyMessage ===
@@ -291,11 +299,13 @@ const ElicitationWidget = ({meta, settle, degradedEarlierInTurn}: ClientToolHand
             settleAndClear({
                 output: toOutput(buildAcceptResult(content, "Provided the requested input.")),
             })
+            // Deliberately still submitting: the settle is fire-and-forget behind an awaited record
+            // write, so re-enabling here lets a second click fire a second settle.
         } catch (err) {
             // antd surfaces inline field errors; in stepper mode, jump to the failing question.
             const first = (err as {errorFields?: {name: (string | number)[]}[]})?.errorFields?.[0]
             if (first?.name) formRef.current?.goToField?.(first.name)
-        } finally {
+            // The form is still open and answerable, so the button has to come back.
             setSubmitting(false)
         }
     }

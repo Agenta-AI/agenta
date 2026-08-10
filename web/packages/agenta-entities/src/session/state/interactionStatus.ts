@@ -1,62 +1,86 @@
 /**
- * Terminal status join for transcript replay — the cheapest correct source for "was this parked
- * client-tool interaction already resolved server-side?"
- *
- * The durable record log (`sessionRecordsQueryFamily`) replays a `client_tool` interaction request
- * from its own `interaction_request` event alone; it never carries the interaction's later
- * lifecycle (a `session_interactions` row concept, not a record). A normal live settle (connect,
- * elicitation answer) DOES leave a trace: the browser's `addToolOutput` resubmits the result, and
- * the runner re-emits it as a `tool_result` record that settles the part on replay too — no query
- * needed. But a server-side cancellation (the stale-interaction sweep, or any path that never
- * round-trips a tool_result) leaves the transcript with nothing but the original request, which
- * replays as a fully interactive, still-pending form forever.
- *
- * `session_interactions.token` is the join key: it equals the record's `toolCallId` (confirmed
- * against a live 8180 row: token `call_n7Gec...` == the `interaction_request` record's
- * `toolCallId` == its `attributes.id`). So the cheapest fix is one small, best-effort query for the
- * session's `client_tool` interactions, filtered to `cancelled`, keyed by that token.
+ * Replay joins durable records with interaction rows because records omit later row lifecycle.
+ * New rows join through `data.request.tool_call_id`; legacy rows join through token equality.
  */
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {queryInteractions} from "../api/api"
+import type {
+    SessionInteraction,
+    SessionInteractionKind,
+    SessionInteractionStatusCode,
+} from "../core/schema"
 
-const CANCELLED_CLIENT_TOOL_TOKENS_STALE_MS = 15_000
+const SESSION_INTERACTION_ROWS_STALE_MS = 15_000
 
-export const cancelledClientToolTokensQueryKey = (projectId: string, sessionId: string) =>
-    ["session", "interactions", "cancelledClientToolTokens", projectId, sessionId] as const
+export const sessionInteractionRowsQueryKey = (projectId: string, sessionId: string) =>
+    ["session", "interactions", "rows", projectId, sessionId] as const
 
-const cancelledClientToolTokensQueryOptions = (projectId: string, sessionId: string) => ({
-    queryKey: cancelledClientToolTokensQueryKey(projectId, sessionId),
-    queryFn: async (): Promise<ReadonlySet<string>> => {
-        const interactions = await queryInteractions({sessionId, projectId, kind: "client_tool"})
-        const tokens = (interactions ?? [])
-            .filter((i) => i.status === "cancelled" && typeof i.token === "string" && i.token)
-            .map((i) => i.token as string)
-        return new Set(tokens)
-    },
-    staleTime: CANCELLED_CLIENT_TOOL_TOKENS_STALE_MS,
+const sessionInteractionRowsQueryOptions = (projectId: string, sessionId: string) => ({
+    queryKey: sessionInteractionRowsQueryKey(projectId, sessionId),
+    queryFn: async (): Promise<SessionInteraction[]> =>
+        (await queryInteractions({sessionId, projectId})) ?? [],
+    staleTime: SESSION_INTERACTION_ROWS_STALE_MS,
 })
+
+export interface SessionInteractionRowState {
+    token: string
+    status: SessionInteractionStatusCode
+    kind: SessionInteractionKind
+    resolution?: Record<string, unknown>
+    toolCallId?: string
+}
+
+export type SessionInteractionRowStates = ReadonlyMap<string, SessionInteractionRowState>
+
+function interactionStatesFromRows(rows: SessionInteraction[]): SessionInteractionRowStates {
+    const states = new Map<string, SessionInteractionRowState>()
+    for (const row of rows) {
+        if (typeof row.token !== "string" || !row.token) continue
+
+        const toolCallId = row.data?.request?.tool_call_id
+        states.set(row.token, {
+            token: row.token,
+            status: row.status as SessionInteractionStatusCode,
+            kind: row.kind as SessionInteractionKind,
+            ...(row.data?.resolution ? {resolution: row.data.resolution} : {}),
+            ...(typeof toolCallId === "string" && toolCallId ? {toolCallId} : {}),
+        })
+    }
+    return states
+}
 
 /**
  * Imperative, best-effort fetch through the shared query cache. Never throws — a failure (network,
- * missing project scope) resolves to an empty set, so a resurrected-form miss degrades to today's
+ * missing project scope) resolves to an empty map, so a replay-join miss degrades to today's
  * behavior (still pending) rather than blocking the whole transcript from loading.
  */
-export const fetchCancelledClientToolTokensAtom = atom(
+export const fetchSessionInteractionStatesAtom = atom(
     null,
-    async (get, _set, sessionId: string): Promise<ReadonlySet<string>> => {
+    async (get, _set, sessionId: string): Promise<SessionInteractionRowStates> => {
         const projectId = get(projectIdAtom) ?? ""
-        if (!projectId || !sessionId) return new Set()
+        if (!projectId || !sessionId) return new Map()
         try {
             const client = get(queryClientAtom)
-            return await client.fetchQuery(
-                cancelledClientToolTokensQueryOptions(projectId, sessionId),
+            const rows = await client.fetchQuery(
+                sessionInteractionRowsQueryOptions(projectId, sessionId),
             )
+            return interactionStatesFromRows(rows)
         } catch (err) {
-            console.warn("[fetchCancelledClientToolTokensAtom] fetch failed:", err)
-            return new Set()
+            console.warn("[fetchSessionInteractionStatesAtom] fetch failed:", err)
+            return new Map()
         }
     },
 )
+
+export const revalidateSessionInteractionsAtom = atom(null, (get, _set, sessionId: string) => {
+    const projectId = get(projectIdAtom) ?? ""
+    if (!projectId || !sessionId) return
+    // Keep an initial rows fetch in flight while marking its cache entry stale.
+    void get(queryClientAtom).invalidateQueries(
+        {queryKey: sessionInteractionRowsQueryKey(projectId, sessionId)},
+        {cancelRefetch: false},
+    )
+})

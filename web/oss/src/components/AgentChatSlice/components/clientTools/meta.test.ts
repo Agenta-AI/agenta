@@ -6,9 +6,12 @@
  * `{approved: false}` envelope. Reading it as a parked client tool made the fallback overwrite that
  * envelope with `{status: "not_handled"}`, so the model saw a failed tool and retried the same call.
  */
-import type {RenderHintLike} from "@agenta/playground"
-import type {ToolUIPart} from "ai"
+import {isHitlPending, type RenderHintLike} from "@agenta/playground"
+import type {ToolUIPart, UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
+
+import {getPendingApprovals} from "../ApprovalDock"
+import {getPendingConnectInteraction} from "../InteractionDock"
 
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
@@ -24,6 +27,63 @@ const toolPart = (part: Record<string, unknown>): ToolUIPart =>
         input: {path: "/x"},
         ...part,
     }) as unknown as ToolUIPart
+
+const EARLIER_PENDING_MESSAGES = [
+    {
+        id: "assistant-pending",
+        role: "assistant",
+        parts: [
+            {
+                type: "tool-browser_connection",
+                toolCallId: "call-connect",
+                state: "input-available",
+                input: {integration: "github"},
+            },
+            {
+                type: "data-render",
+                data: {toolCallId: "call-connect", render: {kind: "connect"}},
+            },
+            {
+                type: "tool-delete_file",
+                toolCallId: "call-approval",
+                state: "approval-requested",
+                input: {path: "notes.txt"},
+                approval: {id: "approval-earlier"},
+            },
+            {
+                type: "data-approval-manifest",
+                data: {toolCallId: "call-approval", manifest: {files: ["notes.txt"]}},
+            },
+        ],
+    },
+    {
+        id: "user-next",
+        role: "user",
+        parts: [{type: "text", text: "continue"}],
+    },
+    {
+        id: "assistant-last",
+        role: "assistant",
+        parts: [{type: "text", text: "Starting the next turn"}],
+    },
+] as unknown as UIMessage[]
+
+describe("pending interaction geometry", () => {
+    it("keeps earlier cards discoverable after a later message", () => {
+        expect(isHitlPending(EARLIER_PENDING_MESSAGES)).toBe(true)
+        expect(getPendingConnectInteraction(EARLIER_PENDING_MESSAGES)?.toolCallId).toBe(
+            "call-connect",
+        )
+        expect(getPendingApprovals(EARLIER_PENDING_MESSAGES)).toEqual([
+            {
+                approvalId: "approval-earlier",
+                toolName: "delete_file",
+                input: {path: "notes.txt"},
+                manifest: {files: ["notes.txt"]},
+            },
+        ])
+    })
+})
 
 describe("isClientToolPart", () => {
     it("does NOT claim a denied approval part (output-denied)", () => {
@@ -83,9 +143,11 @@ describe("resolveClientToolHandler", () => {
         expect(resolveClientToolHandler(clientToolMeta(part))).toBe(ElicitationWidget)
     })
 
-    it("does not reinterpret an explicit unknown render kind by tool name", () => {
+    it("falls back to tool name when the render kind is unknown", () => {
         const part = toolPart({type: "tool-request_input", state: "input-available"})
-        expect(resolveClientToolHandler(clientToolMeta(part, renderMapFor("display")))).toBeNull()
+        expect(resolveClientToolHandler(clientToolMeta(part, renderMapFor("display")))).toBe(
+            ElicitationWidget,
+        )
     })
 
     it("still resolves the connect widget on both axes", () => {

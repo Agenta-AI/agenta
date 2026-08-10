@@ -3,6 +3,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {
     commandSessionStream,
     killSession,
+    recordInteractionAnswerAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -25,6 +26,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {AgentChatTransport} from "../assets/AgentChatTransport"
+import {recordAnswerThenResume} from "../assets/clientToolAnswer"
 import {doesAgentChatStopKillSession} from "../assets/constants"
 import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
 import {getMessageTraceId} from "../assets/trace"
@@ -128,6 +130,7 @@ export const useAgentChatSession = ({
 
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
@@ -224,23 +227,42 @@ export const useAgentChatSession = ({
     // is by id — so a cast onto the untyped UIMessage tool map is safe.
     const handleClientToolOutput = useCallback<ClientToolOutputHandler>(
         ({toolName, toolCallId, output, errorText}) => {
+            // Set synchronously: it holds off transcript adoption for the whole ordered window.
             liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
-            if (errorText !== undefined) {
-                addToolOutput({
-                    state: "output-error",
-                    tool: toolName as never,
-                    toolCallId,
-                    errorText,
-                }).catch(ignoreStreamRejection)
-            } else {
-                addToolOutput({
-                    tool: toolName as never,
-                    toolCallId,
-                    output: (output ?? {}) as never,
-                }).catch(ignoreStreamRejection)
-            }
+            // Ordered, not raced — the resume starts a turn whose sweep cancels every `pending`
+            // row, so the answer has to be durable first. Capped inside the helper.
+            void recordAnswerThenResume({
+                record: () =>
+                    recordInteractionAnswer({
+                        sessionId,
+                        toolCallId,
+                        resolution: {
+                            tool_call_id: toolCallId,
+                            tool_name: toolName,
+                            ...(errorText !== undefined
+                                ? {outcome: "error", error: errorText}
+                                : {outcome: "completed", output: output ?? {}}),
+                        },
+                    }),
+                resume: () => {
+                    if (errorText !== undefined) {
+                        addToolOutput({
+                            state: "output-error",
+                            tool: toolName as never,
+                            toolCallId,
+                            errorText,
+                        }).catch(ignoreStreamRejection)
+                    } else {
+                        addToolOutput({
+                            tool: toolName as never,
+                            toolCallId,
+                            output: (output ?? {}) as never,
+                        }).catch(ignoreStreamRejection)
+                    }
+                },
+            })
         },
-        [addToolOutput],
+        [addToolOutput, recordInteractionAnswer, sessionId],
     )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this

@@ -139,16 +139,19 @@ class SessionInteractionTransitionRequest(BaseModel):
     session_id: str
     token: str
     status: SessionInteractionStatus
-    resolution: Optional[SessionInteractionResolution] = None
+    # The router owns kind-specific validation because the row kind is not known here.
+    resolution: Optional[Dict[str, Any]] = None
 
     @model_validator(mode="after")
     def validate_resolution_status(self) -> "SessionInteractionTransitionRequest":
-        # Resolution is answer data, so it is valid only on the resolved lifecycle edge.
-        if (
-            self.resolution is not None
-            and self.status != SessionInteractionStatus.resolved
+        # Resolution is valid only on lifecycle edges that settle an answer.
+        if self.resolution is not None and self.status not in (
+            SessionInteractionStatus.responded,
+            SessionInteractionStatus.resolved,
         ):
-            raise ValueError("resolution is only valid when status is resolved")
+            raise ValueError(
+                "resolution is only valid when status is responded or resolved"
+            )
         return self
 
 
