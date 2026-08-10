@@ -36,7 +36,10 @@ const Stat = ({label, value}: {label: string; value: string}) => (
 export interface UsageCardProps {
     /** Scope to one app/agent; omit for the whole project. */
     appId?: string | null
-    /** Rendered under the shared detail figures when expanded — desktop's charts. */
+    /**
+     * Rendered under the shared detail figures when expanded — desktop's charts. Mounted only
+     * once the card has been expanded, so a lazily-imported slot costs nothing until then.
+     */
     expandedContent?: ReactNode
 }
 
@@ -51,6 +54,12 @@ export interface UsageCardProps {
  */
 export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
     const [expanded, setExpanded] = useState(false)
+    // `HeightCollapse` CLIPS its children — it animates height, it never unmounts — so anything
+    // handed to `expandedContent` would mount on the first paint of the page, downloading its
+    // chunk (desktop's slot is a lazy tremor dashboard) and firing its queries before anyone has
+    // asked to see it. Mount it on the first expand instead, and keep it mounted afterwards:
+    // unmounting on collapse would drop the content instantly and animate an empty box.
+    const [everExpanded, setEverExpanded] = useState(false)
     const {data} = useObservabilityDashboard(appId)
 
     const summary = useMemo(
@@ -89,7 +98,10 @@ export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
             extra={
                 <button
                     type="button"
-                    onClick={() => setExpanded((prev) => !prev)}
+                    onClick={() => {
+                        setExpanded((prev) => !prev)
+                        setEverExpanded(true)
+                    }}
                     className={PANEL_ACTION_CLASS}
                 >
                     {expanded ? "Collapse" : "Expand"}
@@ -112,7 +124,7 @@ export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
                             <Stat key={stat.label} {...stat} />
                         ))}
                     </div>
-                    {expandedContent}
+                    {everExpanded ? expandedContent : null}
                 </div>
             </HeightCollapse>
         </PanelSection>
