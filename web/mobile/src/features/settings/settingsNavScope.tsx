@@ -44,7 +44,8 @@ const createSettingsNavScope = (workspaceId: string, projectId: string): Sidebar
 
         return {
             mode: "controlled",
-            selectedKey: activeTab,
+            // Nothing is the open tab until the router resolves one.
+            selectedKey: activeTab ?? "",
             onSelect: (key) => {
                 if (!isSettingsTabKey(key)) return
                 void router.replace({query: {...router.query, tab: key}}, undefined, {

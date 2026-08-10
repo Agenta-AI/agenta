@@ -15,7 +15,7 @@ export const SettingsTabRail = ({
     active,
     onSelect,
 }: {
-    active: SettingsTabKey
+    active: SettingsTabKey | null
     onSelect: (tab: SettingsTabKey) => void
 }) => {
     const access = useMobileSettingsAccess()

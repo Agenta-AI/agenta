@@ -361,27 +361,31 @@ export const SettingsScreen = ({
         [router],
     )
 
+    // Held until the router resolves `?tab=`, so a direct load opens its tab rather than
+    // rendering Preferences and starting its queries first.
     const content = (
         <div className="min-w-0 flex-1 overflow-y-auto">
             {/* No content cap: the desktop's 640/1120 caps left every section floating in a
                 wide empty column here. */}
             <SettingsPageShell
                 variant="full"
-                title={getSettingsTabLabel(active, access)}
-                description={getSettingsTabDescription(active, access)}
+                title={active ? getSettingsTabLabel(active, access) : "Settings"}
+                description={active ? getSettingsTabDescription(active, access) : ""}
             >
-                <TabBody
-                    tab={active}
-                    access={access}
-                    user={user}
-                    workspaceId={workspaceId}
-                    projectId={projectId}
-                    theme={{
-                        options: THEME_OPTIONS,
-                        mode: themeMode,
-                        onSelect: (mode) => setMode(mode as typeof themeMode),
-                    }}
-                />
+                {active ? (
+                    <TabBody
+                        tab={active}
+                        access={access}
+                        user={user}
+                        workspaceId={workspaceId}
+                        projectId={projectId}
+                        theme={{
+                            options: THEME_OPTIONS,
+                            mode: themeMode,
+                            onSelect: (mode) => setMode(mode as typeof themeMode),
+                        }}
+                    />
+                ) : null}
             </SettingsPageShell>
         </div>
     )

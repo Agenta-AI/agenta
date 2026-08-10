@@ -49,9 +49,17 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     )
 }
 
-/** The open tab, from `?tab=`. Anything this app cannot render falls back to Preferences. */
-export const useActiveSettingsTab = (): SettingsTabKey => {
+/**
+ * The open tab, from `?tab=`. Anything this app cannot render falls back to Preferences.
+ *
+ * `null` until the router is ready: `router.query` is empty on the first client render of a
+ * statically optimized page, and answering "preferences" there would open the wrong tab on a
+ * direct load of `?tab=billing` and start its queries before correcting itself.
+ */
+export const useActiveSettingsTab = (): SettingsTabKey | null => {
     const router = useRouter()
+    if (!router.isReady) return null
+
     const requested = typeof router.query.tab === "string" ? router.query.tab : null
 
     return AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)
