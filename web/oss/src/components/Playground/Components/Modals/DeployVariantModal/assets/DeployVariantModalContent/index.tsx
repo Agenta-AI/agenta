@@ -5,13 +5,17 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {deployNoteAtom, deploySelectedEnvAtom} from "../../store/deployVariantModalStore"
 
-import {deployModalEnvironmentsTableAtom, type DeployModalEnvRow} from "./tableDataAtom"
+import {deployModalEnvironmentsTableAtom} from "./tableDataAtom"
 
 /** The environments picker — a plain radio table (three rows), replacing antd Table. */
 const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
-    const data = useAtomValue(deployModalEnvironmentsTableAtom)
+    const {rows, isPending: isEnvironmentsPending} = useAtomValue(deployModalEnvironmentsTableAtom)
     const [selectedEnvName, setSelectedEnvName] = useAtom(deploySelectedEnvAtom)
     const [note, setNote] = useAtom(deployNoteAtom)
+
+    // The rows come from the environments query, so the skeleton has to track THAT — not just
+    // the publish mutation, or the placeholder rows would be pickable as deployment targets.
+    const showSkeleton = Boolean(isLoading) || isEnvironmentsPending
 
     return (
         <section className="flex flex-col gap-4" data-tour="deploy-variant-modal">
@@ -36,14 +40,14 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                         </tr>
                     </thead>
                     <tbody>
-                        {isLoading ? (
+                        {showSkeleton ? (
                             <tr>
                                 <td colSpan={3} className="px-3 py-3">
                                     <Skeleton className="h-16 w-full" />
                                 </td>
                             </tr>
                         ) : (
-                            (data as DeployModalEnvRow[]).map((record) => (
+                            rows.map((record) => (
                                 <tr
                                     key={record.name}
                                     onClick={() => setSelectedEnvName([record.name])}
