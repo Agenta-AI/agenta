@@ -3,7 +3,8 @@
   "about": [
     "Naming sessions and agents after the model has enough context to choose a useful label.",
     "The verdict comes from the stored session or workflow header, never from the reply.",
-    "name-05 seeds the VERBATIM product-default persona (_DEFAULT_AGENTS_MD in sdks/python/agenta/sdk/utils/types.py, drift-locked by the SDK unit test test_default_persona_self_naming.py): live QA showed task-shaped personas self-name while the bare default persona did not, so this scenario is the regression guard for the real new-user experience."
+    "name-05 seeds the VERBATIM product-default persona (_DEFAULT_AGENTS_MD in sdks/python/agenta/sdk/utils/types.py, drift-locked by the SDK unit test test_default_persona_self_naming.py): live QA showed task-shaped personas self-name while the bare default persona did not, so this scenario is the regression guard for the real new-user experience.",
+    "name-06 mirrors the composer path (workflow created with the raw request as its name, session auto-titled from the first message) and expects rename_session AND rename_agent in the same first-task turn — the pairing the persona now instructs, after a live session showed the standalone rename_agent trigger being forgotten. max_rename_calls is a SINGLE combined counter across both rename tools (run_benchmark sums them), so 2 here plus the two min-1 tool checks pins exactly one call each."
   ],
   "scenarios": [
     {
@@ -124,7 +125,7 @@
       "title": "the product-default persona names its session unprompted",
       "seed": {
         "instructions": {
-          "agents_md": "You are a friendly hello-world agent running on the Agenta agent service.\n\n- Greet the user warmly.\n- Answer the user's message in one or two short sentences.\n- Once the first exchange makes clear what the session is about, call the\n  `rename_session` tool: `name` is the session's subject in a few words, findable\n  in a list; `description` is a one-sentence recap of where things stand. Rename\n  again only when the topic genuinely shifts.\n- Call the `rename_agent` tool only when your own identity or purpose changes —\n  for example, you were just created or the user repurposes you — with a name\n  that says what you are for."
+          "agents_md": "You are a friendly hello-world agent running on the Agenta agent service.\n\n- Greet the user warmly.\n- Answer the user's message in one or two short sentences.\n- Once the first exchange makes clear what the session is about, call the\n  `rename_session` tool: `name` is the session's subject in a few words, findable\n  in a list; `description` is a one-sentence recap of where things stand. Rename\n  again only when the topic genuinely shifts. If this is also your first task\n  since you were created — your agent name is still a raw request or a\n  placeholder like \"Untitled agent\" — also call the `rename_agent` tool in the\n  same turn, with a name that says what you are for.\n- After that, call `rename_agent` again only when your identity or purpose\n  changes — for example, the user repurposes you."
         },
         "skills": []
       },
@@ -146,6 +147,57 @@
           "check": "session_header",
           "path": ["description"],
           "pattern": "(?s)^.{1,300}\\Z"
+        }
+      ]
+    },
+    {
+      "id": "name-06-composer-first-task",
+      "title": "a composer-created agent renames itself and its session in the first task turn",
+      "seed": {
+        "instructions": {
+          "agents_md": "You are a friendly hello-world agent running on the Agenta agent service.\n\n- Greet the user warmly.\n- Answer the user's message in one or two short sentences.\n- Once the first exchange makes clear what the session is about, call the\n  `rename_session` tool: `name` is the session's subject in a few words, findable\n  in a list; `description` is a one-sentence recap of where things stand. Rename\n  again only when the topic genuinely shifts. If this is also your first task\n  since you were created — your agent name is still a raw request or a\n  placeholder like \"Untitled agent\" — also call the `rename_agent` tool in the\n  same turn, with a name that says what you are for.\n- After that, call `rename_agent` again only when your identity or purpose\n  changes — for example, the user repurposes you."
+        },
+        "skills": []
+      },
+      "seed_workflow_header": {
+        "name": "Create an agent that posts a daily standup summary {{TOKEN}}",
+        "flags": { "is_application": true, "is_evaluator": false }
+      },
+      "seed_session_header": {
+        "name": "get the daily standup summary going — post one summary of"
+      },
+      "turns": [
+        {
+          "prompt": "get the daily standup summary going — post one summary of the team's updates every morning"
+        }
+      ],
+      "tools": [
+        { "type": "platform", "op": "rename_session" },
+        { "type": "platform", "op": "rename_agent" }
+      ],
+      "budget": { "max_rename_calls": 2 },
+      "checks": [
+        { "check": "turn_tool_called", "name": "rename_session", "min": 1 },
+        { "check": "turn_tool_called", "name": "rename_agent", "min": 1 },
+        {
+          "check": "session_header",
+          "path": ["name"],
+          "pattern": "(?i)(standup|summar)"
+        },
+        {
+          "check": "workflow_header",
+          "path": ["name"],
+          "pattern": "(?s)^(?!.*{{TOKEN}}).*\\S.*$"
+        },
+        {
+          "check": "workflow_header",
+          "path": ["name"],
+          "pattern": "(?i)(standup|summar)"
+        },
+        {
+          "check": "workflow_header",
+          "path": ["flags", "is_application"],
+          "value": true
         }
       ]
     }
