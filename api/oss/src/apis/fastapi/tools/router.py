@@ -63,6 +63,9 @@ from oss.src.core.tools.exceptions import (
 from oss.src.core.tools.service import (
     ToolsService,
 )
+from oss.src.core.gateway.connections.exceptions import (
+    AdapterError as ConnectionAdapterError,
+)
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.tracing.service import TracingService
@@ -770,12 +773,32 @@ class ToolsRouter:
                 },
             )
 
-        connection = await self.tools_service.create_connection(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            connection_create=body.connection,
-        )
+        try:
+            connection = await self.tools_service.create_connection(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                connection_create=body.connection,
+            )
+        except ConnectionAdapterError as e:
+            # Composio has no managed ("use_composio_managed_auth") auth config for
+            # this toolkit in this environment — it only offers use_custom_auth.
+            # Surface an actionable 422 instead of letting this fall through to
+            # @intercept_exceptions' bare 500.
+            if e.operation == "initiate_connection.create_auth_config":
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"The '{body.connection.integration_key}' integration has no "
+                        "managed OAuth configuration available in this environment. "
+                        "It requires custom OAuth credentials (use_custom_auth) to "
+                        "be configured for this provider before it can be connected."
+                    ),
+                ) from e
+            raise HTTPException(
+                status_code=422,
+                detail=e.detail or e.message,
+            ) from e
 
         return ToolConnectionResponse(
             count=1,
