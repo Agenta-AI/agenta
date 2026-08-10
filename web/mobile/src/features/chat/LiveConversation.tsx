@@ -90,7 +90,13 @@ export const LiveConversation = ({
         [conversation.approvals, steerActions],
     )
 
-    const visibleTurns = conversation.turns.filter((turn) => !turn.hidden)
+    // The auto-scroll effect keys on IDENTITY, so a fresh array every render would re-pin the
+    // transcript on renders that changed nothing about it (a watch reconnect, a steer phase).
+    // Memoized, it re-pins exactly when the turns actually change.
+    const visibleTurns = useMemo(
+        () => conversation.turns.filter((turn) => !turn.hidden),
+        [conversation.turns],
+    )
     const autoScroll = useTranscriptAutoScroll(visibleTurns)
 
     const streamingHere = conversation.status === "submitted" || conversation.status === "streaming"

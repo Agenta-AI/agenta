@@ -32,9 +32,13 @@ import {watchAwarePollMs} from "./watchRelay"
  * The chat screen router — mount it with `key={sessionId}` so per-session state resets.
  *
  * Once the session's agent resolves (owning workflow → latest revision), the LIVE screen mounts:
- * the shared conversation engine with sending, streaming, and engine-routed approvals. Until it
- * resolves — or for a session with no turns (nothing to invoke) — the read-only replay below
- * keeps working exactly as before.
+ * the shared conversation engine with sending, streaming, and engine-routed approvals. For a
+ * session with no turns (nothing to invoke) — or one whose agent lookup fails — the read-only
+ * replay below keeps working exactly as before.
+ *
+ * WHILE the lookup is in flight neither answer is known, so neither screen mounts: committing to
+ * the replay would tell the user a session with a perfectly good agent is read-only, and then
+ * throw its transcript away when the resolution landed.
  */
 export const ChatScreen = ({
     sessionId,
@@ -50,11 +54,32 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
-    const {entityId} = useAgentEntity(sessionId, projectId)
+    const {entityId, resolving} = useAgentEntity(sessionId, projectId)
     const liveness = useLivenessPoll(projectId)
     const running = Boolean(
         liveness.data?.find((s) => s.session_id === sessionId)?.flags?.is_running,
     )
+
+    // `resolving` is query-PENDING, not fetching: a cached answer renders immediately and a
+    // background refetch never flips the screen back to loading. Both queries are enabled
+    // unconditionally here (the page guards the params), so this always settles.
+    if (resolving) {
+        return (
+            <AppShell workspaceId={workspaceId} projectId={projectId}>
+                <ScreenScaffold
+                    header={
+                        <ChatHeader
+                            sessionId={sessionId}
+                            projectId={projectId}
+                            workspaceId={workspaceId}
+                        />
+                    }
+                >
+                    <ChatLoading />
+                </ScreenScaffold>
+            </AppShell>
+        )
+    }
 
     if (entityId) {
         return (

@@ -1,5 +1,8 @@
+import {useRef} from "react"
+
 import {ChatComposer} from "@agenta/chat/components"
 import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
+import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import type {FileUIPart} from "ai"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -30,18 +33,35 @@ export const Composer = ({
     onStop?: () => void
 }) => {
     const attachments = useComposerAttachments({sessionId})
+    // Only so a failed send can put the message back — the editor clears itself on submit,
+    // and nothing else would ever return the typed text.
+    const inputRef = useRef<RichChatInputHandle | null>(null)
 
     const submit = async (text: string) => {
         const staged = attachments.files
-        const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
-        await onSend({text, parts})
-        attachments.clearAttachments(staged.map((file) => file.uid))
+        try {
+            // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
+            // Enter, which the send button's `sendDisabled` guard doesn't cover.
+            const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
+            await onSend({text, parts})
+            attachments.clearAttachments(staged.map((file) => file.uid))
+        } catch {
+            // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
+            // uncaught rejection would leave the user with no message, no error, and no idea a
+            // send even failed. Keep the attachments staged, put the text back, and say so
+            // through the composer's own inline channel — the same rejections strip the desktop
+            // uses when a staged file can't ride the send.
+            inputRef.current?.setMarkdown(text)
+            attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            attachments.setAttachmentsOpen(true)
+        }
     }
 
     return (
         <div className="bg-background shrink-0 px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
             <ContentRail>
                 <ChatComposer
+                    inputRef={inputRef}
                     onSubmit={submit}
                     attachments={attachments}
                     disabled={disabled}
