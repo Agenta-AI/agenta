@@ -288,8 +288,9 @@ export const useSessionHydration = ({
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const refreshFromRecords = useCallback(() => {
-        // Skipped while THIS tab streams (already the live truth, `onFinish` revalidates) OR a
-        // client-tool settle is waiting on its resume dispatch — see `shouldSkipRecordsRefresh`.
+        // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
+        // revalidates) OR a client-tool settle is already waiting on its resume dispatch — see
+        // `shouldSkipRecordsRefresh`.
         if (
             shouldSkipRecordsRefresh({
                 busy: busyRef.current,
@@ -300,10 +301,22 @@ export const useSessionHydration = ({
         // A tick usually lands inside the records query's stale window, so the shared cache would
         // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
         revalidateSessionRecords(sessionId)
-        void loadSessionMessages(sessionId).then((transcript) =>
+        void loadSessionMessages(sessionId).then((transcript) => {
+            // Adoption-point recheck: the entry check above only covers the window BEFORE this
+            // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
+            // settle can land while it's in flight — without re-checking here, that settle arrives
+            // busy=false/pendingResume=true, passes nothing, and this `.then` still clobbers it
+            // with the (now stale) transcript it fetched before the settle happened.
+            if (
+                shouldSkipRecordsRefresh({
+                    busy: busyRef.current,
+                    pendingResume: !!pendingResumeRef.current,
+                })
+            )
+                return
             // A background catch-up must not yank a reader who scrolled up — as with the poll.
-            adoptServerTranscriptRef.current(transcript, {armJump: false}),
-        )
+            adoptServerTranscriptRef.current(transcript, {armJump: false})
+        })
     }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords])
     useSessionRecordsWatch({
         sessionId,
