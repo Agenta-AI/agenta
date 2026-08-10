@@ -270,6 +270,10 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
             ),
             True,
         ),
+        (
+            lambda r, req: r.read_agenta_conversation(req, id=uuid4()),
+            True,
+        ),
     ],
 )
 async def test_route_rejects_without_permission(call, is_view_route):
@@ -319,6 +323,7 @@ async def test_permission_matrix_covers_every_registered_route():
         "close_channel_thread",
         "query_channel_inbox_events",
         "query_channel_outbox_events",
+        "read_agenta_conversation",
     }
 
     assert registered_handlers == exercised
@@ -473,6 +478,7 @@ def test_trailing_slash_audit():
         "/threads/{thread_id}/close",
         "/inbox/events/query",
         "/outbox/events/query",
+        "/agenta/conversations/{id}",
     }
 
     seen_paths = {route.path for route in router.router.routes}

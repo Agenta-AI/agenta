@@ -7,9 +7,11 @@ definitions of the same wire shape agreeing by accident. The three
 `*Request` class without introducing a second class.
 """
 
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.core.channels.dtos import (
     ChannelAgentEditRequest,
@@ -45,6 +47,8 @@ from oss.src.core.channels.dtos import (
 )
 
 __all__ = [
+    "AgentaConversationItem",
+    "AgentaConversationResponse",
     "ChannelAgentCreateRequest",
     "ChannelAgentEditRequest",
     "ChannelAgentQueryRequest",
@@ -84,3 +88,18 @@ class ChannelSpaceDiscoverRequest(BaseModel):
     input is the connection to ask."""
 
     connection_id: UUID
+
+
+class AgentaConversationItem(BaseModel):
+    """One row of the merged read: the inbox log and what the outbox posted
+    back, collapsed to the one shape a poller needs."""
+
+    id: UUID
+    direction: Literal["inbound", "outbound"]
+    created_at: Optional[datetime] = None
+    content: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AgentaConversationResponse(BaseModel):
+    count: int = 0
+    items: List[AgentaConversationItem] = Field(default_factory=list)

@@ -47,6 +47,10 @@ def _make_request(path: str) -> Request:
         "/api/channels/bridge/events/",
         "/preview/channels/bridge/events/",
         "/api/preview/channels/bridge/events/",
+        "/channels/agenta/events/",
+        "/api/channels/agenta/events/",
+        "/preview/channels/agenta/events/",
+        "/api/preview/channels/agenta/events/",
     ],
 )
 def test_ingress_paths_are_public(path):
@@ -64,6 +68,10 @@ def test_ingress_paths_are_public(path):
         "/api/channels/bridge/events/",
         "/preview/channels/bridge/events/",
         "/api/preview/channels/bridge/events/",
+        "/channels/agenta/events/",
+        "/api/channels/agenta/events/",
+        "/preview/channels/agenta/events/",
+        "/api/preview/channels/agenta/events/",
     ],
 )
 async def test_ingress_paths_reach_the_handler_with_no_auth(path):

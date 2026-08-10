@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, List
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -6,6 +7,8 @@ from fastapi import APIRouter, HTTPException, Request, status
 from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.apis.fastapi.channels.models import (
+    AgentaConversationItem,
+    AgentaConversationResponse,
     ChannelAgentCreateRequest,
     ChannelAgentEditRequest,
     ChannelAgentQueryRequest,
@@ -36,6 +39,11 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelThreadResponse,
     ChannelThreadsResponse,
     ChannelsCatalogResponse,
+)
+from oss.src.core.channels.dtos import (
+    ChannelInboxEventQuery,
+    ChannelOutboxEventQuery,
+    ChannelThreadQuery,
 )
 from oss.src.core.channels.types import (
     ChannelAgentNotFound,
@@ -326,6 +334,16 @@ class ChannelsRouter:
             methods=["POST"],
             operation_id="query_channel_outbox_events",
             response_model=ChannelOutboxEventsResponse,
+            response_model_exclude_none=True,
+        )
+
+        # --- Agenta: the read route ---------------------------------------- #
+        self.router.add_api_route(
+            "/agenta/conversations/{id}",
+            self.read_agenta_conversation,
+            methods=["GET"],
+            operation_id="read_agenta_conversation",
+            response_model=AgentaConversationResponse,
             response_model_exclude_none=True,
         )
 
@@ -911,3 +929,79 @@ class ChannelsRouter:
             windowing=body.windowing,
         )
         return ChannelOutboxEventsResponse(count=len(events), events=events)
+
+    # -----------------------------------------------------------------------
+    # Agenta: the read route
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    async def read_agenta_conversation(
+        self,
+        request: Request,
+        *,
+        id: UUID,
+    ) -> AgentaConversationResponse:
+        """The space's inbox log plus what the outbox posted back, merged and
+        ordered by when each was written."""
+
+        await self._check(request, Permission.VIEW_CHANNELS)
+
+        project_id = UUID(request.state.project_id)
+
+        space = await self.channels_service.fetch_space(
+            project_id=project_id,
+            space_id=id,
+        )
+        connection = (
+            await self.channels_service.fetch_connection(
+                project_id=project_id,
+                connection_id=space.connection_id,
+            )
+            if space is not None
+            else None
+        )
+        if space is None or connection is None or connection.channel != "agenta":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Channel space not found",
+            )
+
+        inbox = await self.channels_service.query_inbox_events(
+            project_id=project_id,
+            event=ChannelInboxEventQuery(space_id=id),
+        )
+        threads = await self.channels_service.query_threads(
+            project_id=project_id,
+            thread=ChannelThreadQuery(space_id=id),
+        )
+
+        outbox = []
+        for thread in threads:
+            outbox.extend(
+                await self.channels_service.query_outbox_events(
+                    project_id=project_id,
+                    event=ChannelOutboxEventQuery(thread_id=thread.id),
+                )
+            )
+
+        items: List[AgentaConversationItem] = [
+            AgentaConversationItem(
+                id=event.id,
+                direction="inbound",
+                created_at=event.created_at,
+                content=event.data.processed.content,
+            )
+            for event in inbox
+        ] + [
+            AgentaConversationItem(
+                id=event.id,
+                direction="outbound",
+                created_at=event.created_at,
+                content=(event.data.processed or {}).get("content", []),
+            )
+            for event in outbox
+        ]
+        _epoch = datetime.min.replace(tzinfo=timezone.utc)
+        items.sort(key=lambda item: (item.created_at or _epoch, item.id))
+
+        return AgentaConversationResponse(count=len(items), items=items)
