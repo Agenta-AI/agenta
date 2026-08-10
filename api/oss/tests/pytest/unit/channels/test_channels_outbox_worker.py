@@ -533,6 +533,28 @@ async def test_pending_interaction_renders_card_from_recorded_tool_call(
 
 
 @pytest.mark.asyncio
+async def test_capabilities_are_fetched_for_the_thread_s_own_connection(
+    worker, channels_dao, connections_service, channels_service
+):
+    """A per-connection capability override is only reachable if the
+    connection travels with the fetch — not just the channel key."""
+
+    from unittest.mock import AsyncMock
+
+    session_id = "sess-6"
+    connection, thread = await _seed_connection_and_thread(
+        channels_dao, connections_service, session_id
+    )
+
+    spy = AsyncMock(wraps=channels_service.fetch_capabilities)
+    channels_service.fetch_capabilities = spy
+
+    await worker.on_turn_started(project_id=PROJECT_ID, thread=thread, turn_id="turn-6")
+
+    spy.assert_awaited_once_with(channel=connection.provider_key, connection=connection)
+
+
+@pytest.mark.asyncio
 async def test_idempotency_key_differs_between_post_and_edit_but_is_stable_on_retry(
     worker, channels_dao, connections_service, records_dao
 ):

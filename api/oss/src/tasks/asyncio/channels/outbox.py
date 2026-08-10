@@ -283,7 +283,7 @@ class ChannelsOutboxWorker:
             raise ChannelConnectionNotFound(connection_id=space.connection_id)
 
         capabilities = await self.channels_service.fetch_capabilities(
-            channel=connection.provider_key
+            channel=connection.provider_key, connection=connection
         )
 
         return connection, capabilities

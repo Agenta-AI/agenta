@@ -30,7 +30,10 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
-from oss.src.core.channels.types import ChannelThreadNotFound
+from oss.src.core.channels.types import (
+    ChannelConnectionNotFound,
+    ChannelThreadNotFound,
+)
 from oss.src.core.shared.dtos import Status
 from oss.src.core.channels.identity import (
     ChannelIdentityService,
@@ -137,11 +140,16 @@ class InboxDispatcher:
         if not platform_user_id:
             return None
 
+        connection = await self.channels_service.connections_service.get_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise ChannelConnectionNotFound(connection_id=connection_id)
+
         capabilities = await self.channels_service.fetch_capabilities(
-            channel=await self.channels_service.resolve_channel(
-                project_id=project_id,
-                connection_id=connection_id,
-            ),
+            channel=connection.provider_key,
+            connection=connection,
         )
 
         # scope_id comes from the first `identity.keys[space]` field, which is
@@ -300,11 +308,17 @@ class InboxDispatcher:
             )
             return
 
-        channel = await self.channels_service.resolve_channel(
+        connection = await self.channels_service.connections_service.get_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
-        capabilities = await self.channels_service.fetch_capabilities(channel=channel)
+        if connection is None:
+            raise ChannelConnectionNotFound(connection_id=connection_id)
+
+        capabilities = await self.channels_service.fetch_capabilities(
+            channel=connection.provider_key,
+            connection=connection,
+        )
 
         parsed = parse_command(
             content=event.data.processed.content,

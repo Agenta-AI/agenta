@@ -16,5 +16,5 @@ from ..contract.test_channel_adapter_contract import run_contract_suite
 
 
 @pytest.mark.asyncio
-async def test_mock_adapter_passes_wp2_contract_suite_unmodified():
+async def test_mock_adapter_passes_the_shared_contract_suite_unmodified():
     await run_contract_suite(MockAdapter())
