@@ -99,6 +99,14 @@ Worth weighing against our own turn/session events before inventing more.
   SDK adapters, not a wire contract a third party implements. Whether that is an
   advantage depends on whether anyone outside us ever writes one.
 
+## Decisions taken from this research
+
+- **Not adopting their SDK or their agent protocol.** Their agent-facing protocol
+  would mean reshaping turns, sessions and the outbox around someone else's event
+  model — too deep a change for what it buys today. Parked, not rejected.
+- **No bridge conclusion.** They have none; that is not evidence either way.
+- Two designs came out of this: `rendering.md` and `provisioning.md`.
+
 ## What to take into the redesign
 
 1. **Split provisioning from runtime.** Credentials, manifest and install belong
