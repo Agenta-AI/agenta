@@ -97,6 +97,59 @@ async def test_stream_yields_event_frames_then_heartbeats():
 
 
 @pytest.mark.asyncio
+async def test_stream_terminates_on_server_shutdown_signal():
+    # Uvicorn drains in-flight responses BEFORE lifespan shutdown, so an SSE
+    # generator that never ends wedges every reload/stop (the live symptom:
+    # `--reload` logs "Reloading..." and the API is dead until a hard restart).
+    # The stream must return promptly once the shutdown flag is set.
+    from oss.src.apis.fastapi.sessions import watch as watch_module
+
+    pubsub = _FakePubSub([])
+    stream = watch_event_stream(
+        channel="watch:p:session:s1",
+        pubsub_factory=lambda: pubsub,
+        heartbeat_seconds=0.01,
+        retry_milliseconds=5000,
+    )
+    assert await stream.__anext__() == retry_frame(5000)
+    assert await stream.__anext__() == ready_frame()
+
+    watch_module.request_shutdown()
+    try:
+        with pytest.raises(StopAsyncIteration):
+            await stream.__anext__()
+    finally:
+        watch_module._shutdown.clear()
+
+    # The shutdown path runs the same teardown a client disconnect does.
+    assert pubsub.unsubscribed == ["watch:p:session:s1"]
+    assert pubsub.closed is True
+
+
+def test_uvicorn_exit_hook_is_installed_and_requests_shutdown():
+    # The release only works if uvicorn's handle_exit actually reaches
+    # request_shutdown — pin both the installation and the effect.
+    uvicorn_server = pytest.importorskip("uvicorn.server")
+    from oss.src.apis.fastapi.sessions import watch as watch_module
+
+    assert getattr(uvicorn_server.Server.handle_exit, "_agenta_watch_hook", False)
+
+    class _FakeServer:
+        handle_exit = uvicorn_server.Server.handle_exit
+
+        def __init__(self):
+            self.should_exit = False
+            self.force_exit = False
+            self._captured_signals = []
+
+    try:
+        _FakeServer().handle_exit(None, None)
+        assert watch_module._shutdown.is_set()
+    finally:
+        watch_module._shutdown.clear()
+
+
+@pytest.mark.asyncio
 async def test_stream_cleans_up_subscription_on_close():
     pubsub = _FakePubSub([])
     stream = watch_event_stream(
