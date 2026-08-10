@@ -58,13 +58,16 @@ export const useObservabilityDashboard = (
 ): ObservabilityDashboardState => {
     const query = useAtomValue(observabilityDashboardQueryAtomFamily(appId))
 
-    const {data, isPending, isFetching, isLoading, error, refetch, fetchStatus} = query
+    const {data, isFetching, isLoading, error, refetch, fetchStatus} = query
 
     const fetching = fetchStatus === "fetching"
 
     return {
         data: data ?? null,
-        loading: Boolean(fetching || isPending || isLoading),
+        // Not `isPending`: a disabled query (no project yet) stays pending forever with
+        // `fetchStatus: "idle"`, which would leave the dashboard spinning before a project
+        // resolves. `isLoading` is `isPending && isFetching`, so it clears with the fetch.
+        loading: Boolean(fetching || isLoading),
         isFetching: Boolean(isFetching) || fetching,
         error,
         refetch,
