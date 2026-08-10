@@ -42,7 +42,7 @@ question.
 
 | what | why it blocks | where |
 | --- | --- | --- |
-| `api_app_id` at Slack setup: asked for, or filled by the first event | it is the only step in either journey with no answer, and it decides whether a connection can exist with an incomplete key | `journeys.md` S3 |
+| The setup-shape declaration | Discord has no manifest and Telegram has no app; `provisioning.md` assumes the Slack shape throughout | `journeys.md` §0 |
 | The request-context interface change | `channel-connections.md` and `agenta-channel.md` both need it, and it edits a frozen interface at a checkpoint | both |
 | `F49` — the interface's `verify_signature` is a lie | any package written against the declared contract breaks at the ingress | ledger |
 
@@ -53,19 +53,25 @@ list as open:
   into a new column. The table is project-scoped with a `PGPString` column that
   encrypts in Postgres. This is what `architecture.md` §8.2 meant by the vault;
   `provisioning.md` says otherwise and is superseded on that point.
-- **Channels gets a `CHANNEL_SECRET` kind**, not `CUSTOM_SECRET`. A channel
-  credential is machine-written and schema-dictated, so it does not belong in the
-  bucket a user browses, names and deletes by hand. `WEBHOOK_PROVIDER` is the exact
-  precedent. Cost: one enum member, one DTO branch, one `ALTER TYPE` line.
+- **Channels gets a `CHANNEL_SECRET` kind**, not `CUSTOM_SECRET`, and the kind is
+  **nested** the way `PROVIDER_KEY`/`StandardProviderKind` already is: `data.kind` is
+  the channel and decides the body's shape. **That nesting is the credential
+  schema** — the store already validates it, so `capabilities-v2.md`'s proposed field
+  list shrinks to what the form renders.
 - **The credential schema is two fields for Slack and zero for Agenta.** The rule
   that shrank it: *ask for what only a human can copy, discover the rest.*
-  `auth.test` returns `team_id` and `bot_user_id`, so asking for them is a setup
-  step people abandon for no gain.
-- **Setup is customer-owned-app first**, via a pre-filled manifest link
-  (`api.slack.com/apps?new_app=1&manifest_json=…`). No OAuth app of ours, no public
-  redirect, works self-hosted, and better rate limits. `build_slack_manifest` already
-  exists and is correct; it has no caller.
+  `auth.test` returns `team_id` and `bot_user_id`; `api_app_id` is on the page they
+  are already copying from, or comes back from `oauth.v2.access`.
+- **Setup is customer-owned-app first.** Better rate limits, works self-hosted, no
+  OAuth app of ours. **But the manifest is not the general mechanism** — it is a
+  document the *user* applies, and Discord has none while Telegram has no app at all.
+  Each channel declares its own setup shape.
+- **We never own or create the customer's app.** They build it, click it into
+  existence, or ask BotFather for it. Telegram's `setWebhook` is the one call we make
+  on their bot, and it does not breach this.
 - **A connection is verified before it is stored**, never after.
+- **Teardown archives the channels rows and leaves the sessions**, since sessions
+  outlive channels and the transcript stays readable in web.
 
 **Blocks finishing, not starting.**
 

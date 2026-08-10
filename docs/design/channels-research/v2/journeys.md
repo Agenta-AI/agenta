@@ -1,4 +1,4 @@
-# Two journeys, step by step
+# Journeys
 
 Agenta and Slack, written together, because designing either alone puts it in the
 air. Every step names the screen, the call, the row written and the credential
@@ -6,6 +6,29 @@ moved. Where something does not exist yet, it says so.
 
 Sources: the secrets domain in this codebase, Slack's own manifest and OAuth
 documentation, and the setup flows of five comparable products in `v1/raw/`.
+
+## Two axes
+
+**Config time** is an operator wiring a channel up, changing it, and taking it
+down. **Runtime** is somebody using it — a message, an answer, a choice. They have
+different users, different permissions and different failure modes, and conflating
+them is what produced a system that was runnable and unconfigurable.
+
+|  | **config time** | **runtime** |
+| --- | --- | --- |
+| **Agenta** | §1.1 — bot, roster, grants, teardown | §1.2 — open a conversation, talk, choose |
+| **Slack** | §2.1 — app, credentials, spaces, roster, drift, rotation, removal | §2.2 — mention in a thread, answer, choose |
+
+Telegram is the third column later, and it is the cheap test of whether the config
+column generalises — one field and a `getMe`.
+
+**Read the runtime rows across, not down.** §1.2 and §2.2 must be the same code
+reached two ways; if either needs a branch on the channel, the port is wrong. The
+config rows are where the channels genuinely differ, and the whole design effort is
+about keeping that difference contained there.
+
+Permissions split on the same line: config time is `EDIT_CHANNELS`, runtime is
+`RUN_CHANNELS`.
 
 ---
 
@@ -31,20 +54,47 @@ rest, referenced by connections"*. The vault is `secrets`.
 **Channels gets its own kind: `CHANNEL_SECRET`.** Not `CUSTOM_SECRET`, which is the
 kind for arbitrary user-named secrets a person creates for themselves. A channel
 credential is neither arbitrary nor user-named: its fields are dictated by the
-channel's declared schema, it is written by the setup flow rather than by a user,
-and it is meaningless outside the connection that references it. Reusing
-`CUSTOM_SECRET` would put machine-managed rows in the same bucket a user browses
-and edits, where the two are indistinguishable and either can be deleted by hand.
+channel, it is written by the setup flow rather than by a user, and it is
+meaningless outside the connection that references it. Reusing `CUSTOM_SECRET` would
+put machine-managed rows in the bucket a user browses and deletes by hand.
 
-The precedent is exact: `WEBHOOK_PROVIDER` is a domain-owned kind used by the
-webhooks service for the same reason. Channels is the second instance of an existing
-pattern.
+### The kind is nested, and that nesting is the credential schema
 
-**What a kind costs:** one enum member, one typed DTO branch in the secrets DTO
-discriminator, and one line in a migration —
-`ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'CHANNEL_SECRET'`. Note that
-Postgres cannot drop an enum value, so the downgrade leaves the label behind, as the
-existing migration records for its own addition.
+The store already has this shape. `SecretKind.PROVIDER_KEY` is the outer kind, and
+`data.kind` is an inner enum — `StandardProviderKind` — that decides what the body
+must contain, validated in one discriminator. `CUSTOM_PROVIDER` does the same with
+`CustomProviderKind`.
+
+Channels is the same two levels:
+
+| outer `kind` | inner `data.kind` | body |
+| --- | --- | --- |
+| `CHANNEL_SECRET` | `slack` | `bot_token`, `signing_secret` |
+| `CHANNEL_SECRET` | `telegram` | `bot_token`, `webhook_secret` |
+| `CHANNEL_SECRET` | `agenta` | empty |
+
+**This is the credential schema**, and it is worth saying plainly because it was
+being designed twice. `capabilities-v2.md` proposes declaring a field list — name,
+type, secret, required, label — as a new mechanism on the capability declaration.
+The inner kind already *is* the stored contract, validated the way four other kinds
+are validated. The declaration's job shrinks to what the **form** renders: labels,
+help text, and which field is a password box. What is *stored* and what is *valid*
+is the secrets discriminator's job, and it already exists.
+
+The nesting also gives per-channel shapes for free, which a flat `{str: primitive}`
+map could not: Slack's two fields and Telegram's two are different fields, not a
+shared bag.
+
+**Follow the existing envelope.** Every branch wraps its payload — `data.provider`
+for the three provider kinds, `data.secret` for custom. Channels uses
+`data.channel`, so the inner DTO is `ChannelSecretSettingsDTO` under
+`ChannelSecretDTO`, matching the four that exist.
+
+**What a kind costs:** one enum member, one inner enum, one typed DTO branch in the
+discriminator, and one migration line —
+`ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'CHANNEL_SECRET'`. Postgres
+cannot drop an enum value, so the downgrade leaves the label behind, as the existing
+migration records for its own addition.
 
 **A correct Slack manifest builder with no callers.** `build_slack_manifest(request_url)`
 produces scopes matching exactly what the adapter calls, the five bot events, and
@@ -53,12 +103,54 @@ produces scopes matching exactly what the adapter calls, the five bot events, an
 **What does not exist:** any route that writes a connection, any provisioning UI,
 any OAuth handling, any verification call, and the Agenta adapter.
 
+### Setup does not have one shape, and the manifest is not the general case
+
+Checked against the four platforms' own documentation, because an earlier draft
+generalised Slack's manifest into a rule and it does not hold:
+
+| platform | is there a manifest? | who applies it | what the operator actually does |
+| --- | --- | --- | --- |
+| Slack | yes, YAML/JSON | **the user**, pasting into Slack's form | create the app from it, copy credentials back |
+| Teams | yes, `manifest.json` **inside a zip** with icons | **the user**, uploading the package | sideload the package we generate |
+| Discord | **none** | — | click through the Developer Portal, toggle privileged intents by hand |
+| Telegram | **none, and no app object at all** | — | `/newbot` to BotFather, hand us one token |
+
+Two things fall out, and the second is the one that would have been designed wrong.
+
+**A manifest is one of several setup shapes, not the shape.** Discord's
+configuration lives in portal toggles — the Message Content intent above all — that
+no document can carry, so its setup page is prose and a checklist. Telegram has no
+app to describe.
+
+**Telegram inverts the direction: we make the configuring call.** `setWebhook` is
+ours to call, with their token, and it is also where the per-bot secret is minted.
+So for Telegram the registration step is *ours*, not theirs — the opposite of Slack,
+where the user does everything and we only receive credentials.
+
+What holds across all four, and is the actual rule:
+
+> **We never own or create the customer's app.** They build it (Slack, Teams), or
+> click it into existence (Discord), or ask BotFather for it (Telegram). What we do
+> is describe what it must contain, take what only they can give us, and configure
+> what their token entitles us to configure.
+
+`setWebhook` does not breach that: it configures a bot they created and handed us a
+token for, which is what the token is for.
+
+So the credential schema is not the only per-channel declaration provisioning needs.
+Each channel also declares **how it is set up** — a manifest to copy, a package to
+download, a checklist to follow, or a call we make — and the setup page renders
+that. This is a fifth thing the channel declares, and it was missing from
+`provisioning.md`, which assumed the Slack shape throughout.
+
 ---
 
-## Part 1: the Agenta journey
+## Part 1: Agenta
 
 First, because it needs no external account and it is what makes the Slack journey
 testable before a workspace exists.
+
+## §1.1 — Agenta at config time
 
 ### A1 — Create a bot
 
@@ -91,7 +183,35 @@ three are exercised here with nothing external.
 `channel_agents` with `data.references` pointing at the workflow and
 `flags.is_default = true`.
 
-### A3 — Open a conversation
+### A3 — Change it, and take it down
+
+The half every design skips, and the half that produces support tickets.
+
+**Rename or re-slug.** The slug is a label, unique per `(project, channel)`, and
+**not part of the identity** — that is exactly why `channel-connections.md` takes it
+out of the key. So renaming is an ordinary edit and no thread, space or offset
+moves.
+
+**Disable without deleting.** `flags.is_active = false` on the connection. Inbound
+still resolves — a message is not lost — but the agent does not answer. This is what
+someone wants when a bot misbehaves at 3am, and it is one flag rather than a
+teardown.
+
+**Delete.** Archive, not a hard delete, following the house rule for lifecycle
+columns. The question the design must answer is what happens to the conversation
+history underneath: threads point at sessions, and sessions outlive channels. So
+**archiving a connection archives its channels rows and leaves the sessions alone** —
+the transcript remains readable in the web app, which is where it was always also
+visible.
+
+**What is deliberately hard:** re-pointing a bot at a different project. The
+`external_key` is globally unique, so the same bot cannot exist twice, and moving it
+means archiving and recreating. That is the honest answer rather than a migration
+nobody would test.
+
+## §1.2 — Agenta at runtime
+
+### A4 — Open a conversation
 
 **Screen:** the bot's chat, behind the feature flag.
 
@@ -101,12 +221,14 @@ three are exercised here with nothing external.
 `external_locator` is `{"conversation": "<uuid>"}` — we are the platform, so we mint
 it. Then a grant so the agent may answer there.
 
-**The open question this settles by doing:** every other channel discovers spaces
-from the platform and the operator picks from a list. Here, opening a conversation
-creates the space. That is the one structural difference, and it is contained in
-`discover_spaces` returning what the project already has.
+**This is the one place the axes blur, and it is worth naming.** On every other
+channel a space is configured — an operator picks channels from a list at config
+time. Here, a runtime action creates one. That is not a special path in the port:
+`discover_spaces` still answers, it just answers with what the project already has.
+But it means Agenta's spaces are created under `RUN_CHANNELS`, not
+`EDIT_CHANNELS`, and that difference should be deliberate rather than discovered.
 
-### A4 — Say something
+### A5 — Say something
 
 **What the user does:** types "hello" and hits enter.
 
@@ -129,7 +251,7 @@ creates the space. That is the one structural difference, and it is contained in
 **What this proves:** the entire path, with no credentials. That is C4's exit
 condition.
 
-### A5 — Answer a choice
+### A6 — Answer a choice
 
 **What the user does:** the agent asks something with two buttons; the user clicks
 one.
@@ -140,38 +262,51 @@ a reply of "1" are the same event; this is where that stops being a claim.
 
 ---
 
-## Part 2: the Slack journey
+## Part 2: Slack
 
-Two models. **Customer-owned app first**, because it is the only one that works
-self-hosted, it needs no infrastructure from us, and it gets the better rate limits
-(1,000 objects per call at 50+/min, against 15 per minute for a shared distributed
-app that is not Marketplace-approved).
+**There are two setup flows, and they are genuinely different — not one flow with a
+branch.** Every comparable product in the research offers one or both, and nobody
+has invented a third:
 
-### S1 — Start setup
+| | hosted app (ours) | own app (theirs) |
+| --- | --- | --- |
+| who owns the Slack app | us | the customer |
+| how the credential arrives | OAuth returns it | the user copies and pastes it |
+| what the manifest is for | nothing — the app already exists | the description they build from |
+| works self-hosted | no | yes |
+| commands, modals, event subscriptions | no — they belong to the app | yes |
+| backfill rate limit | 15 objects/min | 1,000 per call at 50+/min |
 
-**Screen:** Settings → Channels → Add Slack.
+**Own app first**, because it is the only one that works self-hosted and the only
+one that gets the useful rate limits. The hosted flow is the easier click and needs
+infrastructure we do not have yet.
 
-**What the user sees:** an explanation that they will create a Slack app in their
-own workspace, and a button.
+## §2.1 — Slack at config time
 
-**What happens when they click:** we build the manifest with
-`build_slack_manifest(request_url=<this deployment>/channels/slack/events/)` and
-send them to:
+### S1 — Give them the app description
 
-```text
-https://api.slack.com/apps?new_app=1&manifest_json=<url-encoded manifest>
-```
+**Screen:** Settings → Channels → Add Slack → *Use your own Slack app*.
 
-That URL drops them into Slack's app-creation flow with every scope, every event
-subscription and our request URL already filled in. They review and click Create.
+**What the user sees:** the manifest, and what to do with it. **We do not create a
+Slack app for anyone** — the manifest is a description a human takes to Slack, and
+building the app is their step, in their workspace, under their control.
 
-**Why this and not OAuth:** OAuth needs an app *we* own and a public redirect. This
-needs neither, works for a self-hoster on a private network, and is the posture
-`architecture.md` §8 calls the genuinely strong story.
+`build_slack_manifest(request_url=<this deployment>/channels/slack/events/)` produces
+it. Show it two ways, because both are just conveniences over the same document:
 
-**What must be true:** the request URL has to be reachable from Slack. For a local
-deployment it is a tunnel, and the page must say so rather than letting someone
-discover it when no event ever arrives.
+- **copy the YAML** and paste it into Slack's own *Create App → From a manifest* form
+- **or follow a link** that pre-fills that form:
+  `https://api.slack.com/apps?new_app=1&manifest_json=<url-encoded>`
+
+The link saves typing. It is not a mechanism of ours and nothing depends on it.
+
+**What must be true:** the request URL has to be reachable from Slack. On a local
+deployment that means a tunnel, and the page must say so — otherwise the failure
+arrives as no event ever showing up, which is the hardest kind to diagnose.
+
+**Why this is the posture, not a fallback:** the app is issued by their workspace to
+their deployment and its tokens never transit our infrastructure. That is
+`architecture.md` §8's bring-your-own-app story, and it is why this flow is first.
 
 ### S2 — Install and copy two secrets
 
@@ -213,12 +348,16 @@ us is the kind of setup step people abandon.
 **The order matters.** Verify, then store. A connection that exists but was never
 proven is the thing that later reads as configured and silently never works.
 
-**Where `api_app_id` comes from:** `auth.test` does not return it. It is on every
-inbound event, and it is in the app's own settings page. Either we ask for it as a
-third field, or the first inbound event fills it in. **Asking is worse but simpler;
-the first-event fill is right but leaves a window where the key is incomplete.** This
-is the one genuinely open question in the Slack journey and it needs deciding before
-the package is written.
+**Where `api_app_id` comes from — settled.** `auth.test` does not return it, which
+made this look like an open question. It is not:
+
+- **own app** — the App ID is on the same *Basic Information* page the user is
+  already on, copying the signing secret. It is a third field on a form they are
+  already filling, not a new errand.
+- **hosted app** — `oauth.v2.access` returns `app_id`, so nothing is asked at all.
+
+Neither flow needs the first-inbound-event fill, and no connection is ever stored
+with an incomplete key.
 
 ### S4 — Pick where it may speak
 
@@ -234,12 +373,45 @@ one the agent will not answer in, even after being invited there.
 fail with `not_in_channel` — a real error every comparable product's docs mention,
 so the UI should name it before it happens.
 
-### S5 — Roster and grants
+### S5 — Change it, rotate it, take it down
+
+Everything in A3 applies unchanged — rename, disable, archive — because none of it
+is platform-specific. Slack adds four things that are.
+
+**The manifest drifts.** The user enables a command later; the manifest changes and
+their installed app does not. So we store the hash of the manifest last known
+installed, compare it against the current one, and show the difference with the new
+manifest to re-apply. Without that comparison, enabling a command in our UI produces
+something that reports healthy and never fires — the exact defect shape this project
+keeps finding.
+
+**A credential is rotated.** The user regenerates the signing secret or reinstalls
+for a new bot token. This is an update to the `CHANNEL_SECRET` row, re-verified by
+`auth.test` before it replaces the old one — same rule as S3, and for the same
+reason. The connection's `external_key` does not move, because `api_app_id` and
+`team_id` did not.
+
+**A credential is revoked from their side.** The token stops working with no warning
+and nothing tells us. It surfaces as delivery failures, which is why
+`ChannelDeliveryState` has `ABANDONED` — the operator needs to see that a reply was
+never delivered rather than find a silently missing row. The connection's `status`
+carries the last failure, and the UI has to show it; a channel that quietly stopped
+working is worse than one that visibly broke.
+
+**They remove the app in Slack.** Events simply stop. We cannot detect it except by
+trying, so it looks the same as revocation and gets the same treatment. Deleting the
+connection on our side does **not** uninstall their app — we never owned it — so
+the removal page must say what it does and does not do, and tell them to remove the
+app in Slack too if that is what they meant.
+
+### S6 — Roster and grants
 
 Identical to A2. Same routes, same rows. Nothing Slack-specific — which is the point
 of doing Agenta first, because this part is already proven by then.
 
-### S6 — Say something
+## §2.2 — Slack at runtime
+
+### S7 — Say something
 
 `@Agenta ~triage what broke?` in an invited channel.
 
@@ -254,16 +426,6 @@ Everything after that is identical to A4 steps 3–6.
 anything between the inbox row and the posted answer needs to know which channel it
 came from, the port is wrong. Two journeys through one path is the test.
 
-### S7 — When it drifts
-
-The user enables a command later. The manifest changes; their installed app does
-not.
-
-**What happens:** we store the hash of the manifest last known installed, compare
-it to the current one, and show the difference with a link to re-apply. Without
-this, enabling a command in our UI produces something that reports healthy and
-never fires — which is the exact defect shape this project keeps finding.
-
 ---
 
 ## What the two journeys jointly settle
@@ -271,20 +433,31 @@ never fires — which is the exact defect shape this project keeps finding.
 | question | answered by |
 | --- | --- |
 | Where do credentials live? | a `CHANNEL_SECRET` row in `secrets`, referenced by the connection |
-| What does the credential schema hold? | two fields for Slack, zero for Agenta |
+| What is the credential schema? | the nested `data.kind`, which the store already validates |
 | What is asked vs discovered? | ask for what only a human can copy; discover the rest |
+| Where does `api_app_id` come from? | the page they are already on; or `oauth.v2.access` |
 | When is a connection routable? | after `auth.test`, never before |
-| Does the port hold? | S6 and A4 are the same code |
-| How is a choice answered? | A5, on our own surface, before Slack's payload shape |
+| Does the port hold? | §1.2 and §2.2 are the same code reached two ways |
+| How is a choice answered? | A6, on our own surface, before Slack's payload shape |
+| What happens on teardown? | archive the channels rows, leave the sessions |
+| Do we own their app? | never — and the removal page has to say so |
+
+**What the grid exposed** that neither journey alone would have: config time and
+runtime split cleanly *except* at A4, where opening a conversation creates a space.
+Everywhere else spaces are configured; here a runtime action makes one. That is a
+permission difference (`RUN_CHANNELS`, not `EDIT_CHANNELS`) rather than a port
+difference, and it should be chosen rather than discovered.
 
 ## What is still open after this
 
-- **`api_app_id` at S3** — asked for, or filled by the first event. Needs deciding.
 - **The Agenta-owned app model.** Everything above is customer-owned. The shared-app
   variant needs an OAuth callback, an app we operate, and a decision about the
   15-per-minute backfill cap. It is also what `architecture.md` §8.1 currently says
   we do not have.
 - **Where the setup pages live in web.** The bot chat is behind a feature flag;
   provisioning is real UI and needs a real home.
-- **Telegram**, which is one field and a `getMe`, and is the cheapest proof the
-  credential schema generalises beyond Slack.
+- **The setup-shape declaration.** Established above as a fifth thing a channel
+  declares, but not designed: a manifest, a downloadable package, a checklist, or a
+  call we make. Telegram and Discord are what force it, and neither is designed here.
+- **Telegram as the third column**, which is the cheapest proof that the config
+  column generalises — and the one that tests `setWebhook` being ours to call.
