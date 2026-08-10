@@ -18,9 +18,7 @@ const read = (): ThemeModeValue => {
     }
 }
 
-const prefersDark = () =>
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-color-scheme: dark)").matches === true
+const DARK_QUERY = "(prefers-color-scheme: dark)"
 
 /**
  * THE theme-mode controller: the stored preference, the theme it resolves to, and the `.dark`
@@ -32,13 +30,21 @@ const prefersDark = () =>
  */
 export const useThemeMode = () => {
     const [themeMode, setThemeMode] = useState<ThemeModeValue>("system")
+    // The OS preference is STATE, not a render-time read of `matchMedia`. Reading it during
+    // render made the `change` listener inert: its only job was `setThemeMode("system")` while
+    // the mode already WAS "system", React bailed out on Object.is, nothing re-rendered, and
+    // `resolved` never recomputed. Held here, a `change` event is a real state transition.
+    // Starts `false` on both sides of hydration for the same reason `themeMode` starts
+    // "system": the boot script has already painted the right class, and reading the media
+    // query during the first client render would diverge from the server's.
+    const [systemPrefersDark, setSystemPrefersDark] = useState(false)
 
     // Read after mount: the value is client-only, and the boot script has already applied the
     // class, so hydrating from it here would mismatch the server render.
     useEffect(() => setThemeMode(read()), [])
 
     const resolved: "light" | "dark" =
-        themeMode === "system" ? (prefersDark() ? "dark" : "light") : themeMode
+        themeMode === "system" ? (systemPrefersDark ? "dark" : "light") : themeMode
 
     useEffect(() => {
         if (typeof document === "undefined") return
@@ -47,14 +53,18 @@ export const useThemeMode = () => {
         root.style.colorScheme = resolved
     }, [resolved])
 
-    // Follow the OS while the choice is "system" — otherwise the page only flips on reload.
+    // Follow the OS — otherwise the page only flips on reload. Subscribed unconditionally, not
+    // only while the choice is "system", so switching back to "system" resolves against a
+    // current value rather than whatever the OS said when the listener was last attached.
     useEffect(() => {
-        if (themeMode !== "system" || typeof window === "undefined") return
-        const query = window.matchMedia("(prefers-color-scheme: dark)")
-        const sync = () => setThemeMode("system")
+        if (typeof window === "undefined") return
+        const query = window.matchMedia?.(DARK_QUERY)
+        if (!query) return
+        setSystemPrefersDark(query.matches)
+        const sync = (event: MediaQueryListEvent) => setSystemPrefersDark(event.matches)
         query.addEventListener("change", sync)
         return () => query.removeEventListener("change", sync)
-    }, [themeMode])
+    }, [])
 
     const setMode = useCallback((next: ThemeModeValue) => {
         setThemeMode(next)
