@@ -20,13 +20,38 @@ which a credential is obtained differs per platform and cannot be abstracted:
 So: **one declared schema, three flows.** The schema is code we share; the flow is a
 per-platform page.
 
+## 0. Two app models, not one
+
+Revised after research: a comparable platform offers **both**, and declares the
+difference rather than picking one.
+
+| | Agenta-owned app | Customer-owned app |
+| --- | --- | --- |
+| setup | one click, OAuth install | create an app from a manifest, paste secrets |
+| commands, modals, event subscriptions | **no** | yes |
+| self-hosted | not possible | the only option |
+
+The limitation is structural, not a product choice: **commands and event
+subscriptions belong to the app, not to the installation**, and an app has one
+manifest. So a shared Agenta-owned app cannot offer per-customer commands — every
+installation would have to share one command set.
+
+This is the same fact that forces the generated manifest below, seen from the other
+side.
+
+So the model is a property of the connection, it changes what the connection can
+do, and the capability declaration has to say so — otherwise a user enables a
+command on a managed connection and it silently never fires.
+
 ## 1. Each channel declares its credentials
 
 Alongside the capability declaration, which today says only what a channel *can do*
 and nothing about what it must be *given*.
 
-Per field: the name, whether it is secret, whether it is required, and a label the
-UI can show. That is enough to generate the form, validate a save, and let the
+Per field: the name, its **type**, whether it is secret, whether it is required,
+and a label the UI can show. Type matters because text, OAuth and mTLS differ at
+injection and at renewal — a token that expires needs a refresh path a static
+secret does not. That is enough to generate the form, validate a save, and let the
 contract suite build a valid connection for any adapter instead of for one.
 
 This alone closes the three loose ends behind `F47`: six undocumented key names,
@@ -35,6 +60,12 @@ names.
 
 **Secrets are encrypted at rest and never returned by any read.** A configured
 credential reads as "set", never as its value.
+
+**And never persisted by accident.** The inbox and outbox store a `processed`
+payload per event. A platform that echoes a token in a response would put it in our
+log — a documented failure mode elsewhere, where the mitigation is asking the user
+to trim their own output. Better to redact known credential fields on the way in
+than to discover it later.
 
 ## 2. Slack's manifest is generated from the configuration
 
@@ -80,8 +111,12 @@ readiness check is that a real event arrived on it — not that a field was fill
 
 ## Work packages
 
-- **A — credential schema.** Declare it next to capabilities; generate the form
-  from it; encrypt at rest; never read back. Fixes the contract-suite hardcoding.
+- **A — credential schema.** Declare it next to capabilities, with a type per
+  field; generate the form from it; encrypt at rest; never read back; redact on
+  ingest. Fixes the contract-suite hardcoding.
+- **B0 — the two app models.** Agenta-owned install and customer-owned app, with
+  the capability difference declared so an unavailable feature is refused at
+  configuration time rather than silently dead.
 - **B — Slack setup.** Manifest generated from configuration, installed-hash
   comparison and drift state, auth verification.
 - **C — Telegram setup.** Token, webhook registration, `getMe` verification. The

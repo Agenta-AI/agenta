@@ -122,3 +122,72 @@ Worth weighing against our own turn/session events before inventing more.
    name-keyed resolve with a silent loser. Theirs is documented; ours should be
    constrained.
 5. **Evaluate AG-UI as the agent-facing contract** rather than growing our own.
+
+---
+
+# Second source: a governance-first automation platform
+
+Researched the same day. A closed product, no public repo for it — so this is
+documentation and announcement material, not code. Different shape from the
+channels stack, and useful for exactly two of our open items.
+
+## The one that answers our multi-tenancy question
+
+They offer **both** Slack models, and say plainly what each costs:
+
+- **Their own Slack app, via managed OAuth.** The easy path. Explicitly limited:
+  *"You can implement base interactivity with Tines's app for Slack by using pages
+  and prompts in messages."*
+- **The customer's own custom Slack app, as a plain credential.** Required for the
+  real features: *"If you would like to use advanced functionality such as slack
+  commands, modals, interactivity, and/or event subscriptions, we recommend
+  creating your own custom app."*
+
+And: **self-hosted tenants can only use the custom app.**
+
+This is the answer to "many Slacks, including one from Agenta usable many times".
+It is not one model or the other — it is both, with a **declared capability
+difference between them**, and the managed one is deliberately the weaker.
+
+Note what that implies for us and matches what we already found: commands and event
+subscriptions are properties of *the app*, not of the installation. A shared
+Agenta-owned app cannot offer per-customer commands, because the manifest is
+one-per-app. That is the same fact that makes our generated-manifest-plus-drift-hash
+necessary, seen from the other side.
+
+## Credentials never reach the runtime
+
+*"Credentials are injected into the runtime via transparent proxy, with secrets
+never visible to the builder, AI, or stored in the code."* A credential lives on a
+connector; when a step calls out, a proxy **outside the execution environment**
+injects it, so the executing code never reads the value.
+
+Their credential types are a ready-made vocabulary for the schema `F47` asks for:
+text, JWT, OAuth 2.0, AWS, HTTP request, mutual TLS, multi-request — plus
+per-product "connect flows" that walk a user through creating one. That is exactly
+the split we designed independently: **one schema, per-platform flows.**
+
+Worth taking seriously, and honestly: they also document the limit. A third-party
+service can echo a credential back in a response, which then lands in the event
+log, and the mitigation is that the user must trim the output. A proxy hides the
+secret from the builder; it does not stop the far end leaking it.
+
+## What we take
+
+1. **Offer both app models, and declare the difference.** An Agenta-owned app for
+   the easy path, a customer-owned app for commands, modals, interactivity and
+   event subscriptions. This changes `provisioning.md`, which currently assumes one
+   model.
+2. **A credential *type* vocabulary**, not just a field list: text vs OAuth vs mTLS
+   behave differently at renewal and at injection.
+3. **Keep secrets out of what is logged.** Our inbox and outbox persist a
+   `processed` payload per event. If a platform ever echoes a token, we store it.
+   Worth a rule before it happens rather than after.
+
+## What we do not take
+
+A credential proxy outside the runtime is a large piece of infrastructure whose
+value is protecting secrets from *the builder and the model* — their core problem,
+since their users write workflow code. Our adapters are our own code, so the same
+protection buys much less. Encryption at rest plus never reading a secret back is
+the proportionate version.

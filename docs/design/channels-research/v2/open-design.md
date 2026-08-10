@@ -74,7 +74,12 @@ plus customers' own apps for their own workspaces. That decides:
   one tenant's event resolve against another's connection
 - whether the manifest is per-installation or per-app
 
-The largest unowned item, and provisioning assumes an answer.
+**Partly answered by research** (see `prior-art.md`): a comparable platform offers
+both an own-brand app and a customer-owned app, and declares the capability
+difference — the shared app cannot do commands, modals or event subscriptions,
+because those belong to the app rather than the installation. `provisioning.md` now
+carries that as its section 0. What remains is whether we offer both, and how a
+customer moves from one to the other.
 
 ### 8. Identity linking
 
