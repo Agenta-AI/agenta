@@ -29,9 +29,17 @@ const seededRevisionByApp = new Map<string, string>()
 
 const apiBase = (page: Page): string => {
     if (process.env.AGENTA_API_URL) return process.env.AGENTA_API_URL
-    const origin = new URL(page.url() || process.env.AGENTA_WEB_URL || "http://localhost:3000")
-        .origin
-    return `${origin}/api`
+    // seedAgentChatApp() runs before the test navigates anywhere, so page.url() is still
+    // "about:blank" — a non-empty string that defeats `page.url() || fallback`, and whose
+    // origin serializes to the literal string "null" (a bogus `/null/api/...` request).
+    // Treat about:blank as "no real page yet" and fall back to the configured web URL,
+    // same as the test config's own baseURL (playwright.config.ts).
+    const currentUrl = page.url()
+    const base =
+        currentUrl && currentUrl !== "about:blank"
+            ? currentUrl
+            : process.env.AGENTA_WEB_URL || "http://localhost:3000"
+    return `${new URL(base).origin}/api`
 }
 
 const testWithAgentChatFixtures = baseTest.extend<AgentChatFixtures>({
