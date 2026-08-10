@@ -31,7 +31,9 @@ const AVATAR_COLORS = [
  * avatar exists to solve. */
 export const agentAvatar = (name: string, id: string) => {
     const words = name.trim().split(/\s+/).filter(Boolean)
-    const initials = (words.length > 1 ? `${words[0][0]}${words[1][0]}` : name.slice(0, 2)) || "?"
+    // From the SPLIT words, never the raw name: " solo" would otherwise initial as " s".
+    const initials =
+        (words.length > 1 ? `${words[0][0]}${words[1][0]}` : words[0]?.slice(0, 2)) || "?"
     let hash = 0
     for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
     return {initials: initials.toUpperCase(), color: AVATAR_COLORS[hash % AVATAR_COLORS.length]}
@@ -171,7 +173,12 @@ export const AgentCard = ({
             tabIndex={0}
             onClick={onOpenPlayground}
             onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") onOpenPlayground()
+                // Only the card itself: the kebab inside it handles its own keys, and Space on a
+                // container that does not preventDefault also scrolls the page.
+                if (event.target !== event.currentTarget) return
+                if (event.key !== "Enter" && event.key !== " ") return
+                event.preventDefault()
+                onOpenPlayground()
             }}
             className={`group box-border flex cursor-pointer flex-col transition-colors ${
                 isGrid

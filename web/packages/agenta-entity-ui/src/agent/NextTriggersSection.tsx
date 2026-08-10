@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useCallback, useMemo} from "react"
 
 import {
     describeCron,
@@ -7,11 +7,14 @@ import {
     useTriggerSchedules,
     useTriggerSubscriptions,
 } from "@agenta/entities/gatewayTrigger"
+import {nowTickAtom} from "@agenta/shared/state"
 import {dayjs} from "@agenta/shared/utils"
 import {PanelSection} from "@agenta/ui/components/presentational"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {LightningIcon} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
+import {SectionLoadError} from "./SectionLoadError"
 import {Tip} from "./Tip"
 
 const LIST_SIZE = 5
@@ -57,8 +60,21 @@ export interface NextTriggersSectionProps {
 }
 
 export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionProps = {}) => {
-    const {schedules, isLoading: schedulesLoading} = useTriggerSchedules()
-    const {subscriptions, isLoading: subscriptionsLoading} = useTriggerSubscriptions()
+    const {
+        schedules,
+        isLoading: schedulesLoading,
+        error: schedulesError,
+        refetch: refetchSchedules,
+    } = useTriggerSchedules()
+    const {
+        subscriptions,
+        isLoading: subscriptionsLoading,
+        error: subscriptionsError,
+        refetch: refetchSubscriptions,
+    } = useTriggerSubscriptions()
+    // The shared minute clock: a projected next-run time that never re-computes freezes and ends
+    // up in the past.
+    const nowTick = useAtomValue(nowTickAtom)
 
     const rows = useMemo<UpcomingTrigger[]>(() => {
         const describeAgent = (references: unknown) => {
@@ -132,9 +148,15 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                 return 0
             })
             .slice(0, LIST_SIZE)
-    }, [schedules, subscriptions, agentNames, agentId])
+        // nowTick is a dep on purpose: it is what re-projects the next runs each minute.
+    }, [schedules, subscriptions, agentNames, agentId, nowTick])
 
     const isLoading = schedulesLoading || subscriptionsLoading
+    const hasError = Boolean(schedulesError || subscriptionsError)
+    const retry = useCallback(() => {
+        if (schedulesError) void refetchSchedules()
+        if (subscriptionsError) void refetchSubscriptions()
+    }, [schedulesError, subscriptionsError, refetchSchedules, refetchSubscriptions])
 
     return (
         <PanelSection title="Next triggers">
@@ -143,6 +165,8 @@ export const NextTriggersSection = ({agentId, agentNames}: NextTriggersSectionPr
                     <SkeletonBlock active className="h-4 w-3/4" />
                     <SkeletonBlock active className="h-4 w-1/2" />
                 </div>
+            ) : hasError ? (
+                <SectionLoadError message="Couldn't load triggers." onRetry={retry} />
             ) : rows.length === 0 ? (
                 <p className="m-0 px-2 py-3 text-xs text-colorTextTertiary">
                     {agentId

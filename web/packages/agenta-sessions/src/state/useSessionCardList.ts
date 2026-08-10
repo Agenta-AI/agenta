@@ -107,14 +107,15 @@ export const useSessionCardList = ({
           })
         : []
     const pinnedRows = allPinned.slice(0, Math.max(0, shownLimit - waitingRows.length))
-    const recentRows = listRows
-        // Only a card that RENDERS a pinned group may withhold pinned rows from here. Automation
-        // runs doesn't, so filtering them out unconditionally made pinning one delete it from view.
-        .filter(
-            (row) =>
-                (!withPinned || !pinnedSet.has(row.session_id)) && !waitingSet.has(row.session_id),
-        )
-        .slice(0, Math.max(0, shownLimit - waitingRows.length - pinnedRows.length))
+    // Only a card that RENDERS a pinned group may withhold pinned rows from here. Automation
+    // runs doesn't, so filtering them out unconditionally made pinning one delete it from view.
+    const allRecent = listRows.filter(
+        (row) => (!withPinned || !pinnedSet.has(row.session_id)) && !waitingSet.has(row.session_id),
+    )
+    const recentRows = allRecent.slice(
+        0,
+        Math.max(0, shownLimit - waitingRows.length - pinnedRows.length),
+    )
 
     const isEmpty = recentRows.length === 0 && pinnedRows.length === 0 && waitingRows.length === 0
     const grouped = waitingRows.length > 0 || pinnedRows.length > 0
@@ -135,10 +136,13 @@ export const useSessionCardList = ({
         rows: recentRows.map(vm),
     })
 
-    const canShowMore =
-        !isEmpty &&
-        (listRows.length > recentRows.length + pinnedRows.length + waitingRows.length ||
-            Boolean(listQuery.hasNextPage))
+    // Each population against its OWN rendered slice: the three groups come from three separate
+    // queries, so a total-vs-total comparison hid loaded-but-unrendered rows.
+    const hasUnrenderedRows =
+        allRecent.length > recentRows.length ||
+        allPinned.length > pinnedRows.length ||
+        waitingRowsAll.length > waitingRows.length
+    const canShowMore = !isEmpty && (hasUnrenderedRows || Boolean(listQuery.hasNextPage))
     const showMore = useCallback(() => {
         setExtraRows((shown) => shown + limit)
         if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) void listQuery.fetchNextPage()

@@ -36,3 +36,6 @@ export {stringStorage} from "./stringStorage"
 
 // Boot-phase idle gate for non-critical bootstrap queries
 export {idleReadyAtom} from "./idleReady"
+
+// One shared minute clock for relative timestamps
+export {nowTickAtom} from "./nowTick"

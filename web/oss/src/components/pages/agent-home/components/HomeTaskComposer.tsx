@@ -33,8 +33,16 @@ const HomeTaskComposer = () => {
     const [pickerOpen, setPickerOpen] = useState(false)
     const attachments = useSeedAttachments()
 
-    // Default to the most recently touched agent — the one you're most likely to want next.
-    const effectiveAgentId = agentId ?? agents[0]?.workflowId ?? null
+    // Default to the most recently touched agent — the one you're most likely to want next. A
+    // selection is only honoured while it is still in the roster: an agent archived or lost from
+    // under us must not keep Send enabled and hand `startSession` an id that no longer resolves.
+    const effectiveAgentId = useMemo(
+        () =>
+            (agentId && agents.some((agent) => agent.workflowId === agentId) ? agentId : null) ??
+            agents[0]?.workflowId ??
+            null,
+        [agentId, agents],
+    )
 
     const options = useMemo(
         () => agents.map((agent) => ({value: agent.workflowId, label: agent.name})),

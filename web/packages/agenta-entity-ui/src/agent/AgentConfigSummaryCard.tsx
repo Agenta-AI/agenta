@@ -19,6 +19,7 @@ import {useAtomValue} from "jotai"
 import {InstructionsFileRow} from "../DrillInView/SchemaControls/agentTemplate/ItemRow"
 
 import {agentConfigSummary} from "./agentConfigSummary"
+import {SectionLoadError} from "./SectionLoadError"
 import {agentLatestRevisionAtomFamily} from "./state"
 
 const INSTRUCTIONS_FILE = "AGENTS.md"
@@ -44,15 +45,7 @@ export interface AgentConfigSummaryCardProps {
     onEdit?: () => void
 }
 
-/**
- * What this agent IS, in one card.
- *
- * Built on the playground panel's own primitives rather than a second set: `ConfigAccordionSection`
- * is the same row (icon, title, right-aligned summary, chevron) with an `onOpen` mode meaning
- * "opens elsewhere", and `InstructionsFileRow` is the same file card the panel shows. Read-only —
- * configuration is edited in the playground, and a second editing surface would be two places to
- * change one thing.
- */
+/** What this agent IS, in one read-only card, built on the playground panel's own row primitives. */
 export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardProps) => {
     // Configuration lives on a revision, not on the artifact — reading the artifact gave a
     // workflow with no parameters, so every row said "Not set".
@@ -78,8 +71,11 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
             key: "model",
             icon: <CpuIcon size={16} />,
             title: "Model & harness",
-            // A model is the one required setting, so its absence is a warning rather than a gap.
-            ...(model ? stated(model) : {summary: "Choose a model", status: "warning" as const}),
+            // A model is the one required setting, so its absence is a warning rather than a gap —
+            // and a harness alone is not a model, so the status follows `summary.model` only.
+            ...(summary.model
+                ? stated(model)
+                : {summary: model || "Choose a model", status: "warning" as const}),
         },
         {
             key: "instructions",
@@ -138,6 +134,11 @@ export const AgentConfigSummaryCard = ({appId, onEdit}: AgentConfigSummaryCardPr
                         <SkeletonBlock key={row.key} active className="h-6 w-full" />
                     ))}
                 </div>
+            ) : revision.isError ? (
+                <SectionLoadError
+                    message="Couldn't load this agent's configuration."
+                    onRetry={() => void revision.refetch()}
+                />
             ) : (
                 rows.map((row) => (
                     <ConfigAccordionSection
