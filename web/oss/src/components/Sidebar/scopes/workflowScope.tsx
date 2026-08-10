@@ -13,7 +13,7 @@ interface WorkflowScopeOptions {
 }
 
 // The two header rows are 45px tall so the rail's lines land on the same y as the
-// breadcrumb bar's and the playground header's, and read as one line across the app.
+// playground header, and read as one line across the app.
 const WorkflowSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
     <>
         <div

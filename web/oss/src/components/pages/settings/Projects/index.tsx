@@ -1,34 +1,31 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {PlusOutlined} from "@ant-design/icons"
-import {CopyIcon, TrashIcon} from "@phosphor-icons/react"
-import {useMutation, useQueryClient} from "@tanstack/react-query"
+import {Tag} from "@agenta/ui"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {
-    App,
-    Button,
-    Empty,
-    Form,
-    Input,
-    Modal,
-    Space,
-    Switch,
-    Table,
-    Tag,
-    Tooltip,
-    Typography,
-} from "antd"
-import type {ColumnsType} from "antd/es/table"
+    createStandardColumns,
+    InfiniteVirtualTableFeatureShell,
+    type StandardColumnDef,
+} from "@agenta/ui/table"
+import {EmptyState} from "@agenta/ui/ui"
+import {CheckCircle, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
+import {useMutation, useQueryClient} from "@tanstack/react-query"
+import {App, Button, Form, Input, Switch} from "antd"
 
+import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import useURL from "@/oss/hooks/useURL"
 import {createProject, deleteProject, patchProject} from "@/oss/services/project"
 import {ProjectsResponse} from "@/oss/services/project/types"
 import {useProjectData} from "@/oss/state/project"
 
-const {Text} = Typography
-
 interface ProjectFormValues {
     name: string
     make_default?: boolean
+}
+
+interface ProjectRow extends ProjectsResponse {
+    key: string
+    [extra: string]: unknown
 }
 
 const ProjectsSettings = () => {
@@ -39,7 +36,9 @@ const ProjectsSettings = () => {
 
     const [isCreateModalOpen, setCreateModalOpen] = useState(false)
     const [isRenameModalOpen, setRenameModalOpen] = useState(false)
+    const [projectToDelete, setProjectToDelete] = useState<ProjectsResponse | null>(null)
     const [activeProject, setActiveProject] = useState<ProjectsResponse | null>(null)
+    const [searchTerm, setSearchTerm] = useState("")
 
     const [createForm] = Form.useForm<ProjectFormValues>()
     const [renameForm] = Form.useForm<ProjectFormValues>()
@@ -51,25 +50,20 @@ const ProjectsSettings = () => {
     }, [projects, workspaceId])
     const canDeleteProjects = scopedProjects.length > 1
 
+    const rows = useMemo<ProjectRow[]>(() => {
+        const all = scopedProjects.map((project) => ({...project, key: project.project_id}))
+        const term = searchTerm.trim().toLowerCase()
+        if (!term) return all
+        return all.filter((project) =>
+            [project.project_name, project.project_id].some((value) =>
+                value?.toLowerCase().includes(term),
+            ),
+        )
+    }, [scopedProjects, searchTerm])
+
     const invalidateProjects = useCallback(async () => {
         await queryClient.invalidateQueries({queryKey: ["projects"]})
     }, [queryClient])
-
-    const copyProjectId = useCallback(
-        async (projectId: string) => {
-            if (typeof navigator === "undefined" || !navigator?.clipboard) {
-                message.error("Clipboard not supported")
-                return
-            }
-            try {
-                await navigator.clipboard.writeText(projectId)
-                message.success("Project ID copied")
-            } catch {
-                message.error("Failed to copy project ID")
-            }
-        },
-        [message],
-    )
 
     const createMutation = useMutation({
         mutationFn: (payload: ProjectFormValues) => createProject(payload),
@@ -161,22 +155,9 @@ const ProjectsSettings = () => {
     const handleDelete = useCallback(
         (project: ProjectsResponse) => {
             if (!canDeleteProjects) return
-            Modal.confirm({
-                title: "Delete project",
-                content: (
-                    <div className="space-y-1">
-                        <p>
-                            Are you sure you want to delete <strong>{project.project_name}</strong>?
-                        </p>
-                        <p className="text-xs text-neutral-500">This action cannot be undone.</p>
-                    </div>
-                ),
-                okText: "Delete",
-                okType: "danger",
-                onOk: () => deleteMutation.mutate(project.project_id),
-            })
+            setProjectToDelete(project)
         },
-        [canDeleteProjects, deleteMutation],
+        [canDeleteProjects],
     )
 
     const openRenameModal = useCallback(
@@ -188,149 +169,139 @@ const ProjectsSettings = () => {
         [renameForm],
     )
 
-    const columns: ColumnsType<ProjectsResponse> = useMemo(
-        () => [
-            {
-                title: "Project",
-                dataIndex: "project_name",
-                key: "name",
-                render: (_value, record) => (
-                    <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                            <Text strong>{record.project_name}</Text>
-                            {record.is_default_project && (
-                                <Tag className="bg-[var(--ag-c-0517290F)] m-0">Default</Tag>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <Text type="secondary" className="text-xs">
-                                {record.project_id}
-                            </Text>
-                            <Tooltip title="Copy project ID">
-                                <Button
-                                    type="text"
-                                    size="small"
-                                    className="!h-5 !w-5 !min-w-0 !px-0"
-                                    icon={<CopyIcon size={12} />}
-                                    onClick={() => copyProjectId(record.project_id)}
-                                />
-                            </Tooltip>
-                        </div>
-                    </div>
-                ),
-            },
-            {
-                title: "Workspace",
-                dataIndex: "workspace_name",
-                key: "workspace",
-                render: (value: string | undefined) => value || "—",
-            },
-            {
-                title: "Role",
-                dataIndex: "user_role",
-                key: "role",
-                render: (value: string | undefined | null) =>
-                    value ? <Tag>{value}</Tag> : <Text type="secondary">—</Text>,
-            },
-            {
-                title: "Actions",
-                key: "actions",
-                render: (_value, record) => (
-                    <Space size="small">
-                        <Button type="link" size="small" onClick={() => openRenameModal(record)}>
-                            Rename
-                        </Button>
-                        <Tooltip title={record.is_default_project ? "Already default" : undefined}>
-                            <Button
-                                type="link"
-                                size="small"
-                                disabled={record.is_default_project}
-                                onClick={() => handleMakeDefault(record)}
-                                loading={
-                                    defaultMutation.isPending &&
-                                    defaultMutation.variables === record.project_id
-                                }
-                            >
-                                Set default
-                            </Button>
-                        </Tooltip>
-                        <Tooltip
-                            title={
-                                canDeleteProjects
-                                    ? record.is_default_project
-                                        ? "Default project cannot be deleted"
-                                        : undefined
-                                    : "At least one project must remain in this workspace"
-                            }
-                        >
-                            <Button
-                                type="link"
-                                size="small"
-                                danger
-                                disabled={!canDeleteProjects || record.is_default_project}
-                                onClick={() => handleDelete(record)}
-                                loading={
-                                    deleteMutation.isPending &&
-                                    deleteMutation.variables === record.project_id
-                                }
-                            >
-                                <TrashIcon />
-                            </Button>
-                        </Tooltip>
-                    </Space>
-                ),
-            },
-        ],
+    const columns = useMemo(
+        () =>
+            createStandardColumns<ProjectRow>([
+                {
+                    type: "entity",
+                    key: "project_name",
+                    title: "Project",
+                    width: 260,
+                    fixed: "left",
+                    getName: (record) => record.project_name,
+                    getChips: (record) => (record.is_default_project ? [{label: "Default"}] : []),
+                },
+                // Its own column, not a second line under the name.
+                {type: "slug", key: "project_id", title: "Project ID", width: 330},
+                {
+                    type: "text",
+                    key: "user_role",
+                    title: "Your role",
+                    width: 140,
+                    render: (_value, record) =>
+                        record.user_role ? <Tag className="m-0" label={record.user_role} /> : "—",
+                },
+                {
+                    type: "actions",
+                    showCopyId: false,
+                    items: [
+                        {
+                            key: "rename",
+                            label: "Rename",
+                            icon: <PencilSimpleLine size={16} />,
+                            onClick: (record: ProjectRow) => openRenameModal(record),
+                        },
+                        {
+                            key: "default",
+                            label: "Set as default",
+                            icon: <CheckCircle size={16} />,
+                            hidden: (record: ProjectRow) => Boolean(record.is_default_project),
+                            disabled: () => defaultMutation.isPending,
+                            onClick: (record: ProjectRow) => handleMakeDefault(record),
+                        },
+                        {type: "divider"},
+                        {
+                            key: "delete",
+                            label: "Delete project",
+                            icon: <Trash size={16} />,
+                            danger: true,
+                            // The last project in a workspace cannot be removed, and the
+                            // default project must be reassigned first.
+                            disabled: (record: ProjectRow) =>
+                                !canDeleteProjects || Boolean(record.is_default_project),
+                            onClick: (record: ProjectRow) => handleDelete(record),
+                        },
+                    ],
+                } satisfies StandardColumnDef<ProjectRow>,
+            ]),
         [
             canDeleteProjects,
-            copyProjectId,
             defaultMutation.isPending,
-            defaultMutation.variables,
-            deleteMutation.isPending,
-            deleteMutation.variables,
             handleDelete,
             handleMakeDefault,
             openRenameModal,
         ],
     )
 
-    const tableLoading =
-        isLoading ||
-        createMutation.isPending ||
-        renameMutation.isPending ||
-        defaultMutation.isPending ||
-        deleteMutation.isPending
-
+    const {tableScope, pagination} = useStaticTable<ProjectRow>("settings-projects", rows, {
+        loading: isLoading,
+    })
     return (
-        <section className="flex flex-col gap-6">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-                <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={() => setCreateModalOpen(true)}
-                >
-                    New project
-                </Button>
-            </div>
-
-            <Table<ProjectsResponse>
-                dataSource={scopedProjects}
+        <div className="flex flex-col gap-2">
+            <InfiniteVirtualTableFeatureShell<ProjectRow>
+                tableScope={tableScope}
+                autoHeight={false}
                 columns={columns}
-                rowKey={(record) => record.project_id}
-                loading={tableLoading}
-                locale={{
-                    emptyText: (
-                        <Empty
-                            description="No projects found for this workspace yet."
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        />
-                    ),
+                rowKey="key"
+                pagination={pagination}
+                filters={
+                    <Input.Search
+                        placeholder="Search projects"
+                        className="w-[260px]"
+                        allowClear
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        disabled={isLoading}
+                    />
+                }
+                primaryActions={
+                    <Button
+                        type="primary"
+                        icon={<Plus size={14} />}
+                        onClick={() => setCreateModalOpen(true)}
+                        disabled={isLoading}
+                    >
+                        New project
+                    </Button>
+                }
+                tableProps={{
+                    size: "small",
+                    bordered: true,
+                    tableLayout: "fixed",
+                    locale: {
+                        emptyText: searchTerm.trim() ? (
+                            <EmptyState
+                                image="simple"
+                                description={`No projects match “${searchTerm.trim()}”`}
+                            />
+                        ) : (
+                            <EmptyState
+                                image="simple"
+                                description={
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs font-medium text-colorText">
+                                            No projects in this workspace yet
+                                        </span>
+                                        <span>
+                                            Create a project to organize your agents, datasets, and
+                                            deployments.
+                                        </span>
+                                    </div>
+                                }
+                            >
+                                <Button
+                                    icon={<Plus size={14} />}
+                                    onClick={() => setCreateModalOpen(true)}
+                                >
+                                    New project
+                                </Button>
+                            </EmptyState>
+                        ),
+                    },
                 }}
-                pagination={false}
-                className="shadow-sm rounded-lg border border-neutral-100"
             />
 
-            <Modal
+            <EnhancedModal
                 title="Create project"
                 open={isCreateModalOpen}
                 okText="Create"
@@ -340,7 +311,6 @@ const ProjectsSettings = () => {
                 }}
                 onOk={() => createForm.submit()}
                 confirmLoading={createMutation.isPending}
-                destroyOnHidden
             >
                 <Form form={createForm} layout="vertical" onFinish={handleCreate}>
                     <Form.Item
@@ -359,9 +329,9 @@ const ProjectsSettings = () => {
                         <Switch />
                     </Form.Item>
                 </Form>
-            </Modal>
+            </EnhancedModal>
 
-            <Modal
+            <EnhancedModal
                 title="Rename project"
                 open={isRenameModalOpen}
                 okText="Save"
@@ -372,7 +342,6 @@ const ProjectsSettings = () => {
                 }}
                 onOk={() => renameForm.submit()}
                 confirmLoading={renameMutation.isPending}
-                destroyOnHidden
             >
                 <Form form={renameForm} layout="vertical" onFinish={handleRename}>
                     <Form.Item
@@ -383,8 +352,34 @@ const ProjectsSettings = () => {
                         <Input placeholder="Project name" />
                     </Form.Item>
                 </Form>
-            </Modal>
-        </section>
+            </EnhancedModal>
+
+            <EnhancedModal
+                title="Delete project"
+                open={Boolean(projectToDelete)}
+                okText="Delete project"
+                okType="danger"
+                okButtonProps={{icon: <Trash size={14} />, type: "primary"}}
+                onCancel={() => setProjectToDelete(null)}
+                onOk={() => {
+                    if (!projectToDelete) return
+                    deleteMutation.mutate(projectToDelete.project_id)
+                    setProjectToDelete(null)
+                }}
+                confirmLoading={deleteMutation.isPending}
+                width={450}
+            >
+                <div className="flex flex-col gap-1 rounded-lg border border-[var(--ant-color-error-border)] bg-[var(--ant-color-error-bg)] px-4 py-3">
+                    <span className="font-medium text-[var(--ant-color-error)]">
+                        This action cannot be undone.
+                    </span>
+                    <span className="text-[var(--ant-color-text)]">
+                        Permanently deletes {projectToDelete?.project_name}, including all of its
+                        agents, datasets, and deployments.
+                    </span>
+                </div>
+            </EnhancedModal>
+        </div>
     )
 }
 

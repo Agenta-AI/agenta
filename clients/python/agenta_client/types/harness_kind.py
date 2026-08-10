@@ -2,4 +2,4 @@
 
 import typing
 
-HarnessKind = typing.Union[typing.Literal["pi_core", "claude", "pi_agenta"], typing.Any]
+HarnessKind = typing.Union[typing.Literal["pi_core", "claude", "pi_agenta", "codex"], typing.Any]

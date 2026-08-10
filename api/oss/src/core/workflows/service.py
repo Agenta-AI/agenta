@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Optional, List, Union, TYPE_CHECKING
+from typing import Any, Dict, Optional, List, Union, TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import httpx
@@ -38,6 +38,7 @@ from oss.src.core.git.dtos import (
     VariantQuery,
     VariantFork,
     #
+    Revision,
     RevisionCreate,
     RevisionEdit,
     RevisionQuery,
@@ -73,6 +74,11 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionCommit,
     WorkflowRevisionData,
     #
+    CommitWarning,
+    CommitOutcome,
+    ConfigReadOutcome,
+    DeltaResolution,
+    #
     SimpleWorkflow,
     SimpleWorkflowFlags,
     SimpleWorkflowQueryFlags,
@@ -87,11 +93,29 @@ from oss.src.core.workflows.dtos import (
 )
 from oss.src.core.git.types import (
     InlineResolveInvalid,
+    RevisionConflict,
+    RevisionUnchanged,
     VariantForkError,
     validate_revision_refs_sufficient,
     validate_variant_refs_sufficient,
     needs_default_variant_resolution,
     validate_retrieve_refs_consistent,
+)
+from oss.src.core.workflows.change_set import (
+    ChangeSetError,
+    Reason,
+    apply_change_set,
+)
+from oss.src.core.workflows.read_config import (
+    ReadConfigError,
+    clamp_max_bytes,
+    project_config,
+)
+from oss.src.core.workflows.commit_support import (
+    PLATFORM_TOOL_REJECTION,
+    derive_commit_message,
+    find_platform_tool_entries,
+    normalize_operations,
 )
 from oss.src.core.workflows.build_kit import BUILD_KIT_WORKFLOW_SLUG
 from oss.src.core.workflows.interfaces import StaticWorkflowProvider
@@ -132,6 +156,66 @@ log = get_module_logger(__name__)
 
 
 # ------------------------------------------------------------------------------
+
+
+class RevisionConflictError(Exception):
+    """The commit was built on a base that is no longer the head. HTTP 409.
+
+    Carries both ids so the agent can read the exact new revision in one step, and the
+    next step so it knows what to do with them. It deliberately does NOT carry the
+    configuration: that would recreate the large-payload problem this project exists to
+    remove (contract commit-transaction.md 6.1).
+    """
+
+    code = "revision_conflict"
+
+    def __init__(
+        self,
+        *,
+        base_revision_id: str,
+        current_revision_id: str,
+        current_revision_version: Optional[str] = None,
+    ) -> None:
+        super().__init__("The workflow head changed. No revision was committed.")
+        self.base_revision_id = base_revision_id
+        self.current_revision_id = current_revision_id
+        self.current_revision_version = current_revision_version
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
+
+        NOT retryable, which is a correction. Replaying this exact request cannot succeed:
+        it carries a `base_revision_id` that is no longer the head, and it will carry the
+        same one forever. What the caller does is re-read and re-anchor, which is the
+        `next_step`. Marking it retryable told a small model to send the same stale bytes
+        again.
+        """
+        details: Dict[str, Any] = {
+            "base_revision_id": self.base_revision_id,
+            "current_revision_id": self.current_revision_id,
+        }
+        if self.current_revision_version is not None:
+            details["current_revision_version"] = self.current_revision_version
+        return {
+            "code": self.code,
+            "message": "The workflow head changed. No revision was committed.",
+            "retryable": False,
+            "next_step": (
+                "Call read_config for the new revision, re-anchor your edits to it, and "
+                "send the commit again with the new base_revision_id."
+            ),
+            "details": details,
+        }
+
+
+def _validate_persisted_shape(data: dict) -> None:
+    """The engine's final gate: the finished tree must be storable as it stands.
+
+    The revision DTO is the only closed shape the server owns here, so this asserts that
+    and nothing more. Without it the same failure surfaces later as an uncaught pydantic
+    error rather than a 422 naming the field (contract commit-transaction.md 3, step 5).
+    """
+    WorkflowRevisionData(**data)
 
 
 class WorkflowsService:
@@ -445,7 +529,12 @@ class WorkflowsService:
                     }
                 )
 
-        if revision.version == "0":
+        # The empty placeholder a variant is seeded with has nothing to merge onto, and
+        # merging would give it flags it was never configured with. A first revision that
+        # CARRIES content is a configured revision that happens to be version 0, so it
+        # reads like any other: without the merge it would lose the artifact-owned flags
+        # and drop out of every flag-filtered listing.
+        if revision.version == "0" and revision.data is None and revision.flags is None:
             return revision
 
         # Callers fanning out over many revisions pass the workflow already
@@ -1849,6 +1938,283 @@ class WorkflowsService:
 
         return _workflow_revisions
 
+    async def read_workflow_revision_config(
+        self,
+        *,
+        project_id: UUID,
+        workflow_variant_id: UUID,
+        path: Optional[list] = None,
+        max_bytes: Optional[int] = None,
+    ) -> "ConfigReadOutcome":
+        """Read one part of the variant's committed configuration.
+
+        The answer always comes from the stored head, on every kind of run.
+
+        Whether the RUN is a draft is not an input here. It is a fact about the caller's
+        run context, not about the configuration, and it used to arrive as a request field,
+        which meant a caller could assert it about itself (audit leak C38). The tool
+        handler knows it from the run and decorates the answer; this method reports what is
+        stored and nothing about who is asking.
+        """
+        head = await self.fetch_workflow_revision(
+            project_id=project_id,
+            workflow_variant_ref=Reference(id=workflow_variant_id),
+            include_archived=False,
+        )
+        if head is None:
+            raise ReadConfigError(
+                "revision_not_found",
+                "That variant has no revision to read.",
+                status_code=404,
+            )
+
+        data = (
+            head.data.model_dump(mode="json", exclude_none=True) if head.data else None
+        )
+        result = project_config(data, path, max_bytes=clamp_max_bytes(max_bytes))
+
+        return ConfigReadOutcome(
+            revision=head,
+            path=result.path,
+            value=result.value,
+            bytes=result.bytes,
+            is_draft=False,
+            warnings=list(result.warnings),
+        )
+
+    async def commit_workflow_revision_checked(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_revision_commit: WorkflowRevisionCommit,
+        #
+        scope_policy=None,
+        agent_context: bool = False,
+    ) -> "CommitOutcome":
+        """Commit with the base check, the no-change answer, and the warning list.
+
+        The commit wrapper of ``contracts/commit-transaction.md``. Every other caller of
+        ``commit_workflow_revision`` keeps its signature and its behavior; only the
+        workflow commit endpoint routes through here.
+        """
+        self._reject_static_slug(workflow_revision_commit.slug)
+
+        warnings: List[CommitWarning] = []
+        head: Optional[WorkflowRevision] = None
+        # Read before the delta arm rebinds the commit, which clears `delta`.
+        is_ordered = (
+            workflow_revision_commit.delta is not None
+            and workflow_revision_commit.delta.operations is not None
+        )
+        if workflow_revision_commit.delta is not None:
+            resolution = await self._resolve_revision_delta(
+                project_id=project_id,
+                workflow_revision_commit=workflow_revision_commit,
+                scope_policy=scope_policy,
+                agent_context=agent_context,
+            )
+            warnings = list(resolution.warnings)
+            head = resolution.head
+            workflow_revision_commit = resolution.commit
+        else:
+            # A full-data commit answers `no_change` on the same terms as a delta: the
+            # comparison is a property of the result, not of how the caller expressed it.
+            head = await self.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_variant_ref=Reference(
+                    id=workflow_revision_commit.workflow_variant_id
+                    or workflow_revision_commit.variant_id
+                ),
+                include_archived=False,
+            )
+            # A stale base beats a no-change answer (commit-transaction.md 6, rule 2 over
+            # rule 6). A stale caller can send data that equals the NEW head; telling it
+            # `no_change` would confirm a base that had already moved. The delta arm runs
+            # this check inside `_resolve_revision_delta`, before it applies anything.
+            self._check_base_revision(
+                workflow_revision_commit=workflow_revision_commit,
+                current=head,
+            )
+
+        # Built before the comparison, because the comparison runs on what would be
+        # STORED: enrichment fills `url` and `schemas`, and the flags are inferred from the
+        # finished data (contract commit-transaction.md 5.1).
+        candidate = self._build_revision_commit(
+            workflow_revision_commit=workflow_revision_commit,
+        )
+
+        # The no-change answer belongs to the ordered-operations surface. With the flag off
+        # the commit path stays exactly today's: a legacy delta or a full-data commit that
+        # produces the stored configuration still creates a revision, because callers in
+        # the field read that new revision back and count on it existing.
+        answers_no_change = (
+            is_ordered or env.agenta.api.workflows.ordered_operations_enabled
+        )
+
+        # There is ONE decision point, and it is inside the lock. Deciding here, before the
+        # call, reads a head another writer can move afterwards: the caller was then told
+        # `no_change` about a revision that was no longer the head, and the conflict the DAO
+        # would have raised never happened because the early return skipped it.
+        # Passing the expectation down is what makes the DAO re-read under the variant lock
+        # and refuse the loser. `CommitLockTimeout` travels on unchanged: it is the 503.
+        try:
+            revision = await self.commit_workflow_revision(
+                project_id=project_id,
+                user_id=user_id,
+                workflow_revision_commit=workflow_revision_commit,
+                expected_head_revision_id=workflow_revision_commit.base_revision_id,
+                no_change_check=(
+                    self._no_change_check(candidate=candidate)
+                    if answers_no_change
+                    else None
+                ),
+            )
+        except RevisionConflict as e:
+            raise RevisionConflictError(
+                base_revision_id=e.expected_head_revision_id,
+                current_revision_id=e.current_head_revision_id,
+            ) from e
+        except RevisionUnchanged as e:
+            # A commit event evicts the warm session, so a change that changes nothing
+            # must not create a revision, publish an event, or invalidate a cache.
+            warnings.append(
+                CommitWarning(
+                    code="no_change",
+                    message=(
+                        "The change produced the configuration that is already "
+                        "stored, so no revision was created."
+                    ),
+                )
+            )
+            # Re-read rather than answering with the head fetched earlier: the decision was
+            # made against the head under the lock, and the answer has to describe that one.
+            unchanged_head = (
+                await self.fetch_workflow_revision(
+                    project_id=project_id,
+                    workflow_revision_ref=Reference(id=e.head_revision_id),
+                )
+                if e.head_revision_id is not None
+                else None
+            )
+            return CommitOutcome(
+                revision=unchanged_head,
+                status="no_change",
+                warnings=warnings,
+            )
+        return CommitOutcome(revision=revision, status="committed", warnings=warnings)
+
+    def _no_change_check(self, *, candidate: RevisionCommit):
+        """The comparison the DAO runs against the head it holds the lock on.
+
+        A closure rather than a value, because the row it compares against does not exist
+        yet at this point: it is whatever the head turns out to be once the lock is taken.
+        """
+
+        def unchanged(stored_head: Optional[Revision]) -> bool:
+            if stored_head is None:
+                return False
+            return self._canonical_revision_record(
+                data=candidate.data,
+                flags=candidate.flags,
+            ) == self._canonical_revision_record(
+                data=stored_head.data,
+                flags=stored_head.flags,
+            )
+
+        return unchanged
+
+    async def _is_no_change(
+        self,
+        *,
+        project_id: UUID,
+        head: Optional[WorkflowRevision],
+        candidate: RevisionCommit,
+    ) -> bool:
+        """Whether committing ``candidate`` would store what the head already holds.
+
+        The head side reads the STORED row, never the read view: the read path merges the
+        artifact's flags in and infers `url` on top of what was written, so comparing
+        against it would answer "changed" forever (contract commit-transaction.md 5.1).
+        """
+        if head is None or head.id is None:
+            return False
+
+        stored_head = await self.workflows_dao.fetch_revision(
+            project_id=project_id,
+            #
+            revision_ref=Reference(id=head.id),
+        )
+        if stored_head is None:
+            return False
+
+        return self._canonical_revision_record(
+            data=candidate.data,
+            flags=candidate.flags,
+        ) == self._canonical_revision_record(
+            data=stored_head.data,
+            flags=stored_head.flags,
+        )
+
+    @staticmethod
+    def _canonical_revision_record(
+        *,
+        data: Optional[dict],
+        flags: Optional[dict],
+    ) -> dict:
+        """The persisted pair that decides equality (contract commit-transaction.md 5.1).
+
+        `flags` belongs in it because two revisions can hold equal data and different
+        inferred flags; comparing data alone would answer `no_change` for a commit that
+        does change behavior, and the new flags would never reach the database. The
+        contract's recursive key sort needs no step here: python compares dicts by content,
+        not by key order.
+
+        A field that is absent, null, or an empty string is the same field: not set. The
+        distinction has no meaning anywhere in a configuration, and keeping it produced a
+        pointless revision. An agent with no stored instructions gets a workspace file
+        holding only the platform-guidance block; copying it back strips to `""`, which
+        differed from absent and wrote a revision that changed nothing a reader can see.
+
+        Only the EQUALITY question changes. Nothing rewrites the stored tree, because a
+        commit that quietly normalized what it was given would be the worse bug: a caller
+        that sets a field to empty on purpose must still see exactly that stored.
+        """
+        return {
+            "data": WorkflowsService._without_unset_fields(data) or None,
+            "flags": flags or None,
+        }
+
+    @staticmethod
+    def _without_unset_fields(node: Any) -> Any:
+        """Drop object fields that are absent in every way a caller can express it.
+
+        An object left holding nothing is dropped too, and that is what the round trip
+        actually needs: a copied-back file sets `instructions.agents_md` to empty, so the
+        field goes and `instructions` is left as `{}` where the head had no `instructions`
+        at all.
+
+        Applied to dict KEYS only. A list keeps its elements and its length, because an
+        empty string inside a list is a positional value and dropping it would silently
+        renumber the entries around it.
+        """
+        if isinstance(node, dict):
+            cleaned = {}
+            for key, value in node.items():
+                if value is None:
+                    continue
+                if isinstance(value, str) and not value.strip():
+                    continue
+                value = WorkflowsService._without_unset_fields(value)
+                if isinstance(value, dict) and not value:
+                    continue
+                cleaned[key] = value
+            return cleaned
+        if isinstance(node, list):
+            return [WorkflowsService._without_unset_fields(entry) for entry in node]
+        return node
+
     async def commit_workflow_revision(
         self,
         *,
@@ -1860,15 +2226,85 @@ class WorkflowsService:
         initial: bool = False,
         #
         emit: bool = True,
+        #
+        expected_head_revision_id: Optional[UUID] = None,
+        #
+        no_change_check=None,
     ) -> Optional[WorkflowRevision]:
         self._reject_static_slug(workflow_revision_commit.slug)
 
         if workflow_revision_commit.delta is not None:
-            workflow_revision_commit = await self._resolve_revision_delta(
+            resolution = await self._resolve_revision_delta(
                 project_id=project_id,
                 workflow_revision_commit=workflow_revision_commit,
             )
+            workflow_revision_commit = resolution.commit
 
+        _revision_commit = self._build_revision_commit(
+            workflow_revision_commit=workflow_revision_commit,
+        )
+
+        if not _revision_commit.artifact_id:
+            if not _revision_commit.variant_id:
+                return None
+
+            variant = await self.workflows_dao.fetch_variant(
+                project_id=project_id,
+                #
+                variant_ref=Reference(id=_revision_commit.variant_id),
+            )
+
+            if not variant:
+                return None
+
+            _revision_commit.artifact_id = variant.artifact_id
+
+        revision = await self.workflows_dao.commit_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            revision_commit=_revision_commit,
+            #
+            initial=initial,
+            #
+            expected_head_revision_id=expected_head_revision_id,
+            #
+            no_change_check=no_change_check,
+        )
+
+        if not revision:
+            return None
+
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
+
+        if emit:
+            await publish_revision_event(
+                domain="workflow",
+                action="commit",
+                project_id=project_id,
+                user_id=user_id,
+                revision=_workflow_revision,
+                message=workflow_revision_commit.message,
+            )
+
+        return await self._normalize_revision_for_read(
+            project_id=project_id,
+            revision=_workflow_revision,
+        )
+
+    def _build_revision_commit(
+        self,
+        *,
+        workflow_revision_commit: WorkflowRevisionCommit,
+    ) -> RevisionCommit:
+        """Enrich the commit's data and derive the flags that would be stored with it.
+
+        Pure and free of I/O, so the no-change comparison can build the candidate and the
+        insert can build it again without either owning a private copy of the enrichment
+        (contract commit-transaction.md 4).
+        """
         # A snippet (skill) is non-runnable content: strip every execution-surface field, only uri +
         # parameters survive. Holds even if a caller posts the skill uri under a normal slug.
         data = normalize_snippet_data(workflow_revision_commit.data)
@@ -1915,11 +2351,11 @@ class WorkflowsService:
                 data = data.model_copy(update={"schemas": JsonSchemas(**schemas_dict)})
 
         _revision_slug = workflow_revision_commit.slug or uuid4().hex[-12:]
-        _revision_commit = RevisionCommit(
+        return RevisionCommit(
             **workflow_revision_commit.model_dump(
                 mode="json",
                 exclude_none=True,
-                exclude={"flags", "data", "slug"},
+                exclude={"flags", "data", "slug", "base_revision_id"},
             ),
             slug=_revision_slug,
             flags=self._dump_stored_revision_flags(
@@ -1935,64 +2371,26 @@ class WorkflowsService:
             data=data.model_dump(mode="json", exclude_none=True) if data else None,
         )
 
-        if not _revision_commit.artifact_id:
-            if not _revision_commit.variant_id:
-                return None
-
-            variant = await self.workflows_dao.fetch_variant(
-                project_id=project_id,
-                #
-                variant_ref=Reference(id=_revision_commit.variant_id),
-            )
-
-            if not variant:
-                return None
-
-            _revision_commit.artifact_id = variant.artifact_id
-
-        revision = await self.workflows_dao.commit_revision(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            revision_commit=_revision_commit,
-            #
-            initial=initial,
-        )
-
-        if not revision:
-            return None
-
-        _workflow_revision = WorkflowRevision(
-            **revision.model_dump(mode="json"),
-        )
-
-        if emit:
-            await publish_revision_event(
-                domain="workflow",
-                action="commit",
-                project_id=project_id,
-                user_id=user_id,
-                revision=_workflow_revision,
-                message=workflow_revision_commit.message,
-            )
-
-        return await self._normalize_revision_for_read(
-            project_id=project_id,
-            revision=_workflow_revision,
-        )
-
     async def _resolve_revision_delta(
         self,
         *,
         project_id: UUID,
         workflow_revision_commit: WorkflowRevisionCommit,
-    ) -> WorkflowRevisionCommit:
-        """Resolve a delta commit into a full-data commit against the variant's latest revision.
+        scope_policy=None,
+        preview: bool = False,
+        agent_context: bool = False,
+    ) -> "DeltaResolution":
+        """Resolve a delta commit into a full-data commit against the variant's head.
 
-        Applies ``delta.set`` (deep-merge) then ``delta.remove`` (dotted-path delete) onto the
-        current revision's data, returning a commit carrying the resulting ``data`` and no delta.
+        Both delta forms go through the change-set engine, which owns the exclusivity rule
+        (contract change-set.md 3.3) and every refusal either form can earn.
+
+        ``preview`` is for a caller that resolves a delta to RUN it and never to store it,
+        which today is `test_run`. It drops the requirement that an ordered delta carry a
+        base revision id. That id is a precondition on a write, and a preview performs
+        none. A base id the caller does supply is still checked, because a preview built on
+        a head that moved is not the preview the caller asked for.
         """
-        delta = workflow_revision_commit.delta
         variant_id = (
             workflow_revision_commit.workflow_variant_id
             or workflow_revision_commit.variant_id
@@ -2007,13 +2405,153 @@ class WorkflowsService:
             if current and current.data
             else {}
         )
-        merged = _deep_merge(base, delta.set or {})
-        for path in delta.remove or []:
-            _remove_path(merged, path)
 
-        return workflow_revision_commit.model_copy(
-            update={"data": WorkflowRevisionData(**merged), "delta": None}
+        # TODO(S1b-lock lane): best effort until the check moves inside the DAO's locked
+        # region; the read and the insert are still two transactions. See
+        # docs/design/agent-config-editing/notes/dao-lock-impact.md.
+        self._check_base_revision(
+            workflow_revision_commit=workflow_revision_commit,
+            current=current,
+            require_base=not preview,
         )
+
+        resolved, message, warnings = self._apply_delta(
+            base=base,
+            workflow_revision_commit=workflow_revision_commit,
+            scope_policy=scope_policy,
+            agent_context=agent_context,
+        )
+
+        return DeltaResolution(
+            commit=workflow_revision_commit.model_copy(
+                update={
+                    "data": WorkflowRevisionData(**resolved),
+                    "delta": None,
+                    "message": message,
+                }
+            ),
+            head=current,
+            warnings=warnings,
+        )
+
+    def _check_base_revision(
+        self,
+        *,
+        workflow_revision_commit: WorkflowRevisionCommit,
+        current: Optional[WorkflowRevision],
+        require_base: bool = True,
+    ) -> None:
+        """Refuse a commit built on a base that is no longer the head.
+
+        An ordered delta requires the base id, because its anchors are only meaningful
+        against the revision the caller read. A legacy delta keeps it optional so shipped
+        playbooks are unaffected. ``require_base`` is false only for a preview, which
+        stores nothing and so has no write for the id to protect.
+        """
+        delta = workflow_revision_commit.delta
+        is_ordered = delta is not None and delta.operations is not None
+        base_revision_id = workflow_revision_commit.base_revision_id
+
+        if base_revision_id is None:
+            if is_ordered and require_base:
+                raise ChangeSetError(
+                    Reason.INVALID_DELTA,
+                    "an ordered delta needs `base_revision_id`: the revision you read.",
+                )
+            return
+
+        head_id = current.id if current else None
+        if head_id is not None and str(head_id) != str(base_revision_id):
+            raise RevisionConflictError(
+                base_revision_id=str(base_revision_id),
+                current_revision_id=str(head_id),
+                current_revision_version=getattr(current, "version", None),
+            )
+
+    def _apply_delta(
+        self,
+        *,
+        base: dict,
+        workflow_revision_commit: WorkflowRevisionCommit,
+        scope_policy=None,
+        agent_context: bool = False,
+    ) -> tuple[dict, Optional[str], List[CommitWarning]]:
+        """Run either delta form through the engine, plus the wrapper-owned jobs.
+
+        The engine classifies the form, so a delta carrying both arms is refused rather
+        than silently losing one of them, and the legacy arm earns the same marker,
+        scope, and unique-name refusals the ordered arm does.
+
+        ``agent_context`` gates the three transformations that exist FOR THE AGENT, and
+        gates nothing else. They were unconditional, so the general commit path (the
+        playground's own save, the SDK, applications and evaluators) silently inherited
+        agent policy it never asked for: its selectors were rewritten, a `tools` list
+        holding a platform entry was refused, and a caller's own commit message was
+        replaced by a derived one. Audit leaks C24, C25, C26 and C43.
+
+        Scope ENFORCEMENT is deliberately NOT gated here. It travels as `scope_policy`
+        into the engine, which sees the RESULT of an operation; a check at this level sees
+        only what the caller named, and an operation that writes an ancestor object can
+        change a refused path without naming it.
+        """
+        # `exclude_unset` and not `exclude_none`: an explicit `"value": null` is a value
+        # the contract writes, and dropping it would report a missing value instead.
+        delta = (
+            workflow_revision_commit.delta.model_dump(mode="json", exclude_unset=True)
+            if workflow_revision_commit.delta is not None
+            else {}
+        )
+        is_ordered = delta.get("operations") is not None
+
+        # Off is today's surface exactly: an ordered delta is an unknown shape.
+        if is_ordered and not env.agenta.api.workflows.ordered_operations_enabled:
+            raise ChangeSetError(
+                Reason.INVALID_DELTA,
+                "ordered operations are not enabled on this deployment.",
+            )
+
+        operations: list = delta.get("operations") or []
+        warnings: list = []  # engine warnings; typed at the return
+        if is_ordered and agent_context:
+            # Forgives the two unambiguous selector mistakes and says so. A model makes
+            # them; a caller writing operations by hand gets its target back unchanged and
+            # a precise refusal if it is wrong, which is what a program wants.
+            operations, warnings = normalize_operations(delta["operations"])
+            delta = {**delta, "operations": operations}
+
+        # The scope is the caller's: only the agent's builder tool is confined to
+        # `parameters.agent` (read-config.md 11.2), so it passes AGENT_COMMIT_SCOPE.
+        result = apply_change_set(
+            base,
+            delta,
+            scope_policy,
+            validate=_validate_persisted_shape,
+        )
+        warnings = warnings + list(result.warnings)
+
+        # The build kit is injected for an agent's run and is not part of its stored
+        # configuration, so an agent committing one is committing the playground's own
+        # tools. Rejection beats silent stripping: the spike showed that errors teach.
+        # Only the agent has a build kit, so only the agent is checked for it.
+        if agent_context:
+            offenders = find_platform_tool_entries(result.data)
+            if offenders:
+                raise ChangeSetError(
+                    Reason.PLATFORM_TOOL_NOT_COMMITTABLE,
+                    PLATFORM_TOOL_REJECTION.format(names=", ".join(offenders)),
+                    entries=offenders,
+                )
+
+        # Derived for the agent, because free text was the site of every measured
+        # argument-corruption failure. A human or an SDK caller writes its own message and
+        # keeps it: replacing that was the leak, not the derivation.
+        message = (
+            derive_commit_message(operations)
+            if is_ordered and agent_context
+            else workflow_revision_commit.message
+        )
+        # The engine speaks its own dataclass. The typed model is what leaves the service.
+        return result.data, message, [CommitWarning(**w.to_dict()) for w in warnings]
 
     async def log_workflow_revisions(
         self,
@@ -2406,25 +2944,9 @@ class WorkflowsService:
     # --------------------------------------------------------------------------
 
 
-def _deep_merge(base: dict, patch: dict) -> dict:
-    merged = dict(base)
-    for key, value in patch.items():
-        current = merged.get(key)
-        if isinstance(current, dict) and isinstance(value, dict):
-            merged[key] = _deep_merge(current, value)
-        else:
-            merged[key] = value
-    return merged
-
-
-def _remove_path(tree: dict, path: str) -> None:
-    keys = path.split(".")
-    node = tree
-    for key in keys[:-1]:
-        node = node.get(key) if isinstance(node, dict) else None
-        if not isinstance(node, dict):
-            return
-    node.pop(keys[-1], None)
+# The legacy delta's merge and remove now run inside the engine, which is the only copy of
+# either. One home: the legacy delta and the ordered `merge` operation must never drift
+# apart, and a second copy here is exactly how they would (contract change-set.md, O12).
 
 
 def _build_simple_workflow_data(

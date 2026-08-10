@@ -5,9 +5,24 @@
  */
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
+
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
 import { inspect } from "node:util";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
+import { AppliedState } from "../../src/engines/sandbox_agent/applied-state.ts";
+import {
+  FACETS,
+  type FacetDigests,
+} from "../../src/lifecycle/desired-state.ts";
+
+// The pool never reads facet digests; it only reads `configFingerprint`. So one constant
+// stands in for every facet here, and a pool test that starts depending on facets will be
+// visible as a test that had to stop using this.
+const FAKE_FACETS: FacetDigests = Object.fromEntries(
+  FACETS.map((facet) => [facet, "facet-digest"]),
+) as FacetDigests;
 import {
   approvalDecisionForToolCall,
   computeCredentialEpoch,
@@ -48,13 +63,23 @@ describe("resolvesToLocalProvider (local/remote gate)", () => {
   });
 });
 
-// A fake environment: only `destroy` matters to the pool; we count destroys. Idempotent like
-// the real engine `destroy()` closure (the pool's contract): a second call is a no-op.
-function fakeEnv() {
+// A fake environment: `destroy` and `appliedState` are what the pool touches. Destroys are
+// counted. `teardown` is idempotent like the real engine `destroy()` closure (the pool's
+// contract): a second call is a no-op.
+//
+// The environment now OWNS its applied configuration (lifecycle migration, step 2), so the fake
+// carries a real `AppliedState`. The pool reads `configFingerprint` through it and no test can
+// hand the pool a fingerprint of its own.
+function fakeEnv(configFp = "cfg") {
   const state = { destroyed: 0, reasons: [] as string[] };
+  const applied = new AppliedState(configFp, FAKE_FACETS);
   let done = false;
   return {
     state,
+    get appliedState() {
+      return applied.appliedState;
+    },
+    commitApplied: (result: AppliedCommit) => applied.commitApplied(result),
     teardown: async (reason: string) => {
       if (done) return;
       done = true;
@@ -64,14 +89,16 @@ function fakeEnv() {
   };
 }
 
-const epoch: CredentialEpoch = { secrets: new CredentialMaterial("h") };
+const epoch: CredentialEpoch = {
+  secrets: new CredentialMaterial("h"),
+  direct: new CredentialMaterial("d"),
+};
 
 function parkInput(key: string, env = fakeEnv()) {
   return {
     input: {
       key,
       environment: env,
-      configFingerprint: "cfg",
       historyFingerprint: "hist",
       credentialEpoch: epoch,
       teardown: env.teardown,
@@ -154,13 +181,24 @@ describe("readKeepaliveConfig", () => {
     }
   });
 
-  it("defaults: on, 60s idle, 5m approval, cap 8", () => {
+  it("defaults: on, 60s idle, 10m approval, cap 8", () => {
+    // The approval window is the pending-interaction park: 10 minutes so a phone-latency
+    // answer warm-resumes instead of cold-replaying (mobile approvals plan §4b-4).
     assert.deepEqual(readKeepaliveConfig("local"), {
       enabled: true,
       ttlMs: 60_000,
-      approvalTtlMs: 300_000,
+      approvalTtlMs: 600_000,
       poolMax: 8,
     });
+  });
+
+  it("approval TTL stays env-overridable, with invalid values falling back", () => {
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "300000";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 300_000);
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "0";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 600_000);
+    process.env.AGENTA_RUNNER_SESSION_APPROVAL_TTL_MS = "nope";
+    assert.equal(readKeepaliveConfig("local").approvalTtlMs, 600_000);
   });
 
   it("reads truthy spellings for the flag and positive ints for the numbers", () => {
@@ -427,8 +465,12 @@ describe("historyFingerprint (pruned-array contract)", () => {
       content: [{ type: "attachment", attachmentId }],
     });
     assert.notEqual(
-      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd21")]),
-      historyFingerprint([withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd22")]),
+      historyFingerprint([
+        withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd21"),
+      ]),
+      historyFingerprint([
+        withAttachment("019a52c2-14c0-7c14-b874-2f5798f9cd22"),
+      ]),
     );
   });
 
@@ -970,8 +1012,13 @@ describe("SessionPool", () => {
   it("strict capacity keeps a stopping seat and awaits teardown before inserting", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
+    const stoppingApplied = new AppliedState("cfg", FAKE_FACETS);
     const stoppingEnv = {
       state: { destroyed: 0, reasons: [] as string[] },
+      get appliedState() {
+        return stoppingApplied.appliedState;
+      },
+      commitApplied: (r: AppliedCommit) => stoppingApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1039,8 +1086,13 @@ describe("SessionPool", () => {
 
   it("a strict stopping entry cannot be checked out or reparked over", async () => {
     let releaseTeardown: (() => void) | undefined;
+    const envApplied = new AppliedState("cfg", FAKE_FACETS);
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
+      get appliedState() {
+        return envApplied.appliedState;
+      },
+      commitApplied: (r: AppliedCommit) => envApplied.commitApplied(r),
       teardown: async (_reason: string) =>
         new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1061,7 +1113,6 @@ describe("SessionPool", () => {
       await pool.repark(
         stopping,
         {
-          configFingerprint: "new",
           historyFingerprint: "new",
           credentialEpoch: epoch,
         },
@@ -1082,8 +1133,13 @@ describe("SessionPool", () => {
   it("non-strict capacity still frees the seat before teardown completes", async () => {
     let releaseTeardown: (() => void) | undefined;
     let teardownCompleted = false;
+    const nonStrictApplied = new AppliedState("cfg", FAKE_FACETS);
     const environment = {
       state: { destroyed: 0, reasons: [] as string[] },
+      get appliedState() {
+        return nonStrictApplied.appliedState;
+      },
+      commitApplied: (r: AppliedCommit) => nonStrictApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseTeardown = resolve;
@@ -1133,7 +1189,6 @@ describe("SessionPool", () => {
     const ok = await pool.repark(
       live,
       {
-        configFingerprint: "cfg2",
         historyFingerprint: "hist2",
         credentialEpoch: epoch,
       },
@@ -1160,7 +1215,6 @@ describe("SessionPool", () => {
     const ok = await pool.repark(
       live,
       {
-        configFingerprint: "cfg2",
         historyFingerprint: "hist2",
         credentialEpoch: epoch,
       },
@@ -1187,7 +1241,6 @@ describe("SessionPool", () => {
     const ok = await pool.repark(
       live,
       {
-        configFingerprint: "cfg2",
         historyFingerprint: "hist2",
         credentialEpoch: epoch,
       },
@@ -1267,7 +1320,6 @@ describe("SessionPool", () => {
       await pool.repark(
         live,
         {
-          configFingerprint: "c2",
           historyFingerprint: "h2",
           credentialEpoch: epoch,
         },
@@ -1285,7 +1337,6 @@ describe("SessionPool", () => {
       await pool.repark(
         live2,
         {
-          configFingerprint: "c",
           historyFingerprint: "h",
           credentialEpoch: epoch,
         },
@@ -1362,8 +1413,13 @@ describe("SessionPool", () => {
     // A's destroy is gated: it does not resolve until we release it, standing in for a slow unmount.
     let releaseADestroy: (() => void) | undefined;
     const aState = { destroyed: 0, reasons: [] as string[] };
+    const aApplied = new AppliedState("cfg", FAKE_FACETS);
     const aEnv = {
       state: aState,
+      get appliedState() {
+        return aApplied.appliedState;
+      },
+      commitApplied: (r: AppliedCommit) => aApplied.commitApplied(r),
       teardown: async (reason: string) => {
         await new Promise<void>((resolve) => {
           releaseADestroy = resolve;

@@ -171,8 +171,12 @@ function EnhancedButton({
     if (titleNode == null || tooltipProps == null) return button
 
     return (
-        // antd `mouseEnterDelay` default is 0.1s → delayDuration 100ms.
-        <TooltipProvider delayDuration={100}>
+        // antd `mouseEnterDelay` is in seconds → Radix `delayDuration` in ms; default 0.1s → 100ms.
+        <TooltipProvider
+            delayDuration={
+                tooltipProps.mouseEnterDelay != null ? tooltipProps.mouseEnterDelay * 1000 : 100
+            }
+        >
             <Tooltip
                 open={tooltipProps.open}
                 defaultOpen={tooltipProps.defaultOpen}

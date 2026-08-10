@@ -84,11 +84,13 @@ const testWithPromptsFixtures = baseTest.extend<PromptsFixtures>({
             await expect(createButton).toBeEnabled({timeout: 15000})
             await createButton.click()
 
-            // The modal no longer wraps its buttons in a `.ant-modal-footer`
-            // div (migrated off the raw antd Modal footer), so filter by the
-            // "Create" button itself rather than the footer wrapper.
+            // Match the dialog by role, not by a component-library class:
+            // `EntityCommitModal` renders through `EnhancedModal`, now a facade over
+            // the @agenta/ui (Radix) `Dialog`, so no `.ant-modal-wrap` exists here.
+            // Radix `aria-hidden`s the launching antd drawer while the modal is open,
+            // so exactly one dialog resolves.
             const confirmModal = page
-                .locator(".ant-modal-wrap")
+                .getByRole("dialog")
                 .filter({has: page.getByRole("button", {name: "Create", exact: true})})
                 .last()
             const confirmButton = confirmModal.getByRole("button", {
@@ -102,9 +104,7 @@ const testWithPromptsFixtures = baseTest.extend<PromptsFixtures>({
 
             const createPromptResponse = await createPromptPromise
             expect(createPromptResponse.ok()).toBe(true)
-            await expect(page.locator(".ant-modal-wrap:visible")).toHaveCount(0, {
-                timeout: 15000,
-            })
+            await expect(confirmModal).toBeHidden({timeout: 15000})
         })
     },
 

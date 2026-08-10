@@ -3,12 +3,8 @@ import {useCallback, useDeferredValue, useEffect, useMemo, useState} from "react
 import {SectionRail, type SectionRailItem} from "@agenta/entity-ui"
 import {PageLayout} from "@agenta/ui"
 import {App, Input, Typography} from "antd"
-import {useAtomValue} from "jotai"
 import {Search} from "lucide-react"
 import {useRouter} from "next/router"
-
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {urlAtom} from "@/oss/state/url"
 
 import {TEMPLATES_GALLERY} from "../../assets/constants"
 import {
@@ -35,7 +31,6 @@ const matchesQuery = (template: AgentTemplate, query: string) => {
 const TemplatesGalleryPage = () => {
     const router = useRouter()
     const {message} = App.useApp()
-    const {baseAppURL} = useAtomValue(urlAtom)
 
     const categories = useMemo(() => templateCategories(), [])
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
@@ -54,18 +49,6 @@ const TemplatesGalleryPage = () => {
     )
     const [query, setQuery] = useState("")
     const deferredQuery = useDeferredValue(query.trim().toLowerCase())
-
-    // Breadcrumb: relabel the /apps segment to Home, and the sub-route to Templates.
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {
-                apps: {label: "Home", href: baseAppURL || undefined},
-                app: {label: TEMPLATES_GALLERY.title},
-            },
-            type: "new",
-        },
-        [baseAppURL],
-    )
 
     // Deep link: `?category=engineering` opens with that rail item active.
     useEffect(() => {

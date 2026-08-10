@@ -149,6 +149,9 @@ export {Tag, type TagProps, type SyncState} from "./tag"
 
 export {
     environmentColors,
+    StatusIndicator,
+    type StatusIndicatorProps,
+    type StatusTone,
     type QueryStatus,
     type ExecutionStatus,
     type EnvironmentName,
