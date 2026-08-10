@@ -53,6 +53,18 @@ describe("what every harness is told", () => {
     }
   });
 
+  it("states the rendered-skills read path when skills are materialized, and stays silent otherwise", () => {
+    // The fix for an observed failure: with no stated path, a model guessed a structurally-wrong
+    // absolute skills path from memory as its first move (ENOENT + an approval interruption).
+    const withSkills = platformGuidanceAppendix(
+      run({ skillsPath: "/tmp/agenta/mounts/p/s/agents/skills" }),
+    );
+    assert.ok(withSkills?.includes("/tmp/agenta/mounts/p/s/agents/skills"));
+    assert.ok(withSkills?.includes("never construct the path from memory"));
+    const withoutSkills = platformGuidanceAppendix(run({}));
+    assert.ok(!withoutSkills?.includes("rendered skill files"));
+  });
+
   it("names the configuration path and denies the working-directory copy", () => {
     // Both halves are load-bearing. Naming the real place without denying the wrong one leaves the
     // model with two plausible targets, which is the state it was already in when it failed.
@@ -70,9 +82,7 @@ describe("what every harness is told", () => {
     // DELIBERATE EDIT: this asserted the SKILL sentence opened the block. The instructions
     // sentence now leads (see the ordering comment on `platformGuidanceAppendix`), so the property
     // worth keeping is that a config sentence comes first and the mount paragraph comes last.
-    const guidance = platformGuidanceAppendix(
-      run({ agentMountedPath: MOUNT }),
-    );
+    const guidance = platformGuidanceAppendix(run({ agentMountedPath: MOUNT }));
     assert.ok(guidance?.startsWith(instructionsSourceAppendix().text));
     assert.ok(guidance?.endsWith(agentMountGuidance(MOUNT)));
   });
@@ -114,9 +124,7 @@ describe("the mount paragraph is delivered exactly once", () => {
     // The three-state arm, matching Claude's. Silence here is not neutral: the conversation's
     // history may show an earlier session that read files from the folder, and only a statement in
     // this turn can stop the model reporting the user's saved work as lost.
-    const guidance = platformGuidanceAppendix(
-      run({ agentMountSkipped: true }),
-    );
+    const guidance = platformGuidanceAppendix(run({ agentMountSkipped: true }));
     assert.ok(guidance?.includes(agentMountUnavailableGuidance()));
   });
 
@@ -203,7 +211,11 @@ describe("the skill sentence follows the TOOL, not the flag", () => {
     // tool it does not have. The block is guidance about this environment, so naming a
     // capability the run lacks is the confusion it exists to remove.
     const guidance = platformGuidanceAppendix(run({ toolNames: [] }));
-    assert.equal(guidance, undefined, "and with nothing else to say, the block is silent");
+    assert.equal(
+      guidance,
+      undefined,
+      "and with nothing else to say, the block is silent",
+    );
   });
 
   it("is present for a run that offers it, alongside unrelated tools", async () => {
@@ -232,8 +244,13 @@ describe("the skill sentence follows the TOOL, not the flag", () => {
     // send the whole list), so gating on the flag would delete correct guidance from the
     // release-default configuration. Presence also catches what a flag check cannot: a flag-ON
     // agent that simply has no config tools.
-    assert.ok(platformGuidanceAppendix(run({ toolNames: ["commit_revision"] })));
-    assert.equal(platformGuidanceAppendix(run({ toolNames: ["read_config"] })), undefined);
+    assert.ok(
+      platformGuidanceAppendix(run({ toolNames: ["commit_revision"] })),
+    );
+    assert.equal(
+      platformGuidanceAppendix(run({ toolNames: ["read_config"] })),
+      undefined,
+    );
   });
 });
 
@@ -246,7 +263,11 @@ describe("the instructions-location sentence", () => {
     const text = instructionsSourceAppendix().text;
     assert.ok(text.includes("`parameters.agent.instructions.agents_md`"));
     assert.match(text, /is a copy of your configuration/, "names it a copy");
-    assert.match(text, /does NOT change your instructions/, "closes the WRITE direction");
+    assert.match(
+      text,
+      /does NOT change your instructions/,
+      "closes the WRITE direction",
+    );
     assert.match(text, /may not appear here/, "closes the READ direction");
     assert.equal(instructionsSourceAppendix().id, "instructions-source");
   });
@@ -275,7 +296,10 @@ describe("the instructions-location sentence", () => {
     // It says "This file" rather than naming CLAUDE.md or AGENTS.md, because the block is rendered
     // INSIDE the file it describes. A per-harness path would be one more thing to keep in sync and
     // one more thing to get wrong.
-    assert.match(instructionsSourceAppendix().text, /^This file is a copy of your configuration/);
+    assert.match(
+      instructionsSourceAppendix().text,
+      /^This file is a copy of your configuration/,
+    );
     for (const name of ["CLAUDE.md", "AGENTS.md"]) {
       assert.ok(!instructionsSourceAppendix().text.includes(name));
     }
@@ -285,7 +309,9 @@ describe("the instructions-location sentence", () => {
     // The ordering decision, pinned so it cannot drift silently: by measured failure rate the
     // instructions mistake dominates, and the sentence describes the document being read, so it
     // belongs at the top of that document. Swapping this is a deliberate experiment, not a tidy-up.
-    const guidance = platformGuidanceAppendix(run({ toolNames: ["commit_revision"] }));
+    const guidance = platformGuidanceAppendix(
+      run({ toolNames: ["commit_revision"] }),
+    );
     assert.ok(guidance);
     const iAt = guidance.indexOf(instructionsSourceAppendix().text);
     const sAt = guidance.indexOf(skillLocationAppendix().text);
@@ -295,12 +321,18 @@ describe("the instructions-location sentence", () => {
 
   it("rides the SAME tool gate as the skill sentence, in both arms", () => {
     // One gate for both, so they can never disagree about whether this run can commit.
-    const withTool = platformGuidanceAppendix(run({ toolNames: ["commit_revision"] }));
+    const withTool = platformGuidanceAppendix(
+      run({ toolNames: ["commit_revision"] }),
+    );
     assert.ok(withTool?.includes("agents_md"));
     assert.ok(withTool?.includes("parameters.agent.skills"));
 
     const withoutTool = platformGuidanceAppendix(run({ toolNames: ["bash"] }));
-    assert.equal(withoutTool, undefined, "neither sentence applies without the tool");
+    assert.equal(
+      withoutTool,
+      undefined,
+      "neither sentence applies without the tool",
+    );
   });
 
   it("still yields the mount paragraph alone when there is no config tool", () => {
@@ -330,7 +362,10 @@ describe("the codex bundled-skills rebuttal", () => {
     ]) {
       const g = platformGuidanceAppendix(other);
       assert.ok(g, other.acpAgent);
-      assert.ok(!g.includes("skill-installer"), `${other.acpAgent} must not see it`);
+      assert.ok(
+        !g.includes("skill-installer"),
+        `${other.acpAgent} must not see it`,
+      );
     }
   });
 
