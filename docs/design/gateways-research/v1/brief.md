@@ -2,14 +2,24 @@
 
 ## The question
 
-Every outbound call an agent run makes — to a model, or to a tool — should transit a
-gateway we own, so that credentials, policy, and audit live at one boundary instead of
-being scattered across sandboxes and workflow processes.
+Every outbound call to a model or a tool — from anything on the platform, with no
+exceptions — transits a gateway we own, so that credentials, policy, and audit live at one
+boundary instead of being scattered across sandboxes, workflow processes, and SDK call
+sites.
 
-Concretely: when an MCP server is declared, the run talks to **our MCP gateway**, and the
-gateway talks to the server. When a harness agent calls a model — any model, including one
-reached through a cloud reseller — it talks to **our LLM gateway**, and the gateway talks
-to the provider. Provider credentials stop at our boundary and never travel outward.
+Concretely: when an MCP server is declared, the caller talks to **our MCP gateway**, and
+the gateway talks to the server. When anything calls a model, it talks to **our LLM
+gateway**, and the gateway talks to the provider. Provider credentials stop at our boundary
+and never travel outward.
+
+"No exceptions" includes everything custom. A custom provider, a self-hosted model server,
+a cloud reseller, an OpenAI-compatible third party — none of these becomes a direct path.
+The call goes to our gateway and the gateway's adapter calls the custom thing. What is
+custom lives *behind* the gateway; the route *to* the gateway is invariant.
+
+This is a large change and it touches many call sites rather than one. Every place that
+today resolves a credential and calls a provider becomes a place that calls the gateway.
+That is the real scope.
 
 ## The inversion
 

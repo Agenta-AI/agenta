@@ -97,37 +97,44 @@ adapter set — the model path resolves credentials from the vault and hands the
 asymmetry is the substance of the LLM-gateway work: the tool plane has the architecture and
 needs a gateway backend; the model plane needs the architecture first.
 
-## 5. Two model paths, not one
+## 5. Model calls have at least two distinct callers
 
-A gateway that covers only the harness path leaves a hole.
+These are separate callers that must be designed separately, not one path with variants.
 
-- **Harness runs** resolve a `ModelConnection` and inject it into the sandbox, where the
+- **Agent runs** resolve a `ModelConnection` and inject it into the sandbox, where the
   harness reads a provider key from an environment variable because that is what the
   underlying agent SDKs expect.
-- **Workflow/playground runs** go through the SDK's own model layer
-  (`sdks/python/agenta/sdk/litellm/`), which resolves secrets via
-  `sdks/python/agenta/sdk/managers/secrets.py` and calls the provider from **inside the
-  workflow process**.
+- **Workflows** go through the SDK's own model layer (`sdks/python/agenta/sdk/litellm/`),
+  which resolves secrets via `sdks/python/agenta/sdk/managers/secrets.py` and calls the
+  provider from the workflow process.
 
-These are independent today. If the gateway governs only the first, the second remains an
-ungoverned egress path with direct vault access — and it is the path most user traffic
-takes. Any claim of "all model calls transit the gateway" has to account for it.
+They differ in who resolves the credential, where the call originates, and what the
+failure modes are. Both go through the gateway, each behind its own port, and the SDK
+keeps the secret-fetch and secret-injection capabilities it has today — what changes is
+that the adapter behind those capabilities calls the gateway instead of a provider.
 
-## 6. The identity gap
+This list is not proven exhaustive. Establishing the full set of model call sites is a
+prerequisite for sizing the work, and it is in the verification backlog.
 
-Tool connections are **project-scoped, not per-user**: every member of a project shares one
-authorization **(carried)**. The wire reinforces this — a run names its connection by a
-portable slug, and the slug identifies a connection, not a person.
+## 6. Identity is already user-scoped, and the gateway inherits it
 
-A gateway whose finest-grained principal is the project cannot answer "who called this,"
-which is the first question governance, authorization, and compliance all ask. **This is a
-prerequisite, not a follow-up**: the audit record's shape, the policy evaluation's inputs,
-and the metering dimension all depend on what a principal is. Deciding it late means
-rewriting all three.
+Every authenticated call into the platform already resolves a four-part identity. The auth
+middleware (`api/oss/src/middlewares/auth.py`) builds an `AuthContext` containing an
+`AuthScope` of `organization_id`, `workspace_id`, `project_id`, and `user_id`. All four are
+required: if any is missing the request is treated as unauthenticated rather than
+half-populated. API keys are no exception — the key row carries the owning user, so
+key-authenticated calls resolve to a user like any other.
 
-The pieces to build it from exist — RBAC enforcement, a two-layer entitlement check, and a
-tracing pipeline that already carries run context — but they have not been composed into a
-single principal that both planes evaluate against.
+**So the principal already exists, it is already user-scoped, and the gateway does not need
+to invent one.** A call arriving at either gateway carries the same `AuthScope` that every
+other call into the platform carries. Audit records, policy inputs, and metering dimensions
+all key off it.
+
+This is distinct from — and should not be confused with — how a *third-party* connection is
+scoped upstream at the provider. Who is calling us is answered by `AuthScope`. Which stored
+credential the gateway then uses on the caller's behalf is a separate binding, and the two
+were previously conflated. They are independent: the caller is always a user, regardless of
+whether the credential the gateway selects is shared across a project.
 
 ## 7. What already exists that the gateway should not rebuild
 
@@ -145,12 +152,19 @@ single principal that both planes evaluate against.
 
 ## 8. Consequences for the design
 
-1. Adopting either gateway is a **resolver-side** change plus a new service. The wire, the
-   golden fixtures, and the harnesses are unaffected.
-2. The model plane needs the port structure the tool plane already has — this is the larger
-   half of the work, and it is architecture rather than integration.
-3. The principal question must be settled before the audit, policy, and metering shapes.
-4. "All model calls transit the gateway" requires the workflow path too, which is a second
-   integration against the same gateway.
-5. The strongest near-term security argument is narrow and concrete: gateway-routed runs
-   stop putting long-lived cloud credentials inside agent-controlled sandboxes.
+1. **For the runner caller specifically, adoption is cheap.** The wire already expresses a
+   gateway route, so that caller changes on the resolver side only — the contract, the
+   golden fixtures, and the harnesses are untouched. This is the exception, not the rule.
+2. **Every other caller is a real change.** Each place that resolves a credential and calls
+   a provider becomes a place that calls the gateway, behind its own port. The count of
+   those call sites, not the wire, is the size of this work.
+3. **The model plane needs the port structure the tool plane already has.** The tool plane
+   has registries, interfaces, and multiple providers; the model plane has none of it. This
+   is architecture work, and it is the larger half.
+4. **Identity is not a blocker.** `AuthScope` already gives both gateways a user-scoped
+   principal on every call. Audit, policy, and metering can be shaped against it now.
+5. **The credential the gateway uses is a separate question from who is calling.** Keeping
+   these apart is what makes per-user attribution cheap and per-user credentials optional.
+6. **The strongest concrete security outcome is narrow:** gateway-routed runs stop putting
+   long-lived cloud credentials inside agent-controlled sandboxes, because signing moves to
+   the gateway.
