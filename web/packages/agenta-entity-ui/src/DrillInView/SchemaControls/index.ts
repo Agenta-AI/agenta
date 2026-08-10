@@ -103,6 +103,9 @@ export {
     isPermissionPolicy,
     PERMISSION_POLICY_OPTIONS,
     permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    permissionPolicyOptionsForSchema,
+    permissionPolicySchema,
 } from "./permissionPolicy"
 export type {PermissionPolicy, PermissionPolicyOption} from "./permissionPolicy"
 export {

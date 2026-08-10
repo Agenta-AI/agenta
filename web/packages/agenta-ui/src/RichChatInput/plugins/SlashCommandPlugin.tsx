@@ -10,7 +10,7 @@
  * selection would send the message. With no matches it deliberately declines Enter, so a message
  * that merely starts with a slash still sends.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useId, useMemo, useRef, useState} from "react"
 
 import {autoUpdate, flip, offset, shift, size, useFloating} from "@floating-ui/react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
@@ -31,7 +31,9 @@ import {createPortal} from "react-dom"
 import {
     filterSections,
     flattenSections,
+    isSameRun,
     matchLabel,
+    readCommandRun,
     type SlashCommandItem,
     type SlashCommandSection,
 } from "../assets/slashCommands"
@@ -44,18 +46,24 @@ interface SlashCommandPluginProps {
     disabled?: boolean
 }
 
-/** A command run: a `/` opening the block or following a space, plus the word being typed. */
-const COMMAND_RUN = /(^|\s)\/([^\s/]*)$/
+/** A run plus the text node it lives in — the identity a dismissal is keyed on. */
+interface LocatedRun {
+    query: string
+    nodeKey: string
+    start: number
+}
 
 export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommandPluginProps) {
     const [editor] = useLexicalComposerContext()
     const [query, setQuery] = useState<string | null>(null)
     const [activeIndex, setActiveIndex] = useState(0)
     const activeRowRef = useRef<HTMLDivElement | null>(null)
-    // Dismissed for the CURRENT run. Without it the next caret move re-derives the same run and the
-    // menu springs back, so Escape would read as broken. Keyed on the run's existence, not its text:
-    // keying on the text meant a second `/` produced an identical query and stayed suppressed.
-    const dismissedRef = useRef(false)
+    // Which run was dismissed, and which the caret sits in now. Without the latch the next caret
+    // move re-derives the same run and the menu springs back, so Escape would read as broken. Keyed
+    // on POSITION, not on the run's text (a retyped `/` gives an identical query) and not on mere
+    // existence (that leaks the dismissal onto the next run — see `CommandRun`).
+    const dismissedRef = useRef<LocatedRun | null>(null)
+    const runRef = useRef<LocatedRun | null>(null)
 
     const open = query !== null && !disabled
 
@@ -66,8 +74,11 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
     const items = useMemo(() => flattenSections(visibleSections), [visibleSections])
     const activeItem = items[activeIndex]
 
+    const listId = useId()
+    const optionId = useCallback((index: number) => `${listId}-opt-${index}`, [listId])
+
     const close = useCallback(() => {
-        dismissedRef.current = true
+        dismissedRef.current = runRef.current
         setQuery(null)
     }, [])
 
@@ -75,25 +86,28 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
     // `/` is what keeps `and/or`, URLs, and paths from opening the menu mid-sentence.
     useEffect(() => {
         /** The command run at the caret, or null when the caret isn't in one. */
-        const $readRun = (): string | null => {
+        const $readRun = (): LocatedRun | null => {
             const selection = $getSelection()
             if (!$isRangeSelection(selection) || !selection.isCollapsed()) return null
             const node = selection.anchor.getNode()
             // An emptied paragraph anchors on the element itself, not a text node.
             if (!$isTextNode(node)) return null
-            const hit = COMMAND_RUN.exec(node.getTextContent().slice(0, selection.anchor.offset))
-            if (!hit) return null
+            const run = readCommandRun(node.getTextContent().slice(0, selection.anchor.offset))
+            if (!run) return null
             // A run flush against the node start opens the menu only when it also starts the block.
-            if (!hit[1] && node.getPreviousSibling() !== null) return null
-            return hit[2]
+            if (!run.afterSpace && node.getPreviousSibling() !== null) return null
+            return {query: run.query, nodeKey: node.getKey(), start: run.start}
         }
         return editor.registerUpdateListener(({editorState}) => {
             editorState.read(() => {
                 const next = $readRun()
-                // Every path funnels through here: leaving the run re-arms the menu, editing within
-                // a dismissed one does not. An early return above would strand the latch on.
-                if (next === null) dismissedRef.current = false
-                setQuery(next === null || dismissedRef.current ? null : next)
+                runRef.current = next
+                // Every path funnels through here: moving to a different run (or none) re-arms the
+                // menu, editing within the dismissed one does not. An early return above would
+                // strand the latch on.
+                const suppressed = isSameRun(next, dismissedRef.current)
+                if (!suppressed) dismissedRef.current = null
+                setQuery(!next || suppressed ? null : next.query)
             })
         })
     }, [editor])
@@ -121,10 +135,8 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
                     // now that a run can start mid-message.
                     const full = node.getTextContent()
                     const caret = selection.anchor.offset
-                    const hit = COMMAND_RUN.exec(full.slice(0, caret))
-                    const head = hit
-                        ? full.slice(0, hit.index + hit[1].length)
-                        : full.slice(0, caret)
+                    const run = readCommandRun(full.slice(0, caret))
+                    const head = full.slice(0, run ? run.start : caret)
                     const upToCaret = head + text
                     node.setTextContent(upToCaret + full.slice(caret))
                     node.select(upToCaret.length, upToCaret.length)
@@ -216,6 +228,25 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
         refs.setReference(open ? anchorRef.current : null)
     }, [anchorRef, open, refs])
 
+    // Focus never leaves the editor while the palette is up, so the editor is what must name the
+    // active option — without this the listbox is inert to a screen reader.
+    useEffect(() => {
+        const root = editor.getRootElement()
+        if (!root) return
+        const clear = () => {
+            root.removeAttribute("aria-controls")
+            root.removeAttribute("aria-activedescendant")
+        }
+        if (!open) {
+            clear()
+            return
+        }
+        root.setAttribute("aria-controls", listId)
+        if (activeItem) root.setAttribute("aria-activedescendant", optionId(activeIndex))
+        else root.removeAttribute("aria-activedescendant")
+        return clear
+    }, [activeIndex, activeItem, editor, listId, open, optionId])
+
     if (!open) return null
 
     let rowIndex = -1
@@ -223,11 +254,12 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
     return createPortal(
         <div
             ref={refs.setFloating}
+            id={listId}
             style={floatingStyles}
             role="listbox"
             aria-label="Commands"
             // font-portal: portaled to <body>, escaping the app font scope (preflight off).
-            className="z-[1050] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] font-portal shadow-[0_14px_36px_rgba(28,44,61,.14),0_2px_6px_rgba(28,44,61,.06)]"
+            className="z-[1050] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] font-portal shadow-overlay"
         >
             <div className="max-h-[286px] overflow-y-auto pb-1">
                 {items.length === 0 ? (
@@ -250,8 +282,11 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
                                 return (
                                     <div
                                         key={item.key}
+                                        id={optionId(index)}
                                         ref={active ? activeRowRef : null}
                                         role="option"
+                                        // The palette has no value in effect, so — unlike the
+                                        // pickers it opens — the cursor IS the selection candidate.
                                         aria-selected={active}
                                         onMouseEnter={() => setActiveIndex(index)}
                                         // mousedown, not click: the editor must not lose the caret

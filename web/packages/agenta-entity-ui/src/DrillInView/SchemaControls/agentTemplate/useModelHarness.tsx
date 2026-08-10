@@ -49,8 +49,8 @@ import {selectableHarnesses} from "../harnessMeta"
 import {HarnessSelectControl} from "../HarnessSelectControl"
 import {
     isPermissionPolicy,
-    PERMISSION_POLICY_OPTIONS,
     permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
 } from "../permissionPolicy"
 import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
@@ -361,14 +361,16 @@ export function useModelHarness({
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasClaudePermissions = harnessValue === "claude"
     const hasPiPermissions = isPiHarness
-    const runnerPermissionOptions = useMemo(() => {
-        const schemaValues = Array.isArray(runnerPermissionSchema?.enum)
-            ? new Set((runnerPermissionSchema.enum as unknown[]).filter(isPermissionPolicy))
-            : null
-        return PERMISSION_POLICY_OPTIONS.filter(
-            (option) => !schemaValues || schemaValues.has(option.value),
-        ).map((option) => ({value: option.value, title: option.label, help: option.help}))
-    }, [runnerPermissionSchema])
+    // Shared with the composer's `/permissions` palette, so the two lists cannot drift.
+    const runnerPermissionOptions = useMemo(
+        () =>
+            permissionPolicyOptionsForEnum(runnerPermissionSchema?.enum).map((option) => ({
+                value: option.value,
+                title: option.label,
+                help: option.help,
+            })),
+        [runnerPermissionSchema],
+    )
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
     const runnerPermissionSummary = permissionPolicyLabel(currentRunnerPermission)
 

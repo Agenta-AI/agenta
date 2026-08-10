@@ -105,7 +105,7 @@ const HarnessPickerPanel = ({
     return (
         <div
             ref={rootRef}
-            className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-[0_14px_36px_rgba(28,44,61,.14),0_2px_6px_rgba(28,44,61,.06)]"
+            className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-overlay"
         >
             <div className="flex items-center gap-2 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] px-[13px] py-2.5">
                 <Cube size={14} className="text-[var(--ag-colorSuccess)]" />
@@ -168,12 +168,11 @@ const HarnessPickerPanel = ({
                             </span>
                         ) : null}
                         <span
-                            className="text-xs"
-                            style={{
-                                color: keepsModel
-                                    ? "var(--ag-colorSuccess)"
-                                    : "var(--ag-colorWarning)",
-                            }}
+                            className={
+                                keepsModel
+                                    ? "text-xs text-[var(--ag-colorSuccess)]"
+                                    : "text-xs text-[var(--ag-colorWarning)]"
+                            }
                         >
                             {keepsModel ? "✓ supports your model" : "model not available"}
                         </span>

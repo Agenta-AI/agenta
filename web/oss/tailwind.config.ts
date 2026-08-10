@@ -398,9 +398,6 @@ export const createConfig = (content: string[] = []): Config => {
                 },
             },
         },
-        // JIT scans code comments too: this token (U+2026) appears in a doc comment and
-        // emits invalid `color: var(…)`, breaking the build. Never a real class — block it.
-        blocklist: ["text-[var(…)]"],
         safelist: [
             {
                 pattern:

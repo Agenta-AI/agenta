@@ -168,10 +168,6 @@ const AgentComposerDock = ({
     const openConfigSection = useSetAtom(openAgentConfigSectionAtom)
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
     const clearDraft = composer.clearDraft
-    const clearComposerCommand = useCallback(() => {
-        richInputRef.current?.clear()
-        clearDraft()
-    }, [clearDraft, richInputRef])
     // A click outside is a deliberate move elsewhere, so it is the one close that must NOT pull
     // focus back. Everything else — apply, Escape, back to commands — returns you to typing.
     const skipFocusRestoreRef = useRef(false)
@@ -201,24 +197,36 @@ const AgentComposerDock = ({
         }
         richInputRef.current?.focus()
     }, [richInputRef, slash.picker])
-    const dismissPicker = (reason: "escape" | "outside") => {
-        if (reason === "outside") skipFocusRestoreRef.current = true
-        slash.closePicker()
-    }
+    // Stable: both panels register document-level listeners keyed on these, so a new identity per
+    // render would tear the listeners down and re-add them on every keystroke.
+    const closePicker = slash.closePicker
+    const dismissPicker = useCallback(
+        (reason: "escape" | "outside") => {
+            if (reason === "outside") skipFocusRestoreRef.current = true
+            closePicker()
+        },
+        [closePicker],
+    )
     // Step back one level. The picker consumed the `/` that opened it, so returning to the palette
     // means putting it back — typing it again is what "back to commands" exists to avoid.
-    const backToCommands = () => {
-        slash.closePicker()
+    const backToCommands = useCallback(() => {
+        closePicker()
         richInputRef.current?.setMarkdown("/")
-    }
-    const openConfigFor = (section: "model-harness" | "advanced") => {
-        slash.closePicker()
-        setChatMaximized(false)
-        openConfigSection(section)
-    }
-    const openModelHarnessConfig = () => openConfigFor("model-harness")
+    }, [closePicker, richInputRef])
+    const openConfigFor = useCallback(
+        (section: "model-harness" | "advanced") => {
+            closePicker()
+            setChatMaximized(false)
+            openConfigSection(section)
+        },
+        [closePicker, openConfigSection, setChatMaximized],
+    )
+    const openModelHarnessConfig = useCallback(
+        () => openConfigFor("model-harness"),
+        [openConfigFor],
+    )
     // Permission rules live in the Advanced accordion's Permissions group.
-    const openPermissionsConfig = () => openConfigFor("advanced")
+    const openPermissionsConfig = useCallback(() => openConfigFor("advanced"), [openConfigFor])
 
     return (
         <>
@@ -334,10 +342,7 @@ const AgentComposerDock = ({
                                 capabilities={slash.capabilities}
                                 currentHarness={slash.currentHarness}
                                 currentModel={slash.currentModel}
-                                onApply={(kind) => {
-                                    slash.applyHarness(kind)
-                                    clearComposerCommand()
-                                }}
+                                onApply={slash.applyHarness}
                                 onDismiss={dismissPicker}
                                 onBackToCommands={backToCommands}
                                 onOpenConfig={openModelHarnessConfig}
@@ -350,10 +355,8 @@ const AgentComposerDock = ({
                         >
                             <PermissionsPickerPanel
                                 current={slash.currentPermission}
-                                onApply={(policy) => {
-                                    slash.applyPermission(policy)
-                                    richInputRef.current?.focus()
-                                }}
+                                options={slash.permissionOptions}
+                                onApply={slash.applyPermission}
                                 onDismiss={dismissPicker}
                                 onBackToCommands={backToCommands}
                                 onOpenConfig={openPermissionsConfig}
@@ -376,10 +379,7 @@ const AgentComposerDock = ({
                         showSearch
                         options={slash.modelGroups}
                         value={slash.currentModel}
-                        onChange={(next) => {
-                            slash.applyModel(next)
-                            clearComposerCommand()
-                        }}
+                        onChange={slash.applyModel}
                         searchSuffix="/model"
                         panelFooter={
                             <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--ag-colorTextTertiary)]">

@@ -2,8 +2,8 @@ import {useEffect, useRef} from "react"
 
 import {
     DEFAULT_PERMISSION_POLICY,
-    PERMISSION_POLICY_OPTIONS,
     type PermissionPolicy,
+    type PermissionPolicyOption,
 } from "@agenta/entity-ui/drill-in"
 import {Check, ShieldCheck} from "@phosphor-icons/react"
 
@@ -17,12 +17,15 @@ import {useRovingList} from "./useRovingList"
  */
 const PermissionsPickerPanel = ({
     current,
+    options,
     onApply,
     onDismiss,
     onBackToCommands,
     onOpenConfig,
 }: {
     current: PermissionPolicy | null
+    /** Only what this agent's schema permits — the drawer filters the same way. */
+    options: PermissionPolicyOption[]
     onApply: (policy: PermissionPolicy) => void
     /** Drop the picker. The reason decides whether focus goes back to the composer. */
     onDismiss: (reason: "escape" | "outside") => void
@@ -33,8 +36,8 @@ const PermissionsPickerPanel = ({
     const applied = current ?? DEFAULT_PERMISSION_POLICY
     // Arrows move, Enter applies — no confirmation keystroke, matching the one-click mouse model.
     const {containerProps, optionProps} = useRovingList({
-        items: PERMISSION_POLICY_OPTIONS,
-        current: PERMISSION_POLICY_OPTIONS.find((option) => option.value === applied) ?? null,
+        items: options,
+        current: options.find((option) => option.value === applied) ?? null,
         onEnter: (option) => onApply(option.value),
         onBack: onBackToCommands,
     })
@@ -64,7 +67,7 @@ const PermissionsPickerPanel = ({
     return (
         <div
             ref={rootRef}
-            className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-[0_14px_36px_rgba(28,44,61,.14),0_2px_6px_rgba(28,44,61,.06)] outline-none"
+            className="overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] shadow-overlay outline-none"
         >
             <div className="flex items-center gap-2 border-0 border-b border-solid border-[var(--ag-colorBorderSecondary)] px-[13px] py-2.5">
                 <ShieldCheck size={14} className="text-[var(--ag-colorSuccess)]" />
@@ -82,7 +85,7 @@ const PermissionsPickerPanel = ({
                 aria-label="Permission policy"
                 className="py-[5px] outline-none"
             >
-                {PERMISSION_POLICY_OPTIONS.map((option, index) => {
+                {options.map((option, index) => {
                     const isApplied = option.value === applied
                     return (
                         <div

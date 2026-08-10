@@ -1,6 +1,10 @@
 import {useEffect, useRef, useState} from "react"
 
-import {permissionPolicyLabel, type PermissionPolicy} from "@agenta/entity-ui/drill-in"
+import {
+    PERMISSION_POLICY_OPTIONS,
+    permissionPolicyLabel,
+    type PermissionPolicy,
+} from "@agenta/entity-ui/drill-in"
 import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/HarnessPickerPanel"
 import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/PermissionsPickerPanel"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
@@ -295,7 +299,9 @@ export const SlashCommands: Story = {
                         onClick={backToCommands}
                         role="button"
                         tabIndex={0}
-                        onKeyDown={backToCommands}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") backToCommands()
+                        }}
                     >
                         <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-colorFillTertiary px-1 font-mono text-[9.5px] font-medium text-colorTextSecondary">
                             ←
@@ -331,6 +337,7 @@ export const SlashCommands: Story = {
                             <div className="absolute bottom-full left-0 right-0 z-[1050] mb-2 origin-bottom animate-command-panel-in motion-reduce:animate-command-panel-fade">
                                 <PermissionsPickerPanel
                                     current={permission}
+                                    options={PERMISSION_POLICY_OPTIONS}
                                     onApply={(next) => {
                                         setPermission(next)
                                         setApplied(`permissions → ${next}`)

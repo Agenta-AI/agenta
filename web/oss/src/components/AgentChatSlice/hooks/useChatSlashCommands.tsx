@@ -10,6 +10,8 @@ import {
     harnessMetaFor,
     modelLabel,
     permissionPolicyLabel,
+    permissionPolicyOptionsForSchema,
+    permissionPolicySchema,
     DEFAULT_PERMISSION_POLICY,
     CLIENT_TOOLS,
     PLATFORM_OPS,
@@ -59,6 +61,9 @@ export function useChatSlashCommands({
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
     )
+    const parametersSchema = useAtomValue(
+        useMemo(() => workflowMolecule.selectors.parametersSchema(entityId), [entityId]),
+    )
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
     const setConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
@@ -84,6 +89,19 @@ export function useChatSlashCommands({
     const currentPermissionLabel =
         permissionPolicyLabel(currentPermission ?? DEFAULT_PERMISSION_POLICY) ?? "Allow reads"
     const currentModelLabel = modelLabel(capabilities, currentHarness, currentModel) ?? currentModel
+
+    /**
+     * Policies this agent's schema permits, and whether it declares the field at all — the drawer
+     * hides its control when it does not, so the palette must not offer a shortcut to it. A schema
+     * that has not loaded yet is unknown, not absent: keep the command rather than flicker it away.
+     */
+    const permissionOptions = useMemo(
+        () => permissionPolicyOptionsForSchema(parametersSchema),
+        [parametersSchema],
+    )
+    const permissionsAvailable =
+        (!parametersSchema || permissionPolicySchema(parametersSchema) !== null) &&
+        permissionOptions.length > 0
 
     const modelGroups = useMemo(
         () => buildModelOptionGroups(capabilities, currentHarness),
@@ -244,7 +262,7 @@ export function useChatSlashCommands({
          */
         const SHOW_TOOLS = false
 
-        const commandItems = [
+        const commandItems = compact([
             {
                 key: "model",
                 label: "/model",
@@ -263,16 +281,18 @@ export function useChatSlashCommands({
                 kind: "open" as const,
                 onSelect: () => openPicker("harness"),
             },
-            {
-                key: "permissions",
-                label: "/permissions",
-                description: "Set what the agent may do before it must ask",
-                tail: `${currentPermissionLabel} ›`,
-                icon: <ShieldCheck size={14} />,
-                kind: "open" as const,
-                onSelect: () => openPicker("permissions"),
-            },
-        ]
+            permissionsAvailable
+                ? {
+                      key: "permissions",
+                      label: "/permissions",
+                      description: "Set what the agent may do before it must ask",
+                      tail: `${currentPermissionLabel} ›`,
+                      icon: <ShieldCheck size={14} />,
+                      kind: "open" as const,
+                      onSelect: () => openPicker("permissions"),
+                  }
+                : null,
+        ])
 
         const skillItems = compact(
             skills.map((skill, i) => row(describeSkill(skill), entryToken(skill), i, "skill")),
@@ -302,7 +322,15 @@ export function useChatSlashCommands({
             {key: "skills", title: "Skills", items: skillItems},
             ...(SHOW_TOOLS ? [{key: "tools", title: "Tools", items: toolItems}] : []),
         ].filter((section) => section.items.length > 0)
-    }, [config, currentHarness, currentModelLabel, currentPermissionLabel, openPicker, suspended])
+    }, [
+        config,
+        currentHarness,
+        currentModelLabel,
+        currentPermissionLabel,
+        openPicker,
+        permissionsAvailable,
+        suspended,
+    ])
 
     return {
         sections,
@@ -312,6 +340,7 @@ export function useChatSlashCommands({
         currentModel,
         currentHarness,
         currentPermission,
+        permissionOptions,
         harnessIds,
         capabilities,
         applyModel,

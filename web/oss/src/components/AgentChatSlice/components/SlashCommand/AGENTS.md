@@ -31,9 +31,15 @@ focused Lexical editor re-asserts its selection on the next reconcile, which an 
 focus loss and dismisses on). So focus is on `<body>` when your panel mounts — `useRovingList`
 claims it, which is why `containerProps` must be spread on the element wrapping the options.
 
-**`aria-selected` and the highlight are different things.** `aria-selected` marks the value in
-effect; `data-active` marks the keyboard cursor. `useRovingList` sets only the latter — the panel
-sets `aria-selected` itself. Conflating them makes a picker misreport which value is live.
+**`aria-selected` and the highlight are different things — in a panel.** A panel edits a value that
+is already set, so `aria-selected` marks the value in effect while `data-active` marks the keyboard
+cursor. `useRovingList` sets only the latter; the panel sets `aria-selected` itself. Conflating them
+makes a picker misreport which value is live.
+
+The `/` palette is the exception, and deliberately: it has no value in effect, so the cursor *is*
+the selection candidate and `aria-selected` tracks it — the standard combobox-with-listbox reading.
+Because focus stays in the editor there, the palette also has to publish `aria-controls` and
+`aria-activedescendant` on the contenteditable, or its listbox is inert to a screen reader.
 
 `role="listbox"` belongs on the option list, not the panel root — the root also holds a header and
 footer, and the outside-click check needs it as a separate ref anyway.

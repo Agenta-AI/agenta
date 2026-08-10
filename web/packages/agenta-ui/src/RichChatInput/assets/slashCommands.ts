@@ -31,6 +31,39 @@ export interface SlashCommandSection {
     items: SlashCommandItem[]
 }
 
+/** A command run: a `/` opening the block or following a space, plus the word being typed. */
+export const COMMAND_RUN = /(^|\s)\/([^\s/]*)$/
+
+/** The run the caret sits in, located within its text node. */
+export interface CommandRun {
+    /** The typed word after the `/`. */
+    query: string
+    /** Offset of the `/` within the text. */
+    start: number
+    /** False when the `/` is flush against the text start — the caller decides if that opens one. */
+    afterSpace: boolean
+}
+
+/**
+ * The command run ending at the caret, or null when there is none. Requiring a space (or the very
+ * start) before the `/` is what keeps `and/or`, URLs, and paths from opening the menu mid-sentence.
+ */
+export function readCommandRun(textUpToCaret: string): CommandRun | null {
+    const hit = COMMAND_RUN.exec(textUpToCaret)
+    if (!hit) return null
+    return {query: hit[2], start: hit.index + hit[1].length, afterSpace: hit[1] !== ""}
+}
+
+/**
+ * Whether two runs are the same run. Dismissal is keyed on this — on POSITION, not on the run's
+ * text (a retyped `/` gives an identical query) and not on mere existence (that leaks the dismissal
+ * onto the next run, so a paste after an Escape would never open the menu).
+ */
+export const isSameRun = (
+    a: {nodeKey: string; start: number} | null,
+    b: {nodeKey: string; start: number} | null,
+) => !!a && !!b && a.nodeKey === b.nodeKey && a.start === b.start
+
 /** A label split around the matched query, for the in-name match highlight. */
 export interface LabelMatch {
     before: string
