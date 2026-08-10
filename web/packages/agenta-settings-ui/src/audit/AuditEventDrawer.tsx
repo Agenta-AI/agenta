@@ -1,10 +1,4 @@
-/**
- * Audit Log — Event Detail Drawer
- *
- * Right-side sheet showing the full payload of a single event. Data is read
- * from the entity session cache (`eventByIdAtomFamily`) — the selected event
- * is always a row currently loaded in the table, so no fetch is needed.
- */
+/** One event's full payload, read from the table's own cache rather than refetched. */
 
 import type {ReactNode} from "react"
 
@@ -36,14 +30,15 @@ export interface AuditEventDrawerProps {
 export const AuditEventDrawer = ({eventId, open, onOpenChange}: AuditEventDrawerProps) => {
     const event = useAtomValue(eventByIdAtomFamily(eventId ?? ""))
 
-    // Actor/count live in `attributes` — the top-level `request_type` /
-    // `status_code` / `created_by_id` fields are left unset by the backend.
+    // Actor/count live in `attributes`; the top-level columns are left unset by the backend.
     const actor = typeof event?.attributes?.user_id === "string" ? event.attributes.user_id : null
     const count = typeof event?.attributes?.count === "number" ? event.attributes.count : null
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="w-[560px]">
+            {/* Width inline, like EnhancedDrawer: `cn` does not merge, so a class would race
+                the side variant's own `w-`, and `maxWidth` keeps it inside a phone viewport. */}
+            <SheetContent style={{width: 560, maxWidth: "100%"}}>
                 <SheetHeader>
                     <SheetTitle>Event details</SheetTitle>
                 </SheetHeader>

@@ -36,8 +36,7 @@ export const SecretProviderTable = ({
     const [isAddProviderSecretModalOpen, setIsAddProviderSecretModalOpen] = useState(false)
 
     const isCustom = type === "custom"
-    // Every write here opens a surface the host renders. Without one the control would open
-    // nothing, so each hides itself rather than going dead.
+    // Absent rather than dead: without the host's surface these open nothing.
     const canConfigure = isCustom ? Boolean(renderConfigureDrawer) : Boolean(renderConfigureDialog)
     const canDelete = Boolean(renderDeleteDialog)
 

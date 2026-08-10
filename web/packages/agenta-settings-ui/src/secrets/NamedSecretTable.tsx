@@ -127,8 +127,7 @@ export const NamedSecretTable = ({
                     reloading={loading}
                     reloadLabel="Reload secrets"
                     primaryActions={
-                        // The form is the host's; without one this would open nothing, so it
-                        // is absent rather than dead.
+                        // Absent rather than dead: without the host's form it opens nothing.
                         renderConfigureDialog ? (
                             <Button
                                 disabled={loading}
