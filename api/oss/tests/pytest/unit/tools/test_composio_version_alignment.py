@@ -1,18 +1,9 @@
-"""Composio discover/resolve/execute must agree on ONE toolkit-version scope (#5174).
+"""Composio discovery and execution must agree on one API scope (#5174).
 
 The bug: COMPOSIO_SEARCH_TOOLS (discovery) returns action slugs spelled at the
 v3.1 toolkit version, but the tools adapter resolved and executed them against the
-v3 default, where a subset of those slugs 404 with ``Tool_ToolNotFound`` — discovery
-surfacing "tools that don't exist". The fix pins the tools adapter to v3.1 so list,
-search, get_action, and execute all resolve the same slug set.
-
-Two layers here:
-
-* ``TestToolsApiUrlDerivation`` — pure unit, always runs. Pins the v3.1 derivation
-  and the override/host-preservation behavior that the fix rests on.
-* ``TestSearchSlugsResolveUnderPinnedScope`` — integration, requires COMPOSIO_API_KEY.
-  The regression itself: a slug returned by COMPOSIO_SEARCH_TOOLS must GET-resolve and
-  execute-resolve (never ``Tool_ToolNotFound``) under the pinned tools scope.
+v3 default, where a subset of those slugs 404 with ``Tool_ToolNotFound``. The fix
+pins the whole Composio integration to v3.1 through its shared API URL.
 """
 
 from __future__ import annotations
@@ -31,31 +22,8 @@ V31 = "https://backend.composio.dev/api/v3.1"
 TOOL_NOT_FOUND = 2401
 
 
-class TestToolsApiUrlDerivation:
-    """tools_api_url forces the version segment to v3.1 while preserving the host."""
-
-    def test_default_v3_is_pinned_to_v31(self):
-        cfg = ComposioConfig(api_url="https://backend.composio.dev/api/v3")
-        assert cfg.tools_api_url == V31
-
-    def test_already_v31_stays_v31(self):
-        cfg = ComposioConfig(api_url="https://backend.composio.dev/api/v3.1")
-        assert cfg.tools_api_url == V31
-
-    def test_trailing_slash_is_normalized(self):
-        cfg = ComposioConfig(api_url="https://backend.composio.dev/api/v3/")
-        assert cfg.tools_api_url == V31
-
-    def test_self_hosted_host_is_preserved(self):
-        cfg = ComposioConfig(api_url="https://composio.internal.example.com/api/v3")
-        assert cfg.tools_api_url == "https://composio.internal.example.com/api/v3.1"
-
-    def test_explicit_override_wins(self):
-        cfg = ComposioConfig(
-            api_url="https://backend.composio.dev/api/v3",
-            tools_api_url_override="https://composio.internal/api/v3.1/",
-        )
-        assert cfg.tools_api_url == "https://composio.internal/api/v3.1"
+def test_default_composio_api_scope_is_v31():
+    assert ComposioConfig.model_fields["api_url"].default == V31
 
 
 # ---------------------------------------------------------------------------
@@ -90,17 +58,11 @@ class TestSearchSlugsResolveUnderPinnedScope:
         "NOTION_UPSERT_ROW_DATABASE",
     ]
 
-    def _tools_url(self) -> str:
-        # Exercise the same derivation the app uses, from the default v3 base.
-        return ComposioConfig(
-            api_url="https://backend.composio.dev/api/v3"
-        ).tools_api_url
-
     def test_pinned_scope_is_v31(self):
-        assert self._tools_url() == V31
+        assert ComposioConfig.model_fields["api_url"].default == V31
 
     def test_search_slugs_get_resolve(self):
-        base = self._tools_url()
+        base = V31
         with httpx.Client(timeout=30) as c:
             for slug in self._SEARCH_SLUGS:
                 r = c.get(f"{base}/tools/{slug}", headers=self._HEADERS)
@@ -110,7 +72,7 @@ class TestSearchSlugsResolveUnderPinnedScope:
                 )
 
     def test_search_slugs_execute_resolve(self):
-        base = self._tools_url()
+        base = V31
         with httpx.Client(timeout=30) as c:
             for slug in self._SEARCH_SLUGS:
                 r = c.post(

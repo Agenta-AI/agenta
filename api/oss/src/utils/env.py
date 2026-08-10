@@ -686,12 +686,9 @@ class ComposioConfig(BaseModel):
     """Composio integration configuration"""
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
-    api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
-    # Base URL the *tools* adapter (discover/resolve/execute) talks to. Pinned to
-    # Composio API v3.1 while the rest of the integration stays on v3 — see
-    # ``tools_api_url`` below for why. Override only to point at a self-hosted
-    # Composio; leave unset to derive v3.1 from ``api_url``.
-    tools_api_url_override: str | None = os.getenv("COMPOSIO_TOOLS_API_URL")
+    api_url: str = os.getenv(
+        "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1"
+    )
     # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
     webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
     # Override the registered webhook URL. Composio requires public HTTPS; in dev
@@ -715,32 +712,6 @@ class ComposioConfig(BaseModel):
     def enabled(self) -> bool:
         """Composio enabled if API key is present"""
         return bool(self.api_key)
-
-    @property
-    def tools_api_url(self) -> str:
-        """Base URL for the tools adapter — pinned to Composio API v3.1.
-
-        Composio spells action slugs differently per toolkit version, and its
-        endpoints scope to different versions by default. COMPOSIO_SEARCH_TOOLS
-        (discovery) returns slugs at the v3.1 spelling; on the v3 default a subset
-        of those slugs 404 with Tool_ToolNotFound when get_action/execute try to
-        resolve them — so discovery surfaces "tools that don't exist" (#5174).
-        Keeping list/search/get/execute all on v3.1 makes every path agree on one
-        slug set (verified live: 125/125 v3.1-list slugs resolve+execute on v3.1,
-        and every previously-broken search slug resolves on v3.1).
-
-        Only the *tools* adapter needs this; the connections, triggers, and
-        integration-catalog adapters talk to version-agnostic ``/toolkits`` and
-        stay on ``api_url``. Derived from ``api_url`` so a host override is
-        preserved and only the version segment is forced to v3.1.
-        """
-        if self.tools_api_url_override:
-            return self.tools_api_url_override.rstrip("/")
-        base = self.api_url.rstrip("/")
-        for seg in ("/api/v3.1", "/api/v3"):
-            if base.endswith(seg):
-                return base[: -len(seg)] + "/api/v3.1"
-        return base
 
     model_config = ConfigDict(extra="ignore")
 

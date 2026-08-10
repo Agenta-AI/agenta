@@ -47,7 +47,7 @@ Each provider implementation:
 ```
 # Environment variables
 COMPOSIO_API_KEY=<your_key>                              # Required — presence enables Composio
-COMPOSIO_API_URL=https://backend.composio.dev/api/v3    # Optional (default shown)
+COMPOSIO_API_URL=https://backend.composio.dev/api/v3.1  # Optional (default shown)
 ```
 
 **Usage in entrypoints:**

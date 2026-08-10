@@ -209,14 +209,9 @@ class ComposioCatalogClient:
         """
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
-        # Slug consistency comes from the adapter's base URL, not from a version
-        # param here. The tools adapter is pinned to Composio API v3.1 (see
-        # ComposioConfig.tools_api_url, #5174) so this LIST, COMPOSIO_SEARCH_TOOLS,
-        # get_action, and execute all resolve the SAME v3.1 slug spelling. Do NOT
-        # add ``toolkit_versions=latest`` or any per-call version override: mixing
-        # a version scope here against a differently-scoped get/execute is exactly
-        # what surfaces "tools that don't exist" — a listed slug that resolve/execute
-        # then 404 with Tool_ToolNotFound.
+        # The shared Composio base URL pins every adapter to v3.1. Do not add a
+        # per-call version override here: list, search, get, and execute must use
+        # the same scope or discovery can return slugs that resolution rejects.
         params: Dict[str, Any] = {
             "toolkit_slug": integration_key,
             "include_deprecated": False,
