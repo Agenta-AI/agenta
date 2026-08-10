@@ -162,7 +162,10 @@ const tests = () => {
                     waitUntil: "domcontentloaded",
                 })
                 await uiHelpers.expectPath(`/apps/${appId}/overview`)
-                await page.waitForLoadState("networkidle")
+                // Not `waitForLoadState("networkidle")`: the layout keeps a live SSE
+                // connection open (ProjectWatch), so the network never goes idle and this
+                // would hang for the full test timeout. The heading assertions below
+                // already wait for the page to be ready.
             })
 
             await scenarios.when("the user opens an existing app", async () => {
