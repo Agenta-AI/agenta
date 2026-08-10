@@ -104,6 +104,44 @@ const isRunnerSentinelError = (part: Part): boolean => {
     )
 }
 
+/** Tool name from a replayed part's `type`/`toolName` — mirrors clientTools/meta.ts's
+ * `clientToolName`, kept local since this file has no dependency on the app's client-tool layer. */
+const partToolName = (part: Part): string => {
+    if (part.type === "dynamic-tool") return typeof part.toolName === "string" ? part.toolName : ""
+    return typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
+}
+
+/**
+ * The settled output to synthesize for a client-tool interaction the backend already cancelled
+ * (`session_interactions.status === "cancelled"`) whose transcript never got a settling
+ * `tool_result` — see `fetchCancelledClientToolTokensAtom`'s doc for why the record log alone
+ * can't tell. Mirrors each widget's OWN cancelled-terminal shape (`ConnectOutput.reason` /
+ * `ElicitationResult.action`) so a resurrected part renders exactly like a live cancel — an inert
+ * chip, never an interactive, answerable form. Keyed by the same tool name the client-tool
+ * registry dispatches on (`registry.tsx`'s `BY_TOOL_NAME`); an unregistered kind falls back to a
+ * bare empty output, which still settles (out of `input-available`) even with no dedicated chip.
+ */
+const CANCELLED_CLIENT_TOOL_OUTPUT: Record<string, Part> = {
+    request_connection: {connected: false, reason: "cancelled"},
+    request_input: {action: "cancel"},
+}
+
+/** Apply the cancelled-interaction override to every still-`input-available` client-tool part
+ * whose token the interactions join marked cancelled. Runs once, after the full record sweep, so
+ * a LATER `tool_result` for the same toolCallId (a real settle) always wins over this fallback. */
+function applyCancelledInteractions(
+    index: TranscriptIndex,
+    cancelledClientToolTokens: ReadonlySet<string> | undefined,
+): void {
+    if (!cancelledClientToolTokens || cancelledClientToolTokens.size === 0) return
+    for (const [toolCallId, part] of index.tools) {
+        if (part.state !== "input-available") continue
+        if (!cancelledClientToolTokens.has(toolCallId)) continue
+        part.state = "output-available"
+        part.output = CANCELLED_CLIENT_TOOL_OUTPUT[partToolName(part)] ?? {}
+    }
+}
+
 /**
  * Replay a parked CLIENT TOOL (`interaction_request` `kind: "client_tool"`): its unsettled tool
  * part plus the sibling `data-render` part that carries `render.kind` — the ONLY thing that tells
@@ -365,12 +403,23 @@ function applyEvent(
     }
 }
 
+export interface TranscriptToMessagesOptions {
+    /** Tokens (== toolCallId) of this session's CANCELLED `client_tool` interactions — see
+     * `fetchCancelledClientToolTokensAtom`. A resurrected part for one of these replays inert
+     * instead of as a live, answerable form. Omit when the caller has no interaction-status join
+     * available; every part then replays exactly as before (unaffected, not a regression). */
+    cancelledClientToolTokens?: ReadonlySet<string>
+}
+
 /**
  * Convert a session's ordered transcript rows into v6 `UIMessage[]`. Returns `null` when
  * there is nothing renderable (empty transcript or only metadata events) so the caller can
  * fall back to local history.
  */
-export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | null {
+export function transcriptToMessages(
+    records: SessionRecord[],
+    options?: TranscriptToMessagesOptions,
+): UIMessage[] | null {
     const drafts: DraftMessage[] = []
     let current: DraftMessage | null = null
     // Paused resumes close the draft, but later answers and results still target its tool part.
@@ -426,6 +475,12 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             if (part.state === "approval-requested") part.state = "approval-responded"
         }
     }
+
+    // Same "settle whatever the record log alone left parked" idea as the resumed-approval pass
+    // above, for client tools: a token the caller's interaction-status join says is CANCELLED
+    // never got its own `tool_result` (a real settle would have), so it replays parked forever
+    // without this.
+    applyCancelledInteractions(index, options?.cancelledClientToolTokens)
 
     const messages = drafts
         .filter((d) => d.parts.length > 0)
