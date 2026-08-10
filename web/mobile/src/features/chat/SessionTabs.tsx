@@ -49,7 +49,7 @@ export const SessionTabs = ({
 
     return (
         <>
-            <PageTitle parts={[query.data?.name]} />
+            <PageTitle title={query.data?.name} />
             <SessionTabRail
                 className={chatMaximized ? "md:hidden" : undefined}
                 agentId={agentId ?? undefined}

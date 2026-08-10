@@ -39,7 +39,6 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -316,7 +315,6 @@ export const SettingsScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const router = useRouter()
-    const project = useCurrentProject(workspaceId, projectId)
     const {themeMode, setMode} = useThemeMode()
     const {user} = useProfile()
 
@@ -358,7 +356,7 @@ export const SettingsScreen = ({
 
     return (
         <>
-            <PageTitle parts={["Settings", project?.project_name]} />
+            <PageTitle title="Settings" />
             <AppShell
                 workspaceId={workspaceId}
                 projectId={projectId}
@@ -375,14 +373,19 @@ export const SettingsScreen = ({
                                 </ContentRail>
                             </div>
                         ) : (
-                            // Takeover has no top bar. Below lg the rail is a drawer, so the page
-                            // still needs the one way into it — the hamburger, nothing else.
+                            // Takeover has no top bar of its own. Below lg the rail is a drawer,
+                            // so the page needs the way into it — and a name beside it, or the
+                            // bar reads as a stray button. "Settings", not the tab: the tab's
+                            // own title is the page heading directly underneath.
                             <div className="border-border shrink-0 border-0 border-b border-solid px-2 py-2 lg:hidden">
-                                <NavDrawer
-                                    workspaceId={workspaceId}
-                                    projectId={projectId}
-                                    scope={settingsScope}
-                                />
+                                <div className="flex items-center gap-2">
+                                    <NavDrawer
+                                        workspaceId={workspaceId}
+                                        projectId={projectId}
+                                        scope={settingsScope}
+                                    />
+                                    <h1 className="m-0 text-sm font-semibold">Settings</h1>
+                                </div>
                             </div>
                         )
                     }

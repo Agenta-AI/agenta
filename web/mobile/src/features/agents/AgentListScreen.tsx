@@ -16,7 +16,6 @@ import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
-import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
@@ -43,7 +42,6 @@ export const AgentListScreen = ({
 }) => {
     useBindProjectContext(projectId)
     const router = useRouter()
-    const project = useCurrentProject(workspaceId, projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
     const query = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -66,7 +64,7 @@ export const AgentListScreen = ({
 
     return (
         <>
-            <PageTitle parts={["Agents", project?.project_name]} />
+            <PageTitle title="Agents" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold fill>
                     <FilterRailLayout

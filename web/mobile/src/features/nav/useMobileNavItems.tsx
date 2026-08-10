@@ -10,7 +10,7 @@ import {
     type SidebarConfig,
 } from "@agenta/navigation"
 import {atom, useAtomValue} from "jotai"
-import {loadable} from "jotai/utils"
+import {unwrap} from "jotai/utils"
 import {
     Bot,
     CalendarClock,
@@ -99,14 +99,14 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
  * deep-links into the settings workspace tab, which this app does not have yet.
  */
 // Lazy-load package.json so its version stays out of the initial bundle — same as the desktop.
-const versionAtom = loadable(atom(async () => (await import("../../../package.json")).version))
+// `unwrap` yields undefined until the import settles, which is all the suffix below needs.
+const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
 
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
 ): SidebarConfig[] => {
-    const versionState = useAtomValue(versionAtom)
-    const version = versionState.state === "hasData" ? versionState.data : undefined
+    const version = useAtomValue(versionAtom)
 
     return useMemo(
         () => [
