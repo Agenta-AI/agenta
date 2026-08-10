@@ -199,6 +199,7 @@ export const useAgentChatSession = ({
         setMessages,
         persistMessages,
         intent,
+        pendingResumeRef: liveGateInteractionRef,
     })
 
     // A decision made in THIS mount marks the resume as live — a restored approval-requested tail
