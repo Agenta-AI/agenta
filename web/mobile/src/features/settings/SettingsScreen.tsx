@@ -127,7 +127,8 @@ const TabBody = ({
     // on both surfaces instead of /m quietly showing controls the plan does not include.
     const entitlements = useEntitlements({
         projectId,
-        enabled: access.isEE && (tab === "organization" || tab === "auditLog"),
+        enabled:
+            access.isEE && (tab === "organization" || tab === "auditLog" || tab === "workspace"),
     })
     const [memberSearch, setMemberSearch] = useState("")
     const [orgSearch, setOrgSearch] = useState("")
@@ -235,6 +236,8 @@ const TabBody = ({
                     ownerId={org.data?.owner_id}
                     organizationId={organizationId}
                     workspaceId={org.data?.default_workspace?.id}
+                    hasRBAC={entitlements.hasRBAC}
+                    permissionsLoading={entitlements.isLoading}
                     onChanged={() => void org.refetch()}
                 />
             )
