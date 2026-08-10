@@ -155,7 +155,11 @@
   deliberately so the source can be swapped.
 - Related: `F3` — WP0's arrival changes this.
 
-### F3. WP0 (session events) is unowned and blocks WP5's final form
+### [CLOSED] F3. WP0 (session events) is unowned and blocks WP5's final form
+
+- **Verified closed.** Both publishes, the stream consumer and the outbox's
+  turn-event handler are merged and wired in the stream entrypoint; `poll_turn`
+  exists nowhere in the tree. Wave 5 had listed this as work still to do.
 
 - **Resolved in part:** WP0 is built and merged (wave 3) — it is no longer unowned.
   What remains is `F31`: the stream has no registered consumer, which is `WP18`.
@@ -163,7 +167,7 @@
 - Origin: `planning`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Completeness`
 - Summary: WP5 rides polling until WP0 lands. WP0 is not channels work and has
   no owner in this plan; C4 depends on it.
@@ -456,13 +460,17 @@
   workaround: `conversations.list` does return them, but pre-approving every existing
   DM still leaves every future one refused.
 
-### F50. `space_locator` and `thread_locator` are computed by every adapter and dropped by the ingress
+### [CLOSED] F50. `space_locator` and `thread_locator` are computed by every adapter and dropped by the ingress
+
+- **Fixed by deleting both fields.** Key composition takes the declared subset of
+  the one `external_locator` per grain, which makes a per-grain locator redundant
+  by construction rather than merely unused.
 
 - ID: `F50`
 - Origin: `C4 design read`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `ChannelInboundEvent` declares `space_locator` and `thread_locator`, and
   every adapter fills them. `_ingest` copies only `external_locator` into
@@ -487,13 +495,18 @@
   bug in a field no production code reads. Fixing `F28` without fixing this changes
   nothing observable. They should be resolved together, and this one first.
 
-### F49. The adapter interface declares a `verify_signature` nobody implements or calls
+### [CLOSED] F49. The adapter interface declares a `verify_signature` nobody implements or calls
+
+- **Fixed.** `verify_signature(*, request, connection)` with `connection` required;
+  all three adapters match, the constructor-held connection and its
+  `connection or self._connection` fallback are gone, and `grep` finds no adapter
+  signature differing from the interface's.
 
 - ID: `F49`
 - Origin: `C4 design read`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `ChannelAdapterInterface.verify_signature` is declared
   `(*, headers, body) -> str`. All three adapters implement
@@ -514,13 +527,17 @@
   parameter. That is the same shape as `F45`: **the suite exercises a construction
   production does not use.** Fourth instance of that defect shape.
 
-### F48. The interface's keyword-only check cannot see sync methods, and hardcodes the method count
+### [CLOSED] F48. The interface's keyword-only check cannot see sync methods, and hardcodes the method count
+
+- **Fixed.** The check walks `ast.FunctionDef` and `ast.AsyncFunctionDef`, and the
+  expected count derives from `ChannelAdapterInterface.__abstractmethods__`. A test
+  asserts the guard fails on a sync method with a positional parameter.
 
 - ID: `F48`
 - Origin: `C4 design read`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Test-coverage`
 - Summary: `test_every_method_parameter_after_self_is_keyword_only` walks
   `ast.AsyncFunctionDef` only, so it skips every synchronous method on the
@@ -567,13 +584,25 @@
   key. It is worth an explicit constraint rather than a convention, since a
   third-party bridge author chooses the value.
 
-### F45. The stateless adapter registration refuses every request, Slack included
+### [CLOSED] F45. The stateless adapter registration refuses every request, Slack included
+
+- **Both halves now closed.** Verification was fixed earlier; the per-connection
+  declaration is fixed here. `fetch_capabilities` takes the connection through the
+  service to the adapter, the bridge reads the connection's own recorded
+  declaration instead of a constructor-held one, and every reachable call site
+  passes the connection it already had. The `strict=True` xfail this finding left
+  on the two-bridge acceptance test is removed, so that test now asserts the fixed
+  behaviour rather than the defect.
+- **What this cost to find:** the acceptance tests still constructed the adapter
+  with the deleted `capabilities=`/`connection=` arguments, so the suite would have
+  raised at construction on the first deployment. Two green unit-only runs did not
+  see it, which is the pattern this project keeps hitting.
 
 - ID: `F45`
 - Origin: `wave-4 WP17`
 - Severity: `P0` — blocks C4's exit condition, and Slack ingress is broken today
 - Confidence: `high`
-- Status: `partly resolved` — verification fixed; per-connection capabilities open
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: The adapter registry holds **one instance per channel key**, with
   capabilities baked in at construction, and nothing threads a per-request
@@ -677,13 +706,16 @@
   The package that hit it refused to weaken the suite or contort its adapter, and
   reported it instead: the correct call, and the reason the gap surfaced at all.
 
-### F43. `worker_queues.py` still builds a `channels-outbox` queue with no producer
+### [CLOSED] F43. `worker_queues.py` still builds a `channels-outbox` queue with no producer
+
+- **Removed**, with the task worker that registered no task. No env file names the
+  queue explicitly, so nothing selects one that no longer exists.
 
 - ID: `F43`
 - Origin: `wave-4 WP18`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Simplification`
 - Summary: With `poll_turn` deleted, nothing enqueues onto `queues:channels-outbox`;
   the taskiq wrapper is kept importable but registers nothing, so the broker is
@@ -695,13 +727,17 @@
 - Notes: Left unfixed because the file is outside the package's owned paths — the
   right call. The exact removal is recorded so it is a deletion, not a rediscovery.
 
-### F42. `worker_queues.py`'s adapter registry never got the mock adapter
+### [CLOSED] F42. `worker_queues.py`'s adapter registry never got the mock adapter
+
+- **Fixed at the cause.** Three composition roots each built the registry by hand,
+  which is why they drifted; one factory now builds it for all three, so adding an
+  adapter is one edit. A root that builds its own registry again is the regression.
 
 - ID: `F42`
 - Origin: `wave-4 WP18`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `_build_channels_service()` in the queue-worker composition path still
   registers only `{"slack": SlackAdapter()}`, while the API composition root and
@@ -1120,13 +1156,18 @@
   `F1` was: four disconnections that every green suite missed because nothing
   imports this module.
 
-### F28. Backfilled events all carry the request's locator, not their own
+### [CLOSED] F28. Backfilled events all carry the request's locator, not their own
+
+- **Fixed, and this finding was more serious than filed.** It is not a bug in a
+  field nothing reads: `external_locator` is read, so a thread reply returned by a
+  space-level history read composed to the space's thread key instead of its own.
+  Two tests asserted the defect as intended behaviour and now assert the fix.
 
 - ID: `F28`
 - Origin: `wave-2`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `SlackAdapter.fetch_history` sets `external_locator=locator` on every
   event it returns — the locator it was *called* with. So each backfilled
