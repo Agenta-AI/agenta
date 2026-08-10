@@ -90,52 +90,76 @@ assumed.
 
 ### 3. What does the ingress verify, when the caller is us?
 
-The one genuinely awkward question, and the reason this needs designing rather than
-just building.
+The question that looked like it forced a divergence, and does not.
 
-Every other channel's ingress is public and unauthenticated at the middleware level,
-verifying an HMAC instead. Agenta's caller is a logged-in user with a session, so
-the ingress would be verifying a signature nobody needs, over a request that already
-carries a stronger proof of identity.
+**`/channels/agenta/events/` is an ordinary literal route beside
+`/channels/slack/events/`, calling the same `_ingest`.** The only difference is that
+it is **not added to `_PUBLIC_ENDPOINTS`**. That list is per literal route — a route
+is public precisely by being named there — so omitting it leaves the normal auth
+middleware in force. No new mechanism, no second path.
 
-**So Agenta's inbound does not go through the public ingress.** It goes through the
-authenticated channels API — an ordinary project-scoped route with the normal
-permission check — and writes the same inbox row the ingress would have written.
+Walking `_ingest`, exactly one step differs:
 
-This is a deliberate divergence and it should be recorded as one. Justification:
+| step | Slack | Agenta |
+| --- | --- | --- |
+| resolve the candidate connection | from the body's claim | from the request |
+| **verify** | **HMAC over the body** | **the session** |
+| verified id must match the connection | same | same |
+| `parse_event` | same | same |
+| write the inbox row, dispatch, 202 | same | same |
 
-- the public ingress exists to *establish* a tenant from an untrusted request, and
-  here the tenant is already established by the session
-- verifying an HMAC we both generated and checked proves nothing
-- `RUN_CHANNELS` is the real check, and it is one the platform channels cannot make
-  because they have no session
+Even that step is the same *shape*. `verify_signature` already means **"prove the
+caller may speak for this connection, and return the installation id it speaks
+for"** — it is not intrinsically about HMAC, and `contract.md` already commits to
+verification and identification being one act. Agenta's implementation reads the
+authenticated project, checks the connection belongs to it, and returns its
+`external_key`. No session, or a session from another project, refuses **identically
+to a bad signature**: same exception, same 401, same absence of detail.
 
-What must **not** diverge is everything after the row is written: routing, policy,
+So there is no divergence to justify. An earlier draft of this document claimed
+Agenta needed its own authenticated route outside the ingress; that was wrong, and
+the correction is worth keeping because the wrong version would have built a second
+inbound path for no reason.
+
+### The interface consequence
+
+`_ingest` reads nothing from request state today, because for Slack there is none.
+Agenta needs the authenticated project, and Telegram needs headers, and a per-bot
+URL needs the path. That is one question, not three: **the adapter needs more of the
+request than the body.**
+
+So the request context is passed once, and each adapter takes what it needs — Slack
+the body, Telegram the headers, Agenta the session. This is the same change
+`channel-connections.md` arrives at from the Telegram side, and Agenta is what shows
+it is not a Telegram special case.
+
+What must **not** differ is everything after the row is written: routing, policy,
 addressing, threads, offsets, invoke, outbox. If any of those needed a branch on
-`channel == "agenta"`, the port is wrong.
-
-`connection_locator` still has a job here — it names which bot the message is for —
-so the adapter implements it against the authenticated request rather than against a
-signature.
+`channel == "agenta"`, the port is wrong and that is the finding.
 
 ## The API surface
 
 Permanent, and the deliverable web builds against later.
 
-Three routes, all authenticated, all project-scoped, all under the existing channels
-router:
+**Send is the ingress route** — `/channels/agenta/events/`, authenticated, per
+above. It is not a second way in.
 
-- **send** — post a message into a conversation as the user. Writes the inbox row,
-  returns the id. `RUN_CHANNELS`.
+The other two are ordinary channels routes, authenticated and project-scoped:
+
 - **read** — the conversation's messages, which is the inbox log for a space plus
   what the outbox has posted back. `VIEW_CHANNELS`.
 - **answer a pending choice** — resolve a choice by token, which is the same event
   as a click and as a numbered reply (`rendering.md`).
 
-The third one is the one worth having early. It is the only place in the system
-where a choice is answered by an API call rather than by a platform's click payload,
-so it is where the choice mechanism gets designed properly rather than around
-Slack's `block_actions` — the gap `F38` left open at C3.
+**Answering a choice is the one worth having early.** It is the only place in the
+system where a choice is answered by an API call rather than by a platform's click
+payload, so it is where the mechanism gets designed on its own terms rather than
+around Slack's `block_actions` — the gap `F38` left open at C3.
+
+Whether it is its own route or an ordinary message whose content is a token is
+itself the question `rendering.md` answers with "a click and a numbered reply are
+the same event". If they are the same event, this is not a third route at all — it
+is `send` with a token in the body, and that is the shape to try first.
 
 **Delivery to the UI is polling first.** The outbox posts by calling the adapter, and
 this adapter's post is "write it where the read route can see it". Streaming is a

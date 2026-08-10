@@ -31,6 +31,45 @@ Maintained here. Status is one of **decided** (settled, no doc needed), **writte
 change the row, and when a decision is taken, say what was decided rather than
 deleting the row. Statuses reported in conversation and not written here are lost.
 
+## What blocks going back to implementation
+
+Nine of eleven design items are written or decided. The gate is not "finish the
+list" — it is the smaller set below, split by whether it blocks *writing* the work
+packages or only blocks *finishing* them.
+
+**Blocks writing the packages — decide these first.**
+
+| what | why it blocks | where |
+| --- | --- | --- |
+| The credential schema (item 1) | three other designs read it, and `F47`/`F6` are the same gap | `capabilities-v2.md` |
+| The request-context interface change | `channel-connections.md` and `agenta-channel.md` both need it, and it edits a frozen interface at a checkpoint | both |
+| `F49` — the interface's `verify_signature` is a lie | any package written against the declared contract breaks at the ingress | ledger |
+| Journeys (item 10) | packages alone produced a system nobody can configure; each journey must name the packages that complete it | below |
+
+**Blocks finishing, not starting.**
+
+| what | why | where |
+| --- | --- | --- |
+| `F3` / `F41` — session events unowned and the stream round trip unproven | the outbox cannot leave polling | ledger |
+| `F46` — the unscoped lookup needs its global constraint | `channel-connections.md` decides it; it lands with the table | ledger |
+| `F38` — nothing parses a button click | item 7's parsing half; Agenta gives it a home first | ledger |
+| Item 6's per-platform half | needs item 1 | `provisioning.md` |
+
+**Cheap and worth taking with the first package**, because each is a guard that is
+currently lying: `F48` (the keyword-only check cannot see sync methods), `F42`/`F43`
+(a queue with no producer, a registry missing the mock adapter), `F50`+`F28`
+(vestigial locators, and a bug in one of them that cannot bite).
+
+**Two contradictions between documents**, both needing a decision rather than a
+design:
+
+- `architecture.md` §8.1 says *"there is no shared vendor app to compromise"*;
+  `provisioning.md` §0 designs one. A security-posture claim and a product decision
+  disagree.
+- `entities.md` §1 says the connection is reused and takes no channels-specific
+  columns; `channel-connections.md` reverses it. Recorded in that document, but
+  `entities.md` still reads as current.
+
 **Dependency, not priority.** Item 1 blocks 2, 3 and 6, because a credential schema
 and per-connection declarations are what they read. Item 5 unblocks 6, 7 and the
 first two journeys, since a first-party surface needs no credentials to drive.
