@@ -117,6 +117,11 @@ const deployFirstVariantToDevelopment = async (
  * wait for the page (and its Jotai atoms) to be ready.
  */
 const openVariantUseApiDrawer = async (page: any) => {
+    // The Use API button is NOT disabled while no revision is selected (it captures
+    // selectedRevisionId at click time), so wait for the registry's auto-selection to
+    // settle (an antd row checkbox turns checked) before clicking — clicking early
+    // opens the drawer with an undefined revision and empty snippets.
+    await expect(page.locator(".ant-checkbox-checked").first()).toBeVisible({timeout: 15000})
     const useApiButton = page.locator('[data-tour="api-code-button"]')
     await expect(useApiButton).toBeVisible({timeout: 15000})
     await expect(useApiButton).toBeEnabled({timeout: 5000})
