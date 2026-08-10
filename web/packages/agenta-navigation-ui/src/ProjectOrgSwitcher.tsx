@@ -98,11 +98,7 @@ const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
             </PopoverTrigger>
             <PopoverContent side="right" align="end" className="w-[190px] p-1">
                 {theme.options.map(({mode, label, icon}) => (
-                    <Row
-                        key={mode}
-                        className={ITEM_ROW_CLASS}
-                        onClick={() => theme.onSelect(mode)}
-                    >
+                    <Row key={mode} className={ITEM_ROW_CLASS} onClick={() => theme.onSelect(mode)}>
                         {icon}
                         <span className="min-w-0 flex-1 truncate">{label}</span>
                         {theme.mode === mode && (
@@ -271,16 +267,7 @@ export const ProjectOrgSwitcherView = ({
                 )}
             </div>
         ),
-        [
-            capitalizedNoun,
-            close,
-            onCreateOrg,
-            onLogout,
-            onOrgSettings,
-            orgNoun,
-            orgs,
-            theme,
-        ],
+        [capitalizedNoun, close, onCreateOrg, onLogout, onOrgSettings, orgNoun, orgs, theme],
     )
 
     return (

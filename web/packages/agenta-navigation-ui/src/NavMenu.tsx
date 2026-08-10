@@ -66,6 +66,28 @@ const Tip = ({title, children}: {title: ReactNode; children: ReactNode}) => (
 
 const isExternal = (link?: string) => Boolean(link?.startsWith("http"))
 
+/**
+ * What clicking a nav link does. Every `<Link>` here runs this — inline rows, the collapsed
+ * rail's stretched anchor, and the flyout — so an inert or controlled item behaves the same
+ * wherever it is rendered. It deliberately does NOT stop propagation: no ancestor row carries
+ * a click handler when a link is present, and hosts listen for the bubble (the mobile drawer
+ * closes itself on it).
+ */
+const linkClickHandler =
+    (item: NavItem, onItemSelect?: NavMenuProps["onItemSelect"]) => (event: MouseEvent) => {
+        // Inert item: keep it highlighted but cancel navigation and its onClick.
+        if (item.inert) {
+            event.preventDefault()
+            return
+        }
+        if (onItemSelect) {
+            event.preventDefault()
+            onItemSelect(item.key, event)
+            return
+        }
+        item.onClick?.(event)
+    }
+
 const RowLabel = ({
     item,
     onItemSelect,
@@ -95,20 +117,7 @@ const RowLabel = ({
             href={item.link}
             target={isExternal(item.link) ? "_blank" : undefined}
             rel={isExternal(item.link) ? "noopener noreferrer" : undefined}
-            onClick={(event) => {
-                event.stopPropagation()
-                // Inert item: keep it highlighted but cancel navigation and its onClick.
-                if (item.inert) {
-                    event.preventDefault()
-                    return
-                }
-                if (onItemSelect) {
-                    event.preventDefault()
-                    onItemSelect(item.key, event)
-                    return
-                }
-                item.onClick?.(event)
-            }}
+            onClick={linkClickHandler(item, onItemSelect)}
         >
             {content}
         </Link>
@@ -138,7 +147,15 @@ const LeafRow = ({
 )
 
 /** Children of a collapsed-rail (or vertical-mode) group, flattened into a Radix flyout. */
-const FlyoutChildren = ({items, selectedKeys}: {items: NavItem[]; selectedKeys: string[]}) => (
+const FlyoutChildren = ({
+    items,
+    selectedKeys,
+    onItemSelect,
+}: {
+    items: NavItem[]
+    selectedKeys: string[]
+    onItemSelect?: NavMenuProps["onItemSelect"]
+}) => (
     <>
         {items.map((child) =>
             child.isPlaceholder ? (
@@ -161,7 +178,7 @@ const FlyoutChildren = ({items, selectedKeys}: {items: NavItem[]; selectedKeys: 
                             className="!text-inherit no-underline"
                             target={isExternal(child.link) ? "_blank" : undefined}
                             rel={isExternal(child.link) ? "noopener noreferrer" : undefined}
-                            onClick={(event) => child.onClick?.(event)}
+                            onClick={linkClickHandler(child, onItemSelect)}
                         >
                             {child.title}
                         </Link>
@@ -221,9 +238,10 @@ const NavMenuImpl = ({
                         <button
                             type="button"
                             aria-label={item.title}
+                            disabled={item.disabled}
                             className={clsx(
-                                "mx-auto flex cursor-pointer items-center rounded-md border-0 bg-transparent",
-                                ROW_INTERACTIVE,
+                                "mx-auto flex items-center rounded-md border-0 bg-transparent",
+                                item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
                                 selected && ROW_SELECTED,
                                 collapsed
                                     ? "size-8 justify-center"
@@ -239,7 +257,11 @@ const NavMenuImpl = ({
                         align="start"
                         className="max-h-[min(70vh,560px)] overflow-y-auto"
                     >
-                        <FlyoutChildren items={item.submenu ?? []} selectedKeys={selectedKeys} />
+                        <FlyoutChildren
+                            items={item.submenu ?? []}
+                            selectedKeys={selectedKeys}
+                            onItemSelect={onItemSelect}
+                        />
                     </DropdownMenuContent>
                 </DropdownMenu>
             )
@@ -330,19 +352,7 @@ const RowLabelCollapsed = ({
         href={item.link ?? "#"}
         target={isExternal(item.link) ? "_blank" : undefined}
         rel={isExternal(item.link) ? "noopener noreferrer" : undefined}
-        onClick={(event) => {
-            event.stopPropagation()
-            if (item.inert) {
-                event.preventDefault()
-                return
-            }
-            if (onItemSelect) {
-                event.preventDefault()
-                onItemSelect(item.key, event)
-                return
-            }
-            item.onClick?.(event)
-        }}
+        onClick={linkClickHandler(item, onItemSelect)}
     />
 )
 

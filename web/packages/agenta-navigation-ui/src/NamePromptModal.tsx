@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useId, useState} from "react"
 
 import {EnhancedModal} from "@agenta/ui/components/modal"
 
@@ -24,6 +24,7 @@ export const NamePromptModal = ({
     isPending,
     okText = "Create",
 }: NamePromptModalProps) => {
+    const inputId = useId()
     const [name, setName] = useState("")
     const [touched, setTouched] = useState(false)
     useEffect(() => {
@@ -56,9 +57,12 @@ export const NamePromptModal = ({
                     submit()
                 }}
             >
-                <label className="text-xs text-colorTextSecondary">{label}</label>
+                <label className="text-xs text-colorTextSecondary" htmlFor={inputId}>
+                    {label}
+                </label>
                 <input
                     autoFocus
+                    id={inputId}
                     value={name}
                     placeholder={placeholder}
                     onChange={(event) => setName(event.target.value)}
