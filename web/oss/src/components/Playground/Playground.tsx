@@ -9,7 +9,7 @@ import {
     type PlaygroundUIProviders,
 } from "@agenta/playground-ui"
 import {useLocalDraftWarning} from "@agenta/playground-ui/hooks"
-import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
+import {preloadEditorPlugins, Tag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -30,6 +30,7 @@ import PlaygroundMainView from "./Components/MainLayout"
 import PlaygroundHeader from "./Components/PlaygroundHeader"
 import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
+import PlaygroundPageTitle from "./PlaygroundPageTitle"
 
 // Agent-chat surface (third generation arm). The host is a LIGHT static import that lazy-loads
 // the AI-SDK panel internally and crossfades it in through a persistent skeleton overlay —
@@ -68,8 +69,8 @@ function PlaygroundSyncStateTag({rowId, loadableId}: {rowId: string; loadableId:
     const syncState = isNew ? "new" : isDirty ? "modified" : "unmodified"
 
     return (
-        <SyncStateTag
-            syncState={syncState}
+        <Tag
+            sync={syncState}
             dismissible={syncState === "modified"}
             onDismiss={syncState === "modified" ? handleDiscard : undefined}
         />
@@ -132,7 +133,8 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
 
     const content = (
         <OSSPlaygroundShell providers={providers}>
-            <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
+            <PlaygroundPageTitle onboarding={onboarding} />
+            <div className="flex flex-col w-full h-dvh overflow-hidden">
                 {prefetchAgentCatalogs ? <AgentCatalogPrefetcher /> : null}
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />

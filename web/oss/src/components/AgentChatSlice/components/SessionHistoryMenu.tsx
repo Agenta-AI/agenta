@@ -108,7 +108,7 @@ const SessionHistoryRow = ({
                             Ended
                         </span>
                     )}
-                    {timeAgo(session.createdAt)}
+                    {timeAgo(session.lastMessageAt ?? session.createdAt)}
                 </Text>
             </div>
             {!archived && nest.isAlive && (

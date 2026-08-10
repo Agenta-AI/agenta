@@ -132,6 +132,7 @@ jobs:
           # (run-tests.ts runs both vitest and playwright for the layer).
           files: |
             web/tests/results/oss/junit.xml
+            web/oss/test-results/junit.xml
             web/packages/*/test-results/junit.xml
           check_name: Application Web Unit Test Results
           comment_mode: off

@@ -1,6 +1,8 @@
 import type {SessionRecord} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 
+import {attachmentContentUrl} from "./attachmentMedia"
+
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
  *
@@ -41,6 +43,8 @@ interface DraftMessage {
     /** The turn's terminal `done` carried `stopReason:"paused"` — it ended mid-approval, not at a
      *  real boundary. Surfaced on the message so a cold reload's adoption heuristic can compare state. */
     paused?: boolean
+    /** The turn paused for approval and then RESUMED to completion (a second, non-paused `done`). */
+    resumed?: boolean
 }
 
 interface TranscriptIndex {
@@ -105,6 +109,7 @@ function applyEvent(
     draft: DraftMessage,
     payload: Record<string, unknown>,
     index: TranscriptIndex,
+    sessionId: string,
 ): void {
     const type = payload.type as string | undefined
     const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v))
@@ -112,6 +117,25 @@ function applyEvent(
     switch (type) {
         case "message": {
             draft.parts.push({type: "text", text: str(payload.text)})
+            const attachments = Array.isArray(payload.attachments) ? payload.attachments : []
+            for (const raw of attachments) {
+                if (!raw || typeof raw !== "object") continue
+                const attachment = raw as Record<string, unknown>
+                const attachmentId = str(attachment.attachmentId)
+                if (!attachmentId) continue
+                draft.parts.push({
+                    type: "file",
+                    url: attachmentContentUrl(sessionId, attachmentId),
+                    mediaType: str(attachment.mediaType) || "application/octet-stream",
+                    filename: str(attachment.filename) || undefined,
+                    providerMetadata: {
+                        agenta: {
+                            attachmentId,
+                            size: typeof attachment.size === "number" ? attachment.size : undefined,
+                        },
+                    },
+                })
+            }
             return
         }
         case "message_start": {
@@ -210,6 +234,19 @@ function applyEvent(
                 part.state = "approval-requested"
                 part.approval = {id: str(payload.id)}
             }
+            // Mirrors the live egress's sibling data part, so a reloaded transcript renders the
+            // same card. `tool-approval-request` is a strict object and cannot carry this.
+            if (reqPayload.manifest !== undefined) {
+                draft.parts.push({
+                    type: "data-approval-manifest",
+                    id: toolCallId,
+                    data: {
+                        toolCallId,
+                        approvalId: str(payload.id),
+                        manifest: reqPayload.manifest,
+                    },
+                })
+            }
             return
         }
         case "interaction_response": {
@@ -217,18 +254,30 @@ function applyEvent(
             const responsePayload = (payload.payload ?? {}) as Record<string, unknown>
             const responseId = str(payload.id)
             const toolCallId = str(responsePayload.toolCallId)
+            // A cold resume re-raises the approved call under a NEW toolCallId, so the interaction
+            // id (identical on request and response by contract) is the reliable key to the gate.
             const part =
-                (toolCallId ? index.tools.get(toolCallId) : undefined) ??
-                index.approvals.get(responseId)
-            if (
-                !part ||
-                part.state !== "approval-requested" ||
-                typeof responsePayload.approved !== "boolean"
-            ) {
-                return
+                index.approvals.get(responseId) ??
+                (toolCallId ? index.tools.get(toolCallId) : undefined)
+            if (!part || typeof responsePayload.approved !== "boolean") return
+            if (part.state === "approval-requested") {
+                part.state = "approval-responded"
+                part.approval = {id: responseId, approved: responsePayload.approved}
             }
-            part.state = "approval-responded"
-            part.approval = {id: responseId, approved: responsePayload.approved}
+            if (!toolCallId || toolCallId === str(part.toolCallId)) return
+            // Re-raised under a new id: point that id at the gated part and fold in the duplicate
+            // it created — an executed result supersedes the approval-responded state.
+            const duplicate = index.tools.get(toolCallId)
+            index.tools.set(toolCallId, part)
+            if (!duplicate || duplicate === part) return
+            const at = draft.parts.indexOf(duplicate)
+            if (at >= 0) draft.parts.splice(at, 1)
+            if (duplicate.input !== undefined) part.input = duplicate.input
+            if (typeof duplicate.state === "string" && duplicate.state.startsWith("output-")) {
+                part.state = duplicate.state
+                if (duplicate.output !== undefined) part.output = duplicate.output
+                if (duplicate.errorText !== undefined) part.errorText = duplicate.errorText
+            }
             return
         }
         case "file": {
@@ -236,6 +285,7 @@ function applyEvent(
                 type: "file",
                 url: str(payload.url),
                 mediaType: str(payload.mediaType),
+                filename: str(payload.filename) || undefined,
             })
             return
         }
@@ -261,7 +311,7 @@ function applyEvent(
             draft.usage = next
             return
         }
-        // done / data / render-hints carry no renderable message part — drop.
+        // done / data / render-hints / attachment_delivery carry no renderable message part — drop.
         default:
             return
     }
@@ -304,6 +354,7 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
                 continue
             }
             // A resumed-then-completed turn is no longer paused.
+            if (current?.paused) current.resumed = true
             if (current) current.paused = false
             current = null
             continue
@@ -314,7 +365,18 @@ export function transcriptToMessages(records: SessionRecord[]): UIMessage[] | nu
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
-        applyEvent(current, p, index)
+        applyEvent(current, p, index, row.session_id)
+    }
+
+    // A RESUMED turn's gate was answered by definition — the runner only emits post-pause records
+    // once the user responded (a deny settles its own part via `tool_result denied`). The durable
+    // log doesn't always persist the `interaction_response`, so settle whatever is left awaiting:
+    // otherwise a completed turn replays as still parked and the reload keeps the approval dock up.
+    for (const d of drafts) {
+        if (!d.resumed) continue
+        for (const part of d.parts) {
+            if (part.state === "approval-requested") part.state = "approval-responded"
+        }
     }
 
     const messages = drafts

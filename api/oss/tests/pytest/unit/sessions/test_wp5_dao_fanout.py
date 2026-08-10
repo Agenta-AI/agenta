@@ -16,6 +16,7 @@ delete/archive/unarchive fan-out is built on, and were "new plumbing" per the br
 """
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import text
@@ -25,10 +26,11 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionData,
     SessionInteractionKind,
     SessionInteractionQuery,
+    SessionInteractionRequest,
     SessionInteractionStatus,
     SessionInteractionTransition,
 )
-from oss.src.core.mounts.dtos import MountCreate
+from oss.src.core.mounts.dtos import MountCreate, MountQuery
 import oss.src.models.db_models  # noqa: F401
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
@@ -182,7 +184,7 @@ async def test_interaction_transition_preserves_data_and_optionally_adds_resolut
     assert transitioned is not None
     assert transitioned.status == SessionInteractionStatus.resolved
     assert transitioned.data is not None
-    assert transitioned.data.request == request
+    assert transitioned.data.request == SessionInteractionRequest(**request)
     assert transitioned.data.resolution == {
         "verdict": "approved",
         "tool_call_id": "tool-1",
@@ -210,7 +212,9 @@ async def test_interaction_transition_preserves_data_and_optionally_adds_resolut
 
     assert transitioned_without_resolution is not None
     assert transitioned_without_resolution.data is not None
-    assert transitioned_without_resolution.data.request == request
+    assert transitioned_without_resolution.data.request == SessionInteractionRequest(
+        **request
+    )
     assert transitioned_without_resolution.data.resolution is None
 
 
@@ -489,3 +493,56 @@ async def test_mounts_delete_by_session_id_no_mounts_returns_empty(mounts_dao, p
         project_id=project_id, session_id=session_id
     )
     assert deleted_mounts == []
+
+
+# ---------------------------------------------------------------------------
+# MountsDAO.query_mounts — default ordering when no windowing is passed
+# ---------------------------------------------------------------------------
+
+
+async def test_query_mounts_without_windowing_orders_oldest_first(mounts_dao, project):
+    """Consumers index into the returned list (the web drive picks a mount out of it),
+    so the unwindowed query must be deterministic: oldest created_at first."""
+    project_id = project["project_id"]
+    user_id = project["user_id"]
+    session_id = f"wp5-mounts-order-{uuid.uuid4().hex[:8]}"
+
+    mounts = []
+    for label in ("cwd", "pi-sessions", "notes"):
+        mounts.append(
+            await mounts_dao.create_mount(
+                project_id=project_id,
+                user_id=user_id,
+                mount_create=MountCreate(
+                    slug=f"wp5-order-{label}-{uuid.uuid4().hex[:8]}",
+                    name=label,
+                    session_id=session_id,
+                ),
+            )
+        )
+
+    # Stamp created_at out of insertion order so the assertion pins the ORDER BY, not the
+    # order the rows were written in.
+    base = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    stamps = [base + timedelta(minutes=offset) for offset in (2, 0, 1)]
+    async with get_transactions_engine().session() as session:
+        for mount, created_at in zip(mounts, stamps):
+            await session.execute(
+                text(
+                    "UPDATE mounts SET created_at = :created_at "
+                    "WHERE project_id = :project_id AND id = :id"
+                ),
+                {
+                    "created_at": created_at,
+                    "project_id": project_id,
+                    "id": mount.id,
+                },
+            )
+        await session.commit()
+
+    queried = await mounts_dao.query_mounts(
+        project_id=project_id,
+        mount_query=MountQuery(session_id=session_id),
+    )
+
+    assert [m.id for m in queried] == [mounts[1].id, mounts[2].id, mounts[0].id]

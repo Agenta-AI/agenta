@@ -100,6 +100,8 @@ export const useTriggerSchedule = (scheduleId?: string) => {
     return {
         schedule: scheduleId ? (query.data?.schedule ?? null) : null,
         isLoading: scheduleId ? query.isPending : false,
+        // Unlike isLoading, stays true while a refetch serves stale cache — edit forms need it.
+        isFetching: scheduleId ? query.isFetching : false,
         error: query.error,
         isMutating,
         create,

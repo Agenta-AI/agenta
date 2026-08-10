@@ -1,14 +1,14 @@
 """Acceptance tests for artifact-scoped agent mounts.
 
-Query-only tests run without an object store. Credential-signing tests skip when
-the running API has no mount storage backend configured. Sign verifies the
+Query-only tests run without an object store. Credential-signing tests fail when
+the environment requires mount storage and skip otherwise. Sign verifies the
 artifact exists in the project (404 otherwise), so signing tests create a real
 workflow first.
 """
 
 from uuid import uuid4
 
-import pytest
+from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
 
 
 def _create_workflow(authed_api):
@@ -35,8 +35,7 @@ def _sign_agent_mount(authed_api, artifact_id, *, name="default"):
         "/mounts/agents/sign",
         params={"artifact_id": artifact_id, "name": name},
     )
-    if response.status_code == 503:
-        pytest.skip("Mount storage backend not configured in this environment")
+    skip_if_mount_storage_unavailable(response)
     return response
 
 

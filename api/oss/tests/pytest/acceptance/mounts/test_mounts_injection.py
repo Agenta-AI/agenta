@@ -10,7 +10,8 @@ bucket root), and a durable file written through the mount's file API survives a
 (the cross-turn persistence contract, exercised at the store level).
 
 Requires a configured object store with a working STS endpoint (AGENTA_STORE_* →
-SeaweedFS in the dev stack). A 503 means no store / STS — skip rather than fail.
+SeaweedFS in the dev stack). Environments that require mount storage fail on a 503;
+other environments skip these checks.
 
 The full runner round-trip (geesefs mount inside a live run, file visible across two turns)
 is a manual/live check on the dev stack; see docs/designs/sessions/mounts/extend/tasks.md M10.
@@ -18,12 +19,7 @@ is a manual/live check on the dev stack; see docs/designs/sessions/mounts/extend
 
 from uuid import uuid4
 
-import pytest
-
-
-def _skip_if_no_store(resp):
-    if resp.status_code == 503:
-        pytest.skip("Mount storage / STS backend not configured in this environment")
+from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
 
 
 def _sign_session(authed_api, session_id):
@@ -36,7 +32,7 @@ class TestSessionMountSign:
     def test_bind_and_sign_returns_scoped_credentials(self, authed_api):
         session_id = f"session-{uuid4().hex[:8]}"
         resp = _sign_session(authed_api, session_id)
-        _skip_if_no_store(resp)
+        skip_if_mount_storage_unavailable(resp)
         assert resp.status_code == 200, resp.text
 
         body = resp.json()
@@ -59,7 +55,7 @@ class TestSessionMountSign:
     def test_bind_is_idempotent_same_session_same_mount(self, authed_api):
         session_id = f"session-{uuid4().hex[:8]}"
         first = _sign_session(authed_api, session_id)
-        _skip_if_no_store(first)
+        skip_if_mount_storage_unavailable(first)
         assert first.status_code == 200, first.text
 
         second = _sign_session(authed_api, session_id)
@@ -74,7 +70,7 @@ class TestSessionMountSign:
 
     def test_different_sessions_get_different_prefixes(self, authed_api):
         a = _sign_session(authed_api, f"session-{uuid4().hex[:8]}")
-        _skip_if_no_store(a)
+        skip_if_mount_storage_unavailable(a)
         assert a.status_code == 200, a.text
         b = _sign_session(authed_api, f"session-{uuid4().hex[:8]}")
         assert b.status_code == 200, b.text
@@ -103,7 +99,7 @@ class TestMountSign:
         mount = create.json()["mount"]
 
         resp = authed_api("POST", f"/mounts/{mount['id']}/sign")
-        _skip_if_no_store(resp)
+        skip_if_mount_storage_unavailable(resp)
         assert resp.status_code == 200, resp.text
 
         creds = resp.json()["credentials"]
@@ -120,7 +116,7 @@ class TestDurablePrefixSurvivesRebind:
     def test_file_survives_rebind(self, authed_api):
         session_id = f"session-{uuid4().hex[:8]}"
         first = _sign_session(authed_api, session_id)
-        _skip_if_no_store(first)
+        skip_if_mount_storage_unavailable(first)
         assert first.status_code == 200, first.text
         mount_id = first.json()["mount"]["id"]
 
@@ -131,7 +127,7 @@ class TestDurablePrefixSurvivesRebind:
             params={"path": "turn1.txt"},
             data=b"written in turn 1",
         )
-        _skip_if_no_store(write)
+        skip_if_mount_storage_unavailable(write)
         assert write.status_code == 200, write.text
 
         # Re-bind (a fresh "turn"): same mount, and the file is still readable.

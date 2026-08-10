@@ -606,6 +606,9 @@ html,
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-color: rgba(242, 242, 92, 0.55);
+  /* Long URLs/identifiers in prose links must break rather than force the page
+     wider than the phone viewport (they otherwise expand the layout to ~459px). */
+  overflow-wrap: anywhere;
 }
 .ag-prose a:hover {
   text-decoration-color: var(--yellow-400);
@@ -640,6 +643,9 @@ html,
   border-radius: 5px;
   padding: 0.12em 0.4em;
   color: #f7f6f4;
+  /* Inline code with a long token/URL must break rather than force the page
+     wider than the phone viewport. Fenced <pre> code is exempted below. */
+  overflow-wrap: anywhere;
 }
 .ag-prose pre {
   margin: 0 0 1.4em;
@@ -651,13 +657,16 @@ html,
   font-size: 14px;
   line-height: 1.6;
 }
-/* Fenced blocks (and any Shiki-highlighted <pre>) drop the inline-code chrome. */
+/* Fenced blocks (and any Shiki-highlighted <pre>) drop the inline-code chrome,
+   and keep normal wrapping so multi-line code scrolls (via .ag-prose pre) rather
+   than breaking mid-token like inline code. */
 .ag-prose pre code {
   background: none;
   border: none;
   padding: 0;
   font-size: inherit;
   color: rgba(255, 255, 255, 0.82);
+  overflow-wrap: normal;
 }
 .ag-prose blockquote {
   margin: 1.4em 0;
@@ -700,4 +709,178 @@ html,
   color: var(--text-on-dark-heading);
   font-weight: 600;
   background: rgba(255, 255, 255, 0.04);
+}
+
+/* ============================================================================
+   Mobile responsiveness fixes (audit 2026-07). These extend the existing
+   860 = mobile / 600 = phone convention to the pages, headings, and the mobile
+   menu that were never wired into it. Every rule sits inside a max-width query,
+   so desktop (>=861px) is untouched.
+============================================================================ */
+@media (max-width: 860px) {
+  /* Slim the nav bar/pill on mobile — 68px reads too chunky on a phone — and
+     tighten the side padding so the logo and hamburger sit closer to the edges. */
+  .ag-navshell,
+  .ag-nav-inner {
+    height: 54px;
+  }
+  .ag-nav-inner {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  /* Floating-nav mobile menu. The menu is a normal-flow sibling after <nav>, so
+     once the landing nav sticks and floats into its pill, opening the menu would
+     render it anchored near the top of the document — off-screen when scrolled
+     (measured top: -1081px at scrollY 1148). Pin it to the viewport under the
+     bar/pill so it is always reachable. Above 861px it stays display:none. */
+  .ag-mobile-menu.is-open {
+    position: fixed;
+    top: 58px;
+    left: 12px;
+    right: 12px;
+    z-index: 55;
+    margin-top: 0 !important;
+    max-height: calc(100dvh - 70px);
+    overflow-y: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+    border-radius: 14px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.55);
+  }
+  /* When the landing nav has floated into its pill (inset 12px), drop the menu a
+     touch lower so it clears the pill's bottom edge. */
+  .nav-scrolled .ag-mobile-menu.is-open {
+    top: 70px;
+  }
+
+  /* Authors grids never collapsed (inline repeat(3,1fr)); 3-up -> 2-up on tablet.
+     Blog grids keep their own #id rules and are unaffected by this class rule. */
+  .ag-authors-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Shared section side-gutter (authors/blog/404). Previously this reduction
+     lived only inside the blog pages' scoped <style> blocks, so it never reached
+     the authors pages — promoted here so every .ag-pad section gets it. */
+  .ag-pad {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  /* Keep large serif section headings off the screen edges. */
+  .ag-sechead {
+    padding-inline: 20px;
+  }
+
+  /* Heading scale — mirror the .ag-h1 mobile steps for every other big heading. */
+  .ag-sectitle {
+    font-size: 34px !important;
+    line-height: 1.14 !important;
+  }
+  .ag-sectitle-xl {
+    font-size: 40px !important;
+  }
+  .ag-dlg {
+    font-size: 34px !important;
+    line-height: 1.14 !important;
+  }
+  .ag-bighead {
+    font-size: 34px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Authors grids: single column on phones. */
+  .ag-authors-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Imprint/contact definition lists: the fixed 160px label column squeezes the
+     value to a ~45px sliver that char-wraps addresses/emails. Stack label over
+     value on phones. */
+  .ag-deflist {
+    grid-template-columns: 1fr !important;
+    gap: 2px 0 !important;
+  }
+  .ag-deflist dt {
+    margin-top: 16px;
+  }
+  .ag-deflist dt:first-of-type {
+    margin-top: 0;
+  }
+  /* Give those panels back inner width on phones. */
+  .ag-info-panel {
+    padding-left: 22px !important;
+    padding-right: 22px !important;
+  }
+
+  /* Heading scale — phone step. */
+  .ag-sectitle {
+    font-size: 28px !important;
+  }
+  .ag-sectitle-xl {
+    font-size: 32px !important;
+  }
+  .ag-dlg {
+    font-size: 28px !important;
+  }
+  .ag-bighead {
+    font-size: 30px !important;
+  }
+}
+
+/* Small phones (<=440px): two content-driven CTA fixes that share this width. */
+@media (max-width: 440px) {
+  /* Pricing hosting toggle (React island): the two options
+     "Agenta Cloud (we host)" / "Self-hosted (you host)" no longer fit side by
+     side and the labels wrap mid-word. Go full-width and stack each option's
+     label over its sublabel so nothing breaks. */
+  .hosting-toggle {
+    width: 100%;
+  }
+  .hosting-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px !important;
+    height: auto !important;
+    padding: 9px 8px !important;
+    justify-content: center;
+    text-align: center;
+  }
+  .hosting-tab-label,
+  .hosting-tab-sub {
+    white-space: nowrap;
+  }
+
+  /* Open-source section CTAs: keep "Explore on GitHub" / "Self-hosting docs" side
+     by side (they otherwise stack). Split the row evenly and trim the type/padding
+     so both labels fit on one line each. */
+  .ag-oss-btns > a {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 0 8px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* How-it-works "Automate" tool rows (React island): the file + timestamp meta
+   ("onboarding-v2-prd.md · 09:02") crowds the WRITE_FILE label on small phones.
+   Shrink the row's type a touch so it reads cleanly instead of wrapping tightly. */
+@media (max-width: 480px) {
+  .hiw-toolrow {
+    gap: 6px 9px !important;
+    padding: 8px 11px !important;
+    /* Let the file+time meta drop to its own line (as a whole) rather than
+       break the filename mid-word next to the label. */
+    flex-wrap: wrap !important;
+  }
+  .hiw-toolrow-label {
+    font-size: 11px !important;
+  }
+  .hiw-toolrow-meta {
+    font-size: 10.5px !important;
+    white-space: nowrap;
+  }
 }

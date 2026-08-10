@@ -53,7 +53,7 @@ import {
     type DrawerInitialAppSelection,
 } from "@agenta/playground-ui/workflow-revision-drawer"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
-import {EnvironmentTag} from "@agenta/ui"
+import {Tag} from "@agenta/ui"
 import {Rocket} from "@phosphor-icons/react"
 import {Button, message} from "antd"
 import {
@@ -864,9 +864,7 @@ const WorkflowRevisionDrawerWrapper = () => {
                     onSuccess={options?.onSuccess}
                 />
             ),
-            renderEnvironmentLabel: (envName) => (
-                <EnvironmentTag key={envName} environment={envName} />
-            ),
+            renderEnvironmentLabel: (envName) => <Tag key={envName} env={envName} />,
             renderEvaluatorTypeLabel: (revisionId) => (
                 <EvaluatorTypeLabel revisionId={revisionId} />
             ),

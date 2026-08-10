@@ -26,6 +26,12 @@ export interface ExtendedColumnProps<RecordType> {
     columnVisibilityLabel?: string
     /** If true, column cannot be hidden */
     columnVisibilityLocked?: boolean
+    /** Hide the column by default (until toggled visible) */
+    defaultHidden?: boolean
+    /** Max width constraint consumed by smart resizable columns */
+    maxWidth?: number
+    /** Include the column in table export */
+    exportEnabled?: boolean
     /** Nested children columns */
     children?: ExtendedColumn<RecordType>[]
 }

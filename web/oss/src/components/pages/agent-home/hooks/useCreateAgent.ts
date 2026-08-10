@@ -5,12 +5,14 @@ import {
     createWorkflowFromEphemeralAtom,
     generateSlug,
 } from "@agenta/entities/workflow"
+import {projectIdAtom} from "@agenta/shared/state"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {App} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
 import {agentFirstRunSeedAtom} from "@/oss/components/AgentChatSlice/state/firstRunSeed"
+import {registerCreatedAgent} from "@/oss/components/pages/agents/store"
 import {urlAtom} from "@/oss/state/url"
 
 interface CreateAgentParams {
@@ -44,6 +46,7 @@ export function useCreateAgent() {
     const router = useRouter()
     const store = useStore()
     const {baseAppURL} = useAtomValue(urlAtom)
+    const projectId = useAtomValue(projectIdAtom)
     const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
 
     // Mint+commit is a multi-step async round-trip; a re-entry latch here protects every caller
@@ -99,6 +102,19 @@ export function useCreateAgent() {
                     return false
                 }
 
+                // The commit only busts the entities-level workflows cache; the agents list (Home's
+                // first-run decision + the agents table) is a separate query and would stay empty.
+                // Scoped to this project so the row can't land in another project's cached list.
+                if (projectId) {
+                    void registerCreatedAgent({
+                        projectId,
+                        workflowId: appId,
+                        name: agentName,
+                        createdAt: result.workflow?.created_at ?? null,
+                        createdById: result.workflow?.created_by_id ?? null,
+                    })
+                }
+
                 if (seedMessage?.trim()) {
                     store.set(agentFirstRunSeedAtom, {
                         appId,
@@ -121,6 +137,6 @@ export function useCreateAgent() {
                 inFlightRef.current = false
             }
         },
-        [message, commitFromEphemeral, store, router, baseAppURL],
+        [message, commitFromEphemeral, store, router, baseAppURL, projectId],
     )
 }

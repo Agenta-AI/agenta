@@ -1,22 +1,24 @@
 /**
- * AppMessageContext - Static exports for Ant Design message/modal/notification
+ * AppMessageContext - Static message/modal/notification services for the app
  *
- * This component captures Ant Design's App context and exports static instances
- * of message, modal, and notification that can be used anywhere without hooks.
+ * A self-contained toast / confirm-modal / notification service built on the `@agenta/ui`
+ * primitives (`Toast`, `Notification`, `AlertDialog`). It exposes the same imperative,
+ * module-level singletons the Ant Design `App.useApp()` facade used to export, so it can be
+ * called from anywhere — atoms, hooks, interceptors, plain modules — not just components.
  *
  * ## Usage
  *
- * 1. Render the component inside your Ant Design App provider:
+ * 1. Render the component ONCE inside your app tree (no provider required — it portals its
+ *    own surfaces to `document.body`):
  * ```tsx
- * import { App } from 'antd'
  * import { AppMessageContext } from '@agenta/ui'
  *
  * function MyApp() {
  *   return (
- *     <App>
+ *     <>
  *       <AppMessageContext />
  *       {children}
- *     </App>
+ *     </>
  *   )
  * }
  * ```
@@ -36,15 +38,30 @@
  *
  * // Custom link label (default is "View")
  * message.success({ content: 'Done.', url: '/path', linkText: 'Open', duration: 3 })
+ *
+ * // Confirm modal (async `onOk`: rejecting keeps the modal open)
+ * modal.confirm({ title: 'Delete?', content: 'This cannot be undone.', onOk: doDelete })
+ *
+ * // Corner notification
+ * notification.success({ message: 'Deployed', description: 'v3 is live.', duration: 3 })
  * ```
+ *
+ * Calls made BEFORE the component mounts are queued, not dropped — see the architecture
+ * note in `./appMessage/store.ts`.
  */
 
 import React from "react"
 
-import {App} from "antd"
-import type {ArgsProps, MessageInstance, MessageType} from "antd/es/message/interface"
-import type {ModalStaticFunctions} from "antd/es/modal/confirm"
-import type {NotificationInstance} from "antd/es/notification/interface"
+import {AppMessageOutlet} from "./appMessage/AppMessageRenderer"
+import {messageService, notificationService, openConfirm} from "./appMessage/store"
+import type {
+    ArgsProps,
+    MessageInstance,
+    MessageType,
+    ModalFuncProps,
+    ModalInstance,
+    NotificationInstance,
+} from "./appMessage/types"
 
 // ---------------------------------------------------------------------------
 // Extended args type
@@ -59,7 +76,7 @@ export interface MessageLinkOptions {
     linkText?: string
 }
 
-/** Drop-in replacement for antd `ArgsProps` with optional link support. */
+/** Drop-in replacement for Ant Design `ArgsProps` with optional link support. */
 export type ExtendedMessageArgsProps = ArgsProps & MessageLinkOptions
 
 type ExtendedJointContent = React.ReactNode | ExtendedMessageArgsProps
@@ -130,21 +147,31 @@ function resolveContent(args: ExtendedMessageArgsProps): ArgsProps {
 
 type ShorthandMethod = "info" | "success" | "error" | "warning" | "loading"
 
-function wrapMethod(instance: MessageInstance, method: ShorthandMethod): ExtendedTypeOpen {
+/**
+ * Ant Design's `typeOpen`: the second argument is EITHER the duration OR the `onClose` callback,
+ * and a plain (non-`ArgsProps`) first argument becomes `{content}`.
+ */
+function wrapMethod(method: ShorthandMethod): ExtendedTypeOpen {
     return (content, duration?, onClose?) => {
-        const resolved = isExtendedArgs(content) ? resolveContent(content) : content
-        return (instance[method] as Function)(resolved, duration, onClose)
-    }
-}
+        const base: ArgsProps = isExtendedArgs(content)
+            ? resolveContent(content)
+            : {content: content as React.ReactNode}
 
-function createEnhancedMessage(instance: MessageInstance): EnhancedMessageInstance {
-    return {
-        ...instance,
-        info: wrapMethod(instance, "info"),
-        success: wrapMethod(instance, "success"),
-        error: wrapMethod(instance, "error"),
-        warning: wrapMethod(instance, "warning"),
-        loading: wrapMethod(instance, "loading"),
+        let mergedDuration: number | undefined
+        let mergedOnClose: VoidFunction | undefined
+        if (typeof duration === "function") {
+            mergedOnClose = duration
+        } else {
+            mergedDuration = duration
+            mergedOnClose = onClose
+        }
+
+        return messageService.open({
+            onClose: mergedOnClose,
+            duration: mergedDuration,
+            ...base,
+            type: method,
+        })
     }
 }
 
@@ -152,22 +179,61 @@ function createEnhancedMessage(instance: MessageInstance): EnhancedMessageInstan
 // Module-level singletons
 // ---------------------------------------------------------------------------
 
-let message: EnhancedMessageInstance
-let notification: NotificationInstance
-let modal: Omit<ModalStaticFunctions, "warn">
+const message: EnhancedMessageInstance = {
+    info: wrapMethod("info"),
+    success: wrapMethod("success"),
+    error: wrapMethod("error"),
+    warning: wrapMethod("warning"),
+    loading: wrapMethod("loading"),
+    open: (args: ArgsProps) => messageService.open(args),
+    destroy: (key?: React.Key) => messageService.destroy(key),
+}
+
+const notification: NotificationInstance = {
+    success: (args) => notificationService.open({...args, type: "success"}),
+    error: (args) => notificationService.open({...args, type: "error"}),
+    info: (args) => notificationService.open({...args, type: "info"}),
+    warning: (args) => notificationService.open({...args, type: "warning"}),
+    open: (args) => notificationService.open(args),
+    destroy: (key?: React.Key) => notificationService.destroy(key),
+}
+
+// Ant Design's `info`/`success`/`error`/`warning` modals show OK only; `confirm` shows both.
+const modalFunc = (defaults: ModalFuncProps) => (config: ModalFuncProps) =>
+    openConfirm({...defaults, ...config})
+
+const modal: ModalInstance = {
+    info: modalFunc({type: "info", okCancel: false}),
+    success: modalFunc({type: "success", okCancel: false}),
+    error: modalFunc({type: "error", okCancel: false}),
+    warning: modalFunc({type: "warning", okCancel: false}),
+    confirm: modalFunc({type: "confirm", okCancel: true}),
+}
 
 /**
- * Component that captures Ant Design's App context.
- * Must be rendered inside an Ant Design App provider.
+ * Mount point for every app-message surface. Render it once anywhere in the tree; it needs
+ * no provider and portals its own overlays to `document.body`.
  */
-const AppMessageContext = () => {
-    const staticFunction = App.useApp()
-    message = createEnhancedMessage(staticFunction.message)
-    modal = staticFunction.modal
-    notification = staticFunction.notification
-    return null
-}
+const AppMessageContext = () => <AppMessageOutlet />
 
 export default AppMessageContext
 
 export {message, modal, notification}
+
+export type {
+    ArgsProps,
+    ConfigUpdate,
+    IconType,
+    JointContent,
+    MessageInstance,
+    MessageType,
+    ModalButtonProps,
+    ModalFunc,
+    ModalFuncProps,
+    ModalInstance,
+    NoticeType,
+    NotificationArgsProps,
+    NotificationInstance,
+    NotificationPlacement,
+    TypeOpen,
+} from "./appMessage/types"

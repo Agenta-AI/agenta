@@ -47,17 +47,19 @@ const Attachment = ({part}: {part: FileUIPart}) => {
 
 const QueuedList = ({
     queued,
+    held,
     onRemove,
     onClear,
 }: {
     queued: QueuedMessage[]
+    held: boolean
     onRemove: (id: string) => void
     onClear: () => void
 }) => (
     <div className="w-[300px] max-w-[80vw]">
         <div className="flex items-center justify-between gap-2 border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5">
             <Text type="secondary" className="!text-[11px] uppercase tracking-wide">
-                Queued — sent one by one
+                {held ? "Held until you answer the agent" : "Queued — sent one by one"}
             </Text>
             <button
                 type="button"
@@ -120,10 +122,13 @@ const QueuedList = ({
  */
 const QueuedMessages = ({
     queued,
+    held = false,
     onRemove,
     onClear,
 }: {
     queued: QueuedMessage[]
+    /** The run is paused on the user (HITL / parked interaction) — say WHY the queue is held. */
+    held?: boolean
     onRemove: (id: string) => void
     onClear: () => void
 }) => {
@@ -137,15 +142,20 @@ const QueuedMessages = ({
             placement="topLeft"
             arrow={false}
             styles={{content: {padding: 0}}}
-            content={<QueuedList queued={queued} onRemove={onRemove} onClear={onClear} />}
+            content={
+                <QueuedList queued={queued} held={held} onRemove={onRemove} onClear={onClear} />
+            }
         >
             <button
                 type="button"
-                aria-label={`${queued.length} queued message${queued.length > 1 ? "s" : ""}`}
+                aria-label={`${queued.length} queued message${queued.length > 1 ? "s" : ""}${
+                    held ? ", held until you respond to the agent" : ""
+                }`}
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-solid border-colorBorder bg-colorBgContainer px-2.5 py-0.5 text-xs text-colorTextSecondary transition-colors hover:text-colorText"
             >
                 <Stack size={13} />
                 {queued.length} queued
+                {held ? <span className="text-colorTextTertiary">· waiting on you</span> : null}
                 {open ? <CaretDown size={10} /> : <CaretUp size={10} />}
             </button>
         </Popover>

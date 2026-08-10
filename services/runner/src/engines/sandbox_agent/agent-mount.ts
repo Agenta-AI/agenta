@@ -3,9 +3,13 @@
  * See `docs/design/agent-workflows/projects/agent-mounts/plan.md`, decision D3.
  */
 
-import { lstat, readlink, symlink, unlink, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import {
+  ensureDurableSymlink,
+  type EnsureDurableSymlinkDeps,
+} from "./durable-symlink.ts";
 import {
   shellQuote,
   type MountCredentials,
@@ -151,62 +155,24 @@ export async function seedAgentReadmeRemote(
   }
 }
 
-export interface LinkAgentFilesDeps {
-  lstat?: typeof lstat;
-  readlink?: typeof readlink;
-  symlink?: typeof symlink;
-  unlink?: typeof unlink;
-  log?: (msg: string) => void;
-}
+export type LinkAgentFilesDeps = EnsureDurableSymlinkDeps;
 
+/**
+ * Point `<cwd>/agent-files` at the agent's durable mount. Re-run on every mount: the link lives on
+ * the durable cwd, where geesefs degrades symlinks to empty files across remounts, so the shared
+ * helper re-materializes it instead of trusting that the path exists.
+ */
 export async function linkAgentFiles(
   cwd: string,
   mountPath: string,
   deps: LinkAgentFilesDeps = {},
 ): Promise<void> {
-  const log = deps.log ?? defaultLog;
-  const inspect = deps.lstat ?? lstat;
-  const readLink = deps.readlink ?? readlink;
-  const createLink = deps.symlink ?? symlink;
-  const removeLink = deps.unlink ?? unlink;
-  const linkPath = join(cwd, AGENT_FILES_LINK_NAME);
-  let replaceExisting = false;
-  try {
-    // Keep a correct-target symlink even when dangling. Replace a non-symlink or wrong-target
-    // link because geesefs silently degrades symlinks to empty files across remounts.
-    const stats = await inspect(linkPath);
-    if (stats.isSymbolicLink() && (await readLink(linkPath)) === mountPath) {
-      return;
-    }
-    replaceExisting = true;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      log(
-        `agent-files check failed ${linkPath}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
-      );
-      return;
-    }
-  }
-  if (replaceExisting) {
-    try {
-      await removeLink(linkPath);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-        log(
-          `agent-files unlink failed ${linkPath}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
-        );
-      }
-    }
-  }
-  try {
-    await createLink(mountPath, linkPath);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "EEXIST") {
-      log(
-        `agent-files link failed ${linkPath}: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
-      );
-    }
-  }
+  await ensureDurableSymlink(
+    join(cwd, AGENT_FILES_LINK_NAME),
+    mountPath,
+    AGENT_FILES_LINK_NAME,
+    { ...deps, log: deps.log ?? defaultLog },
+  );
 }
 
 export async function linkAgentFilesRemote(

@@ -111,12 +111,33 @@ body {
     margin: 0 auto;
 }
 
+/* Stay under @agenta/ui's Dialog/Sheet/Popover/Tooltip/DropdownMenu z-index scale (z-40/z-50,
+   all portalled to <body>) — antd's own Modal/Drawer used to sit at z-index 1000+, so 100 was
+   safely below them; the migrated Radix overlays sit lower, and 100 would bleed through them. */
 .playground-splitter .ant-splitter-bar,
 .playground-splitter .ant-splitter-trigger,
 .playground-splitter .ant-splitter-bar-dragger,
 .playground-splitter .ant-splitter-bar::before,
 .playground-splitter .ant-splitter-bar::after {
-    z-index: 100;
+    z-index: 5;
+}
+
+/* Any still-antd overlay (Dropdown, Select, Popover, Tooltip, Cascader, DatePicker, Mentions)
+   portals straight to <body>, outside the DOM subtree of any @agenta/ui Dialog/Sheet that
+   might be open (those are Radix, modal by default). Radix's modal mode sets
+   `pointer-events: none` on everything it doesn't recognize as its own to enforce its focus
+   trap, and antd's portal inherits that block — it stays fully visible (this doesn't touch
+   z-index) but every click passes through to whatever's behind it instead. Force these back
+   on unconditionally: an *open* antd overlay is never legitimately non-interactive — when
+   closed, antd hides it via `display: none`/`-hidden` classes, not via pointer-events. */
+.ant-dropdown,
+.ant-select-dropdown,
+.ant-popover,
+.ant-tooltip,
+.ant-picker-dropdown,
+.ant-cascader-dropdown,
+.ant-mentions-dropdown {
+    pointer-events: auto !important;
 }
 
 /* Splitter handle look & feel.
@@ -698,9 +719,12 @@ body {
     padding-left: 0 !important;
 }
 
+/* org-domains-table and org-providers-table are not yet migrated to SettingsPageShell's
+   table shell (Organization/index.tsx still renders plain antd Tables for them), so their
+   percentage column widths below still need table-layout: fixed to be honoured. Drop this
+   rule once those two tables move onto InfiniteVirtualTableFeatureShell. */
 .org-domains-table .ant-table,
-.org-providers-table .ant-table,
-.webhooks-table .ant-table {
+.org-providers-table .ant-table {
     table-layout: fixed;
 }
 
@@ -711,21 +735,11 @@ body {
     width: 5%;
 }
 
-.webhooks-table .ant-table-thead > tr > th:nth-child(1),
-.webhooks-table .ant-table-tbody > tr > td:nth-child(1) {
-    width: 18%;
-}
-
 .org-domains-table .ant-table-thead > tr > th:nth-child(2),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(2),
 .org-providers-table .ant-table-thead > tr > th:nth-child(2),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(2) {
     width: 20%;
-}
-
-.webhooks-table .ant-table-thead > tr > th:nth-child(2),
-.webhooks-table .ant-table-tbody > tr > td:nth-child(2) {
-    width: 12%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(3),
@@ -735,31 +749,11 @@ body {
     width: 30%;
 }
 
-.webhooks-table .ant-table-thead > tr > th:nth-child(3),
-.webhooks-table .ant-table-tbody > tr > td:nth-child(3) {
-    width: 26%;
-}
-
 .org-domains-table .ant-table-thead > tr > th:nth-child(4),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(4),
 .org-providers-table .ant-table-thead > tr > th:nth-child(4),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(4) {
     width: 20%;
-}
-
-.webhooks-table .ant-table-thead > tr > th:nth-child(4),
-.webhooks-table .ant-table-tbody > tr > td:nth-child(4) {
-    width: 20%;
-}
-
-.webhooks-table .ant-table-thead > tr > th:nth-child(5),
-.webhooks-table .ant-table-tbody > tr > td:nth-child(5) {
-    width: 12%;
-}
-
-.webhooks-table .ant-table-thead > tr > th:nth-child(6),
-.webhooks-table .ant-table-tbody > tr > td:nth-child(6) {
-    width: 12%;
 }
 
 .org-domains-table .org-instructions .ant-descriptions-item-label,

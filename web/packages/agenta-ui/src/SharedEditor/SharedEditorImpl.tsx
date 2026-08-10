@@ -10,13 +10,15 @@ import {
 } from "react"
 
 import {useDebounceInput} from "@agenta/shared/hooks"
-import {Input, Spin} from "antd"
-import type {TextAreaProps} from "antd/es/input"
 import clsx from "clsx"
 import {v4 as uuidv4} from "uuid"
 
+import {Input} from "../components/ui/input"
+import {AutosizeTextarea} from "../components/ui/input-composed"
+import {Spinner} from "../components/ui/spinner"
 import {Editor, isLargeRichTextDocument} from "../Editor"
 
+import {isSharedAntdTextareaProps, type SharedAntdTextareaProps} from "./types"
 import type {SharedEditorProps} from "./types"
 
 const LARGE_INPUT_EXTERNAL_COMMIT_DELAY_MS = 180
@@ -390,6 +392,10 @@ const SharedEditor = ({
                 {"transition-all duration-300 ease-in-out": !disableContainerTransition},
                 "[&_.agenta-rich-text-editor]:w-full",
                 "[&_.agenta-editor-wrapper]:w-full",
+                // This container is the single source of truth for the border (incl. its
+                // hover/focus/disabled states below) — Editor's own `.editor-inner` border
+                // exists for standalone use and must not double up when nested here.
+                "[&_.editor-inner]:border-0",
                 "p-[11px]",
                 {
                     // Default border + hover/focus parity for `border` mode.
@@ -487,7 +493,7 @@ const SharedEditor = ({
 
             {isHandlingLargePaste ? (
                 <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-[var(--ag-rgba-fff-78)] backdrop-blur-[1px]">
-                    <Spin size="small" />
+                    <Spinner size="small" />
                     <span className="text-[13px] text-[var(--ag-rgba-051729-72)]">
                         Pasting large content…
                     </span>
@@ -497,18 +503,16 @@ const SharedEditor = ({
             {usesPlainTextInput ? (
                 (() => {
                     const inputProps = antdInputProps ?? {}
-                    const shouldRenderTextarea =
-                        forcePlainTextFallback || ("textarea" in inputProps && inputProps.textarea)
+                    const isTextarea = isSharedAntdTextareaProps(inputProps)
+                    const shouldRenderTextarea = forcePlainTextFallback || isTextarea
 
                     if (shouldRenderTextarea) {
-                        const textAreaProps = (
-                            "textarea" in inputProps && inputProps.textarea
-                                ? inputProps
-                                : {textarea: true}
-                        ) as TextAreaProps & {textarea: true}
+                        const textAreaProps: SharedAntdTextareaProps = isTextarea
+                            ? inputProps
+                            : {textarea: true}
                         const {textarea: _, className: __, ...textAreaRest} = textAreaProps
                         return (
-                            <Input.TextArea
+                            <AutosizeTextarea
                                 placeholder={placeholder}
                                 value={localValue}
                                 onChange={handleAntdTextAreaChange}

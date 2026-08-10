@@ -1,4 +1,5 @@
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
+import {createStandardColumns} from "@agenta/ui/table"
 import {LoadingOutlined, MinusCircleOutlined, PlusCircleOutlined} from "@ant-design/icons"
 import {
     ArrowCounterClockwise,
@@ -12,7 +13,6 @@ import {
 import {Tag} from "antd"
 import type {ColumnsType} from "antd/es/table"
 
-import {createStandardColumns} from "@/oss/components/InfiniteVirtualTable"
 import CommitMessageCell from "@/oss/components/TestsetsTable/components/CommitMessageCell"
 import type {ExportFileType} from "@/oss/services/testsets/api"
 import type {TestsetTableMode, TestsetTableRow} from "@/oss/state/entities/testset"
@@ -64,8 +64,8 @@ export function createTestsetsColumns(
             columnVisibilityLocked: true,
             render: (_value, record) => {
                 const isRevision = Boolean((record as any).__isRevision)
-                const isExpanded = expandState.expandedRowKeys.includes(record.key)
-                const isLoading = expandState.loadingRows.has(record.key)
+                const isExpanded = expandState.expandedRowKeys.includes(String(record.key))
+                const isLoading = expandState.loadingRows.has(String(record.key))
                 const isSkeleton = record.__isSkeleton
 
                 if (isRevision) {

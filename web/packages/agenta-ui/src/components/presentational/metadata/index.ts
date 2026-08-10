@@ -4,8 +4,4 @@
  * Reusable components for displaying metadata information.
  */
 
-export {
-    MetadataHeader,
-    default as MetadataHeaderDefault,
-    type MetadataHeaderProps,
-} from "./MetadataHeader"
+export {MetadataHeader, type MetadataHeaderProps} from "./MetadataHeader"

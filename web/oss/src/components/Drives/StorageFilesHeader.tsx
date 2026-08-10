@@ -40,7 +40,7 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
                     type="button"
                     onClick={(e) => {
                         e.currentTarget.blur()
-                        setDrawer({open: true, initialPath: null})
+                        setDrawer({open: true, initialPath: null, staged: []})
                     }}
                     className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
                 >
@@ -61,7 +61,7 @@ export default function StorageFilesHeader({revisionId}: {revisionId?: string | 
             // to this trigger. Genuine Tab focus still shows the ring via FOCUS_RING.
             onClick={(e) => {
                 e.currentTarget.blur()
-                setDrawer({open: true, initialPath: null})
+                setDrawer({open: true, initialPath: null, staged: []})
             }}
             className={`flex cursor-pointer items-center gap-1 rounded border-0 bg-transparent px-1 py-0.5 text-xs text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)] ${FOCUS_RING}`}
         >

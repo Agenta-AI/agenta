@@ -25,6 +25,35 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
+    web-mobile:
+        # === ACTIVATION =========================================== #
+        # Opt-in while the mobile app is pre-GA (run.sh --with-mobile).
+        profiles:
+            - with-web-mobile
+        # === IMAGE ================================================ #
+        # The mobile app is edition-agnostic OSS-repo code: one public image
+        # serves both editions (no internal-ee variant).
+        build:
+            context: ../../../web
+            dockerfile: mobile/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command: sh -c "node ./mobile/server.js"
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === LABELS =============================================== #
+        # (Path(`/m`) || PathPrefix(`/m/`)) auto-wins over the web catch-all PathPrefix(`/`)
+        # by rule length; no stripprefix — the app is built with basePath /m.
+        labels:
+            - "traefik.http.routers.web-mobile.rule=(Path(`/m`) || PathPrefix(`/m/`))"
+            - "traefik.http.routers.web-mobile.entrypoints=web"
+            - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
     api:
         # === IMAGE ================================================ #
         build:
@@ -51,6 +80,8 @@ services:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
             - SCRIPT_NAME=/api
+            # Unset leaves the code default (3600s) in place.
+            - AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS=${AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -270,6 +301,8 @@ services:
         build:
             context: ../../../services/runner
             dockerfile: docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        init: true
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"
@@ -283,6 +316,9 @@ services:
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}
             AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: ${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}
+            # Worst-case turn duration. Keep AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS (API) above it
+            # plus 60s of skew, or every dispatch rebuilds the environment cold.
+            AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS:-}
             PI_CODING_AGENT_DIR: ${PI_CODING_AGENT_DIR:-/pi-agent}
             AGENTA_RUNNER_DAYTONA_API_KEY: ${AGENTA_RUNNER_DAYTONA_API_KEY:-}
             AGENTA_RUNNER_DAYTONA_API_URL: ${AGENTA_RUNNER_DAYTONA_API_URL:-}
@@ -293,6 +329,7 @@ services:
             AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS: ${AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS:-}
             AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
+            AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network

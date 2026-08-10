@@ -220,10 +220,31 @@ const triggerStyle = linkStyle + "border:none;background:transparent;";
   // Lightweight hamburger toggle (no framework). Replaces the DC menuOpen state.
   const toggle = document.getElementById("ag-menu-toggle");
   const menu = document.getElementById("ag-mobile-menu");
+  const closeMenu = () => {
+    // If focus is on a menu link when it hides (link tap, or resize to desktop),
+    // return it to the toggle so keyboard focus isn't dropped to <body>.
+    const focusInMenu = menu?.contains(document.activeElement) ?? false;
+    menu?.classList.remove("is-open");
+    toggle?.setAttribute("aria-expanded", "false");
+    if (focusInMenu) toggle?.focus();
+  };
   toggle?.addEventListener("click", () => {
     const open = menu?.classList.toggle("is-open");
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
   });
+  // Close when a menu entry is tapped (in-page anchors and same-tab navigations
+  // wouldn't otherwise dismiss the now-fixed overlay).
+  menu?.querySelectorAll("a").forEach((a) =>
+    a.addEventListener("click", closeMenu),
+  );
+  // Never leave the mobile overlay open once the layout returns to desktop.
+  window.addEventListener(
+    "resize",
+    () => {
+      if (window.innerWidth > 860) closeMenu();
+    },
+    { passive: true },
+  );
 
   // Nav-pill: landing only. Toggles `.nav-scrolled` on <html> past 24px so the
   // sticky bar floats into the glass pill (styles in global.css). Wired ONLY when

@@ -22,8 +22,8 @@ import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CopySimple, GraphIcon, MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
@@ -320,9 +320,9 @@ function GatewayToolHeaderIdentity({
                     className="h-6 w-6 rounded object-contain shrink-0"
                 />
             ) : null}
-            <Typography.Text className="truncate">
+            <span className="truncate">
                 {integrationKey} / {actionLabel} / {connectionLabel}
-            </Typography.Text>
+            </span>
         </div>
     )
 }
@@ -400,19 +400,17 @@ const ToolHeader = memo(function ToolHeader({
                             <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--ag-c-F8FAFC)]">
                                 <GraphIcon size={14} />
                             </span>
-                            <Typography.Text strong className="text-sm truncate">
+                            <span className="text-sm font-semibold truncate">
                                 {name || referenceSlug || "Workflow tool"}
-                            </Typography.Text>
+                            </span>
                             {referenceSlug && (
-                                <Typography.Text type="secondary" className="text-xs truncate">
+                                <span className="text-xs truncate text-colorTextDescription">
                                     / {referenceSlug}
-                                </Typography.Text>
+                                </span>
                             )}
                         </div>
                         {desc ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                {desc}
-                            </Typography.Text>
+                            <span className="text-xs text-colorTextDescription">{desc}</span>
                         ) : null}
                     </div>
                 ) : isBuiltinTool ? (
@@ -423,59 +421,67 @@ const ToolHeader = memo(function ToolHeader({
                                     {builtinIcon}
                                 </span>
                             )}
-                            {builtinProviderLabel && (
-                                <Typography.Text>{builtinProviderLabel}</Typography.Text>
-                            )}
+                            {builtinProviderLabel && <span>{builtinProviderLabel}</span>}
                         </div>
 
                         {builtinToolLabel && (
                             <>
-                                {builtinProviderLabel && <Typography.Text>/</Typography.Text>}
-                                <Typography.Text type="secondary">
+                                {builtinProviderLabel && <span>/</span>}
+                                <span className="text-colorTextDescription">
                                     {builtinToolLabel}
-                                </Typography.Text>
+                                </span>
                             </>
                         )}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-0.5">
-                        <Typography.Text strong className="text-sm truncate">
+                        <span className="text-sm font-semibold truncate">
                             {name || "Function Name"}
-                        </Typography.Text>
+                        </span>
                         {desc ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                {desc}
-                            </Typography.Text>
+                            <span className="text-xs text-colorTextDescription">{desc}</span>
                         ) : (
-                            <Typography.Text type="secondary" className="text-xs opacity-50">
+                            <span className="text-xs opacity-50 text-colorTextDescription">
                                 Function Description
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 )}
             </div>
 
             <div className="flex items-center gap-1 invisible group-hover/tool:visible shrink-0">
-                {!isReadOnly && onDuplicate && (
-                    <Tooltip title="Duplicate">
-                        <Button
-                            icon={<CopySimple size={14} />}
-                            type="text"
-                            onClick={onDuplicate}
-                            size="small"
-                        />
-                    </Tooltip>
-                )}
-                {!isReadOnly && onDelete && (
-                    <Tooltip title="Remove">
-                        <Button
-                            icon={<MinusCircle size={14} />}
-                            type="text"
-                            onClick={onDelete}
-                            size="small"
-                        />
-                    </Tooltip>
-                )}
+                <TooltipProvider>
+                    {!isReadOnly && onDuplicate && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Duplicate"
+                                    onClick={onDuplicate}
+                                >
+                                    <CopySimple size={14} />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Duplicate</TooltipContent>
+                        </Tooltip>
+                    )}
+                    {!isReadOnly && onDelete && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Remove"
+                                    onClick={onDelete}
+                                >
+                                    <MinusCircle size={14} />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Remove</TooltipContent>
+                        </Tooltip>
+                    )}
+                </TooltipProvider>
                 <CollapseToggleButton
                     collapsed={minimized}
                     onToggle={onToggleMinimize}
@@ -726,6 +732,7 @@ export const ToolItemControl = memo(function ToolItemControl({
                 />
                 {!minimized && (
                     <textarea
+                        aria-label="Tool configuration"
                         className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                         value={editorText}
                         onChange={(e) => onEditorChange(e.target.value)}

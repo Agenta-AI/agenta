@@ -8,7 +8,8 @@
 import {memo, useState, useMemo} from "react"
 
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {Divider, Input, Menu, Radio, Typography} from "antd"
+import {cn} from "@agenta/ui/styles"
+import {Divider, SearchInput, Segmented} from "@agenta/ui/ui"
 import yaml from "js-yaml"
 
 import type {PresetContentProps} from "./types"
@@ -41,41 +42,57 @@ export const PresetContent = memo(function PresetContent({
         <section className="flex gap-4 flex-1 mt-4 overflow-y-auto h-full">
             {/* Left sidebar - preset list */}
             <div className="flex flex-col gap-4 w-[200px]">
-                <Input.Search
+                <SearchInput
                     placeholder="Search"
                     allowClear
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onValueChange={(v) => setSearchTerm(v)}
                 />
 
                 <Divider className="m-0" />
 
-                <Menu
-                    items={filteredPresets.map((preset) => ({
-                        key: preset.key,
-                        label: preset.name,
-                    }))}
-                    onClick={({key}) => onSelectPreset(String(key))}
-                    selectedKeys={selectedPresetKey ? [selectedPresetKey] : []}
-                    className="h-[500px] overflow-y-auto !border-none"
-                />
+                {/* Was antd Menu (no @agenta/ui counterpart): a plain selectable list. */}
+                <div role="listbox" aria-label="Presets" className="h-[500px] overflow-y-auto">
+                    {filteredPresets.map((preset) => {
+                        const selected = preset.key === selectedPresetKey
+                        return (
+                            <button
+                                key={preset.key}
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                onClick={() => onSelectPreset(String(preset.key))}
+                                className={cn(
+                                    "box-border flex w-full cursor-pointer items-center border-0 rounded-control-sm px-3 py-0 h-control text-left text-xs transition-colors",
+                                    selected
+                                        ? "bg-controlItemBgActive text-primary"
+                                        : "bg-transparent text-colorText hover:bg-muted",
+                                )}
+                            >
+                                <span className="min-w-0 truncate">{preset.name}</span>
+                            </button>
+                        )
+                    })}
+                </div>
             </div>
 
-            <Divider orientation="vertical" className="m-0 h-full" />
+            <Divider type="vertical" className="m-0 h-full" />
 
             {/* Right content - preview */}
             <div className="flex flex-col gap-4 flex-1 h-full overflow-y-auto">
                 <div className="flex items-start justify-between gap-4 sticky top-0 z-10 bg-[var(--ag-c-FFFFFF)]">
-                    <Typography.Text className="text-lg font-medium -mt-1">
+                    <span className="text-lg font-medium -mt-1 text-colorText">
                         Select a Preset
-                    </Typography.Text>
-                    <Radio.Group
+                    </span>
+                    {/* Was antd Radio.Button pair — Radio.Button maps to Segmented (Radio.md). */}
+                    <Segmented
+                        size="sm"
                         value={format}
-                        onChange={(e) => setFormat(e.target.value as "yaml" | "json")}
-                        size="small"
-                    >
-                        <Radio.Button value="yaml">YAML</Radio.Button>
-                        <Radio.Button value="json">JSON</Radio.Button>
-                    </Radio.Group>
+                        onChange={(v) => setFormat(v as "yaml" | "json")}
+                        options={[
+                            {label: "YAML", value: "yaml"},
+                            {label: "JSON", value: "json"},
+                        ]}
+                    />
                 </div>
 
                 <div className="overflow-y-auto h-full">
@@ -88,6 +105,7 @@ export const PresetContent = memo(function PresetContent({
                         editorProps={{
                             codeOnly: true,
                             language: format,
+                            ariaLabel: "Preset preview",
                         }}
                         syncWithInitialValueChanges={true}
                     />

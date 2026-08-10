@@ -1,11 +1,9 @@
 import React from "react"
 
+import {ColumnVisibilityHeader, type ExtendedColumn as ExtendedColumnType} from "@agenta/ui/table"
 import {Tooltip} from "antd"
 import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
-
-import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
-import type {ExtendedColumnType} from "@/oss/components/InfiniteVirtualTable"
 
 import type {
     EvaluationTableColumn,

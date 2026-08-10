@@ -15,6 +15,19 @@ export const isOnboardingActiveAtom = atom((get) => {
     return active && !committedRevisionId
 })
 
+/**
+ * Pre-commit onboarding in a project that has NO agents yet — the genuine first run, and the only
+ * state where the agent-dependent pages are actually dead ends. The list is read only while
+ * onboarding is active (jotai tracks dependencies lazily), and it's the same query the sidebar's
+ * agents group already mounts. An unresolved list counts as first-run so nothing flashes enabled
+ * then disabled.
+ */
+export const isFirstRunOnboardingAtom = atom((get) => {
+    if (!get(isOnboardingActiveAtom)) return false
+    const {data, isPending} = get(agentWorkflowsListQueryStateAtom)
+    return isPending || data.length === 0
+})
+
 // ── App-behavior adjustments driven by onboarding ────────────────────────────
 // Consumers (sidebar, layout, nav guards) read these NAMED selectors — never the raw session
 // atom or an ad-hoc pathname check — so onboarding-driven UI tweaks stay in this one module.
@@ -22,24 +35,15 @@ export const isOnboardingActiveAtom = atom((get) => {
 /** During onboarding, Home IS the current surface → the sidebar shows it selected. */
 export const homeNavHighlightedAtom = atom((get) => get(isOnboardingActiveAtom))
 
-/** During onboarding, clicking Home navigates to where you already are → make it a no-op. */
-export const homeNavInertAtom = atom((get) => get(isOnboardingActiveAtom))
+/** On a first run, clicking Home only bounces back here → make it a no-op. Once an agent exists
+ * Home is a real destination (the agents list), so it stays clickable. */
+export const homeNavInertAtom = atom((get) => get(isFirstRunOnboardingAtom))
 
 /**
- * During onboarding, nav links whose pages dead-end on an empty table (no apps/eval data yet) are
+ * On a first run, nav links whose pages dead-end on an empty table (no apps/eval data yet) are
  * disabled. Links that work app-less (Observability, Test sets, Evaluators, Prompts) stay live.
- *
- * Onboarding alone is not enough: an existing user who starts another agent is onboarding while
- * their agents still exist, so those pages are not dead ends and greying them out strands them.
- * Reading the agent list inside the guard (never above it) keeps the query untracked, and so
- * unfetched, whenever onboarding is off.
  */
-export const deadEndNavDisabledAtom = atom((get) => {
-    if (!get(isOnboardingActiveAtom)) return false
-    const {data, isPending} = get(agentWorkflowsListQueryStateAtom)
-    // Treat "not known yet" as empty: the first agent is still being minted in the common case.
-    return isPending || data.length === 0
-})
+export const deadEndNavDisabledAtom = atom((get) => get(isFirstRunOnboardingAtom))
 
 /**
  * The simplified, agent-focused sidebar hides advanced areas (Prompts, Evaluation, Registry,

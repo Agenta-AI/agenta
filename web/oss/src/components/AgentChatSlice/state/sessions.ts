@@ -7,7 +7,7 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 import {atom, type Getter, type Setter} from "jotai"
-import {atomFamily, atomWithStorage, selectAtom} from "jotai/utils"
+import {atomFamily, atomWithStorage, createJSONStorage, selectAtom} from "jotai/utils"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project"
@@ -42,8 +42,11 @@ export interface AgentChatSession {
     id: string
     /** User-set title. When empty, the UI falls back to the first user message / "Chat N". */
     title?: string
-    /** Creation time (ms epoch). Orders the history picker; absent on pre-upgrade sessions. */
+    /** Creation time (ms epoch). Fallback ordering key; absent on pre-upgrade sessions. */
     createdAt?: number
+    /** Last-message time (ms epoch): server heartbeat `updated_at`, or a local turn settling.
+     * Primary ordering key for the history picker so recently-active chats float to the top. */
+    lastMessageAt?: number
     /** Set once the server list confirms this session exists. Distinguishes a remotely-deleted
      * session (was true, now absent from the server → drop) from a purely-local optimistic one. */
     serverKnown?: boolean
@@ -88,11 +91,25 @@ export const defaultScopeKeyAtom = atom((get) => {
 // effect sees an empty list in that window and creates a stray session on every reload/HMR.
 const STORAGE_OPTS = {getOnInit: true} as const
 
+/**
+ * localStorage WITHOUT jotai's cross-browser-tab sync. The default storage subscribes to the
+ * `storage` event, so a write in one browser tab replaced these records live in every other one —
+ * and since the open-tab list drives the antd `Tabs` items, an incoming replacement UNMOUNTED a
+ * streaming conversation, orphaning its `useChat` stream mid-turn (the in-flight transcript is not
+ * persisted until the stream settles, so it was lost). Each browser tab now owns its view; storage
+ * is still shared, so a reload picks up whatever was last written.
+ */
+const tabLocalStorage = <T>() => {
+    const storage = createJSONStorage<T>()
+    delete storage.subscribe
+    return storage
+}
+
 /** Full per-scope session history (open AND closed). */
 const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
     "agenta:agent-chat:sessions",
     {},
-    undefined,
+    tabLocalStorage(),
     STORAGE_OPTS,
 )
 
@@ -106,25 +123,45 @@ const sessionsByAppAtom = atomWithStorage<Record<string, AgentChatSession[]>>(
 const openIdsByAppAtom = atomWithStorage<Record<string, string[]>>(
     "agenta:agent-chat:open-sessions",
     {},
-    undefined,
+    tabLocalStorage(),
     STORAGE_OPTS,
 )
 
 const activeByAppAtom = atomWithStorage<Record<string, string>>(
     "agenta:agent-chat:active-session",
     {},
-    undefined,
+    tabLocalStorage(),
     STORAGE_OPTS,
 )
 
 /** Persisted messages per session id. Written when a conversation's stream settles. Session ids
- * are globally unique, so this store has no scope dimension. */
+ * are globally unique, so this store has no scope dimension.
+ * v2: caches written by the pre-fix mapper hold duplicated approval parts; the key bump forces
+ * one re-sync from records (the watermark otherwise keeps the stale copy authoritative). */
 export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
-    "agenta:agent-chat:messages",
+    "agenta:agent-chat:messages:v2",
     {},
-    undefined,
+    tabLocalStorage(),
     STORAGE_OPTS,
 )
+
+/**
+ * Per-session adoption watermark: how many durable records the CACHED transcript above was built
+ * from. Absent means "not server-derived" (a locally-streamed turn, or a pre-#5530 cache) and reads
+ * as 0, so the next open re-syncs from the server once.
+ *
+ * Private on purpose — it must only ever move together with `sessionMessagesAtom`, so every write
+ * goes through `persistSessionMessagesAtom` and every delete through `dropSessionMessages`.
+ */
+const sessionRecordCountsAtom = atomWithStorage<Record<string, number>>(
+    "agenta:agent-chat:record-counts:v2",
+    {},
+    tabLocalStorage(),
+    STORAGE_OPTS,
+)
+
+/** Read-only view of the watermarks; the guards read one non-reactively via `store.get`. */
+export const sessionRecordCountsReadAtom = atom((get) => get(sessionRecordCountsAtom))
 
 /** Open tab ids for a scope, with the pre-upgrade fallback (everything open). Pure read helper
  * for the writers below — never mutates. */
@@ -145,20 +182,24 @@ export const isSessionHusk = (
     messages: Record<string, UIMessage[]>,
 ): boolean => !session.serverKnown && !session.title?.trim() && !messages[session.id]?.length
 
-/** Active (non-archived) sessions for a scope, newest first. Backs the main history picker. */
+/** Ordering key: most-recent message first, falling back to creation time, then 0 (pre-upgrade
+ * sessions with neither sort last, preserving their order). */
+const sessionActivity = (s: AgentChatSession): number => s.lastMessageAt ?? s.createdAt ?? 0
+
+/** Active (non-archived) sessions for a scope, most-recently-active first. Backs the main history
+ * picker (see issue #5553: order by last message, not creation). */
 export const sessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
         const list = (get(sessionsByAppAtom)[key] ?? []).filter((s) => !s.archived)
-        // Newest first; pre-upgrade sessions (no createdAt) sort last, preserving their order.
-        return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+        return [...list].sort((a, b) => sessionActivity(b) - sessionActivity(a))
     }),
 )
 
-/** Archived sessions for a scope, newest first. Backs the archived view. */
+/** Archived sessions for a scope, most-recently-active first. Backs the archived view. */
 export const archivedSessionHistoryAtomFamily = atomFamily((key: string) =>
     atom((get) => {
         const list = (get(sessionsByAppAtom)[key] ?? []).filter((s) => s.archived)
-        return [...list].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+        return [...list].sort((a, b) => sessionActivity(b) - sessionActivity(a))
     }),
 )
 
@@ -307,11 +348,7 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
             set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
         }
 
-        const messages = {...get(sessionMessagesAtom)}
-        if (id in messages) {
-            delete messages[id]
-            set(sessionMessagesAtom, messages)
-        }
+        dropSessionMessages(get, set, [id])
 
         clearSessionEphemera(id)
 
@@ -374,6 +411,8 @@ export interface ServerSessionSummary {
     id: string
     title?: string
     createdAt?: number
+    /** Server heartbeat `updated_at` (ms epoch) — the last-activity time used to order history. */
+    lastMessageAt?: number
     ended?: boolean
     archived?: boolean
 }
@@ -405,6 +444,10 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     serverKnown: true,
                     title: s.title?.trim() ? s.title : remote.title,
                     createdAt: s.createdAt ?? remote.createdAt,
+                    // Keep the freshest activity time: a local turn just settled may lead the
+                    // server heartbeat, and vice-versa across devices.
+                    lastMessageAt:
+                        Math.max(s.lastMessageAt ?? 0, remote.lastMessageAt ?? 0) || undefined,
                     ended: remote.ended,
                     archived: remote.archived,
                 })
@@ -420,6 +463,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                 id: s.id,
                 title: s.title,
                 createdAt: s.createdAt,
+                lastMessageAt: s.lastMessageAt,
                 serverKnown: true,
                 ended: s.ended,
                 archived: s.archived,
@@ -435,6 +479,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                     e.id !== m.id ||
                     e.title !== m.title ||
                     e.createdAt !== m.createdAt ||
+                    e.lastMessageAt !== m.lastMessageAt ||
                     e.serverKnown !== m.serverKnown ||
                     e.ended !== m.ended ||
                     e.archived !== m.archived
@@ -455,16 +500,8 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
             if (active[key] && droppedSet.has(active[key])) {
                 set(activeByAppAtom, {...active, [key]: nextOpen[0] ?? ""})
             }
-            const messages = {...get(sessionMessagesAtom)}
-            let msgsChanged = false
-            for (const id of dropped) {
-                if (id in messages) {
-                    delete messages[id]
-                    msgsChanged = true
-                }
-                clearSessionEphemera(id)
-            }
-            if (msgsChanged) set(sessionMessagesAtom, messages)
+            dropSessionMessages(get, set, dropped)
+            for (const id of dropped) clearSessionEphemera(id)
         }
     }),
 )
@@ -538,18 +575,8 @@ export const resetScopeAtomFamily = atomFamily((key: string) =>
             delete next[key]
             set(activeByAppAtom, next)
         }
-        if (ids.length) {
-            const messages = {...get(sessionMessagesAtom)}
-            let changed = false
-            for (const id of ids) {
-                if (id in messages) {
-                    delete messages[id]
-                    changed = true
-                }
-                clearSessionEphemera(id)
-            }
-            if (changed) set(sessionMessagesAtom, messages)
-        }
+        dropSessionMessages(get, set, ids)
+        for (const id of ids) clearSessionEphemera(id)
     }),
 )
 
@@ -586,7 +613,8 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         const all = get(sessionsByAppAtom)
         const session = (all[key] ?? []).find((s) => s.id === id)
         if (!session || session.title?.trim()) return
-        const title = trimmed.slice(0, AUTO_TITLE_MAX_CHARS)
+        // Cut on code points, not UTF-16 units, so an emoji straddling the cap isn't halved.
+        const title = Array.from(trimmed).slice(0, AUTO_TITLE_MAX_CHARS).join("")
         set(sessionsByAppAtom, {
             ...all,
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, title} : s)),
@@ -594,6 +622,27 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         // Sync to the durable header so other devices/tabs see the label (mirrors rename).
         const projectId = get(projectIdAtom)
         if (projectId) void setSessionHeader({sessionId: id, projectId, name: title})
+    }),
+)
+
+/** Stamp `now` as a session's last-message time (a local turn just settled), so the history picker
+ * floats it to the top immediately — ahead of the next server heartbeat/reconcile. No-op if the id
+ * isn't in this scope's history yet. */
+export const bumpSessionActivityAtomFamily = atomFamily((key: string) =>
+    atom(null, (get, set, id: string) => {
+        const all = get(sessionsByAppAtom)
+        const list = all[key] ?? []
+        if (!list.some((s) => s.id === id)) return
+        // Keep the freshest time: a server heartbeat may already lead the local clock (skew).
+        const now = Date.now()
+        set(sessionsByAppAtom, {
+            ...all,
+            [key]: list.map((s) =>
+                s.id === id
+                    ? {...s, lastMessageAt: Math.max(s.lastMessageAt ?? 0, now) || undefined}
+                    : s,
+            ),
+        })
     }),
 )
 
@@ -622,12 +671,13 @@ const writeMessagesWithQuotaGuard = (
     set: Setter,
     next: Record<string, UIMessage[]>,
     keepId: string,
-): void => {
+): {evicted: string[]; persisted: boolean} => {
     let candidate = next
+    const evicted: string[] = []
     for (;;) {
         try {
             set(sessionMessagesAtom, candidate)
-            return
+            return {evicted, persisted: true}
         } catch (e) {
             if (!isQuotaExceeded(e)) throw e
             // Object keys keep insertion order, so the first non-active id is the oldest.
@@ -635,19 +685,69 @@ const writeMessagesWithQuotaGuard = (
             if (oldest === undefined) {
                 // Even the active session alone won't fit — keep it in memory, skip persistence.
                 console.warn("[agent-chat] message store over quota; skipping persistence")
-                return
+                return {evicted, persisted: false}
             }
+            evicted.push(oldest)
             candidate = {...candidate}
             delete candidate[oldest]
         }
     }
 }
 
-/** Write a session's messages to the persisted store (called when its stream settles). */
+/**
+ * Drop cached transcripts AND their watermarks for `ids` — the two stores must never diverge, or a
+ * re-adopted session would be judged against a watermark belonging to a transcript that's gone.
+ * The single deletion path for both; every caller that forgets a session routes through here.
+ */
+const dropSessionMessages = (get: Getter, set: Setter, ids: string[]): void => {
+    if (ids.length === 0) return
+    const messages = {...get(sessionMessagesAtom)}
+    const counts = {...get(sessionRecordCountsAtom)}
+    let messagesChanged = false
+    let countsChanged = false
+    for (const id of ids) {
+        if (id in messages) {
+            delete messages[id]
+            messagesChanged = true
+        }
+        if (id in counts) {
+            delete counts[id]
+            countsChanged = true
+        }
+    }
+    if (messagesChanged) set(sessionMessagesAtom, messages)
+    if (countsChanged) set(sessionRecordCountsAtom, counts)
+}
+
+/**
+ * Write a session's messages to the persisted store (called when its stream settles), together with
+ * the record watermark the transcript reflects. Pass `recordCount: undefined` for a locally-streamed
+ * transcript — we can't know how many records the server logged for it, and clearing the watermark
+ * makes the next open re-sync from the durable log rather than trust a stale number.
+ */
 export const persistSessionMessagesAtom = atom(
     null,
-    (get, set, {id, messages}: {id: string; messages: UIMessage[]}) => {
-        writeMessagesWithQuotaGuard(set, {...get(sessionMessagesAtom), [id]: messages}, id)
+    (
+        get,
+        set,
+        {id, messages, recordCount}: {id: string; messages: UIMessage[]; recordCount?: number},
+    ) => {
+        const {evicted, persisted} = writeMessagesWithQuotaGuard(
+            set,
+            {...get(sessionMessagesAtom), [id]: messages},
+            id,
+        )
+        const counts = {...get(sessionRecordCountsAtom)}
+        // If the transcript write itself was skipped (a single session over quota), the persisted
+        // store still holds the OLD messages — filing the NEW watermark against them would make
+        // `shouldAdoptServerTranscript` reject the complete server log as "not newer" on every
+        // future open, freezing the stale cache. The stores must never diverge (see
+        // `dropSessionMessages`), so drop the watermark and let the next open re-sync.
+        if (!persisted || recordCount === undefined) delete counts[id]
+        else counts[id] = recordCount
+        // A quota eviction dropped those transcripts, so their watermarks go too.
+        for (const evictedId of evicted) delete counts[evictedId]
+        set(sessionRecordCountsAtom, counts)
     },
 )
 
@@ -728,6 +828,22 @@ export const sessionLabel = (
  */
 export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
     selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
+)
+
+/** Active tab title without subscribing to streamed assistant content. */
+export const activeSessionTitleAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const sessions = get(sessionsListAtomFamily(key))
+        const rawActiveId = get(activeSessionIdAtomFamily(key))
+        const activeSession =
+            sessions.find((session) => session.id === rawActiveId) ?? sessions[0] ?? null
+        if (!activeSession) return {title: "", firstUserMessage: ""}
+
+        return {
+            title: activeSession.title?.trim() ?? "",
+            firstUserMessage: get(sessionFirstUserTextAtomFamily(activeSession.id)),
+        }
+    }),
 )
 
 /**

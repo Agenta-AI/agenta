@@ -27,10 +27,11 @@ imported platform package.
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from agenta.sdk.agents.flags import ORDERED_OPERATIONS_ENV, ordered_operations_enabled
 from agenta.sdk.agents.tools.errors import UnknownPlatformOpError
 from agenta.sdk.agents.tools.models import ToolCall
 from agenta.sdk.utils.types import CATALOG_TYPES
@@ -55,7 +56,97 @@ _CTX_TOKEN_PREFIX = "$ctx."
 # Exact allowlist of handler call-refs a handler-mode op may target. Must match the
 # server's registered handlers (``PLATFORM_TOOL_HANDLERS`` in the API's
 # ``core/tools/platform_handlers.py``); an op naming anything else fails at import.
-_HANDLER_CALL_REFS = frozenset({f"{PLATFORM_OP_NAMESPACE}test_run"})
+_HANDLER_CALL_REFS = frozenset(
+    {
+        f"{PLATFORM_OP_NAMESPACE}test_run",
+        f"{PLATFORM_OP_NAMESPACE}read_config",
+        f"{PLATFORM_OP_NAMESPACE}commit_revision",
+    }
+)
+
+# The ephemeral per-call description (R12). The model writes it, the frontend shows it beside
+# the call, and the runner deletes it before it builds the request. It is NOT the commit message:
+# ``message`` describes the change in the revision history and is persisted; this describes the
+# call in the conversation and is never persisted. It is also NOT the persisted
+# ``RevisionCommit.description``, which the model never sets. See
+# ``docs/design/agent-config-editing/contracts/read-config.md`` section 12.
+EPHEMERAL_DESCRIPTION_ARG = "description"
+
+# Long enough for one or two sentences of intent, short enough that it can never become a payload
+# channel. The frontend truncates for display and shows that it truncated.
+EPHEMERAL_DESCRIPTION_MAX_LENGTH = 500
+
+_EPHEMERAL_DESCRIPTION_SCHEMA: Dict[str, Any] = {
+    "type": "string",
+    "maxLength": EPHEMERAL_DESCRIPTION_MAX_LENGTH,
+    "description": (
+        "Optional. One or two sentences saying what this call does and why. The user sees it "
+        "beside the call. It is not saved with the change; use the commit message for that."
+    ),
+}
+
+
+# Marks a property as the ephemeral note wherever it appears. The runner reads the advertised
+# schema to decide whether a nested `description` is the endpoint's own field or a misplaced note;
+# once the tolerated position is advertised, the name alone can no longer tell those apart. The
+# marker keeps that decision machine-readable instead of hard-coding a tool name in the runner.
+EPHEMERAL_MARKER = "x-ag-ephemeral"
+
+
+def _tolerated_description_schema() -> Dict[str, Any]:
+    """The ephemeral description in its SECOND position, inside a payload object.
+
+    Models put the note here, the payload objects are closed, and the call is rejected before
+    anything runs. Advertising the position costs nothing and removes a whole class of wasted
+    turn. The wording says what happens to it, so a model cannot read the tolerance as a place
+    to store something.
+    """
+    return {
+        "type": "string",
+        "maxLength": EPHEMERAL_DESCRIPTION_MAX_LENGTH,
+        EPHEMERAL_MARKER: True,
+        "description": (
+            "Optional. The same per-call note as the top-level `description`, also accepted "
+            "here. It is lifted to the top level and never saved. Prefer the top level."
+        ),
+    }
+
+
+def _tolerate_description(payload: Dict[str, Any]) -> None:
+    """Advertise the ephemeral note inside one closed payload object.
+
+    A payload that declares a REAL ``description`` of its own is left alone. Four platform ops
+    carry one (``create_schedule`` and friends) and none of them accepts the ephemeral note
+    today, but that is an accident of the current catalog rather than an invariant, and
+    overwriting a real field would delete content the human meant to send.
+    """
+    if payload.get("type") != "object":
+        return
+    fields = payload.get("properties")
+    if not isinstance(fields, dict) or EPHEMERAL_DESCRIPTION_ARG in fields:
+        return
+    fields[EPHEMERAL_DESCRIPTION_ARG] = _tolerated_description_schema()
+
+
+def _ephemeral_description_schema(siblings: List[str]) -> Dict[str, Any]:
+    """The ephemeral description field, told where it goes.
+
+    Models nest this field inside the payload object, and the envelope is closed, so the
+    call is rejected and the turn is spent recovering. Live QA hit that twice in a row.
+
+    The sentence names the op's OWN top-level keys rather than one hard-coded key, because
+    the two ops that take this field have different payloads. It is generated, so renaming
+    a payload key cannot leave the placement advice pointing at a key that is gone.
+    """
+    schema = deepcopy(_EPHEMERAL_DESCRIPTION_SCHEMA)
+    if siblings:
+        named = ", ".join(f"`{name}`" for name in siblings)
+        # It no longer forbids the nested position, because the nested position is now
+        # accepted and lifted. Advice the schema contradicts teaches a model nothing.
+        schema["description"] = (
+            f"{schema['description']} Send it at the top level, beside {named}."
+        )
+    return schema
 
 
 class PlatformOp(BaseModel):
@@ -95,6 +186,11 @@ class PlatformOp(BaseModel):
     read_only: bool = False
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
     timeout_ms: Optional[int] = Field(default=None, gt=0)
+    # Builder ops opt in to the ephemeral per-call ``description`` (R12). The model writes one
+    # sentence saying what this call does and why; the frontend shows it beside the call. The
+    # runner strips it before it builds the request, so no endpoint schema changes. Off by
+    # default: an op that does not show its calls to a human gains nothing from it.
+    accepts_description: bool = False
 
     @model_validator(mode="after")
     def _check(self) -> "PlatformOp":
@@ -153,12 +249,24 @@ class PlatformOp(BaseModel):
         """The stable reserved id, ``tools.agenta.<op>``."""
         return f"{PLATFORM_OP_NAMESPACE}{self.op}"
 
+    @property
+    def ephemeral_args(self) -> Optional[List[str]]:
+        """Top-level argument names the runner must delete before it builds the request.
+
+        These are model-authored fields that exist for the human, not for the endpoint. Returning
+        them on the spec keeps ONE list: the schema that offers the field and the strip that
+        removes it cannot drift apart.
+        """
+        return [EPHEMERAL_DESCRIPTION_ARG] if self.accepts_description else None
+
     def resolved_input_schema(self) -> Dict[str, Any]:
         """The concrete, model-visible input schema.
 
         Catalog schema with every ``x-ag-type-ref`` expanded to concrete JSON Schema, then with the
         server-bound ``context_bindings`` fields stripped (path-aware, including their ``required``
-        entries) so the model never sees a field the runner fills from run context.
+        entries) so the model never sees a field the runner fills from run context. A builder op
+        then gains the optional ephemeral ``description`` at the TOP level, beside the op's own
+        payload object, because it describes the call and not the payload.
         """
         if self.input_schema_ref is not None:
             schema = expand_type_refs({"x-ag-type-ref": self.input_schema_ref})
@@ -170,6 +278,24 @@ class PlatformOp(BaseModel):
             return schema
         for field in self.context_bindings:
             _strip_field(schema, field)
+        if self.accepts_description:
+            # The catalog schemas are closed (``additionalProperties: false``), so the field must
+            # be advertised or the model cannot send it at all. It is never required: an agent
+            # that says nothing is quieter, not broken.
+            properties = schema.setdefault("properties", {})
+            if isinstance(properties, dict):
+                payloads = [
+                    name
+                    for name, field in properties.items()
+                    if name != EPHEMERAL_DESCRIPTION_ARG and isinstance(field, dict)
+                ]
+                # The sibling names are read before the field is added, so the placement
+                # sentence lists the payload keys and not itself.
+                properties[EPHEMERAL_DESCRIPTION_ARG] = _ephemeral_description_schema(
+                    payloads
+                )
+                for name in payloads:
+                    _tolerate_description(properties[name])
         return schema
 
     def to_call(self) -> ToolCall:
@@ -689,17 +815,218 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # variant — "update myself". ``workflow_revision.workflow_variant_id`` is bound from run context
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
 # different variant in the project. Defaults to approval.
-_COMMIT_REVISION_DESCRIPTION = (
-    "Commit a new revision to your own workflow variant (update yourself). Send only the "
+# One switch for the API and the model-facing catalog: the SDK runs inside the API
+# process, so both read the same variable. The ordered shape is the default; the variable
+# exists as an escape hatch back to the legacy `set`/`remove` surface.
+# The switch itself lives in `agenta.sdk.agents.flags`, a leaf module, because the
+# `build-an-agent` skill reads it too and an adapter cannot import this package (it reaches
+# the SDK singleton). Re-exported under the private names this module has always used.
+_ORDERED_OPERATIONS_ENV = ORDERED_OPERATIONS_ENV
+_ordered_operations_enabled = ordered_operations_enabled
+
+
+# The legacy description, for the flag-off surface. The wholesale-list sentence names the
+# build-kit exception because the server REFUSES a commit that carries a platform-kind tool
+# entry: telling the model to send its own build-kit tools back would earn that refusal.
+_COMMIT_REVISION_DESCRIPTION_LEGACY = (
+    "Commit a new revision to your own workflow variant (update yourself). "
+    "Editing files in your workspace does not change your configuration. That copy is "
+    "rebuilt, and the edits are lost. Change your instructions and configuration only "
+    "through this tool. "
+    "Send only the "
     "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
     "current config) and any field paths to drop under `delta.remove`. Put agent-template "
     "edits under `delta.set.parameters.agent`. Lists such as `tools`, `skills`, and `mcps` "
-    "are replaced wholesale, not merged entry-by-entry: send the complete list (current "
-    "entries plus your change), or you wipe the rest, including your own build-kit tools. "
+    "are replaced wholesale, not merged entry-by-entry: send the complete list, meaning "
+    "your current entries plus your change, or you wipe the rest. Leave the playground's "
+    "own tools (commit_revision, test_run, read_config) OUT of that list: they are not "
+    "part of your configuration, and a commit that carries one is refused. "
     "The variant you are running is targeted automatically. The response returns the new "
     "revision id; existing schedules and subscriptions keep pointing at the old revision "
     "until you re-point them. This changes the agent and requires approval."
 )
+
+# The normative tool description, contracts/change-set.md section 15. About 1.5 KB and 400
+# tokens; the 3.2 KB version measured the same success rate and cost 11-13 percent more.
+# It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
+# every error names a next step, and the selector key is `list`.
+_COMMIT_REVISION_DESCRIPTION_ORDERED = """Commit a change to this agent's own configuration.
+
+Editing files in your workspace does not change your configuration. That copy is rebuilt,
+and the edits are lost. Change your instructions and configuration only through this tool.
+
+Send `workflow_revision` with `base_revision_id` (the `base_revision_id` you read) and
+`delta`. `delta` holds `operations`; they run in order, and if one fails nothing is
+committed.
+
+TARGET: an array of segments from the configuration root. A string segment names an
+object field. An object segment {"list": L, "key": K} names one entry of list L and
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name), files (by path).
+
+    ["parameters","agent",{"list":"skills","key":"release-qa"},
+     {"list":"files","key":"checklist.md"},"content"]
+
+OPERATIONS:
+- `set` replace one field (needs `value`)
+- `merge` deep-merge an object into one field (needs `value`)
+- `remove` delete one field
+- `edit_text` replace exact substrings in one string field (needs `edits`)
+- `add_item` append to a list; target ends with the list name (needs `value`)
+- `replace_item` replace one entry; target ends with a selector (needs `value`)
+- `remove_item` delete one entry; target ends with a selector
+
+`edits` is a list of {old_text, new_text}. `old_text` must occur exactly once and match
+character for character, line breaks included. Copy it from the configuration you read;
+never retype it from memory.
+
+For a workspace file's content, write {"@ag.file": "<path>"} where the string would go.
+Put the file under `.agenta-imports/` first.
+
+    {"operation":"add_item","target":["parameters","agent","skills"],
+     "value":{"name":"pdf-tools","description":"Make PDFs.",
+              "body":{"@ag.file":".agenta-imports/pdf-tools/SKILL.md"}}}
+
+Your `tools` list must not contain the playground's own tools (commit_revision,
+test_run, read_config). They are not part of your configuration.
+
+If a commit is refused, read `next_step`: it says what to do, and it is there whether or not
+the error is retryable. `retryable` only tells you whether sending the SAME call again could
+work; it is false for most refusals, and that means correct the call rather than repeat
+it."""
+
+_COMMIT_REVISION_DESCRIPTION = (
+    _COMMIT_REVISION_DESCRIPTION_ORDERED
+    if _ordered_operations_enabled()
+    else _COMMIT_REVISION_DESCRIPTION_LEGACY
+)
+
+_READ_CONFIG_DESCRIPTION = """Read your own configuration, or one part of it.
+
+Send `target`, an object holding `path`: an array of segments from the configuration
+root, the same shape `commit_revision` takes. Omit `path` to read everything you can
+change.
+
+    {"target": {"path": ["parameters","agent","llm"]}}
+    {"target": {"path": ["parameters","agent",{"list":"skills","key":"release-qa"},"body"]}}
+
+The response carries `base_revision_id`. Copy it into your next commit's `base_revision_id`.
+If the head moved in between, the commit answers 409 and you read again.
+
+Text comes back exactly as stored, so an `old_text` you copy from it will match. A value
+larger than the limit is refused, never shortened: the answer then lists `children`, and
+you read one of those instead."""
+
+_READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["target"],
+    "properties": {
+        "target": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                # Bound from $ctx.workflow.variant.id and stripped before the model sees it.
+                "workflow_variant_id": {
+                    "type": "string",
+                    "description": "Server-bound to the running variant; do not set.",
+                },
+                # Bound from $ctx.workflow.is_draft. It always resolves, so the call never
+                # fails on an absent binding.
+                "run_is_draft": {
+                    "type": "boolean",
+                    "description": "Server-bound; do not set.",
+                },
+                "path": {
+                    "type": "array",
+                    "maxItems": 12,
+                    "items": {"$ref": "#/$defs/read_config_segment"},
+                    "description": (
+                        "Segments from the configuration root. Omit to read everything."
+                    ),
+                },
+            },
+        },
+        "max_bytes": {
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 262144,
+            "description": "Largest answer to return before refusing. Default 65536.",
+        },
+    },
+    "$defs": {
+        "read_config_segment": {
+            "oneOf": [
+                {"type": "string", "minLength": 1},
+                {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["list", "key"],
+                    "properties": {
+                        "list": {"type": "string", "minLength": 1},
+                        "key": {"type": "string", "minLength": 1},
+                    },
+                },
+            ]
+        }
+    },
+}
+
+_TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
+    "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["list", "key"],
+            "properties": {
+                "list": {"type": "string", "minLength": 1},
+                "key": {"type": "string", "minLength": 1},
+            },
+        },
+    ]
+}
+
+_OPERATION_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["operation", "target"],
+    "properties": {
+        "operation": {
+            "type": "string",
+            "enum": [
+                "set",
+                "merge",
+                "remove",
+                "edit_text",
+                "add_item",
+                "replace_item",
+                "remove_item",
+            ],
+        },
+        "target": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "items": _TARGET_SEGMENT_SCHEMA,
+        },
+        "value": {},
+        "match_mode": {"type": "string", "enum": ["auto", "exact"], "default": "auto"},
+        "edits": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["old_text", "new_text"],
+                "properties": {
+                    "old_text": {"type": "string", "minLength": 1, "maxLength": 20000},
+                    "new_text": {"type": "string", "maxLength": 50000},
+                },
+            },
+        },
+    },
+}
 _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -714,34 +1041,89 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                     "type": "string",
                     "description": "Server-bound to the running variant; do not set.",
                 },
-                "message": {
-                    "type": "string",
-                    "description": "Commit message describing the change.",
-                },
+                # Flag-off only. With ordered operations on, the server derives the
+                # message from the operations: free text was the site of every measured
+                # argument-corruption failure, and a derived message is always accurate.
+                **(
+                    {}
+                    if _ordered_operations_enabled()
+                    else {
+                        "message": {
+                            "type": "string",
+                            "description": "Commit message describing the change.",
+                        }
+                    }
+                ),
+                **(
+                    {
+                        "base_revision_id": {
+                            "type": "string",
+                            "description": (
+                                "The base_revision_id you read. Required for `operations`."
+                            ),
+                        }
+                    }
+                    if _ordered_operations_enabled()
+                    else {}
+                ),
+                # ONE delta arm is model-visible per deployment. With ordered operations on,
+                # `set` and `remove` leave this schema: a model that sees both picks a
+                # different arm from call to call, which is what made the approval cards
+                # inconsistent on one stack. The API still accepts the legacy form, so
+                # shipped callers are unaffected; this is the catalog surface only.
                 "delta": {
                     "type": "object",
                     "additionalProperties": False,
                     "description": (
-                        "Change set applied to your current revision. `set` is deep-merged "
-                        "(omitted fields preserved); `remove` deletes the listed paths."
+                        "Ordered operations applied to your current revision, in array "
+                        "order. If one fails, nothing is committed."
+                        if _ordered_operations_enabled()
+                        else "Change set applied to your current revision. `set` is "
+                        "deep-merged (omitted fields preserved); `remove` deletes the "
+                        "listed paths."
                     ),
-                    "properties": {
-                        "set": _delta_set_schema(
-                            "Partial workflow revision data to merge. For agent-template "
-                            "updates, include parameters.agent with instructions, llm, tools, "
-                            "mcps, skills, harness, runner, or sandbox fields as needed."
-                        ),
-                        "remove": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": (
-                                "Dotted field paths to delete, e.g. parameters.agent.tools."
+                    "properties": (
+                        {
+                            "operations": {
+                                "type": "array",
+                                "minItems": 1,
+                                "maxItems": 64,
+                                "items": _OPERATION_SCHEMA,
+                                "description": (
+                                    "Ordered operations, applied in array order."
+                                ),
+                            }
+                        }
+                        if _ordered_operations_enabled()
+                        else {
+                            "set": _delta_set_schema(
+                                "Partial workflow revision data to merge. For "
+                                "agent-template updates, include parameters.agent with "
+                                "instructions, llm, tools, mcps, skills, harness, runner, "
+                                "or sandbox fields as needed."
                             ),
-                        },
-                    },
+                            "remove": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": (
+                                    "Dotted field paths to delete, e.g. "
+                                    "parameters.agent.tools."
+                                ),
+                            },
+                        }
+                    ),
                 },
             },
-            "required": ["workflow_variant_id", "delta"],
+            # `base_revision_id` is required WITH the ordered arm, and the schema has to say
+            # so: the server refuses an ordered delta that omits it, and a model reading only
+            # a prose sentence sends the call anyway and spends the turn on the refusal.
+            # `workflow_variant_id` is bound from run context and stripped from this list
+            # along with the property, so the model never sees it required.
+            "required": (
+                ["workflow_variant_id", "base_revision_id", "delta"]
+                if _ordered_operations_enabled()
+                else ["workflow_variant_id", "delta"]
+            ),
         },
     },
     "required": ["workflow_revision"],
@@ -1063,9 +1445,37 @@ _TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 
+# `read_config` and ordered operations are one feature: the read-then-edit loop. The flag
+# gates both, so a deployment never advertises the read without the write it feeds.
+_READ_CONFIG_OPS: tuple = (
+    (
+        PlatformOp(
+            op="read_config",
+            description=_READ_CONFIG_DESCRIPTION,
+            # Handler mode: the logic runs behind a registered handler in the API process,
+            # reached through the generic `/tools/call`. There is no public read-config
+            # endpoint any more, because every detail of it was agent-shaped and no second
+            # consumer existed.
+            handler=f"{PLATFORM_OP_NAMESPACE}read_config",
+            input_schema=_READ_CONFIG_INPUT_SCHEMA,
+            context_bindings={
+                "target.workflow_variant_id": "$ctx.workflow.variant.id",
+                "target.run_is_draft": "$ctx.workflow.is_draft",
+            },
+            read_only=True,
+            timeout_ms=15000,
+            accepts_description=True,
+        ),
+    )
+    if _ordered_operations_enabled()
+    else ()
+)
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
-    for op in (
+    for op in _READ_CONFIG_OPS
+    + (
         PlatformOp(
             op="discover_tools",
             description=_DISCOVER_TOOLS_DESCRIPTION,
@@ -1098,17 +1508,25 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             context_bindings={"target.workflow_variant_id": "$ctx.workflow.variant.id"},
             read_only=False,
             timeout_ms=120000,
+            # A builder op: the playground shows every one of its calls to the human who is
+            # building the agent, so the agent's own account of the call is worth showing (R12).
+            accepts_description=True,
         ),
         PlatformOp(
             op="commit_revision",
             description=_COMMIT_REVISION_DESCRIPTION,
-            method="POST",
-            path="/api/workflows/revisions/commit",
+            # Handler mode. The confinement to `parameters.agent` is a property of the
+            # HANDLER now rather than of a scoped route, and it is unforgeable for the same
+            # reason it was before: the call_ref comes from this catalog, the runner makes
+            # the call from outside the sandbox, and the sandbox holds no credential. There
+            # is no field an agent can set to reach an unscoped commit.
+            handler=f"{PLATFORM_OP_NAMESPACE}commit_revision",
             input_schema=_COMMIT_REVISION_INPUT_SCHEMA,
             context_bindings={
                 "workflow_revision.workflow_variant_id": "$ctx.workflow.variant.id"
             },
             read_only=False,
+            accepts_description=True,
         ),
         PlatformOp(
             op="annotate_trace",

@@ -1,13 +1,12 @@
 import type {Key} from "react"
 
-import {atom, useAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
-
 import {
     createInfiniteTableStore,
     useInfiniteTablePagination,
-} from "@/oss/components/InfiniteVirtualTable"
-import type {InfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
+    type InfiniteDatasetStore,
+} from "@agenta/ui/table"
+import {atom, useAtom} from "jotai"
+import {atomFamily} from "jotai/utils"
 
 import {effectiveProjectIdAtom} from "./atoms/run"
 import type {WindowingState, EvaluationScenarioRow} from "./atoms/table"

@@ -12,8 +12,8 @@
 - GitHub issue `#4244`: `https://github.com/Agenta-AI/agenta/issues/4244`
 - GitHub review comments fetched through the GitHub plugin comment surface on `2026-05-01`
 - Shared findings references:
-  - `agents/skills/shared/references/findings.schema.md`
-  - `agents/skills/shared/references/findings.lifecycle.md`
+  - `.agents/skills/shared/references/findings.schema.md`
+  - `.agents/skills/shared/references/findings.lifecycle.md`
 - Local implementation:
   - `docs/design/prompt-runtime-unification/README.md`
   - `docs/design/prompt-runtime-unification/appendix-rendering-edge-cases.md`

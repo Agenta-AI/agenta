@@ -10,24 +10,19 @@ import {
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
+import {
+    harnessCapabilitiesAtomFamily,
+    harnessCatalogFailedAtom,
+    retryHarnessCatalogAtom,
+} from "@agenta/entities/workflow"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {cn} from "@agenta/ui/styles"
-import {
-    ArrowCounterClockwise,
-    Check,
-    Cube,
-    Lightbulb,
-    ShieldCheck,
-    Sparkle,
-    Warning,
-} from "@phosphor-icons/react"
-import {Button, Popconfirm, Select, Typography} from "antd"
-import {atom, useAtomValue} from "jotai"
+import {Check, Cube, Lightbulb, ShieldCheck, Sparkle, Warning} from "@phosphor-icons/react"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
@@ -51,12 +46,14 @@ import {
 import {EnumSelectControl, getEnumOptions} from "../EnumSelectControl"
 import {GroupedChoiceControl} from "../GroupedChoiceControl"
 import {HarnessSelectControl} from "../HarnessSelectControl"
-import {PiAutoApproveControl} from "../PiAutoApproveControl"
-import {PiSettingsControl} from "../PiSettingsControl"
+import {PiPermissionsControl} from "../PiPermissionsControl"
 import {SandboxPermissionControl} from "../SandboxPermissionControl"
 
 import {enumLabel} from "./agentTemplateUtils"
+import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
+import {PermissionPolicySelect} from "./PermissionPolicySelect"
 import ProviderCredentialsSection from "./ProviderCredentialsSection"
+import {RevertGroupButton} from "./RevertGroupButton"
 import {useBuildKit} from "./useBuildKit"
 
 // Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
@@ -148,21 +145,11 @@ export function useModelHarness({
         (key: string, sectionValue: unknown) => onChange({...config, [key]: sectionValue}),
         [config, onChange],
     )
-    // Set one flat field of the agent definition (here `llm` and `tools`).
+    // Set one flat field of the agent definition (here `llm`).
     const setAgentField = useCallback(
         (key: string, fieldValue: unknown) => onChange({...config, [key]: fieldValue}),
         [config, onChange],
     )
-    const setAgentTools = useCallback(
-        (tools: unknown[] | undefined) => {
-            const next = {...config}
-            if (tools === undefined) delete next.tools
-            else next.tools = tools
-            onChange(next)
-        },
-        [config, onChange],
-    )
-
     const sandboxValue = typeof sandbox.kind === "string" ? sandbox.kind : null
     useEffect(() => {
         const availableValue = sandboxOptions.some((option) => option.value === sandboxValue)
@@ -197,6 +184,11 @@ export function useModelHarness({
         useMemo(() => harnessCapabilitiesAtomFamily(harnessRefKey ?? ""), [harnessRefKey]),
     )
     const capabilities = harnessRefKey ? capabilitiesFromCatalog : null
+    const catalogFailed = useAtomValue(harnessCatalogFailedAtom)
+    const retryCatalog = useSetAtom(retryHarnessCatalogAtom)
+    // The schema asked for the catalog and we could not fetch it: say so instead of silently
+    // falling through to the pre-catalog controls, which look like an old build.
+    const catalogUnavailable = Boolean(harnessRefKey) && !capabilities && catalogFailed
     const mcpSupported = harnessSupportsUserMcp(capabilities, harnessValue)
 
     // Narrowed to the loaded flag (all this hook reads) — the raw query atom churns identity on
@@ -378,29 +370,14 @@ export function useModelHarness({
 
     const hasModelOrHarness = Boolean(props.llm || harnessProps.kind)
     const hasClaudePermissions = harnessValue === "claude"
-    const hasPiSettings = isPiHarness
-    const agentTools = useMemo(
-        () => (Array.isArray(config.tools) ? (config.tools as unknown[]) : null),
-        [config.tools],
-    )
+    const hasPiPermissions = isPiHarness
     const runnerPermissionOptions = useMemo(() => {
         const schemaValues = Array.isArray(runnerPermissionSchema?.enum)
             ? new Set((runnerPermissionSchema.enum as unknown[]).filter(isPermissionPolicy))
             : null
         return PERMISSION_POLICY_OPTIONS.filter(
             (option) => !schemaValues || schemaValues.has(option.value),
-        ).map((option) => ({
-            value: option.value,
-            title: option.label,
-            label: (
-                <div className="flex flex-col py-0.5">
-                    <span>{option.label}</span>
-                    <span className="text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
-                        {option.help}
-                    </span>
-                </div>
-            ),
-        }))
+        ).map((option) => ({value: option.value, title: option.label, help: option.help}))
     }, [runnerPermissionSchema])
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
     const runnerPermissionSummary = PERMISSION_POLICY_OPTIONS.find(
@@ -449,31 +426,9 @@ export function useModelHarness({
     const revertHarnessKind = useRevertUnder("harness.kind")
     const revertModel = useRevertUnder("llm.model")
     const revertCredentials = useRevertUnder("llm.connection")
-    // Confirmed, because unlike the per-row undo (which is reached THROUGH the popover showing the
-    // exact value it restores — see `RailField`) this one discards every change in the group at once
-    // and names none of them.
+    // Confirmed — see `RevertGroupButton`, which owns the confirm step.
     const revertAction = (onRevert: (() => void) | null) =>
-        onRevert ? (
-            <Popconfirm
-                title="Revert this group?"
-                description="Every unsaved change in it goes back to the committed value."
-                okText="Revert"
-                cancelText="Cancel"
-                placement="bottomRight"
-                onConfirm={onRevert}
-            >
-                <Button
-                    type="text"
-                    icon={<ArrowCounterClockwise size={13} />}
-                    // The header is a toggle — don't collapse the group while undoing inside it.
-                    onClick={(e) => e.stopPropagation()}
-                    disabled={disabled}
-                    className="!h-auto !px-1 !py-0.5 !text-[11px] !text-[var(--ag-colorTextSecondary)]"
-                >
-                    Revert
-                </Button>
-            </Popconfirm>
-        ) : undefined
+        onRevert ? <RevertGroupButton onConfirm={onRevert} disabled={disabled} /> : undefined
 
     // FOCUS (see FocusPathsContext): when a surface narrows to the properties that matter — e.g. the
     // config panel showing only what changed — a group renders only if it owns one of them, and the
@@ -506,7 +461,7 @@ export function useModelHarness({
         sandboxProps.permissions ||
         runnerProps.permissions ||
         hasClaudePermissions ||
-        hasPiSettings ||
+        hasPiPermissions ||
         hasBuildKitOverlay,
     )
 
@@ -745,13 +700,15 @@ export function useModelHarness({
         <div className="flex flex-col gap-2 py-0.5">
             {modelControl}
             {!focus.active && hasInspectModels ? (
-                <Typography.Text type="secondary" className="!text-[11px] !leading-snug">
+                <span className="text-[11px] leading-snug text-colorTextDescription">
                     Filtered to the models this harness can reach. Selecting a model also sets its
                     provider.
-                </Typography.Text>
+                </span>
             ) : null}
         </div>
     )
+
+    const catalogUnavailableNotice = <CatalogUnavailableNotice onRetry={() => retryCatalog()} />
 
     const modelHarnessControls = capabilities ? (
         <>
@@ -814,6 +771,7 @@ export function useModelHarness({
         </>
     ) : (
         <>
+            {catalogUnavailable ? catalogUnavailableNotice : null}
             {harnessKindInFocus && harnessProps.kind && (
                 <RailField label="Harness" align="center" path="harness.kind">
                     <HarnessSelectControl
@@ -852,7 +810,7 @@ export function useModelHarness({
     // Advanced drawer body: two panels like Model & harness (settings left, version history right).
     const hasExecutionGroup = Boolean(sandboxProps.kind || sandboxProps.permissions)
     const hasPermissionsGroup = Boolean(
-        runnerPermissionSchema || hasClaudePermissions || hasPiSettings,
+        runnerPermissionSchema || hasClaudePermissions || hasPiPermissions,
     )
     // Shared Advanced controls, rendered by both the wide drawer body and the tabs-inline body.
     // Each group is a `ConfigAccordionSection` (the shared drawer section shell used by the trigger
@@ -929,7 +887,7 @@ export function useModelHarness({
         <>
             {runnerPermissionSchema ? (
                 <RailField label="Policy" align="center" path="runner.permissions.default">
-                    <Select<PermissionPolicy>
+                    <PermissionPolicySelect
                         value={currentRunnerPermission}
                         onChange={(v) =>
                             setSection("runner", {
@@ -938,9 +896,8 @@ export function useModelHarness({
                             })
                         }
                         options={runnerPermissionOptions}
-                        optionLabelProp="title"
                         disabled={disabled}
-                        className="w-full"
+                        aria-label="Policy"
                     />
                 </RailField>
             ) : null}
@@ -969,23 +926,16 @@ export function useModelHarness({
                     />
                 </>
             ) : null}
-            {hasPiSettings ? (
+            {hasPiPermissions ? (
                 <>
                     {focus.active ? null : (
                         <span className="w-fit rounded-full bg-[var(--ant-color-fill-secondary)] px-2 text-[10px] text-[var(--ant-color-primary-text)]">
                             Pi harness
                         </span>
                     )}
-                    {/* Availability, not permission — it declares no config path, so a focus
-                        filter drops it and only the changed permission rows remain. */}
-                    {focus.active ? null : (
-                        <PiSettingsControl
-                            tools={agentTools}
-                            onChange={setAgentTools}
-                            disabled={disabled}
-                        />
-                    )}
-                    <PiAutoApproveControl
+                    {/* Peer rail rows (allow / ask / deny) sharing the section rail. Each
+                        declares its config path, so a focus filter keeps the changed row. */}
+                    <PiPermissionsControl
                         value={(harness.permissions as Record<string, unknown> | null) ?? null}
                         onChange={(permissions) => setSection("harness", {...harness, permissions})}
                         disabled={disabled}
@@ -1011,13 +961,10 @@ export function useModelHarness({
                           title: "Execution environment",
                           summary: sandbox.kind ? `Sandbox: ${String(sandbox.kind)}` : undefined,
                           caption: (
-                              <Typography.Text
-                                  type="secondary"
-                                  className="text-[11px] leading-snug"
-                              >
+                              <span className="text-[11px] leading-snug text-colorTextDescription">
                                   Where the agent&apos;s tools and code run, and what that sandbox
                                   may touch.
-                              </Typography.Text>
+                              </span>
                           ),
                       },
                       executionBody,
@@ -1035,12 +982,9 @@ export function useModelHarness({
                           title: "Permissions",
                           summary: runnerPermissionSummary,
                           caption: (
-                              <Typography.Text
-                                  type="secondary"
-                                  className="text-[11px] leading-snug"
-                              >
+                              <span className="text-[11px] leading-snug text-colorTextDescription">
                                   What the agent may do on its own before it must ask.
-                              </Typography.Text>
+                              </span>
                           ),
                       },
                       permissionsBody,

@@ -35,6 +35,9 @@ export type {CodeConfigControlProps} from "./CodeConfigControl"
 export {SchemasConfigControl} from "./SchemasConfigControl"
 export type {SchemasConfigControlProps} from "./SchemasConfigControl"
 
+export {SchemaTree} from "./SchemaTree"
+export type {SchemaTreeProps} from "./SchemaTree"
+
 // ============================================================================
 // CONTROLS WITH CONTEXT INJECTION
 // ============================================================================
@@ -47,6 +50,9 @@ export type {MessagesSchemaControlProps} from "./MessagesSchemaControl"
 
 export {ResponseFormatControl, responseFormatModalOpenAtom} from "./ResponseFormatControl"
 export type {ResponseFormatValue, ResponseFormatControlProps} from "./ResponseFormatControl"
+
+export {ResponseFormatControlView} from "./ResponseFormatControlView"
+export type {ResponseFormatControlViewProps} from "./ResponseFormatControlView"
 
 export {FeedbackConfigurationControl} from "./FeedbackConfigurationControl"
 export type {
@@ -90,8 +96,8 @@ export type {SandboxPermissionControlProps} from "./SandboxPermissionControl"
 
 export {ClaudePermissionsControl} from "./ClaudePermissionsControl"
 export type {ClaudePermissionsControlProps} from "./ClaudePermissionsControl"
-export {PiSettingsControl} from "./PiSettingsControl"
-export type {PiSettingsControlProps} from "./PiSettingsControl"
+export {PiPermissionsControl} from "./PiPermissionsControl"
+export type {PiPermissionsControlProps} from "./PiPermissionsControl"
 
 export {AgentTemplateControl} from "./AgentTemplateControl"
 export type {AgentTemplateControlProps} from "./AgentTemplateControl"

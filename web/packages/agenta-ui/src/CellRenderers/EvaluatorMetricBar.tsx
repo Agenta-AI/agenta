@@ -8,8 +8,9 @@
 
 import {memo} from "react"
 
-import {Tooltip} from "antd"
 import clsx from "clsx"
+
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
 
 import type {BasicStats, FrequencyEntry} from "./metricUtils"
 
@@ -126,15 +127,21 @@ const BooleanBar = memo(function BooleanBar({
                     >
                         true
                     </span>
-                    <Tooltip title={`true: ${Formatter.format(trueSeg.percent)}%`}>
-                        <div
-                            className="w-full h-1 rounded-l-lg"
-                            style={{
-                                backgroundColor: trueSeg.value > 0 ? TRUE_SEGMENT_COLOR : TRACK_BG,
-                                minWidth: trueSeg.value > 0 ? 1 : 0,
-                            }}
-                        />
-                    </Tooltip>
+                    <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div
+                                    className="w-full h-1 rounded-l-lg"
+                                    style={{
+                                        backgroundColor:
+                                            trueSeg.value > 0 ? TRUE_SEGMENT_COLOR : TRACK_BG,
+                                        minWidth: trueSeg.value > 0 ? 1 : 0,
+                                    }}
+                                />
+                            </TooltipTrigger>
+                            <TooltipContent>{`true: ${Formatter.format(trueSeg.percent)}%`}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
                 {/* False half — takes the remaining space */}
                 <div
@@ -147,16 +154,21 @@ const BooleanBar = memo(function BooleanBar({
                     >
                         false
                     </span>
-                    <Tooltip title={`false: ${Formatter.format(falseSeg.percent)}%`}>
-                        <div
-                            className="w-full h-1 rounded-r-lg"
-                            style={{
-                                backgroundColor:
-                                    falseSeg.value > 0 ? FALSE_SEGMENT_COLOR : TRACK_BG,
-                                minWidth: falseSeg.value > 0 ? 1 : 0,
-                            }}
-                        />
-                    </Tooltip>
+                    <TooltipProvider delayDuration={100}>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div
+                                    className="w-full h-1 rounded-r-lg"
+                                    style={{
+                                        backgroundColor:
+                                            falseSeg.value > 0 ? FALSE_SEGMENT_COLOR : TRACK_BG,
+                                        minWidth: falseSeg.value > 0 ? 1 : 0,
+                                    }}
+                                />
+                            </TooltipTrigger>
+                            <TooltipContent>{`false: ${Formatter.format(falseSeg.percent)}%`}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
             </div>
             <span className="text-xs whitespace-nowrap">
@@ -235,21 +247,27 @@ const EvaluatorMetricBar = memo(
                     style={{width: "100%", maxWidth: width}}
                 >
                     {displaySegments.map((entry, index) => (
-                        <Tooltip
-                            key={`${entry.label}-${index}`}
-                            title={`${entry.label}: ${Formatter.format(entry.percent)}%`}
-                        >
-                            <div
-                                className={clsx("h-full transition-[width] duration-200 ease-out", {
-                                    "rounded-l-full": index === 0,
-                                    "rounded-r-full": index === displaySegments.length - 1,
-                                })}
-                                style={{
-                                    width: `${entry.ratio * 100}%`,
-                                    backgroundColor: getSegmentColor(entry.label, index),
-                                }}
-                            />
-                        </Tooltip>
+                        <TooltipProvider key={`${entry.label}-${index}`} delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div
+                                        className={clsx(
+                                            "h-full transition-[width] duration-200 ease-out",
+                                            {
+                                                "rounded-l-full": index === 0,
+                                                "rounded-r-full":
+                                                    index === displaySegments.length - 1,
+                                            },
+                                        )}
+                                        style={{
+                                            width: `${entry.ratio * 100}%`,
+                                            backgroundColor: getSegmentColor(entry.label, index),
+                                        }}
+                                    />
+                                </TooltipTrigger>
+                                <TooltipContent>{`${entry.label}: ${Formatter.format(entry.percent)}%`}</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     ))}
                 </div>
                 <div
