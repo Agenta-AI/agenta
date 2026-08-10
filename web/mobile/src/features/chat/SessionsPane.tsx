@@ -3,6 +3,8 @@ import {SessionCardList} from "@agenta/sessions-ui"
 import {Plus} from "lucide-react"
 import {useRouter} from "next/router"
 
+import {ICON_LINK} from "@/lib/interactive"
+
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 /**
@@ -41,7 +43,10 @@ export const SessionsPane = ({
                         type="button"
                         aria-label="New session"
                         onClick={() => void router.push(`${base}/agents/${agentId}`)}
-                        className="text-colorTextSecondary hover:text-colorText -m-2 cursor-pointer border-0 bg-transparent p-2"
+                        // ICON_LINK carries the app's shared hover/active tint AND the
+                        // keyboard focus ring — a borderless, transparent target has nothing
+                        // else to show focus on.
+                        className={`text-colorTextSecondary hover:text-colorText -m-2 cursor-pointer border-0 bg-transparent p-2 ${ICON_LINK}`}
                     >
                         <Plus size={16} />
                     </button>
