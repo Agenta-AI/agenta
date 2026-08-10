@@ -1,7 +1,8 @@
-import {useMemo, useState, type ReactNode} from "react"
+import {useMemo, useRef, useState, type ReactNode} from "react"
 
 import {ChatComposer} from "@agenta/chat/components"
 import type {useComposerAttachments} from "@agenta/chat/hooks"
+import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {RobotIcon} from "@phosphor-icons/react"
 
@@ -15,7 +16,10 @@ export interface HomeTaskComposerProps {
     agents: HomeTaskComposerAgent[]
     /** The attachment engine (staging + uploads); the host owns its rollout flag and scope. */
     attachments: ReturnType<typeof useComposerAttachments>
-    /** Start the task. Called only with a resolved agent. */
+    /**
+     * Start the task. Called only with a resolved agent; a rejection is caught here — the draft
+     * goes back into the editor and the failure shows in the attachments strip.
+     */
     onStart: (input: {agentId: string; text: string}) => void | Promise<void>
     /** Host extras left of the paperclip (voice mic, context budget). */
     extraPrefix?: ReactNode
@@ -40,9 +44,21 @@ export const HomeTaskComposer = ({
     extraPrefix,
 }: HomeTaskComposerProps) => {
     const [agentId, setAgentId] = useState<string | null>(null)
+    // Only so a failed start can put the message back — the editor clears itself on submit,
+    // and nothing else would ever return the typed text.
+    const inputRef = useRef<RichChatInputHandle | null>(null)
 
-    // Default to the most recently touched agent — the one you're most likely to want next.
-    const effectiveAgentId = agentId ?? agents[0]?.id ?? null
+    // Default to the most recently touched agent — the one you're most likely to want next. A
+    // selection is only honoured while it is still in the roster: an agent archived, re-created
+    // under a new id, or lost to a project switch must not keep Send enabled and hand `onStart`
+    // an id that no longer resolves (and would render the trigger as a label-less robot icon).
+    const effectiveAgentId = useMemo(
+        () =>
+            (agentId && agents.some((agent) => agent.id === agentId) ? agentId : null) ??
+            agents[0]?.id ??
+            null,
+        [agentId, agents],
+    )
     const selectedName = useMemo(
         () => agents.find((agent) => agent.id === effectiveAgentId)?.name,
         [agents, effectiveAgentId],
@@ -50,9 +66,23 @@ export const HomeTaskComposer = ({
 
     return (
         <ChatComposer
+            inputRef={inputRef}
             onSubmit={async (text) => {
                 if (!effectiveAgentId) return
-                await onStart({agentId: effectiveAgentId, text})
+                try {
+                    await onStart({agentId: effectiveAgentId, text})
+                } catch {
+                    // Nothing consumes this promise (RichChatInput's submit is fire-and-forget),
+                    // so an uncaught rejection would leave the user with no message, no error, and
+                    // no idea the task never started. Put the text back and say so through the
+                    // composer's own inline channel — the same rejections strip the chat composer
+                    // uses when a staged file can't ride the send.
+                    inputRef.current?.setMarkdown(text)
+                    attachments.setRejections([
+                        {name: "Task", reason: "wasn't started — try again."},
+                    ])
+                    attachments.setAttachmentsOpen(true)
+                }
             }}
             attachments={attachments}
             placeholder="Describe the task, or start the conversation…"
