@@ -162,7 +162,9 @@ export const ChatAttachmentCard = ({
     onImageError,
     onVideoError,
 }: ChatAttachmentCardProps) => {
-    if (kind === "image") {
+    if (kind === "image" || kind === "video") {
+        // Both media kinds share the placeholder: a src-less <video> renders an empty player,
+        // which reads as broken exactly the way a src-less <img> does.
         if (loading || !src) {
             return (
                 <div
@@ -175,7 +177,7 @@ export const ChatAttachmentCard = ({
                 />
             )
         }
-        return (
+        return kind === "image" ? (
             <img
                 src={src}
                 alt={name}
@@ -186,11 +188,7 @@ export const ChatAttachmentCard = ({
                     className,
                 )}
             />
-        )
-    }
-
-    if (kind === "video") {
-        return (
+        ) : (
             <video
                 src={src}
                 controls
