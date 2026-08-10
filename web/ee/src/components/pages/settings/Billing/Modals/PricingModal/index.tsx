@@ -5,7 +5,7 @@
 
 import {useCallback, useState} from "react"
 
-import {PricingPlans, type BillingPlanOption} from "@agenta/settings-ui"
+import {PricingPlans, reserveTab, type BillingPlanOption} from "@agenta/settings-ui"
 import {message} from "@agenta/ui/app-message"
 import {EnhancedModal, type EnhancedModalProps} from "@agenta/ui/components/modal"
 import {Button} from "@agenta/ui/ui"
@@ -51,23 +51,30 @@ const PricingModal = ({onCancelSubscription, ...props}: PricingModalProps) => {
 
     const onSelectPlan = useCallback(
         async (plan: BillingPlanOption) => {
+            // 1. If switching to the free plan from a paid plan, route through the cancel flow.
+            // 2. If currently on the free plan (or no subscription), start a fresh checkout.
+            // 3. Otherwise (paid → paid), switch subscription server-side.
+            const isSwitchingToFree = !!freePlanSlug && plan.plan === freePlanSlug
+            const routesToCancel = isSwitchingToFree && !isOnFreePlan
+            const opensCheckout = !routesToCancel && (!subscription || isOnFreePlan)
+            // Reserved inside the click — after the await the gesture has expired and popup
+            // protection blocks the window.
+            const tab = opensCheckout ? reserveTab() : null
+
             try {
                 setPendingPlan(plan.plan)
-                // 1. If switching to the free plan from a paid plan, route through the cancel flow.
-                // 2. If currently on the free plan (or no subscription), start a fresh checkout.
-                // 3. Otherwise (paid → paid), switch subscription server-side.
-                const isSwitchingToFree = !!freePlanSlug && plan.plan === freePlanSlug
 
-                if (isSwitchingToFree && !isOnFreePlan) {
+                if (routesToCancel) {
                     onCancelSubscription()
                     return
-                } else if (!subscription || isOnFreePlan) {
+                } else if (opensCheckout) {
                     const data = await checkoutNewSubscription({
                         plan: plan.plan,
                         success_url: `${getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")}${projectURL || ""}/settings?tab=billing`,
                     })
 
-                    window.open(data.data.checkout_url, "_blank")
+                    if (data.data.checkout_url) tab?.navigate(data.data.checkout_url)
+                    else tab?.release()
                 } else {
                     await switchSubscription({plan: plan.plan})
                 }
@@ -78,6 +85,7 @@ const PricingModal = ({onCancelSubscription, ...props}: PricingModalProps) => {
                     props.onCancel?.({} as any)
                 }, 500)
             } catch (error) {
+                tab?.release()
                 message.error(
                     "An error occurred while processing the checkout. Please try again later or contact support if the issue persists.",
                 )

@@ -35,6 +35,7 @@ export {
     checkoutBillingSubscription,
     openBillingPortal,
 } from "./billing/api"
+export {reserveTab, type ReservedTab} from "./billing/reserveTab"
 export {
     useBillingCatalog,
     type BillingCatalog,

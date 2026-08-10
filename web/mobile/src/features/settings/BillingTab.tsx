@@ -4,6 +4,7 @@ import {
     BillingPage,
     fetchBillingUsage,
     openBillingPortal,
+    reserveTab,
     useBillingCatalog,
     useBillingSubscription,
 } from "@agenta/settings-ui"
@@ -50,10 +51,17 @@ export const BillingTab = ({projectId}: Props) => {
     }
 
     const handleOpenPortal = async () => {
+        // Reserved inside the tap — by the time Stripe answers, the gesture is gone and a
+        // mobile browser blocks the popup outright.
+        const tab = reserveTab()
         setOpeningPortal(true)
         try {
             const portalUrl = await openBillingPortal()
-            if (portalUrl) window.open(portalUrl, "_blank")
+            if (portalUrl) tab.navigate(portalUrl)
+            else tab.release()
+        } catch (error) {
+            tab.release()
+            throw error
         } finally {
             setOpeningPortal(false)
         }

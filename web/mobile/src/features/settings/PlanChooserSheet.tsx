@@ -3,6 +3,7 @@ import {useState} from "react"
 import {
     checkoutBillingSubscription,
     PricingPlans,
+    reserveTab,
     switchBillingPlan,
     type BillingPlanOption,
 } from "@agenta/settings-ui"
@@ -53,20 +54,27 @@ export const PlanChooserSheet = ({
             return
         }
 
+        // Reserved inside the tap — by the time Stripe answers, the gesture is gone and a
+        // mobile browser blocks the popup outright.
+        const opensCheckout = !currentPlan || isOnFreePlan
+        const tab = opensCheckout ? reserveTab() : null
+
         setPendingPlan(plan.plan)
         try {
-            if (!currentPlan || isOnFreePlan) {
+            if (opensCheckout) {
                 const checkoutUrl = await checkoutBillingSubscription({
                     plan: plan.plan,
                     successUrl: `${window.location.origin}${window.location.pathname}?tab=billing`,
                 })
-                if (checkoutUrl) window.open(checkoutUrl, "_blank")
+                if (checkoutUrl) tab?.navigate(checkoutUrl)
+                else tab?.release()
             } else {
                 await switchBillingPlan({plan: plan.plan, projectId})
             }
             onChanged()
             onOpenChange(false)
         } catch {
+            tab?.release()
             setError("We couldn't change your plan. Try again, or contact support if it persists.")
         } finally {
             setPendingPlan(null)
