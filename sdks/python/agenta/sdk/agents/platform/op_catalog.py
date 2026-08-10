@@ -1432,6 +1432,32 @@ _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["target", "inputs"],
 }
 
+_RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running in, so a person scanning a long list of sessions can tell what this one is. Call it once you understand what the session is about, which is usually after the first exchange. Call it again later whenever the session has moved on and the name or the recap no longer fits.
+
+`name` is the general subject: what this session is about, as a short label a person can scan in a list. A few words. Not the latest step, and not a sentence.
+
+`description` is the current state: a short recap of what has happened and what is open, one to one and a half sentences, short enough to read inside a table cell.
+
+This renames the session you are in and no other one. It works only inside a session."""
+
+_RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": r"\S",
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 300,
+        },
+    },
+    "required": ["name"],
+}
+
 _EMPTY_INPUT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
 _TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1499,6 +1525,15 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             path="/api/spans/query",
             input_schema=_QUERY_SPANS_INPUT_SCHEMA,
             read_only=True,
+        ),
+        PlatformOp(
+            op="rename_session",
+            description=_RENAME_SESSION_DESCRIPTION,
+            method="POST",
+            path="/api/sessions/streams/header?session_id={session_id}",
+            input_schema=_RENAME_SESSION_INPUT_SCHEMA,
+            context_bindings={"session_id": "$ctx.session.id"},
+            read_only=False,
         ),
         PlatformOp(
             op="test_run",

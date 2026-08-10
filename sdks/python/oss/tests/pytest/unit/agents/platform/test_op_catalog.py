@@ -17,6 +17,7 @@ import json
 import logging
 import os
 
+import jsonschema
 import pytest
 from pydantic import ValidationError
 
@@ -28,7 +29,12 @@ from agenta.sdk.agents.platform import (
     PlatformOp,
     get_platform_op,
 )
-from agenta.sdk.agents.tools import GatewayToolResolutionError, UnknownPlatformOpError
+from agenta.sdk.agents.tools import (
+    CallbackToolSpec,
+    GatewayToolResolutionError,
+    ToolCall,
+    UnknownPlatformOpError,
+)
 
 
 def _ordered_operations_enabled() -> bool:
@@ -59,6 +65,7 @@ def test_catalog_ships_platform_builder_ops():
         "discover_tools",
         "query_workflows",
         "query_spans",
+        "rename_session",
         "test_run",
         "commit_revision",
         "annotate_trace",
@@ -246,6 +253,38 @@ async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     assert wire["kind"] == "callback"
     assert "callRef" not in wire
     assert wire["call"]["path"] == "/api/tools/discover"
+
+
+async def test_rename_session_emits_a_bound_direct_call(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="rename_session")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert isinstance(spec, CallbackToolSpec)
+    assert spec.kind == "callback"
+    assert spec.name == "rename_session"
+    assert spec.call_ref is None
+    assert isinstance(spec.call, ToolCall)
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/sessions/streams/header?session_id={session_id}"
+    assert spec.call.context == {"session_id": "$ctx.session.id"}
+    assert spec.read_only is False
+
+    schema = get_platform_op("rename_session").resolved_input_schema()
+    assert set(schema["properties"]) == {"name", "description"}
+    assert schema["required"] == ["name"]
+    assert spec.input_schema == schema
+
+    wire = spec.to_wire()
+    assert wire["call"]["path"] == spec.call.path
+    assert wire["call"]["context"] == {"session_id": "$ctx.session.id"}
+
+
+def test_rename_session_rejects_whitespace_only_name():
+    schema = get_platform_op("rename_session").resolved_input_schema()
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"name": "   "}, schema)
 
 
 async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_default(

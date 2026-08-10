@@ -32,6 +32,8 @@ _READ_CONFIG_OPS: tuple[str, ...] = (
     ("read_config",) if "read_config" in PLATFORM_OPS else ()
 )
 
+_AUTO_ALLOWED_BUILD_KIT_OPS = frozenset({"rename_session", "rename_agent"})
+
 # Cut ops stay catalog opt-ins.
 DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "discover_tools",
@@ -40,6 +42,7 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "annotate_trace",
     "query_spans",
     "test_run",
+    "rename_session",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
@@ -86,7 +89,18 @@ def build_agent_template_overlay() -> Dict[str, Any]:
     """Build the playground-only agent-template overlay from platform-owned sources."""
     return {
         "tools": [
-            *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
+            *[
+                {
+                    "type": "platform",
+                    "op": op_name,
+                    **(
+                        {"permission": "allow"}
+                        if op_name in _AUTO_ALLOWED_BUILD_KIT_OPS
+                        else {}
+                    ),
+                }
+                for op_name in DEFAULT_BUILD_KIT_OPS
+            ],
             *_reserved_static_tool_embeds(),
         ],
         "skills": [

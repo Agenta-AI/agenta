@@ -43,6 +43,7 @@ EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "annotate_trace",
     "query_spans",
     "test_run",
+    "rename_session",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
@@ -60,6 +61,7 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "annotate_trace",
     "query_spans",
     "test_run",
+    "rename_session",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
@@ -128,7 +130,14 @@ def test_agent_template_overlay_tools_list_is_pinned():
     request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
 
     assert overlay["tools"] == [
-        *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
+        *[
+            {
+                "type": "platform",
+                "op": op_name,
+                **({"permission": "allow"} if op_name == "rename_session" else {}),
+            }
+            for op_name in DEFAULT_BUILD_KIT_OPS
+        ],
         {
             "@ag.embed": {
                 "@ag.references": {
@@ -160,8 +169,21 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
     assert set(DEFAULT_BUILD_KIT_OPS) <= set(PLATFORM_OPS)
     assert set(DEFAULT_BUILD_KIT_OPS).isdisjoint(CUT_BUILD_KIT_OPS)
     assert platform_tools == [
-        {"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS
+        {
+            "type": "platform",
+            "op": op_name,
+            **({"permission": "allow"} if op_name == "rename_session" else {}),
+        }
+        for op_name in DEFAULT_BUILD_KIT_OPS
     ]
+    assert [
+        tool["op"] for tool in platform_tools if tool.get("permission") == "allow"
+    ] == ["rename_session"]
+    assert all(
+        "permission" not in tool
+        for tool in platform_tools
+        if tool["op"] != "rename_session"
+    )
 
     authoring_skill = StaticWorkflowCatalog().retrieve_revision(
         slug=BUILD_AN_AGENT_SLUG
