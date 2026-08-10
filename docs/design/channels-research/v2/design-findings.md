@@ -38,15 +38,28 @@ The gate is not "finish the list". `journeys.md` writes the Agenta and Slack flo
 step by step, and writing them settled most of what was open — the remaining gate is
 below.
 
-**Decide before the packages are written.** Three, and only the first is a real
-question.
+**Decide before the packages are written.**
 
 | what | why it blocks | where |
 | --- | --- | --- |
-| The setup-shape declaration | Discord has no manifest and Telegram has no app; `provisioning.md` assumes the Slack shape throughout | `journeys.md` §0 |
-| Grants by kind, allow/deny (`F51`) | permission today means "a row was pre-created", which only topics can be; every DM is refused | `grants.md` |
+| **`F3`/`F41` — who publishes session events** | the one dependency channels cannot ship around, it is not channels work, and it has been unowned since C3 | ledger |
+| The hosted-app model: do we offer one at all | it is a product decision, and it also settles a security-posture contradiction | `provisioning.md` §0 |
 | The request-context interface change | `channel-connections.md` and `agenta-channel.md` both need it, and it edits a frozen interface at a checkpoint | both |
 | `F49` — the interface's `verify_signature` is a lie | any package written against the declared contract breaks at the ingress | ledger |
+| `F38` — button-click parsing | the last partial design item; the route exists, the parser does not | `rendering.md`, `agenta-channel.md` |
+
+**Reconciliation debt, and it is the risk this session already demonstrated.**
+Several documents now contain superseded material and still read as current, so
+anyone designing from them cold gets a wrong answer — which is exactly what happened
+here before the source was read. Each needs a supersession note at minimum:
+
+| document | superseded by | on what |
+| --- | --- | --- |
+| `entities.md` §1 | `channel-connections.md` | the connection is reused, no channels-specific columns |
+| `entities.md` §2.5 | `grants.md` | grants are instance-level only |
+| `provisioning.md` | `journeys.md` §0 | credentials encrypted on the connection; the Slack setup shape |
+| `capabilities-v2.md` §1 | `journeys.md` §0 | the credential schema as a new field-list mechanism |
+| `connection-identity.md` | `channel-connections.md` | already noted at the top; the rest stands |
 
 **Settled by writing the journeys**, and worth recording because each was on this
 list as open:
