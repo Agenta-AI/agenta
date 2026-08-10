@@ -564,8 +564,8 @@ class ChannelInboundEvent(BaseModel):
     origin: ChannelEventOrigin = ChannelEventOrigin.PUSHED
     #
     space_kind: ChannelSpaceKind
-    space_locator: Dict[str, Any]
-    thread_locator: Optional[Dict[str, Any]] = None
+    # one locator, every grain: `compose_external_key` takes the declared
+    # subset per grain rather than the adapter supplying one locator each.
     external_locator: Dict[str, Any]
     #
     processed: ChannelInboxEventProcessed

@@ -121,8 +121,6 @@ class WellBehavedFakeAdapter(ChannelAdapterInterface):
             external_id="fake-event-1",
             kind=ChannelEventKind.MESSAGE,
             space_kind=ChannelSpaceKind.TOPIC,
-            space_locator={"team": "T1", "channel": "C1"},
-            thread_locator=THREAD_LOCATOR_A,
             external_locator=THREAD_LOCATOR_A,
             processed=ChannelInboxEventProcessed(
                 content=[{"type": "text", "text": body.decode() if body else ""}],

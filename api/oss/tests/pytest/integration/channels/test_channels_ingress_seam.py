@@ -65,7 +65,6 @@ class _FakeSlackAdapter:
             external_id=self.external_id,
             kind=ChannelEventKind.MESSAGE,
             space_kind=ChannelSpaceKind.TOPIC,
-            space_locator=_LOCATOR,
             external_locator=_LOCATOR,
             processed=ChannelInboxEventProcessed(
                 content=[{"type": "text", "text": "hi"}],

@@ -348,58 +348,65 @@ async def test_fetch_history_empty_channel_returns_empty_list_not_a_refusal():
 
 
 # --------------------------------------------------------------------------- #
-# F28 — fetch_history's external_locator / thread_locator are per-call, not
-# per-message. A real per-message locator would carry each message's own ts;
-# the adapter instead stamps the locator it was called with onto every event.
+# fetch_history's locator is the message's own, not the call's
 # --------------------------------------------------------------------------- #
 
 
-async def test_fetch_history_external_locator_is_the_call_locator_not_per_message():
+async def test_fetch_history_of_a_space_gives_untethered_messages_the_space_locator():
     adapter, workspace, _ = make_adapter_and_workspace(
         channels=[{"id": "C1", "name": "general"}]
     )
-    first_ts = workspace.seed_message(channel="C1", text="first")
-    second_ts = workspace.seed_message(channel="C1", text="second")
-    connection = _connection()
+    workspace.seed_message(channel="C1", text="first")
+    workspace.seed_message(channel="C1", text="second")
     call_locator = {"team": "T1", "channel": "C1"}
 
     events = await adapter.fetch_history(
-        connection=connection, locator=call_locator, limit=50
+        connection=_connection(), locator=call_locator, limit=50
     )
 
     assert {e.processed.content[0]["text"]: e.external_locator for e in events} == {
         "first": call_locator,
         "second": call_locator,
     }
-    # Confirmed defective: neither returned locator carries the message's own
-    # ts (first_ts / second_ts), even though the two messages are distinct.
-    assert call_locator.get("ts") not in (first_ts, second_ts)
-    assert events[0].external_locator == events[1].external_locator
 
 
-async def test_fetch_history_thread_locator_does_not_vary_per_reply():
+async def test_fetch_history_of_a_space_gives_a_thread_parent_its_own_thread_locator():
+    adapter, workspace, _ = make_adapter_and_workspace(
+        channels=[{"id": "C1", "name": "general"}]
+    )
+    workspace.seed_message(channel="C1", text="loose")
+    parent_ts = workspace.seed_message(channel="C1", text="parent")
+    workspace.seed_message(channel="C1", text="reply", thread_ts=parent_ts)
+
+    events = await adapter.fetch_history(
+        connection=_connection(),
+        locator={"team": "T1", "channel": "C1"},
+        limit=50,
+    )
+
+    by_text = {e.processed.content[0]["text"]: e.external_locator for e in events}
+
+    assert by_text["parent"] == {"team": "T1", "channel": "C1", "thread_ts": parent_ts}
+    assert by_text["loose"] == {"team": "T1", "channel": "C1"}
+
+
+async def test_fetch_history_of_a_thread_gives_every_reply_that_thread_locator():
     adapter, workspace, _ = make_adapter_and_workspace(
         channels=[{"id": "C1", "name": "general"}]
     )
     parent_ts = workspace.seed_message(channel="C1", text="parent")
     reply_ts = workspace.seed_message(channel="C1", text="reply", thread_ts=parent_ts)
-    connection = _connection()
 
     events = await adapter.fetch_history(
-        connection=connection,
+        connection=_connection(),
         locator={"team": "T1", "channel": "C1", "thread_ts": parent_ts},
         limit=50,
     )
 
-    parent_event = next(e for e in events if e.processed.content[0]["text"] == "parent")
-    reply_event = next(e for e in events if e.processed.content[0]["text"] == "reply")
+    thread_locator = {"team": "T1", "channel": "C1", "thread_ts": parent_ts}
 
-    # Both events report the same thread_locator (the call's own locator) even
-    # though they are two different messages with two different ts values —
-    # build_locator, which derives a locator from each message, is never
-    # called here.
-    assert parent_event.thread_locator == reply_event.thread_locator
     assert reply_ts != parent_ts
+    assert [e.external_locator for e in events] == [thread_locator, thread_locator]
 
 
 # --------------------------------------------------------------------------- #

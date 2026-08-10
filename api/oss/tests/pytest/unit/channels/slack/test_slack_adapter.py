@@ -167,8 +167,8 @@ async def test_threaded_message_and_channel_message_resolve_different_units():
         body=_event_callback({"channel": "C1", "user": "U1", "text": "hi", "ts": "1.1"})
     )
 
-    assert threaded.thread_locator is not None
-    assert untethered.thread_locator is None
+    assert threaded.external_locator["thread_ts"] == "1.1"
+    assert "thread_ts" not in untethered.external_locator
 
 
 async def test_two_distinct_threads_compose_to_distinct_external_keys():
@@ -203,10 +203,10 @@ async def test_two_distinct_threads_compose_to_distinct_external_keys():
     )
 
     key_a = compose_external_key(
-        capabilities, ChannelKeyGrain.THREAD, first.thread_locator
+        capabilities, ChannelKeyGrain.THREAD, first.external_locator
     )
     key_b = compose_external_key(
-        capabilities, ChannelKeyGrain.THREAD, second.thread_locator
+        capabilities, ChannelKeyGrain.THREAD, second.external_locator
     )
 
     assert key_a != key_b

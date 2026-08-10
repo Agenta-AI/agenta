@@ -224,8 +224,6 @@ def test_entities_instantiate():
         external_id="Ev123",
         kind=ChannelEventKind.MESSAGE,
         space_kind=ChannelSpaceKind.TOPIC,
-        space_locator={"team": "T1", "channel": "C1"},
-        thread_locator=LOCATOR,
         external_locator=LOCATOR,
         processed=ChannelInboxEventProcessed(
             content=[{"type": "text", "text": "hi"}], sender={"id": "U1"}

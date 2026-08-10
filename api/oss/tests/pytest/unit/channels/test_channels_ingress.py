@@ -62,7 +62,6 @@ class FakeAdapter:
             external_id="Ev1",
             kind=ChannelEventKind.MESSAGE,
             space_kind=ChannelSpaceKind.TOPIC,
-            space_locator=LOCATOR,
             external_locator=LOCATOR,
             processed=ChannelInboxEventProcessed(
                 content=[{"type": "text", "text": "hi"}],

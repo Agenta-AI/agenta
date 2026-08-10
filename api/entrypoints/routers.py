@@ -164,9 +164,7 @@ from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
-from oss.src.core.channels.adapters.mock.adapter import MockAdapter
-from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
-from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
+from entrypoints.channel_adapters import build_channel_adapter_registry
 from oss.src.core.channels.identity import ChannelIdentityService
 from oss.src.core.channels.service import ChannelsService
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
@@ -1063,16 +1061,7 @@ triggers = TriggersRouter(
     dispatch_task=_triggers_worker.dispatch_trigger,
 )
 
-# Adapters register as each ships; the bridge route resolves its own at runtime.
-# Stateless: the connection is passed per call, not held.
-channels_adapter_registry = ChannelAdapterRegistry(
-    adapters={
-        "slack": SlackAdapter(),
-        # No credentials needed: drives the whole pipeline (commands,
-        # backfill, outbox) without a real platform.
-        "mock": MockAdapter(),
-    }
-)
+channels_adapter_registry = build_channel_adapter_registry()
 
 channels_dao = ChannelsDAO(engine=_transactions_engine)
 

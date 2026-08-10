@@ -148,12 +148,6 @@ class SlackAdapter(ChannelAdapterInterface):
         event_ts = event.get("ts") or ""
 
         locator = build_locator(team=team_id, channel=channel_id, thread_ts=thread_ts)
-        space_locator = build_locator(team=team_id, channel=channel_id)
-        thread_locator = (
-            build_locator(team=team_id, channel=channel_id, thread_ts=thread_ts)
-            if thread_ts
-            else None
-        )
 
         content: List[Dict[str, Any]] = [{"type": "text", "text": text}]
 
@@ -161,8 +155,6 @@ class SlackAdapter(ChannelAdapterInterface):
             external_id=event.get("client_msg_id") or f"{channel_id}:{event_ts}",
             kind=ChannelEventKind.MESSAGE,
             space_kind=classify_space_kind(event),
-            space_locator=space_locator,
-            thread_locator=thread_locator,
             external_locator=locator,
             processed=ChannelInboxEventProcessed(
                 content=content,
@@ -264,18 +256,20 @@ class SlackAdapter(ChannelAdapterInterface):
 
         events: List[ChannelInboundEvent] = []
         for message in response.get("messages", []):
+            # each message's own thread, not the one the request asked about:
+            # a space read returns replies whose thread the request never named
+            message_locator = build_locator(
+                team=locator["team"],
+                channel=locator["channel"],
+                thread_ts=message.get("thread_ts") or locator.get("thread_ts"),
+            )
             events.append(
                 ChannelInboundEvent(
                     external_id=message.get("client_msg_id")
                     or f"{locator['channel']}:{message.get('ts')}",
                     kind=ChannelEventKind.MESSAGE,
                     space_kind=ChannelSpaceKind.TOPIC,
-                    space_locator={
-                        "team": locator["team"],
-                        "channel": locator["channel"],
-                    },
-                    thread_locator=({**locator} if locator.get("thread_ts") else None),
-                    external_locator=locator,
+                    external_locator=message_locator,
                     processed=ChannelInboxEventProcessed(
                         content=[{"type": "text", "text": message.get("text") or ""}],
                         sender={"id": message.get("user") or ""},

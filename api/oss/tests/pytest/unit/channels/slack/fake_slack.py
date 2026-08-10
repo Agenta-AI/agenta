@@ -48,7 +48,8 @@ class FakeSlackWorkspace:
         for tests that need history to already exist."""
 
         ts = self._mint_ts()
-        self.messages.setdefault(channel, {})[ts] = {
+        bucket = self.messages.setdefault(channel, {})
+        bucket[ts] = {
             "type": "message",
             "channel": channel,
             "ts": ts,
@@ -56,6 +57,10 @@ class FakeSlackWorkspace:
             **({"thread_ts": thread_ts} if thread_ts else {}),
             **extra,
         }
+        # Slack stamps the parent with its own ts once it has a reply, which is
+        # what makes a thread parent distinguishable in a history read.
+        if thread_ts and thread_ts in bucket:
+            bucket[thread_ts]["thread_ts"] = thread_ts
         return ts
 
     def _mint_ts(self) -> str:
@@ -108,7 +113,9 @@ class FakeSlackWorkspace:
         matching `conversations.history`."""
 
         bucket = self.messages.get(channel, {})
-        top_level = [m for m in bucket.values() if "thread_ts" not in m]
+        top_level = [
+            m for m in bucket.values() if m.get("thread_ts") in (None, m["ts"])
+        ]
         return top_level[:limit] if limit else top_level
 
     def replies(

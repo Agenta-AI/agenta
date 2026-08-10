@@ -45,10 +45,6 @@ def parse_inbound_envelope(payload: Dict[str, Any]) -> Optional[ChannelInboundEv
         external_id=str(payload.get("id") or ""),
         kind=ChannelEventKind.MESSAGE,
         space_kind=space_kind,
-        space_locator=dict(locator),
-        # this bridge shape carries no separate thread locator on the wire;
-        # a bridge with threads addresses them inside its own locator fields
-        thread_locator=None,
         external_locator=dict(locator),
         processed=ChannelInboxEventProcessed(
             content=content,

@@ -178,7 +178,6 @@ async def test_full_fetch_history_returns_configured_list():
         external_id="e1",
         kind=ChannelEventKind.MESSAGE,
         space_kind=ChannelSpaceKind.TOPIC,
-        space_locator={"team": "T1", "channel": "C1"},
         external_locator={"team": "T1", "channel": "C1"},
         processed=ChannelInboxEventProcessed(
             content=[{"type": "text", "text": "hi"}], sender={"id": "U1"}

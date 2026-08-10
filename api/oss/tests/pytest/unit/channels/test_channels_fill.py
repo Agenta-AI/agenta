@@ -58,7 +58,6 @@ def _inbound_event(*, external_id: str = "msg-1") -> ChannelInboundEvent:
         external_id=external_id,
         kind=ChannelEventKind.MESSAGE,
         space_kind=ChannelSpaceKind.GROUP,
-        space_locator={"team": "T1", "channel": "C1"},
         external_locator={"team": "T1", "channel": "C1", "ts": external_id},
         processed=ChannelInboxEventProcessed(
             content=[{"type": "text", "text": "hello"}],

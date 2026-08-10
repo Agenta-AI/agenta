@@ -31,7 +31,7 @@ def test_worked_inbound_example_parses_and_locator_lands_untouched():
     assert event is not None
     assert event.external_id == "wecom-msg-98234"
     assert event.space_kind == ChannelSpaceKind.GROUP
-    assert event.space_locator == {"chat_id": "grp_456"}
+    assert event.external_locator == {"chat_id": "grp_456"}
     assert event.addressed is True
     assert event.processed.content == [{"type": "text", "text": "@agent deploy v2"}]
     assert event.processed.sender == {"id": "wecom-user-1", "display_name": "Wei"}
@@ -40,12 +40,14 @@ def test_worked_inbound_example_parses_and_locator_lands_untouched():
 def test_locator_never_reaches_a_uuid_field_directly():
     event = parse_inbound_envelope(WORKED_INBOUND)
 
-    assert isinstance(event.space_locator["chat_id"], str)
+    assert isinstance(event.external_locator["chat_id"], str)
 
     capabilities = ChannelCapabilities.model_validate(
         {"channel": "bridge", "identity": {"keys": {"space": ["chat_id"]}}}
     )
-    key = compose_external_key(capabilities, ChannelKeyGrain.SPACE, event.space_locator)
+    key = compose_external_key(
+        capabilities, ChannelKeyGrain.SPACE, event.external_locator
+    )
     assert isinstance(key, UUID)
 
 

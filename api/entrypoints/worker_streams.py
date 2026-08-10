@@ -23,9 +23,7 @@ from oss.src.tasks.taskiq.shared.broker import (
     prune_idle_consumers,
 )
 
-from oss.src.core.channels.adapters.mock.adapter import MockAdapter
-from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
-from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
+from entrypoints.channel_adapters import build_channel_adapter_registry
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
 from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
@@ -146,9 +144,7 @@ async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
     )
     channels_service = ChannelsService(
         channels_dao=ChannelsDAO(engine=transactions_engine),
-        adapter_registry=ChannelAdapterRegistry(
-            adapters={"slack": SlackAdapter(), "mock": MockAdapter()}
-        ),
+        adapter_registry=build_channel_adapter_registry(),
         connections_service=connections_service,
     )
 
