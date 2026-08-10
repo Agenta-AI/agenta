@@ -15,18 +15,33 @@
           "prompt": "help me put together a smoke-test plan for the billing migration we're shipping on friday"
         }
       ],
-      "tools": [{ "type": "platform", "op": "rename_session" }],
-      "budget": { "max_rename_calls": 1 },
+      "tools": [
+        {
+          "type": "platform",
+          "op": "rename_session"
+        }
+      ],
+      "budget": {
+        "max_rename_calls": 1
+      },
       "checks": [
-        { "check": "turn_tool_called", "name": "rename_session", "min": 1 },
+        {
+          "check": "turn_tool_called",
+          "name": "rename_session",
+          "min": 1
+        },
         {
           "check": "session_header",
-          "path": ["name"],
+          "path": [
+            "name"
+          ],
           "pattern": "(?i)(billing|migration)"
         },
         {
           "check": "session_header",
-          "path": ["description"],
+          "path": [
+            "description"
+          ],
           "pattern": "(?s)^.{1,300}\\Z"
         }
       ]
@@ -46,8 +61,15 @@
           "prompt": "actually let's switch gears — draft an incident response checklist for a database outage"
         }
       ],
-      "tools": [{ "type": "platform", "op": "rename_session" }],
-      "budget": { "max_rename_calls": 1 },
+      "tools": [
+        {
+          "type": "platform",
+          "op": "rename_session"
+        }
+      ],
+      "budget": {
+        "max_rename_calls": 1
+      },
       "checks": [
         {
           "check": "turn_tool_called",
@@ -57,7 +79,9 @@
         },
         {
           "check": "session_header",
-          "path": ["name"],
+          "path": [
+            "name"
+          ],
           "pattern": "(?i)(incident|database|outage)"
         }
       ]
@@ -68,35 +92,59 @@
       "seed_workflow_header": {
         "name": "Untitled agent",
         "description": "Waiting for a first task.",
-        "flags": { "is_application": true, "is_evaluator": false }
+        "flags": {
+          "is_application": true,
+          "is_evaluator": false
+        }
       },
       "turns": [
         {
           "prompt": "make me a pre-release checklist for the billing portal and call out what should block the deploy"
         }
       ],
-      "tools": [{ "type": "platform", "op": "rename_agent" }],
-      "budget": { "max_rename_calls": 1 },
+      "tools": [
+        {
+          "type": "platform",
+          "op": "rename_agent"
+        }
+      ],
+      "budget": {
+        "max_rename_calls": 1
+      },
       "checks": [
-        { "check": "turn_tool_called", "name": "rename_agent", "min": 1 },
+        {
+          "check": "turn_tool_called",
+          "name": "rename_agent",
+          "min": 1
+        },
         {
           "check": "workflow_header",
-          "path": ["name"],
+          "path": [
+            "name"
+          ],
           "pattern": "(?i)^(?!untitled agent$).*\\S.*$"
         },
         {
           "check": "workflow_header",
-          "path": ["description"],
+          "path": [
+            "description"
+          ],
           "pattern": "(?s)^.{1,300}\\Z"
         },
         {
           "check": "workflow_header",
-          "path": ["flags", "is_application"],
+          "path": [
+            "flags",
+            "is_application"
+          ],
           "value": true
         },
         {
           "check": "workflow_header",
-          "path": ["flags", "is_evaluator"],
+          "path": [
+            "flags",
+            "is_evaluator"
+          ],
           "value": false
         }
       ]
@@ -108,13 +156,26 @@
         "name": "Release notes {{TOKEN}}",
         "description": "Finishing the release notes for this build."
       },
-      "turns": [{ "prompt": "thanks — just reply with noted" }],
-      "tools": [{ "type": "platform", "op": "rename_session" }],
-      "budget": { "max_rename_calls": 0 },
+      "turns": [
+        {
+          "prompt": "thanks — just reply with noted"
+        }
+      ],
+      "tools": [
+        {
+          "type": "platform",
+          "op": "rename_session"
+        }
+      ],
+      "budget": {
+        "max_rename_calls": 0
+      },
       "checks": [
         {
           "check": "session_header",
-          "path": ["name"],
+          "path": [
+            "name"
+          ],
           "pattern": "(?i)^release notes QA-[A-Z0-9]{8}$",
           "text": "{{TOKEN}}"
         }
@@ -134,18 +195,33 @@
           "prompt": "help me plan the onboarding schedule for the two support engineers starting next month — what should their first two weeks look like?"
         }
       ],
-      "tools": [{ "type": "platform", "op": "rename_session" }],
-      "budget": { "max_rename_calls": 1 },
+      "tools": [
+        {
+          "type": "platform",
+          "op": "rename_session"
+        }
+      ],
+      "budget": {
+        "max_rename_calls": 1
+      },
       "checks": [
-        { "check": "turn_tool_called", "name": "rename_session", "min": 1 },
+        {
+          "check": "turn_tool_called",
+          "name": "rename_session",
+          "min": 1
+        },
         {
           "check": "session_header",
-          "path": ["name"],
+          "path": [
+            "name"
+          ],
           "pattern": "(?i)(onboarding|support|engineer)"
         },
         {
           "check": "session_header",
-          "path": ["description"],
+          "path": [
+            "description"
+          ],
           "pattern": "(?s)^.{1,300}\\Z"
         }
       ]
@@ -161,7 +237,10 @@
       },
       "seed_workflow_header": {
         "name": "Create an agent that posts a daily standup summary {{TOKEN}}",
-        "flags": { "is_application": true, "is_evaluator": false }
+        "flags": {
+          "is_application": true,
+          "is_evaluator": false
+        }
       },
       "seed_session_header": {
         "name": "get the daily standup summary going — post one summary of"
@@ -172,31 +251,63 @@
         }
       ],
       "tools": [
-        { "type": "platform", "op": "rename_session" },
-        { "type": "platform", "op": "rename_agent" }
+        {
+          "type": "platform",
+          "op": "rename_session"
+        },
+        {
+          "type": "platform",
+          "op": "rename_agent"
+        }
       ],
-      "budget": { "max_rename_calls": 2 },
+      "budget": {
+        "max_rename_calls": 2
+      },
       "checks": [
-        { "check": "turn_tool_called", "name": "rename_session", "min": 1 },
-        { "check": "turn_tool_called", "name": "rename_agent", "min": 1 },
+        {
+          "check": "turn_tool_called",
+          "name": "rename_session",
+          "min": 1
+        },
+        {
+          "check": "turn_tool_called",
+          "name": "rename_agent",
+          "min": 1
+        },
         {
           "check": "session_header",
-          "path": ["name"],
-          "pattern": "(?i)(standup|summar)"
+          "path": [
+            "name"
+          ],
+          "pattern": "(?i)^(?!get the daily standup summary going)(?=.*(standup|summar)).*$"
         },
         {
           "check": "workflow_header",
-          "path": ["name"],
+          "path": [
+            "name"
+          ],
           "pattern": "(?s)^(?!.*{{TOKEN}}).*\\S.*$"
         },
         {
           "check": "workflow_header",
-          "path": ["name"],
+          "path": [
+            "name"
+          ],
+          "pattern": "(?i)^(?!.*create an agent).*$"
+        },
+        {
+          "check": "workflow_header",
+          "path": [
+            "name"
+          ],
           "pattern": "(?i)(standup|summar)"
         },
         {
           "check": "workflow_header",
-          "path": ["flags", "is_application"],
+          "path": [
+            "flags",
+            "is_application"
+          ],
           "value": true
         }
       ]
