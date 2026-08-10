@@ -42,6 +42,7 @@ import {captureTurnRequestAtom} from "../state/turnCaptures"
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {type ScrollIntent} from "./useScrollIntent"
 import {useSessionHydration} from "./useSessionHydration"
+import {useToolCacheInvalidation} from "./useToolCacheInvalidation"
 
 /**
  * The chat stream for one session tab: transport, `useChat`, and every side effect that belongs to
@@ -192,6 +193,9 @@ export const useAgentChatSession = ({
     // Mid-stream drive signals: settled write-ish tool calls append file-activity entries (and
     // throttle-revalidate the drives) as the turn streams, not just at onFinish.
     useFileActivityDetector({sessionId, messages})
+
+    // Server-side platform ops (create_schedule, …) stale the client cache with no other signal.
+    useToolCacheInvalidation({sessionId, messages})
 
     const {isHydrating, hydratedEmpty, runningElsewhere} = useSessionHydration({
         sessionId,
