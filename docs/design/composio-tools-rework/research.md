@@ -1,8 +1,14 @@
 # Research
 
-This file records how the system works today, in the code, and the outside
-facts that constrain the design. It is grounded in the repo on `main` and in
-live tests against Composio. File references use `path:line`.
+This file is background for engineers. It records how the system works today, in
+the code, and the outside facts we learned by testing against Composio. For the
+plan itself, read `design.md`, not this file.
+
+One note to avoid confusion: some sections below describe Composio "sessions" and
+an MCP server. Those are things Composio offers and shapes we looked at and
+dropped. The plan does not use them. See `design.md` for what we build.
+
+File references use `path:line`.
 
 ## 1. How a third-party tool works today
 
@@ -135,23 +141,29 @@ token result in #5341 reached the model intact.
   So the large-result fix must be ours.
 - **Rate limits are per organization**, shared by all our tenants.
 
-## 3. Spike results (live key, 5-6 August)
+## 3. Spike results (live key, 5-7 August)
 
 We tested against the live Composio key. The load-bearing results:
 
-- The session's meta-tools and its tools are callable over plain REST (through
-  the session execute call), not only over MCP. This is what makes the
-  recommended design reuse our existing call path instead of speaking MCP.
-- A scoped key limited to Sessions=read-only was denied on the MCP endpoint with
-  the message that the route "requires 'sessions' write access". So there is no
-  scoped key that both drives the session and stays confined. The key stays
-  server-side.
-- A key-injecting proxy let a client holding no Composio key drive Composio
-  tools, including a workbench call that ran a GitHub call and returned only a
-  filtered summary. This confirmed the forwarding shape and the keyless sandbox.
-- Latency: session create about half a second; the search meta-tool about two
-  seconds because it runs a model on Composio's side; the workbench about three
-  seconds cold, then about half a second warm.
+- Search and execute are callable over plain HTTP, one call each, with no
+  Composio session. Composio's search (`COMPOSIO_SEARCH_TOOLS`) returns matching
+  slugs and their input schemas in one response, and a returned slug executes
+  directly. This is what lets the design use a search tool and an execute tool
+  without a session object.
+- The version pin fixes the discover-versus-resolve drift. We searched six real
+  use cases across GitHub, Slack, Gmail, and Notion and got 40 tool slugs. On
+  Composio's v3 default version, 36 resolved and 4 returned a 404, which is the
+  #5174 drift live. On v3.1, which defaults to the latest version, all 40
+  resolved. Zero of the 40 failed even on latest. So pinning to v3.1 aligns
+  search and execute, and a found tool that cannot resolve is rare, not routine.
+  This tests version resolvability, which is what we control; a specific call can
+  still fail on bad arguments or a broken connection, as always.
+- The Composio key cannot be safely reduced for the sandbox. A key scoped to
+  read-only sessions was denied even from reading a session, and the scope that
+  drives a session also creates and widens sessions for any workspace in the
+  project. So the key stays in the Agenta API, whatever design we pick.
+- Latency: the search call is about two seconds, because Composio runs a model
+  inside it. A plain execute call is well under a second.
 
 ## 4. Tool-piping ("toolbox") options
 
@@ -168,10 +180,24 @@ intermediate results out of context.
   slices the file. This works for any tool, keeps the data in our control, and
   avoids depending on Composio's workbench.
 
-## 5. The runner delivery decision (resolved in design.md)
+## 5. How tools reach the harness (why the design reuses it)
 
-The open question that the design must answer: do we expose a Composio session
-as our own callback tools through the internal channel, or as an MCP server that
-the harness dials at an Agenta-hosted endpoint that forwards to Composio? The
-answer depends on whether the second shape keeps our permissions and tracing.
-The runner-plumbing findings and the decision live in design.md.
+The runner already delivers every Agenta tool to the harness through one internal
+channel: a loopback tool server for Claude and Codex running locally, an uploaded
+relay for Daytona, and Pi's own tool registration. When the model calls a tool,
+the call runs on our side and the Agenta API holds the Composio key. The new
+design adds two ordinary tools (search and execute) to this same channel, so it
+needs no new runner path and works on every harness, including Pi. See design.md
+for the end-to-end flow.
+
+## 6. A version caveat the code already navigates
+
+Composio's endpoints do not agree on how they spell an action slug across
+toolkit versions. The catalog list endpoint on the latest version returns short
+slugs that the single-tool and execute endpoints reject, while the default
+version returns the long slugs that all endpoints accept
+(`api/oss/src/core/tools/providers/composio/catalog.py:212`). Our search endpoint
+returns long slugs, and those resolve on v3.1 but 404 on some tools on the v3
+default (section 3). So a version fix is not a single switch to latest; it must
+keep the slug spelling consistent across list, search, get, and execute. This is
+the delicate part of #5174.

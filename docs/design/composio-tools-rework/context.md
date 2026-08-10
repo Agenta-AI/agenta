@@ -1,80 +1,65 @@
 # Context
 
-## What this is
+## What this is about
 
-Agenta lets a user give an agent third-party tools, such as sending a Slack
-message or reading a GitHub issue. We route those through Composio, a service
-that stores each user's connections (their Slack token, their GitHub token) and
-runs the tool calls. This document explains why the current design hurts and
-what we want instead.
+Agenta lets a user give an agent real-world tools, like sending a Slack message or
+reading a GitHub issue. We run those tools through Composio, an outside service that
+stores each user's app logins and makes the calls for us. This document explains what
+hurts today and what we want instead.
 
-## How it works today, in one paragraph
+## How it works today
 
-The user picks tool actions one at a time in the drawer. Each pick writes one
-entry into the agent's saved config, for example "Composio, GitHub, GET_AN_ISSUE,
-connection github-main". At the start of every run, the Agenta API asks Composio
-to resolve each action, one live HTTP call per action, with no cache. The
-resolved tool schemas all go to the model, in full, every turn.
+The user picks actions one at a time in the drawer. Each pick adds one entry to the
+agent's setup, for example "Composio, GitHub, GET_AN_ISSUE, github-main". When the agent
+runs, our backend asks Composio to look up every action, one call each, with no reuse.
+Then it sends every action's full description to the model, on every turn.
 
-## The bugs this causes
+## The problems this causes
 
-- **One dead tool kills the whole run.** Resolution is all-or-nothing. If one
-  action no longer resolves, the entire agent fails to start, with an error that
-  names no tool. (GitHub issue #5173.)
-- **Discovery offers tools that resolution cannot find.** Our discovery path and
-  our resolve path hit Composio on different default versions, so a tool that
-  discovery shows as ready then fails to resolve with a 404. (#5174.)
-- **One huge result wrecks the conversation.** A tool result enters the model
-  context with only a 1 megabyte cap. One `get_pull_request` returned about
-  241,000 tokens and broke the session. (#5341.)
-- **A missing key looks like a missing endpoint.** With no Composio key
-  configured, discovery returns a bare 404 that a self-hoster cannot diagnose.
-  (#5407.)
-- **A toolkit has about 100 actions.** Giving an agent GitHub means adding up to
-  a hundred config entries, one per action, and sending a hundred schemas to the
-  model every turn. This is slow, expensive, and degrades tool selection.
+- **One broken tool kills the whole agent.** If one action can no longer be looked up,
+  the whole agent fails to start, and the error names no tool. (#5173)
+- **The lookup and the run disagree.** Our lookup and our run step use different versions
+  of the app's action list. So the lookup can offer an action that the run step then
+  cannot find, and the user gets a "not found" error. (#5174)
+- **One huge result breaks the chat.** A tool result can reach the model with almost no
+  limit. One GitHub call once returned about 241,000 tokens and broke the session. (#5341)
+- **A missing key looks like a broken feature.** If Composio is not set up, the user gets
+  a bare "not found" error that gives no hint about the real cause. (#5407)
+- **A single app means about a hundred entries.** GitHub has around a hundred actions. So
+  the agent's setup swells to a hundred entries, and the model sees a hundred
+  descriptions every turn. That is slow, costly, and makes the model pick worse.
 
-These are not five unrelated bugs. They are one design choice: we treat each
-action as a static, individually resolved tool in the agent's config.
+These are not five separate bugs. They come from one choice: we treat each action as a
+fixed tool that we look up one by one.
 
 ## What we want instead
 
-The agent config names the integration and the connection once, plus a filter
-of which tools are allowed. At run start, the Agenta API opens a Composio
-session for that connection and exposes it to the harness over MCP. The model
-then sees a small set of meta-tools, searches for what it needs, and calls it.
-Composio manages the tool versions and the credentials. The heavy per-action
-resolution disappears.
+The setup names the app and the connection once, plus which actions are allowed. When the
+agent runs, our backend gives the model two small tools: a search tool and a run tool.
+The model searches for the action it needs, then runs it, in the same turn. The heavy
+one-by-one lookup goes away. The design doc explains this in full.
 
 ## Goals
 
-- Reference an integration once, not one entry per action.
-- Remove the all-or-nothing startup failure and the version drift by design.
-- Keep large results out of the model context.
-- Keep our control point: per-tool permissions, tracing, and a result cap stay
-  on our side.
-- Keep the Composio credential where it is today, in the Agenta API, never in
-  the sandbox.
-- Keep warm sandbox reuse intact.
+- Name an app once, not one entry per action.
+- Remove the all-or-nothing failure and the version mismatch by design.
+- Stop huge results from flooding the model.
+- Keep our safety controls: permissions, tracing, and a size cap stay on our side.
+- Keep the Composio key on our servers, never in the sandbox where the model runs.
+- Keep fast agent restarts working (do not throw away a warm sandbox for no reason).
 
-## Non-goals (for the first version)
+## Not in the first version
 
-- Pi over MCP. Pi loads tools through its own extension today; wiring Pi to
-  consume MCP servers is later work.
-- Per-tenant rate limiting against Composio's per-organization limit.
-- Interactive "ask before this one specific action" prompts, if the chosen
-  design only supports asking at the meta-tool level. To be decided in design.
-- Cost tracking and billing of meta-tool calls.
-- A general second tool provider. The design leaves room for one, but we build
-  and prove Composio first.
+- Making Pi use this over MCP. Pi loads tools its own way today; we do not change that now.
+- Limiting how fast we call Composio per customer.
+- Asking the user before one specific action (only asking before any action is in scope).
+- Tracking cost per call.
+- A second tool provider besides Composio. The design leaves room for one, but we prove
+  Composio first.
 
-## Fixed facts that shaped the design (from live spikes)
+## A fact that shaped the design
 
-- Calling a Composio session's MCP endpoint needs the project-wide Composio key
-  with session-write access. That same access can create and widen sessions for
-  any user in the project, so the key can reach every tenant's connections.
-  There is no session-scoped credential. So the key must never enter the sandbox.
-- Composio sessions do not expire. We create one per connection and reuse it.
-- Session filters update in place without changing the MCP URL.
-- Composio's own result-trimming hooks do not run over MCP, so the large-result
-  fix must be ours.
+The Composio key is powerful. It can reach every workspace's connections, not just one.
+We tested this against the live key. There is no weaker key that does only what we need.
+So the key must stay on our servers and never enter the sandbox. Our design keeps it
+there.

@@ -1,95 +1,50 @@
 # Status
 
-Source of truth for progress and decisions. Newest decisions at the top of each
-list.
+Where we are, what we decided, and what is still open.
 
 ## Stage
 
-Planning. Producing design docs for a PR. No code changed.
+Two tracks are running.
 
-## Decisions taken
+- **Quick bug fixes to the current system.** Shipping now, one small PR each. Three are
+  merged, one is open. See "Bug fixes" below.
+- **The redesign.** Planned in these documents. Not built yet.
 
-- **Move from per-action config entries to per-connection, tools exposed over a
-  Composio session (MCP).** Fixes #5173, #5174, and the hundred-entries problem
-  by design. (2026-08-06)
-- **The Composio key never enters the sandbox.** Proven necessary: the only
-  credential that drives the session MCP endpoint is the project key, which
-  reaches every tenant's connections. The Agenta API holds it and forwards.
-  (2026-08-06)
-- **One session per connection, reused forever.** Sessions do not expire
-  (documented). No recreate-on-expiry logic needed. (2026-08-06)
-- **Large results: write to a file in the sandbox mount, return the path.** Our
-  own approach, provider-agnostic. We do not depend on Composio's workbench.
-  (2026-08-06, Mahmoud)
-- **Disable Composio's connection-manager meta-tool.** The frontend already lets
-  the agent ask for a connection; we reuse that. (2026-08-06, Mahmoud)
+## What we decided
 
-## The main design choice (both go in the PR)
+- **Store one setup entry per connection, not one per action.** This fixes the
+  all-or-nothing failure, the version mismatch, and the hundred-entries problem by design.
+- **Give the model two tools at run time: search and run.** The model finds an action,
+  then uses it. It no longer sees a hundred descriptions.
+- **Do not use Composio's "sessions".** Their ready-made box holds a filter, a version, a
+  login, and a code sandbox. We do each of those ourselves with far less code. See
+  `design.md` for why.
+- **Always call Composio's newest version (v3.1)**, so search and run agree. This is the
+  fix for #5174.
+- **Keep the Composio key on our servers.** It can reach every workspace's connections,
+  so it must never enter the sandbox.
 
-Two shapes for how the harness reaches the session, both in the PR with a
-comparison:
+## Bug fixes (current system, shipping now)
 
-- **Option 1, call the meta-tools over REST as our own callback tools
-  (recommended).** Reuses the callback transport, cap, tracing, and permissions;
-  works on Pi; keeps the key in the API.
-- **Option 2, proxy the session as an MCP server.** Cleaner in theory, but does
-  not work on Pi, needs a streaming proxy, and moves the trust boundary.
-
-**Recommendation flipped to Option 1 after the Codex review.** The deciding fact:
-the session's meta-tools are callable over plain REST (proven in the spikes), so
-we do not need MCP at all, and the REST path reuses everything we have and runs
-on Pi. Option 2 (the earlier lead) is documented as the alternative and the right
-shape only if we later host user-provided MCP servers.
-
-## Codex review outcome (2026-08-06)
-
-Ran a staff-engineer architecture and soundness review through Codex at xhigh.
-Accepted and folded in:
-
-- Flip to Option 1 (REST meta-tools), because Composio exposes the meta-tools
-  over REST and it reuses our machinery and works on Pi.
-- Session keyed on the tool policy, not the connection, and immutable per policy.
-  Fixes the cross-agent PATCH race. Removes in-place PATCH and warm-reuse-across-
-  policy-change gymnastics.
-- Session state lives in a dedicated `gateway_sessions` mapping table with a
-  uniqueness constraint, not the connection `data` blob.
-- Pin the connected account at session creation.
-- Distinct config discriminator (`gateway_toolkit`), policy vocabulary
-  (`all` / `include` + actions), actions are Agenta keys mapped to slugs
-  server-side.
-- Name the resolver seam change (one config yields several meta-tool specs).
-- Handle a stale action in an explicit policy gracefully at session create.
-- Restructure the plan into three vertical slices.
-
-Pushed back on (judgment, pre-PMF):
-
-- Codex wanted the session keyed per conversation too. Our meta-tool use is
-  stateless and the workbench is off, so per-policy keying is enough. Noted as a
-  refinement only if state leaks.
-- Kept both options documented, per Mahmoud's request, rather than deleting
-  Option 2.
+- **#5341 big results:** merged (PR #5811).
+- **#5407 clear "not set up" error:** open (PR #5812).
+- **#5173 one broken tool no longer kills the agent:** merged (PR #5813).
+- **#5174 version pin:** merged (PR #5814).
 
 ## Open questions
 
-- Does Shape A keep deny, interactive "ask", and tracing? (Investigation in
-  progress.)
-- Permission granularity: if the model only sees meta-tools, "ask before this
-  one specific action" may need action-level enforcement at the API. Product
-  call.
-- Search relevance on our real use cases. Needs a hands-on check.
-- Migration of existing per-action config entries. The compat layer already
-  normalizes two shapes.
+- Does Composio's search return the right actions for our real use cases? Needs a hands-on
+  check. See `experiment.md`.
+- Can the smallest models handle "search then run" as well as a flat list of tools? See
+  `experiment.md`.
+- Should we let the user ask before one specific action, not just before any action? This
+  needs extra work. It is a product call.
+- What happens to agents that still use the old one-per-action setup? We already accept
+  both, so they keep working.
 
-## Answered by research (see research.md section 3)
+## History
 
-- Session TTL: sessions do not expire.
-- Scoped credential: none that both drives MCP and stays confined.
-- Piping tool calls in a script: Composio's workbench does it over MCP; harness
-  native features do not help portably.
-
-## Reviews planned
-
-- Architecture and repo-conformance review (Codex, staff-engineer lens).
-- Correctness and soundness review, with an explicit guard against over-scoping.
-  Pre-product-market-fit: every unwarranted piece of complexity is a new thing
-  to maintain and a new place for bugs.
+Earlier drafts used a Composio session, first driven over plain calls, then behind an MCP
+server. We dropped both to keep the design small. A Codex review of those drafts still
+holds on the small points (the new setup type, the "which actions are allowed" field, and
+the three-part plan), but its session-specific advice no longer applies.
