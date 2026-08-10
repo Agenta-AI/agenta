@@ -53,6 +53,7 @@ import type { ResolvedToolSpec, RunContext } from "../../src/protocol.ts";
 const RUN_CONTEXT: RunContext = {
   session: { id: "session-self" },
   workflow: {
+    artifact: { id: "agent-self" },
     variant: { id: "own-variant" },
     revision: { id: "rev_self" },
     is_draft: false,
@@ -533,10 +534,10 @@ describe("directCallUrl", () => {
     );
   });
 
-  it("rejects a disallowed method", () => {
+  it("rejects a method outside the four-item allowlist", () => {
     assert.throws(
       () => directCallUrl(ENDPOINT, { method: "PATCH" as any, path: "/api/x" }),
-      /method 'PATCH' is not allowed/,
+      /GET\/POST\/PUT\/DELETE only/,
     );
   });
 
@@ -758,6 +759,44 @@ describe("startToolRelay direct branch (host makes the call for the sandbox)", (
       res.error ?? "",
       /missing run-context value for direct-call binding 'session_id' for tool 'rename_session'/,
     );
+  });
+
+  it("dispatches rename_agent with a PUT JSON body and bound URL", async () => {
+    const calls = stubFetch("renamed");
+    const renameAgentSpec: ResolvedToolSpec = {
+      name: "rename_agent",
+      kind: "callback",
+      call: {
+        method: "PUT",
+        path: "/api/workflows/{workflow_id}",
+        args_into: "workflow",
+        context: {
+          workflow_id: "$ctx.workflow.artifact.id",
+          "workflow.id": "$ctx.workflow.artifact.id",
+        },
+      },
+    };
+    const res = await relayOnce(
+      renameAgentSpec,
+      { endpoint: ENDPOINT, authorization: "ApiKey secret" },
+      {
+        name: "Support triage",
+        description: "Routes and summarizes incoming support requests.",
+      },
+      RUN_CONTEXT,
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.method, "PUT");
+    assert.equal(calls[0].url, "https://agenta.example/api/workflows/agent-self");
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      workflow: {
+        name: "Support triage",
+        description: "Routes and summarizes incoming support requests.",
+        id: "agent-self",
+      },
+    });
   });
 
   it("strips substituted path params out of the POST body", async () => {

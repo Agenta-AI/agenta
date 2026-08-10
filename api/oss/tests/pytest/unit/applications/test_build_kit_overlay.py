@@ -44,6 +44,7 @@ EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "query_spans",
     "test_run",
     "rename_session",
+    "rename_agent",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
@@ -62,6 +63,7 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "query_spans",
     "test_run",
     "rename_session",
+    "rename_agent",
     "discover_triggers",
     "create_schedule",
     "create_subscription",
@@ -134,7 +136,11 @@ def test_agent_template_overlay_tools_list_is_pinned():
             {
                 "type": "platform",
                 "op": op_name,
-                **({"permission": "allow"} if op_name == "rename_session" else {}),
+                **(
+                    {"permission": "allow"}
+                    if op_name in {"rename_session", "rename_agent"}
+                    else {}
+                ),
             }
             for op_name in DEFAULT_BUILD_KIT_OPS
         ],
@@ -172,17 +178,21 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
         {
             "type": "platform",
             "op": op_name,
-            **({"permission": "allow"} if op_name == "rename_session" else {}),
+            **(
+                {"permission": "allow"}
+                if op_name in {"rename_session", "rename_agent"}
+                else {}
+            ),
         }
         for op_name in DEFAULT_BUILD_KIT_OPS
     ]
     assert [
         tool["op"] for tool in platform_tools if tool.get("permission") == "allow"
-    ] == ["rename_session"]
+    ] == ["rename_session", "rename_agent"]
     assert all(
         "permission" not in tool
         for tool in platform_tools
-        if tool["op"] != "rename_session"
+        if tool["op"] not in {"rename_session", "rename_agent"}
     )
 
     authoring_skill = StaticWorkflowCatalog().retrieve_revision(

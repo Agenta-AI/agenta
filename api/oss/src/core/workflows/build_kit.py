@@ -43,6 +43,7 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "query_spans",
     "test_run",
     "rename_session",
+    "rename_agent",
     "discover_triggers",
     "create_schedule",
     "create_subscription",

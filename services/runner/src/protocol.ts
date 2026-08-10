@@ -147,7 +147,7 @@ export interface ResolvedToolSpec {
    * `call` XOR `callRef`. Plumbing only here: nothing emits or dispatches it yet.
    */
   call?: {
-    method: "GET" | "POST" | "DELETE";
+    method: "GET" | "POST" | "PUT" | "DELETE";
     path: string;
     body?: Record<string, unknown>;
     context?: Record<string, string>;

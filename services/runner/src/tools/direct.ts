@@ -30,7 +30,7 @@ export type DirectCall = NonNullable<ResolvedToolSpec["call"]>;
 const CTX_TOKEN_PREFIX = "$ctx.";
 
 /** Methods a direct call may use. The descriptor is untrusted, so this is an allowlist. */
-const DIRECT_CALL_METHODS = new Set(["GET", "POST", "DELETE"]);
+const DIRECT_CALL_METHODS = new Set(["GET", "POST", "PUT", "DELETE"]);
 
 /**
  * Object keys that must never be written through a dotted path or a merge: assigning to them
@@ -455,7 +455,7 @@ export function applyContextBindings(
 /**
  * Validate the descriptor and build the absolute URL to call. The `call` is untrusted input, so
  * this is the SSRF guard, and it makes NO assumption about where the Agenta API is mounted:
- *  - `method` must be on the allowlist (GET/POST/DELETE);
+ *  - `method` must be on the allowlist (GET/POST/PUT/DELETE);
  *  - `path` must be a single absolute-path reference — a string starting with exactly one `/`
  *    (no scheme, no protocol-relative `//host`, no backslashes, no whitespace/CRLF, no literal
  *    `..` traversal);
@@ -477,7 +477,7 @@ export function directCallUrl(
 ): string {
   if (!DIRECT_CALL_METHODS.has(call.method)) {
     throw new Error(
-      `direct-call method '${call.method}' is not allowed (GET/POST/DELETE only)`,
+      `direct-call method '${call.method}' is not allowed (GET/POST/PUT/DELETE only)`,
     );
   }
   const path = substitutePathParams(call.path, params);
@@ -594,7 +594,7 @@ export function agentaErrorDetail(bodyText: string): string | undefined {
  * starts emitting `call`.
  */
 export async function callDirect(
-  method: "GET" | "POST" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   url: string,
   authorization: string | undefined,
   body: Record<string, unknown>,
@@ -618,8 +618,11 @@ export async function callDirect(
     response = await fetch(url, {
       method,
       headers,
-      // GET and DELETE carry no body; POST sends the assembled JSON body.
-      body: method === "POST" ? JSON.stringify(body) : undefined,
+      // GET and DELETE carry no body; POST and PUT send the assembled JSON body.
+      body:
+        method === "POST" || method === "PUT"
+          ? JSON.stringify(body)
+          : undefined,
       signal: combined,
       // Do not auto-follow redirects: a 3xx to another host would defeat the origin lock in
       // directCallUrl (SSRF-via-redirect). A 3xx surfaces here as a non-ok response and fails
