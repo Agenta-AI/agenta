@@ -61,30 +61,68 @@ that. Transparency on the consent path is not achievable — only *relocatable*.
 
 There are exactly two moments this bites:
 
-1. **First use.** No credential exists for this principal and this server.
-2. **Step-up.** A credential exists, but the specific call needs a permission the user never
-   granted. The current MCP revision specifies this precisely: the server answers `403` with
-   `insufficient_scope` and the scopes it needs, and the client is expected to re-authorize
-   with the union of old and new scopes. So "already connected" does not guarantee "will
-   not need a human again."
+1. **First use.** No credential exists for this owner and this server.
+2. **Step-up.** A credential exists, but the specific call needs a permission the owner
+   never granted. The current MCP revision specifies this precisely: the server answers
+   `403` with `insufficient_scope` and the scopes it needs, and the client is expected to
+   re-authorize with the union of old and new scopes. So "already connected" does not
+   guarantee "will not need a human again."
 
 Everything else about OAuth — refresh, expiry, retry, storage, audience binding — the
 gateway absorbs.
 
+### How often is "once"
+
+Consent is per **credential owner**, which the ownership axis already defines: once per
+(user, upstream) for a `per_user` entry, once per (project, upstream) for a `shared` one.
+A `shared` entry means one person consents and the whole project inherits it; a `per_user`
+entry means every member consents for themselves, and an admin cannot do it on their
+behalf.
+
+Two details make the count less tidy than "once":
+
+- **Consent and tokens are counted differently.** Tokens are audience-bound — each is
+  minted for one specific server URI — so storage is keyed per (owner, server). But a
+  single human interaction at an authorization server can yield tokens for several
+  resources it governs. So a vendor running several MCP servers behind one authorization
+  server may cost one consent and several stored tokens.
+- **Step-up adds moments after the first.** The required scopes for a call may be
+  determined dynamically from the request's own arguments, so they cannot always be known
+  in advance.
+
 ## Open questions
 
-### Q1. Where does consent happen?
+### Q1. Where does consent happen? — largely settled
 
-Options: require connections to be established before a run starts, or let a run surface a
-consent request mid-flight.
+**In the dashboard, before a run.** Connecting a server is a management action, not a
+runtime one. A run that reaches an unconnected server fails with something actionable, the
+user connects in the dashboard, and re-runs. This matches how connections already work and
+keeps runs free of browser interactions.
 
-Pre-establishing is far simpler and matches how connections already work. The cost is that
-an agent which discovers it needs a new server mid-run cannot resolve that itself; the run
-fails with something actionable and the user connects, then re-runs.
+Two consequences to design for rather than decide:
 
-Mid-flight consent is possible — approval machinery already exists and the protocol's
-input-required pattern is a natural carrier — but it turns a failure into a pause, which is
-a different lifecycle and a much larger change.
+- A `per_user` entry means the dashboard needs a per-user connection view, and a project's
+  agent is not usable by a new team member until that member connects for themselves. An
+  admin cannot pre-connect on their behalf. This is an onboarding step, and it should be
+  visible as one.
+- Runs need a pre-flight check. If the gateway can tell before starting that a required
+  server has no live credential for this user, the run should fail immediately with the
+  list of servers to connect, rather than part-way through when the agent first reaches for
+  a tool.
+
+**What is still open is step-up**, because required scopes can depend on a call's own
+arguments and so cannot always be pre-granted. Three ways to handle it:
+
+1. **Over-request at connect time** — ask for the server's full advertised scope set in the
+   dashboard, so step-up almost never fires. Trades least privilege for uninterrupted runs.
+2. **Fail actionably** — treat a scope challenge like an unconnected server: fail the call,
+   name the missing permission, send the user to the dashboard to re-consent.
+3. **Pause mid-run** — the approval machinery and the protocol's input-required pattern
+   could carry it, at the cost of a different run lifecycle.
+
+The specification recommends least privilege with incremental step-up, which is option 2 or
+3. For an agent platform, option 1 is the pragmatic default and can be reconsidered per
+server. Worth an explicit decision rather than a default.
 
 ### Q2. One endpoint or one per server?
 
