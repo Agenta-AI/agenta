@@ -233,7 +233,7 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
                 {items.length === 0 ? (
                     <div className="px-4 py-[26px] text-center">
                         <div className="text-xs text-[var(--ag-colorTextSecondary)]">
-                            No command, skill or tool matches “{query}”
+                            No command or skill matches “{query}”
                         </div>
                     </div>
                 ) : (

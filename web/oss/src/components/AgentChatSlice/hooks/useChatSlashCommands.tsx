@@ -237,6 +237,13 @@ export function useChatSlashCommands({
         const compact = <T,>(rows: (T | null)[]) =>
             rows.filter((entry): entry is T => entry !== null)
 
+        /**
+         * Tools and MCP servers are withheld from the palette for now. The rows are still built
+         * below — hiding them is a display decision, not a retraction of the feature, so bringing
+         * them back is flipping this one flag rather than rewriting the mapping.
+         */
+        const SHOW_TOOLS = false
+
         const commandItems = [
             {
                 key: "model",
@@ -293,7 +300,7 @@ export function useChatSlashCommands({
         return [
             {key: "commands", title: "Commands", items: commandItems},
             {key: "skills", title: "Skills", items: skillItems},
-            {key: "tools", title: "Tools", items: toolItems},
+            ...(SHOW_TOOLS ? [{key: "tools", title: "Tools", items: toolItems}] : []),
         ].filter((section) => section.items.length > 0)
     }, [config, currentHarness, currentModelLabel, currentPermissionLabel, openPicker, suspended])
 

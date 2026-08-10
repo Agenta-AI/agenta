@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useRef} from "react"
 
 import type {HarnessCapabilitiesMap} from "@agenta/entities/workflow"
 import {
@@ -12,6 +12,8 @@ import {
 } from "@agenta/entity-ui/drill-in"
 import {Cube} from "@phosphor-icons/react"
 import {Button} from "antd"
+
+import {useRovingList} from "./useRovingList"
 
 /**
  * The `/harness` picker: the harness list on the left, the highlighted one's detail on the right.
@@ -36,29 +38,36 @@ const HarnessPickerPanel = ({
     currentHarness: string | null
     currentModel: string | null
     onApply: (kind: string) => void
-    /** Escape / a click outside — drop the picker and leave the composer as it is. */
-    onDismiss: () => void
+    /** Drop the picker. The reason decides whether focus goes back to the composer. */
+    onDismiss: (reason: "escape" | "outside") => void
     /** Step back one level: the host restores the `/` this picker consumed. */
     onBackToCommands: () => void
     onOpenConfig: () => void
 }) => {
-    const [selected, setSelected] = useState(() => currentHarness ?? harnessIds[0] ?? null)
+    // Arrows move the rail and the detail pane follows, so the stranding warning is already on
+    // screen when Enter lands — no confirmation keystroke. Enter is the shortcut for "Use ⟨name⟩".
+    const {activeIndex, setActiveIndex, containerProps, optionProps} = useRovingList({
+        items: harnessIds,
+        current: currentHarness,
+        onEnter: (id) => {
+            if (id !== currentHarness) onApply(id)
+        },
+        onBack: onBackToCommands,
+    })
+    const selected = harnessIds[activeIndex] ?? null
+    // Two different elements: the listbox is the rail, but a click anywhere in the panel (detail
+    // pane, footer) is still "inside" for dismissal.
     const rootRef = useRef<HTMLDivElement | null>(null)
-
-    // The list arrives with the capability catalog, so seed the selection once it lands.
-    useEffect(() => {
-        if (!selected && harnessIds.length) setSelected(currentHarness ?? harnessIds[0])
-    }, [currentHarness, harnessIds, selected])
 
     // No trigger to toggle it and nothing above it dismisses it, so the panel owns that itself.
     useEffect(() => {
         const onPointerDown = (event: PointerEvent) => {
             const node = event.target as Node | null
             if (node && rootRef.current?.contains(node)) return
-            onDismiss()
+            onDismiss("outside")
         }
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape") onDismiss()
+            if (event.key === "Escape") onDismiss("escape")
         }
         // Capture, so a handler that stops propagation cannot strand the panel open.
         document.addEventListener("pointerdown", onPointerDown, true)
@@ -110,18 +119,20 @@ const HarnessPickerPanel = ({
             </div>
 
             <div className="flex">
-                <div className="w-[214px] shrink-0 overflow-y-auto border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] py-[5px]">
-                    {harnessIds.map((id) => {
+                <div
+                    {...containerProps}
+                    aria-label="Harness"
+                    className="w-[214px] shrink-0 overflow-y-auto border-0 border-r border-solid border-[var(--ag-colorBorderSecondary)] py-[5px] outline-none"
+                >
+                    {harnessIds.map((id, index) => {
                         const item = harnessMetaFor(id)
                         return (
                             <div
                                 key={id}
-                                role="option"
-                                aria-selected={id === selected}
-                                onClick={() => setSelected(id)}
-                                className={`mx-[5px] flex cursor-pointer items-center gap-[9px] rounded-md px-2 py-[7px] ${
-                                    id === selected ? "bg-[var(--ag-colorFillTertiary)]" : ""
-                                }`}
+                                {...optionProps(index)}
+                                aria-selected={id === currentHarness}
+                                onClick={() => setActiveIndex(index)}
+                                className="mx-[5px] flex cursor-pointer items-center gap-[9px] rounded-md px-2 py-[7px] data-[active=true]:bg-[var(--ag-colorFillTertiary)]"
                             >
                                 <span
                                     className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[9px] font-semibold leading-none text-white"
@@ -223,9 +234,12 @@ const HarnessPickerPanel = ({
                 <button
                     type="button"
                     onClick={onBackToCommands}
-                    className="ml-auto cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
+                    className="ml-auto flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
                 >
-                    ← back to commands
+                    <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
+                        ←
+                    </span>
+                    back to commands
                 </button>
             </div>
         </div>

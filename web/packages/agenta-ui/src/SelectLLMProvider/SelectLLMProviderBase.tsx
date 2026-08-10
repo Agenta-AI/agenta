@@ -73,6 +73,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     "aria-labelledby": ariaLabelledby,
     open: controlledOpen,
     onOpenChange,
+    onDismissOutside,
+    onStepBack,
     anchorRef,
     hideTrigger = false,
     searchSuffix,
@@ -265,7 +267,10 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                 setActiveModelIndex(0)
             } else if (e.key === "ArrowLeft") {
                 e.preventDefault()
-                setActiveModelIndex(null)
+                // Already at the leftmost column, so ← has nothing more to collapse: step out of
+                // the picker entirely rather than dead-end.
+                if (activeModelIndex === null) onStepBack?.()
+                else setActiveModelIndex(null)
             } else if (e.key === "Enter") {
                 e.preventDefault()
                 if (activeModelIndex !== null) {
@@ -287,6 +292,9 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         } else if (e.key === "End") {
             e.preventDefault()
             setActiveIndex(Math.max(flatItems.length - 1, 0))
+        } else if (e.key === "ArrowLeft" && onStepBack && !searchTerm) {
+            e.preventDefault()
+            onStepBack()
         } else if (e.key === "Enter") {
             e.preventDefault()
             const option = flatItems[activeIndex]
@@ -443,6 +451,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                     e.preventDefault()
                     inputRef.current?.focus()
                 }}
+                // Anchored mode has no trigger to restore focus to, so Radix would drop it on
+                // <body> — and it runs after the caller's own focus(), undoing it. The caller
+                // decides where focus goes once the panel is gone.
+                onCloseAutoFocus={anchorRef ? (e) => e.preventDefault() : undefined}
+                onPointerDownOutside={onDismissOutside ? () => onDismissOutside() : undefined}
                 onKeyDown={handleKeyDown}
                 className={clsx(
                     "p-1",

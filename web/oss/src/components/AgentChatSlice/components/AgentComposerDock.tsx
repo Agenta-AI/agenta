@@ -1,4 +1,4 @@
-import {type RefObject, Suspense, lazy, useCallback, useRef} from "react"
+import {type RefObject, Suspense, lazy, useCallback, useEffect, useRef} from "react"
 
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
@@ -171,8 +171,10 @@ const AgentComposerDock = ({
     const clearComposerCommand = useCallback(() => {
         richInputRef.current?.clear()
         clearDraft()
-        richInputRef.current?.focus()
     }, [clearDraft, richInputRef])
+    // A click outside is a deliberate move elsewhere, so it is the one close that must NOT pull
+    // focus back. Everything else — apply, Escape, back to commands — returns you to typing.
+    const skipFocusRestoreRef = useRef(false)
     const slash = useChatSlashCommands({
         entityId,
         suspended: onboardingActive,
@@ -186,12 +188,28 @@ const AgentComposerDock = ({
             clearDraft()
         }, [clearDraft, richInputRef]),
     })
+    // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
+    // undone when the still-focused panel (or Radix popover) leaves the DOM.
+    const hadPickerRef = useRef(slash.picker)
+    useEffect(() => {
+        const had = hadPickerRef.current
+        hadPickerRef.current = slash.picker
+        if (!had || slash.picker) return
+        if (skipFocusRestoreRef.current) {
+            skipFocusRestoreRef.current = false
+            return
+        }
+        richInputRef.current?.focus()
+    }, [richInputRef, slash.picker])
+    const dismissPicker = (reason: "escape" | "outside") => {
+        if (reason === "outside") skipFocusRestoreRef.current = true
+        slash.closePicker()
+    }
     // Step back one level. The picker consumed the `/` that opened it, so returning to the palette
     // means putting it back — typing it again is what "back to commands" exists to avoid.
     const backToCommands = () => {
         slash.closePicker()
         richInputRef.current?.setMarkdown("/")
-        richInputRef.current?.focus()
     }
     const openConfigFor = (section: "model-harness" | "advanced") => {
         slash.closePicker()
@@ -320,7 +338,7 @@ const AgentComposerDock = ({
                                     slash.applyHarness(kind)
                                     clearComposerCommand()
                                 }}
-                                onDismiss={slash.closePicker}
+                                onDismiss={dismissPicker}
                                 onBackToCommands={backToCommands}
                                 onOpenConfig={openModelHarnessConfig}
                             />
@@ -336,7 +354,7 @@ const AgentComposerDock = ({
                                     slash.applyPermission(policy)
                                     richInputRef.current?.focus()
                                 }}
-                                onDismiss={slash.closePicker}
+                                onDismiss={dismissPicker}
                                 onBackToCommands={backToCommands}
                                 onOpenConfig={openPermissionsConfig}
                             />
@@ -348,6 +366,10 @@ const AgentComposerDock = ({
                         onOpenChange={(next) => {
                             if (!next) slash.closePicker()
                         }}
+                        onDismissOutside={() => {
+                            skipFocusRestoreRef.current = true
+                        }}
+                        onStepBack={backToCommands}
                         anchorRef={composerBoxRef}
                         hideTrigger
                         showGroup
@@ -372,9 +394,12 @@ const AgentComposerDock = ({
                                 <button
                                     type="button"
                                     onClick={backToCommands}
-                                    className="ml-auto cursor-pointer border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
+                                    className="ml-auto flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[10.5px] text-[var(--ag-colorTextTertiary)]"
                                 >
-                                    ← back to commands
+                                    <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)] px-1 font-mono text-[9.5px] font-medium text-[var(--ag-colorTextSecondary)]">
+                                        ←
+                                    </span>
+                                    back to commands
                                 </button>
                             </div>
                         }

@@ -70,6 +70,16 @@ export interface SelectLLMProviderBaseProps extends SelectProps {
     /** Fires on every open/close request; required when `open` is controlled. */
     onOpenChange?: (open: boolean) => void
     /**
+     * A pointer-down OUTSIDE the panel dismissed it, as opposed to Escape or a selection. Lets an
+     * anchored caller leave focus where the user clicked instead of pulling it back.
+     */
+    onDismissOutside?: () => void
+    /**
+     * `←` pressed with nothing left to collapse — the provider column, or a flat list with no
+     * search term. Lets a caller that drilled INTO this panel offer the way back out.
+     */
+    onStepBack?: () => void
+    /**
      * Position the panel against this element instead of the trigger. Pair with `hideTrigger` to
      * render the panel alone, anchored to something the caller owns.
      */

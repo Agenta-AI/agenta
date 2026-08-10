@@ -1,11 +1,11 @@
-import {useRef, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {permissionPolicyLabel, type PermissionPolicy} from "@agenta/entity-ui/drill-in"
 import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/HarnessPickerPanel"
 import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/PermissionsPickerPanel"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cpu, Cube, GraduationCap, Paperclip, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {Cpu, Cube, GraduationCap, Paperclip, ShieldCheck} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
@@ -158,26 +158,8 @@ const SLASH_SECTIONS = [
             },
         ],
     },
-    {
-        key: "tools",
-        title: "Tools",
-        items: [
-            {
-                key: "weather",
-                label: "/get_weather",
-                tail: "custom",
-                icon: <Wrench size={14} />,
-                kind: "insert" as const,
-            },
-            {
-                key: "notion",
-                label: "/notion.move_page",
-                tail: "integration",
-                icon: <Wrench size={14} />,
-                kind: "insert" as const,
-            },
-        ],
-    },
+    // A Tools section sat here. `useChatSlashCommands` withholds one for now (its `SHOW_TOOLS`
+    // flag), so the story mirrors what the composer actually offers.
 ]
 
 /** Mocked harness catalog — the same shape `/inspect` publishes as `harness_capabilities`. */
@@ -253,7 +235,24 @@ export const SlashCommands: Story = {
             // behaves like the real composer.
             const clearCommand = () => {
                 inputRef.current?.clear()
+            }
+            // Mirrors the dock: focus can only return AFTER the picker unmounts, and an outside
+            // click is the one close that must not pull it back.
+            const skipFocusRestore = useRef(false)
+            const hadPicker = useRef(picker)
+            useEffect(() => {
+                const had = hadPicker.current
+                hadPicker.current = picker
+                if (!had || picker) return
+                if (skipFocusRestore.current) {
+                    skipFocusRestore.current = false
+                    return
+                }
                 inputRef.current?.focus()
+            }, [picker])
+            const dismissPicker = (reason: "escape" | "outside") => {
+                if (reason === "outside") skipFocusRestore.current = true
+                setPicker(null)
             }
             // ...and clears it as the picker opens, a frame ahead of the picker so the editor's
             // reconcile cannot take focus back from it (which would dismiss it).
@@ -261,7 +260,6 @@ export const SlashCommands: Story = {
             const backToCommands = () => {
                 setPicker(null)
                 inputRef.current?.setMarkdown("/")
-                inputRef.current?.focus()
             }
             const openPicker = (which: "model" | "harness" | "permissions") => {
                 inputRef.current?.blur()
@@ -293,13 +291,16 @@ export const SlashCommands: Story = {
                     <span>Changes this agent&apos;s draft config.</span>
                     <span className="text-colorPrimary">Open config →</span>
                     <span
-                        className="ml-auto cursor-pointer"
+                        className="ml-auto flex cursor-pointer items-center gap-1.5"
                         onClick={backToCommands}
                         role="button"
                         tabIndex={0}
                         onKeyDown={backToCommands}
                     >
-                        ← back to commands
+                        <span className="inline-flex h-[15px] min-w-[15px] items-center justify-center rounded-[3px] bg-colorFillTertiary px-1 font-mono text-[9.5px] font-medium text-colorTextSecondary">
+                            ←
+                        </span>
+                        back to commands
                     </span>
                 </div>
             )
@@ -320,7 +321,7 @@ export const SlashCommands: Story = {
                                         setPicker(null)
                                         clearCommand()
                                     }}
-                                    onDismiss={() => setPicker(null)}
+                                    onDismiss={dismissPicker}
                                     onBackToCommands={backToCommands}
                                     onOpenConfig={() => setApplied("open config")}
                                 />
@@ -336,7 +337,7 @@ export const SlashCommands: Story = {
                                         setPicker(null)
                                         clearCommand()
                                     }}
-                                    onDismiss={() => setPicker(null)}
+                                    onDismiss={dismissPicker}
                                     onBackToCommands={backToCommands}
                                     onOpenConfig={() => setApplied("open config")}
                                 />
@@ -347,6 +348,10 @@ export const SlashCommands: Story = {
                             onOpenChange={(next) => {
                                 if (!next) setPicker(null)
                             }}
+                            onDismissOutside={() => {
+                                skipFocusRestore.current = true
+                            }}
+                            onStepBack={backToCommands}
                             anchorRef={boxRef}
                             hideTrigger
                             showGroup
