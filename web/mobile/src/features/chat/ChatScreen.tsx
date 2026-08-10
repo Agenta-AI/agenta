@@ -56,11 +56,11 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
-    const {entityId: latestEntityId, agentId: resolvedAgentId, resolving} = useAgentEntity(
-        sessionId,
-        projectId,
-        agentId,
-    )
+    const {
+        entityId: latestEntityId,
+        agentId: resolvedAgentId,
+        resolving,
+    } = useAgentEntity(sessionId, projectId, agentId)
     // A revision picked in the top bar pins the workspace to it — config AND the conversation's
     // invocation target, as on the desktop. Unpinned, the agent's latest is what runs.
     const pinnedRevisionId = useAtomValue(selectedRevisionAtomFamily(sessionId))
