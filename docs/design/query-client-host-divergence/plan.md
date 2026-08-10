@@ -57,8 +57,8 @@ Triggers on `/m`, and making them writable. The latent breakage had nothing to i
 `web/mobile/src/lib/queryClient.ts` now re-exports the shared singleton and merges mobile's
 defaults onto it rather than replacing them (`setDefaultOptions` is a whole-object write, so
 spreading the existing `queries` preserves `experimental_prefetchInRender` set by the package
-layer). `AppProviders` needed no change. Verified live on `/m`: create, delete and connect all
-settle without a reload.
+layer). `AppProviders` needed no change. Verified live on `/m`: subscription create and delete both
+settle without a reload. (Tool *connect* is only partly covered — see the WP3 table.)
 
 ## Why this must not be left there
 
@@ -197,6 +197,17 @@ Not verified on `/m`, and why:
   under `mobile/src` reaches it. Converted and type-checked, but not exercisable on mobile at all;
   it can only regress on desktop OSS/EE, where the singleton and the host client coincide anyway.
 
+### WP5 — `ConnectDrawer` never invalidates the trigger connections
+
+Found by review on #5915, **pre-existing and unchanged by this work** — the same two keys are on the
+base. `gatewayTool/drawers/ConnectDrawer.tsx`'s local `invalidateConnections` invalidates
+`["tools", "connections"]` and `["tools", "catalog"]` but not `["triggers", "connections"]`, so
+connecting a tool can leave the Triggers connections list stale. Either add the third key or reuse
+`useToolConnectionActions`'s helper, which already covers all three.
+
+Deliberately not fixed in #5915: that lane is a pure "which client is addressed" change, and adding
+an invalidation is a behaviour change — same reasoning that keeps WP4 out.
+
 ### WP4 — decide on `refetchOnWindowFocus: false`
 
 Orthogonal to the client bug but it removed the safety net that would have masked it, and it is a
@@ -221,9 +232,12 @@ console.log("atom:", (useAtomValue(queryClientAtom) as any).__id,   // observers
 console.log("keys:", queryClient.getQueryCache().getAll().map(q => q.queryKey))
 ```
 
-All three ids equal → wired correctly. An `undefined` id on `atom`/`provider`, or an **empty
-`getAll()`** on the singleton, means the host installed a rival client and every package-layer
-write is a no-op.
+All three ids equal → wired correctly. An `undefined` id on `atom`/`provider` is the conclusive
+tell: the host installed a rival client and every package-layer write is a no-op.
+
+An **empty `getAll()`** on the singleton is only supporting evidence — a correctly wired client also
+has an empty cache before any query mounts. Read it after a query you know is live has rendered, and
+confirm the ids disagree before concluding anything.
 
 ## Dead ends, recorded so nobody repeats them
 

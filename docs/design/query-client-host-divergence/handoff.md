@@ -1,5 +1,8 @@
 # Handoff: route package-layer cache access through the host's QueryClient
 
+> **HISTORICAL — fully executed, landed as PR #5915.** The branch, worktree and working-tree state
+> described here was true when this was written. Read [`plan.md`](./plan.md) for the current state.
+
 You are picking up work that is already diagnosed. **Read
 [`plan.md`](./plan.md) in this folder first, in full** — it has the root cause, the evidence, the
 affected-file table and the dead ends. This file is the how-to; that file is the why. Do not

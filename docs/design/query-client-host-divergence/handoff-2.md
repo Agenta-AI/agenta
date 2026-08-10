@@ -1,5 +1,9 @@
 # Handoff 2 — land the QueryClient host-contract work
 
+> **HISTORICAL — fully executed, landed as PR #5915.** Every branch, worktree and dirty-status
+> reference below was true when this was written and is not an instruction to follow now. Read
+> [`plan.md`](./plan.md) for the current state; keep this only for the reasoning behind the choices.
+
 Continues [`handoff.md`](./handoff.md); background in [`plan.md`](./plan.md). WP1 and WP2 are
 **done and independently verified** — do not redo them.
 
