@@ -61,7 +61,6 @@ export const ProjectsPage = ({
     const [activeProject, setActiveProject] = useState<ProjectsResponse | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
 
-
     const scopedProjects = useMemo(() => {
         if (!projects) return []
         if (!workspaceId) return projects
@@ -177,13 +176,10 @@ export const ProjectsPage = ({
         [canDeleteProjects],
     )
 
-    const openRenameModal = useCallback(
-        (project: ProjectsResponse) => {
-            setActiveProject(project)
-            setRenameModalOpen(true)
-        },
-        [],
-    )
+    const openRenameModal = useCallback((project: ProjectsResponse) => {
+        setActiveProject(project)
+        setRenameModalOpen(true)
+    }, [])
 
     const columns = useMemo(
         () =>
@@ -300,10 +296,7 @@ export const ProjectsPage = ({
                                     </div>
                                 }
                             >
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setCreateModalOpen(true)}
-                                >
+                                <Button variant="outline" onClick={() => setCreateModalOpen(true)}>
                                     <Plus size={14} />
                                     New project
                                 </Button>
@@ -342,7 +335,6 @@ export const ProjectsPage = ({
                 pending: deleteMutation.isPending,
                 project: projectToDelete,
             })}
-
         </div>
     )
 }

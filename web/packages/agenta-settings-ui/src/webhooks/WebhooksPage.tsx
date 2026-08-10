@@ -13,10 +13,7 @@ import {Button, Input, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui
 import {useAtom, useSetAtom} from "jotai"
 
 import {useStaticTable} from "@agenta/settings"
-import {
-    WEBHOOK_TEST_FAILURE_MESSAGE,
-    handleTestResult,
-} from "@agenta/entities/webhook"
+import {WEBHOOK_TEST_FAILURE_MESSAGE, handleTestResult} from "@agenta/entities/webhook"
 import type {WebhookProvider, WebhookSubscription} from "@agenta/entities/webhook"
 import {setWebhookActiveAtom, testWebhookAtom, webhooksAtom} from "@agenta/entities/webhook"
 import {
@@ -173,9 +170,7 @@ export const WebhooksPage = ({
                     title: "Name",
                     width: 200,
                     fixed: "left",
-                    render: (_value, record) => (
-                        <span>{record.name || "-"}</span>
-                    ),
+                    render: (_value, record) => <span>{record.name || "-"}</span>,
                 },
                 {
                     type: "text",

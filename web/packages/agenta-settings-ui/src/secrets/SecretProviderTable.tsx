@@ -126,9 +126,7 @@ export const SecretProviderTable = ({
                               title: "Provider",
                               width: 180,
                               render: (_value: unknown, record: ProviderRow) => (
-                                  <Tag
-                                      className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                                  >
+                                  <Tag className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]">
                                       {record?.provider}
                                   </Tag>
                               ),
@@ -226,18 +224,18 @@ export const SecretProviderTable = ({
                         isCustom ? (
                             <>
                                 <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        aria-label="Reload providers"
-                                        disabled={loading}
-                                        onClick={mutate}
-                                    >
-                                        <ArrowClockwise size={14} />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Reload providers</TooltipContent>
-                            </Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            aria-label="Reload providers"
+                                            disabled={loading}
+                                            onClick={mutate}
+                                        >
+                                            <ArrowClockwise size={14} />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Reload providers</TooltipContent>
+                                </Tooltip>
                                 <Button
                                     disabled={loading}
                                     onClick={() => setIsConfigProviderOpen(true)}
@@ -323,7 +321,6 @@ export const SecretProviderTable = ({
                     setIsConfigProviderOpen(false)
                 },
             })}
-
         </>
     )
 }

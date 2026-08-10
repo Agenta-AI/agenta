@@ -15,7 +15,6 @@ import {Button, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
 import {useStaticTable} from "@agenta/settings"
 import {formatDay} from "@agenta/shared/utils/dateTime"
 
-
 /**
  * Mask stored secret content for display. `text` is masked like an API key
  * (first/last few chars); `json` shows the key names only, never the values.
@@ -80,9 +79,7 @@ export const NamedSecretTable = ({
                     title: "Value",
                     width: 200,
                     render: (_value, record) => (
-                        <span className="ph-no-capture">
-                            {maskContent(record)}
-                        </span>
+                        <span className="ph-no-capture">{maskContent(record)}</span>
                     ),
                 },
                 {
@@ -91,9 +88,7 @@ export const NamedSecretTable = ({
                     title: "Format",
                     width: 120,
                     render: (_value, record) => (
-                        <Tag
-                            className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                        >
+                        <Tag className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]">
                             {record.format}
                         </Tag>
                     ),
@@ -232,7 +227,6 @@ export const NamedSecretTable = ({
                     setIsDeleteModalOpen(false)
                 },
             })}
-
         </>
     )
 }
