@@ -7,9 +7,14 @@ import {cn} from "./utils"
  * `paneSize` in px, rendered as `flex-basis`) and one FILL pane (`flex:1 1 auto`). Replaces the
  * antd `Splitter` uses where one side is a rail/panel and the other is the canvas.
  *
- * Because the driven basis is fully React-controlled (no internal ResizeObserver rewriting
- * inline styles, which is what antd does), open/close animation is just a CSS transition on
- * `flex-basis`, gated by `animate` — none of the pre-frame machinery the antd version needed.
+ * Because the driven basis is fully React-controlled (nothing here rewrites inline styles the way
+ * antd's ResizeObserver does), open/close animation is just a CSS transition on `flex-basis`,
+ * gated by `animate` — none of the pre-frame machinery the antd version needed. The one observer
+ * it does keep is read-only: it supplies the divider's `aria-value*` bounds and touches no layout.
+ *
+ * The divider is a keyboard-operable window splitter: focusable while `resizable`, Arrow keys
+ * step it (Shift for a coarse step), Home/End jump to the bounds, and every path — pointer or
+ * key — runs the same `onResizeStart → onResize → onResizeEnd` cycle through the same clamp.
  *
  * The divider is the agent playground's gutter: a 9px channel (`--ag-surface-gutter`) with a
  * centred hairline and a grip pill that takes a primary tint on hover/drag (ported from
@@ -30,6 +35,8 @@ export interface SplitPaneProps {
     animate?: boolean
     /** Hide the divider entirely (collapsed rail). The panes stay mounted. */
     barHidden?: boolean
+    /** Accessible name for the divider — it is focusable whenever `resizable`. */
+    barLabel?: string
     onResizeStart?: () => void
     onResize?: (size: number, total: number) => void
     onResizeEnd?: (size: number, total: number) => void
@@ -45,6 +52,11 @@ const BAR_WIDTH = 9
 
 const SLIDE = "[transition:flex-basis_240ms_cubic-bezier(0.4,0,0.2,1)]"
 
+/** Keyboard resize increments — the ARIA window-splitter pattern's arrow step and its coarse
+ * (modifier-held) counterpart. */
+const KEY_STEP = 16
+const KEY_STEP_COARSE = 64
+
 export function SplitPane({
     paneSide,
     paneSize,
@@ -54,6 +66,7 @@ export function SplitPane({
     resizable = true,
     animate = false,
     barHidden = false,
+    barLabel = "Resize panes",
     onResizeStart,
     onResize,
     onResizeEnd,
@@ -67,6 +80,8 @@ export function SplitPane({
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [dragging, setDragging] = React.useState(false)
     const lastRef = React.useRef<{size: number; total: number}>({size: paneSize, total: 0})
+    /** Track width only so the divider can publish `aria-value*`; it never drives layout. */
+    const [measuredTotal, setMeasuredTotal] = React.useState(0)
 
     const clamp = React.useCallback(
         (raw: number, total: number) =>
@@ -74,10 +89,37 @@ export function SplitPane({
         [fillMin, paneMax, paneMin],
     )
 
+    const readTotal = React.useCallback(() => {
+        const rect = rootRef.current?.getBoundingClientRect()
+        return rect ? rect.width - BAR_WIDTH : lastRef.current.total
+    }, [])
+
+    React.useEffect(() => {
+        const el = rootRef.current
+        if (!el || typeof ResizeObserver === "undefined") return
+        const read = () => setMeasuredTotal(el.getBoundingClientRect().width - BAR_WIDTH)
+        read()
+        const observer = new ResizeObserver(read)
+        observer.observe(el)
+        return () => observer.disconnect()
+    }, [])
+
+    /** Both the pointer and keyboard paths land here, so the callback contract is one contract. */
+    const commit = React.useCallback(
+        (size: number, total: number) => {
+            lastRef.current = {size, total}
+            onResize?.(size, total)
+        },
+        [onResize],
+    )
+
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!resizable) return
         e.preventDefault()
         e.currentTarget.setPointerCapture(e.pointerId)
+        // Seed the total up front: a press-and-release with no movement never reaches
+        // `handlePointerMove`, and a `total` of 0 breaks any ratio the caller derives from it.
+        lastRef.current = {size: paneSize, total: readTotal()}
         setDragging(true)
         onResizeStart?.()
     }
@@ -90,16 +132,50 @@ export function SplitPane({
             paneSide === "start"
                 ? e.clientX - rect.left - BAR_WIDTH / 2
                 : rect.right - e.clientX - BAR_WIDTH / 2
-        const size = clamp(Math.round(raw), total)
-        lastRef.current = {size, total}
-        onResize?.(size, total)
+        commit(clamp(Math.round(raw), total), total)
     }
-    const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    /** `pointerup` and `pointercancel` (scroll takeover, browser gesture) share one exit — without
+     * it a cancelled pointer leaves `dragging` stuck true and `onResizeEnd` never fires. */
+    const handlePointerFinish = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!dragging) return
-        e.currentTarget.releasePointerCapture(e.pointerId)
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId)
+        }
         setDragging(false)
         onResizeEnd?.(lastRef.current.size, lastRef.current.total)
     }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (!resizable) return
+        const total = readTotal()
+        const step = e.shiftKey ? KEY_STEP_COARSE : KEY_STEP
+        // Arrows are spatial: ArrowRight always moves the DIVIDER right, which grows a start-side
+        // pane and shrinks an end-side one.
+        const towardsEnd = paneSide === "start" ? 1 : -1
+        let next: number
+        if (e.key === "ArrowRight") next = paneSize + step * towardsEnd
+        else if (e.key === "ArrowLeft") next = paneSize - step * towardsEnd
+        else if (e.key === "Home") next = paneMin
+        else if (e.key === "End") next = paneMax
+        else return
+        e.preventDefault()
+        const size = clamp(next, total)
+        if (size === paneSize) return
+        // A keystroke is a whole gesture, so it runs the full start → resize → end cycle rather
+        // than a parallel one-shot callback.
+        onResizeStart?.()
+        commit(size, total)
+        onResizeEnd?.(size, total)
+    }
+
+    const ariaValues =
+        resizable && measuredTotal > 0
+            ? {
+                  "aria-valuenow": Math.round(clamp(paneSize, measuredTotal)),
+                  "aria-valuemin": Math.round(clamp(paneMin, measuredTotal)),
+                  "aria-valuemax": Math.round(clamp(paneMax, measuredTotal)),
+              }
+            : undefined
 
     const paneNode = (
         <div
@@ -120,12 +196,18 @@ export function SplitPane({
             data-slot="split-pane-bar"
             role="separator"
             aria-orientation="vertical"
+            aria-label={resizable ? barLabel : undefined}
+            {...ariaValues}
+            tabIndex={resizable ? 0 : undefined}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
+            onPointerUp={handlePointerFinish}
+            onPointerCancel={handlePointerFinish}
+            onKeyDown={handleKeyDown}
             className={cn(
                 "group relative z-[5] box-border h-full shrink-0 touch-none select-none bg-[var(--ag-surface-gutter)]",
-                resizable && "cursor-col-resize",
+                resizable &&
+                    "cursor-col-resize outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-focus-ring",
                 barClassName,
             )}
             style={{flexBasis: BAR_WIDTH, width: BAR_WIDTH}}
