@@ -7,7 +7,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
-import {sessionLivenessAtomFamily} from "../state/liveness"
+import {sessionRunningElsewhereAtomFamily} from "../state/liveness"
 import {useChatScopeKey} from "../state/scope"
 import {isSessionFresh} from "../state/sessionEphemera"
 import {activeSessionIdAtomFamily} from "../state/sessions"
@@ -210,10 +210,12 @@ export const useSessionHydration = ({
     // There is no push channel to browsers: the runner publishes every event to Redis, but the only
     // consumer is the ingest worker that writes them to the DB. So a session driven from another tab
     // or device is followed by re-reading the durable log on a timer, and the adoption guard above
-    // decides whether anything actually changed. `isRunning` also covers OUR stream, so exclude the
-    // case where this browser is the one driving.
-    const {nest} = useAtomValue(sessionLivenessAtomFamily(sessionId))
-    const runningElsewhere = nest.isRunning && !busy
+    // decides whether anything actually changed. `isRunning` also covers OUR stream, so the atom
+    // excludes every case where this browser is the one driving (#5844).
+    // `busy` stays as a second guard: it flips on the SEND commit, one commit before the status
+    // atom the derivation reads, so it hides the strip a frame earlier when a local send takes over
+    // a session that genuinely was running elsewhere.
+    const runningElsewhere = useAtomValue(sessionRunningElsewhereAtomFamily(sessionId)) && !busy
 
     useEffect(() => {
         if (!runningElsewhere) return

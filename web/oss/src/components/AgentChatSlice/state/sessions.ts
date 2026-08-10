@@ -883,20 +883,46 @@ export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
     atom((get) => get(sessionStatusByIdAtom)[id] === "running"),
 )
 
+/**
+ * When each session's LOCAL run last settled (ms epoch), stamped when an active run becomes idle
+ * or errors. Read by the running-elsewhere derivation: backend liveness is a poll snapshot
+ * up to 15s stale, so a flag fetched BEFORE our own turn ended says nothing about whether anyone
+ * else is running it (#5844). In-memory only — it describes this browser tab, not history.
+ */
+const sessionLocalSettledAtByIdAtom = atom<Record<string, number>>({})
+
+/** When this browser's run of a session last settled; `undefined` if it never ran one here. */
+export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionLocalSettledAtByIdAtom, (map) => map[id]),
+)
+
 /** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
  * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
 export const setSessionStatusAtom = atom(
     null,
     (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
         const cur = get(sessionStatusByIdAtom)
+        const wasActive = cur[id] === "running" || cur[id] === "awaiting"
         if (status === "idle") {
             if (!(id in cur)) return
+            if (wasActive) {
+                set(sessionLocalSettledAtByIdAtom, {
+                    ...get(sessionLocalSettledAtByIdAtom),
+                    [id]: Date.now(),
+                })
+            }
             const next = {...cur}
             delete next[id]
             set(sessionStatusByIdAtom, next)
             return
         }
         if (cur[id] === status) return
+        if (status === "error" && wasActive) {
+            set(sessionLocalSettledAtByIdAtom, {
+                ...get(sessionLocalSettledAtByIdAtom),
+                [id]: Date.now(),
+            })
+        }
         set(sessionStatusByIdAtom, {...cur, [id]: status})
     },
 )
