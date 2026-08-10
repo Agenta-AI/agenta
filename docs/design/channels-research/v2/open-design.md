@@ -32,23 +32,14 @@ are the same event. What remains is the parsing and the event kind.
 
 Note this is what made C4's exit condition unreachable as originally written.
 
-### 4. Capabilities is missing two axes
+### 4. Capabilities — three missing axes, one change — `capabilities-v2.md`
 
-It declares what a channel **can do**, and needs to declare:
+**Written.** It declares what a channel can do, and must also declare what it
+**needs** (the credential schema), what to do **instead** (the per-node text
+fallback), and all of it **per connection** rather than per channel — two app models
+differ in capability, and a workspace can decline a scope at install.
 
-- **what it needs** — the credential schema, which is why provisioning has nowhere
-  to live.
-- **what to do instead** — the per-node text fallback, which is why rendering has
-  no answer for a surface without buttons.
-
-Both gaps only appeared once a second adapter existed. They are one change.
-
-### 5. Per-connection capabilities
-
-Declarations are keyed on the channel name, so every connection on a channel shares
-one. Two bridges therefore share a declaration, and the second is validated against
-the first's locator fields. Half of an already-recorded finding; the verification
-half is fixed.
+Same type, same call site, so one change rather than three. Absorbs the old item 5.
 
 ### 6. A mock channel worth keeping
 
@@ -81,10 +72,12 @@ because those belong to the app rather than the installation. `provisioning.md` 
 carries that as its section 0. What remains is whether we offer both, and how a
 customer moves from one to the other.
 
-### 8. Identity linking
+### 8. Identity linking — `identity.md`
 
-A platform user becoming an Agenta account. There is a table and there are grant
-findings; there is no design for the flow.
+**Written.** The read path exists and nothing creates a link, so every platform user
+is permanently unlinked. A short-lived single-use token posted in-thread, redeemed
+against the user's own authenticated session. Agenta-as-a-channel skips it entirely
+— which is a reason not to treat web as proof that identity works.
 
 ### 9. The configuration surface
 
@@ -92,16 +85,57 @@ What a user actually sees: which agents on which spaces, which commands enabled,
 which spaces discovered. `provisioning.md` assumes this exists. Related to 6 — the
 same web work.
 
-### 10. The bridge: live or die
+### 10. The bridge: **keep** — decided
 
-Not a finding, a decision. It exists so a third party can add a channel without us.
-Nobody has asked. A comparable product covers eight surfaces with first-party
-adapters and no extension point, which shows the adapter route scales — it does not
-show a bridge is worthless.
+Measured rather than assumed: `_ingest` branches on channel **zero** times, and
+outside the bridge adapter's own directory the word appears only in docstrings and
+one auth entry. The over-wire path *is* the in-process path reached over HTTP.
 
-What is already built: the adapter, the wire contract, the identity rule, an
-out-of-process test counterpart. Keeping it costs the per-connection capability
-work; dropping it recovers that and removes a public route.
+So cutting it recovers almost nothing — the per-connection capability work is needed
+regardless, the moment one customer has two Slack workspaces with different
+declarations. The earlier argument to cut attributed a general cost to the bridge.
+
+The argument to keep is the one our own contract already made: the bridge is the
+only consumer of the adapter contract that is not us, and a contract only its author
+implements is a data structure. The out-of-process counterpart has already earned
+this once, by finding the defect that broke Slack too.
+
+### 11. Agenta as a channel
+
+Both comparable products treat their own surface as a channel alongside Slack. Doing
+the same makes item 6 not a mock but a **first-party channel** — which is why it
+needs no credentials and can drive the whole journey.
+
+It also sets the capability ceiling from the other end: we own the surface, so it
+renders everything, and every platform degrades from it.
+
+To settle: whether this replaces the existing chat/session UI or sits beside it —
+new surface, or re-plumbing of one that exists.
+
+### 12. The identity key is the bot, not the place
+
+`integration_key` holds Slack's `team_id`, which identifies the **workspace**. Two
+bots in one workspace therefore collide, and the ingress lookup takes `LIMIT 1` on
+`(provider_key, integration_key)` — so the second bot is unreachable and the first
+silently wins.
+
+A connection already **is** one bot, so no new entity and no new column: the field is
+right and the value is wrong. It must hold whatever identifies the bot — for Slack
+`team_id` plus `api_app_id`.
+
+Two consequences worth stating as rules:
+
+- **The ingress resolve is the one query that cannot be project-scoped**, because its
+  job is to *establish* the project. Everything after it is scoped by what it
+  returned. So the key must be **globally** unique, not unique per project — today's
+  constraint is `(project_id, provider_key, integration_key, slug)`, which permits two
+  projects to collide.
+- **`slug` should not be part of the identity.** If a connection is a bot and the key
+  identifies the bot, two rows differing only by slug are two names for one bot —
+  which is exactly what `LIMIT 1` cannot resolve.
+
+Being confirmed against the four platforms' actual payloads before it is written up;
+Telegram in particular may carry no bot id at all.
 
 ## Explicitly parked
 
