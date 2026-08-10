@@ -72,8 +72,17 @@ export const AgentOverviewScreen = ({
                                 </h1>
                                 {/* The same verbs the desktop header offers; rename and delete
                                     fall through to the shared implementations here, since /m has
-                                    no app-management modals of its own. */}
-                                <AgentActionsMenu agent={{id: agentId, name, slug: agent?.slug}} />
+                                    no app-management modals of its own.
+
+                                    Held back until the record lands, like every other agent fact
+                                    on this screen: until then `name` is the "Agent" placeholder,
+                                    so a rename would open seeded with it and the destructive
+                                    verbs would act on an agent whose name and slug are unknown. */}
+                                {agent ? (
+                                    <AgentActionsMenu
+                                        agent={{id: agentId, name, slug: agent.slug}}
+                                    />
+                                ) : null}
                             </ContentRail>
                         </div>
                     }
