@@ -1,5 +1,6 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {
     Button,
     Dialog,
@@ -57,6 +58,19 @@ export default function ConnectModal({
     const availableModes = resolveAvailableModes(authSchemes)
     const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
 
+    // The popup-closed poll outlives the handler that starts it, so it has to be reachable from
+    // outside: an unmount while the popup is still open would otherwise leave an interval running
+    // for the life of the page, invalidating queries and setting state on a dead component.
+    const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    const stopPoll = useCallback(() => {
+        if (pollTimerRef.current === null) return
+        clearInterval(pollTimerRef.current)
+        pollTimerRef.current = null
+    }, [])
+
+    useEffect(() => stopPoll, [stopPoll])
+
     const handleClose = useCallback(() => {
         setSlug("")
         setName("")
@@ -100,9 +114,10 @@ export default function ConnectModal({
                     return
                 }
 
-                const pollTimer = setInterval(() => {
+                stopPoll()
+                pollTimerRef.current = setInterval(() => {
                     if (popup.closed) {
-                        clearInterval(pollTimer)
+                        stopPoll()
                         window.focus()
                         invalidate()
                         handleClose()
@@ -114,8 +129,9 @@ export default function ConnectModal({
             }
         } catch {
             setLoading(false)
+            message.error("Failed to create connection")
         }
-    }, [slug, name, selectedMode, handleCreate, handleClose, invalidate])
+    }, [slug, name, selectedMode, handleCreate, handleClose, invalidate, stopPoll])
 
     return (
         <Dialog open={open} onOpenChange={(next) => (next ? undefined : handleClose())}>

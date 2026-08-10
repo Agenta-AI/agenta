@@ -167,7 +167,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                 },
             })
         },
-        [handleDelete],
+        [confirm, handleDelete],
     )
 
     const confirmRevoke = useCallback(
@@ -187,7 +187,7 @@ export default function GatewayToolsSection({confirm, readOnly}: GatewayToolsSec
                 },
             })
         },
-        [handleRevoke],
+        [confirm, handleRevoke],
     )
 
     interface ToolRow extends ToolConnection {
