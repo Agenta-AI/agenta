@@ -34,6 +34,11 @@ const {Text} = Typography
  */
 const DEFERRED_SENTINEL = "DEFERRED_NOT_EXECUTED"
 
+/** Non-error terminal reasons (see `ConnectOutput.reason`): render generic wording for
+ * these; any other `reason` is a real failure message and must be shown verbatim — a
+ * create failure was previously settling silently with no error surfaced at all. */
+const KNOWN_CONNECT_REASONS = new Set(["declined", "cancelled", "timeout"])
+
 const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
     const {label, phase, errorText, outcome, manuallyConnected, runConnect, cancel} =
         useConnectFlow(meta, settle)
@@ -83,12 +88,30 @@ const ConnectToolWidget = ({meta, settle}: ClientToolHandlerProps) => {
                 </ChipRow>
             )
         }
-        // Declined / cancelled / timeout / failed: a Retry re-runs the OAuth fresh (the parked call
-        // already resolved, so this primes the vault and flips the chip on success).
+        // Declined / cancelled / timeout: quiet generic wording — these are expected, not
+        // errors. Any other reason is the create call's own failure message and must be
+        // shown, not swallowed behind the same generic text (it previously was).
+        const reason = outcome?.reason ?? output.reason
+        const failureDetail =
+            typeof reason === "string" && reason && !KNOWN_CONNECT_REASONS.has(reason)
+                ? reason
+                : undefined
         return (
-            <ChipRow icon={<Warning size={13} weight="fill" className="text-colorWarning" />}>
-                <Text type="secondary" className="!text-xs">
-                    Connection not completed
+            <ChipRow
+                icon={
+                    <Warning
+                        size={13}
+                        weight="fill"
+                        className={failureDetail ? "text-colorError" : "text-colorWarning"}
+                    />
+                }
+            >
+                <Text
+                    type={failureDetail ? "danger" : "secondary"}
+                    className="!text-xs truncate"
+                    title={failureDetail}
+                >
+                    {failureDetail ?? "Connection not completed"}
                 </Text>
                 <RetryButton onClick={() => runConnect(false)} />
             </ChipRow>

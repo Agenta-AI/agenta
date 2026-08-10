@@ -27,6 +27,8 @@
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {useToolIntegrationDetail} from "@agenta/entities/gatewayTool"
+
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
 import {useToolsConnections} from "../../../pages/settings/Tools/hooks/useToolsConnections"
@@ -47,6 +49,11 @@ export interface ConnectOutput {
     connected?: boolean
     integration?: string
     slug?: string
+    /**
+     * `"declined" | "cancelled" | "timeout"` for the three expected non-error terminal
+     * states, or the actual failure message when the create call itself errored (see
+     * `KNOWN_CONNECT_REASONS` in ConnectToolWidget, which renders the latter verbatim).
+     */
     reason?: string
 }
 
@@ -55,6 +62,53 @@ export type ConnectPhase = "idle" | "connecting" | "error"
 /** `github` → `GitHub`-ish: a readable label without a provider catalog lookup. */
 const prettyIntegration = (key: string): string =>
     key ? key.charAt(0).toUpperCase() + key.slice(1) : "the service"
+
+/**
+ * Resolve the actual connect mode to use, the same way the settings ConnectModal's
+ * `resolveAvailableModes` does — the toolkit's own catalog data is the source of truth for
+ * which modes it supports, not the agent's `mode` hint. A toolkit with no Composio-managed
+ * OAuth (e.g. telegram — Composio 404s "Default auth config not found... Use type
+ * use_custom_auth instead") reports no `"oauth"` scheme, so blindly trusting a hint of
+ * `"oauth"` 404s every time. `authSchemes` undefined/empty (catalog still loading, or the
+ * backend reported none) keeps the hint as-is rather than blocking the flow.
+ */
+export const resolveConnectMode = (
+    hintedMode: "oauth" | "api_key",
+    authSchemes: string[] | null | undefined,
+): "oauth" | "api_key" => {
+    if (!authSchemes || authSchemes.length === 0) return hintedMode
+    const supportsOauth = authSchemes.includes("oauth")
+    const supportsApiKey = authSchemes.includes("api_key")
+    if (hintedMode === "oauth" && supportsOauth) return "oauth"
+    if (hintedMode === "api_key" && supportsApiKey) return "api_key"
+    // The hint isn't actually supported: use whatever the toolkit does support instead.
+    if (supportsOauth) return "oauth"
+    if (supportsApiKey) return "api_key"
+    return hintedMode
+}
+
+/**
+ * Prefer the backend's own `detail` on a 4xx (e.g. "telegram has no managed OAuth
+ * configuration…") — Fern's default `Error.message` bundles a multi-line dump
+ * (`message\nStatus code: 422\nBody: {...}`) that is not fit to show a user. Any other
+ * failure (network error, 5xx) falls back to a generic message.
+ */
+export const extractConnectErrorMessage = (err: unknown): string => {
+    const statusCode = (err as {statusCode?: unknown} | null)?.statusCode
+    const body = (err as {body?: unknown} | null)?.body
+    const detail =
+        body && typeof body === "object" ? (body as {detail?: unknown}).detail : undefined
+    if (
+        typeof statusCode === "number" &&
+        statusCode >= 400 &&
+        statusCode < 500 &&
+        typeof detail === "string" &&
+        detail
+    ) {
+        return detail
+    }
+    return "Connection failed. Please try again."
+}
 
 /** Read the API origin the OAuth callback page posts from; null if it can't be resolved. */
 const agentaApiOrigin = (): string | null => {
@@ -74,7 +128,11 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     // back as the reference the runner re-resolves.
     const slug =
         typeof input.slug === "string" && input.slug ? input.slug : integration || "default"
-    const mode = input.mode === "api_key" ? "api_key" : "oauth"
+    const hintedMode = input.mode === "api_key" ? "api_key" : "oauth"
+    // The toolkit's real supported schemes override a hint the toolkit doesn't actually
+    // support (see `resolveConnectMode`) — a stale/loading catalog just keeps the hint.
+    const {integration: integrationDetail} = useToolIntegrationDetail(integration)
+    const mode = resolveConnectMode(hintedMode, integrationDetail?.auth_schemes)
     const label = prettyIntegration(integration)
     // A window name UNIQUE to this parked call. Several connect flows can be live at once; a shared
     // name makes the second `window.open` reuse the first's popup, so the second flow's
@@ -92,8 +150,9 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
     const [manuallyConnected, setManuallyConnected] = useState(false)
     // The live flow's terminal result, held locally so the chip paints the instant we settle —
     // `meta.settled` only flips a render later (after `addToolOutput` propagates), and without this
-    // the surface would stay on "Connecting…" until then.
-    const [outcome, setOutcome] = useState<{connected: boolean} | null>(null)
+    // the surface would stay on "Connecting…" until then. `reason` mirrors `ConnectOutput.reason`
+    // so a failure's message renders on that same first frame instead of one render late.
+    const [outcome, setOutcome] = useState<{connected: boolean; reason?: string} | null>(null)
 
     // One-shot guard so THIS instance settles the parked call at most once, plus shared cleanup for
     // the running popup's listener/poll/timeout. `meta.settled` covers the OTHER instance's settle.
@@ -118,10 +177,10 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             // Leave "connecting" and record the terminal result so the chip paints now.
             setPhase("idle")
             if ("errorText" in result) {
-                setOutcome({connected: false})
+                setOutcome({connected: false, reason: result.errorText})
                 settle({errorText: result.errorText})
             } else {
-                setOutcome({connected: result.connected === true})
+                setOutcome({connected: result.connected === true, reason: result.reason})
                 settle({output: result as Record<string, unknown>})
             }
         },
@@ -250,7 +309,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
                 }
             } catch (err) {
                 if (settleParkedCall && !activeRef.current) return
-                const message = err instanceof Error ? err.message : "Connection failed."
+                const message = extractConnectErrorMessage(err)
                 // A create failure is terminal for the parked call: settle so the run resumes; for a
                 // manual retry just surface the reason with another Retry.
                 setPhase("error")
