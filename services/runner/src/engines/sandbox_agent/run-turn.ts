@@ -993,9 +993,28 @@ export async function runTurn(
           `[keepalive] resume answered gate reply=${decision.reply} tool=${decision.toolName ?? "?"}`,
         );
       }
-      // The harness still holds carried gates inside the original prompt, so re-arm the pause after
-      // this answer batch and let the normal park path refresh their approval TTL.
-      if (opts.resume.carriedForward.length > 0) pause.pause();
+      // The harness still holds carried gates inside the original prompt, so the turn must end
+      // paused again — but pause() both destroys the live session and settles the race signal
+      // below, so pausing here would kill a freshly-approved execution mid-flight and the
+      // paused-settle would replace its REAL result with the UNKNOWN sentinel (issue #5907).
+      // Give each answered/allowed execution its closure window FIRST, on the same per-call
+      // bound the paused-settle uses, then re-arm the pause and let the normal park path
+      // refresh the carried gates' approval TTL. Pi is exempt on purpose: it prepares the whole
+      // batch before executing any call, so while a carried sibling gate is pending closure is
+      // impossible and the paused-settle's park-and-carry branch owns those spans.
+      if (opts.resume.carriedForward.length > 0) {
+        if (!plan.isPi) {
+          const answeredAllowedIds = decisions
+            .filter((decision) => decision.reply === "once")
+            .map((decision) => decision.toolCallId);
+          await Promise.all(
+            answeredAllowedIds.map((toolCallId) =>
+              waitForToolCallClosure(toolCallId, resolvedRunLimits.toolCallMs),
+            ),
+          );
+        }
+        pause.pause();
+      }
     } else {
       promptPromise = Promise.resolve(
         env.session.prompt(promptBlocks),

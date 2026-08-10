@@ -4,7 +4,8 @@
     "Naming sessions and agents after the model has enough context to choose a useful label.",
     "The verdict comes from the stored session or workflow header, never from the reply.",
     "name-05 seeds the VERBATIM product-default persona (_DEFAULT_AGENTS_MD in sdks/python/agenta/sdk/utils/types.py, drift-locked by the SDK unit test test_default_persona_self_naming.py): live QA showed task-shaped personas self-name while the bare default persona did not, so this scenario is the regression guard for the real new-user experience.",
-    "name-06 mirrors the composer path (workflow created with the raw request as its name, session auto-titled from the first message) and expects rename_session AND rename_agent in the same first-task turn — the pairing the persona now instructs, after a live session showed the standalone rename_agent trigger being forgotten. max_rename_calls is a SINGLE combined counter across both rename tools (run_benchmark sums them), so 2 here plus the two min-1 tool checks pins exactly one call each."
+    "name-06 mirrors the composer path (workflow created with the raw request as its name, session auto-titled from the first message) and expects rename_session AND rename_agent in the same first-task turn — the pairing the persona now instructs, after a live session showed the standalone rename_agent trigger being forgotten. max_rename_calls is a SINGLE combined counter across both rename tools (run_benchmark sums them), so 2 here plus the two min-1 tool checks pins exactly one call each.",
+    "name-06 mounts both rename ops with permission: allow, mirroring the shipped build-kit overlay — in the product these calls never raise a gate, so the scenario measures naming behavior, not approval mechanics. The approval-race regression (issue #5907, two gates with one answered on resume) is guarded at the runner unit layer (services/runner/tests/unit/session-keepalive-approval.test.ts), not here."
   ],
   "scenarios": [
     {
@@ -253,11 +254,13 @@
       "tools": [
         {
           "type": "platform",
-          "op": "rename_session"
+          "op": "rename_session",
+          "permission": "allow"
         },
         {
           "type": "platform",
-          "op": "rename_agent"
+          "op": "rename_agent",
+          "permission": "allow"
         }
       ],
       "budget": {
