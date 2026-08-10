@@ -152,8 +152,15 @@ const tests = () => {
                 await expectAuthenticatedSession(page)
             })
 
-            await scenarios.and("at least one prompt app exists in the project", async () => {
-                const app = await apiHelpers.getApp()
+            await scenarios.and("a fresh completion app exists in the project", async () => {
+                // createApp(), not getApp(): the workflow list has no field that tells a
+                // completion app from an agent app (both carry the same
+                // {is_application, is_evaluator, is_snippet} flags), so getApp()'s loose
+                // "completion" matcher can pick up an agent app seeded by another test in
+                // the same shared ephemeral project (e.g. agent-chat). An agent app has no
+                // "Deployment" section, so this test hung waiting for a heading that would
+                // never render. Always minting a fresh app sidesteps the ambiguity.
+                const app = await apiHelpers.createApp("completion")
                 appId = app.id
             })
 

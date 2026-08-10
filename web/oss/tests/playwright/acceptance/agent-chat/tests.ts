@@ -130,24 +130,48 @@ const testWithAgentChatFixtures = baseTest.extend<AgentChatFixtures>({
 
     navigateToAgentPlayground: async ({page, uiHelpers}, use) => {
         await use(async (appId: string) => {
-            const scopedPrefix =
-                new URL(page.url() || "http://localhost").pathname.match(
-                    /^(\/w\/[^/]+\/p\/[^/]+)/,
-                )?.[1] ?? ""
-            const playgroundUrl = `${scopedPrefix}/apps/${appId}/playground`
-            const revisionId = seededRevisionByApp.get(appId)
+            const scopedPrefixFrom = (url: string) =>
+                new URL(url || "http://localhost").pathname.match(/^(\/w\/[^/]+\/p\/[^/]+)/)?.[1] ??
+                ""
 
-            await page.goto(scopedPrefix ? `${scopedPrefix}/apps` : "/apps", {
+            // seedAgentChatApp() only makes API calls, so on a fresh test page.url() is
+            // still "about:blank" here — scopedPrefix would be permanently empty if read
+            // now. Navigate to the unscoped /apps first (the server resolves it to the
+            // workspace/project-scoped URL), THEN read the prefix from the page's new,
+            // resolved URL. Reading it before this goto sent every later navigation
+            // (playground included) to an unscoped path, which the app doesn't route to
+            // the seeded app — it falls through to the bare onboarding playground instead.
+            const initialScopedPrefix = scopedPrefixFrom(page.url())
+            await page.goto(initialScopedPrefix ? `${initialScopedPrefix}/apps` : "/apps", {
                 waitUntil: "domcontentloaded",
             })
             await uiHelpers.expectPath("/apps")
+
+            const scopedPrefix = scopedPrefixFrom(page.url())
+            const playgroundUrl = `${scopedPrefix}/apps/${appId}/playground`
+            const revisionId = seededRevisionByApp.get(appId)
             const target = revisionId ? `${playgroundUrl}?revisions=${revisionId}` : playgroundUrl
             await page.goto(target, {waitUntil: "domcontentloaded"})
             await uiHelpers.expectPath(`/apps/${appId}/playground`)
 
             // The agent chat panel is interactive once the composer textbox is mounted.
             // (First-run: confirm this selector against the live RichChatInput composer.)
-            await expect(page.getByRole("textbox").last()).toBeVisible({timeout: 30000})
+            const composer = page.getByRole("textbox").last()
+            // A revision committed moments earlier via direct API calls can race the
+            // playground's entity resolution (read-your-writes lag against the
+            // just-created revision), landing on MainLayout's "Playground is unable to
+            // communicate with the service" error state instead of the composer. That
+            // panel's own "Try again" button has no onClick (dead), so recover with a
+            // real reload instead, which re-runs entity resolution from scratch.
+            const errorState = page.getByText(
+                "Playground is unable to communicate with the service",
+            )
+            await expect(composer.or(errorState).first()).toBeVisible({timeout: 30000})
+            for (let attempt = 0; attempt < 3 && !(await composer.isVisible()); attempt += 1) {
+                await page.reload({waitUntil: "domcontentloaded"})
+                await expect(composer.or(errorState).first()).toBeVisible({timeout: 20000})
+            }
+            await expect(composer).toBeVisible({timeout: 30000})
         })
     },
 

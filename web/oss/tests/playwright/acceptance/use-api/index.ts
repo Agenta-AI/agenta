@@ -111,16 +111,26 @@ const deployFirstVariantToDevelopment = async (
  * Opens the "How to use API" drawer from the Variants tab.
  * Uses the data-tour attribute so we target exactly this button even if other
  * "Use API" buttons exist elsewhere in the page.
- * Waits for networkidle first so Jotai atoms are settled before the click.
+ * Not `waitForLoadState("networkidle")`: the layout keeps a live SSE connection
+ * open (ProjectWatch), so the network never goes idle and this would hang for
+ * the full test timeout. The button visibility/enabled checks below already
+ * wait for the page (and its Jotai atoms) to be ready.
  */
 const openVariantUseApiDrawer = async (page: any) => {
-    await page.waitForLoadState("networkidle")
+    // The Use API button is NOT disabled while no revision is selected (it captures
+    // selectedRevisionId at click time), so wait for the registry's auto-selection to
+    // settle (an antd row checkbox turns checked) before clicking — clicking early
+    // opens the drawer with an undefined revision and empty snippets.
+    await expect(page.locator(".ant-checkbox-checked").first()).toBeVisible({timeout: 15000})
     const useApiButton = page.locator('[data-tour="api-code-button"]')
     await expect(useApiButton).toBeVisible({timeout: 15000})
     await expect(useApiButton).toBeEnabled({timeout: 5000})
     await useApiButton.click()
 
-    const drawer = page.locator(".ant-drawer-content-wrapper").filter({
+    // The drawer renders through EnhancedDrawer, a facade over the @agenta/ui
+    // (Radix) Sheet, so the panel is `[data-slot="sheet-content"]`, not an antd
+    // `.ant-drawer-content-wrapper`.
+    const drawer = page.locator('[data-slot="sheet-content"]').filter({
         hasText: "How to use API",
     })
     await expect(drawer).toBeVisible({timeout: 20000})
@@ -130,17 +140,18 @@ const openVariantUseApiDrawer = async (page: any) => {
 /**
  * Opens the "How to use API" drawer from the Deployments tab.
  * Uses the generic primary "Use API" button (no data-tour on the deployments one).
- * Waits for networkidle first — DeploymentsDashboard is a dynamic() import whose
- * onClick setter may not be wired yet if clicked too early.
+ * Not `waitForLoadState("networkidle")` — see openVariantUseApiDrawer above. The
+ * button visibility/enabled checks below wait out the DeploymentsDashboard
+ * dynamic() import instead.
  */
 const openDeploymentUseApiDrawer = async (page: any) => {
-    await page.waitForLoadState("networkidle")
     const useApiButton = page.getByRole("button", {name: "Use API"}).first()
     await expect(useApiButton).toBeVisible({timeout: 15000})
     await expect(useApiButton).toBeEnabled({timeout: 5000})
     await useApiButton.click()
 
-    const drawer = page.locator(".ant-drawer-content-wrapper").filter({
+    // Same Radix Sheet facade as openVariantUseApiDrawer above.
+    const drawer = page.locator('[data-slot="sheet-content"]').filter({
         hasText: "How to use API",
     })
     await expect(drawer).toBeVisible({timeout: 20000})
@@ -192,7 +203,7 @@ const useApiTests = () => {
 
             await scenarios.when("the user opens the Use API drawer", async () => {
                 // data-tour="api-code-button" uniquely identifies the variants-tab "Use API"
-                // button. networkidle ensures Jotai atoms are settled before the click.
+                // button.
                 useApiDrawer = await openVariantUseApiDrawer(page)
             })
 
