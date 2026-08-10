@@ -277,7 +277,11 @@ class Turn:
         self.tool_calls: list[dict] = []
         self.tool_outcomes: dict[str, str] = {}
         self.tool_payloads: dict[str, dict] = {}
-        self.approval: dict | None = None
+        # EVERY gate this turn raised, in raise order (a multi-gate turn raises one
+        # `tool-approval-request` frame per call). The old single `approval` dict was
+        # overwritten per frame, so only the LAST gate ever got answered and the rest
+        # sat pending until their TTL.
+        self.approvals: list[dict] = []
         self.finish_reason: str | None = None
         self.errors: list[str] = []
         self.committed_revision = None
@@ -287,6 +291,14 @@ class Turn:
     @property
     def reply(self) -> str:
         return "".join(self.text_parts)
+
+    @property
+    def approval(self) -> dict | None:
+        """The most recent raised gate — the back-compat single-gate view of `approvals`.
+
+        Every existing caller reads truthiness plus `toolCallId`/`approvalId`; none assigns.
+        """
+        return self.approvals[-1] if self.approvals else None
 
     def assistant_message(self) -> dict:
         parts = []
@@ -316,9 +328,17 @@ class Turn:
                     part["errorText"] = self.tool_payloads.get(
                         call["toolCallId"], {}
                     ).get("errorText")
-                if self.approval and self.approval["toolCallId"] == call["toolCallId"]:
+                gate = next(
+                    (
+                        g
+                        for g in self.approvals
+                        if g["toolCallId"] == call["toolCallId"]
+                    ),
+                    None,
+                )
+                if gate:
                     part["state"] = "approval-requested"
-                    part["approval"] = {"id": self.approval["approvalId"]}
+                    part["approval"] = {"id": gate["approvalId"]}
                 parts.append(part)
         if text_buf:
             parts.append({"type": "text", "text": "".join(text_buf)})
@@ -397,10 +417,15 @@ def invoke(
                     if is_new:
                         t._segments.append({"kind": "tool", "id": call["toolCallId"]})
                 elif ftype == "tool-approval-request":
-                    t.approval = {
+                    gate = {
                         "approvalId": f.get("approvalId"),
                         "toolCallId": f.get("toolCallId"),
                     }
+                    # Collect every raised gate; a re-raise for the same call refreshes
+                    # its approval id in place without changing the raise order.
+                    t.approvals = [
+                        g for g in t.approvals if g["toolCallId"] != gate["toolCallId"]
+                    ] + [gate]
                     if log:
                         print(
                             f"  !! approval-request: {json.dumps(f)[:400]}",
@@ -448,13 +473,27 @@ def invoke(
 
 
 def approval_reply(turn: Turn, approved: bool) -> dict:
+    """One assistant message answering EVERY gate the turn raised.
+
+    A multi-gate turn (a parallel batch) raises one `tool-approval-request` frame per
+    call; answering only one leaves the rest pending until their TTL. Each raised gate
+    gets the same `approved` value. A single-gate turn produces the exact message this
+    always produced."""
+    if not turn.approvals:
+        raise ValueError("turn raised no approval gate")
     message = turn.assistant_message()
+    by_tool_call = {g["toolCallId"]: g for g in turn.approvals}
+    answered = 0
     for part in message["parts"]:
-        if part.get("toolCallId") == turn.approval["toolCallId"]:
-            part["state"] = "approval-responded"
-            part["approval"] = {"id": turn.approval["approvalId"], "approved": approved}
-            return message
-    raise ValueError("gated tool call missing from assistant message")
+        gate = by_tool_call.get(part.get("toolCallId"))
+        if gate is None:
+            continue
+        part["state"] = "approval-responded"
+        part["approval"] = {"id": gate["approvalId"], "approved": approved}
+        answered += 1
+    if answered != len(by_tool_call):
+        raise ValueError("gated tool call missing from assistant message")
+    return message
 
 
 def turn_ledger(session_id: str, limit: int = 20) -> list[dict]:
