@@ -1,6 +1,12 @@
 import {describe, expect, it, vi} from "vitest"
 
-import {__hasSessionChat, acquireSessionChat, releaseSessionChat} from "./chatRegistry"
+import {
+    __hasSessionChat,
+    acquireSessionChat,
+    bindSessionChatHooks,
+    dropSessionChat,
+    releaseSessionChat,
+} from "./chatRegistry"
 
 // Neither dependency is under test: the transport reaches the playground request pipeline, and
 // `Chat` owns the SSE read. What's under test is the acquire/release policy over the instance map.
@@ -89,9 +95,36 @@ describe("session chat registry", () => {
         const {sessionId, chat} = mount("streaming")
         const mountHooks = hooks()
         acquireSessionChat({sessionId, initialMessages: [], hooks: mountHooks as never})
+        bindSessionChatHooks(sessionId, mountHooks as never)
 
         chat.init.onFinish({message: {id: "m1"}})
 
         expect(mountHooks.onFinish).toHaveBeenCalledTimes(1)
+    })
+
+    it("binds the committing mount's callbacks, not those of a render that was thrown away", () => {
+        const {sessionId, chat} = mount()
+        const discarded = hooks()
+        const committed = hooks()
+
+        // A render React abandoned reaches `acquire` but never the effect, so it never binds.
+        acquireSessionChat({sessionId, initialMessages: [], hooks: discarded as never})
+        bindSessionChatHooks(sessionId, committed as never)
+        chat.init.onFinish({message: {id: "m1"}})
+
+        expect(discarded.onFinish).not.toHaveBeenCalled()
+        expect(committed.onFinish).toHaveBeenCalledTimes(1)
+    })
+
+    it("drops a chat whose session is torn down while no mount holds it", () => {
+        const {sessionId, chat} = mount("streaming")
+        releaseSessionChat(sessionId, {stillOpen: true}) // user navigated away, the run continues
+
+        // Closed/deleted/archived from another route or another device: no pane is left to unmount,
+        // so the session writers are the only teardown signal.
+        dropSessionChat(sessionId)
+
+        expect(chat.stop).toHaveBeenCalledTimes(1)
+        expect(__hasSessionChat(sessionId)).toBe(false)
     })
 })

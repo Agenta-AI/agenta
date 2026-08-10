@@ -29,7 +29,13 @@ import {ignoreStreamRejection, parseAgentRunError} from "../assets/runError"
 import {getMessageTraceId} from "../assets/trace"
 import type {ClientToolOutputHandler} from "../components/clientTools"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
-import {acquireSessionChat, isChatBusy, releaseSessionChat} from "../state/chatRegistry"
+import {
+    acquireSessionChat,
+    bindSessionChatHooks,
+    isChatBusy,
+    releaseSessionChat,
+    type SessionChatHooks,
+} from "../state/chatRegistry"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {useChatScopeKey} from "../state/scope"
 import {
@@ -99,46 +105,49 @@ export const useAgentChatSession = ({
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
 
-    // The registry owns the `Chat`, so re-entering the route re-binds to the SAME instance mid-turn
-    // instead of aborting the run (#5724). It rebinds these callbacks on every render, so they always
-    // see the live values — `entityId` included, which is why a run follows a revision switch or a
-    // self-commit instead of sticking to the revision this session first mounted on.
-    const chat = acquireSessionChat({
-        sessionId,
-        initialMessages,
-        hooks: {
-            prepareRequest: async ({messages, id}) => {
-                const req = await buildAgentRequest(entityId, messages, {
-                    sessionId: id ?? sessionId,
-                })
-                if (!req) {
-                    throw new Error(
-                        "This agent workflow has no invocation URL — it can’t be run yet.",
-                    )
-                }
-                captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
-                return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
-            },
-            // Approve AND deny both resume — a deny-only decision must re-send so the runner gets
-            // the denial round-trip and the model continues (no `approval-responded` limbo).
-            sendAutomaticallyWhen: ({messages}) => {
-                const shouldDispatch = agentShouldResumeAfterApproval({
-                    messages,
-                    liveInteraction: liveGateInteractionRef.current,
-                })
-                if (shouldDispatch) liveGateInteractionRef.current = null
-                return shouldDispatch
-            },
-            // The turn's trace may not be ingested yet when the row asks for its summary — marking
-            // it fresh lets the trace queries retry through the ingestion lag. A finished turn may
-            // also have written files, so mark the session's drive data stale; no live channel
-            // exists for it.
-            onFinish: ({message}) => {
-                markTraceAsFresh(getMessageTraceId(message))
-                revalidateSessionMounts(sessionId)
-                revalidateSessionRecords(sessionId)
-            },
+    // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
+    // values — `entityId` included, which is why a run follows a revision switch or a self-commit
+    // instead of sticking to the revision this session first mounted on.
+    const hooks: SessionChatHooks = {
+        prepareRequest: async ({messages, id}) => {
+            const req = await buildAgentRequest(entityId, messages, {
+                sessionId: id ?? sessionId,
+            })
+            if (!req) {
+                throw new Error("This agent workflow has no invocation URL — it can’t be run yet.")
+            }
+            captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
+            return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
         },
+        // Approve AND deny both resume — a deny-only decision must re-send so the runner gets the
+        // denial round-trip and the model continues (no `approval-responded` limbo).
+        sendAutomaticallyWhen: ({messages}) => {
+            const shouldDispatch = agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: liveGateInteractionRef.current,
+            })
+            if (shouldDispatch) liveGateInteractionRef.current = null
+            return shouldDispatch
+        },
+        // The turn's trace may not be ingested yet when the row asks for its summary — marking it
+        // fresh lets the trace queries retry through the ingestion lag. A finished turn may also
+        // have written files, so mark the session's drive data stale; no live channel exists for it.
+        onFinish: ({message}) => {
+            markTraceAsFresh(getMessageTraceId(message))
+            revalidateSessionMounts(sessionId)
+            revalidateSessionRecords(sessionId)
+        },
+    }
+
+    // The registry owns the `Chat`, so re-entering the route re-binds to the SAME instance mid-turn
+    // instead of aborting the run (#5724).
+    const chat = acquireSessionChat({sessionId, initialMessages, hooks})
+
+    // Bind AFTER commit, not during render: React can abandon a render, and the chat outlives this
+    // mount, so a discarded render's closures (a revision the user never landed on) must never be
+    // what a later auto-resend runs. No dep array — the callbacks close over every render's values.
+    useEffect(() => {
+        bindSessionChatHooks(sessionId, hooks)
     })
 
     const {

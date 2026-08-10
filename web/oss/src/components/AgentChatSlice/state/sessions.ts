@@ -12,6 +12,7 @@ import {atomFamily, atomWithStorage, createJSONStorage, selectAtom} from "jotai/
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {dropSessionChat} from "./chatRegistry"
 import {clearSessionEphemera, markSessionFresh} from "./sessionEphemera"
 
 /**
@@ -254,6 +255,8 @@ export const closeSessionAtomFamily = atomFamily((key: string) =>
         const open = currentOpenIds(get, key)
         const nextOpen = open.filter((x) => x !== id)
         set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
+        // Its pane unmounts and releases too, but only if it was ever mounted on this route.
+        dropSessionChat(id)
 
         const active = get(activeByAppAtom)
         if (active[key] === id) {
@@ -351,6 +354,7 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
         dropSessionMessages(get, set, [id])
 
         clearSessionEphemera(id)
+        dropSessionChat(id)
 
         // Propagate a user delete to the server so it disappears everywhere — but only for a
         // server-known session (a purely-local husk has no row; the reconciler's own drop path
@@ -377,6 +381,7 @@ export const archiveSessionAtomFamily = atomFamily((key: string) =>
         if (open.includes(id)) {
             set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: open.filter((x) => x !== id)})
         }
+        dropSessionChat(id)
         const active = get(activeByAppAtom)
         if (active[key] === id) {
             set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
@@ -489,6 +494,13 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
 
         set(sessionsByAppAtom, {...get(sessionsByAppAtom), [key]: merged})
 
+        // Archived on another device: the tab list hides it from here on, so this is its only
+        // teardown signal — a local archive tears the chat down the same way.
+        const archivedBefore = new Set(existing.filter((s) => s.archived).map((s) => s.id))
+        for (const s of merged) {
+            if (s.archived && !archivedBefore.has(s.id)) dropSessionChat(s.id)
+        }
+
         if (dropped.length > 0) {
             const droppedSet = new Set(dropped)
             const open = currentOpenIds(get, key)
@@ -501,7 +513,10 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
                 set(activeByAppAtom, {...active, [key]: nextOpen[0] ?? ""})
             }
             dropSessionMessages(get, set, dropped)
-            for (const id of dropped) clearSessionEphemera(id)
+            for (const id of dropped) {
+                clearSessionEphemera(id)
+                dropSessionChat(id)
+            }
         }
     }),
 )
@@ -576,7 +591,10 @@ export const resetScopeAtomFamily = atomFamily((key: string) =>
             set(activeByAppAtom, next)
         }
         dropSessionMessages(get, set, ids)
-        for (const id of ids) clearSessionEphemera(id)
+        for (const id of ids) {
+            clearSessionEphemera(id)
+            dropSessionChat(id)
+        }
     }),
 )
 
