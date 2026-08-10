@@ -10,24 +10,19 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {ConnectionStatusBadge} from "@agenta/entity-ui/gatewayTool"
 import {TriggerCatalogDrawer, TriggerEventsDrawer} from "@agenta/entity-ui/gatewayTrigger"
-import {MoreOutlined} from "@ant-design/icons"
 import {
-    ArrowClockwise,
-    GearSix,
-    Lightning,
-    PlugsConnected,
-    Plus,
-    Trash,
-    XCircle,
-} from "@phosphor-icons/react"
-import {Button, Dropdown, Table, Tag, Tooltip, Typography, message} from "antd"
-import type {ColumnsType} from "antd/es/table"
+    createStandardColumns,
+    InfiniteVirtualTableFeatureShell,
+    type StandardColumnDef,
+} from "@agenta/ui/table"
+import {EmptyState} from "@agenta/ui/ui"
+import {ArrowClockwise, Lightning, Plus, Trash, XCircle} from "@phosphor-icons/react"
+import {Button, message, Tag, Tooltip, Typography} from "antd"
 import {useSetAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {useStaticTable} from "@/oss/components/pages/settings/hooks/useStaticTable"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-
-import {TriggerEmptyState, TriggerSectionHeader} from "./TriggerSection"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -120,132 +115,138 @@ export default function GatewayTriggersSection() {
         [handleDelete],
     )
 
-    const columns: ColumnsType<TriggerConnection> = useMemo(
-        () => [
-            {
-                title: "Integration",
-                key: "integration",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (_, record) => (
-                    <Tag
-                        bordered={false}
-                        color="default"
-                        className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
-                    >
-                        {record.integration_key}
-                    </Tag>
-                ),
-            },
-            {
-                title: "Name",
-                key: "name",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (_, record) => (
-                    <Typography.Text>{record.name || record.slug}</Typography.Text>
-                ),
-            },
-            {
-                title: "Slug",
-                dataIndex: "slug",
-                key: "slug",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (slug: string) => <Typography.Text>{slug}</Typography.Text>,
-            },
-            {
-                title: "Status",
-                key: "status",
-                onHeaderCell: () => ({style: {minWidth: 120}}),
-                render: (_, record) => <ConnectionStatusBadge connection={record} />,
-            },
-            {
-                title: "Created at",
-                dataIndex: "created_at",
-                key: "created_at",
-                onHeaderCell: () => ({style: {minWidth: 160}}),
-                render: (value: string) =>
-                    value ? formatDay({date: value, outputFormat: "YYYY-MM-DD HH:mm"}) : "-",
-            },
-            {
-                title: <GearSix size={16} />,
-                key: "actions",
-                width: 48,
-                fixed: "right",
-                align: "center",
-                render: (_, record) => (
-                    <Dropdown
-                        trigger={["click"]}
-                        styles={{root: {width: 180}}}
-                        menu={{
-                            items: [
-                                {
-                                    key: "events",
-                                    label: "Browse events",
-                                    icon: <Lightning size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        openEvents(record)
-                                    },
-                                },
-                                {
-                                    key: "refresh",
-                                    label: "Refresh",
-                                    icon: <ArrowClockwise size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        onRefresh(record)
-                                    },
-                                },
-                                {
-                                    key: "revoke",
-                                    label: "Revoke",
-                                    icon: <XCircle size={16} />,
-                                    disabled: !record.flags?.is_valid,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        confirmRevoke(record)
-                                    },
-                                },
-                                {type: "divider"},
-                                {
-                                    key: "delete",
-                                    label: "Delete",
-                                    icon: <Trash size={16} />,
-                                    danger: true,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        confirmDelete(record)
-                                    },
-                                },
-                            ],
-                        }}
-                    >
-                        <Button
-                            onClick={(e) => e.stopPropagation()}
-                            type="text"
-                            aria-label="Open connection actions"
-                            icon={<MoreOutlined />}
-                        />
-                    </Dropdown>
-                ),
-            },
-        ],
+    interface ConnectionRow extends TriggerConnection {
+        key: string
+        [extra: string]: unknown
+    }
+
+    const rows = useMemo<ConnectionRow[]>(
+        () =>
+            (connections ?? []).map((connection, index) => ({
+                ...connection,
+                key:
+                    connection.id ??
+                    connection.slug ??
+                    connection.integration_key ??
+                    `connection-${index}`,
+            })),
+        [connections],
+    )
+
+    const columns = useMemo(
+        () =>
+            createStandardColumns<ConnectionRow>([
+                {
+                    type: "text",
+                    key: "integration_key",
+                    title: "App",
+                    width: 180,
+                    fixed: "left",
+                    render: (_value, record) => (
+                        <Tag
+                            bordered={false}
+                            color="default"
+                            className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]"
+                        >
+                            {record.integration_key}
+                        </Tag>
+                    ),
+                },
+                {
+                    type: "text",
+                    key: "name",
+                    title: "Name",
+                    width: 200,
+                    render: (_value, record) => (
+                        <Typography.Text>{record.name || record.slug}</Typography.Text>
+                    ),
+                },
+                {type: "slug", key: "slug", title: "Slug", width: 250},
+                {
+                    type: "text",
+                    key: "status",
+                    title: "Status",
+                    width: 150,
+                    render: (_value, record) => <ConnectionStatusBadge connection={record} />,
+                },
+                {
+                    type: "text",
+                    key: "created_at",
+                    title: "Connected",
+                    width: 160,
+                    render: (_value, record) =>
+                        record.created_at
+                            ? formatDay({date: record.created_at, outputFormat: "YYYY-MM-DD HH:mm"})
+                            : "-",
+                },
+                {
+                    type: "actions",
+                    showCopyId: false,
+                    items: [
+                        {
+                            key: "events",
+                            label: "Browse events",
+                            icon: <Lightning size={16} />,
+                            onClick: (record: ConnectionRow) => openEvents(record),
+                        },
+                        {
+                            key: "refresh",
+                            label: "Refresh",
+                            icon: <ArrowClockwise size={16} />,
+                            onClick: (record: ConnectionRow) => onRefresh(record),
+                        },
+                        {
+                            key: "revoke",
+                            label: "Revoke",
+                            icon: <XCircle size={16} />,
+                            onClick: (record: ConnectionRow) => confirmRevoke(record),
+                        },
+                        {type: "divider"},
+                        {
+                            key: "delete",
+                            label: "Delete",
+                            icon: <Trash size={16} />,
+                            danger: true,
+                            onClick: (record: ConnectionRow) => confirmDelete(record),
+                        },
+                    ],
+                } satisfies StandardColumnDef<ConnectionRow>,
+            ]),
         [openEvents, onRefresh, confirmRevoke, confirmDelete],
     )
 
+    const {tableScope, pagination} = useStaticTable<ConnectionRow>(
+        "settings-trigger-connections",
+        rows,
+        {loading: isLoading},
+    )
     return (
         <>
-            <section className="flex flex-col gap-3">
-                <TriggerSectionHeader
-                    icon={<PlugsConnected size={16} />}
-                    title="Connections"
-                    description="Link an app like GitHub or Slack so its events can trigger your workflows."
-                    actions={
+            <section className="flex flex-col">
+                <InfiniteVirtualTableFeatureShell<ConnectionRow>
+                    // Keeps connection slugs out of PostHog session recordings.
+                    className="ph-no-capture"
+                    tableScope={tableScope}
+                    autoHeight={false}
+                    emptyMinHeight={250}
+                    title={
+                        <div className="flex flex-col gap-1">
+                            <p className="m-0 font-medium text-colorText">Connections</p>
+                            <p className="m-0 font-normal text-colorTextSecondary">
+                                Link an app like GitHub or Slack so its events can trigger your
+                                workflows.
+                            </p>
+                        </div>
+                    }
+                    columns={columns}
+                    rowKey={(record) => record.key}
+                    pagination={pagination}
+                    primaryActions={
                         <>
                             <Tooltip title="Reload all connections">
                                 <Button
                                     icon={<ArrowClockwise size={14} />}
-                                    type="text"
-                                    size="small"
+                                    type="default"
                                     aria-label="Reload all connections"
                                     loading={reloading}
                                     onClick={reloadAll}
@@ -254,38 +255,47 @@ export default function GatewayTriggersSection() {
                             <Button
                                 icon={<Plus size={14} />}
                                 type="primary"
-                                size="small"
+                                disabled={isLoading}
                                 onClick={() => setCatalogOpen(true)}
                             >
-                                Connect
+                                Connect app
                             </Button>
                         </>
                     }
-                />
-
-                <Table<TriggerConnection>
-                    className="ph-no-capture"
-                    columns={columns}
-                    dataSource={connections}
-                    rowKey={(record) => record.id ?? record.slug ?? record.integration_key}
-                    bordered
-                    pagination={false}
-                    loading={isLoading}
-                    locale={{
-                        emptyText: isLoading ? (
-                            <span />
-                        ) : (
-                            <TriggerEmptyState
-                                icon={<PlugsConnected size={32} />}
-                                title="No connections yet"
-                                description="Connect an app to start receiving its events. You can then subscribe workflows to those events."
-                            />
-                        ),
+                    tableProps={{
+                        size: "small",
+                        bordered: true,
+                        tableLayout: "fixed",
+                        locale: {
+                            emptyText: (
+                                <EmptyState
+                                    image="simple"
+                                    description={
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-xs font-medium text-colorText">
+                                                No connections yet
+                                            </span>
+                                            <span>
+                                                Connect an app like GitHub or Slack to start
+                                                receiving its events.
+                                            </span>
+                                        </div>
+                                    }
+                                >
+                                    <Button
+                                        icon={<Plus size={14} />}
+                                        onClick={() => setCatalogOpen(true)}
+                                    >
+                                        Connect app
+                                    </Button>
+                                </EmptyState>
+                            ),
+                        },
+                        onRow: (record: ConnectionRow) => ({
+                            onClick: () => openEvents(record),
+                            className: "cursor-pointer",
+                        }),
                     }}
-                    onRow={(record) => ({
-                        onClick: () => openEvents(record),
-                        className: "cursor-pointer",
-                    })}
                 />
             </section>
 

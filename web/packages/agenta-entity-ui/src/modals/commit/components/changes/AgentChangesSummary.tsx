@@ -15,6 +15,7 @@ import {AdaptiveList} from "@agenta/ui/components/selection"
 import type {ExtendedDiffLine} from "@agenta/ui/diff"
 import {DiffView} from "@agenta/ui/editor"
 import {cn, textColors} from "@agenta/ui/styles"
+import {Badge, type BadgeProps} from "@agenta/ui/ui"
 import {
     ArrowLeft,
     ArrowRight,
@@ -32,9 +33,8 @@ import {
     SlidersHorizontal,
     Wrench,
 } from "@phosphor-icons/react"
-import {Tag, Typography} from "antd"
 
-const {Text} = Typography
+import {isSectionOpen} from "./sectionOpenState"
 
 const INLINE_TEXT_DIFF_LINES = 6
 const SUBGROUP_VISIBLE = 5
@@ -68,7 +68,7 @@ const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
     params: <SlidersHorizontal />,
 }
 
-const KIND_COLOR: Record<string, string> = {
+const KIND_COLOR: Record<string, BadgeProps["variant"]> = {
     added: "green",
     removed: "red",
     edited: "gold",
@@ -91,17 +91,16 @@ function StatusTags({tags, small}: {tags: ChangeSection["tags"]; small?: boolean
     return (
         <>
             {tags.map((t, i) => (
-                <Tag
+                <Badge
                     key={i}
-                    color={KIND_COLOR[t.kind]}
-                    bordered={false}
+                    variant={KIND_COLOR[t.kind] ?? "default"}
                     className={cn(
-                        "!m-0 rounded-full",
-                        small ? "!px-1.5 !text-[10px] !leading-[18px]" : "!px-2 !text-[10.5px]",
+                        "rounded-full",
+                        small ? "px-1.5 text-[10px] leading-[18px]" : "px-2 text-[10.5px]",
                     )}
                 >
                     {t.label}
-                </Tag>
+                </Badge>
             ))}
         </>
     )
@@ -367,6 +366,12 @@ export interface AgentChangesSummaryProps {
     compact?: boolean
     /** Accordion density: "small" tightens section-card paddings, titles, and tags. */
     size?: "default" | "small"
+    /**
+     * Start every section expanded. Opt-in for hosts whose whole job is showing the change (the
+     * agent approval card), so the diff needs no click. The commit modal leaves it off: there the
+     * summary is a list you drill into, and opening everything buries it.
+     */
+    defaultOpen?: boolean
 }
 
 export default function AgentChangesSummary({
@@ -376,23 +381,19 @@ export default function AgentChangesSummary({
     language = "json",
     compact = false,
     size = "default",
+    defaultOpen = false,
 }: AgentChangesSummaryProps) {
     const [view, setView] = useState<View>({kind: "summary"})
-    // Sections are collapsed by default; the user expands what they want to inspect.
-    const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
+    // Only what the user explicitly toggled; `defaultOpen` decides the rest (see isSectionOpen).
+    const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({})
     const totalChanges = useMemo(
         () => sections.reduce((sum, s) => sum + s.totalCount, 0),
         [sections],
     )
 
-    const isOpen = (id: string) => openIds.has(id)
+    const isOpen = (id: string) => isSectionOpen(openOverrides, id, defaultOpen)
     const toggleSection = (id: string) =>
-        setOpenIds((prev) => {
-            const next = new Set(prev)
-            if (next.has(id)) next.delete(id)
-            else next.add(id)
-            return next
-        })
+        setOpenOverrides((prev) => ({...prev, [id]: !isSectionOpen(prev, id, defaultOpen)}))
 
     const activeSection =
         "sectionId" in view ? sections.find((s) => s.id === view.sectionId) : undefined
@@ -406,11 +407,7 @@ export default function AgentChangesSummary({
     // so it lands fully folded (the "← Changes" back button keeps the open state instead).
     const collapseDetail = () => {
         if ("sectionId" in view) {
-            setOpenIds((prev) => {
-                const next = new Set(prev)
-                next.delete(view.sectionId)
-                return next
-            })
+            setOpenOverrides((prev) => ({...prev, [view.sectionId]: false}))
         }
         setView({kind: "summary"})
     }
@@ -434,13 +431,12 @@ export default function AgentChangesSummary({
                         Changes
                     </button>
                 ) : (
-                    // Compact forces 12px (antd Text otherwise wins at 14px) to match its host pane.
-                    <Text className={cn("font-semibold", compact ? "!text-xs" : "text-xs")}>
+                    <span className="text-xs font-semibold text-colorText">
                         What&apos;s changing
                         <span className={cn("ml-1.5 font-normal", textColors.tertiary)}>
                             {totalChanges} {totalChanges === 1 ? "change" : "changes"}
                         </span>
-                    </Text>
+                    </span>
                 )}
                 {view.kind === "summary" && !compact ? (
                     <button

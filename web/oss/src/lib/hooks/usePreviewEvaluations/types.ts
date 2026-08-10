@@ -1,3 +1,4 @@
+import type {EvaluationRun} from "@agenta/entities/evaluationRun"
 import type {Workflow} from "@agenta/entities/workflow"
 
 import {PreviewTestset, SnakeToCamelCaseKeys, WorkspaceMember} from "@/oss/lib/Types"
@@ -37,45 +38,6 @@ export type EvaluationRunDataStep =
       }
 
 export type IEvaluationRunDataStep = SnakeToCamelCaseKeys<EvaluationRunDataStep>
-export interface EvaluationRun {
-    /** Unique identifier for the evaluation run */
-    id: string
-    /** Display name for the run */
-    name: string
-    /** Optional description text for the run */
-    description: string
-    /** ISO timestamp of when the run was created */
-    created_at: string
-    /** ISO timestamp of when the run was last updated (present on backend run payloads) */
-    updated_at?: string
-    /** ID of the user who created the run */
-    created_by_id: string
-    /** Optional metadata object (arbitrary key-value pairs) */
-    meta: Record<string, any>
-    /** Flags associated with the run (internal use) */
-    flags: Record<string, any>
-    /** Current status of the run (e.g., "pending", "completed") */
-    status: string
-    data: {
-        /** Array of evaluation steps that define execution flow */
-        steps: EvaluationRunDataStep[]
-        /** Mappings define how to extract values from steps for display or evaluation */
-        mappings: {
-            /** Type of the mapping, determines what the value represents */
-            kind: "input" | "ground_truth" | "application" | "evaluator"
-            /** Display name for the mapped value */
-            name: string
-            /** Path reference to the data inside a step */
-            step: {
-                /** The step key this mapping belongs to */
-                key: string
-                /** Path within the step data (e.g., 'country' or 'data.outputs.metric') */
-                path: string
-            }
-        }[]
-    }
-}
-
 export interface EnrichedEvaluationRun extends SnakeToCamelCaseKeys<EvaluationRun> {
     /** All distinct testsets referenced in this run */
     testsets: PreviewTestset[]

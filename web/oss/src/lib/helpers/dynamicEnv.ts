@@ -33,11 +33,19 @@ export const processEnv = {
     // dropdown exposes the Virtualization section and the chat can window its settled history. Gated
     // so it's off everywhere unless explicitly enabled while the approach is evaluated.
     NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION: process.env.NEXT_PUBLIC_AGENT_CHAT_VIRTUALIZATION,
+    // Agent file uploads/attachments: when "true", the composer attach button + attachment preview
+    // and every drive upload entry point (upload button, drop-to-upload, drop-to-stage) are shown.
+    // Off by default — the composer→model attachment delivery contract is still open on the backend.
+    NEXT_PUBLIC_AGENT_FILE_UPLOADS: process.env.NEXT_PUBLIC_AGENT_FILE_UPLOADS,
     // Template-strip onboarding: when "true", template presentation on Home, playground
     // onboarding, and every agent's empty chat becomes one shared always-visible strip
     // (card click fills the composer + chip instead of creating/opening a drawer). Unset/
     // false keeps the current three separate template UIs untouched.
     NEXT_PUBLIC_AGENT_TEMPLATE_STRIP: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_STRIP,
+    // Agent chat voice input (composer mic: dictation + voice messages): off by default. The
+    // recorded clip rides along as an audio attachment, which the agent service does not accept
+    // yet — set to "true" to preview the UI.
+    NEXT_PUBLIC_AGENT_VOICE_INPUT: process.env.NEXT_PUBLIC_AGENT_VOICE_INPUT,
     NEXT_PUBLIC_AGENTA_AUTHN_EMAIL: process.env.NEXT_PUBLIC_AGENTA_AUTHN_EMAIL,
     NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID:
         process.env.NEXT_PUBLIC_AGENTA_AUTH_GOOGLE_OAUTH_CLIENT_ID,

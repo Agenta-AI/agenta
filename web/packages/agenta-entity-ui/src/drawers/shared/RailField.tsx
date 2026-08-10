@@ -11,8 +11,17 @@
  */
 import type {ReactNode} from "react"
 
+import {
+    Button,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {ArrowCounterClockwise, Info} from "@phosphor-icons/react"
-import {Button, Popover, Tooltip} from "antd"
 
 import {useChangedDetail, useChangedPath, useRevertPath} from "./ChangedPathsContext"
 import {useIsPathVisible} from "./FocusPathsContext"
@@ -38,9 +47,14 @@ export interface RailFieldProps {
 export const railInfoLabel = (label: ReactNode, hint: ReactNode): ReactNode => (
     <span className="inline-flex items-center gap-1">
         {label}
-        <Tooltip title={hint}>
-            <Info size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
-        </Tooltip>
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Info size={13} className="shrink-0 text-[var(--ag-colorTextTertiary)]" />
+                </TooltipTrigger>
+                <TooltipContent>{hint}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     </span>
 )
 
@@ -93,12 +107,8 @@ function ChangedDetail({
                 {text}
             </div>
             {onRevert ? (
-                <Button
-                    icon={<ArrowCounterClockwise size={13} />}
-                    onClick={onRevert}
-                    block
-                    className="!text-xs"
-                >
+                <Button variant="outline" onClick={onRevert} className="w-full text-xs">
+                    <ArrowCounterClockwise size={13} />
                     {before === undefined ? "Remove change" : "Restore"}
                 </Button>
             ) : null}
@@ -124,14 +134,20 @@ export function RailField({label, align = "top", path, children}: RailFieldProps
                     colorInfo dotted underline — no marker glyph, so changed and unchanged rows share
                     the same box. */}
                 {changed ? (
-                    <Popover
-                        trigger="click"
-                        placement="topLeft"
-                        content={<ChangedDetail before={detail?.before} onRevert={revert} />}
-                    >
-                        <span className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4">
-                            {label}
-                        </span>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            {/* role=button makes the Radix aria-haspopup/expanded attrs valid here. */}
+                            <span
+                                role="button"
+                                className="cursor-pointer underline decoration-[var(--ag-colorInfo)] decoration-dotted underline-offset-4"
+                            >
+                                {label}
+                            </span>
+                        </PopoverTrigger>
+                        {/* antd Popover chrome: elevated panel with 12px inner padding. */}
+                        <PopoverContent side="top" align="start" className="p-3">
+                            <ChangedDetail before={detail?.before} onRevert={revert} />
+                        </PopoverContent>
                     </Popover>
                 ) : (
                     label

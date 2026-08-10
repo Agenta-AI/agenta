@@ -29,6 +29,7 @@ import PlaygroundHeader from "./Components/PlaygroundHeader"
 import PlaygroundSyncStateTag from "./Components/PlaygroundSyncStateTag"
 import {OSSPlaygroundShell} from "./OSSPlaygroundShell"
 import PlaygroundOnboarding from "./PlaygroundOnboarding"
+import PlaygroundPageTitle from "./PlaygroundPageTitle"
 
 // Agent-chat surface (third generation arm). The host is a LIGHT static import that lazy-loads
 // the AI-SDK panel internally and crossfades it in through a persistent skeleton overlay —
@@ -40,6 +41,7 @@ const CatalogDrawer = dynamic(
     () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
     {ssr: false},
 )
+
 
 const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const uri = "playground" // Static value, no need for complex data subscription
@@ -97,7 +99,8 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
 
     const content = (
         <OSSPlaygroundShell providers={providers}>
-            <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
+            <PlaygroundPageTitle onboarding={onboarding} />
+            <div className="flex flex-col w-full h-dvh overflow-hidden">
                 {prefetchAgentCatalogs ? <AgentCatalogPrefetcher /> : null}
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />

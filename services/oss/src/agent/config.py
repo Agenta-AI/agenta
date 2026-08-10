@@ -22,8 +22,10 @@ _DEFAULT_AGENT_DIR = _SERVICES_DIR / "runner"
 
 # Fallback config used when the editable files are missing or a field is absent.
 # Kept in sync with the catalog template and the `/inspect` schema defaults
-# (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD).
+# (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD). No tool entries: built-in tools are
+# always active and are not configured here.
 DEFAULT_MODEL = "gpt-5.6-luna"
+DEFAULT_TOOLS: List[Any] = []
 DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
     "- Greet the user warmly.\n"
@@ -102,16 +104,19 @@ def load_config() -> AgentTemplate:
         )
 
     model: str = DEFAULT_MODEL
-    tools: List[str] = []
+    tools: List[Any] = list(DEFAULT_TOOLS)
     meta_path = base / "agent.json"
     if meta_path.exists():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         model = meta.get("model") or DEFAULT_MODEL
-        tools = meta.get("tools", []) or []
+        # An operator adds gateway, client or platform entries here; built-in tools are always
+        # active and are never listed.
+        tools = list(meta.get("tools") or DEFAULT_TOOLS)
     else:
         log.warning(
             "agent: template not found at %s; falling back to the built-in default "
-            "model %r with no tools (set AGENTA_AGENT_TEMPLATE_DIR if this path is unexpected)",
+            "model %r with no tool entries (set AGENTA_AGENT_TEMPLATE_DIR if this "
+            "path is unexpected)",
             meta_path,
             DEFAULT_MODEL,
         )

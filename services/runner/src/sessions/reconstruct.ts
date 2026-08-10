@@ -14,8 +14,8 @@
  * Completeness: records store the coalesced text/tool events, so reconstruction covers text,
  * tool calls, and tool results (incl. still-parked calls, so a HITL answer arriving on the last
  * message binds to its reconstructed tool_call). Reasoning, usage, and one-way UI events are not
- * conversation context and are dropped. User attachments are NOT in the durable log (only the
- * prompt text is persisted), so a reconstructed user turn is text-only — a known v1 gap.
+ * conversation context and are dropped. User attachments ride the user message event and rebuild
+ * as attachment blocks followed by exactly one text block.
  */
 
 import type { AgentEvent, ChatMessage, ContentBlock } from "../protocol.ts";
@@ -105,7 +105,27 @@ export function reconstructMessages(
     if (row.record_source === "user") {
       flushAssistant();
       const text = event.type === "message" ? (event.text ?? "") : "";
-      messages.push({ role: "user", content: text });
+      const attachments =
+        event.type === "message" && Array.isArray(event.attachments)
+          ? event.attachments.filter(
+              (attachment) =>
+                attachment && typeof attachment.attachmentId === "string",
+            )
+          : [];
+      const content: string | ContentBlock[] =
+        attachments.length > 0
+          ? [
+              ...attachments.map((attachment) => ({
+                type: "attachment",
+                attachmentId: attachment.attachmentId,
+                filename: attachment.filename,
+                mimeType: attachment.mediaType,
+                size: attachment.size,
+              })),
+              { type: "text", text },
+            ]
+          : text;
+      messages.push({ role: "user", content });
       continue;
     }
 

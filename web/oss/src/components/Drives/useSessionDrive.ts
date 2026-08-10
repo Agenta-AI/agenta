@@ -4,6 +4,7 @@ import {
     latestMountFilesQueryFamily,
     mountFilesQueryFamily,
     mountRootQueryFamily,
+    pickCwdMount,
     sessionFileActivityAtomFamily,
     sessionMountsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
@@ -35,6 +36,20 @@ const stripLeadingSlashes = (s: string): string => {
 export const fileOrigin = (path: string): FileOrigin => {
     const rel = cleanPath(path)
     return rel === AGENT_FILES_DIR || rel.startsWith(`${AGENT_FILES_DIR}/`) ? "agent" : "session"
+}
+
+/**
+ * Does this path belong in a user-facing drive list? ONE question, asked by every list a drive
+ * surface builds AND by the gate that decides whether a list is empty — so a gate can never keep a
+ * row a list then drops (the bug class behind #5480).
+ *
+ * Excluded: runner plumbing ({@link isInternalDrivePath}), and the bare `agent-files` entry — that
+ * one is the fold-point SYMLINK into the agent mount, not a file. Its CONTENTS are listed, folded
+ * under `agent-files/` from the agent mount itself; the marker never is.
+ */
+export const isListableDrivePath = (path: string): boolean => {
+    const rel = cleanPath(path)
+    return Boolean(rel) && rel !== AGENT_FILES_DIR && !isInternalDrivePath(rel)
 }
 
 /** True when a listing holds BOTH agent and session files — the only time the origin tags/filter
@@ -120,7 +135,7 @@ export function useSessionDrive(
 ): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
     const mounts = mountsQuery.data ?? []
-    const mount = mounts.find((m) => m.slug === "cwd") ?? mounts[0] ?? null
+    const mount = pickCwdMount(mounts)
 
     const filesQuery = useAtomValue(
         mountFilesQueryFamily({mountId: mount?.id ?? "", includeGitignored}),
@@ -147,7 +162,7 @@ export function useSessionDrive(
     const structural = useMemo(() => {
         const listing = filesQuery.data ?? null
         const cwdStats = driveFileStats(listing)
-        const cwdFiles = cwdStats.files.filter((f) => cleanPath(f.path) !== AGENT_FILES_DIR)
+        const cwdFiles = cwdStats.files.filter((f) => isListableDrivePath(f.path))
 
         // Agent-mount files, presented under `agent-files/` so they read as a subfolder of cwd.
         const agentListing = agentFilesQuery.data ?? null
@@ -319,7 +334,7 @@ const SUMMARY_LATEST_LIMIT = 5
 export function useSessionDriveSummary(sessionId: string, artifactId?: string): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
     const mounts = mountsQuery.data ?? []
-    const mount = mounts.find((m) => m.slug === "cwd") ?? mounts[0] ?? null
+    const mount = pickCwdMount(mounts)
 
     const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
     const agentMount = artifactId ? (agentMountQuery.data ?? null) : null
@@ -327,16 +342,13 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     // Recents: the agent's own write/edit events from the durable record log (0 object-store scan).
     const recordRecency = useAtomValue(sessionRecordFileRecencyAtomFamily(sessionId))
 
-    // Does the record log hold ANY visible (non-internal) change? When it doesn't, the "recent
-    // changes" list would be empty even though the drive has files — so fall back to the top-level
-    // listing below. Computed here (cheap — records are few) to GATE that query off when records
-    // already carry the list, so an active conversation pays nothing extra.
+    // Does the record log hold ANY change this surface would actually LIST? When it doesn't, the
+    // "recent changes" list would be empty even though the drive has files — so fall back to the
+    // top-level listing below. Same predicate as that list uses, so the gate can't withhold the
+    // fallback over a row the list then drops. Computed here (cheap — records are few) to GATE the
+    // queries off when records already carry the list, so an active conversation pays nothing extra.
     const hasVisibleRecords = useMemo(
-        () =>
-            [...recordRecency.keys()].some((toolPath) => {
-                const p = cleanPath(toolPath)
-                return Boolean(p) && !isInternalDrivePath(p)
-            }),
+        () => [...recordRecency.keys()].some(isListableDrivePath),
         [recordRecency],
     )
 
@@ -345,10 +357,17 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
     const agentCount = useAtomValue(
         latestMountFilesQueryFamily({mountId: agentMount?.id ?? "", limit: 0}),
     )
-    // Fallback list (depth=1, one delimiter call): the drive's TOP-LEVEL entries, so a conversation
-    // that changed nothing still shows what's in the drive instead of an empty list. Disabled (empty
-    // id) whenever the record log already has visible changes — no wasted request in the common case.
+    // Fallback list (depth=1, one delimiter call per mount): the drive's TOP-LEVEL entries, so a
+    // conversation that changed nothing still shows what's in the drive instead of an empty list.
+    // BOTH mounts, mirroring the full drive: the cwd root alone would show the `agent-files` symlink
+    // and nothing behind it, so dropping that marker (see {@link isListableDrivePath}) has to come
+    // with listing the agent mount it stands for — otherwise the fold's files vanish from the summary
+    // entirely (#5480). Disabled (empty id) whenever the record log already has listable changes —
+    // no wasted request in the common case.
     const rootQuery = useAtomValue(mountRootQueryFamily(hasVisibleRecords ? "" : (mount?.id ?? "")))
+    const agentRootQuery = useAtomValue(
+        mountRootQueryFamily(hasVisibleRecords ? "" : (agentMount?.id ?? "")),
+    )
 
     // Re-run the underlying queries (retry from the errored state). `refetch()` bypasses `enabled`
     // and DOES invoke the queryFn on the empty-id (disabled) queries, but each queryFn guards its id
@@ -361,14 +380,15 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         if (artifactId) {
             void agentMountQuery.refetch?.()
             void agentCount.refetch?.()
+            void agentRootQuery.refetch?.()
         }
-    }, [mountsQuery, cwdCount, rootQuery, agentMountQuery, agentCount, artifactId])
+    }, [mountsQuery, cwdCount, rootQuery, agentMountQuery, agentCount, agentRootQuery, artifactId])
 
     const data = useMemo(() => {
         // Newest write/edit per path (the map already dedups by path, keeping the latest timestamp).
         const recordRecents: DriveRecentFile[] = [...recordRecency.entries()]
             .map(([toolPath, at]) => ({path: cleanPath(toolPath), touchedAt: at}))
-            .filter((f) => f.path && !isInternalDrivePath(f.path))
+            .filter((f) => isListableDrivePath(f.path))
             .sort((a, b) =>
                 b.touchedAt !== a.touchedAt
                     ? b.touchedAt - a.touchedAt
@@ -377,8 +397,17 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
             .slice(0, SUMMARY_LATEST_LIMIT)
         // No in-conversation changes → present the top-level entries (files carry the store mtime;
         // folders sort after, alphabetically) so the surface reflects the drive's real contents.
-        const rootRecents: DriveRecentFile[] = (rootQuery.data ?? [])
-            .filter((f) => !isInternalDrivePath(f.path))
+        // The agent mount's entries are presented under `agent-files/`, exactly as the full drive
+        // folds them — `resolveMount` below already maps that prefix back, so the rows open.
+        const rootEntries: MountFile[] = [
+            ...(rootQuery.data ?? []),
+            ...(agentRootQuery.data ?? []).map((f) => ({
+                ...f,
+                path: `${AGENT_FILES_DIR}/${cleanPath(f.path)}`,
+            })),
+        ]
+        const rootRecents: DriveRecentFile[] = rootEntries
+            .filter((f) => isListableDrivePath(f.path))
             .map((f) => ({...f, touchedAt: typeof f.mtime === "number" ? f.mtime : undefined}))
             .sort((a, b) =>
                 (b.touchedAt ?? 0) !== (a.touchedAt ?? 0)
@@ -436,7 +465,10 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         const isFetching =
             mountsQuery.isFetching ||
             cwdCount.isFetching ||
-            (Boolean(artifactId) && (agentMountQuery.isFetching || agentCount.isFetching)) ||
+            (Boolean(artifactId) &&
+                (agentMountQuery.isFetching ||
+                    agentCount.isFetching ||
+                    agentRootQuery.isFetching)) ||
             rootQuery.isFetching
 
         // BLOCKING skeleton ONLY at the very start — before ANY in-play side has answered and with
@@ -508,6 +540,8 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         rootQuery.data,
         rootQuery.isPending,
         rootQuery.isFetching,
+        agentRootQuery.data,
+        agentRootQuery.isFetching,
         cwdCount.data,
         cwdCount.isPending,
         cwdCount.isFetching,

@@ -6,19 +6,33 @@ import pydantic
 import typing_extensions
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from ..core.serialization import FieldMetadata
+from .workflow_revision_operation import WorkflowRevisionOperation
 
 
 class WorkflowRevisionDelta(UniversalBaseModel):
     """
     Delta operations on a workflow revision's data tree.
     
-    - ``set``: a partial data tree deep-merged onto the base revision's data
-      (nested dicts merge; scalars and lists replace).
-    - ``remove``: dotted key paths to delete from the data tree (e.g.
-      ``parameters.agent.tools``).
+    Two forms, never mixed (contract 3):
+    
+    - **legacy** — ``set``: a partial data tree deep-merged onto the base revision's data
+      (nested dicts merge; scalars and lists replace); ``remove``: dotted key paths to
+      delete (e.g. ``parameters.agent.tools``).
+    - **ordered** — ``operations``: the seven verbs, applied in array order, all or
+      nothing.
+    
+    The engine enforces the exclusivity and every operation rule; this model only carries
+    the shapes.
+    
+    Unknown keys beside ``set``/``remove``/``operations`` are refused on the ORDERED arm
+    only, so a caller cannot believe it sent an operation modifier the server never saw.
+    A pure-legacy envelope keeps its shipped tolerance: the server has always ignored
+    stray keys there, and playbooks in the field send them. Neither rule reaches the tree
+    inside ``set``, which stays free-form.
     """
     set_: typing_extensions.Annotated[typing.Optional[typing.Dict[str, typing.Any]], FieldMetadata(alias="set")] = pydantic.Field(alias="set", default=None)
     remove: typing.Optional[typing.List[str]] = None
+    operations: typing.Optional[typing.List[WorkflowRevisionOperation]] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

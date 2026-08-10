@@ -155,6 +155,7 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
         >Open standards</span
       >
       <span
+        class="ag-bighead"
         style="font:300 44px/1.1 var(--font-display,'GT Alpina',serif);color:#F7F6F4;"
         >One agent package, any stack</span
       >
@@ -175,12 +176,13 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
       {
         rows.map((r, i) => (
           <div
+            class="ag-io-row"
             style={
               "display:grid;grid-template-columns:130px 1fr;gap:16px;align-items:center;padding:17px 0;" +
               (i > 0 ? "border-top:1px solid rgba(255,255,255,0.06);" : "")
             }
           >
-            <span style={labelStyle}>{r.label}</span>
+            <span class="ag-io-label" style={labelStyle}>{r.label}</span>
             <div class="ag-io-view" style={"overflow:hidden;" + MASK}>
               <div
                 class="ag-io-track"
@@ -241,5 +243,28 @@ const isExternal = (href?: string) => !!href && href.startsWith("http");
   }
   .ag-io-view:hover .ag-io-track {
     animation-play-state: paused !important;
+  }
+
+  /* Phones: the 130px label column + 28px indent ate half the card, leaving the
+     marquees barely visible. Narrow the labels, drop the indent, and tighten the
+     row rhythm so the moving chip strips get much more width and the whole card
+     reads more compact. */
+  @media (max-width: 600px) {
+    .ag-interop {
+      padding-left: 16px !important;
+      padding-right: 16px !important;
+      gap: 40px !important;
+    }
+    .ag-io-row {
+      grid-template-columns: 96px 1fr !important;
+      gap: 12px !important;
+      padding: 12px 0 !important;
+    }
+    .ag-io-label {
+      padding-left: 12px !important;
+      font-size: 11px !important;
+      letter-spacing: 0.04em !important;
+      white-space: nowrap;
+    }
   }
 </style>

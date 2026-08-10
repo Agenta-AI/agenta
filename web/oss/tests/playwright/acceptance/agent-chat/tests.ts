@@ -1,9 +1,9 @@
-import type {Page} from "@playwright/test"
-
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
+import type {Page} from "@playwright/test"
 
-import {AgentChatFixtures} from "./assets/types"
+import {AGENT_APPS_UNAVAILABLE_REASON, archiveWorkflow, isAgentRevision} from "../utils/agentApps"
+
 import {
     ELICITATION_PAYLOAD,
     elicitationPausedTurn,
@@ -11,6 +11,7 @@ import {
     sseFulfill,
     type ElicitationPayloadFixture,
 } from "./assets/elicitationStream"
+import {AgentChatFixtures} from "./assets/types"
 
 /**
  * Agent-chat acceptance fixtures (elicitation / interaction-kinds M1, layer A).
@@ -93,20 +94,26 @@ const testWithAgentChatFixtures = baseTest.extend<AgentChatFixtures>({
                 "create variant",
             )
 
-            const revisionId = requireId(
-                await post("/workflows/revisions/commit", {
-                    workflow_revision: {
-                        workflow_id: workflowId,
-                        workflow_variant_id: variantId,
-                        slug: `${unique}rev`,
-                        name: "default",
-                        data: {uri: AGENT_URI, parameters: {agent: {}}, schemas: {}},
-                        message: "Agent",
-                    },
-                }),
-                "workflow_revision",
-                "commit revision",
-            )
+            const revisionBody = await post("/workflows/revisions/commit", {
+                workflow_revision: {
+                    workflow_id: workflowId,
+                    workflow_variant_id: variantId,
+                    slug: `${unique}rev`,
+                    name: "default",
+                    data: {uri: AGENT_URI, parameters: {agent: {}}, schemas: {}},
+                    message: "Agent",
+                },
+            })
+            const revisionId = requireId(revisionBody, "workflow_revision", "commit revision")
+
+            // Environments without the agent platform (e.g. OSS previews with the feature
+            // flags off) commit this same payload as a plain prompt revision, so the agent
+            // playground under test can never render. Skip — and archive the seed first so
+            // the misclassified app cannot pollute app lists used by other specs.
+            if (!isAgentRevision(revisionBody?.workflow_revision)) {
+                await archiveWorkflow(page, base, projectId, workflowId)
+                baseTest.skip(true, AGENT_APPS_UNAVAILABLE_REASON)
+            }
 
             seededRevisionByApp.set(workflowId, revisionId)
             return workflowId
@@ -138,7 +145,7 @@ const testWithAgentChatFixtures = baseTest.extend<AgentChatFixtures>({
 
     mockElicitationInvoke: async ({page}, use) => {
         await use(async (payload: ElicitationPayloadFixture = ELICITATION_PAYLOAD) => {
-            const calls: Array<Record<string, any>> = []
+            const calls: Record<string, any>[] = []
             let resumeText = "Thanks — I've recorded your answers."
             let n = 0
             const toolCallId = "call_elicit_1"

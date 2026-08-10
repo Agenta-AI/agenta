@@ -65,12 +65,10 @@ export function TestsetSelectionModal({
             width={width}
             onCancel={onCancel}
             footer={null}
-            classNames={{body: "!p-0"}}
             styles={{
                 body: {
                     flex: "1 1 auto",
                     height: 620,
-                    padding: 0,
                     overflow: "hidden",
                 },
             }}

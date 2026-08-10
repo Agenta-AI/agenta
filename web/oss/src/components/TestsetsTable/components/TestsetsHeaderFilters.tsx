@@ -1,9 +1,9 @@
 import {useCallback, useState} from "react"
 
+import {FiltersPopoverTrigger} from "@agenta/ui/table"
 import {Input, type PopoverProps} from "antd"
 import {useAtom} from "jotai"
 
-import {FiltersPopoverTrigger} from "@/oss/components/InfiniteVirtualTable"
 import {getTestsetTableState, type TestsetTableMode} from "@/oss/state/entities/testset"
 
 import TestsetsFiltersContent from "./TestsetsFiltersContent"

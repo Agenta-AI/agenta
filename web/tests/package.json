@@ -20,6 +20,6 @@
         "typescript": "^5.9.3"
     },
     "dependencies": {
-        "axios": "1.16.0"
+        "axios": "1.18.0"
     }
 }

@@ -2,7 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
-import {SyncStateTag} from "@agenta/ui"
+import {Tag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 
 interface PlaygroundSyncStateTagProps {
@@ -10,6 +10,13 @@ interface PlaygroundSyncStateTagProps {
     loadableId: string
 }
 
+/**
+ * Sync state tag slot — renders the sync state badge in each row header.
+ * Shown only when connected to an API-backed testset.
+ * - "new" (green): row was added locally and is not yet in the connected testset
+ * - "modified" (blue): row has local edits not yet synced; shows discard × on hover
+ * - "unmodified": no changes — nothing rendered
+ */
 export function PlaygroundSyncStateTag({rowId, loadableId}: PlaygroundSyncStateTagProps) {
     const mode = useAtomValue(loadableController.selectors.mode(loadableId)) as
         | "local"
@@ -28,8 +35,8 @@ export function PlaygroundSyncStateTag({rowId, loadableId}: PlaygroundSyncStateT
     const syncState = isNew ? "new" : isDirty ? "modified" : "unmodified"
 
     return (
-        <SyncStateTag
-            syncState={syncState}
+        <Tag
+            sync={syncState}
             dismissible={syncState === "modified"}
             onDismiss={syncState === "modified" ? handleDiscard : undefined}
         />

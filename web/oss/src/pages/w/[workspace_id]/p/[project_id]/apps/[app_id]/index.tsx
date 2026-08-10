@@ -19,18 +19,17 @@ const ensureString = (value: string | string[] | undefined) => {
 }
 
 /**
- * `/apps/[app_id]/` → `/apps/[app_id]/{overview|playground}` redirect.
+ * `/apps/[app_id]/` → `/apps/[app_id]/playground` redirect.
  *
  * Fast-path (eng review T2): if the app query already has the workflow
- * cached synchronously AND it's an app workflow, redirect to `/overview`
+ * cached synchronously AND it's an app workflow, redirect to `/playground`
  * immediately — no skeleton flicker for the 99% case. Apps used to redirect
  * instantly via the previous implementation; this preserves that behavior.
  *
  * Slow-path: cold-load, evaluator workflow, snippet, or not-found cases all
  * go through `currentWorkflowContextAtom` which waits for both queries to
- * settle. Evaluators get `/playground` as default (overview is disabled for
- * them per Phase 2). Not-found renders `<WorkflowNotFound />` instead of
- * looping the spinner.
+ * settle. Playground is the default surface for every workflow kind. Not-found
+ * renders `<WorkflowNotFound />` instead of looping the spinner.
  */
 const AppOverviewRedirect = () => {
     const router = useRouter()
@@ -70,11 +69,11 @@ const AppOverviewRedirect = () => {
             return
         }
 
-        // Fast-path: synchronous app hit → /overview right now.
+        // Fast-path: synchronous app hit → /playground right now.
         if (synchronousAppHit) {
             const destination = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(
                 projectId,
-            )}/apps/${encodeURIComponent(appId)}/overview`
+            )}/apps/${encodeURIComponent(appId)}/playground`
             if (router.asPath !== destination) {
                 void router.replace(destination)
             }
@@ -87,11 +86,10 @@ const AppOverviewRedirect = () => {
         if (ctx.isError) return // page renders skeleton; avoid a wrong-redirect on error
         if (ctx.isNotFound) return // <WorkflowNotFound /> renders below
 
-        // Pick destination based on workflow kind.
-        const target = ctx.workflowKind === "evaluator" ? "playground" : "overview"
+        // Playground is the default surface for every workflow kind.
         const destination = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(
             projectId,
-        )}/apps/${encodeURIComponent(appId)}/${target}`
+        )}/apps/${encodeURIComponent(appId)}/playground`
         if (router.asPath !== destination) {
             void router.replace(destination)
         }
@@ -105,7 +103,6 @@ const AppOverviewRedirect = () => {
         ctx.isResolving,
         ctx.isError,
         ctx.isNotFound,
-        ctx.workflowKind,
         router,
     ])
 

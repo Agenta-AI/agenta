@@ -37,6 +37,8 @@ export default function CopyPromptButton() {
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
+        flexShrink: 0,
+        whiteSpace: "nowrap",
         height: 26,
         padding: "0 10px",
         borderRadius: 7,

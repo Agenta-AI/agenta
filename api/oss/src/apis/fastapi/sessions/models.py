@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from oss.src.core.sessions.dtos import SessionListItem
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
 )
@@ -33,11 +34,15 @@ class SessionQueryRequest(BaseModel):
     include_ended: bool = False
     # Include archived sessions — off by default (archive hides); on for the archived view.
     include_archived: bool = False
+    # Case-insensitive substring match over the session title (`session_streams.name`).
+    search: Optional[str] = None
 
 
 class SessionsResponse(BaseModel):
     count: int = 0
-    sessions: List[SessionStream] = Field(default_factory=list)
+    # `SessionListItem` = `SessionStream` + the latest turn's `references` (WP0-R3),
+    # absent (excluded by response_model_exclude_none) when the session has no turns yet.
+    sessions: List[SessionListItem] = Field(default_factory=list)
 
 
 class SessionResponse(BaseModel):
@@ -154,6 +159,9 @@ class SessionInteractionsResponse(BaseModel):
 
 
 class SessionInteractionRespondRequest(BaseModel):
+    # For a user_approval interaction the answer is {approved: bool, tool_call_id?: str,
+    # message?: str} — the dispatcher composes the full resume conversation server-side
+    # (interactions_dispatcher.compose_approval_messages). Other kinds pass through as-is.
     answer: Optional[Dict[str, Any]] = None
 
 
@@ -175,6 +183,34 @@ class SessionMountResponse(BaseModel):
 class SessionMountsResponse(BaseModel):
     count: int = 0
     mounts: List[SessionMount] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Attachments request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionAttachment(BaseModel):
+    attachment_id: UUID
+    filename: str
+    media_type: str
+    size: int
+    created_at: datetime
+
+
+class SessionAttachmentResponse(BaseModel):
+    count: int = 0
+    attachment: SessionAttachment
+
+
+class SessionAttachmentReferenceRequest(BaseModel):
+    session_id: str
+    attachment_ids: List[UUID] = Field(max_length=100)
+
+
+class SessionAttachmentsResponse(BaseModel):
+    count: int = 0
+    attachments: List[SessionAttachment] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

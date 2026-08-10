@@ -23,13 +23,14 @@
         "./api/persist": "./src/api/persist/index.ts",
         "./state": "./src/state/index.ts",
         "./utils": "./src/utils/index.ts",
+        "./utils/mobileGate": "./src/utils/mobileGate/index.ts",
         "./hooks": "./src/hooks/index.ts",
         "./schemas": "./src/schemas/index.ts",
         "./types": "./src/types/index.ts"
     },
     "dependencies": {
         "@tanstack/query-persist-client-core": "5.100.9",
-        "axios": "1.16.0",
+        "axios": "1.18.0",
         "dayjs": "^1.11.20",
         "idb-keyval": "^6.3.0",
         "json5": "^2.2.3",

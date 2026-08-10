@@ -60,6 +60,7 @@ const linkStyle =
             >{hero.eyebrow}</span
           >
           <h1
+            class="ag-h1"
             style="margin:0;font:var(--text-display-lg);color:#F7F6F4;max-width:760px;text-wrap:pretty;"
           >
             {hero.headline}
@@ -100,23 +101,36 @@ const linkStyle =
         comparisonModes.map(({ cls, data }) => {
           const cols = data.columns.length;
           const COLS = `grid-template-columns:1.4fr repeat(${cols}, 1fr);`;
+          // Phone column template + min-width (used via CSS vars in the <=760 media
+          // query): a narrower sticky label track + fixed-width value columns so the
+          // pinned Features column never overlaps the plan columns it scrolls past.
+          const colsM = `128px repeat(${cols}, minmax(96px, 1fr))`;
+          const minwM = 128 + cols * 96;
           // Wide (cloud/4-col) table keeps full-size columns and scrolls sideways on
           // narrow viewports; the 2-col table is capped narrower so it reads cleanly.
           const tableStyle =
-            cols >= 3
+            (cols >= 3
               ? "min-width:920px;max-width:1336px;margin:0 auto;"
-              : "min-width:520px;max-width:900px;margin:0 auto;";
+              : "min-width:520px;max-width:900px;margin:0 auto;") +
+            `--cmp-cols-m:${colsM};--cmp-minw-m:${minwM}px;`;
           return (
             <div class={`cmp-wrap ${cls}`}>
               <SectionTitle dark badge="Compare" title={data.title} />
+
+              {/* Mobile-only affordance: the table scrolls sideways to reveal the
+                  other plan columns, which isn't obvious on a phone. */}
+              <span class="cmp-hint" aria-hidden="true">
+                Scroll sideways to compare all plans →
+              </span>
 
               <div class="cmp-scroll" data-scroll="dark">
                 <div class="cmp-table" style={tableStyle}>
                   {/* header row */}
                   <div
+                    class="cmp-row"
                     style={`display:grid;${COLS}align-items:end;padding:0 24px 18px;border-bottom:1px solid rgba(255,255,255,0.12);`}
                   >
-                    <span style="font:var(--text-label);color:rgba(255,255,255,0.5);">
+                    <span class="cmp-c0" style="font:var(--text-label);color:rgba(255,255,255,0.5);">
                       Features
                     </span>
                     {data.columns.map((c) => (
@@ -140,9 +154,10 @@ const linkStyle =
                       </div>
                       {g.rows.map((r) => (
                         <div
+                          class="cmp-row"
                           style={`display:grid;${COLS}align-items:center;padding:14px 24px;border-top:1px solid rgba(255,255,255,0.07);`}
                         >
-                          <span style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
+                          <span class="cmp-c0" style="font:var(--text-body-sm);color:rgba(255,255,255,0.78);">
                             {linkify(r.label, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
                           </span>
                           {r.cells.map((cell) => (
@@ -295,6 +310,39 @@ const linkStyle =
     -webkit-overflow-scrolling: touch;
     padding: 0 24px;
     box-sizing: border-box;
+    /* Horizontal scroll-shadow: an edge shadow signals the table scrolls to
+       reveal the other plan columns, and fades out once scrolled to that end.
+       Pure CSS via background-attachment (local covers vs scroll shadows). */
+    background:
+      linear-gradient(to right, #0e0d0f 42%, rgba(14, 13, 15, 0)) left center,
+      linear-gradient(to left, #0e0d0f 42%, rgba(14, 13, 15, 0)) right center,
+      radial-gradient(
+          farthest-side at 0 50%,
+          rgba(0, 0, 0, 0.55),
+          rgba(0, 0, 0, 0)
+        )
+        left center,
+      radial-gradient(
+          farthest-side at 100% 50%,
+          rgba(0, 0, 0, 0.55),
+          rgba(0, 0, 0, 0)
+        )
+        right center;
+    background-repeat: no-repeat;
+    background-size:
+      34px 100%,
+      34px 100%,
+      16px 100%,
+      16px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+  /* Scroll hint sits between the title and the table; phones only. */
+  .cmp-hint {
+    display: none;
+    font: var(--text-caption);
+    letter-spacing: 0.02em;
+    color: rgba(255, 255, 255, 0.45);
+    text-align: center;
   }
   /* The table never collapses: it keeps full-size columns and scrolls sideways
      when the viewport is narrower than its min-width (see RESPONSIVE.md). */
@@ -376,10 +424,45 @@ const linkStyle =
       padding: 72px 0;
     }
     .plan-grid,
-    .cmp-scroll,
     .faq-col {
       padding-left: 16px;
       padding-right: 16px;
+    }
+    /* The comparison table scrolls edge-to-edge on phones so the sticky label
+       column can pin flush to the screen edge (no sliver of the scrolling plan
+       columns peeking to its left). Row content keeps its own 24px gutter. */
+    .cmp-scroll {
+      padding-left: 0;
+      padding-right: 0;
+    }
+    /* Tighten the comparison block and reveal the scroll hint on phones. */
+    .cmp-wrap {
+      gap: 24px;
+    }
+    .cmp-hint {
+      display: block;
+    }
+    /* Narrower label track + fixed value columns on phones, so the sticky label
+       column leaves room for the plan values instead of covering them. */
+    .cmp-row {
+      grid-template-columns: var(--cmp-cols-m) !important;
+    }
+    .cmp-table {
+      min-width: var(--cmp-minw-m) !important;
+    }
+    /* Keep the feature-label column pinned while the plan columns scroll under
+       it, so a scrolled row's values always have their label for context. */
+    .cmp-c0 {
+      position: sticky;
+      left: 0;
+      z-index: 2;
+      /* Fill the full row height so the opaque background fully occludes the plan
+         columns scrolling behind it (a text-height box would let them peek). */
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      background: #0e0d0f;
+      box-shadow: 10px 0 12px -8px rgba(0, 0, 0, 0.55);
     }
   }
   @media (max-width: 680px) {

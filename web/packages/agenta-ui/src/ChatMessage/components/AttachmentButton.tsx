@@ -1,8 +1,14 @@
 import React, {useCallback, useRef} from "react"
 
 import {FileArchive, Image as ImageIcon, Paperclip} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps} from "antd"
 
+import {Button} from "../../components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu"
 import {cn, flexLayouts, gapClasses, textColors} from "../../utils/styles"
 
 interface AttachmentButtonProps {
@@ -54,29 +60,6 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
         [onAddFile],
     )
 
-    const menuItems: MenuProps["items"] = [
-        {
-            key: "image",
-            label: (
-                <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
-                    <ImageIcon size={14} />
-                    <span>Upload image</span>
-                </span>
-            ),
-            onClick: () => imageInputRef.current?.click(),
-        },
-        {
-            key: "file",
-            label: (
-                <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
-                    <FileArchive size={14} />
-                    <span>Attach document</span>
-                </span>
-            ),
-            onClick: () => fileInputRef.current?.click(),
-        },
-    ]
-
     return (
         <>
             <input
@@ -93,15 +76,33 @@ export const AttachmentButton: React.FC<AttachmentButtonProps> = ({
                 hidden
                 onChange={handleFileSelect}
             />
-            <Dropdown menu={{items: menuItems}} trigger={["click"]} disabled={disabled}>
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<Paperclip size={14} />}
-                    className={cn(textColors.icon, textColors.iconHover)}
-                    title="Add attachment"
-                />
-            </Dropdown>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild disabled={disabled}>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        className={cn(textColors.icon, textColors.iconHover)}
+                        title="Add attachment"
+                    >
+                        {<Paperclip size={14} />}
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+                        <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
+                            <ImageIcon size={14} />
+                            <span>Upload image</span>
+                        </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                        <span className={cn(flexLayouts.rowCenter, gapClasses.sm)}>
+                            <FileArchive size={14} />
+                            <span>Attach document</span>
+                        </span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </>
     )
 }

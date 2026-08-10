@@ -47,6 +47,7 @@ import {
     workflowBuildKitEnabledAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {processEnv} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 
 import {
@@ -60,6 +61,10 @@ import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegrati
 const REAL_APP = "11111111-1111-4111-8111-111111111111"
 const REAL_VARIANT = "22222222-2222-4222-8222-222222222222"
 const REAL_REV = "33333333-3333-4333-8333-333333333333"
+
+type TestRuntimeGlobal = typeof globalThis & {
+    __env?: Record<string, string>
+}
 
 const set = (store: any, sel: any, id: string, value: unknown) =>
     store.set(sel(id) as PrimitiveAtom<unknown>, value)
@@ -93,6 +98,11 @@ function seed(
         workflowBuildKitEnabledAtomFamily(id) as PrimitiveAtom<unknown>,
         over.buildKitEnabled ?? true,
     )
+}
+
+/** Minimal shape of the agent template these assertions read back off the request body. */
+interface AgentTemplateShape {
+    tools: {type?: string; name?: string; op?: string}[]
 }
 
 const authoringSkill = {
@@ -183,11 +193,13 @@ describe("buildAgentRequest", () => {
         const u2 = {role: "user", parts: [{type: "text", text: "q2"}]}
 
         // Runtime override path (getEnv checks globalThis.__env before the build-time snapshot).
-        const enableFlag = () => {
-            ;(globalThis as any).__env = {NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: "true"}
+        const setFlag = (value: string) => {
+            ;(globalThis as TestRuntimeGlobal).__env = {
+                NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: value,
+            }
         }
         afterEach(() => {
-            delete (globalThis as any).__env
+            delete (globalThis as TestRuntimeGlobal).__env
         })
 
         const outMessages = async (msgs: unknown[], sessionId = "s1") => {
@@ -196,25 +208,43 @@ describe("buildAgentRequest", () => {
             return (req!.requestBody.data as any).inputs.messages
         }
 
-        it("sends only the trailing user message when enabled", async () => {
-            enableFlag()
+        it("sends only the trailing user message by default (flag absent)", async () => {
             expect(await outMessages([u1, a1, u2])).toEqual([u2])
         })
 
-        it("sends the full history by default (flag off)", async () => {
-            const out = await outMessages([u1, a1, u2])
-            expect(out).toEqual([u1, a1, u2])
+        it("sends only the trailing user message when explicitly enabled", async () => {
+            setFlag("true")
+            expect(await outMessages([u1, a1, u2])).toEqual([u2])
         })
 
-        it("keeps the full history on a resume (trailing assistant) even when enabled", async () => {
-            enableFlag()
+        it('an empty value (compose "${VAR:-}" passthrough) keeps the default on', async () => {
+            const buildTimeValue = processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY
+            processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY = "false"
+            setFlag("")
+            try {
+                expect(await outMessages([u1, a1, u2])).toEqual([u2])
+            } finally {
+                processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY = buildTimeValue
+            }
+        })
+
+        it('sends the full history when explicitly disabled ("false")', async () => {
+            setFlag("false")
+            expect(await outMessages([u1, a1, u2])).toEqual([u1, a1, u2])
+        })
+
+        it("treats trimmed, case-insensitive false as disabled", async () => {
+            setFlag(" FALSE ")
+            expect(await outMessages([u1, a1, u2])).toEqual([u1, a1, u2])
+        })
+
+        it("keeps the full history on a resume (trailing assistant) even when on", async () => {
             const out = await outMessages([u1, a1])
             expect(out.length).toBeGreaterThan(1)
             expect(out[out.length - 1].role).toBe("assistant")
         })
 
         it("sends the full history when there is no session id", async () => {
-            enableFlag()
             expect(await outMessages([u1, a1, u2], "")).toEqual([u1, a1, u2])
         })
     })
@@ -309,6 +339,37 @@ describe("buildAgentRequest", () => {
         ])
         expect(template.skills).toEqual([authoringSkill])
         expect(config).toEqual(before)
+    })
+
+    it("passes a saved config's legacy built-in entries through the overlay merge untouched", async () => {
+        // Dual-read on the run path: neither side writes built-in entries any more, but a
+        // revision saved before the rework still carries them. They must survive the merge
+        // verbatim (the SDK ignores them) and must not disturb the overlay's own tools.
+        const builtin = (name: string) => ({type: "builtin", name})
+        const config = {
+            agent: {
+                tools: [builtin("read"), builtin("bash"), builtin("edit"), builtin("write")],
+            },
+        }
+        seed(store, "e", {
+            config,
+            overlay: {
+                tools: [{type: "platform", op: "commit_revision"}],
+            },
+            buildKitEnabled: true,
+        })
+
+        const req = await buildAgentRequest("e", [], {sessionId: "s1", store})
+        const template = (req!.requestBody.data as {parameters: {agent: AgentTemplateShape}})
+            .parameters.agent
+
+        expect(template.tools).toEqual([
+            builtin("read"),
+            builtin("bash"),
+            builtin("edit"),
+            builtin("write"),
+            {type: "platform", op: "commit_revision"},
+        ])
     })
 
     it("applies the build-kit overlay to a BARE template (no agent wrapper)", async () => {

@@ -14,6 +14,8 @@ export interface SidebarConfig {
     defaultOpen?: boolean
     onClick?: (e: MouseEvent) => void
     tag?: string
+    /** Right-aligned content (e.g. a version label); hidden when the rail is collapsed. */
+    suffix?: JSX.Element
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
     divider?: boolean
@@ -67,6 +69,8 @@ export interface SidebarScope {
     useSections: () => SidebarSection[]
     header?: SidebarSlot
     footer?: SidebarSlot
+    /** Pinned slot rendered below the bottom section — the very last element in the rail. */
+    afterBottom?: SidebarSlot
 }
 
 export interface SidebarShellProps {

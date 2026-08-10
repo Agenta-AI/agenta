@@ -1,12 +1,12 @@
 import {useEffect, useMemo, useState, type CSSProperties} from "react"
 
+import {TableDescription} from "@agenta/ui/table"
 import {DownOutlined, MoreOutlined} from "@ant-design/icons"
 import {Export, Link, PencilSimple, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Popover, Space, Typography} from "antd"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {TableDescription} from "@/oss/components/InfiniteVirtualTable"
 import {UserReference} from "@/oss/components/References/UserReference"
 import type {ExportFileType} from "@/oss/services/testsets/api"
 import {enableRevisionsListQueryAtom} from "@/oss/state/entities/testset"

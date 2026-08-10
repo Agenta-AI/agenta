@@ -19,6 +19,8 @@ from agenta.sdk.agents import (
     ClaudeAgentTemplate,
     ClaudeHarness,
     ClientToolSpec,
+    CodexAgentTemplate,
+    CodexHarness,
     HarnessKind,
     PiAgentTemplate,
     PiHarness,
@@ -27,11 +29,9 @@ from agenta.sdk.agents import (
     UnsupportedHarnessError,
     make_harness,
 )
-from agenta.sdk.agents.adapters import harnesses
 from agenta.sdk.agents.adapters.agenta_builtins import (
     AGENTA_FORCED_APPEND_SYSTEM,
     AGENTA_FORCED_SKILLS,
-    AGENTA_FORCED_TOOLS,
     GETTING_STARTED_WITH_AGENTA_SKILL,
     AGENTA_PREAMBLE,
     force_skills,
@@ -49,10 +49,9 @@ def _session_config(**kwargs) -> SessionConfig:
 # --------------------------------------------------------------------------- Pi
 
 
-def test_pi_keeps_builtins_and_native_tools(make_env):
+def test_pi_keeps_native_tools(make_env):
     harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     config = _session_config(
-        builtin_tools=["read", "write"],
         custom_tools=[{"name": "t", "callRef": "ref"}],
         tool_callback=_CALLBACK,
     )
@@ -60,20 +59,20 @@ def test_pi_keeps_builtins_and_native_tools(make_env):
     result = harness._to_harness_config(config)
 
     assert isinstance(result, PiAgentTemplate)
-    assert result.builtin_tools == ["read", "write"]
     assert result.custom_tools[0]["name"] == "t"
     assert result.tool_callback is _CALLBACK
     assert result.agents_md == "hi"
     assert result.model == "m"
 
 
-def test_pi_threads_model_ref_so_connection_reaches_wire(make_env):
-    """Regression: a named custom connection's ``{mode, slug}`` must reach the ``/run`` wire.
+def test_pi_threads_model_ref_so_connection_reaches_resolver(make_env):
+    """Regression: a named custom connection's ``{mode, slug}`` must survive the adapter.
 
     ``_to_harness_config`` builds the wire-producing harness template. If it drops
-    ``model_ref`` (passing only the plain ``model`` string), ``wire_model_ref`` returns ``{}``
-    and the runner never sees the connection slug, so it cannot build its ``models.json`` plan
-    for an OpenAI-compatible custom connection (the run then falls back to a default provider).
+    ``model_ref`` (passing only the plain ``model`` string), the connection resolver never
+    sees the slug, so it cannot select the OpenAI-compatible custom connection (the run then
+    falls back to a default provider). Author intent itself no longer rides the ``/run``
+    wire — only the resolved ``modelConnection`` (route + typed credentials) does.
     """
     harness = PiHarness(make_env(supported=[HarnessKind.PI]))
     agent = AgentTemplate(
@@ -88,14 +87,11 @@ def test_pi_threads_model_ref_so_connection_reaches_wire(make_env):
 
     assert result.model_ref is not None
     assert result.model_ref.connection.slug == "my-compat"
-    # The connection intent reaches the /run wire so the runner can register the provider.
-    assert result.wire_model_ref().get("connection") == {
-        "mode": "agenta",
-        "slug": "my-compat",
-    }
+    # Unresolved author intent never rides the wire; only a resolved connection would.
+    assert result.wire_model_connection() == {}
 
 
-def test_agenta_threads_model_ref_so_connection_reaches_wire(make_env):
+def test_agenta_threads_model_ref_so_connection_reaches_resolver(make_env):
     """Same guarantee as Pi for the ``pi_agenta`` harness (it also runs Pi)."""
     harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     agent = AgentTemplate(
@@ -109,10 +105,8 @@ def test_agenta_threads_model_ref_so_connection_reaches_wire(make_env):
     result = harness._to_harness_config(_session_config(agent=agent))
 
     assert result.model_ref is not None
-    assert result.wire_model_ref().get("connection") == {
-        "mode": "agenta",
-        "slug": "my-compat",
-    }
+    assert result.model_ref.connection.slug == "my-compat"
+    assert result.wire_model_connection() == {}
 
 
 def test_pi_reads_its_harness_extras_slice(make_env):
@@ -151,7 +145,7 @@ def test_pi_drops_blank_harness_extras(make_env):
 # ------------------------------------------------------------------------- Agenta
 
 
-def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
+def test_agenta_forces_preamble_and_persona_and_carries_skills(make_env):
     harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     skill = {
         "name": "release-notes",
@@ -162,7 +156,6 @@ def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
         agent=AgentTemplate(
             instructions="My project rules.", model="m", skills=[skill]
         ),
-        builtin_tools=["web_search"],
         custom_tools=[{"name": "t", "callRef": "ref"}],
         tool_callback=_CALLBACK,
     )
@@ -173,11 +166,6 @@ def test_agenta_forces_tools_preamble_and_persona_and_carries_skills(make_env):
     # AGENTS.md is the base preamble with the author's instructions appended after it.
     assert result.agents_md.startswith(AGENTA_PREAMBLE)
     assert result.agents_md.endswith("My project rules.")
-    # Forced tools are unioned in (and `read` is present so Pi renders the skills section).
-    for forced in AGENTA_FORCED_TOOLS:
-        assert forced in result.builtin_tools
-    assert "web_search" in result.builtin_tools
-    assert "read" in result.builtin_tools
     # The author's resolved inline skills ride the config, plus the forced platform skill(s) the
     # harness always injects. The author's skill comes first; the platform skill is appended.
     skill_names = [s.name for s in result.skills]
@@ -234,16 +222,6 @@ def test_force_skills_unions_forced_after_author_skills():
     }
 
 
-def test_agenta_forces_tools_without_duplicates(make_env):
-    harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
-    # `read` already configured: it must not be duplicated when forced.
-    config = _session_config(builtin_tools=["read"])
-
-    result = harness._to_harness_config(config)
-
-    assert result.builtin_tools.count("read") == 1
-
-
 def test_agenta_passes_through_user_pi_options(make_env):
     harness = AgentaHarness(make_env(supported=[HarnessKind.AGENTA]))
     agent = AgentTemplate(
@@ -271,16 +249,9 @@ def test_agenta_is_sandbox_agent_supported():
 # ------------------------------------------------------------------------- Claude
 
 
-def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
-    recorded = []
-    monkeypatch.setattr(
-        harnesses,
-        "log",
-        type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
-    )
+def test_claude_has_no_builtins(make_env):
     harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
     config = _session_config(
-        builtin_tools=["read"],
         custom_tools=[{"name": "t", "callRef": "ref"}],
         permission_default="deny",
     )
@@ -291,7 +262,6 @@ def test_claude_drops_builtins_and_warns(make_env, monkeypatch):
     assert not hasattr(result, "builtin_tools")  # Claude has no built-in tools at all
     assert result.custom_tools[0]["name"] == "t"
     assert result.permission_default == "deny"
-    assert recorded, "expected a warning when built-ins are dropped"
 
 
 def test_claude_carries_skills_for_project_local_materialization(make_env):
@@ -311,20 +281,6 @@ def test_claude_carries_skills_for_project_local_materialization(make_env):
     # `.claude/skills/<name>` in the session cwd, matching Claude's project-local skill layout.
     assert [s.name for s in result.skills] == ["release-notes"]
     assert result.wire_skills()["skills"][0]["name"] == "release-notes"
-
-
-def test_claude_no_warning_without_builtins(make_env, monkeypatch):
-    recorded = []
-    monkeypatch.setattr(
-        harnesses,
-        "log",
-        type("L", (), {"warning": lambda self, *a, **k: recorded.append(a)})(),
-    )
-    harness = ClaudeHarness(make_env(supported=[HarnessKind.CLAUDE]))
-
-    harness._to_harness_config(_session_config(permission_default="allow_reads"))
-
-    assert recorded == []
 
 
 def test_claude_threads_permissions_and_renders_settings_file(make_env):
@@ -361,6 +317,41 @@ def test_claude_without_permissions_renders_no_files(make_env):
 
     assert result.harness_permissions == {}
     assert result.wire_harness_files() == {}
+
+
+# -------------------------------------------------------------------------- Codex
+
+
+def test_codex_has_no_builtins(make_env):
+    harness = CodexHarness(make_env(supported=[HarnessKind.CODEX]))
+    config = _session_config(
+        custom_tools=[{"name": "t", "callRef": "ref"}],
+        permission_default="deny",
+    )
+
+    result = harness._to_harness_config(config)
+
+    assert isinstance(result, CodexAgentTemplate)
+    assert not hasattr(result, "builtin_tools")  # Codex has no built-in tools at all
+    assert result.custom_tools[0]["name"] == "t"
+    assert result.permission_default == "deny"
+
+
+def test_codex_managed_renders_file_free_provider_block(make_env):
+    # An unresolved connection defaults to MANAGED, which renders the file-free auth provider block
+    # (env_key OPENAI_API_KEY) even with no authored options (D-002 final ruling). No credential in
+    # the file; codex reads the key from the daemon env at request time.
+    harness = CodexHarness(make_env(supported=[HarnessKind.CODEX]))
+
+    result = harness._to_harness_config(_session_config())
+    files = result.wire_harness_files()["harnessFiles"]
+
+    assert len(files) == 1
+    assert files[0]["path"] == ".codex/config.toml"
+    content = files[0]["content"]
+    assert 'model_provider = "agenta-openai"' in content
+    assert "[model_providers.agenta-openai]" in content
+    assert 'env_key = "OPENAI_API_KEY"' in content
 
 
 # --------------------------------------------------------------- _normalize_tool_specs
@@ -413,13 +404,22 @@ def test_opt_str_keeps_only_nonempty_strings():
 
 
 def test_make_harness_maps_string_to_class(make_env):
-    env = make_env(supported=[HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA])
+    env = make_env(
+        supported=[
+            HarnessKind.PI,
+            HarnessKind.CLAUDE,
+            HarnessKind.CODEX,
+            HarnessKind.AGENTA,
+        ]
+    )
     assert isinstance(make_harness("pi_core", env), PiHarness)
     assert isinstance(
         make_harness("PI_CORE", env), PiHarness
     )  # coerced, case-insensitive
     assert isinstance(make_harness("claude", env), ClaudeHarness)
     assert isinstance(make_harness(HarnessKind.CLAUDE, env), ClaudeHarness)
+    assert isinstance(make_harness("codex", env), CodexHarness)
+    assert isinstance(make_harness(HarnessKind.CODEX, env), CodexHarness)
     assert isinstance(make_harness("pi_agenta", env), AgentaHarness)
     assert isinstance(make_harness(HarnessKind.AGENTA, env), AgentaHarness)
 

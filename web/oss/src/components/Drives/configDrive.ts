@@ -16,17 +16,20 @@ import {
     sessionsListAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
 
+import {type DroppedFile} from "./dropEntries"
 import {useSessionDriveSummary, type SessionDriveData} from "./useSessionDrive"
 
 export interface ConfigFilesDrawerRequest {
     open: boolean
     /** Preselect this path in the tree/preview when opening; null opens at the root. */
     initialPath: string | null
+    /** Files dropped on the Files peek, staged (unwritten) until a destination is chosen in the drawer. */
+    staged: DroppedFile[]
 }
 
 /** One drawer-open request per config revision, shared by the Files header and body. */
 export const configFilesDrawerAtomFamily = atomFamily((_revisionId: string) =>
-    atom<ConfigFilesDrawerRequest>({open: false, initialPath: null}),
+    atom<ConfigFilesDrawerRequest>({open: false, initialPath: null, staged: []}),
 )
 
 /**

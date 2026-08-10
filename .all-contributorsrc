@@ -653,6 +653,24 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "Yuvakunaal",
+      "name": "Boggavarapu Yuva Satya Kunaal",
+      "avatar_url": "https://avatars.githubusercontent.com/u/126342173?v=4",
+      "profile": "https://kunaal-portfolio.vercel.app",
+      "contributions": [
+        "test"
+      ]
+    },
+    {
+      "login": "MarceloAdan73",
+      "name": "Marcelo-Palma",
+      "avatar_url": "https://avatars.githubusercontent.com/u/112431764?v=4",
+      "profile": "https://github.com/MarceloAdan73",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

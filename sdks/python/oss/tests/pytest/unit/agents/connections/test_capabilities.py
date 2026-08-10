@@ -64,8 +64,10 @@ def test_unknown_harness_is_closed():
 
 def test_two_modes_supported_on_all_known_harnesses():
     for harness in HARNESS_CONNECTION_CAPABILITIES:
-        for mode in ("agenta", "self_managed"):
-            assert harness_allows_mode(harness, mode) is True
+        # Every harness supports the managed `agenta` mode and the `self_managed` subscription mode
+        # (Codex reaches its ChatGPT/Codex subscription OAuth via the mounted CODEX_HOME login).
+        assert harness_allows_mode(harness, "agenta") is True
+        assert harness_allows_mode(harness, "self_managed") is True
         # The removed `default` mode is no longer supported.
         assert harness_allows_mode(harness, "default") is False
     assert harness_allows_mode("pi_core", "bogus") is False
@@ -115,7 +117,7 @@ def test_claude_consumes_custom_gateway_bedrock_and_vertex():
 
 def test_capabilities_document_shape():
     doc = harness_capabilities_document()
-    assert set(doc) == {"pi_core", "pi_agenta", "claude"}
+    assert set(doc) == {"pi_core", "pi_agenta", "claude", "codex"}
     assert doc["claude"]["providers"] == ["anthropic"]
     assert doc["claude"]["model_selection"] == "alias"
     assert doc["pi_core"]["providers"] == list(PI_VAULT_PROVIDERS) + list(
@@ -131,6 +133,12 @@ def test_capabilities_document_shape():
         "vertex",
     ]
     assert doc["claude"]["mcp"] == {
+        "user_servers": {
+            "connection_types": ["http"],
+            "credentials": ["none", "header_secret_refs"],
+        }
+    }
+    assert doc["codex"]["mcp"] == {
         "user_servers": {
             "connection_types": ["http"],
             "credentials": ["none", "header_secret_refs"],

@@ -1,7 +1,7 @@
 import {type FC} from "react"
 
 import {environmentMolecule} from "@agenta/entities/environment"
-import {Badge, Space, Tooltip} from "antd"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -29,20 +29,30 @@ const EnvironmentStatus: FC<{
             : fallbackDeployedIn) || []
 
     return (
-        <Space className={clsx(["environment-badges ml-1", className])}>
-            {deployedIn.map((env) => {
-                return (
-                    <Tooltip key={env.name} title={env.name}>
-                        <div>
-                            <Badge
-                                color={statusMap[env.name]?.badge ?? "transparent"}
-                                title={env.name}
-                            />
-                        </div>
-                    </Tooltip>
-                )
-            })}
-        </Space>
+        <TooltipProvider>
+            <div className={clsx(["environment-badges ml-1 flex items-center gap-2", className])}>
+                {deployedIn.map((env) => {
+                    return (
+                        <Tooltip key={env.name}>
+                            <TooltipTrigger asChild>
+                                <div>
+                                    {/* antd Badge status dot: 6px (measured), -1px optical lift. */}
+                                    <span
+                                        title={env.name}
+                                        className="relative -top-px inline-block size-1.5 rounded-full align-middle"
+                                        style={{
+                                            backgroundColor:
+                                                statusMap[env.name]?.badge ?? "transparent",
+                                        }}
+                                    />
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>{env.name}</TooltipContent>
+                        </Tooltip>
+                    )
+                })}
+            </div>
+        </TooltipProvider>
     )
 }
 

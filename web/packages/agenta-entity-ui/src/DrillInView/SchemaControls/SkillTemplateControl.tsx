@@ -19,8 +19,15 @@ import {memo, useCallback, useEffect, useRef, useState} from "react"
 
 import {isPlainObject, safeStringify} from "@agenta/shared/utils"
 import {useDrillInUI} from "@agenta/ui/drill-in"
+import {
+    Badge,
+    Button,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {MinusCircle} from "@phosphor-icons/react"
-import {Button, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 export interface SkillTemplateControlProps {
@@ -158,21 +165,26 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
     const header = (
         <div className="w-full flex items-center justify-between gap-2 py-1">
             <div className="flex items-center gap-2 min-w-0">
-                <Typography.Text strong className="text-sm truncate">
-                    {name}
-                </Typography.Text>
-                {embed && <Tag color="blue">@ag.embed</Tag>}
+                <span className="text-sm font-semibold truncate">{name}</span>
+                {embed && <Badge variant="blue">@ag.embed</Badge>}
             </div>
             {!disabled && onDelete && (
-                <Tooltip title="Remove">
-                    <Button
-                        icon={<MinusCircle size={14} />}
-                        type="text"
-                        size="small"
-                        onClick={onDelete}
-                        className="invisible group-hover/skill:visible shrink-0"
-                    />
-                </Tooltip>
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label="Remove"
+                                onClick={onDelete}
+                                className="invisible group-hover/skill:visible shrink-0"
+                            >
+                                <MinusCircle size={14} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remove</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
             )}
         </div>
     )
@@ -190,20 +202,18 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
                 )}
             >
                 <div className="flex items-center gap-2 min-w-0">
-                    <Typography.Text strong className="text-sm truncate">
-                        {name}
-                    </Typography.Text>
-                    <Tag color="default">Static skill</Tag>
-                    {version && <Tag color="default">{version}</Tag>}
+                    <span className="text-sm font-semibold truncate">{name}</span>
+                    <Badge>Static skill</Badge>
+                    {version && <Badge>{version}</Badge>}
                 </div>
                 {slug && (
-                    <Typography.Text type="secondary" className="text-xs font-mono truncate">
+                    <span className="text-xs font-mono truncate text-colorTextDescription">
                         {slug}
-                    </Typography.Text>
+                    </span>
                 )}
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-colorTextDescription">
                     Provided by Agenta. This skill cannot be edited or removed.
-                </Typography.Text>
+                </span>
             </div>
         )
     }
@@ -215,6 +225,7 @@ export const SkillTemplateControl = memo(function SkillTemplateControl({
             >
                 {header}
                 <textarea
+                    aria-label="Skill template"
                     className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                     value={editorText}
                     onChange={(e) => handleEditorChange(e.target.value)}

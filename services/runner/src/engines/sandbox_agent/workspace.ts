@@ -1,7 +1,12 @@
 import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-import type { RunPlan } from "./run-plan.ts";
+import type {
+  RunPlan,
+  RunPlanPrompt,
+  RunPlanTools,
+  RunPlanWorkspace,
+} from "./run-plan.ts";
 import {
   materializeDaytonaPiSkillSnapshot,
   materializeLocalPiSkillSnapshot,
@@ -18,18 +23,14 @@ export interface Workspace {
 export interface PrepareWorkspaceInput {
   sandbox: any;
   piSkillSnapshot?: PiSkillSnapshot;
-  plan: Pick<
-    RunPlan,
-    | "isDaytona"
-    | "isPi"
-    | "cwd"
-    | "relayDir"
-    | "useToolRelay"
-    | "agentsMd"
-    | "acpAgent"
-    | "harnessFiles"
-    | "skillDirs"
-  >;
+  plan: Pick<RunPlan, "isDaytona" | "isPi" | "acpAgent"> & {
+    workspace: Pick<
+      RunPlanWorkspace,
+      "cwd" | "relayDir" | "harnessFiles" | "skillDirs"
+    >;
+    tools: Pick<RunPlanTools, "useToolRelay">;
+    prompt: Pick<RunPlanPrompt, "agentsMd">;
+  };
   log?: Log;
 }
 
@@ -52,7 +53,7 @@ export async function prepareWorkspace({
   piSkillSnapshot,
   log = () => {},
 }: PrepareWorkspaceInput): Promise<Workspace> {
-  const harnessFiles = plan.harnessFiles ?? [];
+  const harnessFiles = plan.workspace.harnessFiles ?? [];
   const projectSkillRoot = plan.isPi ? undefined : `.${plan.acpAgent}/skills`;
   // Claude's memory loader reads CLAUDE.md, never AGENTS.md; Pi (and any other harness) reads
   // AGENTS.md. See the doc comment above and docs/design/agent-workflows/projects/
@@ -61,32 +62,37 @@ export async function prepareWorkspace({
     plan.acpAgent === "claude" ? "CLAUDE.md" : "AGENTS.md";
 
   if (plan.isDaytona) {
-    await sandbox.mkdirFs({ path: plan.cwd }).catch((err: Error) => {
+    await sandbox.mkdirFs({ path: plan.workspace.cwd }).catch((err: Error) => {
       log(`workspace mkdir skipped: ${err.message}`);
     });
-    if (plan.useToolRelay) {
+    if (plan.tools.useToolRelay) {
       // Clear stale .req.json/.res.json from a prior turn before recreating: the relay
       // dir is keyed on the durable cwd and a fresh per-turn `seen` set would otherwise re-execute it.
       if (typeof sandbox.runProcess === "function") {
         // Direct argv, no shell, so an arbitrary path can't break or inject.
         await sandbox
-          .runProcess({ command: "rm", args: ["-rf", "--", plan.relayDir] })
+          .runProcess({
+            command: "rm",
+            args: ["-rf", "--", plan.workspace.relayDir],
+          })
           .catch((err: Error) => {
             log(`tool relay dir clear skipped: ${err.message}`);
           });
       }
-      await sandbox.mkdirFs({ path: plan.relayDir }).catch((err: Error) => {
-        log(`tool relay dir mkdir skipped: ${err.message}`);
-      });
+      await sandbox
+        .mkdirFs({ path: plan.workspace.relayDir })
+        .catch((err: Error) => {
+          log(`tool relay dir mkdir skipped: ${err.message}`);
+        });
     }
-    if (plan.agentsMd) {
+    if (plan.prompt.agentsMd) {
       await sandbox.writeFsFile(
-        { path: `${plan.cwd}/${instructionsFile}` },
-        plan.agentsMd,
+        { path: `${plan.workspace.cwd}/${instructionsFile}` },
+        plan.prompt.agentsMd,
       );
     }
     for (const file of harnessFiles) {
-      const path = `${plan.cwd}/${file.path}`;
+      const path = `${plan.workspace.cwd}/${file.path}`;
       const parent = dirname(path);
       await sandbox.mkdirFs({ path: parent }).catch((err: Error) => {
         log(`harness file dir mkdir skipped: ${err.message}`);
@@ -97,11 +103,11 @@ export async function prepareWorkspace({
       await materializeDaytonaPiSkillSnapshot(sandbox, piSkillSnapshot);
     }
     if (projectSkillRoot) {
-      for (const skill of plan.skillDirs) {
+      for (const skill of plan.workspace.skillDirs) {
         await uploadDirToSandbox(
           sandbox,
           skill.dir,
-          `${plan.cwd}/${projectSkillRoot}/${skill.name}`,
+          `${plan.workspace.cwd}/${projectSkillRoot}/${skill.name}`,
         ).catch((err: Error) => {
           log(
             `skill workspace upload skipped for ${skill.name}: ${err.message}`,
@@ -115,25 +121,29 @@ export async function prepareWorkspace({
   // A durable local cwd mount is best-effort. When geesefs cannot mount (for example, the
   // runner has no /dev/fuse), acquisition deliberately falls back to an ephemeral cwd. Ensure
   // that fallback exists before writing CLAUDE.md/AGENTS.md or any harness files into it.
-  mkdirSync(plan.cwd, { recursive: true });
+  mkdirSync(plan.workspace.cwd, { recursive: true });
 
-  if (plan.useToolRelay) {
+  if (plan.tools.useToolRelay) {
     // Clear stale .req.json from a prior turn: relayDir is keyed on the durable cwd and
     // is never otherwise cleared, so an old request would be re-picked-up by the fresh `seen` set.
-    rmSync(plan.relayDir, { recursive: true, force: true });
-    mkdirSync(plan.relayDir, { recursive: true });
+    rmSync(plan.workspace.relayDir, { recursive: true, force: true });
+    mkdirSync(plan.workspace.relayDir, { recursive: true });
   }
-  if (plan.agentsMd)
-    writeFileSync(join(plan.cwd, instructionsFile), plan.agentsMd, "utf-8");
+  if (plan.prompt.agentsMd)
+    writeFileSync(
+      join(plan.workspace.cwd, instructionsFile),
+      plan.prompt.agentsMd,
+      "utf-8",
+    );
   for (const file of harnessFiles) {
-    const path = join(plan.cwd, file.path);
+    const path = join(plan.workspace.cwd, file.path);
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, file.content, "utf-8");
   }
   if (piSkillSnapshot) materializeLocalPiSkillSnapshot(piSkillSnapshot);
   if (projectSkillRoot) {
-    for (const skill of plan.skillDirs) {
-      const dest = join(plan.cwd, projectSkillRoot, skill.name);
+    for (const skill of plan.workspace.skillDirs) {
+      const dest = join(plan.workspace.cwd, projectSkillRoot, skill.name);
       mkdirSync(dirname(dest), { recursive: true });
       cpSync(skill.dir, dest, { recursive: true, dereference: true });
     }
@@ -141,7 +151,7 @@ export async function prepareWorkspace({
 
   return {
     cleanup: async () => {
-      rmSync(plan.cwd, { recursive: true, force: true });
+      rmSync(plan.workspace.cwd, { recursive: true, force: true });
     },
   };
 }

@@ -28,6 +28,9 @@ export {
     createTextColumn,
     createDateColumn,
     createUserColumn,
+    createMonoColumn,
+    createSlugColumn,
+    createEntityColumn,
     createActionsColumn,
     configureUserReference,
     formatDateCell,
@@ -37,6 +40,10 @@ export type {
     TextColumnDef,
     DateColumnDef,
     UserColumnDef,
+    MonoColumnDef,
+    SlugColumnDef,
+    EntityColumnDef,
+    EntityChip,
     ActionsColumnDef,
     ActionItem,
 } from "./columns/createStandardColumns"
@@ -122,6 +129,10 @@ export type {TableExportColumnContext} from "./hooks/useTableExport"
 
 // Alias for backward compatibility
 export {default as ColumnVisibilityPopoverContentBase} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
+export type {
+    ColumnVisibilityNodeMeta,
+    ColumnVisibilityNodeMetaResolver,
+} from "./components/columnVisibility/ColumnVisibilityPopoverContent"
 
 // NOTE: Internal atoms (columnWidths, columnHiddenKeys) are NOT exported.
 // They are implementation details used internally by the table components.

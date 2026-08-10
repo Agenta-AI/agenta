@@ -1,11 +1,13 @@
 import {useMemo, useCallback, useEffect, useRef} from "react"
 
+import {
+    ColumnVisibilityPopoverContentBase,
+    type ColumnTreeNode,
+    type ColumnVisibilityNodeMeta,
+    type ColumnVisibilityState,
+} from "@agenta/ui/table"
 import {Typography} from "antd"
 
-import type {ColumnTreeNode, ColumnVisibilityState} from "@/oss/components/InfiniteVirtualTable"
-import ColumnVisibilityPopoverContentBase, {
-    type ColumnVisibilityNodeMeta,
-} from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {

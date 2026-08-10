@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {traceSpanMolecule, type TraceSpan as EntityTraceSpan} from "@agenta/entities/trace"
+import {traceSpanMolecule} from "@agenta/entities/trace"
 import {Space} from "antd"
 import {useAtomValue} from "jotai"
 
@@ -33,9 +33,7 @@ const OverviewTabItem = ({
     const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
         drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
     }
-    // OSS TraceSpanNode is the same backend span shape as the entities-package type
-    // the drill-in API expects; align at the boundary, no data is converted.
-    const drillInSpan = activeTrace as unknown as EntityTraceSpan
+    const drillInSpan = activeTrace
     const metaConfig = useAtomValue(spanMetaConfigurationAtomFamily(activeTrace))
     const inputsFromSelectors = useAtomValue(spanDataInputsAtomFamily(activeTrace))
     const outputsFromSelectors = useAtomValue(spanDataOutputsAtomFamily(activeTrace))
