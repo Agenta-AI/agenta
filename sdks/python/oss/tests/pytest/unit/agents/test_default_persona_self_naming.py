@@ -35,18 +35,25 @@ def test_default_persona_carries_the_self_naming_guidance():
     text = _default_agents_md()
     assert "`rename_session`" in text
     assert "`rename_agent`" in text
+    # The first-task rename_agent call is PAIRED to the reliable rename_session
+    # call: as a standalone judgment call the model reliably forgot it (live
+    # composer session, 2026-08-10 — raw-request agent name survived a perfect
+    # rename_session turn).
+    assert "same turn" in text
     # The guards against churn ride along with the guidance itself.
     assert "only when the topic genuinely shifts" in text
-    assert "only when your own identity or purpose changes" in text
+    assert "only when your identity or purpose" in text
 
 
 @pytest.mark.skipif(
     not _SCENARIO_FILE.exists(),
     reason="benchmarks/ not present in this checkout",
 )
-def test_benchmark_name_05_seeds_the_default_persona_verbatim():
+@pytest.mark.parametrize(
+    "scenario_id",
+    ["name-05-default-persona-session", "name-06-composer-first-task"],
+)
+def test_benchmark_default_persona_scenarios_seed_it_verbatim(scenario_id):
     doc = json.loads(_SCENARIO_FILE.read_text())
-    scenario = next(
-        s for s in doc["scenarios"] if s["id"] == "name-05-default-persona-session"
-    )
+    scenario = next(s for s in doc["scenarios"] if s["id"] == scenario_id)
     assert scenario["seed"]["instructions"]["agents_md"] == _default_agents_md()

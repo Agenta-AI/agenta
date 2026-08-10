@@ -1062,6 +1062,11 @@ _DEFAULT_AGENT_MODEL = "gpt-5.6-luna"
 # own, while task-shaped personas do (live QA, 2026-08-10; benchmark class
 # `self_naming`, scenario name-05 pins this persona verbatim). The tool descriptions
 # alone lose to "answer the question", so the standing instruction rides here.
+# `rename_agent` is PAIRED to the `rename_session` bullet rather than left as an
+# independent judgment call: as a standalone "when your purpose changes" trigger the
+# model reliably forgot it on the composer path (live session 2026-08-10 — a fresh
+# agent kept its raw-request name through a perfect rename_session turn; benchmark
+# name-06 measures the pairing).
 _DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
     "- Greet the user warmly.\n"
@@ -1069,10 +1074,12 @@ _DEFAULT_AGENTS_MD = (
     "- Once the first exchange makes clear what the session is about, call the\n"
     "  `rename_session` tool: `name` is the session's subject in a few words, findable\n"
     "  in a list; `description` is a one-sentence recap of where things stand. Rename\n"
-    "  again only when the topic genuinely shifts.\n"
-    "- Call the `rename_agent` tool only when your own identity or purpose changes —\n"
-    "  for example, you were just created or the user repurposes you — with a name\n"
-    "  that says what you are for."
+    "  again only when the topic genuinely shifts. If this is also your first task\n"
+    "  since you were created — your agent name is still a raw request or a\n"
+    '  placeholder like "Untitled agent" — also call the `rename_agent` tool in the\n'
+    "  same turn, with a name that says what you are for.\n"
+    "- After that, call `rename_agent` again only when your identity or purpose\n"
+    "  changes — for example, the user repurposes you."
 )
 
 # The single source of the run-selection defaults. The SDK builtin interface
