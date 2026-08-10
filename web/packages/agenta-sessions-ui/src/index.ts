@@ -32,3 +32,14 @@ export {SessionsListView, type SessionsListViewProps} from "./SessionsListView"
 export {SessionFiltersPanel, type SessionFiltersPanelProps} from "./SessionFiltersPanel"
 export {SessionFiltersBar, type SessionFiltersBarProps} from "./SessionFiltersBar"
 export {SessionListCard, type SessionListCardProps} from "./SessionListCard"
+export {SessionListPanel, type SessionListPanelProps} from "./SessionListPanel"
+export {SessionTab, type SessionTabProps} from "./SessionTab"
+export {SessionTabDragItem, type SessionTabDragItemProps} from "./SessionTabDragItem"
+export {SessionTabStrip, type SessionTabStripProps} from "./SessionTabStrip"
+export {SessionTabRail, type SessionTabRailProps} from "./SessionTabRail"
+export {
+    useSessionActions,
+    type SessionActionTarget,
+    type SessionLocalCache,
+    type UseSessionActionsOptions,
+} from "./useSessionActions"
