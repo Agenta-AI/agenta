@@ -14,21 +14,15 @@ import {
     type UseSessionCardListArgs,
 } from "@agenta/sessions/state"
 import {timeAgo} from "@agenta/shared/utils"
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-    ContextMenuTrigger,
-    SimpleTooltip,
-    Skeleton,
-} from "@agenta/ui/ui"
-import {ArrowRightIcon, ChatCircleIcon, ClockIcon, PushPinIcon} from "@phosphor-icons/react"
+import {SimpleTooltip, Skeleton} from "@agenta/ui/ui"
+import {ArrowRightIcon, ChatCircleIcon, ClockIcon} from "@phosphor-icons/react"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {ROW_VARIANTS, SESSION_SPRING} from "./assets/motion"
-import {isMenuDivider, type SessionMenuEntry} from "./menu"
+import {type SessionMenuEntry} from "./menu"
 import {SessionAgentName} from "./SessionAgentName"
+import {SessionPinButton} from "./SessionPinButton"
+import {SessionRowContextMenu} from "./SessionRowContextMenu"
 
 export interface SessionCardListProps extends UseSessionCardListArgs {
     emptyText: string
@@ -65,8 +59,9 @@ const Row = ({
 }) => {
     const entries = menuFor?.(vm)
     const row = (
-        <button
-            type="button"
+        // A plain container, not a button: descendants of a button role are presentational, and
+        // the pin nested inside one was keyboard-unreachable. The TITLE button is the open action.
+        <div
             onClick={() => onOpenRow(vm)}
             className="group box-border flex w-full cursor-pointer items-start gap-3 border-0 border-b border-solid border-colorBorderSecondary bg-transparent px-2 py-3 text-left hover:bg-colorFillQuaternary"
         >
@@ -82,53 +77,49 @@ const Row = ({
                     />
                 </span>
             </SimpleTooltip>
-            <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="flex w-full items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-sm text-colorText">
-                        {vm.title}
-                    </span>
-                    {/* Quiet chip: the amber urgency lives on the dot; this states WHAT is asked. */}
-                    {vm.status.chipLabel ? (
-                        <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-xs leading-none text-colorTextSecondary">
-                            {pendingGateLabel(vm.pending?.kinds)}
-                        </span>
-                    ) : null}
-                    {showAgent ? (
-                        <span className="w-24 shrink-0 truncate text-right">
-                            <SessionAgentName agentId={vm.agentId} />
-                        </span>
-                    ) : null}
-                    <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
-                        {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
-                    </span>
-                    <SimpleTooltip title={vm.isPinned ? "Unpin" : "Pin"}>
-                        <span
-                            role="button"
-                            tabIndex={-1}
-                            aria-label={vm.isPinned ? "Unpin session" : "Pin session"}
-                            onClick={(event) => {
-                                event.stopPropagation()
-                                onTogglePin(vm.id)
-                            }}
-                            className={`shrink-0 text-colorTextTertiary ${
-                                vm.isPinned || alwaysShowPin
-                                    ? ""
-                                    : "opacity-0 group-hover:opacity-100"
-                            }`}
-                        >
-                            <PushPinIcon size={14} weight={vm.isPinned ? "fill" : "regular"} />
-                        </span>
-                    </SimpleTooltip>
-                </span>
+
+            <button
+                type="button"
+                onClick={(event) => {
+                    event.stopPropagation()
+                    onOpenRow(vm)
+                }}
+                className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 border-0 bg-transparent p-0 text-left"
+            >
+                <span className="w-full truncate text-sm text-colorText">{vm.title}</span>
                 {/* What actually happened, so deciding whether to reopen a session doesn't mean
                     opening it. Absent when the title is already the message. */}
                 {vm.subtitle ? (
-                    <span className="min-w-0 truncate text-[13px] text-colorTextTertiary">
+                    <span className="w-full truncate text-[13px] text-colorTextTertiary">
                         {vm.subtitle}
                     </span>
                 ) : null}
-            </span>
-        </button>
+            </button>
+
+            {/* h-5 = the title's line box, so the trailing controls centre on the TITLE rather
+                than on a row whose height the subtitle decides. */}
+            <div className="flex h-5 shrink-0 items-center gap-2">
+                {/* Quiet chip: the amber urgency lives on the dot; this states WHAT is asked. */}
+                {vm.status.chipLabel ? (
+                    <span className="shrink-0 rounded bg-colorFillQuaternary px-1.5 py-0.5 text-xs leading-none text-colorTextSecondary">
+                        {pendingGateLabel(vm.pending?.kinds)}
+                    </span>
+                ) : null}
+                {showAgent ? (
+                    <span className="w-24 shrink-0 truncate text-right">
+                        <SessionAgentName agentId={vm.agentId} />
+                    </span>
+                ) : null}
+                <span className="w-16 shrink-0 text-right text-xs text-colorTextTertiary">
+                    {vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"}
+                </span>
+                <SessionPinButton
+                    pinned={vm.isPinned}
+                    onToggle={() => onTogglePin(vm.id)}
+                    revealOnHover={!alwaysShowPin}
+                />
+            </div>
+        </div>
     )
 
     return (
@@ -140,29 +131,9 @@ const Row = ({
             exit="exit"
             className="overflow-hidden"
         >
-            {entries && entries.length > 0 ? (
-                <ContextMenu>
-                    <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
-                    <ContextMenuContent>
-                        {entries.map((entry, index) =>
-                            isMenuDivider(entry) ? (
-                                <ContextMenuSeparator key={`divider-${index}`} />
-                            ) : (
-                                <ContextMenuItem
-                                    key={entry.key}
-                                    disabled={entry.disabled}
-                                    variant={entry.danger ? "destructive" : undefined}
-                                    onSelect={() => onMenuSelect?.(vm, entry.key)}
-                                >
-                                    {entry.label}
-                                </ContextMenuItem>
-                            ),
-                        )}
-                    </ContextMenuContent>
-                </ContextMenu>
-            ) : (
-                row
-            )}
+            <SessionRowContextMenu entries={entries} onSelect={(key) => onMenuSelect?.(vm, key)}>
+                {row}
+            </SessionRowContextMenu>
         </motion.div>
     )
 }

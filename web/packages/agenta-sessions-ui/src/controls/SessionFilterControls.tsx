@@ -6,12 +6,7 @@ import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 import {Tip} from "../assets/Tip"
 
-/**
- * The session filter CONTROLS — each binds to `useSessionFilters`, so every surface narrows the
- * same set. Shells stay per-surface: a toolbar row and a mobile filter sheet are two shells over
- * these same controls, which is why no shell markup lives here. The agent picker is not among
- * them — it stays an app-injected slot (`EntityPicker`/antd `Select` are out of scope).
- */
+/** The session filter CONTROLS, each bound to `useSessionFilters`; shells stay per-surface. */
 
 /** Applied filter writes are debounced; every keystroke would otherwise refetch both lists. */
 const SEARCH_DEBOUNCE_MS = 300
@@ -100,16 +95,18 @@ const STATUSES: {value: SessionStatusFilter; label: string}[] = [
     {value: "waiting", label: "Waiting on you"},
 ]
 
-/** The status choice as a list you read, not a segmented control you decode. The toolbar uses
- * {@link SessionStatusControl}; this is the shape a rail or a mobile filter sheet needs. */
+/** The status choice as a list, for a rail or a mobile sheet; the toolbar uses
+ * {@link SessionStatusControl}. */
 export const SessionStatusListControl = ({waitingCount}: {waitingCount?: number}) => {
     const {status, setStatus} = useSessionFilters()
     return (
-        <nav className="flex flex-col gap-0.5">
+        // Styling alone doesn't reach AT: the group is named, and each option states its state.
+        <div className="flex flex-col gap-0.5" role="group" aria-label="Filter sessions by status">
             {STATUSES.map((option) => (
                 <button
                     key={option.value}
                     type="button"
+                    aria-pressed={option.value === status}
                     onClick={() => setStatus(option.value)}
                     className={`box-border flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 px-3 py-2 text-left text-sm transition-colors ${
                         option.value === status
@@ -125,7 +122,7 @@ export const SessionStatusListControl = ({waitingCount}: {waitingCount?: number}
                     ) : null}
                 </button>
             ))}
-        </nav>
+        </div>
     )
 }
 
