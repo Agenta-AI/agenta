@@ -84,7 +84,13 @@ export const PanelSection = ({
                 isRail
                     ? // Each section is its own card. Stacked inside one, they read as a single
                       // block: same surface, same colour, a hairline carrying every boundary.
-                      "shrink-0 overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated"
+                      //
+                      // `overflow-clip`, not `overflow-hidden`: both round the corners, but
+                      // `hidden` also makes the section a scroll container, and a sticky header
+                      // then pins to a box that never scrolls — i.e. `sticky` silently does
+                      // nothing. `clip` establishes no scrollport, so the header pins to the
+                      // real scroller ({@link PanelScroll}) as intended.
+                      "shrink-0 overflow-clip rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated"
                     : ""
             } ${minHeightClassName ?? ""}`}
         >
