@@ -65,7 +65,7 @@ export const resetPassword = async (userId: string): Promise<string> => {
     const base = getBaseUrl()
     const url = new URL("api/profile/reset-password", base)
     url.searchParams.set("user_id", userId)
-    return fetchJson<string>(url, {
+    return fetchJson(url, {
         method: "POST",
     })
 }

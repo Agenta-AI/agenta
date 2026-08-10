@@ -9,7 +9,7 @@ import {
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
 import {EditOutlined} from "@ant-design/icons"
-import {ArrowClockwise, Plus, Trash} from "@phosphor-icons/react"
+import {ArrowClockwise, Key, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Input, Modal} from "antd"
 import dynamic from "next/dynamic"
 
@@ -22,13 +22,20 @@ import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
-import {updateUsername} from "@/oss/services/profile"
+import {resetPassword, updateUsername} from "@/oss/services/profile"
 import {removeFromWorkspace, resendInviteToWorkspace} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import {Roles} from "./cellRenderers"
+
+const GenerateResetLinkModal = dynamic(() => import("./Modals/GenerateResetLinkModal"), {
+    ssr: false,
+})
+const PasswordResetLinkModal = dynamic(() => import("./Modals/PasswordResetLinkModal"), {
+    ssr: false,
+})
 
 interface MemberRow extends WorkspaceMember {
     key: string
@@ -62,7 +69,7 @@ const WorkspaceManage: FC = () => {
     const {selectedOrg, loading, refetch} = useOrgData()
     const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
     const {hasRBAC} = useEntitlements()
-    const {canInviteMembers, canRemoveMembers} = useWorkspacePermissions()
+    const {canInviteMembers, canRemoveMembers, canModifyRoles} = useWorkspacePermissions()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
     const [invitedUserData, setInvitedUserData] = useState<{email: string; uri: string}>({
@@ -73,6 +80,16 @@ const WorkspaceManage: FC = () => {
     const [renameOpen, setRenameOpen] = useState(false)
     const [renameValue, setRenameValue] = useState("")
     const [resendingEmail, setResendingEmail] = useState<string | null>(null)
+    const [resetTarget, setResetTarget] = useState<{id: string; username?: string} | null>(null)
+    const [generateResetLinkOpen, setGenerateResetLinkOpen] = useState(false)
+    const [resetLinkOpen, setResetLinkOpen] = useState(false)
+    const [resetLink, setResetLink] = useState("")
+    const [resetLoading, setResetLoading] = useState(false)
+
+    // OSS: invite permission is broadly available; EE: require invite or role-modify rights.
+    // Matches the backend's RESET_PASSWORD permission, which is granted alongside
+    // add_new_user_to_workspace/modify_user_roles (admin/owner tier only).
+    const canResetPassword = canInviteMembers || canModifyRoles
 
     const organizationId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
@@ -149,6 +166,25 @@ const WorkspaceManage: FC = () => {
         }
     }, [renameValue, refetchProfile, refetch])
 
+    const handleResetPassword = useCallback(async () => {
+        if (!resetTarget) return
+        setResetLoading(true)
+        try {
+            const link = await resetPassword(resetTarget.id)
+            setGenerateResetLinkOpen(false)
+            setResetLink(typeof link === "string" ? link : String(link))
+            setResetLinkOpen(true)
+        } catch (error: any) {
+            const detail =
+                error?.response?.data?.detail ||
+                error?.message ||
+                "Unable to generate reset password link"
+            message.error(detail)
+        } finally {
+            setResetLoading(false)
+        }
+    }, [resetTarget])
+
     const columns = useMemo(
         () =>
             createStandardColumns<MemberRow>([
@@ -221,6 +257,23 @@ const WorkspaceManage: FC = () => {
                             onClick: (record) => handleResendInvite(record),
                         },
                         {
+                            key: "reset_password",
+                            label: "Reset password",
+                            icon: <Key size={16} />,
+                            // Owner excluded even though the backend has no such check: resetting the
+                            // owner's password would let an admin mint a login link into the owner's
+                            // account. Same defensive gate as `remove` above.
+                            hidden: (record) =>
+                                isSelfMember(record) ||
+                                isOwnerMember(record) ||
+                                record.user.status !== "member" ||
+                                !canResetPassword,
+                            onClick: (record) => {
+                                setResetTarget({id: record.user.id, username: record.user.username})
+                                setGenerateResetLinkOpen(true)
+                            },
+                        },
+                        {
                             key: "remove",
                             label: "Remove",
                             icon: <Trash size={16} />,
@@ -242,6 +295,7 @@ const WorkspaceManage: FC = () => {
             isOwnerMember,
             canInviteMembers,
             canRemoveMembers,
+            canResetPassword,
             resendingEmail,
             handleResendInvite,
             handleRemove,
@@ -337,6 +391,21 @@ const WorkspaceManage: FC = () => {
                     placeholder="New username"
                 />
             </Modal>
+
+            <GenerateResetLinkModal
+                open={generateResetLinkOpen}
+                username={resetTarget?.username}
+                onCancel={() => setGenerateResetLinkOpen(false)}
+                onOk={handleResetPassword}
+                confirmLoading={resetLoading}
+            />
+
+            <PasswordResetLinkModal
+                open={resetLinkOpen}
+                username={resetTarget?.username}
+                generatedLink={resetLink}
+                onCancel={() => setResetLinkOpen(false)}
+            />
 
             <InviteUsersModal
                 setQueryInviteModalOpen={setQueryInviteModalOpen}
