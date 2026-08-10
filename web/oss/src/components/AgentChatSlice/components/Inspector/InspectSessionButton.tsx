@@ -19,17 +19,28 @@ export default function InspectSessionButton({sessionId}: {sessionId: string | n
     if (!inspectorEnabled) return null
 
     return (
-        <SimpleTooltip title={open ? "Hide inspector" : "Inspect session"}>
-            <Button
-                variant={open ? "default" : "ghost"}
-                size="icon-sm"
-                disabled={!sessionId}
-                onClick={() => sessionId && toggleSession(sessionId)}
-                aria-label="Inspect session"
-                aria-pressed={open}
-            >
-                <MagnifyingGlass size={14} />
-            </Button>
+        <SimpleTooltip
+            title={
+                !sessionId
+                    ? "Open a session to inspect it"
+                    : open
+                      ? "Hide inspector"
+                      : "Inspect session"
+            }
+        >
+            {/* Non-disabled span trigger: tooltips don't fire on a disabled button. */}
+            <span className="inline-flex">
+                <Button
+                    variant={open ? "default" : "ghost"}
+                    size="icon-sm"
+                    disabled={!sessionId}
+                    onClick={() => sessionId && toggleSession(sessionId)}
+                    aria-label="Inspect session"
+                    aria-pressed={open}
+                >
+                    <MagnifyingGlass size={14} />
+                </Button>
+            </span>
         </SimpleTooltip>
     )
 }

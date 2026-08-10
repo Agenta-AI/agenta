@@ -51,8 +51,7 @@ const AgentComposerDock = ({
     modelBlocked,
     contextMaxTokens,
     showContextBudget,
-    buildMode,
-    firstRunPrompt,
+    showTemplateStrip,
     pendingApprovals,
     onApprovalResponse,
     onViewTrace,
@@ -84,8 +83,8 @@ const AgentComposerDock = ({
     modelBlocked: boolean
     contextMaxTokens: number | null
     showContextBudget: boolean
-    buildMode: boolean
-    firstRunPrompt: string | null
+    /** The agent empty-chat template strip is on (owned by AgentConversation — see its comment). */
+    showTemplateStrip: boolean
     pendingApprovals: ReturnType<typeof getPendingApprovals>
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
     onViewTrace?: () => void
@@ -111,8 +110,6 @@ const AgentComposerDock = ({
         chromeHidden,
         selectedTemplateKey,
         handleStripPick,
-        isFreshAgentRevision,
-        pendingFirstTurn,
         handleCreateAgent,
         streamIdeBubble,
         ideHandoffActive,
@@ -158,16 +155,10 @@ const AgentComposerDock = ({
                 empty-state/hero entrance instead of popping. Mount-only: it never remounts across the
                 onboarding→chat transitions, so this never reintroduces layout shift on state changes. */}
             <Reveal className="px-3" enabled={composer.playComposerEntrance}>
-                {/* Agent empty-chat strip (S6): docked above the composer, unmounts once a
-                    message exists or a first-run prompt is pending. Build-mode + fresh-agent
-                    only — never in maximized chat mode, and gone for good after any commit. */}
-                {TEMPLATE_STRIP_MODE &&
-                !onboardingActive &&
-                buildMode &&
-                isFreshAgentRevision &&
-                messages.length === 0 &&
-                !firstRunPrompt &&
-                !pendingFirstTurn ? (
+                {/* Agent empty-chat strip (S6): docked above the composer. Visibility is decided by
+                    AgentConversation, which hands the same flag to the empty state so exactly one of
+                    the strip and the starter pills renders. */}
+                {showTemplateStrip ? (
                     <div className={`${CHAT_COLUMN} mb-3`}>
                         <TemplateStrip
                             surface="agent-chat"

@@ -40,6 +40,7 @@ import {
     filesDrawerOpenAtomFamily,
     filesDrawerStagedAtomFamily,
 } from "@/oss/components/Drives/SessionFilesDrawer"
+import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import {openTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
 
 import {isAgentFileUploadsEnabled} from "./assets/constants"
@@ -281,6 +282,19 @@ const AgentConversation = ({
         // Files picked on Home / the overview, where there was no session to upload against.
         onSeedFiles: attachments.addFiles,
     })
+    // Agent empty-chat template strip (S6). Computed ONCE here and handed to both surfaces that
+    // depend on it — the composer dock renders it, the empty state drops its starter pills for it —
+    // so a session that does NOT get the strip (an existing agent's revision, or one still loading)
+    // still gets the pills instead of a dead empty state.
+    const showTemplateStrip =
+        TEMPLATE_STRIP_MODE &&
+        !onboardingActive &&
+        buildMode &&
+        onboardingChat.isFreshAgentRevision &&
+        messages.length === 0 &&
+        !firstRunPrompt &&
+        !onboardingChat.pendingFirstTurn
+
     const consumedRunNonceRef = useRef<number | null>(null)
 
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
@@ -668,6 +682,7 @@ const AgentConversation = ({
                                         isHydrating={isHydrating}
                                         hydratedEmpty={hydratedEmpty}
                                         firstRunPrompt={firstRunPrompt}
+                                        showTemplateStrip={showTemplateStrip}
                                         canStart={!modelBlocked}
                                         onStart={handleSubmit}
                                         onPrefill={(text: string) =>
@@ -690,8 +705,7 @@ const AgentConversation = ({
                                 modelBlocked={modelBlocked}
                                 contextMaxTokens={contextMaxTokens}
                                 showContextBudget={showContextBudget}
-                                buildMode={buildMode}
-                                firstRunPrompt={firstRunPrompt}
+                                showTemplateStrip={showTemplateStrip}
                                 pendingApprovals={pendingApprovals}
                                 onApprovalResponse={handleApprovalResponse}
                                 onViewTrace={openPausedTurnTrace}

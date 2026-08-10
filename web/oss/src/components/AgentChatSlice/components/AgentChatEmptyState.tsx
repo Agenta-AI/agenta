@@ -93,6 +93,7 @@ const AgentChatEmptyState = ({
     entityId,
     onStart,
     firstRunPrompt,
+    showTemplateStrip = false,
     canStart = true,
     onboarding = false,
     onPrefill,
@@ -101,6 +102,12 @@ const AgentChatEmptyState = ({
     onStart: (text: string) => void
     /** A just-created agent's starting prompt — surfaced here instead of pre-filling the composer. */
     firstRunPrompt?: string | null
+    /**
+     * The composer-docked template strip is rendering (flag owned by AgentConversation, which hands
+     * the same value to the dock) — it replaces the starter pills. When it is NOT rendering, the
+     * pills stay, so a blank session on an existing agent never lands on an actionless empty state.
+     */
+    showTemplateStrip?: boolean
     /** Whether the Start CTA is enabled (false when the model isn't connected). */
     canStart?: boolean
     /**
@@ -285,7 +292,7 @@ const AgentChatEmptyState = ({
                             </span>
                         )}
                     </div>
-                ) : TEMPLATE_STRIP_MODE ? null : ( // Strip era: the composer-docked strip replaces the starter pills.
+                ) : showTemplateStrip ? null : ( // The composer-docked strip is up; it replaces the starter pills.
                     <div className="flex flex-col items-start gap-1.5">
                         <span className="text-[11px] text-colorTextSecondary">Try</span>
                         {BUILD_STARTERS.map((starter) => (

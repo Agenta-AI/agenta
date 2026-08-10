@@ -94,9 +94,8 @@ const AgentTranscript = ({
                                     {messages
                                         .slice(activeStart)
                                         .map((m, i) => renderMessage(m, activeStart + i))}
-                                    {/* Hard end-of-conversation clearance: the LAST message always
-                                        has 200px of real content below it, so its action lane can
-                                        never rest against the bottom edge or inside the fade. */}
+                                    {/* 56px on top of the wrapper's 96px `pb-24` keeps the last
+                                        turn's action lane clear of the bottom fade. */}
                                     <div style={{height: 56, flexShrink: 0}} />
                                 </div>
                             ) : null,
