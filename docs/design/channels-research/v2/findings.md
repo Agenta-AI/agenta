@@ -218,7 +218,7 @@
 - Origin: `WP6`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Correctness`, `Test-design`
 - Summary: `run_contract_suite` asserts signature behaviour using its own fake
   header scheme (`x-fake-signature: valid`). A correct adapter rejects that
@@ -234,6 +234,8 @@
   future adapter hits this, so fix the suite, not each adapter.
 - Notes: WP6's workaround is sound but it means the suite's two signature
   assertions currently prove nothing about the real adapter.
+- Resolution: a second adapter with real HMAC now passes the shared suite, and the suite's connection became injectable (`F44`).
+
 
 ### F6. No route writes the `connection.data` keys the Slack adapter reads
 
@@ -939,7 +941,7 @@
 - Origin: `wave-2`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Security`
 - Summary: `/channels/bridge/events/` is registered as a route and listed in
   `_PUBLIC_ENDPOINTS` (four entries, as designed), but WP12 — the bridge
@@ -961,6 +963,8 @@
   signature oracle, no 500. Recorded because "public route, no adapter" is the
   kind of pairing that stops being harmless the moment someone registers a
   permissive default adapter.
+- Resolution: the bridge adapter exists and implements the full adapter contract.
+
 
 ### F27. The alembic config paths are container-absolute, so `entrypoints.routers` cannot be imported locally
 
@@ -1050,7 +1054,7 @@
 - Origin: `C3`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Design`
 - Summary: One `/channels/bridge/events/` route for every bridge is correct and
   deliberate — the multiplicity belongs in the **wire contract**, and the
@@ -1092,6 +1096,8 @@
   this is cheap now and expensive after the first bridge ships. `routers.py`'s
   comment "the bridge route resolves its own at runtime" describes the intent,
   not the code.
+- Resolution: the wire identity rule is decided in the contract and implemented: the credential is authoritative and the claimed source is a required cross-check.
+
 
 ### F36. C3 merges green with four of five new capabilities unreachable
 
@@ -1099,7 +1105,7 @@
 - Origin: `C3`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Correctness`
 - Summary: The five-way merge produced 2443 passing tests, zero conflicts and
   zero failures — and **nothing outside its own module calls** `run_backfill`,
@@ -1127,6 +1133,8 @@
   this defect for wave 2 and was found by inspecting the composition root, not
   by a suite; the same inspection is now a required step at every checkpoint
   rather than something remembered.
+- Resolution: wave 4 connected every capability; the mock adapter, commands, fill and the outbox stream consumer all have callers. Two composition roots still drift (`F42`).
+
 
 ### F35. `_StubTransport` and its five tests are now subsumed
 
@@ -1214,7 +1222,7 @@
 - Origin: `wave-3`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Correctness`
 - Summary: `run_backfill` exists (WP10) and `SlackAdapter.fetch_history` exists
   (WP6), but no code path connects them. Grepping the whole of
@@ -1240,6 +1248,8 @@
   found because WP10 reported its own code as uncalled rather than assuming
   someone else would wire it. Worth stating plainly: a passing suite for
   `fill.py` proves the function works, not that backfill happens.
+- Resolution: wired at wave 4: `_run_backfill` is called from the dispatch chain after resolve and before compose, and the refusal status is held rather than persisted.
+
 
 ### F32. `!use:<id>` cannot switch threads: the service exposes no way to create one
 
@@ -1247,7 +1257,7 @@
 - Origin: `wave-3`
 - Severity: `P2`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Correctness`
 - Summary: The `!use:<id>` command is specified to point a new thread row at a
   named earlier session. `ChannelsService` exposes only `query_threads`,
@@ -1272,6 +1282,8 @@
   worker. The command sigil is a separate vocabulary, so the two parses stay
   separate functions run in sequence — agent sigil first, since it decides which
   thread exists at all.
+- Resolution: scoped to validation-only, deliberately, rather than left half-working; the thread-switch half is unimplemented and stated as such.
+
 
 ### F31. `streams:sessions` has no registered consumer, so turn events are published into nothing
 
@@ -1282,7 +1294,7 @@
 - Origin: `wave-3`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `resolved`
 - Category: `Correctness`
 - Summary: WP0 publishes `turn_started` / `turn_ended` to `streams:sessions`, but
   `worker_streams.py`'s `ALL_STREAMS` is `("records", "events", "spans")` — no
@@ -1320,6 +1332,8 @@
   and `events` streams are. A consumer that copies a sibling's
   `zlib.decompress` will fail on this stream. Worth pinning before WP5 writes
   its consumer.
+- Resolution: a `sessions` stream consumer is registered in the stream-worker composition. Superseded by `F41` for the untested wire round trip.
+
 
 ### F30. `select_forwardfill_range` duplicates `compose_input`'s range read, and not faithfully
 
