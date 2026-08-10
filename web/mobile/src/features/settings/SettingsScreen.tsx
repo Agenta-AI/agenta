@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {
     fetchAllOrgsList,
@@ -50,6 +50,8 @@ import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+
+import {SettingsLoadError, SettingsSectionSkeleton} from "./states/SettingsStates"
 
 const THEME_OPTIONS = [
     {mode: "light", label: "Light"},
@@ -135,17 +137,35 @@ const TabBody = ({
 
     const [savingFlag, setSavingFlag] = useState<AuthFlagKey | null>(null)
     const [lastSavedFlag, setLastSavedFlag] = useState<AuthFlagKey | null>(null)
+    const [flagError, setFlagError] = useState<string | null>(null)
     const setFlag = async (flag: AuthFlagKey, value: boolean) => {
         if (!organizationId) return
         setSavingFlag(flag)
+        setFlagError(null)
+        setLastSavedFlag(null)
         try {
             await updateOrganization(organizationId, {flags: {[flag]: value}})
             await org.refetch()
             setLastSavedFlag(flag)
+        } catch (error) {
+            // The switches are driven by the server's flags, never by local state, so a failed
+            // write needs no revert — the row simply stays where it was. Which reads as a dead
+            // toggle unless we say why.
+            setFlagError(
+                error instanceof Error && error.message
+                    ? error.message
+                    : "Could not save that setting. Try again.",
+            )
         } finally {
             setSavingFlag(null)
         }
     }
+    // "Saved" is a transient marker; without this it sits on the row for the rest of the session.
+    useEffect(() => {
+        if (!lastSavedFlag) return
+        const timer = window.setTimeout(() => setLastSavedFlag(null), 3000)
+        return () => window.clearTimeout(timer)
+    }, [lastSavedFlag])
 
     switch (tab) {
         case "preferences":
@@ -207,6 +227,20 @@ const TabBody = ({
                 />
             )
         case "organization": {
+            // This tab's org id comes from the projects list, so both queries are its loading
+            // state — and a disabled query stays `pending` forever, hence the explicit id check.
+            if (projects.isPending || (organizationId && org.isPending))
+                return <SettingsSectionSkeleton />
+            if (projects.isError || org.isError)
+                return (
+                    <SettingsLoadError
+                        text="Could not load this organization's settings."
+                        onRetry={() => {
+                            void projects.refetch()
+                            void org.refetch()
+                        }}
+                    />
+                )
             const flags = org.data?.flags as OrganizationFlags | undefined
             if (!flags) return null
             const domainList = domains.data ?? []
@@ -214,16 +248,27 @@ const TabBody = ({
             const orgSlug = org.data?.slug
             return (
                 <div className="flex flex-col gap-8">
-                    <AccessControlsSection
-                        flags={flags}
-                        onFlagChange={(flag, value) => void setFlag(flag, value)}
-                        updating={Boolean(savingFlag)}
-                        lastSavedFlag={lastSavedFlag}
-                        hasActiveVerifiedProvider={providerList.some(
-                            (provider) => provider.flags?.is_active && provider.flags?.is_valid,
-                        )}
-                        hasVerifiedDomain={domainList.some((domain) => domain.flags?.is_verified)}
-                    />
+                    <div className="flex flex-col gap-2">
+                        <AccessControlsSection
+                            flags={flags}
+                            onFlagChange={(flag, value) => void setFlag(flag, value)}
+                            updating={Boolean(savingFlag)}
+                            lastSavedFlag={lastSavedFlag}
+                            hasActiveVerifiedProvider={providerList.some(
+                                (provider) => provider.flags?.is_active && provider.flags?.is_valid,
+                            )}
+                            hasVerifiedDomain={domainList.some(
+                                (domain) => domain.flags?.is_verified,
+                            )}
+                        />
+                        {/* A failed save leaves the switch where it was, so the reason has to be
+                            visible or the toggle just looks broken. */}
+                        {flagError ? (
+                            <p className="text-destructive m-0 text-xs" role="alert">
+                                {flagError}
+                            </p>
+                        ) : null}
+                    </div>
                     {/* Read-only here: adding a domain or provider means DNS records and IdP
                         setup, which belong on the desktop. */}
                     <DomainsSection domains={domainList} loading={domains.isPending} />
