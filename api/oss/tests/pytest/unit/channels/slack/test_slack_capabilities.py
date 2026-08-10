@@ -29,6 +29,7 @@ EXPECTED = {
         "scope": "workspace",
         "stable": True,
         "keys": {
+            "connection": ["api_app_id", "enterprise_id", "team_id"],
             "space": ["team", "channel"],
             "thread": ["team", "channel", "thread_ts"],
         },

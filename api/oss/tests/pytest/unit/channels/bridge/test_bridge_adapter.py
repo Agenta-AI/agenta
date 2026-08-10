@@ -12,7 +12,11 @@ from oss.src.core.channels.adapters.bridge.signature import (
     SIGNATURE_HEADER,
     TIMESTAMP_HEADER,
 )
-from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
+from oss.src.core.channels.dtos import (
+    ChannelConnection,
+    ChannelKeyGrain,
+    ChannelRequestContext,
+)
 from oss.src.core.channels.types import ChannelSignatureInvalid
 
 SECRET = "test-fixture-bridge-secret-not-real"
@@ -122,6 +126,73 @@ async def test_two_connections_get_two_different_declarations():
 
     assert capabilities_a.rendering.buttons.supported is True
     assert capabilities_b.rendering.buttons.supported is False
+
+
+# --- CONNECTION-grain identity: channel-level, never per-bridge ------------ #
+
+
+@pytest.mark.asyncio
+async def test_channel_level_declaration_names_source_as_the_connection_key():
+    """No connection is known yet at ingress time, so the CONNECTION-grain
+    declaration must come from the fixed channel-level default, not from any
+    particular bridge's own hello."""
+
+    adapter = BridgeAdapter()
+
+    capabilities = await adapter.fetch_capabilities(connection=None)
+
+    assert capabilities.identity.keys[ChannelKeyGrain.CONNECTION] == ["source"]
+
+
+@pytest.mark.asyncio
+async def test_a_bridges_own_hello_does_not_override_the_connection_key():
+    """A per-bridge declaration governs SPACE/THREAD grain; it must not be
+    able to redeclare -- or accidentally omit -- the CONNECTION grain, since
+    that field set cannot depend on which installation is speaking."""
+
+    adapter = BridgeAdapter()
+    connection = _connection(capabilities=WORKED_CAPABILITIES["capabilities"])
+
+    per_connection = await adapter.fetch_capabilities(connection=connection)
+    channel_level = await adapter.fetch_capabilities(connection=None)
+
+    assert per_connection.identity.keys.get(ChannelKeyGrain.CONNECTION) != ["source"]
+    assert channel_level.identity.keys[ChannelKeyGrain.CONNECTION] == ["source"]
+
+
+def test_connection_locator_field_matches_the_declared_connection_key():
+    adapter = BridgeAdapter()
+    body = json.dumps({"source": "bridge/acme-wecom"}).encode()
+
+    locator = adapter.connection_locator(
+        request=ChannelRequestContext(headers={}, path="/", body=body)
+    )
+
+    assert locator == {"source": "acme-wecom"}
+
+
+@pytest.mark.asyncio
+async def test_two_bridges_compose_to_distinct_connection_keys():
+    from oss.src.core.channels.utils import compose_external_key
+
+    adapter = BridgeAdapter()
+    capabilities = await adapter.fetch_capabilities(connection=None)
+
+    locator_a = adapter.connection_locator(
+        request=ChannelRequestContext(
+            headers={}, path="/", body=json.dumps({"source": "bridge/a"}).encode()
+        )
+    )
+    locator_b = adapter.connection_locator(
+        request=ChannelRequestContext(
+            headers={}, path="/", body=json.dumps({"source": "bridge/b"}).encode()
+        )
+    )
+
+    key_a = compose_external_key(capabilities, ChannelKeyGrain.CONNECTION, locator_a)
+    key_b = compose_external_key(capabilities, ChannelKeyGrain.CONNECTION, locator_b)
+
+    assert key_a != key_b
 
 
 # --- verify_signature: credential authoritative, source cross-checked ------ #

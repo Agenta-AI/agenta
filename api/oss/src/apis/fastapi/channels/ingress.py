@@ -1,7 +1,6 @@
 import asyncio
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, Optional
-from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
@@ -10,13 +9,20 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.channels.dtos import (
+    ChannelConnection,
     ChannelEventAck,
     ChannelInboxEventCreate,
     ChannelInboxEventData,
     ChannelEventOrigin,
+    ChannelKeyGrain,
     ChannelRequestContext,
 )
-from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
+from oss.src.core.channels.types import (
+    ChannelLocatorIncomplete,
+    ChannelNotSupported,
+    ChannelSignatureInvalid,
+)
+from oss.src.core.channels.utils import compose_external_key
 
 if TYPE_CHECKING:
     # Imported only for typing so this module never hard-depends on them.
@@ -107,24 +113,37 @@ class ChannelsIngressRouter:
         return await self._ingest(channel="bridge", request=request)
 
     async def _resolve_candidate(
-        self, *, channel: str, locator: Optional[Dict[str, Any]]
+        self,
+        *,
+        channel: str,
+        capabilities,
+        locator: Optional[Dict[str, Any]],
     ):
         """The connection an unverified installation claim points at, or None.
 
-        `_placeholder_external_key` stands in for the declared, per-channel
-        CONNECTION-grain composition (`compose_external_key`) until an
-        adapter actually declares one — the same stand-in the locator's own
-        single-value hint already was.
+        Composes with the CHANNEL-level declaration (`connection` is never
+        passed to `fetch_capabilities` here): which fields identify an
+        installation cannot itself depend on which installation it is, and no
+        connection is known yet at this point in the request anyway. A
+        locator missing a declared field refuses rather than resolving
+        against a partial key -- that would silently leak across
+        installations, so it is treated identically to "no connection found".
         """
 
-        hint = _external_id_from_locator(locator)
-        if not hint:
+        if not locator:
+            return None
+
+        try:
+            external_key = compose_external_key(
+                capabilities, ChannelKeyGrain.CONNECTION, locator
+            )
+        except ChannelLocatorIncomplete:
             return None
 
         resolved = (
             await self.channels_service.get_project_and_connection_by_external_key(
                 channel=channel,
-                external_key=_placeholder_external_key(hint),
+                external_key=external_key,
             )
         )
         if resolved is None:
@@ -154,6 +173,10 @@ class ChannelsIngressRouter:
             body=body,
         )
 
+        # connection=None: the channel-level declaration, since no connection
+        # is known yet and the CONNECTION-grain fields cannot depend on one.
+        capabilities = await adapter.fetch_capabilities(connection=None)
+
         # The signing secret lives on the connection, so the connection has to
         # be in hand before the signature can be checked. The request's own
         # locator selects which one to check against and grants nothing: a
@@ -161,6 +184,7 @@ class ChannelsIngressRouter:
         # both refuse identically below.
         candidate = await self._resolve_candidate(
             channel=channel,
+            capabilities=capabilities,
             locator=adapter.connection_locator(request=request_context),
         )
 
@@ -183,8 +207,9 @@ class ChannelsIngressRouter:
         # The claim only chose the secret. Adapters that derive the id from the
         # body rather than from the connection can still return one that belongs
         # to a different install, so the verified id must match the connection
-        # the secret came from.
-        if _placeholder_external_key(external_id) != connection.external_key:
+        # the secret came from -- checked against this connection's own
+        # recorded data, never against the (already-used) unverified locator.
+        if not _connection_owns_identity(connection, external_id):
             raise ChannelSignatureInvalid(channel=channel)
 
         inbound = await adapter.parse_event(body=body, connection=connection)
@@ -232,22 +257,11 @@ class ChannelsIngressRouter:
         return ChannelEventAck(status="accepted")
 
 
-def _external_id_from_locator(locator: Optional[Dict[str, Any]]) -> Optional[str]:
-    """Every locator this package's adapters return names exactly one field —
-    composing a key over several is the connections table's job, not yet
-    built. Standing in for that: the locator's one value, whatever its key."""
+def _connection_owns_identity(connection: ChannelConnection, external_id: str) -> bool:
+    """Does the credential-verified identity appear anywhere in this
+    connection's own recorded data? Catches drift between a connection's
+    data and the row it resolved to (e.g. after an inconsistent edit),
+    independent of the adapter's own field names."""
 
-    if not locator:
-        return None
-
-    value = next(iter(locator.values()), None)
-    return str(value) if value is not None else None
-
-
-def _placeholder_external_key(value: str) -> UUID:
-    """Stands in for the real, declared CONNECTION-grain composition
-    (`compose_external_key`) until an adapter declares one -- table lookups
-    against `channel_connections` are inert either way while nothing writes
-    a row through this path."""
-
-    return uuid5(NAMESPACE_DNS, value)
+    data = connection.data if isinstance(connection.data, dict) else {}
+    return external_id in data.values()

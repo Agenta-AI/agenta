@@ -13,22 +13,30 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from oss.src.apis.fastapi.channels.ingress import (
-    ChannelsIngressRouter,
-    _placeholder_external_key,
-)
+from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.dtos import (
+    ChannelCapabilities,
     ChannelConnection,
     ChannelEventKind,
+    ChannelIdentity,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelKeyGrain,
     ChannelRequestContext,
     ChannelSpaceKind,
 )
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
+from oss.src.core.channels.utils import compose_external_key
 
 
 LOCATOR = {"team": "T1", "channel": "C1"}
+
+
+def _capabilities_for(field: str) -> ChannelCapabilities:
+    return ChannelCapabilities(
+        channel="fake",
+        identity=ChannelIdentity(keys={ChannelKeyGrain.CONNECTION: [field]}),
+    )
 
 
 class FakeAdapter:
@@ -37,15 +45,24 @@ class FakeAdapter:
 
     channel = "slack"
 
+    #: the locator field this adapter's fake installation claim rides on --
+    #: distinct from bridge's "source" so both can share one fake connection
+    _locator_field = "installation_id"
+
     def __init__(self, *, installation_id: str = "T1"):
         self.installation_id = installation_id
         self.verify_calls = 0
         self.parse_calls = 0
 
+    async def fetch_capabilities(
+        self, *, connection: Optional[ChannelConnection] = None
+    ) -> ChannelCapabilities:
+        return _capabilities_for(self._locator_field)
+
     def connection_locator(
         self, *, request: ChannelRequestContext
     ) -> Optional[Dict[str, str]]:
-        return {"installation_id": self.installation_id}
+        return {self._locator_field: self.installation_id}
 
     async def verify_signature(
         self, *, request: ChannelRequestContext, connection: ChannelConnection
@@ -103,18 +120,33 @@ class FakeChannelsService:
         self.recorded = []
         self.seen_external_ids = set()
         self.installation_id = installation_id
+        # every field name a fake adapter in this module might locate the
+        # same fake installation by -- keeps one connection resolvable from
+        # both a Slack-shaped and a bridge-shaped fake locator
+        self._valid_keys = {
+            compose_external_key(
+                _capabilities_for(field),
+                ChannelKeyGrain.CONNECTION,
+                {field: installation_id},
+            )
+            for field in ("installation_id", "source")
+        }
         self.connection = ChannelConnection(
             id=connection_id,
             slug="fake-connection",
             channel="slack",
-            external_key=_placeholder_external_key(installation_id),
-            data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
+            external_key=next(iter(self._valid_keys)),
+            data={
+                "signing_secret": "unused",
+                "bot_token": "xoxb-fake",
+                "installation_id": installation_id,
+            },
         )
 
     async def get_project_and_connection_by_external_key(
         self, *, channel, external_key
     ):
-        if external_key != _placeholder_external_key(self.installation_id):
+        if external_key not in self._valid_keys:
             return None
         return (self.project_id, self.connection_id)
 
@@ -228,6 +260,7 @@ class FakeCrossCheckingBridgeAdapter(FakeAdapter):
     if the body's declared `source` disagrees with it."""
 
     channel = "bridge"
+    _locator_field = "source"
 
     def __init__(self, *, installation_id: str = "acme-wecom"):
         super().__init__(installation_id=installation_id)
@@ -330,6 +363,48 @@ def test_invalid_signature_is_rejected(client, service):
     response = client.post(
         "/channels/slack/events/",
         headers={"x-fake-signature": "forged"},
+        content=b"{}",
+    )
+
+    assert response.status_code == 401, response.text
+    assert service.recorded == []
+
+
+def test_locator_missing_a_declared_field_is_refused_not_resolved_partially(
+    service, registry
+):
+    """A declaration naming two CONNECTION-grain fields, against a locator
+    that supplies only one, must refuse -- composing a key from the partial
+    subset would silently resolve into a different installation than the one
+    that actually exists."""
+
+    class PartialLocatorAdapter(FakeAdapter):
+        async def fetch_capabilities(self, *, connection=None):
+            return ChannelCapabilities(
+                channel="fake",
+                identity=ChannelIdentity(
+                    keys={
+                        ChannelKeyGrain.CONNECTION: [
+                            "installation_id",
+                            "workspace_id",
+                        ]
+                    }
+                ),
+            )
+
+        def connection_locator(self, *, request):
+            # declares two CONNECTION-grain fields but supplies only one
+            return {"installation_id": self.installation_id}
+
+    partial = PartialLocatorAdapter()
+    app, _ = _make_app(
+        service=service, registry=FakeAdapterRegistry({"slack": partial})
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/channels/slack/events/",
+        headers={"x-fake-signature": "valid"},
         content=b"{}",
     )
 

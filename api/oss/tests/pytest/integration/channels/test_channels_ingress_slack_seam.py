@@ -18,25 +18,26 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from oss.src.apis.fastapi.channels.ingress import (
-    ChannelsIngressRouter,
-    _placeholder_external_key,
-)
+from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
-from oss.src.core.channels.dtos import ChannelConnectionCreate
+from oss.src.core.channels.adapters.slack.capabilities import fetch_slack_capabilities
+from oss.src.core.channels.dtos import ChannelConnectionCreate, ChannelKeyGrain
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelNotSupported
+from oss.src.core.channels.utils import compose_external_key
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 
 pytestmark = pytest.mark.integration
 
 SIGNING_SECRET = "test-signing-secret"
+API_APP_ID = "A1"
 
 
 def _slack_event_body(*, team_id: str, event_ts: str) -> bytes:
     return json.dumps(
         {
             "type": "event_callback",
+            "api_app_id": API_APP_ID,
             "team_id": team_id,
             "event": {
                 "channel": "C1",
@@ -86,12 +87,17 @@ async def slack_seam(channels_scope):
     team_id = channels_scope["external_id"]
 
     dao = ChannelsDAO(engine=engine)
+    external_key = compose_external_key(
+        fetch_slack_capabilities(),
+        ChannelKeyGrain.CONNECTION,
+        {"api_app_id": API_APP_ID, "enterprise_id": "", "team_id": team_id},
+    )
     await dao.create_connection(
         project_id=project_id,
         user_id=channels_scope["user_id"],
         connection=ChannelConnectionCreate(
             channel="slack",
-            external_key=_placeholder_external_key(team_id),
+            external_key=external_key,
             slug="slack-seam-connection",
             data={
                 "signing_secret": SIGNING_SECRET,

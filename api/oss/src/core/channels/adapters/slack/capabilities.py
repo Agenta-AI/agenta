@@ -29,6 +29,11 @@ SLACK_CAPABILITIES: dict = {
         "scope": "workspace",
         "stable": True,
         "keys": {
+            # api_app_id distinguishes two apps in one workspace; one of
+            # enterprise_id/team_id is always "" -- an org-wide Enterprise
+            # Grid install is one connection across many workspaces, keyed on
+            # enterprise_id, never on the per-event team_id.
+            "connection": ["api_app_id", "enterprise_id", "team_id"],
             "space": ["team", "channel"],
             "thread": ["team", "channel", "thread_ts"],
         },

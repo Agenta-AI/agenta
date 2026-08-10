@@ -21,7 +21,9 @@ from oss.src.core.channels.adapters.normalise import normalise_capabilities
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
+    ChannelIdentity,
     ChannelInboundEvent,
+    ChannelKeyGrain,
     ChannelRequestContext,
     ChannelSpaceCandidate,
 )
@@ -29,8 +31,14 @@ from oss.src.core.channels.types import ChannelSignatureInvalid
 
 _DELIVER_TIMEOUT_SECONDS = 10.0
 
-# Degrades a connection with no recorded bridge.hello rather than raising.
-_DEFAULT_CAPABILITIES = ChannelCapabilities(channel="bridge")
+# The CHANNEL-level declaration: which bridge is connecting cannot decide
+# which field identifies it, so CONNECTION-grain identity is fixed here,
+# never read off a per-bridge bridge.hello. Also degrades a connection with
+# no recorded hello rather than raising.
+_DEFAULT_CAPABILITIES = ChannelCapabilities(
+    channel="bridge",
+    identity=ChannelIdentity(keys={ChannelKeyGrain.CONNECTION: ["source"]}),
+)
 
 
 def _bridge_secret(connection: ChannelConnection) -> str:

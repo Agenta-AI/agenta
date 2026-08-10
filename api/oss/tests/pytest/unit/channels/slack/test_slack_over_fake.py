@@ -444,7 +444,7 @@ async def test_ratelimited_with_retry_after_propagates_as_an_error_with_no_retry
 
 async def test_verify_signature_success_against_a_real_signed_body():
     secret = "test-signing-secret"
-    body = json.dumps({"team_id": "T1"}).encode()
+    body = json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode()
     timestamp = str(int(time.time()))
     signed_bytes = f"v0:{timestamp}:".encode() + body
     signature = (

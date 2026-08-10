@@ -61,9 +61,13 @@ def _request(body: bytes, *, headers=None) -> ChannelRequestContext:
 
 def test_connection_locator_reads_team_id_flat_from_events_api_json():
     adapter = SlackAdapter()
-    body = json.dumps({"team_id": "T1", "event": {}}).encode()
+    body = json.dumps({"api_app_id": "A1", "team_id": "T1", "event": {}}).encode()
 
-    assert adapter.connection_locator(request=_request(body)) == {"team_id": "T1"}
+    assert adapter.connection_locator(request=_request(body)) == {
+        "api_app_id": "A1",
+        "enterprise_id": "",
+        "team_id": "T1",
+    }
 
 
 def test_connection_locator_reads_team_id_nested_from_an_interactivity_payload():
@@ -74,10 +78,46 @@ def test_connection_locator_reads_team_id_nested_from_an_interactivity_payload()
     from urllib.parse import urlencode
 
     adapter = SlackAdapter()
-    interactivity_payload = json.dumps({"type": "block_actions", "team": {"id": "T1"}})
+    interactivity_payload = json.dumps(
+        {"type": "block_actions", "api_app_id": "A1", "team": {"id": "T1"}}
+    )
     body = urlencode({"payload": interactivity_payload}).encode()
 
-    assert adapter.connection_locator(request=_request(body)) == {"team_id": "T1"}
+    assert adapter.connection_locator(request=_request(body)) == {
+        "api_app_id": "A1",
+        "enterprise_id": "",
+        "team_id": "T1",
+    }
+
+
+def test_connection_locator_reads_enterprise_id_for_an_org_wide_install():
+    """An org-wide Enterprise Grid install is one connection across many
+    workspaces -- the discriminator is enterprise_id, and team_id is the
+    sentinel, not the specific workspace this one event happened to fire in."""
+
+    adapter = SlackAdapter()
+    body = json.dumps(
+        {
+            "api_app_id": "A1",
+            "team_id": "T-WHICHEVER-WORKSPACE",
+            "enterprise_id": "E1",
+            "is_enterprise_install": True,
+            "event": {},
+        }
+    ).encode()
+
+    assert adapter.connection_locator(request=_request(body)) == {
+        "api_app_id": "A1",
+        "enterprise_id": "E1",
+        "team_id": "",
+    }
+
+
+def test_connection_locator_returns_none_with_no_api_app_id():
+    adapter = SlackAdapter()
+    body = json.dumps({"team_id": "T1", "event": {}}).encode()
+
+    assert adapter.connection_locator(request=_request(body)) is None
 
 
 def test_connection_locator_returns_none_with_no_team_identity_at_all():
@@ -93,7 +133,7 @@ def test_connection_locator_returns_none_with_no_team_identity_at_all():
 async def test_verify_signature_returns_team_id_on_success():
     connection = _connection()
     adapter = SlackAdapter()
-    body = json.dumps({"team_id": "T1"}).encode()
+    body = json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode()
     headers = _signed_request(body)
 
     installation_id = await adapter.verify_signature(
@@ -103,10 +143,30 @@ async def test_verify_signature_returns_team_id_on_success():
     assert installation_id == "T1"
 
 
+async def test_verify_signature_returns_enterprise_id_for_an_org_wide_install():
+    connection = _connection()
+    adapter = SlackAdapter()
+    body = json.dumps(
+        {
+            "api_app_id": "A1",
+            "team_id": "T-WHICHEVER-WORKSPACE",
+            "enterprise_id": "E1",
+            "is_enterprise_install": True,
+        }
+    ).encode()
+    headers = _signed_request(body)
+
+    identity = await adapter.verify_signature(
+        request=_request(body, headers=headers), connection=connection
+    )
+
+    assert identity == "E1"
+
+
 async def test_verify_signature_rejects_bad_signature():
     connection = _connection()
     adapter = SlackAdapter()
-    body = json.dumps({"team_id": "T1"}).encode()
+    body = json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode()
 
     with pytest.raises(ChannelSignatureInvalid):
         await adapter.verify_signature(request=_request(body), connection=connection)
@@ -252,6 +312,135 @@ async def test_two_distinct_threads_compose_to_distinct_external_keys():
     )
 
     assert key_a != key_b
+
+
+# --- CONNECTION-grain identity -------------------------------------------- #
+
+
+def test_connection_grain_declares_api_app_id_enterprise_id_team_id():
+    """Pinned to the exact field names channel-connections.md names for
+    Slack -- a future rename of these fields must break this test rather
+    than silently repointing every installation at a new key."""
+
+    from oss.src.core.channels.adapters.slack.capabilities import (
+        fetch_slack_capabilities,
+    )
+
+    capabilities = fetch_slack_capabilities()
+
+    assert capabilities.identity.keys[ChannelKeyGrain.CONNECTION] == [
+        "api_app_id",
+        "enterprise_id",
+        "team_id",
+    ]
+
+
+def test_two_apps_in_one_workspace_compose_to_distinct_connection_keys():
+    """A workspace id alone is wrong: two of our apps can share one
+    workspace, and only api_app_id tells them apart."""
+
+    from oss.src.core.channels.adapters.slack.capabilities import (
+        fetch_slack_capabilities,
+    )
+
+    capabilities = fetch_slack_capabilities()
+    adapter = SlackAdapter()
+
+    app_a = adapter.connection_locator(
+        request=_request(json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode())
+    )
+    app_b = adapter.connection_locator(
+        request=_request(json.dumps({"api_app_id": "A2", "team_id": "T1"}).encode())
+    )
+
+    key_a = compose_external_key(capabilities, ChannelKeyGrain.CONNECTION, app_a)
+    key_b = compose_external_key(capabilities, ChannelKeyGrain.CONNECTION, app_b)
+
+    assert key_a != key_b
+
+
+def test_org_wide_install_composes_the_same_key_across_different_workspaces():
+    """The central Enterprise Grid claim: an org-wide install is ONE
+    connection, so two events from two different member workspaces must
+    compose to the SAME connection key."""
+
+    from oss.src.core.channels.adapters.slack.capabilities import (
+        fetch_slack_capabilities,
+    )
+
+    capabilities = fetch_slack_capabilities()
+    adapter = SlackAdapter()
+
+    from_workspace_one = adapter.connection_locator(
+        request=_request(
+            json.dumps(
+                {
+                    "api_app_id": "A1",
+                    "team_id": "T1",
+                    "enterprise_id": "E1",
+                    "is_enterprise_install": True,
+                }
+            ).encode()
+        )
+    )
+    from_workspace_two = adapter.connection_locator(
+        request=_request(
+            json.dumps(
+                {
+                    "api_app_id": "A1",
+                    "team_id": "T2",
+                    "enterprise_id": "E1",
+                    "is_enterprise_install": True,
+                }
+            ).encode()
+        )
+    )
+
+    key_one = compose_external_key(
+        capabilities, ChannelKeyGrain.CONNECTION, from_workspace_one
+    )
+    key_two = compose_external_key(
+        capabilities, ChannelKeyGrain.CONNECTION, from_workspace_two
+    )
+
+    assert key_one == key_two
+
+
+def test_org_wide_install_and_a_per_workspace_install_of_the_same_app_differ():
+    """An org-wide install and a per-workspace install of the same app must
+    not collide even though both name the same api_app_id and team_id."""
+
+    from oss.src.core.channels.adapters.slack.capabilities import (
+        fetch_slack_capabilities,
+    )
+
+    capabilities = fetch_slack_capabilities()
+    adapter = SlackAdapter()
+
+    org_wide = adapter.connection_locator(
+        request=_request(
+            json.dumps(
+                {
+                    "api_app_id": "A1",
+                    "team_id": "T1",
+                    "enterprise_id": "E1",
+                    "is_enterprise_install": True,
+                }
+            ).encode()
+        )
+    )
+    per_workspace = adapter.connection_locator(
+        request=_request(json.dumps({"api_app_id": "A1", "team_id": "T1"}).encode())
+    )
+
+    key_org_wide = compose_external_key(
+        capabilities, ChannelKeyGrain.CONNECTION, org_wide
+    )
+    key_per_workspace = compose_external_key(
+        capabilities, ChannelKeyGrain.CONNECTION, per_workspace
+    )
+
+    assert key_org_wide != key_per_workspace
 
 
 # --- egress (stubbed HTTP transport) ---------------------------------------- #

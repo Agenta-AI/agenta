@@ -41,6 +41,7 @@ _FULL: Dict[str, Any] = {
         "scope": "workspace",
         "stable": True,
         "keys": {
+            "connection": ["installation_id"],
             "space": ["team", "channel"],
             "thread": ["team", "channel", "thread_ts"],
         },

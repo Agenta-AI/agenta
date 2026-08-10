@@ -67,6 +67,20 @@ def test_connection_grain_composes_from_declared_fields():
     assert key == compose_external_key(caps, ChannelKeyGrain.CONNECTION, locator)
 
 
+def test_two_connections_differing_only_in_declared_fields_compose_distinct_keys():
+    caps = capabilities()
+    caps.identity.keys[ChannelKeyGrain.CONNECTION] = ["team"]
+
+    key_a = compose_external_key(
+        caps, ChannelKeyGrain.CONNECTION, {"team": "T1", "channel": "C1"}
+    )
+    key_b = compose_external_key(
+        caps, ChannelKeyGrain.CONNECTION, {"team": "T2", "channel": "C1"}
+    )
+
+    assert key_a != key_b
+
+
 def test_connection_grain_raises_on_empty_declaration():
     caps = capabilities()
     caps.identity.keys[ChannelKeyGrain.CONNECTION] = []

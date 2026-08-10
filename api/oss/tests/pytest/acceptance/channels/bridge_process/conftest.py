@@ -12,7 +12,9 @@ from sqlalchemy import text
 
 import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401
-from oss.src.apis.fastapi.channels.ingress import _placeholder_external_key
+from oss.src.core.channels.adapters.bridge.adapter import _DEFAULT_CAPABILITIES
+from oss.src.core.channels.dtos import ChannelKeyGrain
+from oss.src.core.channels.utils import compose_external_key
 from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.tests.pytest.utils.postgres import postgres_reachable
@@ -116,6 +118,11 @@ async def bridge_scope():
         }
         if capabilities is not None:
             data["capabilities"] = capabilities
+        external_key = compose_external_key(
+            _DEFAULT_CAPABILITIES,
+            ChannelKeyGrain.CONNECTION,
+            {"source": integration_key},
+        )
         async with engine.session() as session:
             session.add(
                 ChannelConnectionDBE(
@@ -123,7 +130,7 @@ async def bridge_scope():
                     project_id=project_id,
                     slug=f"bridge-channel-{connection_id.hex[:8]}",
                     channel="bridge",
-                    external_key=_placeholder_external_key(integration_key),
+                    external_key=external_key,
                     created_by_id=user_id,
                     data=data,
                 )

@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs
 from uuid import UUID
 
@@ -92,11 +92,15 @@ class SlackAdapter(ChannelAdapterInterface):
         self, *, request: ChannelRequestContext
     ) -> Optional[Dict[str, Any]]:
         payload = _parse_slack_payload(request.body)
-        team = payload.get("team")
-        team_id = payload.get("team_id") or (
-            team.get("id") if isinstance(team, dict) else None
-        )
-        return {"team_id": team_id} if team_id else None
+        api_app_id = payload.get("api_app_id")
+        enterprise_id, team_id = _connection_discriminator(payload)
+        if not api_app_id or not (enterprise_id or team_id):
+            return None
+        return {
+            "api_app_id": api_app_id,
+            "enterprise_id": enterprise_id,
+            "team_id": team_id,
+        }
 
     async def verify_signature(
         self, *, request: ChannelRequestContext, connection: ChannelConnection
@@ -110,11 +114,13 @@ class SlackAdapter(ChannelAdapterInterface):
         )
 
         locator = self.connection_locator(request=request)
-        team_id = locator.get("team_id") if locator else None
-        if not team_id:
+        identity = (locator or {}).get("enterprise_id") or (locator or {}).get(
+            "team_id"
+        )
+        if not identity:
             raise ChannelSignatureInvalid(channel=self.channel)
 
-        return team_id
+        return identity
 
     async def parse_event(
         self, *, body: bytes, connection: Optional[ChannelConnection] = None
@@ -331,6 +337,57 @@ def _parse_slack_payload(body: bytes) -> Dict[str, Any]:
         return {}
 
     return _parse_json(payload_field[0].encode("utf-8"))
+
+
+def _is_enterprise_install(payload: Dict[str, Any]) -> bool:
+    """Slack's own `authorizations[0]` is authoritative when present; a flat
+    top-level flag (form-encoded slash payloads send it as a string) is the
+    fallback."""
+
+    authorizations = payload.get("authorizations")
+    if isinstance(authorizations, list) and authorizations:
+        first = authorizations[0]
+        if isinstance(first, dict) and first.get("is_enterprise_install"):
+            return True
+
+    value = payload.get("is_enterprise_install")
+    if isinstance(value, str):
+        return value.strip().lower() == "true"
+    return bool(value)
+
+
+def _connection_discriminator(payload: Dict[str, Any]) -> Tuple[str, str]:
+    """(enterprise_id, team_id), exactly one populated. An org-wide
+    Enterprise Grid install spans many workspaces, each firing events with a
+    different team_id -- keying on team_id there would fragment one
+    installation into many rows, so the discriminator is enterprise_id
+    whenever the install is org-wide, team_id otherwise."""
+
+    authorizations = payload.get("authorizations")
+    auth = (
+        authorizations[0]
+        if isinstance(authorizations, list)
+        and authorizations
+        and isinstance(authorizations[0], dict)
+        else {}
+    )
+
+    if _is_enterprise_install(payload):
+        enterprise = payload.get("enterprise")
+        enterprise_id = (
+            auth.get("enterprise_id")
+            or payload.get("enterprise_id")
+            or (enterprise.get("id") if isinstance(enterprise, dict) else None)
+        )
+        return (enterprise_id or "", "")
+
+    team = payload.get("team")
+    team_id = (
+        auth.get("team_id")
+        or payload.get("team_id")
+        or (team.get("id") if isinstance(team, dict) else None)
+    )
+    return ("", team_id or "")
 
 
 def _render_content(content: List[Dict[str, Any]]) -> tuple:

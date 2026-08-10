@@ -22,26 +22,36 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from oss.src.apis.fastapi.channels.ingress import (
-    ChannelsIngressRouter,
-    _placeholder_external_key,
-)
+from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.dtos import (
+    ChannelCapabilities,
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelEventKind,
+    ChannelIdentity,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelKeyGrain,
     ChannelRequestContext,
     ChannelSpaceKind,
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
+from oss.src.core.channels.utils import compose_external_key
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 
 pytestmark = pytest.mark.integration
 
 _LOCATOR = {"team": "T1", "channel": "C1"}
+
+
+def _fake_capabilities() -> ChannelCapabilities:
+    return ChannelCapabilities(
+        channel="slack",
+        identity=ChannelIdentity(
+            keys={ChannelKeyGrain.CONNECTION: ["installation_id"]}
+        ),
+    )
 
 
 class _FakeSlackAdapter:
@@ -53,6 +63,11 @@ class _FakeSlackAdapter:
     def __init__(self, *, installation_id: str, external_id: str = "Ev1"):
         self.installation_id = installation_id
         self.external_id = external_id
+
+    async def fetch_capabilities(
+        self, *, connection: Optional[ChannelConnection] = None
+    ) -> ChannelCapabilities:
+        return _fake_capabilities()
 
     def connection_locator(
         self, *, request: ChannelRequestContext
@@ -119,14 +134,23 @@ async def seam(channels_scope):
     registry = _Registry({"slack": adapter})
 
     dao = ChannelsDAO(engine=engine)
+    external_key = compose_external_key(
+        _fake_capabilities(),
+        ChannelKeyGrain.CONNECTION,
+        {"installation_id": channels_scope["external_id"]},
+    )
     await dao.create_connection(
         project_id=project_id,
         user_id=channels_scope["user_id"],
         connection=ChannelConnectionCreate(
             channel="slack",
-            external_key=_placeholder_external_key(channels_scope["external_id"]),
+            external_key=external_key,
             slug="seam-connection",
-            data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
+            data={
+                "signing_secret": "unused",
+                "bot_token": "xoxb-fake",
+                "installation_id": channels_scope["external_id"],
+            },
         ),
     )
 

@@ -168,6 +168,24 @@ def test_connection_locator_returns_the_fixed_installation_id():
     }
 
 
+@pytest.mark.asyncio
+async def test_connection_locator_field_matches_the_declared_connection_key():
+    """connection_locator's field must be exactly what identity.keys names
+    at CONNECTION grain, or composition raises on a well-formed request."""
+
+    from oss.src.core.channels.dtos import ChannelKeyGrain
+    from oss.src.core.channels.utils import compose_external_key
+
+    adapter = MockAdapter(installation_id="fixed-install-id")
+    request = ChannelRequestContext(headers={}, path="/mock/events/", body=b"{}")
+
+    capabilities = await adapter.fetch_capabilities(connection=None)
+    locator = adapter.connection_locator(request=request)
+
+    key = compose_external_key(capabilities, ChannelKeyGrain.CONNECTION, locator)
+    assert key is not None
+
+
 class _HeaderLocatorMockAdapter(MockAdapter):
     """Telegram carries no identity in the body at all -- only a header.
     Telegram does not exist yet, so this stands in to prove the header
