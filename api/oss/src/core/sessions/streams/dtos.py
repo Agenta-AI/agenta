@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
@@ -59,7 +59,23 @@ class SessionStreamHeaderEdit(Header):
 
     Distinct from SessionStreamEdit (used by the flag-mirror/heartbeat paths) so the
     liveness-only writes can never carry name/description, and vice versa.
+
+    ``name`` may be omitted/``None`` (no change) or an empty string (the explicit
+    clear-title action the chat rail's rename path uses), but a NON-empty name must
+    contain a non-whitespace character: storing ``"   "`` clears the visible title
+    while the row still holds a value, a state no caller ever means. The LLM-facing
+    ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
+
+    @field_validator("name")
+    @classmethod
+    def _non_empty_name_must_not_be_blank(cls, value: Optional[str]) -> Optional[str]:
+        if value and not value.strip():
+            raise ValueError(
+                "name must contain a non-whitespace character"
+                " (send an empty string to clear the title)"
+            )
+        return value
 
 
 class SessionStreamQuery(BaseModel):

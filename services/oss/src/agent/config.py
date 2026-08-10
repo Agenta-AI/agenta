@@ -29,7 +29,14 @@ DEFAULT_TOOLS: List[Any] = []
 DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
     "- Greet the user warmly.\n"
-    "- Answer the user's message in one or two short sentences."
+    "- Answer the user's message in one or two short sentences.\n"
+    "- Once the first exchange makes clear what the session is about, call the\n"
+    "  `rename_session` tool: `name` is the session's subject in a few words, findable\n"
+    "  in a list; `description` is a one-sentence recap of where things stand. Rename\n"
+    "  again only when the topic genuinely shifts.\n"
+    "- Call the `rename_agent` tool only when your own identity or purpose changes —\n"
+    "  for example, you were just created or the user repurposes you — with a name\n"
+    "  that says what you are for."
 )
 
 

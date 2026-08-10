@@ -92,7 +92,10 @@ tool's `call.context` binding at dispatch: the runner fills the bound request fi
 server-side, hidden from the model (see `runner-to-tool-callback.md`). `workflow` mirrors the
 platform's three workflow entities — `artifact` / `variant` / `revision`, each an `{id, slug,
 version}` reference — and `is_draft` says whether the run targets a committed revision or a
-playground draft. The conversation id is NOT carried here; it rides the top-level `sessionId`. The
+playground draft. The conversation id is NOT carried here on the wire; it rides the top-level
+`sessionId`, and the runner — which owns the live id across turns — augments its internal dispatch
+copy of this blob with `session.id` so `$ctx.session.id` bindings resolve (`RunContext.session` in
+`protocol.ts` is runner-filled, never service-filled). The
 inner keys are deliberately snake_case — they are the binding namespace a `call.context` value
 (`"$ctx.<dotted.path>"`, e.g. `"$ctx.workflow.variant.id"`) addresses, not the wire's usual
 camelCase. Omitted when there is no identity to bind, so a run that needs no binding stays

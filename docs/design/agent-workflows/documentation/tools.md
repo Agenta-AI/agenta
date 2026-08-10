@@ -518,7 +518,7 @@ Each catalog entry (`PlatformOp`, a typed model validated at import) maps an `op
 | Field | Meaning |
 | --- | --- |
 | `description` | The model-facing description (SDK-owned). |
-| `method`, `path` | The existing endpoint to call: `GET`/`POST` and a relative `/api/...` path. Endpoint-mode ops set these; a handler-mode op sets `handler` instead (exactly one of the two targets). |
+| `method`, `path` | The existing endpoint to call: one of `GET`/`POST`/`PUT`/`DELETE` (the runner's explicit direct-call allowlist) and a relative `/api/...` path. Endpoint-mode ops set these; a handler-mode op sets `handler` instead (exactly one of the two targets). |
 | `handler` | A reserved `tools.agenta.<op>` call-ref for a server-side handler (see [server-handled ops](#server-handled-ops-handler-mode)). Mutually exclusive with `method`+`path`. |
 | `input_schema` / `input_schema_ref` | The request input schema — inline JSON Schema, or a `CATALOG_TYPES` key (expanded via `x-ag-type-ref`). Exactly one. |
 | `context_bindings` | Self-targeting fields: an endpoint body path → a `$ctx.<key>` run-context token. Stripped from the model schema; emitted as `call.context` (endpoint mode) or spec-level `contextBindings` (handler mode). |
@@ -534,10 +534,13 @@ once per project and merges it as an overlay onto any agent-typed entity; it is 
 but not embeddable/committable, and the legacy per-application `additional_context` rider
 remains one release as a fallback. It embeds an explicit default subset,
 `DEFAULT_BUILD_KIT_OPS` in `api/oss/src/core/workflows/build_kit.py`: `discover_tools`,
-`commit_revision`, `annotate_trace`, `query_spans`, `discover_triggers`, `create_schedule`,
-`create_subscription`, `list_schedules`, `list_deliveries`, `test_subscription`,
-`remove_schedule`, and `remove_subscription` (12 ops, plus the `request_connection` client
-tool and the build-an-agent playbook skill). Every other catalog op (the pause/resume
+`commit_revision`, `annotate_trace`, `query_spans`, `test_run`, `rename_session`,
+`rename_agent`, `discover_triggers`, `create_schedule`, `create_subscription`,
+`list_schedules`, `list_deliveries`, `test_subscription`, `remove_schedule`, and
+`remove_subscription` (15 ops — 16 with `read_config`, which joins the kit whenever ordered
+operations put it in the catalog — plus the `request_connection` client tool and the
+build-an-agent playbook skill). The overlay emits `permission: "allow"` for the two rename
+ops so the self-scoped, reversible label writes never raise an approval card. Every other catalog op (the pause/resume
 lifecycle, `query_workflows`, `list_connections`, `list_subscriptions`) stays a catalog
 opt-in: an author adds `{type:"platform", op}` explicitly. The rationale for the cut list
 lives in the [build-kit-tools-cleanup workspace](../projects/build-kit-tools-cleanup/research.md).
@@ -552,6 +555,8 @@ A few ops worth naming:
 | `commit_revision` | handler `tools.agenta.commit_revision` via `POST /tools/call` | mutating (approval) | "Update yourself": binds `workflow_revision.workflow_variant_id` ← `$ctx.workflow.variant.id`, so the agent can only ever commit a revision to its own variant. The handler hard-applies the agent scope policy (no writes to `harness.kind`, `harness.permissions`, `runner.permissions`, `sandbox.kind`, `sandbox.permissions`) and refuses full-data commits. Enforcement design: `docs/design/agent-config-editing/contracts/read-config.md` §11.2. |
 | `read_config` | handler `tools.agenta.read_config` via `POST /tools/call` | read (auto-allow) | Read the agent's own stored configuration, whole or a named part, so an edit can anchor on real current text. Binds the variant id and draft state from run context. In the catalog by default; setting `AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED` falsy takes the deployment back to the legacy surface and removes it. Contract: `docs/design/agent-config-editing/contracts/read-config.md`. |
 | `test_run` | handler `tools.agenta.test_run` | mutating (approval) | Run the agent's own variant once and return a digest + verdict. Handler mode, flag-gated off, not in the overlay yet (see below). |
+| `rename_session` | `POST /api/sessions/streams/header?session_id={session_id}` | mutating (auto-allow via overlay) | Name and describe the session the agent is running in. The session id is bound from `$ctx.session.id` (runner-filled) and stripped from the model schema, so the agent can only rename its own session. The `name` schema requires a non-whitespace character, so the tool cannot blank a title. In the default build kit. Design: `docs/design/agent-self-naming-tools/`. |
+| `rename_agent` | `PUT /api/workflows/{workflow_id}` | mutating (auto-allow via overlay) | Name and describe the agent itself. The artifact id is bound twice from `$ctx.workflow.artifact.id` (path and body) and stripped from the model schema; the body carries only `{workflow: {name, description, id}}`, never flags. In the default build kit. Design: `docs/design/agent-self-naming-tools/`. |
 
 This mirrors the evaluators catalog pattern (`api/oss/src/resources/evaluators/evaluators.py`,
 a code-defined table of named ops). Multi-step operations (e.g. create-then-commit) are composed

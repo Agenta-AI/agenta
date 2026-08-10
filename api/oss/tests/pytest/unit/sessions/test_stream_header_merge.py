@@ -381,3 +381,33 @@ async def test_rename_race_falls_back_to_header_update_on_concurrent_create(
 
     assert stream.name == "Won The Retry"
     assert dao.header_updates == 1
+
+
+# ---------------------------------------------------------------------------
+# Name validation on the header edit (the direct-API hole behind rename_session):
+# the LLM-facing schema requires a non-whitespace name, but a direct PUT used to
+# persist "   " — clearing the visible title while the row still held a value.
+# The empty string stays allowed: it is the explicit clear-title action the chat
+# rail's rename path sends, and None/omitted still means "no change".
+# ---------------------------------------------------------------------------
+
+
+def test_whitespace_only_name_is_rejected_at_validation():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="non-whitespace"):
+        SessionStreamHeaderEdit(name="   ")
+
+
+def test_empty_name_stays_the_explicit_clear():
+    assert SessionStreamHeaderEdit(name="").name == ""
+
+
+def test_omitted_and_none_name_still_mean_no_change():
+    assert SessionStreamHeaderEdit().name is None
+    assert SessionStreamHeaderEdit(name=None).name is None
+
+
+def test_a_normal_rename_validates():
+    edit = SessionStreamHeaderEdit(name="Billing migration", description="recap")
+    assert edit.name == "Billing migration"

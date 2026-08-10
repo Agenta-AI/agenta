@@ -106,6 +106,9 @@ export async function runTurn(
   const { plan, logger, deps } = env;
   const credential = opts.credential ?? (() => runCredential(request));
   const sessionId = env.sessionId;
+  const toolRunContext = env.sessionId
+    ? { ...request.runContext, session: { id: env.sessionId } }
+    : request.runContext;
   // Race marker for a user Stop (the control-plane `cancel`/`steer` command drops the alive lock, the
   // heartbeat aborts `signal`). Distinct from PAUSED/RUN_LIMIT_TRIPPED so the turn ends CLEANLY
   // (honest interrupted transcript, keep-warm) instead of falling through to the error catch.
@@ -903,7 +906,7 @@ export async function runTurn(
         plan.workspace.relayDir,
         plan.tools.toolSpecs,
         request.toolCallback as ToolCallbackContext | undefined,
-        request.runContext,
+        toolRunContext,
         env.clientToolRelayRef.current,
         relayGuard,
         {
