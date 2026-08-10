@@ -9,7 +9,14 @@ import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/compon
 import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/PermissionsPickerPanel"
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cpu, Cube, GraduationCap, Paperclip, ShieldCheck} from "@phosphor-icons/react"
+import {
+    ChatCircleDots,
+    Cpu,
+    Cube,
+    GraduationCap,
+    Paperclip,
+    ShieldCheck,
+} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
@@ -139,6 +146,14 @@ const SLASH_SECTIONS = [
                 tail: "Allow reads ›",
                 icon: <ShieldCheck size={14} />,
                 kind: "open" as const,
+            },
+            {
+                key: "new",
+                label: "/new",
+                description: "Start a fresh session with this agent",
+                icon: <ChatCircleDots size={14} />,
+                // `action`, not `open`: it runs and is done, so the footer promises "run".
+                kind: "action" as const,
             },
         ],
     },
@@ -286,7 +301,14 @@ export const SlashCommands: Story = {
                     onSelect:
                         item.key === "model" || item.key === "harness" || item.key === "permissions"
                             ? () => openPicker(item.key as "model" | "harness" | "permissions")
-                            : undefined,
+                            : item.key === "new"
+                              ? () => {
+                                    // Mirrors the dock: the action runs, then the host clears the
+                                    // command it consumed. No picker, so focus never leaves.
+                                    setApplied("new session")
+                                    clearCommand()
+                                }
+                              : undefined,
                 })),
             }))
 

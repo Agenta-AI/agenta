@@ -7,8 +7,12 @@
  */
 import type {ReactNode} from "react"
 
-/** What selecting an item does: drill into a picker the host owns, or type text into the message. */
-export type SlashCommandKind = "open" | "insert"
+/**
+ * What selecting an item does: drill into a picker the host owns, run a one-shot action, or type
+ * text into the message. `open` and `action` behave identically here — the menu closes and the host's
+ * `onSelect` runs — they differ only in what the footer promises the next keystroke will do.
+ */
+export type SlashCommandKind = "open" | "insert" | "action"
 
 export interface SlashCommandItem {
     key: string
@@ -21,7 +25,7 @@ export interface SlashCommandItem {
     kind: SlashCommandKind
     /** `insert` items only: the text typed into the message. Defaults to `label`. */
     insertText?: string
-    /** `open` items only: runs after the menu closes, so the picker owns the keyboard. */
+    /** `open`/`action` items: runs after the menu closes, so the picker owns the keyboard. */
     onSelect?: () => void
 }
 

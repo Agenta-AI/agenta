@@ -32,8 +32,21 @@ import {parseGatewayTool} from "@agenta/entity-ui/tool-utils"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
-import {Cpu, Cube, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
+import {
+    ChatCircleDots,
+    Cpu,
+    Cube,
+    GraduationCap,
+    Plugs,
+    ShieldCheck,
+    Wrench,
+} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
+
+import {useChatScopeKey} from "../state/scope"
+import {addSessionAtomFamily} from "../state/sessions"
 
 /** Which picker the palette drilled into, or null when the palette is just a list. */
 export type SlashPicker = "model" | "harness" | "permissions" | null
@@ -53,10 +66,13 @@ export function useChatSlashCommands({
     suspended,
     /** Fires as a picker opens, so the host can clear the command that opened it. */
     onPickerOpen,
+    /** Fires after a command that opens no picker has run, for the same reason. */
+    onCommandRun,
 }: {
     entityId: string
     suspended?: boolean
     onPickerOpen?: () => void
+    onCommandRun?: () => void
 }) {
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
@@ -67,6 +83,16 @@ export function useChatSlashCommands({
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
     const setConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
+
+    // `/new` is the palette's shortcut for the session rail's `+`, so it shares that button's
+    // state and its one gate: onboarding holds you in the founding conversation until it settles.
+    const scope = useChatScopeKey()
+    const addSession = useSetAtom(addSessionAtomFamily(scope))
+    const newSessionLocked = !!useOptionalOnboardingContext()?.newSessionLocked
+    const startNewSession = useCallback(() => {
+        addSession()
+        onCommandRun?.()
+    }, [addSession, onCommandRun])
 
     const [picker, setPicker] = useState<SlashPicker>(null)
 
@@ -292,6 +318,16 @@ export function useChatSlashCommands({
                       onSelect: () => openPicker("permissions"),
                   }
                 : null,
+            newSessionLocked
+                ? null
+                : {
+                      key: "new",
+                      label: "/new",
+                      description: "Start a fresh session with this agent",
+                      icon: <ChatCircleDots size={14} />,
+                      kind: "action" as const,
+                      onSelect: startNewSession,
+                  },
         ])
 
         const skillItems = compact(
@@ -327,8 +363,10 @@ export function useChatSlashCommands({
         currentHarness,
         currentModelLabel,
         currentPermissionLabel,
+        newSessionLocked,
         openPicker,
         permissionsAvailable,
+        startNewSession,
         suspended,
     ])
 

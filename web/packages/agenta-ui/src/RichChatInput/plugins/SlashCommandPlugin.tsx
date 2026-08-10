@@ -259,7 +259,10 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
             role="listbox"
             aria-label="Commands"
             // font-portal: portaled to <body>, escaping the app font scope (preflight off).
-            className="z-[1050] overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] font-portal shadow-overlay"
+            // box-border for the same reason: `size()` sets the ANCHOR's width, and with no
+            // preflight reset the default content-box would add the 1px borders on top, leaving the
+            // menu wider than the composer and nudged off-anchor by `shift`.
+            className="z-[1050] box-border overflow-hidden rounded-[10px] border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgElevated)] font-portal shadow-overlay"
         >
             <div className="max-h-[286px] overflow-y-auto pb-1">
                 {items.length === 0 ? (
@@ -355,7 +358,15 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
                     declines it and the message sends. */}
                 <HintKey
                     keys="↵"
-                    label={!activeItem ? "send" : activeItem.kind === "open" ? "open" : "insert"}
+                    label={
+                        !activeItem
+                            ? "send"
+                            : activeItem.kind === "open"
+                              ? "open"
+                              : activeItem.kind === "action"
+                                ? "run"
+                                : "insert"
+                    }
                 />
                 <HintKey keys="esc" label="dismiss" />
             </div>

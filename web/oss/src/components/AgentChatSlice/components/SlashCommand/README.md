@@ -44,6 +44,18 @@ Because focus stays in the editor there, the palette also has to publish `aria-c
 `role="listbox"` belongs on the option list, not the panel root — the root also holds a header and
 footer, and the outside-click check needs it as a separate ref anyway.
 
+## Commands that open no panel
+
+Some commands just act (`/new` starts a session). Give those `kind: "action"` rather than `"open"`
+— the palette treats the two identically (menu closes, `onSelect` runs), but the footer promises
+"run" instead of "open", so the next keystroke is described honestly.
+
+An action still has to clear the `/` it consumed. Pickers get that from `onPickerOpen`, which also
+blurs; an action must NOT blur, since focus should stay in the composer for the next message. That
+is what `onCommandRun` is for. If the equivalent button elsewhere in the UI is gated, gate the row
+the same way — `/new` hides itself under `onboarding.newSessionLocked`, matching the session rail's
+`+`, so the palette can never be a way around a disabled control.
+
 ## Checklist for a new command
 
 1. Row in `useChatSlashCommands` (`../../hooks/useChatSlashCommands.tsx`) with `kind: "open"`, an

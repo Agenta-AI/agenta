@@ -183,6 +183,12 @@ const AgentComposerDock = ({
             richInputRef.current?.clear()
             clearDraft()
         }, [clearDraft, richInputRef]),
+        // `/new` opens no picker, so nothing blurs the editor — clear the command and leave the
+        // caret where it is, ready for the first message of the session that just opened.
+        onCommandRun: useCallback(() => {
+            richInputRef.current?.clear()
+            clearDraft()
+        }, [clearDraft, richInputRef]),
     })
     // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
     // undone when the still-focused panel (or Radix popover) leaves the DOM.
