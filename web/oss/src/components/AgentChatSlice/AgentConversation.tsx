@@ -6,6 +6,7 @@ import {
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {UploadSimple} from "@phosphor-icons/react"
@@ -360,16 +361,32 @@ const AgentConversation = ({
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
     // tab keeps no stale dot and stops claiming it's the live watcher.
+    // `hitlPending` reads only the LAST assistant message, so the moment a new turn starts
+    // streaming (or hydration reshapes the transcript) a still-pending interaction in an
+    // EARLIER message stops counting — status collapses to idle, the settle stamp lands, and
+    // the running-elsewhere strip flickers in the very tab that owns the parked widget
+    // (Mahmoud's session e627d80a). Scan the whole transcript: any pending interaction this
+    // tab renders means this tab owns the run.
+    const anyPendingInteraction = useMemo(
+        () =>
+            messages.some((message) => {
+                if (message.role !== "assistant") return false
+                const parts = message.parts ?? []
+                const renderMap = buildRenderMap(parts)
+                return parts.some((part) => isPendingClientToolInteraction(part, renderMap))
+            }),
+        [messages],
+    )
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
-            : hitlPending
+            : hitlPending || anyPendingInteraction
               ? "awaiting"
               : busy
                 ? "running"
                 : "idle"
         setSessionStatus({id: sessionId, status})
-    }, [error, hitlPending, busy, sessionId, setSessionStatus])
+    }, [error, hitlPending, anyPendingInteraction, busy, sessionId, setSessionStatus])
     useEffect(
         () => () => setSessionStatus({id: sessionId, status: "idle"}),
         [sessionId, setSessionStatus],
