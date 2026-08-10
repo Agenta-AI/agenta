@@ -8,6 +8,11 @@ channel and the bridge is proved against it; what remains open is which channel
 follows, and when the runner takes the input-sequencing work that channels ships
 without.
 
+
+**Where the redesign starts: [`open-design.md`](open-design.md)** — the ten open
+items, what is parked, and the three user journeys. `prior-art.md` is the research
+behind it; `provisioning.md` and `rendering.md` are the two written designs.
+
 ## Posture
 
 Five claims anchor the design and constrain everything downstream of them:
