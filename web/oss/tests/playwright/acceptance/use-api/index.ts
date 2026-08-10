@@ -122,9 +122,11 @@ const openVariantUseApiDrawer = async (page: any) => {
     // clicking early opens the drawer with an undefined revision and empty snippets.
     // Environments differ: some auto-select a row, some (CI's fresh project) do not,
     // so select the first row explicitly when nothing is checked.
-    const checkedRow = page.locator(".ant-checkbox-checked").first()
+    // Scoped to the registry table's BODY rows: the header select-all and any checkbox
+    // outside the table must neither satisfy the check nor receive the click.
+    const checkedRow = page.locator(".ant-table-tbody .ant-checkbox-checked").first()
     if (!(await checkedRow.isVisible().catch(() => false))) {
-        const firstRowCheckbox = page.locator(".ant-checkbox-input").first()
+        const firstRowCheckbox = page.locator(".ant-table-tbody .ant-checkbox-input").first()
         await expect(firstRowCheckbox).toBeVisible({timeout: 15000})
         await firstRowCheckbox.click()
     }
