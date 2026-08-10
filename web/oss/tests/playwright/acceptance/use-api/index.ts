@@ -118,10 +118,17 @@ const deployFirstVariantToDevelopment = async (
  */
 const openVariantUseApiDrawer = async (page: any) => {
     // The Use API button is NOT disabled while no revision is selected (it captures
-    // selectedRevisionId at click time), so wait for the registry's auto-selection to
-    // settle (an antd row checkbox turns checked) before clicking — clicking early
-    // opens the drawer with an undefined revision and empty snippets.
-    await expect(page.locator(".ant-checkbox-checked").first()).toBeVisible({timeout: 15000})
+    // selectedRevisionId at click time), so ensure a row IS selected before clicking —
+    // clicking early opens the drawer with an undefined revision and empty snippets.
+    // Environments differ: some auto-select a row, some (CI's fresh project) do not,
+    // so select the first row explicitly when nothing is checked.
+    const checkedRow = page.locator(".ant-checkbox-checked").first()
+    if (!(await checkedRow.isVisible().catch(() => false))) {
+        const firstRowCheckbox = page.locator(".ant-checkbox-input").first()
+        await expect(firstRowCheckbox).toBeVisible({timeout: 15000})
+        await firstRowCheckbox.click()
+    }
+    await expect(checkedRow).toBeVisible({timeout: 15000})
     const useApiButton = page.locator('[data-tour="api-code-button"]')
     await expect(useApiButton).toBeVisible({timeout: 15000})
     await expect(useApiButton).toBeEnabled({timeout: 5000})
