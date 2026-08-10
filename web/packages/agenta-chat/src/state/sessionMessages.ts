@@ -29,6 +29,28 @@ const tabLocalStorage = <T>() => {
     return storage
 }
 
+/**
+ * The pre-`:v2` stores. Nothing reads them any more — the key bump below is precisely how the
+ * duplicated-approval-part caches were retired — but `dropSessionMessagesAtom` only ever deletes
+ * the `:v2` keys, so without this they sit in localStorage forever, taking quota from the stores
+ * that ARE used (transcripts with inline attachments make the ~5MB ceiling reachable).
+ *
+ * Dropped once at module load rather than on a re-sync: the v2 stores are already authoritative
+ * from the first read, so there is nothing to migrate and nothing to wait for. Idempotent —
+ * `removeItem` on an absent key is a no-op, so a second import (or a second browser tab) costs
+ * nothing. Guarded for SSR and for browsers that deny storage access entirely.
+ */
+const dropLegacySessionStores = () => {
+    if (typeof window === "undefined") return
+    try {
+        window.localStorage.removeItem("agenta:agent-chat:messages")
+        window.localStorage.removeItem("agenta:agent-chat:record-counts")
+    } catch {
+        // Storage disabled (private mode, blocked cookies) — nothing to clean up there anyway.
+    }
+}
+dropLegacySessionStores()
+
 /** Persisted messages per session id. Written when a conversation's stream settles. Session ids
  * are globally unique, so this store has no scope dimension.
  * v2: caches written by the pre-fix mapper hold duplicated approval parts; the key bump forces

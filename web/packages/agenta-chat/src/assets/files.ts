@@ -97,6 +97,25 @@ export const attachmentRefsToParts = (refs: AttachmentRef[], sessionId: string):
     }))
 
 /**
+ * Where to fetch a file part's bytes from RIGHT NOW.
+ *
+ * A reference part's `url` is baked at build time (`attachmentRefsToParts` here,
+ * `transcriptToMessages` on the replay path) against whatever API host was current then — and
+ * these parts are persisted with the transcript, so a host change (a different deployment, an env
+ * switch, a moved domain) leaves the stored URLs pointing at the old one. The durable identity is
+ * the attachment id in `providerMetadata.agenta` plus the session, so rebuild from those against
+ * the CURRENT runtime host instead of trusting the stored URL.
+ *
+ * Inline `data:` parts and any part that predates the metadata have no id to rebuild from and keep
+ * their stored URL.
+ */
+export const filePartContentUrl = (part: FileUIPart, sessionId: string): string => {
+    const attachmentId = attachmentIdForPart(part)
+    if (!attachmentId || !sessionId) return part.url
+    return attachmentContentUrl(sessionId, attachmentId)
+}
+
+/**
  * A readable label for a file part: the filename, else the tail of its URL.
  *
  * The URL fallback skips `data:` URLs (`fileToPart` emits base64 payloads whose tail is the
