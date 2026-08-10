@@ -27,6 +27,25 @@ const REMOTE_RUN_POLL_MS = 15_000
 const REMOTE_RUN_POLL_MAX_MS = 60_000
 
 /**
+ * Whether the records-changed relay's catch-up refetch must skip this tick.
+ *
+ * `busy` is the existing guard (a live local stream outranks the log). `pendingResume` is new:
+ * a client-tool settle (connect Not-now/Connect, an elicitation answer) writes
+ * `liveGateInteractionRef` synchronously and clears it only once `sendAutomaticallyWhen`
+ * actually dispatches the resume — `busy` doesn't flip true until THAT dispatch lands, so
+ * there is a real gap where the settle is local-only and not yet durable. A relay tick in that
+ * gap previously adopted a server transcript that predates the settle, silently discarding it —
+ * the parked interaction then never resumes (bug: "Not now" firing zero network requests).
+ */
+export const shouldSkipRecordsRefresh = ({
+    busy,
+    pendingResume,
+}: {
+    busy: boolean
+    pendingResume: boolean
+}): boolean => busy || pendingResume
+
+/**
  * Hybrid history for one session tab. localStorage holds only the session INDEX; the durable
  * conversation CONTENT lives in the backend record log — so a tab either paints from cache and
  * revalidates (SWR), or hydrates from the server once (cache miss). Both paths adopt the server
@@ -45,6 +64,7 @@ export const useSessionHydration = ({
     setMessages,
     persistMessages,
     intent,
+    pendingResumeRef,
 }: {
     sessionId: string
     initialMessages: UIMessage[]
@@ -59,6 +79,15 @@ export const useSessionHydration = ({
     setMessages: (messages: UIMessage[]) => void
     persistMessages: (args: {id: string; messages: UIMessage[]; recordCount?: number}) => void
     intent: ScrollIntent
+    /**
+     * Non-null while a client-tool settle (connect Not-now/Connect, an elicitation answer) has
+     * fired locally and is waiting for `sendAutomaticallyWhen` to dispatch its resume — see
+     * `liveGateInteractionRef` in `useAgentChatSession`. The settle is NOT durable until that
+     * dispatch lands (`busy` flips true); a records-changed relay tick landing in that gap must
+     * not adopt a server transcript that predates it, or the local settle is silently discarded
+     * and the parked interaction never resumes (bug: "Not now" firing zero network requests).
+     */
+    pendingResumeRef: MutableRefObject<unknown>
 }) => {
     // Cache-first — when this tab opens with no locally-cached messages (a session this browser
     // never ran, or after a storage clear), hydrate once from the server (`queryRecords` → v6
@@ -261,16 +290,36 @@ export const useSessionHydration = ({
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const refreshFromRecords = useCallback(() => {
-        // Skipped while THIS tab streams — it is already the live truth, and `onFinish` revalidates.
-        if (busyRef.current) return
+        // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
+        // revalidates) OR a client-tool settle is already waiting on its resume dispatch — see
+        // `shouldSkipRecordsRefresh`.
+        if (
+            shouldSkipRecordsRefresh({
+                busy: busyRef.current,
+                pendingResume: !!pendingResumeRef.current,
+            })
+        )
+            return
         // A tick usually lands inside the records query's stale window, so the shared cache would
         // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
         revalidateSessionRecords(sessionId)
-        void loadSessionMessages(sessionId).then((transcript) =>
+        void loadSessionMessages(sessionId).then((transcript) => {
+            // Adoption-point recheck: the entry check above only covers the window BEFORE this
+            // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
+            // settle can land while it's in flight — without re-checking here, that settle arrives
+            // busy=false/pendingResume=true, passes nothing, and this `.then` still clobbers it
+            // with the (now stale) transcript it fetched before the settle happened.
+            if (
+                shouldSkipRecordsRefresh({
+                    busy: busyRef.current,
+                    pendingResume: !!pendingResumeRef.current,
+                })
+            )
+                return
             // A background catch-up must not yank a reader who scrolled up — as with the poll.
-            adoptServerTranscriptRef.current(transcript, {armJump: false}),
-        )
-    }, [sessionId, busyRef, revalidateSessionRecords])
+            adoptServerTranscriptRef.current(transcript, {armJump: false})
+        })
+    }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords])
     useSessionRecordsWatch({
         sessionId,
         projectId,
