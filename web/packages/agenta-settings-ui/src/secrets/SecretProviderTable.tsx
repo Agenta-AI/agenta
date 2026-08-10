@@ -210,7 +210,8 @@ export const SecretProviderTable = ({
                                                 variant="outline"
                                                 aria-label="Reload providers"
                                                 disabled={loading}
-                                                onClick={mutate}
+                                                // `mutate` takes no arguments; as the handler it would be handed the click event.
+                                                onClick={() => mutate()}
                                             >
                                                 <ArrowClockwise size={14} />
                                             </Button>
