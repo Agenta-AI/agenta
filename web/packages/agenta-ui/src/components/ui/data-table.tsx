@@ -134,9 +134,30 @@ export function DataTable<T>({
                                   <tr
                                       key={rowKey(record)}
                                       onClick={onRowClick ? () => onRowClick(record) : undefined}
+                                      // A clickable row is a control, so it takes focus and answers
+                                      // Enter/Space like one. Rows without `onRowClick` stay plain
+                                      // markup — they must not become focus stops.
+                                      role={onRowClick ? "button" : undefined}
+                                      tabIndex={onRowClick ? 0 : undefined}
+                                      onKeyDown={
+                                          onRowClick
+                                              ? (event) => {
+                                                    // Only the row itself: controls inside a cell
+                                                    // handle their own keys, and Space on a
+                                                    // container that does not preventDefault also
+                                                    // scrolls the page.
+                                                    if (event.target !== event.currentTarget) return
+                                                    if (event.key !== "Enter" && event.key !== " ")
+                                                        return
+                                                    event.preventDefault()
+                                                    onRowClick(record)
+                                                }
+                                              : undefined
+                                      }
                                       className={clsx(
                                           "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
-                                          onRowClick && "cursor-pointer",
+                                          onRowClick &&
+                                              "cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
                                       )}
                                   >
                                       {columns.map((column) => (
