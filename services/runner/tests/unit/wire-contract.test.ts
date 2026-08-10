@@ -39,13 +39,8 @@ const KNOWN_REQUEST_KEYS = [
   "model",
   "harnessMode",
   "modelCapabilities",
-  "provider",
-  "connection",
-  "deployment",
-  "endpoint",
-  "credentialMode",
+  "modelConnection",
   "messages",
-  "secrets",
   "context",
   "telemetry",
   "runContext",
@@ -61,6 +56,7 @@ const KNOWN_REQUEST_KEYS = [
   "harnessFiles",
   "turnId",
   "projectId",
+  "effectiveParameters",
 ] as const;
 
 // COMPILE-TIME drift guard: every wire key must be a field of AgentRunRequest. Drop or rename
@@ -209,6 +205,15 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.sandboxPermission!.enforcement, "strict");
     // Pi renders no harness config files, so the generic `harnessFiles` is absent.
     assert.equal(req.harnessFiles, undefined);
+    // The turn's effective config reaches the runner opaquely; it is echoed onto any gate this
+    // turn parks so an out-of-band answer replays THIS config (effective-turn-config plan, T3).
+    assert.deepEqual(req.effectiveParameters, {
+      agent: {
+        instructions: "You are a helpful assistant.",
+        llm: { model: "openai-codex/gpt-5.5", provider: "openai" },
+        runner: { permissions: { default: "allow_reads" } },
+      },
+    });
   });
 
   it("claude request: gates tool use, no prompt overrides, null session id", () => {
@@ -250,6 +255,8 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(skill.disableModelInvocation, true);
     assert.equal(skill.files![0].path, "scripts/draft.py");
     assert.equal(skill.files![0].executable, true);
+    // A non-session run can never park a gate, so the SDK does not stamp its effective config.
+    assert.equal(req.effectiveParameters, undefined);
     // sessionId is null on the wire, so the runner falls back to its ephemeral id.
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),
@@ -268,7 +275,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.equal(req.appendSystemPrompt, undefined);
     // A managed codex run carries the file-free auth provider block in `.codex/config.toml` (D-002
     // final ruling): the runner writes it blind; codex reads OPENAI_API_KEY from the daemon env at
-    // request time. The secret is NOT in the file (it rides `secrets`).
+    // request time. The secret is NOT in the file (it rides `modelConnection.credentials`).
     const files = req.harnessFiles!;
     assert.equal(files.length, 1);
     assert.equal(files[0].path, ".codex/config.toml");
@@ -276,7 +283,13 @@ describe("wire contract: requests (vs Python golden)", () => {
     assert.match(files[0].content, /env_key = "OPENAI_API_KEY"/);
     assert.equal(files[0].content.includes("sk-openai"), false);
     assert.equal(req.sandboxPermission, undefined);
-    assert.deepEqual(req.secrets, { OPENAI_API_KEY: "sk-openai" });
+    assert.deepEqual(req.modelConnection?.credentials, [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value: "sk-openai",
+        usage: "opaque_http",
+      },
+    ]);
     assert.equal(
       resolveRunSessionId(req, "runner-ephemeral"),
       "runner-ephemeral",

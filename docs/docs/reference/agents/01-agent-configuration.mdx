@@ -195,7 +195,7 @@ Each entry is an inline skill package. See [Skills](/concepts/skills).
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|
-| `kind` | `"pi_core"` \| `"pi_agenta"` \| `"claude"` | No | `"pi_core"` | Which coding agent to drive. |
+| `kind` | `"pi_core"` \| `"pi_agenta"` \| `"claude"` \| `"codex"` | No | `"pi_core"` | Which coding agent to drive. |
 | `permissions` | object | No | see [harness.permissions](#harnesspermissions) | Tool-use gating posture, applied by harnesses that gate. |
 | `extras` | object | No | `{}` | Per-harness knobs passed through unchanged. For Pi, `system` replaces the base system prompt and `append_system` adds to it. Both are independent of `instructions.agents_md`. |
 
@@ -204,12 +204,13 @@ Each entry is an inline skill package. See [Skills](/concepts/skills).
 | `pi_core` | Pi | `agenta:harness:pi_core:v0` |
 | `pi_agenta` | Pi (Agenta) | `agenta:harness:pi_agenta:v0` |
 | `claude` | Claude Code | `agenta:harness:claude:v0` |
+| `codex` | Codex | `agenta:harness:codex:v0` |
 
 `pi_agenta` runs the same engine as `pi_core` with Agenta's own skills, tools, and base instructions forced on.
 
 ### harness.permissions
 
-Applied by harnesses that gate tool use. Claude Code renders it into `.claude/settings.json` in the session working directory. Pi does not gate and leaves it empty.
+Applied by harnesses that gate tool use. Claude Code renders it into `.claude/settings.json` in the session working directory. Pi does not gate and leaves it empty. Codex renders no per-tool rules of its own; its tool gating comes from [runner.permissions](#runnerpermissions) and the `permission` on each tool entry.
 
 | Field | Type | Required | Default | Description |
 |---|---|---|---|---|

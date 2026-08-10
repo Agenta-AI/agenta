@@ -60,7 +60,9 @@ export const projectSessionsAtomFamily = atomFamily((appId: string) =>
     }),
 )
 
-/** Last-activity epoch for ordering/dedup: heartbeat `updated_at`, falling back to `created_at`. */
+/** Last-activity epoch for ordering/dedup: heartbeat `updated_at`, falling back to `created_at`.
+ * The server (`/sessions/query`) now orders by `updated_at` too (WP0-R1) — this client-side sort
+ * is belt-and-suspenders (dedup still needs it to pick the fresher of two rows for one session_id). */
 const activity = (s: SessionStream): number => {
     const ts = s.updated_at ?? s.created_at
     const ms = ts ? Date.parse(ts) : NaN

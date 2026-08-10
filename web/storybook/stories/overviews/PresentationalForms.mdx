@@ -1,0 +1,29 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Presentational/Forms/Overview" />
+
+# Presentational · Forms
+
+Labelled / composite form controls that pair an input with a label, header, or extra
+behaviour (inline edit, commit message, slider-with-number, path picker). They compose input
+primitives rather than replacing one antd control, so their stories render alone.
+
+| Component                | What it is                                      | antd inside?                           |
+| ------------------------ | ----------------------------------------------- | -------------------------------------- |
+| **LabelInput**           | Input with an attached label.                   | none (pure)                            |
+| **LabeledField**         | Label + control + help/error wrapper.           | antd `Tooltip`, `Typography`           |
+| **FieldHeader**          | Field label row with action / help affordances. | antd `Button`, `Tooltip`               |
+| **CommitMessageInput**   | Commit-message text field with counter.         | antd `Input`, `Typography`             |
+| **SliderInput**          | Slider bound to a number input + stepper.       | antd `Slider`, `InputNumber`, `Button` |
+| **EditableText**         | Click-to-edit inline text field.                | antd `Input`, `Tooltip`, `Typography`  |
+| **SimpleDropdownSelect** | Lightweight dropdown-backed select.             | none (pure)                            |
+| **PathSelectorDropdown** | Dropdown for selecting a data path.             | antd `Select`, `Typography`            |
+
+**How to read these stories**
+
+- The **antd** column names the antd parts still used internally — that doubles as a
+  migration to-do — and reads _none (pure)_ where the control is built only from `@agenta/ui`.
+- Values are wired to story controls / local state so the edit and selection states are
+  interactive.
+
+Open a component's **Docs** tab for its full prop table.

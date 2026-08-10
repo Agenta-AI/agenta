@@ -4,7 +4,7 @@ import {
     isEntityActive,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
-import {Modal} from "antd"
+import {modal} from "@agenta/ui"
 
 import {
     DraftListRow,
@@ -39,8 +39,6 @@ export function SubscriptionsList({
     onRemoveDraft: (id: string) => void
     onDeleteSubscription: (id: string) => void
 }) {
-    const [modal, modalContextHolder] = Modal.useModal()
-
     const confirmRemoveDraft = (draftId: string, name: string) =>
         modal.confirm({
             title: "Discard draft?",
@@ -72,7 +70,6 @@ export function SubscriptionsList({
             isEmpty={subscriptions.length === 0 && drafts.length === 0}
             emptyText="No triggers yet."
         >
-            {modalContextHolder}
             {drafts.map((draftId) => (
                 <DraftListRow
                     key={draftId}

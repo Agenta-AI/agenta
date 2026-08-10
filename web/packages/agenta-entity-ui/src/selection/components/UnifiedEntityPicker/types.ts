@@ -17,9 +17,9 @@ import type {EntitySelectionAdapter, EntitySelectionResult} from "../../types"
  */
 export type EntityPickerVariant =
     | "cascading"
+    | "cascader"
     | "breadcrumb"
     | "list-popover"
-    | "cascader"
     | "popover-cascader"
 
 // ============================================================================
@@ -348,16 +348,15 @@ export interface TreeSelectItemAction {
 }
 
 /**
- * Props for tree-select variant (Variant → Revision style)
+ * Props for the tree-select popup content (Variant → Revision style)
  *
- * Renders an Ant Design TreeSelect with expandable parent groups
- * containing selectable children. Designed for 2-level hierarchies.
+ * Backs `TreeSelectPopupContent` — a search box plus expandable parent groups
+ * containing selectable children. Designed for 2-level hierarchies. This is NOT an
+ * `EntityPicker` variant; it is consumed directly (e.g. Playground's SelectVariant).
  */
 export interface TreeSelectVariantProps<
     TSelection = EntitySelectionResult,
 > extends EntityPickerBaseProps<TSelection> {
-    variant: "tree-select"
-
     /**
      * Currently selected value (child ID)
      */
@@ -492,7 +491,7 @@ export interface TreeSelectVariantProps<
 /**
  * Props for cascader variant (single compact dropdown with cascading panels)
  *
- * Renders an Ant Design Cascader with lazy-loaded panels.
+ * Renders the antd-free `@agenta/ui` Cascader with lazy-loaded panels.
  * All hierarchy levels are navigable within one dropdown.
  * Pattern: Evaluator → Variant → Revision (all in one dropdown)
  */
@@ -502,7 +501,7 @@ export interface CascaderVariantProps<
     variant: "cascader"
 
     /**
-     * Cascader component size
+     * Trigger size
      * @default "middle"
      */
     size?: "small" | "middle" | "large"
@@ -514,28 +513,17 @@ export interface CascaderVariantProps<
     placeholder?: string
 
     /**
-     * Whether popup width matches select width
-     * @default false
-     */
-    popupMatchSelectWidth?: boolean
-
-    /**
-     * Popup className
+     * className for the dropdown panel
      */
     popupClassName?: string
 
     /**
-     * Popup placement
+     * Max width of each cascading column (replaces antd's `popupMenuColumnStyle`)
      */
-    placement?: "bottomLeft" | "bottomRight" | "topLeft" | "topRight"
+    columnMaxWidth?: number | string
 
     /**
-     * Custom dropdown render for adding extra content (e.g., footer actions)
-     */
-    dropdownRender?: (menu: ReactNode) => ReactNode
-
-    /**
-     * Custom display render for the selected value in the input
+     * Custom display render for the selected value in the trigger
      */
     displayRender?: (labels: string[], selectedOptions?: unknown[]) => ReactNode
 }
@@ -791,6 +779,4 @@ export type EntityPickerProps<TSelection = EntitySelectionResult> =
     | CascaderVariantProps<TSelection>
     | BreadcrumbVariantProps<TSelection>
     | ListPopoverVariantProps<TSelection>
-    | TreeSelectVariantProps<TSelection>
-    | CascaderVariantProps<TSelection>
     | PopoverCascaderVariantProps<TSelection>

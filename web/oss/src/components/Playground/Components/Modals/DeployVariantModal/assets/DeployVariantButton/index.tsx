@@ -5,11 +5,11 @@ import {
     workflowMolecule,
     workflowVariantsListDataAtomFamily,
 } from "@agenta/entities/workflow"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {useAppEnvironments} from "@/oss/state/environment/useAppEnvironments"
 
 import {DeployVariantButtonProps} from "./types"

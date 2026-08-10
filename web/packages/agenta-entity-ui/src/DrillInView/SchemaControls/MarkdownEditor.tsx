@@ -37,8 +37,8 @@ import {
 } from "@agenta/ui"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
+import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"
-import {Tag} from "antd"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
 
@@ -231,12 +231,11 @@ export function MarkdownEditor({
     const plainHeader = hideHeader ? undefined : (
         <div className="flex w-full items-center justify-between gap-2">
             {filename ? (
-                <Tag
-                    bordered
-                    className="m-0 font-mono text-[11px] font-normal text-[var(--ag-c-586673,#586673)]"
-                >
+                // antd v6's default Tag variant is `filled` (borderless), so the `bordered` this
+                // carried was a no-op — the neutral Badge is the exact equivalent.
+                <Badge className="font-mono text-[11px] font-normal leading-[22.4px] text-[var(--ag-c-586673,#586673)]">
                     {filename}
-                </Tag>
+                </Badge>
             ) : (
                 <span />
             )}
@@ -286,10 +285,14 @@ export function MarkdownEditor({
             style={boundStyle}
         >
             {toolbar}
-            <div className="md-prose min-h-0 flex-1 overflow-y-auto">{editorEl}</div>
+            {/* tabIndex: a scroll region must be keyboard-reachable (axe scrollable-region-focusable)
+                — in rendered/read-only view it has no focusable content of its own. */}
+            <div tabIndex={0} className="md-prose min-h-0 flex-1 overflow-y-auto">
+                {editorEl}
+            </div>
         </div>
     ) : boundStyle ? (
-        <div className="md-prose overflow-y-auto" style={boundStyle}>
+        <div tabIndex={0} className="md-prose overflow-y-auto" style={boundStyle}>
             {editorEl}
         </div>
     ) : (

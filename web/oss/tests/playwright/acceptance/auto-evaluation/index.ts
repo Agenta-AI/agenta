@@ -36,6 +36,9 @@ const testAutoEval = () => {
             ],
         },
         async ({page, apiHelpers, runAutoEvaluation, navigateToEvaluation}) => {
+            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+            baseAutoEvalTest.setTimeout(120000)
+
             const app = await apiHelpers.getApp("completion")
             const appId = app.id
 
@@ -92,6 +95,9 @@ const testAutoEval = () => {
             ],
         },
         async ({page, apiHelpers, runAutoEvaluation, navigateToEvaluation}) => {
+            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+            baseAutoEvalTest.setTimeout(120000)
+
             const app = await apiHelpers.getApp("chat")
             const appId = app.id
 
@@ -165,6 +171,9 @@ const testAutoEval = () => {
             ],
         },
         async ({page, apiHelpers}, testInfo) => {
+            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+            testInfo.setTimeout(120000)
+
             const app = await apiHelpers.getApp("completion")
             const appId = app.id
 
@@ -197,6 +206,9 @@ const testAutoEval = () => {
             ],
         },
         async ({page, apiHelpers}, testInfo) => {
+            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+            testInfo.setTimeout(120000)
+
             const app = await apiHelpers.getApp("completion")
             const appId = app.id
 
@@ -231,6 +243,9 @@ const testAutoEval = () => {
             ],
         },
         async ({page, apiHelpers, runAutoEvaluation, navigateToEvaluation}) => {
+            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+            baseAutoEvalTest.setTimeout(120000)
+
             const app = await apiHelpers.getApp("completion")
             const appId = app.id
             const variants = await apiHelpers.getVariants(appId)

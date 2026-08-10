@@ -21,7 +21,6 @@
 
 import React from "react"
 
-import {Button, Spin} from "antd"
 import {ChevronDown} from "lucide-react"
 
 import type {EntityListCounts} from "../../InfiniteVirtualTable/paginated"
@@ -33,6 +32,8 @@ import {
     linkColors,
     textColors,
 } from "../../utils/styles"
+import {Button, type ButtonProps} from "../ui/button"
+import {Spinner} from "../ui/spinner"
 
 // ============================================================================
 // TYPES
@@ -91,7 +92,7 @@ export interface LoadMoreButtonProps {
      * Button size
      * @default "middle"
      */
-    size?: "small" | "middle" | "large"
+    size?: ButtonProps["size"]
 
     /**
      * Additional CSS class
@@ -122,7 +123,7 @@ export function LoadMoreButton({
     totalCount: totalCountProp,
     loadedCount: loadedCountProp,
     showCount = false,
-    size = "middle",
+    size = "default",
     className = "",
     block = true,
 }: LoadMoreButtonProps) {
@@ -148,13 +149,13 @@ export function LoadMoreButton({
     return (
         <div className={cn("py-2", className)}>
             <Button
-                type="default"
+                variant="outline"
                 size={size}
-                block={block}
+                className={cn(block && "w-full")}
                 onClick={onClick}
                 disabled={isLoading || !hasMore}
-                icon={isLoading ? <Spin size="small" /> : <ChevronDown className="w-4 h-4" />}
             >
+                {isLoading ? <Spinner size="small" /> : <ChevronDown className="w-4 h-4" />}
                 {isLoading ? loadingLabel : `${label}${countString}`}
             </Button>
         </div>
@@ -198,7 +199,7 @@ export function LoadMoreInline({
                         gapClasses.sm,
                     )}
                 >
-                    <Spin size="small" />
+                    <Spinner size="small" />
                     Loading...
                 </span>
             ) : (
