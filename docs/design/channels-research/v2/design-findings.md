@@ -16,7 +16,7 @@ Maintained here. Status is one of **decided** (settled, no doc needed), **writte
 | # | Item | Status | Where |
 | --- | --- | --- | --- |
 | 1 | Capabilities: needs, fallbacks, per-connection | **written** | `capabilities-v2.md` |
-| 2 | Provisioning, incl. both app models | **written** | `provisioning.md` |
+| 2 | Provisioning, incl. both app models | **partial** | `provisioning.md`; credentials belong in `secrets` — see `journeys.md` |
 | 3 | Rendering across unequal surfaces | **written** | `rendering.md` |
 | 4 | Identity linking | **written** | `identity.md` |
 | 5 | Agenta as a channel | **written** | `agenta-channel.md` |
@@ -24,7 +24,7 @@ Maintained here. Status is one of **decided** (settled, no doc needed), **writte
 | 7 | Button clicks — the parsing half | **partial** | `rendering.md` resolves; `agenta-channel.md` gives it a route |
 | 8 | What the connection key identifies | **written** | `channel-connections.md` |
 | 9 | The bridge | **decided: keep** | measured, below |
-| 10 | User journeys | **open** | three to write, below |
+| 10 | User journeys | **written** | `journeys.md` — Agenta + Slack, step by step |
 | 11 | `channel_connections` table + `external_key` | **written** | `channel-connections.md` |
 
 **Keep this table current.** It is the only status record — when a design lands,
@@ -33,18 +33,39 @@ deleting the row. Statuses reported in conversation and not written here are los
 
 ## What blocks going back to implementation
 
-Nine of eleven design items are written or decided. The gate is not "finish the
-list" — it is the smaller set below, split by whether it blocks *writing* the work
-packages or only blocks *finishing* them.
+The gate is not "finish the list". `journeys.md` writes the Agenta and Slack flows
+step by step, and writing them settled most of what was open — the remaining gate is
+below.
 
-**Blocks writing the packages — decide these first.**
+**Decide before the packages are written.** Three, and only the first is a real
+question.
 
 | what | why it blocks | where |
 | --- | --- | --- |
-| The credential schema (item 1) | three other designs read it, and `F47`/`F6` are the same gap | `capabilities-v2.md` |
+| `api_app_id` at Slack setup: asked for, or filled by the first event | it is the only step in either journey with no answer, and it decides whether a connection can exist with an incomplete key | `journeys.md` S3 |
 | The request-context interface change | `channel-connections.md` and `agenta-channel.md` both need it, and it edits a frozen interface at a checkpoint | both |
 | `F49` — the interface's `verify_signature` is a lie | any package written against the declared contract breaks at the ingress | ledger |
-| Journeys (item 10) | packages alone produced a system nobody can configure; each journey must name the packages that complete it | below |
+
+**Settled by writing the journeys**, and worth recording because each was on this
+list as open:
+
+- **Credentials live in `secrets`**, referenced by the connection — not encrypted
+  into a new column. The table is project-scoped with a `PGPString` column that
+  encrypts in Postgres. This is what `architecture.md` §8.2 meant by the vault;
+  `provisioning.md` says otherwise and is superseded on that point.
+- **Channels gets a `CHANNEL_SECRET` kind**, not `CUSTOM_SECRET`. A channel
+  credential is machine-written and schema-dictated, so it does not belong in the
+  bucket a user browses, names and deletes by hand. `WEBHOOK_PROVIDER` is the exact
+  precedent. Cost: one enum member, one DTO branch, one `ALTER TYPE` line.
+- **The credential schema is two fields for Slack and zero for Agenta.** The rule
+  that shrank it: *ask for what only a human can copy, discover the rest.*
+  `auth.test` returns `team_id` and `bot_user_id`, so asking for them is a setup
+  step people abandon for no gain.
+- **Setup is customer-owned-app first**, via a pre-filled manifest link
+  (`api.slack.com/apps?new_app=1&manifest_json=…`). No OAuth app of ours, no public
+  redirect, works self-hosted, and better rate limits. `build_slack_manifest` already
+  exists and is correct; it has no caller.
+- **A connection is verified before it is stored**, never after.
 
 **Blocks finishing, not starting.**
 
@@ -129,10 +150,12 @@ the UI is throwaway**, built together so the API is not designed against nothing
 
 Three questions it forces, all answered there: a connection is a bot in a project
 (no credentials at all, which the credential schema should survive); a space is a
-conversation; and **inbound does not use the public ingress** — an authenticated
-project-scoped route writes the same inbox row, because the ingress exists to
-establish a tenant a session has already established. That divergence is recorded
-deliberately, and nothing after the row is written may branch on the channel.
+conversation; and **the ingress is the same one** — `/channels/agenta/events/` is an
+ordinary literal route that is simply absent from the public-endpoint list, so auth
+applies and the same `_ingest` runs. Exactly one step differs, in implementation
+rather than shape: verification proves the caller may speak for the connection, and
+a session proves that as well as an HMAC does. Nothing after the inbox row may
+branch on the channel.
 
 The UI goes **in web behind a feature flag**, using the per-user atom mechanism that
 already carries two flags, because the thing being tested is our node vocabulary and
