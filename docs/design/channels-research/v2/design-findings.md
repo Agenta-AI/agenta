@@ -44,9 +44,12 @@ Agenta-owned Marketplace app *and* customer-owned apps, alongside Agenta as its 
 channel. `F49` and `F38` were mislabelled here as decisions; they are fixes that
 happen to need a checkpoint to land. The reconciliation debt gets fixed.
 
-**The wave that follows is `next-wave.md`.** What remains open is listed at its end,
-and one item is newly opened by the decision above: the hosted-app OAuth flow is now
-in scope and not yet designed.
+**The waves that follow are `waves.md`** — two of them, because a wave runs from one
+checkpoint to the next and this needs two. Wave 5 reaches C5 (a message travels the
+whole path, no credentials, polling gone); wave 6 reaches C6 (Slack, both app
+models, DMs included). What remains open is listed at its end, and one item is newly
+opened by the decision above: the hosted-app OAuth flow is now in scope and not yet
+designed.
 
 Kept below for the record.
 
