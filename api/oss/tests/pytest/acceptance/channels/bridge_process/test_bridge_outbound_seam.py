@@ -17,7 +17,6 @@ import pytest
 from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
 from oss.src.core.channels.dtos import ChannelConnection
 from oss.src.core.channels.utils import compose_idempotency_key
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 from oss.tests.pytest.acceptance.channels.bridge_process.harness import run_bridge
 
@@ -56,9 +55,13 @@ def _connection(
     return ChannelConnection(
         id=uuid4(),
         slug=f"{integration_key}-outbound",
-        provider_key=ConnectionProviderKind.BRIDGE,
-        integration_key=integration_key,
-        data={"secret": secret, "delivery_url": delivery_url},
+        channel="bridge",
+        external_key=uuid4(),
+        data={
+            "secret": secret,
+            "delivery_url": delivery_url,
+            "installation_id": integration_key,
+        },
     )
 
 

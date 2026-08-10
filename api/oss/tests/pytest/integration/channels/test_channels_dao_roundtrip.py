@@ -8,8 +8,11 @@ import pytest
 from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentData,
+    ChannelConnectionCreate,
+    ChannelConnectionEdit,
     ChannelGrantCreate,
     ChannelGrantData,
+    ChannelGrantEffect,
     ChannelSpaceCreate,
     ChannelSpaceData,
     ChannelSpaceKind,
@@ -20,6 +23,62 @@ from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 
 
 pytestmark = pytest.mark.integration
+
+
+async def test_connection_roundtrip(channels_scope):
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    user_id = channels_scope["user_id"]
+    external_key = uuid.uuid4()
+
+    created = await dao.create_connection(
+        project_id=project_id,
+        user_id=user_id,
+        connection=ChannelConnectionCreate(
+            channel="slack",
+            external_key=external_key,
+            slug="acme-workspace",
+            name="Acme",
+            data={"connection_locator": {"team": "T1"}},
+        ),
+    )
+
+    fetched = await dao.fetch_connection(
+        project_id=project_id, connection_id=created.id
+    )
+
+    assert fetched is not None
+    assert fetched.channel == "slack"
+    assert fetched.external_key == external_key
+    assert fetched.slug == "acme-workspace"
+    assert fetched.data == created.data
+
+    edited = await dao.edit_connection(
+        project_id=project_id,
+        user_id=user_id,
+        connection=ChannelConnectionEdit(
+            id=created.id,
+            name="Acme Corp",
+            data={"connection_locator": {"team": "T1"}, "verified": True},
+        ),
+    )
+    assert edited.name == "Acme Corp"
+    # channel and external_key are immutable through edit -- unaffected
+    assert edited.channel == "slack"
+    assert edited.external_key == external_key
+
+    rows = await dao.query_connections(project_id=project_id)
+    assert len(rows) == 1
+    assert rows[0].id == created.id
+
+    deleted = await dao.delete_connection(
+        project_id=project_id, connection_id=created.id
+    )
+    assert deleted is True
+    assert (
+        await dao.fetch_connection(project_id=project_id, connection_id=created.id)
+        is None
+    )
 
 
 async def test_agent_roundtrip(channels_scope):
@@ -114,7 +173,10 @@ async def test_grant_roundtrip(channels_scope):
         project_id=project_id,
         user_id=user_id,
         grant=ChannelGrantCreate(
-            agent_id=agent.id, space_id=space.id, data=ChannelGrantData()
+            agent_id=agent.id,
+            effect=ChannelGrantEffect.ALLOW,
+            space_id=space.id,
+            data=ChannelGrantData(),
         ),
     )
 

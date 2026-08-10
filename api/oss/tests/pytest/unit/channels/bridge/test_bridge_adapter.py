@@ -14,7 +14,6 @@ from oss.src.core.channels.adapters.bridge.signature import (
 )
 from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
 from oss.src.core.channels.types import ChannelSignatureInvalid
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 SECRET = "test-fixture-bridge-secret-not-real"
 
@@ -36,14 +35,18 @@ WORKED_CAPABILITIES = {
 def _connection(
     *, integration_key: str = "acme-wecom", capabilities: Any = None
 ) -> ChannelConnection:
-    data = {"secret": SECRET, "delivery_url": "https://bridge.example/deliver"}
+    data = {
+        "secret": SECRET,
+        "delivery_url": "https://bridge.example/deliver",
+        "installation_id": integration_key,
+    }
     if capabilities is not None:
         data["capabilities"] = capabilities
     return ChannelConnection(
         id=uuid4(),
         slug="bridge-connection",
-        provider_key=ConnectionProviderKind.BRIDGE,
-        integration_key=integration_key,
+        channel="bridge",
+        external_key=uuid4(),
         data=data,
     )
 

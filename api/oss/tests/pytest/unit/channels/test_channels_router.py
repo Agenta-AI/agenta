@@ -16,7 +16,7 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelAgentCreateRequest,
     ChannelAgentEditRequest,
     ChannelAgentQueryRequest,
-    ChannelConnectionsQueryRequest,
+    ChannelConnectionQueryRequest,
     ChannelGrantCreateRequest,
     ChannelGrantEditRequest,
     ChannelGrantQueryRequest,
@@ -40,6 +40,7 @@ from oss.src.core.channels.dtos import (
     ChannelGrantCreate,
     ChannelGrantData,
     ChannelGrantEdit,
+    ChannelGrantEffect,
     ChannelGrantFlags,
     ChannelSpace,
     ChannelSpaceCreate,
@@ -104,6 +105,7 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
     return ChannelGrant(
         id=grant_id,
         agent_id=agent_id,
+        effect=ChannelGrantEffect.ALLOW,
         space_id=space_id,
         data=ChannelGrantData(),
         flags=ChannelGrantFlags(),
@@ -126,7 +128,7 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
         ),
         (
             lambda r, req: r.query_channel_connections(
-                req, body=ChannelConnectionsQueryRequest()
+                req, body=ChannelConnectionQueryRequest()
             ),
             True,
         ),
@@ -211,6 +213,7 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
                 body=ChannelGrantCreateRequest(
                     grant=ChannelGrantCreate(
                         agent_id=uuid4(),
+                        effect=ChannelGrantEffect.ALLOW,
                         space_id=uuid4(),
                         data=ChannelGrantData(),
                     )

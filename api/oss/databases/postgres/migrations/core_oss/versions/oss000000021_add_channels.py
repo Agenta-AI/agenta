@@ -6,7 +6,9 @@ Create Date: 2026-08-07 00:00:00.000000
 
 Every channels table lands in this one revision, `channel_identity_links`
 included: parallel work adding a second revision would have collided on the
-down-revision chain.
+down-revision chain. `channel_connections`, the grants schema, and the
+CHANNEL_SECRET enum member were edited into this same revision afterward for
+the same reason -- nothing here has released.
 """
 
 from typing import Sequence, Union
@@ -23,6 +25,57 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    op.execute("ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'CHANNEL_SECRET'")
+
+    op.create_table(
+        "channel_connections",
+        sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column("channel", sa.String(), nullable=False),
+        sa.Column("external_key", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column("slug", sa.String(), nullable=False),
+        sa.Column("name", sa.String(), nullable=True),
+        sa.Column("description", sa.String(), nullable=True),
+        sa.Column("data", sa.JSON(none_as_null=True), nullable=True),
+        sa.Column("status", JSONB(none_as_null=True), nullable=True),
+        sa.Column("flags", JSONB(none_as_null=True), nullable=True),
+        sa.Column("tags", JSONB(none_as_null=True), nullable=True),
+        sa.Column("meta", sa.JSON(none_as_null=True), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.func.current_timestamp(),
+            nullable=True,
+        ),
+        sa.Column("updated_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("created_by_id", sa.UUID(as_uuid=True), nullable=True),
+        sa.Column("updated_by_id", sa.UUID(as_uuid=True), nullable=True),
+        sa.Column("deleted_by_id", sa.UUID(as_uuid=True), nullable=True),
+        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("project_id", "id"),
+        # GLOBAL, deliberately not project-scoped: the ingress resolves the
+        # project FROM this key, so the key cannot depend on the scope it
+        # establishes.
+        sa.UniqueConstraint(
+            "channel",
+            "external_key",
+            name="uq_channel_connections_external_key",
+        ),
+        sa.UniqueConstraint(
+            "project_id",
+            "channel",
+            "slug",
+            name="uq_channel_connections_project_channel_slug",
+        ),
+    )
+    op.create_index(
+        "ix_channel_connections_flags",
+        "channel_connections",
+        ["flags"],
+        postgresql_using="gin",
+    )
+
     op.create_table(
         "channel_agents",
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
@@ -110,7 +163,15 @@ def upgrade() -> None:
         sa.Column("id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("project_id", sa.UUID(as_uuid=True), nullable=False),
         sa.Column("agent_id", sa.UUID(as_uuid=True), nullable=False),
-        sa.Column("space_id", sa.UUID(as_uuid=True), nullable=False),
+        sa.Column(
+            "effect",
+            sa.Enum("ALLOW", "DENY", name="channelgranteffect"),
+            nullable=False,
+        ),
+        # String, not the space kind enum: exactly one of kind/space_id is
+        # set, enforced by the two partial unique indexes below.
+        sa.Column("kind", sa.String(), nullable=True),
+        sa.Column("space_id", sa.UUID(as_uuid=True), nullable=True),
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("description", sa.String(), nullable=True),
         sa.Column("data", sa.JSON(none_as_null=True), nullable=True),
@@ -130,17 +191,27 @@ def upgrade() -> None:
         sa.Column("deleted_by_id", sa.UUID(as_uuid=True), nullable=True),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("project_id", "id"),
-        sa.UniqueConstraint(
-            "project_id",
-            "agent_id",
-            "space_id",
-            name="uq_channel_grants_agent_space",
-        ),
+    )
+    # NULLs are distinct in Postgres, so one constraint over a nullable
+    # column cannot dedupe both branches -- two partial indexes replace it.
+    op.create_index(
+        "uq_channel_grants_by_space",
+        "channel_grants",
+        ["project_id", "agent_id", "space_id", "effect"],
+        unique=True,
+        postgresql_where=sa.text("space_id IS NOT NULL"),
+    )
+    op.create_index(
+        "uq_channel_grants_by_kind",
+        "channel_grants",
+        ["project_id", "agent_id", "kind", "effect"],
+        unique=True,
+        postgresql_where=sa.text("kind IS NOT NULL"),
     )
     op.create_index(
         "uq_channel_grants_default",
         "channel_grants",
-        ["project_id", "space_id"],
+        ["project_id", "space_id", "kind"],
         unique=True,
         postgresql_where=sa.text("(flags->>'is_default')::boolean"),
     )
@@ -372,7 +443,16 @@ def downgrade() -> None:
         "uq_channel_grants_default",
         table_name="channel_grants",
     )
+    op.drop_index(
+        "uq_channel_grants_by_kind",
+        table_name="channel_grants",
+    )
+    op.drop_index(
+        "uq_channel_grants_by_space",
+        table_name="channel_grants",
+    )
     op.drop_table("channel_grants")
+    op.execute("DROP TYPE IF EXISTS channelgranteffect")
 
     op.drop_index(
         "ix_channel_spaces_flags",
@@ -385,3 +465,11 @@ def downgrade() -> None:
         table_name="channel_agents",
     )
     op.drop_table("channel_agents")
+
+    op.drop_index(
+        "ix_channel_connections_flags",
+        table_name="channel_connections",
+    )
+    op.drop_table("channel_connections")
+
+    # PostgreSQL cannot drop an enum value; the CHANNEL_SECRET label stays.

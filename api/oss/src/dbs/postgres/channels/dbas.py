@@ -4,6 +4,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from oss.src.core.channels.dtos import (
     ChannelDeliveryState,
     ChannelEventOrigin,
+    ChannelGrantEffect,
     ChannelTriggerState,
 )
 from oss.src.dbs.postgres.shared.dbas import (
@@ -18,6 +19,26 @@ from oss.src.dbs.postgres.shared.dbas import (
     StatusDBA,
     TagsDBA,
 )
+
+
+class ChannelConnectionDBA(
+    ProjectScopeDBA,
+    LifecycleDBA,
+    IdentifierDBA,
+    SlugDBA,
+    HeaderDBA,
+    DataDBA,
+    StatusDBA,
+    FlagsDBA,
+    TagsDBA,
+    MetaDBA,
+):
+    __abstract__ = True
+
+    # the registry key ("slack", "bridge"); a plain String because a third
+    # party cannot add a member to a Python enum
+    channel = Column(String, nullable=False)
+    external_key = Column(UUID(as_uuid=True), nullable=False)
 
 
 class ChannelAgentDBA(
@@ -68,7 +89,13 @@ class ChannelGrantDBA(
     __abstract__ = True
 
     agent_id = Column(UUID(as_uuid=True), nullable=False)
-    space_id = Column(UUID(as_uuid=True), nullable=False)
+    effect = Column(Enum(ChannelGrantEffect), nullable=False)
+    # String, not the space's own kind enum: exactly one of kind/space_id is
+    # set, enforced at the DTO and by the two partial unique indexes below —
+    # never both null, which the old single not-null space_id used to rule
+    # out for free.
+    kind = Column(String, nullable=True)
+    space_id = Column(UUID(as_uuid=True), nullable=True)
 
 
 class ChannelThreadDBA(

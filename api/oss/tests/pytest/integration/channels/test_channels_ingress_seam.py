@@ -22,9 +22,13 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy import text
 
-from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
+from oss.src.apis.fastapi.channels.ingress import (
+    ChannelsIngressRouter,
+    _placeholder_external_key,
+)
 from oss.src.core.channels.dtos import (
     ChannelConnection,
+    ChannelConnectionCreate,
     ChannelEventKind,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
@@ -33,7 +37,6 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelNotSupported, ChannelSignatureInvalid
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 
 pytestmark = pytest.mark.integration
@@ -115,22 +118,21 @@ async def seam(channels_scope):
     )
     registry = _Registry({"slack": adapter})
 
-    # The ingress fetches the connection to get the secret its signature is
-    # verified against, so this is on the path now.
-    class _Connections:
-        async def get_connection(self, *, project_id, connection_id):
-            return ChannelConnection(
-                id=connection_id,
-                slug="seam-connection",
-                provider_key=ConnectionProviderKind.SLACK,
-                integration_key=channels_scope["external_id"],
-                data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
-            )
+    dao = ChannelsDAO(engine=engine)
+    await dao.create_connection(
+        project_id=project_id,
+        user_id=channels_scope["user_id"],
+        connection=ChannelConnectionCreate(
+            channel="slack",
+            external_key=_placeholder_external_key(channels_scope["external_id"]),
+            slug="seam-connection",
+            data={"signing_secret": "unused", "bot_token": "xoxb-fake"},
+        ),
+    )
 
     service = ChannelsService(
-        channels_dao=ChannelsDAO(engine=engine),
+        channels_dao=dao,
         adapter_registry=registry,
-        connections_service=_Connections(),
     )
 
     app = FastAPI()

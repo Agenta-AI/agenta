@@ -49,11 +49,16 @@ def _bridge_url(connection: ChannelConnection) -> str:
     return url
 
 
+def _installation_id(connection: ChannelConnection) -> str:
+    data = connection.data if isinstance(connection.data, dict) else {}
+    return data.get("installation_id") or ""
+
+
 class BridgeAdapter(ChannelAdapterInterface):
     """ChannelAdapterInterface reached over HTTP instead of a process call.
     Every registration shares this one class -- the specific bridge's
-    identity lives on the connection's integration_key, never as a subclass
-    or a per-bridge branch here."""
+    identity lives on the connection's own data, never as a subclass or a
+    per-bridge branch here."""
 
     channel = "bridge"
 
@@ -100,7 +105,7 @@ class BridgeAdapter(ChannelAdapterInterface):
             channel=self.channel,
         )
 
-        installation_id = connection.integration_key
+        installation_id = _installation_id(connection)
 
         # The credential resolves identity; `source` is a required
         # cross-check on the self-asserted claim in the signed body. A

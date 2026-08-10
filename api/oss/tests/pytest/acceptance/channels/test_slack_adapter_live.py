@@ -15,7 +15,6 @@ import pytest
 
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
 from oss.src.core.channels.dtos import ChannelConnection
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 pytestmark = pytest.mark.acceptance
 
@@ -33,8 +32,8 @@ def _connection() -> ChannelConnection:
     return ChannelConnection(
         id=uuid4(),
         slug="slack-acceptance",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="slack",
+        channel="slack",
+        external_key=uuid4(),
         data={
             "bot_token": _BOT_TOKEN,
             "signing_secret": _SIGNING_SECRET,

@@ -45,6 +45,27 @@ class ChannelLocatorIncomplete(ChannelsError):
         )
 
 
+class ChannelConnectionKeyUndeclared(ChannelsError):
+    """A channel names no CONNECTION-grain key fields at all. Unlike THREAD,
+    there is no legitimate "no connection identity" case: a channel that
+    cannot be keyed at this grain cannot be routed to, and returning None
+    would resolve to no connection and refuse every event silently."""
+
+    def __init__(self, *, channel: str):
+        self.channel = channel
+        super().__init__(f"Channel {channel} declares no CONNECTION-grain key fields")
+
+
+class ChannelGrantRuleInvalid(ChannelsError):
+    """Raised when a grant edit would leave the row violating its own rule
+    (a DENY carrying is_default) that the create-time validator already
+    enforces at construction."""
+
+    def __init__(self, *, grant_id: UUID):
+        self.grant_id = grant_id
+        super().__init__(f"Invalid grant rule for grant {grant_id}")
+
+
 class ChannelAgentNotFound(ChannelsError):
     def __init__(
         self,

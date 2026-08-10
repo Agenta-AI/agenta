@@ -8,6 +8,7 @@ from sqlalchemy import (
 
 from oss.src.dbs.postgres.channels.dbas import (
     ChannelAgentDBA,
+    ChannelConnectionDBA,
     ChannelGrantDBA,
     ChannelInboxEventDBA,
     ChannelInboxTriggerDBA,
@@ -16,6 +17,30 @@ from oss.src.dbs.postgres.channels.dbas import (
     ChannelThreadDBA,
 )
 from oss.src.dbs.postgres.shared.base import Base
+
+
+class ChannelConnectionDBE(Base, ChannelConnectionDBA):
+    __tablename__ = "channel_connections"
+
+    __table_args__ = (
+        ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
+        PrimaryKeyConstraint("project_id", "id"),
+        # GLOBAL, deliberately not project-scoped: the ingress resolves the
+        # project FROM this key, so the key cannot depend on the scope it
+        # establishes.
+        UniqueConstraint(
+            "channel",
+            "external_key",
+            name="uq_channel_connections_external_key",
+        ),
+        UniqueConstraint(
+            "project_id",
+            "channel",
+            "slug",
+            name="uq_channel_connections_project_channel_slug",
+        ),
+        Index("ix_channel_connections_flags", "flags", postgresql_using="gin"),
+    )
 
 
 class ChannelAgentDBE(Base, ChannelAgentDBA):
@@ -63,17 +88,32 @@ class ChannelGrantDBE(Base, ChannelGrantDBA):
     __table_args__ = (
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         PrimaryKeyConstraint("project_id", "id"),
-        UniqueConstraint(
+        # NULLs are distinct in Postgres, so one constraint over a nullable
+        # column cannot dedupe both branches — two partial indexes replace it.
+        Index(
+            "uq_channel_grants_by_space",
             "project_id",
             "agent_id",
             "space_id",
-            name="uq_channel_grants_agent_space",
+            "effect",
+            unique=True,
+            postgresql_where=text("space_id IS NOT NULL"),
         ),
-        # at most one default agent per space
+        Index(
+            "uq_channel_grants_by_kind",
+            "project_id",
+            "agent_id",
+            "kind",
+            "effect",
+            unique=True,
+            postgresql_where=text("kind IS NOT NULL"),
+        ),
+        # at most one default agent per space, or per kind
         Index(
             "uq_channel_grants_default",
             "project_id",
             "space_id",
+            "kind",
             unique=True,
             postgresql_where=text("(flags->>'is_default')::boolean"),
         ),

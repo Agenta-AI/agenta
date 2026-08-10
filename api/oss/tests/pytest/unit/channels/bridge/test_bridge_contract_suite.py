@@ -30,7 +30,6 @@ from oss.src.core.channels.adapters.bridge.signature import (
     TIMESTAMP_HEADER,
 )
 from oss.src.core.channels.dtos import ChannelConnection, ChannelRequestContext
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 from ..contract.test_channel_adapter_contract import run_contract_suite
 
@@ -68,11 +67,12 @@ def _connection() -> ChannelConnection:
     return ChannelConnection(
         id=uuid4(),
         slug="bridge-contract-connection",
-        provider_key=ConnectionProviderKind.BRIDGE,
-        integration_key="acme-wecom",
+        channel="bridge",
+        external_key=uuid4(),
         data={
             "secret": SECRET,
             "delivery_url": "https://bridge.example/deliver",
+            "installation_id": "acme-wecom",
             "capabilities": capabilities,
         },
     )

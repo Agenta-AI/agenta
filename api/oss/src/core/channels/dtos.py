@@ -2,9 +2,8 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
@@ -15,10 +14,6 @@ from oss.src.core.shared.dtos import (
     Status,
     Windowing,
 )
-
-# A channels connection is a gateway connection row; the alias keeps the
-# adapter port readable without a second entity.
-ChannelConnection = Connection
 
 
 # ---------------------------------------------------------------------------
@@ -94,8 +89,14 @@ class ChannelDeliveryState(str, Enum):
 
 
 class ChannelKeyGrain(str, Enum):
+    CONNECTION = "connection"
     SPACE = "space"
     THREAD = "thread"
+
+
+class ChannelGrantEffect(str, Enum):
+    ALLOW = "allow"
+    DENY = "deny"
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +211,13 @@ class ChannelCapabilities(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ChannelConnectionFlags(BaseModel):
+    is_active: bool = True
+    # set once verification (a real call against the platform) succeeds;
+    # an unverified connection is configured but not yet routable
+    is_verified: bool = False
+
+
 class ChannelAgentFlags(BaseModel):
     is_active: bool = True
     # the connection-wide fallback, used when there is no sigil and the space
@@ -304,6 +312,9 @@ class ChannelInboxEventProcessed(BaseModel):
 class ChannelInboxEventData(BaseModel):
     external_locator: Dict[str, Any]
     processed: ChannelInboxEventProcessed
+    # the adapter's classification, carried through so a get-or-create space
+    # knows its kind without re-parsing the platform payload
+    space_kind: Optional[ChannelSpaceKind] = None
     # raw:            Optional[Dict[str, Any]] = None
 
 
@@ -311,6 +322,51 @@ class ChannelOutboxEventData(BaseModel):
     external_locator: Optional[Dict[str, Any]] = None  # the receipt
     processed: Optional[Dict[str, Any]] = None  # the request we posted
     # raw:            Optional[Dict[str, Any]] = None
+
+
+# ---------------------------------------------------------------------------
+# Connections
+#
+# Own table, not a row shared with tools/triggers: `channel` is a plain
+# registry key and `external_key` is the uuid5 composed at CONNECTION grain.
+# `data` stays a loose bag (locator, credential reference, per-install
+# capability override, setup state) — adapters read it the same way they read
+# any other connection payload.
+# ---------------------------------------------------------------------------
+
+
+class ChannelConnection(Identifier, Slug, Lifecycle, Header, Metadata):
+    channel: str
+    external_key: UUID
+    #
+    data: Optional[Dict[str, Any]] = None
+    status: Optional[Status] = None
+    flags: ChannelConnectionFlags = Field(default_factory=ChannelConnectionFlags)
+
+
+class ChannelConnectionCreate(Slug, Header, Metadata):
+    channel: str
+    external_key: UUID
+    #
+    data: Optional[Dict[str, Any]] = None
+    flags: ChannelConnectionFlags = Field(default_factory=ChannelConnectionFlags)
+
+
+class ChannelConnectionEdit(Identifier, Header, Metadata):
+    # channel and external_key are dropped: repointing a connection at a
+    # different installation is a different row, not an edit of this one.
+    data: Optional[Dict[str, Any]] = None
+    flags: ChannelConnectionFlags = Field(default_factory=ChannelConnectionFlags)
+
+
+class ChannelConnectionQuery(BaseModel):
+    channel: Optional[str] = None
+    slug: Optional[str] = None
+
+
+class ChannelConnectionQueryRequest(BaseModel):
+    connection: Optional[ChannelConnectionQuery] = None
+    windowing: Optional[Windowing] = None
 
 
 # ---------------------------------------------------------------------------
@@ -392,20 +448,51 @@ class ChannelSpaceCandidate(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _validate_grant_rule(*, kind, space_id, effect, is_default) -> None:
+    if (kind is None) == (space_id is None):
+        raise ValueError("exactly one of kind or space_id must be set")
+    if effect is ChannelGrantEffect.DENY and is_default:
+        raise ValueError("a deny grant may not carry is_default")
+
+
 class ChannelGrant(Identifier, Lifecycle, Header, Metadata):
     agent_id: UUID
-    space_id: UUID
+    effect: ChannelGrantEffect
+    kind: Optional[ChannelSpaceKind] = None
+    space_id: Optional[UUID] = None
     #
     data: ChannelGrantData
     flags: ChannelGrantFlags = Field(default_factory=ChannelGrantFlags)
+
+    @model_validator(mode="after")
+    def _rule(self):
+        _validate_grant_rule(
+            kind=self.kind,
+            space_id=self.space_id,
+            effect=self.effect,
+            is_default=self.flags.is_default,
+        )
+        return self
 
 
 class ChannelGrantCreate(Header, Metadata):
     agent_id: UUID
-    space_id: UUID
+    effect: ChannelGrantEffect
+    kind: Optional[ChannelSpaceKind] = None
+    space_id: Optional[UUID] = None
     #
     data: ChannelGrantData
     flags: ChannelGrantFlags = Field(default_factory=ChannelGrantFlags)
+
+    @model_validator(mode="after")
+    def _rule(self):
+        _validate_grant_rule(
+            kind=self.kind,
+            space_id=self.space_id,
+            effect=self.effect,
+            is_default=self.flags.is_default,
+        )
+        return self
 
 
 class ChannelGrantEdit(Identifier, Header, Metadata):
@@ -415,6 +502,7 @@ class ChannelGrantEdit(Identifier, Header, Metadata):
 
 class ChannelGrantQuery(BaseModel):
     agent_id: Optional[UUID] = None
+    kind: Optional[ChannelSpaceKind] = None
     space_id: Optional[UUID] = None
 
 

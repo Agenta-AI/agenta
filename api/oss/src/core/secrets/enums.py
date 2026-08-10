@@ -7,6 +7,12 @@ class SecretKind(str, Enum):
     SSO_PROVIDER = "sso_provider"
     WEBHOOK_PROVIDER = "webhook_provider"
     CUSTOM_SECRET = "custom_secret"
+    CHANNEL_SECRET = "channel_secret"
+
+
+class ChannelSecretKind(str, Enum):
+    SLACK = "slack"
+    AGENTA = "agenta"
 
 
 class CustomSecretFormat(str, Enum):

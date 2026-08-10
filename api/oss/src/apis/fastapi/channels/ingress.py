@@ -1,6 +1,7 @@
 import asyncio
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, Optional
+from uuid import NAMESPACE_DNS, UUID, uuid5
 
 from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import JSONResponse
@@ -108,23 +109,29 @@ class ChannelsIngressRouter:
     async def _resolve_candidate(
         self, *, channel: str, locator: Optional[Dict[str, Any]]
     ):
-        """The connection an unverified installation claim points at, or None."""
+        """The connection an unverified installation claim points at, or None.
+
+        `_placeholder_external_key` stands in for the declared, per-channel
+        CONNECTION-grain composition (`compose_external_key`) until an
+        adapter actually declares one — the same stand-in the locator's own
+        single-value hint already was.
+        """
 
         hint = _external_id_from_locator(locator)
         if not hint:
             return None
 
         resolved = (
-            await self.channels_service.get_project_and_connection_by_external_id(
+            await self.channels_service.get_project_and_connection_by_external_key(
                 channel=channel,
-                external_id=hint,
+                external_key=_placeholder_external_key(hint),
             )
         )
         if resolved is None:
             return None
 
         project_id, connection_id = resolved
-        connection = await self.channels_service.connections_service.get_connection(
+        connection = await self.channels_service.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
@@ -177,7 +184,7 @@ class ChannelsIngressRouter:
         # body rather than from the connection can still return one that belongs
         # to a different install, so the verified id must match the connection
         # the secret came from.
-        if external_id != connection.integration_key:
+        if _placeholder_external_key(external_id) != connection.external_key:
             raise ChannelSignatureInvalid(channel=channel)
 
         inbound = await adapter.parse_event(body=body, connection=connection)
@@ -235,3 +242,12 @@ def _external_id_from_locator(locator: Optional[Dict[str, Any]]) -> Optional[str
 
     value = next(iter(locator.values()), None)
     return str(value) if value is not None else None
+
+
+def _placeholder_external_key(value: str) -> UUID:
+    """Stands in for the real, declared CONNECTION-grain composition
+    (`compose_external_key`) until an adapter declares one -- table lookups
+    against `channel_connections` are inert either way while nothing writes
+    a row through this path."""
+
+    return uuid5(NAMESPACE_DNS, value)

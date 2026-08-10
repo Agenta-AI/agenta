@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, tuple_, update
+from sqlalchemy import or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.core.channels.dtos import (
@@ -10,6 +10,10 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelConnection,
+    ChannelConnectionCreate,
+    ChannelConnectionEdit,
+    ChannelConnectionQuery,
     ChannelDeliveryState,
     ChannelGrant,
     ChannelGrantCreate,
@@ -28,6 +32,7 @@ from oss.src.core.channels.dtos import (
     ChannelSpace,
     ChannelSpaceCreate,
     ChannelSpaceEdit,
+    ChannelSpaceKind,
     ChannelSpaceQuery,
     ChannelThread,
     ChannelThreadCreate,
@@ -38,6 +43,7 @@ from oss.src.core.channels.interfaces import ChannelsDAOInterface
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.dbs.postgres.channels.dbes import (
     ChannelAgentDBE,
+    ChannelConnectionDBE,
     ChannelGrantDBE,
     ChannelInboxEventDBE,
     ChannelInboxTriggerDBE,
@@ -49,6 +55,9 @@ from oss.src.dbs.postgres.channels.mappings import (
     map_agent_dbe_to_dto,
     map_agent_dto_to_dbe_create,
     map_agent_dto_to_dbe_edit,
+    map_connection_dbe_to_dto,
+    map_connection_dto_to_dbe_create,
+    map_connection_dto_to_dbe_edit,
     map_grant_dbe_to_dto,
     map_grant_dto_to_dbe_create,
     map_grant_dto_to_dbe_edit,
@@ -76,6 +85,154 @@ class ChannelsDAO(ChannelsDAOInterface):
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
+
+    # --- connections ------------------------------------------------------ #
+
+    async def create_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection: ChannelConnectionCreate,
+    ) -> ChannelConnection:
+        connection_dbe = map_connection_dto_to_dbe_create(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            connection=connection,
+        )
+
+        async with self.engine.session() as session:
+            session.add(connection_dbe)
+
+            await session.commit()
+
+            await session.refresh(connection_dbe)
+
+        return map_connection_dbe_to_dto(connection_dbe=connection_dbe)
+
+    async def fetch_connection(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelConnectionDBE).where(
+                ChannelConnectionDBE.project_id == project_id,
+                ChannelConnectionDBE.id == connection_id,
+            )
+
+            result = await session.execute(stmt)
+
+            connection_dbe = result.scalar_one_or_none()
+
+            if not connection_dbe:
+                return None
+
+            return map_connection_dbe_to_dto(connection_dbe=connection_dbe)
+
+    async def edit_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection: ChannelConnectionEdit,
+    ) -> Optional[ChannelConnection]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelConnectionDBE).where(
+                ChannelConnectionDBE.project_id == project_id,
+                ChannelConnectionDBE.id == connection.id,
+            )
+
+            result = await session.execute(stmt)
+
+            connection_dbe = result.scalar_one_or_none()
+
+            if not connection_dbe:
+                return None
+
+            map_connection_dto_to_dbe_edit(
+                connection_dbe=connection_dbe,
+                #
+                user_id=user_id,
+                #
+                connection=connection,
+            )
+
+            await session.commit()
+
+            await session.refresh(connection_dbe)
+
+            return map_connection_dbe_to_dto(connection_dbe=connection_dbe)
+
+    async def delete_connection(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            stmt = select(ChannelConnectionDBE).where(
+                ChannelConnectionDBE.project_id == project_id,
+                ChannelConnectionDBE.id == connection_id,
+            )
+
+            result = await session.execute(stmt)
+
+            connection_dbe = result.scalar_one_or_none()
+
+            if not connection_dbe:
+                return False
+
+            await session.delete(connection_dbe)
+
+            await session.commit()
+
+            return True
+
+    async def query_connections(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection: Optional[ChannelConnectionQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[ChannelConnection]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelConnectionDBE).filter(
+                ChannelConnectionDBE.project_id == project_id,
+            )
+
+            if connection:
+                if connection.channel is not None:
+                    stmt = stmt.filter(
+                        ChannelConnectionDBE.channel == connection.channel
+                    )
+
+                if connection.slug is not None:
+                    stmt = stmt.filter(ChannelConnectionDBE.slug == connection.slug)
+
+            if windowing:
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=ChannelConnectionDBE,
+                    attribute="id",
+                    order="descending",
+                    windowing=windowing,
+                )
+
+            result = await session.execute(stmt)
+
+            return [
+                map_connection_dbe_to_dto(connection_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
 
     # --- agents --------------------------------------------------------- #
 
@@ -346,6 +503,56 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_space_dbe_to_dto(space_dbe=space_dbe)
 
+    async def get_or_create_space(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        space: ChannelSpaceCreate,
+    ) -> ChannelSpace:
+        space_dbe = map_space_dto_to_dbe_create(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            space=space,
+        )
+
+        async with self.engine.session() as session:
+            values = {
+                c.name: getattr(space_dbe, c.name)
+                for c in ChannelSpaceDBE.__table__.columns
+                if getattr(space_dbe, c.name) is not None
+            }
+
+            stmt = (
+                insert(ChannelSpaceDBE)
+                .values(**values)
+                .on_conflict_do_nothing(
+                    index_elements=["project_id", "connection_id", "external_key"],
+                )
+                .returning(ChannelSpaceDBE)
+            )
+
+            result = await session.execute(stmt)
+            inserted = result.scalar_one_or_none()
+
+            await session.commit()
+
+            if inserted is not None:
+                return map_space_dbe_to_dto(space_dbe=inserted)
+
+            # lost the race: the row already exists, fetch it
+            fetch_stmt = select(ChannelSpaceDBE).where(
+                ChannelSpaceDBE.project_id == project_id,
+                ChannelSpaceDBE.connection_id == space.connection_id,
+                ChannelSpaceDBE.external_key == space.external_key,
+            )
+            fetched = await session.execute(fetch_stmt)
+            existing = fetched.scalar_one()
+
+            return map_space_dbe_to_dto(space_dbe=existing)
+
     async def edit_space(
         self,
         *,
@@ -596,6 +803,30 @@ class ChannelsDAO(ChannelsDAOInterface):
                 return None
 
             return map_grant_dbe_to_dto(grant_dbe=grant_dbe)
+
+    async def query_matching_grants(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        space_id: UUID,
+        kind: ChannelSpaceKind,
+    ) -> List[ChannelGrant]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelGrantDBE).where(
+                ChannelGrantDBE.project_id == project_id,
+                ChannelGrantDBE.agent_id == agent_id,
+                or_(
+                    ChannelGrantDBE.space_id == space_id,
+                    ChannelGrantDBE.kind == kind.value,
+                ),
+            )
+
+            result = await session.execute(stmt)
+
+            return [
+                map_grant_dbe_to_dto(grant_dbe=dbe) for dbe in result.scalars().all()
+            ]
 
     async def edit_grant(
         self,
@@ -1411,32 +1642,28 @@ class ChannelsDAO(ChannelsDAOInterface):
 
     # --- ingress: the one unscoped read ------------------------------------ #
 
-    async def get_project_and_connection_by_external_id(
+    async def get_project_and_connection_by_external_key(
         self,
         *,
         channel: str,
-        external_id: str,
+        external_key: UUID,
     ) -> Optional[Tuple[UUID, UUID]]:
-        # Deliberately unscoped: an inbound platform event carries a team/workspace
-        # id and no tenant scope, so this recovers (project_id, connection_id)
-        # before anything else can be scoped — mirrors
-        # get_project_and_subscription_by_trigger_id in triggers.
-        from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
-
+        # Deliberately unscoped: an inbound platform event carries no tenant,
+        # so this recovers (project_id, connection_id) before anything else
+        # can be scoped — mirrors get_project_and_subscription_by_trigger_id
+        # in triggers. No LIMIT 1: uq_channel_connections_external_key makes a
+        # second match impossible, and a LIMIT here would hide the violation
+        # instead of raising it.
         async with self.engine.session() as session:
-            stmt = (
-                select(ConnectionDBE.project_id, ConnectionDBE.id)
-                .where(
-                    ConnectionDBE.provider_key == channel,
-                    ConnectionDBE.integration_key == external_id,
-                    ConnectionDBE.deleted_at.is_(None),
-                )
-                .limit(1)
+            stmt = select(
+                ChannelConnectionDBE.project_id, ChannelConnectionDBE.id
+            ).where(
+                ChannelConnectionDBE.channel == channel,
+                ChannelConnectionDBE.external_key == external_key,
+                ChannelConnectionDBE.deleted_at.is_(None),
             )
 
-            result = await session.execute(stmt)
-
-            row = result.first()
+            row = (await session.execute(stmt)).one_or_none()
 
             if row is None:
                 return None

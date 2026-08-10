@@ -158,10 +158,28 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def query_agents(self, **kwargs):
         raise NotImplementedError
 
+    async def create_connection(self, **kwargs):
+        raise NotImplementedError
+
+    async def fetch_connection(self, **kwargs):
+        raise NotImplementedError
+
+    async def edit_connection(self, **kwargs):
+        raise NotImplementedError
+
+    async def delete_connection(self, **kwargs):
+        raise NotImplementedError
+
+    async def query_connections(self, **kwargs):
+        raise NotImplementedError
+
     async def create_space(self, **kwargs):
         raise NotImplementedError
 
     async def fetch_space_by_key(self, **kwargs):
+        raise NotImplementedError
+
+    async def get_or_create_space(self, **kwargs):
         raise NotImplementedError
 
     async def edit_space(self, **kwargs):
@@ -200,6 +218,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def count_grants(self, **kwargs):
         raise NotImplementedError
 
+    async def query_matching_grants(self, **kwargs):
+        raise NotImplementedError
+
     async def create_thread(self, **kwargs):
         raise NotImplementedError
 
@@ -236,7 +257,7 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def query_inbox_triggers(self, **kwargs):
         raise NotImplementedError
 
-    async def get_project_and_connection_by_external_id(self, **kwargs):
+    async def get_project_and_connection_by_external_key(self, **kwargs):
         raise NotImplementedError
 
 

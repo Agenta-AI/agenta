@@ -18,33 +18,19 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
+from oss.src.apis.fastapi.channels.ingress import (
+    ChannelsIngressRouter,
+    _placeholder_external_key,
+)
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
-from oss.src.core.channels.dtos import ChannelConnection
+from oss.src.core.channels.dtos import ChannelConnectionCreate
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelNotSupported
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 
 pytestmark = pytest.mark.integration
 
 SIGNING_SECRET = "test-signing-secret"
-
-
-def _connection(team_id: str) -> ChannelConnection:
-    from uuid import uuid4
-
-    return ChannelConnection(
-        id=uuid4(),
-        slug="slack-seam-connection",
-        provider_key=ConnectionProviderKind.SLACK,
-        integration_key=team_id,
-        data={
-            "signing_secret": SIGNING_SECRET,
-            "bot_token": "xoxb-fake",
-            "team_id": team_id,
-        },
-    )
 
 
 def _slack_event_body(*, team_id: str, event_ts: str) -> bytes:
@@ -99,7 +85,21 @@ async def slack_seam(channels_scope):
     project_id = channels_scope["project_id"]
     team_id = channels_scope["external_id"]
 
-    connection = _connection(team_id)
+    dao = ChannelsDAO(engine=engine)
+    connection = await dao.create_connection(
+        project_id=project_id,
+        user_id=channels_scope["user_id"],
+        connection=ChannelConnectionCreate(
+            channel="slack",
+            external_key=_placeholder_external_key(team_id),
+            slug="slack-seam-connection",
+            data={
+                "signing_secret": SIGNING_SECRET,
+                "bot_token": "xoxb-fake",
+                "team_id": team_id,
+            },
+        ),
+    )
 
     # Registered exactly as the composition root registers it: one shared
     # instance holding no connection. Constructing it WITH one would test a
@@ -113,7 +113,7 @@ async def slack_seam(channels_scope):
             return connection
 
     service = ChannelsService(
-        channels_dao=ChannelsDAO(engine=engine),
+        channels_dao=dao,
         adapter_registry=registry,
         connections_service=_Connections(),
     )

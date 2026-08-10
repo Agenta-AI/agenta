@@ -12,6 +12,7 @@ from oss.src.core.channels.dtos import (
     ChannelEventOrigin,
     ChannelGrant,
     ChannelGrantData,
+    ChannelGrantEffect,
     ChannelInboundEvent,
     ChannelInboxEvent,
     ChannelInboxEventData,
@@ -173,6 +174,7 @@ def test_entities_instantiate():
     grant = ChannelGrant(
         id=uuid4(),
         agent_id=agent_id,
+        effect=ChannelGrantEffect.ALLOW,
         space_id=space_id,
         data=ChannelGrantData(),
     )

@@ -19,7 +19,6 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.types import ChannelSignatureInvalid
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.dtos import ChannelKeyGrain
-from oss.src.core.gateway.connections.dtos import ConnectionProviderKind
 
 SIGNING_SECRET = "test-signing-secret"
 
@@ -35,8 +34,8 @@ def _connection(**data_overrides) -> ChannelConnection:
     return ChannelConnection(
         id=uuid4(),
         slug="slack-connection",
-        provider_key=ConnectionProviderKind.AGENTA,
-        integration_key="slack",
+        channel="slack",
+        external_key=uuid4(),
         data=data,
     )
 

@@ -32,6 +32,7 @@ from oss.src.core.channels.dtos import (
     ChannelEventOrigin,
     ChannelGrantCreate,
     ChannelGrantData,
+    ChannelGrantEffect,
     ChannelGrantFlags,
     ChannelInboxEventCreate,
     ChannelInboxEventData,
@@ -337,6 +338,7 @@ async def _configure_agent_for_connection(
         user_id=user_id,
         grant=ChannelGrantCreate(
             agent_id=agent.id,
+            effect=ChannelGrantEffect.ALLOW,
             space_id=space.id,
             data=ChannelGrantData(),
             flags=ChannelGrantFlags(is_default=True),

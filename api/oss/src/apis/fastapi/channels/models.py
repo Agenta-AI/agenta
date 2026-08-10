@@ -7,7 +7,6 @@ definitions of the same wire shape agreeing by accident. The three
 `*Request` class without introducing a second class.
 """
 
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -19,6 +18,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentResponse,
     ChannelAgentsResponse,
     ChannelCapabilitiesResponse,
+    ChannelConnectionQueryRequest,
     ChannelConnectionsResponse,
     ChannelEventAck,
     ChannelGrantEditRequest,
@@ -51,7 +51,7 @@ __all__ = [
     "ChannelAgentResponse",
     "ChannelAgentsResponse",
     "ChannelCapabilitiesResponse",
-    "ChannelConnectionsQueryRequest",
+    "ChannelConnectionQueryRequest",
     "ChannelConnectionsResponse",
     "ChannelEventAck",
     "ChannelGrantCreateRequest",
@@ -77,16 +77,6 @@ __all__ = [
     "ChannelThreadsResponse",
     "ChannelsCatalogResponse",
 ]
-
-
-class ChannelConnectionsQueryRequest(BaseModel):
-    """No core `*Query` DTO exists for connections — it is a read-only view
-    over the shared `ConnectionsService.query_connections`, whose own filters
-    are scalar kwargs rather than a DTO."""
-
-    provider_key: Optional[str] = None
-    integration_key: Optional[str] = None
-    is_active: Optional[bool] = True
 
 
 class ChannelSpaceDiscoverRequest(BaseModel):

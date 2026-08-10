@@ -7,6 +7,10 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelConnection,
+    ChannelConnectionCreate,
+    ChannelConnectionEdit,
+    ChannelConnectionQuery,
     ChannelDeliveryState,
     ChannelGrant,
     ChannelGrantCreate,
@@ -25,6 +29,7 @@ from oss.src.core.channels.dtos import (
     ChannelSpace,
     ChannelSpaceCreate,
     ChannelSpaceEdit,
+    ChannelSpaceKind,
     ChannelSpaceQuery,
     ChannelThread,
     ChannelThreadCreate,
@@ -36,6 +41,57 @@ from oss.src.core.shared.dtos import Status, Windowing
 
 class ChannelsDAOInterface(ABC):
     """Persistence contract for the channels domain."""
+
+    # --- connections ---------------------------------------------------------- #
+
+    @abstractmethod
+    async def create_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection: ChannelConnectionCreate,
+    ) -> ChannelConnection: ...
+
+    @abstractmethod
+    async def fetch_connection(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> Optional[ChannelConnection]: ...
+
+    @abstractmethod
+    async def edit_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        connection: ChannelConnectionEdit,
+    ) -> Optional[ChannelConnection]: ...
+
+    @abstractmethod
+    async def delete_connection(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection_id: UUID,
+    ) -> bool: ...
+
+    @abstractmethod
+    async def query_connections(
+        self,
+        *,
+        project_id: UUID,
+        #
+        connection: Optional[ChannelConnectionQuery] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[ChannelConnection]: ...
 
     # --- agents ------------------------------------------------------------- #
 
@@ -144,11 +200,28 @@ class ChannelsDAOInterface(ABC):
         #
         external_key: UUID,
     ) -> Optional[ChannelSpace]:
-        """The routing lookup — default-deny, so None means "not configured here".
+        """The routing lookup. None means "never seen before" -- permission is
+        decided by grants, not by whether this row exists (see
+        get_or_create_space).
 
         This is the whole reason external_key is a column rather than living
         inside the locator: the unique constraint serves this read.
         """
+        ...
+
+    @abstractmethod
+    async def get_or_create_space(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        space: ChannelSpaceCreate,
+    ) -> ChannelSpace:
+        """First-contact space row. Idempotent on
+        (project_id, connection_id, external_key): a race between two events
+        addressing the same never-seen place returns the same row to both,
+        never forking it. Authorises nothing -- that is the grant's job."""
         ...
 
     @abstractmethod
@@ -246,6 +319,21 @@ class ChannelsDAOInterface(ABC):
         space_id: UUID,
     ) -> Optional[ChannelGrant]:
         """The space's default agent — the middle step of the chain."""
+        ...
+
+    @abstractmethod
+    async def query_matching_grants(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        space_id: UUID,
+        kind: ChannelSpaceKind,
+    ) -> List[ChannelGrant]:
+        """Every rule that could apply to this agent in this space — matching
+        by id or by kind. Deny-first evaluation happens in the caller
+        (`evaluate_grant_effect`), not here: this is the read, not the
+        decision."""
         ...
 
     @abstractmethod
@@ -580,18 +668,20 @@ class ChannelsDAOInterface(ABC):
     # --- ingress: the one unscoped read ------------------------------------- #
 
     @abstractmethod
-    async def get_project_and_connection_by_external_id(
+    async def get_project_and_connection_by_external_key(
         self,
         *,
         channel: str,
-        external_id: str,
+        external_key: UUID,
     ) -> Optional[Tuple[UUID, UUID]]:
-        """Resolve a platform workspace/team id to (project_id, connection_id).
+        """Resolve a connection's composed identity to (project_id, connection_id).
 
         Deliberately cross-project, and the ONLY unscoped method here. An inbound
-        Slack event carries a team id and no tenant scope, so this lookup
-        *recovers* the project before anything else can be scoped. Exactly the
-        shape and the justification of
-        `get_project_and_subscription_by_trigger_id` in triggers.
+        platform event carries no tenant, so this lookup *recovers* the project
+        before anything else can be scoped. Exactly the shape and the
+        justification of `get_project_and_subscription_by_trigger_id` in
+        triggers. Backed by `uq_channel_connections_external_key`, so this
+        returns at most one row by constraint — no `LIMIT 1` to hide a
+        violation behind.
         """
         ...
