@@ -6,7 +6,7 @@ import GatewayTriggersSection from "./components/GatewayTriggersSection"
 export default function Triggers() {
     // gap-8: sections are separated by whitespace, never a rule.
     return (
-        <div className="flex flex-col">
+        <div className="flex flex-col gap-8">
             <GatewayTriggersSection />
             <TriggerSubscriptionsSection />
             <TriggerSchedulesSection />
