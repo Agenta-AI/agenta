@@ -77,3 +77,16 @@ def test_a_reraise_refreshes_the_gate_in_place(monkeypatch):
     message = lib.approval_reply(turn, approved=False)
     (part,) = [p for p in message["parts"] if p.get("toolCallId") == "tc-1"]
     assert part["approval"] == {"id": "approval-fresh", "approved": False}
+
+
+def test_re_raise_preserves_first_raise_order(monkeypatch):
+    lib = _lib(monkeypatch)
+    approvals = [
+        {"approvalId": "a1", "toolCallId": "tc-1"},
+        {"approvalId": "a2", "toolCallId": "tc-2"},
+    ]
+    lib._upsert_gate(approvals, {"approvalId": "a1-new", "toolCallId": "tc-1"})
+    assert [g["toolCallId"] for g in approvals] == ["tc-1", "tc-2"]
+    assert approvals[0]["approvalId"] == "a1-new"
+    lib._upsert_gate(approvals, {"approvalId": "a3", "toolCallId": "tc-3"})
+    assert [g["toolCallId"] for g in approvals] == ["tc-1", "tc-2", "tc-3"]

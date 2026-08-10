@@ -345,6 +345,15 @@ class Turn:
         return {"id": str(uuid.uuid4()), "role": "assistant", "parts": parts}
 
 
+def _upsert_gate(approvals: list, gate: dict) -> None:
+    """Refresh a re-raised gate in place; append only a newly raised toolCallId."""
+    for i, g in enumerate(approvals):
+        if g["toolCallId"] == gate["toolCallId"]:
+            approvals[i] = gate
+            return
+    approvals.append(gate)
+
+
 def invoke(
     session_id: str,
     messages: list[dict],
@@ -423,9 +432,7 @@ def invoke(
                     }
                     # Collect every raised gate; a re-raise for the same call refreshes
                     # its approval id in place without changing the raise order.
-                    t.approvals = [
-                        g for g in t.approvals if g["toolCallId"] != gate["toolCallId"]
-                    ] + [gate]
+                    _upsert_gate(t.approvals, gate)
                     if log:
                         print(
                             f"  !! approval-request: {json.dumps(f)[:400]}",
