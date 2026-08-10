@@ -8,7 +8,6 @@ import {shortPoll} from "@agenta/shared/utils"
 import Session from "supertokens-auth-react/recipe/session"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:

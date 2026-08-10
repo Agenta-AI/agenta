@@ -1,8 +1,9 @@
+import {queryClient} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {queryClient} from "@agenta/shared/api"
 import {
     createWebhookSubscription,
     deleteWebhookSubscription,
@@ -19,7 +20,6 @@ import {
     WebhookSubscriptionCreateRequest,
     WebhookSubscriptionEditRequest,
 } from "./types"
-import {projectIdAtom} from "@agenta/shared/state"
 
 export const webhooksAtom = atomWithQuery((get) => {
     const projectId = get(projectIdAtom)
