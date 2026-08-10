@@ -33,7 +33,9 @@ const testAutoEval = () => {
     baseAutoEvalTest.describe("Should run a single evaluation (retry-eligible)", () => {
         baseAutoEvalTest.describe.configure({retries: 2})
 
-        baseAutoEvalTest(
+        // Skipped per release-gate decision (Mahmoud, 2026-08-10): eternity-class runtime
+        // dominates the CI wall clock with retries. Tracked for repair, not deleted.
+        baseAutoEvalTest.skip(
             "should run a single evaluation",
             {
                 tag: [

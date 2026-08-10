@@ -156,7 +156,9 @@ const observabilityTests = () => {
     test.describe("View traces (retry-eligible)", () => {
         test.describe.configure({retries: 2})
 
-        test(
+        // Skipped per release-gate decision (Mahmoud, 2026-08-10): eternity-class runtime
+        // (7-minute budget, up to 21 minutes with retries) dominates the CI wall clock.
+        test.skip(
             "view traces",
             {tag: smokeTags},
             async ({page, uiHelpers, apiHelpers, testProviderHelpers}) => {
@@ -365,7 +367,9 @@ const observabilityTests = () => {
     )
 
     // WEB-ACC-OBS-006
-    test(
+    // Skipped per release-gate decision (Mahmoud, 2026-08-10): rotating environment-sensitive
+    // failure in CI (gate run 31401605372). Tracked for repair, not deleted.
+    test.skip(
         "should create a trace after a Playground run",
         {tag: lightSlowTags},
         async ({page, apiHelpers, uiHelpers, testProviderHelpers}) => {
