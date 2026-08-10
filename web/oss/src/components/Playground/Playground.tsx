@@ -134,7 +134,7 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
     const content = (
         <OSSPlaygroundShell providers={providers}>
             <PlaygroundPageTitle onboarding={onboarding} />
-            <div className="flex flex-col w-full h-[calc(100dvh-46px)] overflow-hidden">
+            <div className="flex flex-col w-full h-dvh overflow-hidden">
                 {prefetchAgentCatalogs ? <AgentCatalogPrefetcher /> : null}
                 <PlaygroundOnboarding />
                 <PlaygroundHeader key={`${uri}-header`} />

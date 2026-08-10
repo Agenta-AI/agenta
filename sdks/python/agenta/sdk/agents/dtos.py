@@ -1110,6 +1110,11 @@ class SessionConfig(BaseModel):
     # wire when unset, so a run that needs no binding is byte-identical to before.
     run_context: Optional[RunContext] = None
     session_id: Optional[str] = None
+    # The post-hydration config this turn runs, carried verbatim so the runner can stamp it on
+    # the interaction row of any HITL gate the turn parks (see
+    # ``agents/utils/effective_config.py``). Wire-emitted only for a session run; never consumed
+    # by a harness, so it changes nothing about how the turn executes.
+    effective_parameters: Optional[Dict[str, Any]] = Field(default=None, repr=False)
     tool_specs: List[ToolSpec] = Field(
         default_factory=list,
         validation_alias=AliasChoices("tool_specs", "custom_tools"),

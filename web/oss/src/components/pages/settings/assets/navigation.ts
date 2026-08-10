@@ -14,7 +14,7 @@ export type SettingsTabKey =
     | "auditLog"
     | "billing"
     | "account"
-    | "featureFlags"
+    | "preferences"
 
 export type SettingsScopeKey = "project" | "organization" | "personal"
 
@@ -28,32 +28,126 @@ export interface SettingsAccess {
     isOwner: boolean
 }
 
+/** A tertiary docs link rendered at the far right of a settings page header. */
+export interface SettingsTabDocs {
+    label: string
+    href: string
+}
+
 export interface SettingsTabDefinition {
     key: SettingsTabKey
     scope: SettingsScopeKey
     showInSidebar?: boolean
     getLabel?: (access: SettingsAccess) => string
+    /**
+     * One sentence explaining what the page is for. Required so a new tab cannot ship
+     * without one — every settings page renders this under its title.
+     */
+    description: string
+    /** Overrides `description` when the copy depends on entitlements. */
+    getDescription?: (access: SettingsAccess) => string
+    docs?: SettingsTabDocs
 }
 
+const DOCS_BASE = "https://docs.agenta.ai"
+
 export const SETTINGS_TABS: SettingsTabDefinition[] = [
-    {key: "apiKeys", scope: "project"},
-    {key: "secrets", scope: "project"},
-    {key: "llms", scope: "project"},
-    {key: "tools", scope: "project"},
-    {key: "triggers", scope: "project"},
-    {key: "webhooks", scope: "project"},
-    {key: "organizationGeneral", scope: "organization"},
-    {key: "workspace", scope: "organization"},
-    {key: "projects", scope: "organization"},
-    {key: "organization", scope: "organization"},
-    {key: "auditLog", scope: "organization"},
+    {
+        key: "apiKeys",
+        scope: "project",
+        description: "Manage API keys used to authenticate requests.",
+        docs: {label: "Using the API", href: `${DOCS_BASE}/reference/api-guide/overview`},
+    },
+    {
+        key: "secrets",
+        scope: "project",
+        description: "Store credentials your agents use at runtime.",
+    },
+    {
+        key: "llms",
+        scope: "project",
+        description: "Connect AI providers using your own API keys.",
+        docs: {label: "Provider setup", href: `${DOCS_BASE}/faq/integrations/llm-providers`},
+    },
+    {
+        key: "tools",
+        scope: "project",
+        description: "Configure integrations your agents can use.",
+        docs: {label: "About tools", href: `${DOCS_BASE}/concepts/tools-and-integrations`},
+    },
+    {
+        key: "triggers",
+        scope: "project",
+        description: "Run agents automatically from schedules or events.",
+        docs: {label: "About automations", href: `${DOCS_BASE}/concepts/automations`},
+    },
+    {
+        key: "webhooks",
+        scope: "project",
+        description:
+            "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
+    },
+    {
+        key: "organizationGeneral",
+        scope: "organization",
+        description: "Every organization you belong to.",
+        docs: {
+            label: "About organizations",
+            href: `${DOCS_BASE}/administration/access-control/organizations`,
+        },
+    },
+    {
+        key: "workspace",
+        scope: "organization",
+        description: "Manage members, invitations, and access.",
+        docs: {
+            label: "Roles and permissions",
+            href: `${DOCS_BASE}/administration/access-control/rbac`,
+        },
+    },
+    {
+        key: "projects",
+        scope: "organization",
+        description: "Organize agents, datasets, and deployments.",
+        docs: {
+            label: "About projects",
+            href: `${DOCS_BASE}/administration/access-control/organizations`,
+        },
+    },
+    {
+        key: "organization",
+        scope: "organization",
+        description:
+            "Control how members sign in and which email domains are allowed to join this organization.",
+        docs: {label: "SSO setup", href: `${DOCS_BASE}/administration/access-control/sso`},
+    },
+    {
+        key: "auditLog",
+        scope: "organization",
+        description: "Review changes made across your organization.",
+    },
     {
         key: "billing",
         scope: "organization",
         getLabel: ({billingEnabled}) => (billingEnabled ? "Usage & Billing" : "Usage"),
+        description: "Track how much of your plan you have used.",
+        getDescription: ({billingEnabled}) =>
+            billingEnabled
+                ? "Track how much of your plan you have used, and manage your subscription."
+                : "Track how much of your plan you have used.",
     },
-    {key: "account", scope: "personal"},
-    {key: "featureFlags", scope: "personal"},
+    {
+        key: "account",
+        scope: "personal",
+        description:
+            "Your personal profile. These details are visible to other members of your organizations.",
+    },
+    {
+        key: "preferences",
+        scope: "personal",
+        description:
+            "Personal settings stored in this browser. They are not shared with your organizations.",
+    },
 ]
 
 export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
@@ -71,11 +165,11 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     webhooks: "Webhooks",
     workspace: "Members",
     projects: "Projects",
-    organizationGeneral: "General",
+    organizationGeneral: "Organizations",
     organization: "Access & Security",
     auditLog: "Audit Log",
     account: "Account",
-    featureFlags: "Feature flags",
+    preferences: "Preferences",
 }
 
 export const isSettingsTabKey = (value: string | null | undefined): value is SettingsTabKey =>
@@ -87,6 +181,17 @@ export const getSettingsTabLabel = (key: SettingsTabKey, access: SettingsAccess)
     return SETTINGS_LABELS[key as Exclude<SettingsTabKey, "billing">]
 }
 
+export const getSettingsTabDescription = (key: SettingsTabKey, access: SettingsAccess): string => {
+    const tab = SETTINGS_TABS.find((item) => item.key === key)
+    if (!tab) return ""
+    return tab.getDescription ? tab.getDescription(access) : tab.description
+}
+
+export const getSettingsTabDocs = (key: SettingsTabKey): SettingsTabDocs | undefined =>
+    SETTINGS_TABS.find((item) => item.key === key)?.docs
+
+// `organizationGeneral` is intentionally absent: it lists every organization you belong
+// to, so membership is enough. Its destructive row actions gate on ownership per row.
 export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess) => {
     switch (key) {
         case "apiKeys":
@@ -95,8 +200,6 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canShowTools
         case "triggers":
             return access.canShowTriggers
-        case "organizationGeneral":
-            return access.isOwner
         case "organization":
             return access.isEE && access.isOwner
         case "auditLog":

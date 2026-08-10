@@ -27,6 +27,35 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
+    web-mobile:
+        # === ACTIVATION =========================================== #
+        # Opt-in while the mobile app is pre-GA (run.sh --with-mobile).
+        profiles:
+            - with-web-mobile
+        # === IMAGE ================================================ #
+        build:
+            context: ../../../web
+            dockerfile: mobile/docker/Dockerfile.gh
+        # === EXECUTION ============================================ #
+        command: sh -c "node ./mobile/server.js"
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-gh-ssl-network
+        # === LABELS =============================================== #
+        # (Path(`/m`) || PathPrefix(`/m/`)) auto-wins over the web catch-all PathPrefix(`/`)
+        # by rule length; no stripprefix — the app is built with basePath /m.
+        labels:
+            - "traefik.http.routers.web-mobile.rule=Host(`${TRAEFIK_DOMAIN}`) && (Path(`/m`) || PathPrefix(`/m/`))"
+            - "traefik.http.routers.web-mobile.entrypoints=web,web-secure"
+            - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
+            - "traefik.http.routers.web-mobile.tls=true"
+            - "traefik.http.routers.web-mobile.tls.certresolver=myResolver"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
     api:
         # === IMAGE ================================================ #
         build:

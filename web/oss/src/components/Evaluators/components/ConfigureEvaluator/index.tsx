@@ -102,11 +102,9 @@ const ConfigureEvaluatorPageInner = () => {
 
     return (
         <OSSPlaygroundShell providers={providers}>
-            {/* Definite height (viewport minus the app topbar) so the run panel's
-             * `h-full` centering resolves — same pattern as the app playground
-             * (`Playground.tsx`). With a plain `h-full` here the chain collapses
-             * to content height and the empty state sticks to the top. */}
-            <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
+            {/* Definite height, not `h-full`: the chain would collapse to content height and
+             * strand the empty state at the top. 29px matches Layout's full-height frame. */}
+            <div className="flex flex-col w-full h-[calc(100dvh-29px)] overflow-hidden">
                 <EvaluatorPlaygroundHeader />
                 <PlaygroundMainView
                     mode="evaluator"
