@@ -13,7 +13,10 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
+from oss.src.apis.fastapi.channels.ingress import (
+    ChannelsIngressRouter,
+    _connection_owns_identity,
+)
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
@@ -139,7 +142,7 @@ class FakeChannelsService:
             data={
                 "signing_secret": "unused",
                 "bot_token": "xoxb-fake",
-                "installation_id": installation_id,
+                "connection_locator": {"installation_id": installation_id},
             },
         )
 
@@ -620,3 +623,47 @@ def test_ingress_module_does_not_import_inbox_worker():
 
     assert "tasks.asyncio.channels.inbox" not in source
     assert "tasks/asyncio/channels/inbox" not in source
+
+
+# ---------------------------------------------------------------------------
+# The verified identity is checked against the recorded locator, not the
+# whole of `data` -- credentials and declarations live there too.
+# ---------------------------------------------------------------------------
+
+
+def _connection_with(data):
+    return ChannelConnection(
+        id=uuid4(),
+        slug="c",
+        channel="slack",
+        external_key=uuid4(),
+        data=data,
+    )
+
+
+def test_an_identity_matching_the_recorded_locator_is_owned():
+    connection = _connection_with({"connection_locator": {"team_id": "T1"}})
+
+    assert _connection_owns_identity(connection, "T1") is True
+
+
+def test_an_identity_matching_only_a_credential_is_not_owned():
+    connection = _connection_with(
+        {"bot_token": "T1", "connection_locator": {"team_id": "T2"}}
+    )
+
+    assert _connection_owns_identity(connection, "T1") is False
+
+
+def test_a_connection_with_no_recorded_locator_owns_nothing():
+    connection = _connection_with({"bot_token": "xoxb"})
+
+    assert _connection_owns_identity(connection, "T1") is False
+
+
+def test_an_empty_identity_is_never_owned():
+    connection = _connection_with(
+        {"connection_locator": {"team_id": "", "enterprise_id": "E1"}}
+    )
+
+    assert _connection_owns_identity(connection, "") is False

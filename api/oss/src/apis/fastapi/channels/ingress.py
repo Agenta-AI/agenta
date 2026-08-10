@@ -258,10 +258,17 @@ class ChannelsIngressRouter:
 
 
 def _connection_owns_identity(connection: ChannelConnection, external_id: str) -> bool:
-    """Does the credential-verified identity appear anywhere in this
-    connection's own recorded data? Catches drift between a connection's
-    data and the row it resolved to (e.g. after an inconsistent edit),
-    independent of the adapter's own field names."""
+    """Checked against the connection's own recorded locator, never against
+    the whole of `data` -- a credential or a capability that happened to
+    carry the same string would otherwise pass for an identity."""
+
+    if not external_id:
+        return False
 
     data = connection.data if isinstance(connection.data, dict) else {}
-    return external_id in data.values()
+    locator = data.get("connection_locator")
+    if not isinstance(locator, dict):
+        return False
+
+    # A declared-but-absent field is stored empty; it identifies nothing.
+    return external_id in {value for value in locator.values() if value}
