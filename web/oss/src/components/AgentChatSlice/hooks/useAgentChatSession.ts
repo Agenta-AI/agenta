@@ -43,6 +43,7 @@ import {
     persistSessionMessagesAtom,
     sessionMessagesAtom,
     sessionRecordCountsReadAtom,
+    setSessionStatusAtom,
     stampMessagesCreatedAtAtom,
 } from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
@@ -57,7 +58,7 @@ import {useSessionHydration} from "./useSessionHydration"
  * stop/kill, and teardown. Everything the UI layers on top (queue, approvals, onboarding, the
  * composer) consumes this hook's return rather than reaching for `useChat` directly.
  *
- * Design decisions baked in (docs/design/agent-workflows/playground-agent-generation.md):
+ * Design decisions baked in (docs/design/agent-workflows/projects/session-chat-registry/decisions.md):
  *  - D9  teardown: release the chat on unmount; `state/chatRegistry` owns the instance and decides
  *        whether to preserve it (#5724).
  *  - DT3 cancelled state: a stopped stream tags its partial bubble "Stopped" + offers Resend.
@@ -102,8 +103,12 @@ export const useAgentChatSession = ({
     const captureTurnRequest = useSetAtom(captureTurnRequestAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const setSessionStatus = useSetAtom(setSessionStatusAtom)
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
+    // Whether this mount is still on screen. The chat outlives it, so its callbacks need to tell
+    // "still mine to report" from "running on in the background".
+    const mountedRef = useRef(false)
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
@@ -136,6 +141,10 @@ export const useAgentChatSession = ({
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            // A preserved run settling with nobody mounted: this callback outlives the mount, so it
+            // is what retires the session's run-state dot. A LIVE mount publishes its own status
+            // (with error/awaiting precedence) from `busy`, so writing here would only flicker it.
+            if (!mountedRef.current) setSessionStatus({id: sessionId, status: "idle"})
         },
     }
 
@@ -386,7 +395,11 @@ export const useAgentChatSession = ({
     // this cleanup, and a route change leaves the tab open.
     const scopeKey = useChatScopeKey()
     useEffect(() => {
+        // Set on SETUP, not at declaration: StrictMode's dev cycle tears this effect down and runs
+        // it again on the same mount, and the flag has to come back with it.
+        mountedRef.current = true
         return () => {
+            mountedRef.current = false
             const stillOpen = store.get(openSessionIdsAtomFamily(scopeKey)).has(sessionId)
             releaseSessionChat(sessionId, {stillOpen})
         }

@@ -16,6 +16,16 @@ import {dropSessionChat} from "./chatRegistry"
 import {clearSessionEphemera, markSessionFresh} from "./sessionEphemera"
 
 /**
+ * This session is gone from this browser: stop its chat and retire its run-state dot. Both are
+ * needed because either can outlive the pane — the chat when the user navigated away with the tab
+ * open, and the dot because a torn-down chat's `onFinish` is suppressed and can't retire it itself.
+ */
+const dropSessionRuntime = (set: Setter, id: string): void => {
+    dropSessionChat(id)
+    set(setSessionStatusAtom, {id, status: "idle"})
+}
+
+/**
  * Multi-session model for the agent chat slice. The playground hosts several parallel agent
  * conversations as top-level dynamic tabs (no side rail); this holds the session history, which
  * tabs are open, the active tab, and each session's persisted messages.
@@ -256,7 +266,7 @@ export const closeSessionAtomFamily = atomFamily((key: string) =>
         const nextOpen = open.filter((x) => x !== id)
         set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: nextOpen})
         // Its pane unmounts and releases too, but only if it was ever mounted on this route.
-        dropSessionChat(id)
+        dropSessionRuntime(set, id)
 
         const active = get(activeByAppAtom)
         if (active[key] === id) {
@@ -354,7 +364,7 @@ export const deleteSessionAtomFamily = atomFamily((key: string) =>
         dropSessionMessages(get, set, [id])
 
         clearSessionEphemera(id)
-        dropSessionChat(id)
+        dropSessionRuntime(set, id)
 
         // Propagate a user delete to the server so it disappears everywhere — but only for a
         // server-known session (a purely-local husk has no row; the reconciler's own drop path
@@ -381,7 +391,7 @@ export const archiveSessionAtomFamily = atomFamily((key: string) =>
         if (open.includes(id)) {
             set(openIdsByAppAtom, {...get(openIdsByAppAtom), [key]: open.filter((x) => x !== id)})
         }
-        dropSessionChat(id)
+        dropSessionRuntime(set, id)
         const active = get(activeByAppAtom)
         if (active[key] === id) {
             set(activeByAppAtom, {...active, [key]: open.filter((x) => x !== id)[0] ?? ""})
@@ -444,6 +454,9 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
         for (const s of existing) {
             const remote = serverById.get(s.id)
             if (remote) {
+                // Archived on another device: the tab list hides it from here on, so this is its
+                // only teardown signal — a local archive tears the chat down the same way.
+                if (remote.archived && !s.archived) dropSessionRuntime(set, s.id)
                 merged.push({
                     ...s,
                     serverKnown: true,
@@ -494,13 +507,6 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
 
         set(sessionsByAppAtom, {...get(sessionsByAppAtom), [key]: merged})
 
-        // Archived on another device: the tab list hides it from here on, so this is its only
-        // teardown signal — a local archive tears the chat down the same way.
-        const archivedBefore = new Set(existing.filter((s) => s.archived).map((s) => s.id))
-        for (const s of merged) {
-            if (s.archived && !archivedBefore.has(s.id)) dropSessionChat(s.id)
-        }
-
         if (dropped.length > 0) {
             const droppedSet = new Set(dropped)
             const open = currentOpenIds(get, key)
@@ -515,7 +521,7 @@ export const reconcileServerSessionsAtomFamily = atomFamily((key: string) =>
             dropSessionMessages(get, set, dropped)
             for (const id of dropped) {
                 clearSessionEphemera(id)
-                dropSessionChat(id)
+                dropSessionRuntime(set, id)
             }
         }
     }),
@@ -593,7 +599,7 @@ export const resetScopeAtomFamily = atomFamily((key: string) =>
         dropSessionMessages(get, set, ids)
         for (const id of ids) {
             clearSessionEphemera(id)
-            dropSessionChat(id)
+            dropSessionRuntime(set, id)
         }
     }),
 )

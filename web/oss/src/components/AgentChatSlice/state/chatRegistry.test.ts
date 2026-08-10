@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from "vitest"
 
 import {
-    __hasSessionChat,
+    hasSessionChat,
     acquireSessionChat,
     bindSessionChatHooks,
     dropSessionChat,
@@ -23,7 +23,10 @@ interface FakeChat {
     status: string
     stop: ReturnType<typeof vi.fn>
     /** The callbacks the registry wired at construction, so a turn can be settled by hand. */
-    init: {onFinish: (event: unknown) => void}
+    init: {
+        onFinish: (event: unknown) => void
+        sendAutomaticallyWhen: (args: unknown) => boolean
+    }
 }
 
 const hooks = () => ({
@@ -63,7 +66,7 @@ describe("session chat registry", () => {
             releaseSessionChat(sessionId, {stillOpen: true})
 
             expect(chat.stop).not.toHaveBeenCalled()
-            expect(__hasSessionChat(sessionId)).toBe(true)
+            expect(hasSessionChat(sessionId)).toBe(true)
             // Returning gets the SAME live turn back.
             expect(acquire(sessionId)).toBe(chat)
         },
@@ -88,7 +91,7 @@ describe("session chat registry", () => {
         releaseSessionChat(sessionId, {stillOpen: false})
 
         expect(chat.stop).toHaveBeenCalledTimes(1)
-        expect(__hasSessionChat(sessionId)).toBe(false)
+        expect(hasSessionChat(sessionId)).toBe(false)
     })
 
     it("still forwards a settled turn to the mount's own onFinish", () => {
@@ -125,6 +128,36 @@ describe("session chat registry", () => {
         dropSessionChat(sessionId)
 
         expect(chat.stop).toHaveBeenCalledTimes(1)
-        expect(__hasSessionChat(sessionId)).toBe(false)
+        expect(hasSessionChat(sessionId)).toBe(false)
+    })
+
+    it("ignores the abort-driven onFinish that its own stop() triggers a tick later", async () => {
+        const {sessionId, chat} = mount("streaming")
+        const mountHooks = hooks()
+        bindSessionChatHooks(sessionId, mountHooks as never)
+        // How `ai` settles an abort: the request unwinds, then `finally` runs `onFinish` with
+        // `isAbort`. Without a disposal guard that revalidates a session that no longer exists.
+        chat.stop.mockImplementation(async () => {
+            await Promise.resolve()
+            chat.init.onFinish({message: {id: "m1"}, isAbort: true})
+        })
+
+        dropSessionChat(sessionId)
+        await chat.stop.mock.results[0]?.value
+
+        expect(mountHooks.onFinish).not.toHaveBeenCalled()
+    })
+
+    it("does not let a disposed chat auto-resume after the abort", () => {
+        const {sessionId, chat} = mount("streaming")
+        // A gate answered just before the session was deleted leaves the predicate ready to fire.
+        const mountHooks = {...hooks(), sendAutomaticallyWhen: vi.fn(() => true)}
+        bindSessionChatHooks(sessionId, mountHooks as never)
+
+        dropSessionChat(sessionId)
+
+        // `ai` re-evaluates this right after `onFinish`, and a `true` here starts a NEW request.
+        expect(chat.init.sendAutomaticallyWhen({messages: []})).toBe(false)
+        expect(mountHooks.sendAutomaticallyWhen).not.toHaveBeenCalled()
     })
 })

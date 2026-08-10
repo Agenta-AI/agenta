@@ -26,6 +26,9 @@ interface Handle {
 
 const registry = new Map<string, Handle>()
 
+/** False once this session was torn down (or replaced), so a dropped chat's callbacks go nowhere. */
+const isLive = (sessionId: string, handle: Handle): boolean => registry.get(sessionId) === handle
+
 export const isChatBusy = (status: ChatStatus): boolean =>
     status === "submitted" || status === "streaming"
 
@@ -55,8 +58,15 @@ export const acquireSessionChat = ({
             api: "",
             prepareSendMessagesRequest: (args) => handle.hooks.prepareRequest(args),
         }),
-        sendAutomaticallyWhen: (args) => handle.hooks.sendAutomaticallyWhen(args),
-        onFinish: (event) => handle.hooks.onFinish(event),
+        // Both gated: `stop()` aborts the stream, and the SDK still runs `onFinish` (with `isAbort`)
+        // and then re-evaluates this predicate, which on a live gate would start a WHOLE NEW request.
+        // Neither may reach the mount's callbacks once the session is gone.
+        sendAutomaticallyWhen: (args) =>
+            isLive(sessionId, handle) && handle.hooks.sendAutomaticallyWhen(args),
+        onFinish: (event) => {
+            if (!isLive(sessionId, handle)) return
+            handle.hooks.onFinish(event)
+        },
         // Swallowed here so an aborted stream doesn't reach the Next.js dev overlay (F-033); the
         // mount renders it in-chat off `useChat`'s own `error`.
         onError: (error) =>
@@ -84,8 +94,10 @@ export const bindSessionChatHooks = (sessionId: string, hooks: SessionChatHooks)
 export const dropSessionChat = (sessionId: string): void => {
     const handle = registry.get(sessionId)
     if (!handle) return
-    void handle.chat.stop()
+    // Unregistering IS the disposal: the callbacks the stop below triggers check `isLive`, so they
+    // can no longer revalidate a session that is gone or resume a run into it.
     registry.delete(sessionId)
+    void handle.chat.stop()
 }
 
 /**
@@ -99,5 +111,8 @@ export const releaseSessionChat = (sessionId: string, {stillOpen}: {stillOpen: b
     dropSessionChat(sessionId)
 }
 
-/** Test seam: is this session's chat still held? */
-export const __hasSessionChat = (sessionId: string): boolean => registry.has(sessionId)
+/**
+ * Is this session's chat still held? An unmounting conversation reads this to tell "my run was
+ * preserved" from "my run is over", so it only clears the session's run-state dot in the latter case.
+ */
+export const hasSessionChat = (sessionId: string): boolean => registry.has(sessionId)
