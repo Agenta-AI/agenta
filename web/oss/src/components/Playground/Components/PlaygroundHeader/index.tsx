@@ -671,7 +671,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className, ...divPro
                     {isAgentWorkflow ? (
                         <div className="flex min-w-0 items-center gap-2">
                             <SimpleTooltip title="Agent">
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[var(--ant-color-fill-secondary)] text-[var(--ag-c-13C2C2)]">
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-cyan-6">
                                     <Robot size={15} weight="fill" />
                                 </span>
                             </SimpleTooltip>
