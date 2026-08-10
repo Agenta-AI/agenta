@@ -46,33 +46,47 @@ export const Composer = ({
     const attachments = useComposerAttachments({sessionId})
     const richInputRef = useRef<RichChatInputHandle | null>(null)
     const presets = useMotionPresets()
+    /**
+     * One send at a time. Enter bypasses the send button's `sendDisabled` guard, so a second
+     * Enter during the upload/send round-trip would re-read the SAME staged tray and post the
+     * message twice. Released in `finally` — on the failure path too, or a send that failed
+     * once would lock the composer for the rest of the session.
+     */
+    const sendingRef = useRef(false)
 
     /**
      * `extraFiles` are takes that never entered the tray (a voice message sent outright), so
      * they upload here before the send — the same seam the desktop dock uses.
      */
     const submit = async (text: string, extraFiles: File[] = []) => {
-        const staged = attachments.files
-        const uploadedExtras = extraFiles.length
-            ? await attachments.uploadExtraFiles(extraFiles)
-            : []
-        // A failed upload adopts the take into the tray; hold the send so nothing is lost.
-        if (!uploadedExtras) return
-        const outbound = [...staged, ...uploadedExtras]
+        if (sendingRef.current) return
+        sendingRef.current = true
         try {
-            // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
-            // Enter, which the send button's `sendDisabled` guard doesn't cover.
-            const parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
-            await onSend({text, parts})
-            attachments.clearAttachments(staged.map((file) => file.uid))
-        } catch {
-            // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
-            // uncaught rejection would leave the user with no message, no error, and no idea a
-            // send even failed. Keep the attachments staged, put the text back, and say so
-            // through the composer's own inline channel.
-            richInputRef.current?.setMarkdown(text)
-            attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
-            attachments.setAttachmentsOpen(true)
+            const staged = attachments.files
+            const uploadedExtras = extraFiles.length
+                ? await attachments.uploadExtraFiles(extraFiles)
+                : []
+            // A failed upload adopts the take into the tray; hold the send so nothing is lost.
+            if (!uploadedExtras) return
+            const outbound = [...staged, ...uploadedExtras]
+            try {
+                // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable
+                // via Enter, which the send button's `sendDisabled` guard doesn't cover.
+                const parts =
+                    outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
+                await onSend({text, parts})
+                attachments.clearAttachments(staged.map((file) => file.uid))
+            } catch {
+                // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so
+                // an uncaught rejection would leave the user with no message, no error, and no
+                // idea a send even failed. Keep the attachments staged, put the text back, and
+                // say so through the composer's own inline channel.
+                richInputRef.current?.setMarkdown(text)
+                attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+                attachments.setAttachmentsOpen(true)
+            }
+        } finally {
+            sendingRef.current = false
         }
     }
 
