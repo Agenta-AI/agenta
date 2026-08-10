@@ -38,7 +38,19 @@ The gate is not "finish the list". `journeys.md` writes the Agenta and Slack flo
 step by step, and writing them settled most of what was open — the remaining gate is
 below.
 
-**Decide before the packages are written.**
+**All five gate items were decided.** Session events land as soon as possible —
+polling is not an acceptable steady state. Both Slack app models ship: an
+Agenta-owned Marketplace app *and* customer-owned apps, alongside Agenta as its own
+channel. `F49` and `F38` were mislabelled here as decisions; they are fixes that
+happen to need a checkpoint to land. The reconciliation debt gets fixed.
+
+**The wave that follows is `next-wave.md`.** What remains open is listed at its end,
+and one item is newly opened by the decision above: the hosted-app OAuth flow is now
+in scope and not yet designed.
+
+Kept below for the record.
+
+**Formerly: decide before the packages are written.**
 
 | what | why it blocks | where |
 | --- | --- | --- |
