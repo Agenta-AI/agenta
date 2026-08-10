@@ -1,20 +1,19 @@
 import {useMemo, useState} from "react"
 
 import {useVaultSecret} from "@agenta/entities/secret"
+import {useStaticTable} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
-import {LLMIconMap} from "@agenta/ui"
+import {formatDay} from "@agenta/shared/utils/dateTime"
+import {Tag} from "@agenta/ui/components/presentational"
+import {LLMIconMap} from "@agenta/ui/llm-icons"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
-import {Tag} from "@agenta/ui/components/presentational"
 import {Button, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
-
-import {useStaticTable} from "@agenta/settings"
-import {formatDay} from "@agenta/shared/utils/dateTime"
+import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 export interface ProviderDialogState {
     selectedProvider: LlmProvider | null
@@ -126,7 +125,7 @@ export const SecretProviderTable = ({
                               title: "Provider",
                               width: 180,
                               render: (_value: unknown, record: ProviderRow) => (
-                                  <Tag className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]">
+                                  <Tag className="bg-colorFillTertiary px-2 py-[1px]">
                                       {record?.provider}
                                   </Tag>
                               ),
@@ -229,7 +228,10 @@ export const SecretProviderTable = ({
                                             variant="outline"
                                             aria-label="Reload providers"
                                             disabled={loading}
-                                            onClick={mutate}
+                                            // `mutate` takes no arguments; called as the
+                                            // handler directly it would be handed the click
+                                            // event.
+                                            onClick={() => mutate()}
                                         >
                                             <ArrowClockwise size={14} />
                                         </Button>

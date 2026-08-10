@@ -1,20 +1,30 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {Tag} from "@agenta/ui"
+import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
+import type {ProjectsResponse} from "@agenta/entities/project"
+import {useStaticTable} from "@agenta/settings"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
+import {message} from "@agenta/ui/app-message"
+import {Tag} from "@agenta/ui/components/presentational"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
+import {Button, Input} from "@agenta/ui/ui"
 import {CheckCircle, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 import {useMutation, useQueryClient} from "@tanstack/react-query"
-import {message} from "@agenta/ui/app-message"
-import {Button, Input} from "@agenta/ui/ui"
 
-import {useStaticTable} from "@agenta/settings"
-import {createProject, deleteProject, patchProject} from "@agenta/entities/project"
-import type {ProjectsResponse} from "@agenta/entities/project"
+/**
+ * Mutation failures arrive either as an axios-style payload (`response.data.detail`) or as a
+ * plain `Error`. `extractApiErrorMessage` reads both, but stringifies anything it cannot read —
+ * so when that is all it found, show the per-action copy instead of `[object Object]`.
+ */
+const mutationErrorMessage = (error: unknown, fallback: string): string => {
+    const detail = extractApiErrorMessage(error)
+    return !detail || detail === String(error) ? fallback : detail
+}
 
 interface ProjectFormValues {
     name: string
@@ -90,10 +100,8 @@ export const ProjectsPage = ({
             void invalidateProjects()
             setCreateModalOpen(false)
         },
-        onError: (error: any) => {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to create project"
-            message.error(detail)
+        onError: (error: unknown) => {
+            message.error(mutationErrorMessage(error, "Unable to create project"))
         },
     })
 
@@ -106,10 +114,8 @@ export const ProjectsPage = ({
             setRenameModalOpen(false)
             setActiveProject(null)
         },
-        onError: (error: any) => {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to rename project"
-            message.error(detail)
+        onError: (error: unknown) => {
+            message.error(mutationErrorMessage(error, "Unable to rename project"))
         },
     })
 
@@ -119,10 +125,8 @@ export const ProjectsPage = ({
             message.success("Default project updated")
             void invalidateProjects()
         },
-        onError: (error: any) => {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to set default"
-            message.error(detail)
+        onError: (error: unknown) => {
+            message.error(mutationErrorMessage(error, "Unable to set default"))
         },
     })
 
@@ -132,10 +136,8 @@ export const ProjectsPage = ({
             message.success("Project deleted")
             void invalidateProjects()
         },
-        onError: (error: any) => {
-            const detail =
-                error?.response?.data?.detail || error?.message || "Unable to delete project"
-            message.error(detail)
+        onError: (error: unknown) => {
+            message.error(mutationErrorMessage(error, "Unable to delete project"))
         },
     })
 

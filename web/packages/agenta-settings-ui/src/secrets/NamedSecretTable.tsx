@@ -1,19 +1,18 @@
 import {useMemo, useState} from "react"
 
 import {CustomSecretFormat, useVaultSecret, type NamedSecretRow} from "@agenta/entities/secret"
+import {useStaticTable} from "@agenta/settings"
 import type {LlmProvider} from "@agenta/shared/types"
+import {formatDay} from "@agenta/shared/utils/dateTime"
+import {Tag} from "@agenta/ui/components/presentational"
 import {
     createStandardColumns,
     InfiniteVirtualTableFeatureShell,
     type StandardColumnDef,
 } from "@agenta/ui/table"
 import {EmptyState} from "@agenta/ui/ui"
-import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
-import {Tag} from "@agenta/ui/components/presentational"
 import {Button, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
-
-import {useStaticTable} from "@agenta/settings"
-import {formatDay} from "@agenta/shared/utils/dateTime"
+import {ArrowClockwise, PencilSimpleLine, Plus, Trash} from "@phosphor-icons/react"
 
 /**
  * Mask stored secret content for display. `text` is masked like an API key
@@ -88,9 +87,7 @@ export const NamedSecretTable = ({
                     title: "Format",
                     width: 120,
                     render: (_value, record) => (
-                        <Tag className="bg-[var(--ag-c-0517290F)] px-2 py-[1px]">
-                            {record.format}
-                        </Tag>
+                        <Tag className="bg-colorFillTertiary px-2 py-[1px]">{record.format}</Tag>
                     ),
                 },
                 {
@@ -154,7 +151,9 @@ export const NamedSecretTable = ({
                                         variant="outline"
                                         aria-label="Reload secrets"
                                         disabled={loading}
-                                        onClick={mutate}
+                                        // `mutate` takes no arguments; called as the handler
+                                        // directly it would be handed the click event.
+                                        onClick={() => mutate()}
                                     >
                                         <ArrowClockwise size={14} />
                                     </Button>
@@ -220,7 +219,9 @@ export const NamedSecretTable = ({
             })}
 
             {renderDeleteDialog?.({
-                selectedProvider: selectedSecret as unknown as LlmProvider | null,
+                // `NamedSecretRow extends LlmProvider`, so the row IS the provider shape the
+                // registry's delete dialog takes — no cast needed.
+                selectedProvider: selectedSecret,
                 open: isDeleteModalOpen,
                 onClose: () => {
                     setSelectedSecret(null)

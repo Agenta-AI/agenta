@@ -59,14 +59,19 @@ const SettingsPageShell = ({
             <div className={clsx("flex w-full flex-col gap-6", fullHeight && "min-h-0 flex-1")}>
                 <header className="flex items-start justify-between gap-6 border-0 border-b border-solid border-colorBorderSecondary pb-6">
                     <div className="flex min-w-0 flex-col gap-1">
-                        {/* Sized off antd's own heading tokens so it scales and flips with
-                            the theme. `m-0` kills the UA margin (preflight is off). */}
+                        {/* Sized off antd's own heading tokens so it scales and flips with the
+                            theme. `--ant-*` only exists where antd's ConfigProvider emits it —
+                            /m has no antd, so each carries the literal the desktop's token
+                            config resolves to (fontSizeHeading3 24, lineHeightHeading3 4/3,
+                            fontWeightStrong 600). Without the fallbacks the whole declaration
+                            is invalid there and the heading drops to the UA h1 size.
+                            `m-0` kills the UA margin (preflight is off). */}
                         <h1
                             className="m-0 truncate text-colorText"
                             style={{
-                                fontSize: "var(--ant-font-size-heading-3)",
-                                lineHeight: "var(--ant-line-height-heading-3)",
-                                fontWeight: "var(--ant-font-weight-strong)",
+                                fontSize: "var(--ant-font-size-heading-3, 24px)",
+                                lineHeight: "var(--ant-line-height-heading-3, 1.3333333333333333)",
+                                fontWeight: "var(--ant-font-weight-strong, 600)",
                             }}
                         >
                             {title}
