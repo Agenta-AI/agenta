@@ -56,7 +56,10 @@ const AutoRenewalCancelModal = ({...props}: EnhancedModalProps) => {
             okButtonProps={{
                 disabled: !selectOption || (selectOption === CANCEL_REASON_OTHER && !inputOption),
             }}
-            afterClose={() => setSelectOption("")}
+            afterClose={() => {
+                setSelectOption("")
+                setInputOption("")
+            }}
             {...props}
         >
             <CancelSubscriptionReasons
