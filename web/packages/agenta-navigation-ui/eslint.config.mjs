@@ -3,7 +3,7 @@
  * pieces both the desktop rail and the mobile drawer compose. antd is banned; @agenta/ui is
  * subpath-only (its root barrel exports antd-backed components).
  */
-import base from "../eslint.config.mjs"
+import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
     ...base,
@@ -13,6 +13,7 @@ export default [
                 "error",
                 {
                     paths: [
+                        ...restrictedImportPaths,
                         {
                             name: "@agenta/ui",
                             message:

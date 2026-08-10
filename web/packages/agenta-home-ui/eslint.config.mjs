@@ -2,7 +2,7 @@
  * @agenta/home-ui renders Home for BOTH apps, so it must stay antd-free — mobile bans antd
  * outright and any import here would land in its bundle.
  */
-import base from "../eslint.config.mjs"
+import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
     ...base,
@@ -12,6 +12,7 @@ export default [
                 "error",
                 {
                     paths: [
+                        ...restrictedImportPaths,
                         {
                             name: "@agenta/ui",
                             message:

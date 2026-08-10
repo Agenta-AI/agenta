@@ -3,7 +3,7 @@
  * machines. No React, no UI imports — both the desktop and the mobile app render their own
  * shells over these functions (@agenta/auth-ui holds the shared components).
  */
-import base from "../eslint.config.mjs"
+import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
     ...base,
@@ -12,6 +12,7 @@ export default [
             "no-restricted-imports": [
                 "error",
                 {
+                    paths: [...restrictedImportPaths],
                     patterns: [
                         {
                             group: [

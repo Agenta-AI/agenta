@@ -3,7 +3,7 @@
  * mobile app (shadcn tokens) and the desktop (token bridge) both render it without pulling a
  * component library. Anything app-specific arrives as props.
  */
-import base from "../eslint.config.mjs"
+import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
     ...base,
@@ -12,6 +12,7 @@ export default [
             "no-restricted-imports": [
                 "error",
                 {
+                    paths: [...restrictedImportPaths],
                     patterns: [
                         {
                             group: ["antd", "antd/*", "@ant-design/*", "@agenta/ui", "@agenta/ui/*"],
