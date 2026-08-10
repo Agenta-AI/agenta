@@ -5,6 +5,8 @@ import {type SessionRowVm} from "@agenta/sessions/row"
 import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpenAgentSession"
 import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 
+import {toSessionMenuEntries} from "../assets/menuEntries"
+
 const actionTargetFor = (vm: SessionRowVm) => ({
     sessionId: vm.id,
     appId: vm.agentId,
@@ -32,7 +34,10 @@ export const useSessionCardVerbs = () => {
         [openSession],
     )
     const menuFor = useCallback(
-        (vm: SessionRowVm) => actions.menuItems(actionTargetFor(vm), {onOpen: () => onOpenRow(vm)}),
+        (vm: SessionRowVm) =>
+            toSessionMenuEntries(
+                actions.menuItems(actionTargetFor(vm), {onOpen: () => onOpenRow(vm)}),
+            ),
         [actions, onOpenRow],
     )
     const onMenuSelect = useCallback(
