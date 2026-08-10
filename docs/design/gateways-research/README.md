@@ -20,7 +20,16 @@ concerns over different nouns**. Designing the two gateways separately means bui
 plane twice and having it disagree with itself. That is the failure mode this research
 exists to avoid.
 
-## Reading order
+## Where to start
+
+**Building it? Read [`v2/`](v2/).** That is the design, and `v2/README.md` carries its own
+reading order. It is a skeleton — each document states what it must establish and what is
+still missing.
+
+**Want to know why it looks like that? Read `v1/` below.** That is the research phase: the
+codebase survey, the protocol findings, and the positions that were reversed along the way.
+
+## v1 reading order
 
 1. **`v1/brief.md`** — the question, the scope, and the inversion the gateways perform.
 2. **`v1/decisions.md`** — what is settled and why. Everything else assumes these.
