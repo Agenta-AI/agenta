@@ -39,7 +39,11 @@ export interface DataTableProps<T> {
     columns: DataTableColumn<T>[]
     rows: T[]
     rowKey: (record: T) => string
-    /** Per-row overflow menu, rendered as a trailing column. */
+    /**
+     * Per-row overflow menu, rendered as a trailing column. The column appears only when at
+     * least one row has a visible item, so a host that supplies no verbs gets no gutter and no
+     * kebab — callers can pass the full list and lean on `hidden`.
+     */
     actions?: (record: T) => (DataTableAction<T> | {type: "divider"})[]
     /** Shown instead of rows when there are none and nothing is loading. */
     empty?: ReactNode
@@ -62,6 +66,25 @@ export interface DataTableProps<T> {
 }
 
 const CELL = "px-3 py-2 text-xs align-middle"
+
+type ActionItem<T> = DataTableAction<T> | {type: "divider"}
+
+/**
+ * The items a row will actually show: `hidden` ones are dropped, and a divider only survives
+ * with a real item on both sides. Returns an empty list when nothing is left — a read-only host
+ * hides every verb, and an empty menu is worse than no menu.
+ */
+const visibleActions = <T,>(items: ActionItem<T>[]): ActionItem<T>[] => {
+    const visible = items.filter((item) => "type" in item || !item.hidden)
+    // Hiding every action can leave a divider stranded at either end.
+    const trimmed = visible.filter(
+        (item, index) =>
+            !("type" in item) ||
+            (visible.slice(0, index).some((prior) => !("type" in prior)) &&
+                visible.slice(index + 1).some((next) => !("type" in next))),
+    )
+    return trimmed.some((item) => !("type" in item)) ? trimmed : []
+}
 
 /**
  * THE antd-free table for fully-materialized lists — settings, and anything else whose rows are
@@ -88,6 +111,11 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
     const showSkeleton = loading && rows.length === 0
     const showEmpty = !loading && rows.length === 0
+    // Resolve every row's menu up front. A host that brings no verbs hides every item, and the
+    // trailing column would then be a permanent empty gutter — so the column itself is a
+    // function of what the rows actually offer, not of `actions` merely being defined.
+    const rowActions = actions ? rows.map((record) => visibleActions(actions(record))) : null
+    const showActions = Boolean(rowActions?.some((items) => items.length > 0))
 
     return (
         <div className={clsx("flex min-w-0 flex-col gap-2", className)}>
@@ -119,7 +147,7 @@ export function DataTable<T>({
                                     {column.title}
                                 </th>
                             ))}
-                            {actions ? <th className={clsx(CELL, "w-12")} /> : null}
+                            {showActions ? <th className={clsx(CELL, "w-12")} /> : null}
                         </tr>
                     </thead>
                     <tbody>
@@ -134,11 +162,12 @@ export function DataTable<T>({
                                               <SkeletonBlock active className="h-4 w-3/4" />
                                           </td>
                                       ))}
-                                      {actions ? <td className={CELL} /> : null}
+                                      {showActions ? <td className={CELL} /> : null}
                                   </tr>
                               ))
-                            : rows.map((record) => {
+                            : rows.map((record, rowIndex) => {
                                   const detail = expandedContent?.(record)
+                                  const items = rowActions?.[rowIndex] ?? []
                                   return (
                                       <Fragment key={rowKey(record)}>
                                           <tr
@@ -196,22 +225,21 @@ export function DataTable<T>({
                                                       {column.render(record)}
                                                   </td>
                                               ))}
-                                              {actions ? (
+                                              {showActions ? (
                                                   <td
                                                       className={clsx(CELL, "text-right")}
                                                       onClick={(event) => event.stopPropagation()}
                                                   >
-                                                      <RowActions
-                                                          items={actions(record)}
-                                                          record={record}
-                                                      />
+                                                      <RowActions items={items} record={record} />
                                                   </td>
                                               ) : null}
                                           </tr>
                                           {detail ? (
                                               <tr className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0">
                                                   <td
-                                                      colSpan={columns.length + (actions ? 1 : 0)}
+                                                      colSpan={
+                                                          columns.length + (showActions ? 1 : 0)
+                                                      }
                                                       className="px-3 pb-3 pt-0"
                                                   >
                                                       {detail}
@@ -230,22 +258,9 @@ export function DataTable<T>({
     )
 }
 
-const RowActions = <T,>({
-    items,
-    record,
-}: {
-    items: (DataTableAction<T> | {type: "divider"})[]
-    record: T
-}) => {
-    const visible = items.filter((item) => "type" in item || !item.hidden)
-    // Hiding every action can leave a divider stranded at either end.
-    const trimmed = visible.filter(
-        (item, index) =>
-            !("type" in item) ||
-            (visible.slice(0, index).some((prior) => !("type" in prior)) &&
-                visible.slice(index + 1).some((next) => !("type" in next))),
-    )
-    if (!trimmed.some((item) => !("type" in item))) return null
+/** Already narrowed by `visibleActions` — one row of a table that has actions may still have none. */
+const RowActions = <T,>({items, record}: {items: ActionItem<T>[]; record: T}) => {
+    if (items.length === 0) return null
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -258,7 +273,7 @@ const RowActions = <T,>({
                 </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[180px]">
-                {trimmed.map((item, index) =>
+                {items.map((item, index) =>
                     "type" in item ? (
                         <DropdownMenuSeparator key={`divider-${index}`} />
                     ) : (
