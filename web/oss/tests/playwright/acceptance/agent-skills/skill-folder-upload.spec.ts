@@ -92,7 +92,9 @@ const selectBundledFile = async (page: Page, label: string) => {
         .click()
 }
 
-test(
+// Skipped per release-gate decision (Mahmoud, 2026-08-10): rotating environment-sensitive
+// failure in CI (gate run 31401605372). Tracked for repair, not deleted.
+test.skip(
     "uploading a skill package parses the folded description and keeps bundled files isolated",
     {tag: tags},
     async ({page, uiHelpers}) => {
