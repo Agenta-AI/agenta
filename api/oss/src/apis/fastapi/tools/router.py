@@ -57,6 +57,7 @@ from oss.src.core.tools.exceptions import (
     ConnectionInvalidError,
     ConnectionNotFoundError,
     DiscoveryUnsupportedError,
+    ProviderNotConfiguredError,
     ProviderNotFoundError,
     ToolSlugInvalidError,
 )
@@ -97,10 +98,12 @@ log = get_module_logger(__name__)
 def handle_adapter_exceptions():
     """Map provider/adapter failures to HTTP, surfacing the upstream detail.
 
-    Unknown providers → 404. Any upstream failure (Composio 4xx such as a
-    rejected argument set, or a malformed response) → 424 carrying the
-    provider's own message so the client can show it instead of a generic 500.
-    A true upstream 5xx → 502.
+    Unknown providers → 404. A recognized provider missing required
+    configuration (e.g. composio without COMPOSIO_API_KEY) → 503, naming the
+    env var, so a self-hoster can tell "not set up" from "endpoint missing".
+    Any upstream failure (Composio 4xx such as a rejected argument set, or a
+    malformed response) → 424 carrying the provider's own message so the
+    client can show it instead of a generic 500. A true upstream 5xx → 502.
     """
 
     def decorator(func):
@@ -108,6 +111,11 @@ def handle_adapter_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except ProviderNotConfiguredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(e),
+                ) from e
             except ProviderNotFoundError as e:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
