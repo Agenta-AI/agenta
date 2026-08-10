@@ -59,7 +59,7 @@ function stripViewParam(pathname: string, search: string): string {
     return qs ? `${pathname}?${qs}` : pathname
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
     try {
         if (process.env.AGENTA_MOBILE_GATE !== "true") return NextResponse.next()
 
