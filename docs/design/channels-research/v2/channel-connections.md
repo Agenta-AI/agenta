@@ -401,6 +401,34 @@ every channels table.
 the tables, so running it against a shared database destroys whatever else is using
 them. Checked by hand against local Docker Postgres.
 
+## Who resolves the credential reference
+
+The credential is a secret row, and the connection carries a reference to it. That
+leaves a question no document had answered: **every adapter reads its credential as
+a flat key off `connection.data`** — `signing_secret`, `bot_token`, `secret`,
+`delivery_url` — so a connection carrying only a reference hands each adapter
+nothing, and every channel with credentials stops working the moment the write path
+starts storing them properly.
+
+**The service hydrates; the adapter never sees the store.** `fetch_connection`
+resolves the reference and returns a connection whose `data` carries the credential
+fields where the adapters already read them. What is *stored* is a reference; what is
+*passed to an adapter* is resolved. Three reasons this is the right seam:
+
+- An adapter that reached the secret store would need the store, the request-scoped
+  key, and a reason to be trusted with both. Its whole contract is that it is handed
+  what it needs.
+- The alternative — every adapter learning to resolve a reference — is the same
+  logic written once per channel, which is what the port exists to prevent.
+- The layering already puts this in the service: the router never touches a DAO, and
+  the adapter is not a layer at all.
+
+**Nothing serialises a hydrated connection.** The routes answer with their own
+response models, where a configured credential reads as `"set"` and never as its
+value. A hydrated connection is a runtime object on the path from the service to an
+adapter, and if one ever reaches a response body that is a defect in the response
+model, not in this rule.
+
 ## What this does not change
 
 **`external_locator` keeps its name**, and no locator is renamed. I proposed
@@ -425,10 +453,10 @@ to say which grain it is.
 
 ## Still open
 
-- **The two vestigial DTO fields.** Whether `space_locator` and `thread_locator`
-  become real (carried into `data`, composed per grain from their own locator) or
-  are deleted. They currently mislead: `F28` is a bug *in* `thread_locator` that
-  cannot affect anything, because nothing reads it.
+- ~~**The two vestigial DTO fields.**~~ **Settled: both deleted.** Composition takes
+  the declared subset of the one `external_locator` per grain, which is what made a
+  per-grain locator redundant rather than merely unused. `F28` turned out to be a
+  live defect in `external_locator` too, not a harmless one in a field nothing reads.
 - **Whether an operator can move a connection between projects.** The global
   constraint permits delete-and-re-register, but nothing decides whether it is
   offered, or what happens to the threads and spaces underneath.
