@@ -103,45 +103,53 @@ produces scopes matching exactly what the adapter calls, the five bot events, an
 **What does not exist:** any route that writes a connection, any provisioning UI,
 any OAuth handling, any verification call, and the Agenta adapter.
 
-### Setup does not have one shape, and the manifest is not the general case
+### The provisioning contract: three slots, any of them empty
 
-Checked against the four platforms' own documentation, because an earlier draft
-generalised Slack's manifest into a rule and it does not hold:
+Setup differs per platform, and the differences are **fillings of one contract**
+rather than shapes needing their own code paths. Three slots, each optionally empty:
 
-| platform | is there a manifest? | who applies it | what the operator actually does |
+- **instructions** — what the operator must do, which we can only describe
+- **a document we generate** — for them to apply, in whatever form the platform takes
+- **calls we make** — with the credential, once we hold it
+
+Checked against the platforms' own documentation:
+
+| channel | instructions | document | our calls |
 | --- | --- | --- | --- |
-| Slack | yes, YAML/JSON | **the user**, pasting into Slack's form | create the app from it, copy credentials back |
-| Teams | yes, `manifest.json` **inside a zip** with icons | **the user**, uploading the package | sideload the package we generate |
-| Discord | **none** | — | click through the Developer Portal, toggle privileged intents by hand |
-| Telegram | **none, and no app object at all** | — | `/newbot` to BotFather, hand us one token |
+| Slack | create the app, install it, copy two values | manifest, YAML or JSON | `auth.test` |
+| Teams | sideload the package | `manifest.json` in a zip, with icons | — |
+| Discord | create the app, **toggle the Message Content intent**, invite the bot | — | — |
+| Telegram | `/newbot` to BotFather, paste the token | — | `setWebhook`, `getMe` |
+| Agenta | — | — | — |
 
-Two things fall out, and the second is the one that would have been designed wrong.
+**Empty is not a special case, it is a declaration.** This is the discipline the
+design already uses everywhere else: Telegram declares `backfill.supported: false`
+and core never asks — no branch, just an empty answer. A channel with nothing to
+generate answers with nothing, and Agenta, which fills no slot at all, is the
+degenerate case of the contract rather than an exception to it.
 
-**A manifest is one of several setup shapes, not the shape.** Discord's
-configuration lives in portal toggles — the Message Content intent above all — that
-no document can carry, so its setup page is prose and a checklist. Telegram has no
-app to describe.
+So there is no new mechanism here. It is the declaration-plus-adapter-method pattern
+already used for capabilities: the setup page renders what is declared, and the
+adapter answers what it can generate and performs what it must call.
 
-**Telegram inverts the direction: we make the configuring call.** `setWebhook` is
-ours to call, with their token, and it is also where the per-bot secret is minted.
-So for Telegram the registration step is *ours*, not theirs — the opposite of Slack,
-where the user does everything and we only receive credentials.
+Deprovisioning is the same three slots. Slack has **no** call — we cannot uninstall
+their app, and the removal page must say so rather than implying otherwise. Telegram
+has `deleteWebhook`, which we can and should call. One slot, filled in one channel
+and empty in the other.
 
-What holds across all four, and is the actual rule:
+**One ordering note, which is about what a call does rather than about shape.**
+Slack's setup call only reads (`auth.test`), while Telegram's writes to their
+platform (`setWebhook` registers our URL and mints the per-bot secret). So a
+Telegram setup that fails midway can leave a webhook pointing at us with a secret we
+never stored. The rule that covers it is the one S3 already states — **verify, then
+store** — extended: where a call writes, store first, then call, then verify, so
+nothing is left pointing at a row that does not exist.
 
-> **We never own or create the customer's app.** They build it (Slack, Teams), or
-> click it into existence (Discord), or ask BotFather for it (Telegram). What we do
-> is describe what it must contain, take what only they can give us, and configure
-> what their token entitles us to configure.
+What holds across every channel, and is worth stating because it decides UI copy:
 
-`setWebhook` does not breach that: it configures a bot they created and handed us a
-token for, which is what the token is for.
-
-So the credential schema is not the only per-channel declaration provisioning needs.
-Each channel also declares **how it is set up** — a manifest to copy, a package to
-download, a checklist to follow, or a call we make — and the setup page renders
-that. This is a fifth thing the channel declares, and it was missing from
-`provisioning.md`, which assumed the Slack shape throughout.
+> **We never own or create the customer's app.** They build it, click it into
+> existence, or ask BotFather for it. We describe what it must contain, take what
+> only they can give us, and configure what their token entitles us to configure.
 
 ---
 
@@ -217,16 +225,34 @@ nobody would test.
 
 **What the user does:** clicks "New conversation".
 
-**What happens:** a `channel_spaces` row of kind `private`, whose
-`external_locator` is `{"conversation": "<uuid>"}` — we are the platform, so we mint
-it. Then a grant so the agent may answer there.
+**What a conversation is: a thread, not a space.** The two are different grains and
+an earlier draft of this document conflated them:
 
-**This is the one place the axes blur, and it is worth naming.** On every other
-channel a space is configured — an operator picks channels from a list at config
-time. Here, a runtime action creates one. That is not a special path in the port:
-`discover_spaces` still answers, it just answers with what the project already has.
-But it means Agenta's spaces are created under `RUN_CHANNELS`, not
-`EDIT_CHANNELS`, and that difference should be deliberate rather than discovered.
+| | what it is | per |
+| --- | --- | --- |
+| space | the place — owns the message log and the backfill guard | the user, here |
+| thread | one agent's session in that place | the agent |
+
+`channel_threads` carries `agent_id` in its lookup key, which is what lets two
+agents in one place run independently over one shared log.
+
+So Agenta is shaped exactly like a Slack DM: **a `private` space per user, and a
+thread per agent within it.**
+
+**What happens:** the space is got-or-created on first contact — kind `private`,
+`external_locator` `{"user": "<id>"}` — and the thread likewise, per agent. Neither
+is configured in advance, and neither needs to be: `grants.md` permits them with one
+rule, `(agent, ALLOW, kind=private)`, written once at config time and covering every
+user without enumeration.
+
+"New conversation" on an existing space is then just `!new` — append a thread row,
+latest wins (D12). No new mechanism.
+
+**An earlier draft had this step creating a space and called the permission
+difference deliberate.** It was neither: nothing in the design says a conversation
+creates a space, and it would have let anyone with `RUN_CHANNELS` create the row that
+grants permission. The permission belongs on the grant, which is what `grants.md`
+fixes for every channel rather than for this one.
 
 ### A5 — Say something
 
@@ -359,19 +385,35 @@ made this look like an open question. It is not:
 Neither flow needs the first-inbound-event fill, and no connection is ever stored
 with an incomplete key.
 
-### S4 — Pick where it may speak
+### S4 — Say where it may speak
 
-**Screen:** the connection's page → Spaces.
+**Screen:** the connection's page → Where it answers.
 
-**What the user does:** picks channels from a list.
+**What the user does:** answers three questions, not one list.
 
-**What happens:** `discover_spaces` calls `conversations.list`, and the user picks.
-Each pick writes a `channel_spaces` row. Default-deny means an unlisted channel is
-one the agent will not answer in, even after being invited there.
+| | typical answer | written as |
+| --- | --- | --- |
+| Direct messages? | yes | `(agent, ALLOW, kind=private)` |
+| Group chats? | usually no | — |
+| Which channels? | a few, picked from a list | `(agent, ALLOW, space=#ops)` … |
 
-**Then, in Slack:** `/invite @Agenta` in each of those channels. Without it, calls
-fail with `not_in_channel` — a real error every comparable product's docs mention,
-so the UI should name it before it happens.
+**Why it is not one list.** DMs and group chats cannot be enumerated — a DM exists
+because someone opened it, and there is one per user. Only topics are few, named and
+pre-existing enough to pick from. `discover_spaces` still calls
+`conversations.list` and still populates the channel picker; it just does not have
+to enumerate the other two kinds, which it never could.
+
+**Exclusions are expressible**, which the list could not do either: *any channel
+except this one* is `(ALLOW, kind=topic)` plus `(DENY, space=#secrets)`, and deny
+wins. `grants.md` has the evaluation.
+
+**Default-deny is unchanged.** An unanswered question means no allow rule, which
+means refused.
+
+**Then, in Slack:** `/invite @Agenta` in each channel. Without it, calls fail with
+`not_in_channel` — a real error every comparable product's docs mention, so the UI
+should name it before it happens. Note this is genuinely separate from the grant: a
+grant says *may*, the invite makes it *able*, and both are required.
 
 ### S5 — Change it, rotate it, take it down
 
@@ -404,10 +446,14 @@ connection on our side does **not** uninstall their app — we never owned it �
 the removal page must say what it does and does not do, and tell them to remove the
 app in Slack too if that is what they meant.
 
-### S6 — Roster and grants
+### S6 — The roster
 
-Identical to A2. Same routes, same rows. Nothing Slack-specific — which is the point
+Identical to A2. Same routes, same rows, nothing Slack-specific — which is the point
 of doing Agenta first, because this part is already proven by then.
+
+The grants are S4, and they are the same rows too: what differs is only which kinds
+an operator says yes to. Agenta answers DMs and nothing else; Slack typically
+answers named channels and DMs. One mechanism, two configurations.
 
 ## §2.2 — Slack at runtime
 
@@ -440,13 +486,15 @@ came from, the port is wrong. Two journeys through one path is the test.
 | Does the port hold? | §1.2 and §2.2 are the same code reached two ways |
 | How is a choice answered? | A6, on our own surface, before Slack's payload shape |
 | What happens on teardown? | archive the channels rows, leave the sessions |
+| Where may an agent answer? | a grant by kind or by id, deny-first — not a pre-created row |
+| What is a conversation? | a thread; the space is the place, per user here |
 | Do we own their app? | never — and the removal page has to say so |
 
-**What the grid exposed** that neither journey alone would have: config time and
-runtime split cleanly *except* at A4, where opening a conversation creates a space.
-Everywhere else spaces are configured; here a runtime action makes one. That is a
-permission difference (`RUN_CHANNELS`, not `EDIT_CHANNELS`) rather than a port
-difference, and it should be chosen rather than discovered.
+**What the grid exposed** that neither journey alone would have: writing Agenta's
+runtime beside Slack's made it obvious that permission cannot come from a
+pre-created space row, because Agenta's spaces are per user and Slack's DMs are too.
+That is `F51`, it is live in the tree, and `grants.md` is the fix — one rule per
+kind, no enumeration, for both channels.
 
 ## What is still open after this
 

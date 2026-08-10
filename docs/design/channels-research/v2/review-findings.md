@@ -426,6 +426,36 @@
   `_ingest`, no branch on channel); **provisioning is where they genuinely
   differ**, and nothing in the design covers it for either.
 
+### F51. Every DM is silently refused: permission can only be granted to a space that already exists
+
+- ID: `F51`
+- Origin: `C4 design read`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `resolve` default-denies when no `channel_spaces` row matches the event's
+  composed space key, so permission is encoded as *"somebody pre-created a row"*.
+  That is only expressible for `topic` spaces. A `private` space is one per user and
+  comes into existence when someone talks; a `group` space is an ad-hoc set of
+  people. So an agent can never answer a DM unless an operator pre-approved that
+  exact DM — and a DM opened after setup could not have been.
+- Evidence: `service.py` `resolve()` returns `None` with the comment *"default-deny:
+  no configured space means the agent may not answer here, regardless of
+  addressing"*. `capabilities.md` declares `spaces.private: true` for Slack.
+  `classify_space_kind` correctly maps `is_im` to `PRIVATE`, so the event is
+  understood and then refused. `channel_grants.space_id` is `nullable=False`, so a
+  grant cannot name a kind.
+- Files: `api/oss/src/core/channels/service.py`,
+  `api/oss/src/dbs/postgres/channels/dbas.py`
+- Suggested Fix: `grants.md` — space rows get created on first contact and authorise
+  nothing; grants carry `effect` (allow/deny) and match by `kind` or by `space_id`,
+  evaluated deny-first with default-deny unchanged.
+- Notes: The refusal is silent by design (D17), so this presents as a bot that works
+  in channels and ignores DMs with no diagnostic anywhere. Enumerating DMs is not a
+  workaround: `conversations.list` does return them, but pre-approving every existing
+  DM still leaves every future one refused.
+
 ### F50. `space_locator` and `thread_locator` are computed by every adapter and dropped by the ingress
 
 - ID: `F50`

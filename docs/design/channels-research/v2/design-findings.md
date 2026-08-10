@@ -26,6 +26,7 @@ Maintained here. Status is one of **decided** (settled, no doc needed), **writte
 | 9 | The bridge | **decided: keep** | measured, below |
 | 10 | User journeys | **written** | `journeys.md` — Agenta + Slack, step by step |
 | 11 | `channel_connections` table + `external_key` | **written** | `channel-connections.md` |
+| 12 | Where an agent may answer: grants by kind, allow/deny | **written** | `grants.md` |
 
 **Keep this table current.** It is the only status record — when a design lands,
 change the row, and when a decision is taken, say what was decided rather than
@@ -43,6 +44,7 @@ question.
 | what | why it blocks | where |
 | --- | --- | --- |
 | The setup-shape declaration | Discord has no manifest and Telegram has no app; `provisioning.md` assumes the Slack shape throughout | `journeys.md` §0 |
+| Grants by kind, allow/deny (`F51`) | permission today means "a row was pre-created", which only topics can be; every DM is refused | `grants.md` |
 | The request-context interface change | `channel-connections.md` and `agenta-channel.md` both need it, and it edits a frozen interface at a checkpoint | both |
 | `F49` — the interface's `verify_signature` is a lie | any package written against the declared contract breaks at the ingress | ledger |
 
