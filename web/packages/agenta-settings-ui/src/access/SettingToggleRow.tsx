@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {Spinner, Switch, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
+import {SimpleTooltip, Spinner, Switch} from "@agenta/ui/ui"
 import {CheckCircle, Info, Lock} from "@phosphor-icons/react"
 
 export interface SettingToggleRowProps {
@@ -36,15 +36,19 @@ export const SettingToggleRow = ({
         <div className="flex-1 pr-8">
             <div className="flex items-center gap-2">
                 <span className="text-xs font-medium text-colorText">{title}</span>
+                {/* SimpleTooltip carries its own TooltipProvider — the convention in @agenta/ui,
+                    which mounts one per tooltip rather than a single app-level provider. The
+                    trigger is a button so it opens on focus and closes on Escape, not hover only. */}
                 {tooltip ? (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <span className="cursor-help text-colorTextTertiary">
-                                <Info size={16} />
-                            </span>
-                        </TooltipTrigger>
-                        <TooltipContent>{tooltip}</TooltipContent>
-                    </Tooltip>
+                    <SimpleTooltip title={tooltip}>
+                        <button
+                            type="button"
+                            aria-label={`About ${title}`}
+                            className="inline-flex cursor-help items-center justify-center border-0 bg-transparent p-0 text-colorTextTertiary"
+                        >
+                            <Info size={16} />
+                        </button>
+                    </SimpleTooltip>
                 ) : null}
                 {showSuccess ? (
                     <span className="inline-flex items-center gap-1 text-xs text-colorSuccess">
