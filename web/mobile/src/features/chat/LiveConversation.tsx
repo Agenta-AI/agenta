@@ -60,14 +60,18 @@ export const LiveConversation = ({
     // it was typed, and the first send is what creates it. Ref-guarded and the slot is consumed
     // on read, so a re-render (or React 18's double-invoke in dev) cannot send it twice. Held
     // until hydration settles, or the engine would send into a transcript it is still filling.
+    //
+    // The guard stores the session it fired FOR, not a boolean: the workspace keeps this component
+    // mounted across a session change, and a boolean would still read `true` for the new session —
+    // its stashed task would never be taken, never sent, and never recoverable.
     const takePendingTask = useSetAtom(takePendingTaskAtom)
-    const sentPendingTask = useRef(false)
+    const sentPendingTaskFor = useRef<string | null>(null)
     const {isHydrating, send} = conversation
     useEffect(() => {
-        if (sentPendingTask.current || isHydrating) return
+        if (sentPendingTaskFor.current === sessionId || isHydrating) return
         const task = takePendingTask(sessionId)
         if (!task) return
-        sentPendingTask.current = true
+        sentPendingTaskFor.current = sessionId
         void send({text: task.text, parts: task.parts})
     }, [isHydrating, send, sessionId, takePendingTask])
 
