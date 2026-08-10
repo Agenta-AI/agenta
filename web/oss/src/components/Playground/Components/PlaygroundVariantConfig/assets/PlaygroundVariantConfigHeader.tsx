@@ -8,8 +8,8 @@ import {
     useEnrichedEvaluatorOnlyAdapter,
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
-import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
+import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
@@ -23,6 +23,7 @@ import {currentWorkflowContextAtom, playgroundEarlyAgentStateAtom} from "@/oss/s
 
 import SelectVariant from "../../Menus/SelectVariant"
 import CommitVariantChangesButton from "../../Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
+import {useCommitHostAdapter} from "../../Modals/CommitVariantChangesModal/assets/useCommitHostAdapter"
 import DeployVariantButton from "../../Modals/DeployVariantModal/assets/DeployVariantButton"
 
 import {PlaygroundVariantConfigHeaderProps} from "./types"
@@ -153,6 +154,11 @@ const PlaygroundVariantConfigHeader = ({
         [_variantId, deployedIn, isLatestRevision],
     )
 
+    // `AgentConfigHeader` renders the package's commit button itself, so the app's post-commit work
+    // (registry/evaluator cache refresh, the onboarding event) can only reach it through props —
+    // exactly what the non-agent branch's `CommitVariantChangesButton` adapter does for itself.
+    const commitHostAdapter = useCommitHostAdapter()
+
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
     const removeEntity = useSetAtom(playgroundController.actions.removeEntity)
 
@@ -192,6 +198,7 @@ const PlaygroundVariantConfigHeader = ({
             <AgentConfigHeader
                 revisionId={variantId}
                 className={className}
+                {...commitHostAdapter}
                 deploy={
                     isEvaluatorEntity ? null : (
                         <DeployVariantButton
