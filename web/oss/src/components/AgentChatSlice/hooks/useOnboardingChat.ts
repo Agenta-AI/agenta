@@ -13,7 +13,6 @@ import {
 import {
     captureFirstAgentIntent,
     classifyAgentIntent,
-    truncateForCapture,
 } from "@/oss/components/pages/agent-home/assets/onboardingAnalytics"
 import {type AgentTemplate} from "@/oss/components/pages/agent-home/assets/templates"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
@@ -110,7 +109,6 @@ export const useOnboardingChat = ({
         if (text) {
             captureFirstAgentIntent(onboardingPosthog, {
                 source: "composer",
-                properties: {message: truncateForCapture(text)},
                 intentValue: classifyAgentIntent(text),
             })
         }

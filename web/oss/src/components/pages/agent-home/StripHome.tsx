@@ -24,7 +24,7 @@ import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 import {HERO, RETURNING_HERO} from "./assets/constants"
-import {captureFirstAgentIntent, truncateForCapture} from "./assets/onboardingAnalytics"
+import {captureFirstAgentIntent, classifyAgentIntent} from "./assets/onboardingAnalytics"
 import {AGENT_TEMPLATES, type AgentTemplate} from "./assets/templates"
 import HomeAutomationsSection from "./components/HomeAutomationsSection"
 import HomeSessionsSection from "./components/HomeSessionsSection"
@@ -131,7 +131,8 @@ const StripHome: React.FC = () => {
         }
         captureFirstAgentIntent(posthog, {
             source: "composer",
-            properties: {action: "coding_agent_copy", message: truncateForCapture(text)},
+            properties: {action: "coding_agent_copy"},
+            intentValue: classifyAgentIntent(text),
         })
     }, [message, posthog])
 
