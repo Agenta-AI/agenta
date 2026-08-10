@@ -37,6 +37,11 @@ const AudioPlayer = ({
         // A new source voids any probe from the previous one. Without this reset, a src swap mid-probe
         // leaves probingRef stuck true, which gates off onTimeUpdate below and freezes the timer.
         probingRef.current = false
+        // …and it voids the previous source's readings. `loadedmetadata` for the new one can be a
+        // network round-trip away, and until it fires the row would keep showing the OLD elapsed
+        // time, total and progress fill as if they described the new clip.
+        setCurrent(0)
+        setDuration(0)
 
         const onPlay = () => setPlaying(true)
         const onPause = () => setPlaying(false)

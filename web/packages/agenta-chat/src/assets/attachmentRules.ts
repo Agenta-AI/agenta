@@ -77,10 +77,14 @@ export const acceptAttrFor = (limits: AttachmentLimits): string =>
 export const describeAccepted = (limits: AttachmentLimits): string => {
     const nouns = limits.kinds.map((k) => KIND_NOUN[k])
     if (nouns.length === 0) return "No attachments"
+    // Two items take a bare "and"; the serial comma only belongs to lists of three or more.
+    // (This is user-visible — the composer's empty state renders it.)
     const sentence =
         nouns.length === 1
             ? nouns[0]
-            : `${nouns.slice(0, -1).join(", ")}, and ${nouns[nouns.length - 1]}`
+            : nouns.length === 2
+              ? `${nouns[0]} and ${nouns[1]}`
+              : `${nouns.slice(0, -1).join(", ")}, and ${nouns[nouns.length - 1]}`
     return sentence.charAt(0).toUpperCase() + sentence.slice(1)
 }
 

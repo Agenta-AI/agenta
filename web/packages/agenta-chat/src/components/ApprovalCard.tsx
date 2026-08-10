@@ -348,7 +348,7 @@ export const ApprovalCard = ({
                                                 onClick={() =>
                                                     onDenyAll(approvals.map((a) => a.approvalId))
                                                 }
-                                                className="justify-start text-colorError hover:bg-[var(--ant-color-error-bg)]"
+                                                className="justify-start text-colorError hover:bg-colorErrorBg"
                                             >
                                                 Deny all
                                             </Button>

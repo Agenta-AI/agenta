@@ -1,7 +1,9 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    type AttachmentLimits,
     DEFAULT_ATTACHMENT_LIMITS,
+    describeAccepted,
     formatBytes,
     isAcceptedType,
     validateIncoming,
@@ -100,5 +102,35 @@ describe("validateIncoming", () => {
         const {accepted, rejections} = validateIncoming([a], 3, limits)
         expect(accepted).toEqual([])
         expect(rejections).toEqual([{name: "a.png", reason: "exceeds the 3-file limit"}])
+    })
+})
+
+// User-visible: the composer's empty state renders this ("Images and audio · up to N files").
+describe("describeAccepted", () => {
+    const withKinds = (kinds: AttachmentLimits["kinds"]): AttachmentLimits => ({
+        ...DEFAULT_ATTACHMENT_LIMITS,
+        kinds,
+    })
+
+    it("names a single kind", () => {
+        expect(describeAccepted(withKinds(["image"]))).toBe("Images")
+    })
+
+    // A two-item list takes a bare "and" — "Images, and audio" is not English.
+    it("joins two kinds without a comma", () => {
+        expect(describeAccepted(withKinds(["image", "audio"]))).toBe("Images and audio")
+    })
+
+    it("keeps the serial comma from three kinds up", () => {
+        expect(describeAccepted(withKinds(["image", "audio", "document"]))).toBe(
+            "Images, audio, and documents",
+        )
+        expect(describeAccepted(withKinds(["image", "audio", "document", "other"]))).toBe(
+            "Images, audio, documents, and other files",
+        )
+    })
+
+    it("says so when nothing is accepted", () => {
+        expect(describeAccepted(withKinds([]))).toBe("No attachments")
     })
 })
