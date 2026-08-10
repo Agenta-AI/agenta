@@ -23,9 +23,28 @@ exists to avoid.
 ## Reading order
 
 1. **`v1/brief.md`** — the question, the scope, and the inversion the gateways perform.
-2. **`v1/early-findings.md`** — what is true in the tree today: the seams, what already
-   exists, and what the gateway would replace. Everything else assumes this.
-3. **`v1/decisions.md`** — the open decisions, each with what it hinges on and a leaning.
+2. **`v1/decisions.md`** — what is settled and why. Everything else assumes these.
+3. **`v1/early-findings.md`** — what is true in the tree today: the seams, what already
+   exists, and what the gateway would replace.
+4. **`v1/existing-gateway-model.md`** — the connections/catalog/tools/triggers model that is
+   already built, and the one piece that is missing from it.
+5. **`v1/credential-model.md`** — what the gateway hides from callers, and the consent it
+   cannot hide.
+6. **`v1/secrets-scoping.md`** — user-level credentials and how they resolve against
+   project-level ones. Designed, not scheduled.
+7. **`v1/libraries.md`** — what to reuse rather than build, and what was rejected.
+8. **`v1/raw/`** — source research. `mcp-2026-07-28.md` covers the current protocol
+   revision, which postdates the earlier tool-gateway research.
+
+Working documents, not part of the argument:
+
+- **`v1/open-designs.md`** — design questions still open, ordered by what depends on them.
+- **`v1/open-reviews.md`** — what to verify in the code when the ports are implemented.
+- **`v1/notes.md`** — replaced positions and observations. Read it when a shape here looks
+  wrong and you want to know whether it was already tried.
+
+**Every document except `notes.md` and the two open-* files states only what is.** Rationale
+that constrains future work lives in `decisions.md`; history lives in `notes.md`.
 
 ## Relationship to the MCP gateway provider research
 
