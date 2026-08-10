@@ -12,6 +12,8 @@ import {useOpenAgentSession} from "@/oss/components/AgentChatSlice/hooks/useOpen
 import {useSessionActions} from "@/oss/components/AgentChatSlice/hooks/useSessionActions"
 import useURL from "@/oss/hooks/useURL"
 
+import {toSessionMenuEntries} from "../assets/menuEntries"
+
 interface Props {
     title: string
     /** Scope to one agent's sessions — the app overview. Omit for the whole project. */
@@ -72,7 +74,9 @@ const SessionListCard = ({
     )
     const menuFor = useCallback(
         (vm: SessionRowVm) =>
-            actions.menuItems(actionTargetFor(vm), {onOpen: () => handleOpen(vm)}),
+            toSessionMenuEntries(
+                actions.menuItems(actionTargetFor(vm), {onOpen: () => handleOpen(vm)}),
+            ),
         [actions, handleOpen],
     )
     const onMenuSelect = useCallback(
