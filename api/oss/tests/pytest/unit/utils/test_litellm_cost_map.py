@@ -12,9 +12,13 @@ import subprocess
 import sys
 
 
-def _run(env_extra: dict) -> tuple[int, str, str]:
+def _run(env_overrides: dict[str, str | None]) -> tuple[int, str, str]:
     env = dict(os.environ)
-    env.update(env_extra)
+    for key, value in env_overrides.items():
+        if value is None:
+            env.pop(key, None)
+        else:
+            env[key] = value
     proc = subprocess.run(
         [
             sys.executable,
