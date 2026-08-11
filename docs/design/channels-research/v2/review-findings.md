@@ -430,6 +430,47 @@
   `_ingest`, no branch on channel); **provisioning is where they genuinely
   differ**, and nothing in the design covers it for either.
 
+### F54. Bridge credentials cannot go through the vault at all
+
+- ID: `F54`
+- Origin: `wave-5 M3`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: The nested channel-secret kind covers `slack` and `agenta`. A bridge
+  connection's credentials are a `secret` and a `delivery_url`, and no inner kind
+  names them, so the write path raises when asked to store one. The connection can
+  be created only by leaving its credentials somewhere the vault is not.
+- Files: `api/oss/src/core/secrets/enums.py`,
+  `api/oss/src/core/secrets/dtos.py`,
+  `api/oss/src/core/channels/service.py`
+- Suggested Fix: a `bridge` inner kind with those two fields. Cheap; it was missed
+  because the bridge has no setup UI and nothing exercised its write path.
+- Notes: found by the hydration work, which reads back whatever the write path can
+  store and therefore noticed what it cannot.
+
+### F55. Routing does not refuse an archived or inactive agent
+
+- ID: `F55`
+- Origin: `wave-5 M3`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `fetch_agent`, `fetch_agent_by_slug`, `fetch_default_agent` and `resolve`
+  never filter on `deleted_at` or the active flag. Archiving a connection now
+  cascades `deleted_at` onto its agents, and nothing downstream declines to route to
+  them — so teardown removes a bot from the configuration surface while leaving it
+  answering.
+- Files: `api/oss/src/dbs/postgres/channels/dao.py`,
+  `api/oss/src/core/channels/service.py`
+- Suggested Fix: filter archived and inactive rows in the routing reads. Assert that
+  archiving a connection stops its agents answering — the archive path is what makes
+  this reachable, so it needs the test that proves teardown is a teardown.
+- Notes: the gap predates the archive route; the archive route is what makes it
+  matter.
+
 ### F52. Slack slash commands are parsed as noise and silently dropped
 
 - ID: `F52`

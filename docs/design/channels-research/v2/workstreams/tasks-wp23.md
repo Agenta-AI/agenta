@@ -12,11 +12,16 @@ Starts after WP22 merges.
 - [ ] `build_setup_document(*, request_url)` on the interface, defaulting to `None`.
 - [ ] `verify_connection(*, connection, credentials)` on the interface, defaulting
       to returning `{}` — a channel with nothing to verify verifies trivially.
-- [ ] Slack declares: instructions, a document (the existing
-      `build_slack_manifest`), and two fields — `bot_token`, `signing_secret`, both
-      secret. **Not** `team_id` or `bot_user_id`; those are discovered.
-- [ ] Slack's `verify_connection` calls `auth.test` and returns `team_id`,
-      `bot_user_id`, `api_app_id` where present.
+- [x] Slack declares: instructions, a document (the existing
+      `build_slack_manifest`), and **three** fields — `bot_token` and
+      `signing_secret`, both secret, plus `api_app_id`, which is not. **Not**
+      `team_id` or `bot_user_id`; those are discovered.
+
+      This line said two fields and was wrong: `journeys.md` S3 settles that
+      `api_app_id` must be asked for, because `auth.test` does not return it for a
+      pasted bot token — and the connection's identity composes from it.
+- [x] Slack's `verify_connection` calls `auth.test` and returns `team_id`,
+      `bot_user_id` where present. `api_app_id` is asked for, not discovered.
 - [ ] Agenta declares all three slots empty.
 
 ## Routes

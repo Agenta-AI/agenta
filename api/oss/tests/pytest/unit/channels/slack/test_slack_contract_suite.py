@@ -120,7 +120,7 @@ def _connection() -> ChannelConnection:
     )
 
 
-async def test_slack_adapter_passes_wp2_contract_suite():
+async def test_slack_adapter_passes_the_shared_contract_suite():
     client = httpx.AsyncClient(
         transport=_ScriptedTransport(), base_url="https://slack.com/api"
     )
