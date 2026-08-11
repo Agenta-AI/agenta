@@ -436,7 +436,7 @@
 - Origin: `wave-5 M3`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Completeness`
 - Summary: The nested channel-secret kind covers `slack` and `agenta`. A bridge
   connection's credentials are a `secret` and a `delivery_url`, and no inner kind
@@ -448,7 +448,12 @@
 - Suggested Fix: a `bridge` inner kind with those two fields. Cheap; it was missed
   because the bridge has no setup UI and nothing exercised its write path.
 - Notes: found by the hydration work, which reads back whatever the write path can
-  store and therefore noticed what it cannot.
+  store and therefore noticed what it cannot. Fixed: a `bridge` inner kind, and the
+  adapter now reads the signing secret under the name Slack already uses — it read a
+  `secret` key that no writer anywhere ever set, so the field was dead as well as
+  unstorable. No migration: the inner kind is a payload discriminator validated in
+  Python, not a Postgres enum. The bridge still declares no setup fields, so the
+  credential has no form to arrive through; see F60.
 
 ### F55. Routing does not refuse an archived or inactive agent
 
@@ -456,7 +461,7 @@
 - Origin: `wave-5 M3`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `fetch_agent`, `fetch_agent_by_slug`, `fetch_default_agent` and `resolve`
   never filter on `deleted_at` or the active flag. Archiving a connection now
@@ -469,7 +474,14 @@
   archiving a connection stops its agents answering — the archive path is what makes
   this reachable, so it needs the test that proves teardown is a teardown.
 - Notes: the gap predates the archive route; the archive route is what makes it
-  matter.
+  matter. Fixed in `resolve`, which now refuses an archived or inactive connection,
+  space, or agent, each returning `None` so a sender cannot tell a torn-down row
+  from an absent one. The routing DAO reads keep their unfiltered signatures on
+  purpose: the management surface needs to read an archived row to show and
+  unarchive it, so the refusal belongs on the routing path rather than in the read.
+  A second defect surfaced while fixing this: `is_verified` was declared "not yet
+  routable" and had no writer anywhere, so it was false on every row ever created.
+  `create_connection` now sets it where verification succeeds.
 
 ### F58. The connection create model demands a field the service overwrites
 
@@ -515,7 +527,7 @@
 - Origin: `wave-5 CU-B`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `rendering.md` specifies six node types — `text`, `buttons`, `select`,
   `fields`, `table`, `image` — each with a declared text fallback, and states that
@@ -540,6 +552,15 @@
   reachable — that is a workaround at the consumer, not a resolution. Nothing was
   wrong with either vocabulary in isolation; they were simply never reconciled, and
   a document that reads as current is how that survived four checkpoints.
+  Resolved in favour of the code, and the design now says why. The singular
+  `button` is not a degraded `buttons`: a grouped node would carry both the options
+  and one way of drawing them, and the drawing is exactly what a text-only surface
+  discards. The two are split instead — the parts hold the rendering, the item holds
+  an option list that is present whether the buttons were drawn or degraded to a
+  numbered line, and the pending choice persists from that list. So the fallback
+  rule never needed a `buttons` node to live on. `card` joins the table with its
+  text fallback; `select`, `fields`, `table` and `image` stay specified and are
+  marked unbuilt rather than reading as current.
 
 ### F57. The generated API client predates the channels connection shape
 
@@ -581,6 +602,29 @@
   command grammar, since a slash command and a `!command` are the same intent
   arriving two ways — the same convergence the choice mechanism already uses.
 - Notes: predates this wave. Not a regression.
+
+### F60. The bridge declares no setup fields, so its credential has no way in
+
+- ID: `F60`
+- Origin: `wave-5 CU-D`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: Every other channel declares `setup.fields`, which is what the create
+  form renders and what arrives back as `credentials`. The bridge declares none —
+  its capability constant carries an identity declaration and nothing else. So a
+  bridge signing secret can now be stored, but no caller has a way to supply one
+  through the configured path.
+- Files: `api/oss/src/core/channels/adapters/bridge/adapter.py`
+- Suggested Fix: decide first whether a bridge is meant to be configured through
+  the same form as Slack, or to register itself from its own `hello`. The answer
+  decides whether this is six lines of declaration or a separate registration
+  route. Do not add the fields before that is settled.
+- Notes: found while fixing F54. The two are one story: the credential could not
+  be stored, and separately has nowhere to arrive from. Fixing only the storage
+  makes the write path work and the feature still unusable, which is why this is
+  filed rather than folded in.
 
 ### F53. Slack's enterprise-install payload shape is reconstructed, not observed
 

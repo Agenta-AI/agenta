@@ -1181,3 +1181,42 @@ class TestLifecycleRefusals:
         assert result is None
         # refused before any grant is consulted: the agent is gone, not denied
         dao.query_matching_grants.assert_not_awaited()
+
+    async def test_archived_connection_refuses(self):
+        dao = _make_fake_dao()
+        dao.fetch_connection = AsyncMock(
+            return_value=ChannelConnection(
+                id=uuid4(),
+                slug="conn-1",
+                channel="agenta",
+                external_key=uuid4(),
+                deleted_at=datetime.now(timezone.utc),
+                flags=ChannelConnectionFlags(is_verified=True),
+            )
+        )
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=_make_event()
+        )
+
+        assert result is None
+        dao.get_or_create_space.assert_not_awaited()
+
+    async def test_archiving_a_connection_stops_its_agents_answering(self):
+        """Archiving cascades deleted_at onto the agents. Teardown has to be a
+        teardown: the bot leaves the configuration surface AND stops replying."""
+
+        agent = _make_agent(slug="triage")
+        agent.deleted_at = datetime.now(timezone.utc)
+
+        dao = _make_fake_dao()
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=_make_event()
+        )
+
+        assert result is None
+        dao.query_matching_grants.assert_not_awaited()

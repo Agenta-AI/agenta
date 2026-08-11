@@ -22,14 +22,15 @@ every surface with no buttons gets.
 Small and typed, because an **agent** emits these and a **user** configures what is
 allowed — nobody writes markup. Each node declares its own text fallback.
 
-| Node | Slack / Discord | Telegram | Text-only |
-| --- | --- | --- | --- |
-| `text` | markdown | markdown | plain |
-| `buttons` | block buttons | inline keyboard | numbered list |
-| `select` | select menu | keyboard rows | numbered list |
-| `fields` | field pairs | `label: value` lines | `label: value` lines |
-| `table` | fixed-width block | fixed-width block | first column, truncated |
-| `image` | image block | photo + caption | the URL |
+| Node | Slack / Discord | Telegram | Text-only | Built |
+| --- | --- | --- | --- | --- |
+| `text` | markdown | markdown | plain | yes |
+| `button` | block button | inline keyboard | numbered line | yes |
+| `card` | titled block | titled block | title + `label: value` lines | yes |
+| `select` | select menu | keyboard rows | numbered list | no |
+| `fields` | field pairs | `label: value` lines | `label: value` lines | no |
+| `table` | fixed-width block | fixed-width block | first column, truncated | no |
+| `image` | image block | photo + caption | the URL | no |
 
 `divider` and `section` are deliberately absent: they carry no meaning, only
 layout, so they have nothing to degrade *to*. If a node's text fallback is empty,
@@ -37,6 +38,26 @@ the node does not belong in the vocabulary.
 
 **Text is the floor.** Every surface renders `text`, so a message that degrades all
 the way down is still a message.
+
+### One part per button, and a separate list of options
+
+`button` is singular on purpose, and it is the one place the built vocabulary
+departs from a first reading of the rule above. A grouped `buttons` node would
+have to carry two different things at once: the options themselves, and one
+particular way of drawing them. They do not survive together — the drawing is
+exactly what a text-only surface throws away.
+
+So they are split. The parts carry the **rendering**, one part per button. The
+item carries a separate list of options that is present *whether or not* the
+buttons were drawn — the same list when it degrades to a numbered line. The
+pending choice is persisted from that list, never from the parts.
+
+This is why the degrade rule does not need to live on a `buttons` node. What has
+to survive degradation was never in the node.
+
+The four unbuilt rows are specified, not deferred silently. A `select` is the next
+one that matters, and it inherits the split above: options in the item, drawing in
+the parts.
 
 ## Choices must be answerable in text
 

@@ -997,8 +997,12 @@ class ChannelsService:
             raise ChannelConnectionNotFound(connection_id=connection_id)
 
         # refused before a space is provisioned: nothing should be created
-        # against a connection that is switched off or never verified
-        if not connection.flags.is_active or not connection.flags.is_verified:
+        # against a connection that is archived, switched off, or unverified
+        if (
+            connection.deleted_at is not None
+            or not connection.flags.is_active
+            or not connection.flags.is_verified
+        ):
             return None
 
         capabilities = await self.fetch_capabilities(
@@ -1036,7 +1040,7 @@ class ChannelsService:
             space_id=space.id,
         )
 
-        if not space.flags.is_active:
+        if space.deleted_at is not None or not space.flags.is_active:
             return None
 
         agent = await self._addressed_agent(
@@ -1046,8 +1050,10 @@ class ChannelsService:
             event=event,
             capabilities=capabilities,
         )
-        # a deactivated agent refuses exactly like an absent one
-        if agent is None or not agent.flags.is_active:
+        # archiving a connection cascades deleted_at onto its agents; without
+        # this an archived bot stays off the configuration surface but keeps
+        # answering. A deactivated agent refuses exactly like an absent one.
+        if agent is None or agent.deleted_at is not None or not agent.flags.is_active:
             return None
 
         matching_grants = await self.channels_dao.query_matching_grants(
