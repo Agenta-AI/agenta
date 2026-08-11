@@ -135,9 +135,11 @@ const activeByAppAtom = atomWithStorage<Record<string, string>>(
 )
 
 /** Persisted messages per session id. Written when a conversation's stream settles. Session ids
- * are globally unique, so this store has no scope dimension. */
+ * are globally unique, so this store has no scope dimension.
+ * v2: caches written by the pre-fix mapper hold duplicated approval parts; the key bump forces
+ * one re-sync from records (the watermark otherwise keeps the stale copy authoritative). */
 export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
-    "agenta:agent-chat:messages",
+    "agenta:agent-chat:messages:v2",
     {},
     tabLocalStorage(),
     STORAGE_OPTS,
@@ -152,7 +154,7 @@ export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
  * goes through `persistSessionMessagesAtom` and every delete through `dropSessionMessages`.
  */
 const sessionRecordCountsAtom = atomWithStorage<Record<string, number>>(
-    "agenta:agent-chat:record-counts",
+    "agenta:agent-chat:record-counts:v2",
     {},
     tabLocalStorage(),
     STORAGE_OPTS,
@@ -611,7 +613,8 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
         const all = get(sessionsByAppAtom)
         const session = (all[key] ?? []).find((s) => s.id === id)
         if (!session || session.title?.trim()) return
-        const title = trimmed.slice(0, AUTO_TITLE_MAX_CHARS)
+        // Cut on code points, not UTF-16 units, so an emoji straddling the cap isn't halved.
+        const title = Array.from(trimmed).slice(0, AUTO_TITLE_MAX_CHARS).join("")
         set(sessionsByAppAtom, {
             ...all,
             [key]: (all[key] ?? []).map((s) => (s.id === id ? {...s, title} : s)),
@@ -825,6 +828,22 @@ export const sessionLabel = (
  */
 export const sessionFirstUserTextAtomFamily = atomFamily((id: string) =>
     selectAtom(sessionMessagesAtom, (all) => firstUserText(all[id])),
+)
+
+/** Active tab title without subscribing to streamed assistant content. */
+export const activeSessionTitleAtomFamily = atomFamily((key: string) =>
+    atom((get) => {
+        const sessions = get(sessionsListAtomFamily(key))
+        const rawActiveId = get(activeSessionIdAtomFamily(key))
+        const activeSession =
+            sessions.find((session) => session.id === rawActiveId) ?? sessions[0] ?? null
+        if (!activeSession) return {title: "", firstUserMessage: ""}
+
+        return {
+            title: activeSession.title?.trim() ?? "",
+            firstUserMessage: get(sessionFirstUserTextAtomFamily(activeSession.id)),
+        }
+    }),
 )
 
 /**

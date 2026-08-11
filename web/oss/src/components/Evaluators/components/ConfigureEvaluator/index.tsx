@@ -15,7 +15,7 @@ import {useCallback, useEffect, useMemo} from "react"
 import {loadableController} from "@agenta/entities/loadable"
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {type PlaygroundUIProviders} from "@agenta/playground-ui"
-import {preloadEditorPlugins, SyncStateTag} from "@agenta/ui"
+import {preloadEditorPlugins, Tag} from "@agenta/ui"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -54,8 +54,8 @@ function EvaluatorSyncStateTag({rowId, loadableId}: {rowId: string; loadableId: 
     const syncState = isNew ? "new" : isDirty ? "modified" : "unmodified"
 
     return (
-        <SyncStateTag
-            syncState={syncState}
+        <Tag
+            sync={syncState}
             dismissible={syncState === "modified"}
             onDismiss={syncState === "modified" ? handleDiscard : undefined}
         />
@@ -102,11 +102,9 @@ const ConfigureEvaluatorPageInner = () => {
 
     return (
         <OSSPlaygroundShell providers={providers}>
-            {/* Definite height (viewport minus the app topbar) so the run panel's
-             * `h-full` centering resolves — same pattern as the app playground
-             * (`Playground.tsx`). With a plain `h-full` here the chain collapses
-             * to content height and the empty state sticks to the top. */}
-            <div className="flex flex-col w-full h-[calc(100dvh-75px)] overflow-hidden">
+            {/* Definite height, not `h-full`: the chain would collapse to content height and
+             * strand the empty state at the top. 29px matches Layout's full-height frame. */}
+            <div className="flex flex-col w-full h-[calc(100dvh-29px)] overflow-hidden">
                 <EvaluatorPlaygroundHeader />
                 <PlaygroundMainView
                     mode="evaluator"

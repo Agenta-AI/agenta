@@ -16,15 +16,25 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
+import {
+  encodePiModelProviderOverride,
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
+} from "../../extensions/model-provider-override.ts";
 import { advertisedToolSpecs } from "../../tools/public-spec.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
 import {
+  isPiModelConfigApplicable,
   PI_MODELS_JSON_FILENAME,
   serializePiModelsJson,
   type PiModelConfigPlan,
 } from "./pi-model-config.ts";
-import type { RunPlan } from "./run-plan.ts";
+import type {
+  RunPlan,
+  RunPlanCredentials,
+  RunPlanPrompt,
+  RunPlanWorkspace,
+} from "./run-plan.ts";
 
 type Log = (message: string) => void;
 
@@ -40,11 +50,13 @@ export function piSessionWorkspaceDir(cwd: string): string {
 
 /** Point Pi at the durable conversation-scoped transcript directory. */
 export function configurePiSessionWorkspace(
-  plan: Pick<RunPlan, "isPi" | "cwd">,
+  plan: Pick<RunPlan, "isPi"> & {
+    workspace: Pick<RunPlanWorkspace, "cwd">;
+  },
   env: Record<string, string>,
 ): string | undefined {
   if (!plan.isPi) return undefined;
-  const sessionDir = piSessionWorkspaceDir(plan.cwd);
+  const sessionDir = piSessionWorkspaceDir(plan.workspace.cwd);
   env.PI_CODING_AGENT_SESSION_DIR = sessionDir;
   return sessionDir;
 }
@@ -100,11 +112,13 @@ function hashPart(
 
 /** Resolve the immutable project-local snapshot selected for this Pi run. */
 export function resolvePiSkillSnapshot(
-  plan: Pick<RunPlan, "isPi" | "cwd" | "skillDirs">,
+  plan: Pick<RunPlan, "isPi"> & {
+    workspace: Pick<RunPlanWorkspace, "cwd" | "skillDirs">;
+  },
 ): PiSkillSnapshot | undefined {
-  if (!plan.isPi || plan.skillDirs.length === 0) return undefined;
+  if (!plan.isPi || plan.workspace.skillDirs.length === 0) return undefined;
 
-  const skills = [...plan.skillDirs].sort((a, b) =>
+  const skills = [...plan.workspace.skillDirs].sort((a, b) =>
     a.name.localeCompare(b.name),
   );
   const hash = createHash("sha256");
@@ -125,7 +139,7 @@ export function resolvePiSkillSnapshot(
   })}\n`;
   return {
     digest,
-    dir: join(plan.cwd, "agents", "skills", digest),
+    dir: join(plan.workspace.cwd, "agents", "skills", digest),
     marker,
     skills,
   };
@@ -287,6 +301,18 @@ export const PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE =
   "default provider. Ask your deployment operator to make the runner's Pi agent directory writable.";
 
 /**
+ * Thrown (via the engine's named-message pattern) when the run routes its model provider through
+ * the extension's endpoint override (`model-provider-override.ts`) but the Agenta extension could
+ * not be installed. Fail closed: without the extension the harness would silently call the
+ * provider's DEFAULT endpoint with credentials resolved for the custom one. Single line so
+ * `conciseError` surfaces it verbatim.
+ */
+export const PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE =
+  "The agent could not apply its custom model endpoint: the Agenta extension failed to install, " +
+  "so the provider override could not be registered. The run was stopped rather than call the " +
+  "default endpoint. Ask your deployment operator to rebuild and republish the runner image.";
+
+/**
  * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
  * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
  * managed custom run must never fall through to a default provider (design Decision 6). The file
@@ -331,7 +357,6 @@ export function buildPiExtensionEnv(
     otlpAuthFilePath?: string;
     skills?: string[];
     builtinGatingActive?: boolean;
-    builtinGrants?: string[];
   } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
@@ -350,6 +375,18 @@ export function buildPiExtensionEnv(
   if (telemetry && opts.skills && opts.skills.length > 0)
     env.AGENTA_AGENT_SKILLS_LOADED = JSON.stringify(opts.skills);
 
+  // Point Pi's built-in provider at the resolved custom base URL via the Agenta extension
+  // (`model-provider-override.ts`). Skipped when the managed OpenAI-compatible custom path
+  // already routes this run through its own `models.json` provider (`pi-model-config.ts`) —
+  // two competing registrations for the same run would race for the provider.
+  const modelBaseUrl = request.modelConnection?.endpoint?.baseUrl;
+  if (modelBaseUrl !== undefined && !isPiModelConfigApplicable(request)) {
+    env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = encodePiModelProviderOverride({
+      provider: request.modelConnection?.provider,
+      baseUrl: modelBaseUrl,
+    });
+  }
+
   const specs = advertisedToolSpecs(
     (request.customTools as ResolvedToolSpec[]) ?? [],
   );
@@ -364,12 +401,12 @@ export function buildPiExtensionEnv(
     if (responseWatch !== undefined)
       env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = responseWatch;
   }
+  // Only reached for a Pi run (environment-setup gates on `plan.isPi`), and every Pi run
+  // activates all seven builtins.
+  env.AGENTA_AGENT_BUILTIN_ACTIVATION = "1";
   // Builtin gating needs no relay dir: the gate rides the extension's `ctx.ui.confirm`
   // dialog onto the ACP permission plane (Pi approval parking), not the file relay.
-  if (opts.builtinGatingActive) {
-    env.AGENTA_AGENT_BUILTIN_GATING = "1";
-    env.AGENTA_AGENT_BUILTIN_GRANTS = (opts.builtinGrants ?? []).join(",");
-  }
+  if (opts.builtinGatingActive) env.AGENTA_AGENT_BUILTIN_GATING = "1";
   if (opts.usageOutPath)
     env.AGENTA_AGENT_USAGE_CAPTURE_PATH = opts.usageOutPath;
   return env;
@@ -543,17 +580,14 @@ export function prepareLocalAgentDir(
 }
 
 export interface PrepareLocalPiAssetsInput {
-  plan: Pick<
-    RunPlan,
-    | "isPi"
-    | "isDaytona"
-    | "credentialMode"
-    | "skillDirs"
-    | "hasSystemPrompt"
-    | "systemPrompt"
-    | "appendSystemPrompt"
-    | "sourcePiAgentDir"
-  >;
+  plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
+    credentials: Pick<RunPlanCredentials, "credentialMode">;
+    workspace: Pick<RunPlanWorkspace, "skillDirs" | "sourcePiAgentDir">;
+    prompt: Pick<
+      RunPlanPrompt,
+      "hasSystemPrompt" | "systemPrompt" | "appendSystemPrompt"
+    >;
+  };
   env: Record<string, string>;
   /**
    * A managed OpenAI-compatible custom run's Pi provider config. When set, the isolated per-run
@@ -622,14 +656,14 @@ export function prepareLocalPiAssets({
   // buildRunPlan already rejected a local runtime_provided run with no configured
   // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount. A model-config plan
   // never reaches here (it requires credentialMode "env"), so there is no models.json to write.
-  if (plan.credentialMode === "runtime_provided") {
-    const agentDir = plan.sourcePiAgentDir;
+  if (plan.credentials.credentialMode === "runtime_provided") {
+    const agentDir = plan.workspace.sourcePiAgentDir;
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
-    if (plan.hasSystemPrompt) {
+    if (plan.prompt.hasSystemPrompt) {
       writeSystemPromptLocal(
         agentDir,
-        plan.systemPrompt,
-        plan.appendSystemPrompt,
+        plan.prompt.systemPrompt,
+        plan.prompt.appendSystemPrompt,
         log,
       );
     }
@@ -643,15 +677,15 @@ export function prepareLocalPiAssets({
   // managed OpenAI-compatible custom run (a model-config plan is present) additionally gets a
   // models.json and does NOT receive the operator's personal auth.json.
   const { dir: runAgentDir, extensionInstalled } = prepareLocalAgentDir(
-    plan.sourcePiAgentDir,
+    plan.workspace.sourcePiAgentDir,
     log,
     { seedCredentials: !piModelConfig },
   );
-  if (plan.hasSystemPrompt) {
+  if (plan.prompt.hasSystemPrompt) {
     writeSystemPromptLocal(
       runAgentDir,
-      plan.systemPrompt,
-      plan.appendSystemPrompt,
+      plan.prompt.systemPrompt,
+      plan.prompt.appendSystemPrompt,
       log,
     );
   }

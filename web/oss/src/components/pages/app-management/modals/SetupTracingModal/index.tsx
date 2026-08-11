@@ -1,22 +1,27 @@
 import {useMemo, useState} from "react"
 
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {CloseOutlined, LinkOutlined} from "@ant-design/icons"
 import {Book, Play} from "@phosphor-icons/react"
 import {Button, ModalProps, Tabs, TabsProps, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"
 
+// `EnhancedModal`'s className lands on the Radix DialogContent root itself — antd's old
+// `.ant-modal-content` was that same node's class (now applied directly, not as a
+// descendant selector); `.ant-modal-container` had no real equivalent and is already
+// covered by EnhancedModal's own base `p-0`. `.ant-modal-body` is still a genuine
+// descendant, now `[data-slot="modal-body"]`. `.ant-typography`/`.ant-tabs-*` selectors
+// stay as-is — Typography/Tabs are still antd.
 export const modalContainerClass =
-    "[transition:width_0.3s_ease] [&>div]:h-full [&_.ant-modal-container]:p-0 " +
+    "[transition:width_0.3s_ease] h-full overflow-y-hidden rounded-2xl " +
     "[&_h1.ant-typography]:text-xl [&_h1.ant-typography]:leading-[1.4] [&_h1.ant-typography]:font-medium " +
     "[&_span.ant-typography]:text-sm [&_span.ant-typography]:leading-[1.5714285714285714] " +
-    "[&_.ant-modal-content]:h-full [&_.ant-modal-content]:overflow-y-hidden [&_.ant-modal-content]:rounded-2xl " +
-    "[&_.ant-modal-content]:p-0 [&_.ant-modal-body]:h-full"
+    '[&_[data-slot="modal-body"]]:h-full'
 
 export const modalHeaderClass =
     "flex items-center gap-3 py-4 px-6 [border-bottom:1px_solid_var(--ag-colorBorderSecondary)] " +

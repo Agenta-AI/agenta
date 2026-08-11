@@ -14,6 +14,12 @@ describe("sandbox teardown disposition", () => {
       ["failed-turn", "delete"],
       ["aborted", "delete"],
       ["compatibility-mismatch", "delete"],
+      // Lifecycle migration, step 1: the four named layers. Only the two whose daemon is sound
+      // may park. See `teardown.ts`.
+      ["session-incompatible", "stop"],
+      ["continuity-invalid", "stop"],
+      ["runtime-incompatible", "delete"],
+      ["sandbox-incompatible", "delete"],
       ["clean-resumable", "stop"],
       ["idle-expiry", "stop"],
       ["capacity-eviction", "stop"],

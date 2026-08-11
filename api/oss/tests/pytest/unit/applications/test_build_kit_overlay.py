@@ -1,3 +1,4 @@
+from os import environ
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -5,7 +6,6 @@ from uuid import uuid4
 import pytest
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
-    AGENTA_FORCED_TOOLS,
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
@@ -32,7 +32,12 @@ from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
-EXPECTED_DEFAULT_BUILD_KIT_OPS = (
+# The build kit has two shapes, one per state of the ordered-operations switch: with the
+# switch on, the catalog defines `read_config` and the kit carries the read half of the
+# read-then-edit loop. Both are written out in full, and the switch is read here rather
+# than through the catalog, so this stays a statement about the flag instead of a copy of
+# the code it checks.
+EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "discover_tools",
     "commit_revision",
     "annotate_trace",
@@ -46,6 +51,49 @@ EXPECTED_DEFAULT_BUILD_KIT_OPS = (
     "test_subscription",
     "remove_schedule",
     "remove_subscription",
+)
+
+EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
+    "discover_tools",
+    "read_config",
+    "commit_revision",
+    "annotate_trace",
+    "query_spans",
+    "test_run",
+    "discover_triggers",
+    "create_schedule",
+    "create_subscription",
+    "list_schedules",
+    "list_deliveries",
+    "test_subscription",
+    "remove_schedule",
+    "remove_subscription",
+)
+
+
+def _ordered_operations_enabled() -> bool:
+    # Spelled out rather than imported, so the expectation cannot move with the code under
+    # test. The default (on) and the accepted spellings are pinned equal in
+    # `unit/workflows/test_ordered_operations_flag.py`.
+    value = environ.get("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", "").strip()
+    if not value:
+        return True
+    return value.lower() in {
+        "true",
+        "1",
+        "t",
+        "y",
+        "yes",
+        "on",
+        "enable",
+        "enabled",
+    }
+
+
+EXPECTED_DEFAULT_BUILD_KIT_OPS = (
+    EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
+    if _ordered_operations_enabled()
+    else EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG
 )
 
 CUT_BUILD_KIT_OPS = (
@@ -65,14 +113,11 @@ def _embed_slug(entry: dict) -> str | None:
     return workflow.get("slug")
 
 
-def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first():
-    """Pin the exact overlay tools list: builtin grants, then platform ops, then embeds.
+def test_agent_template_overlay_tools_list_is_pinned():
+    """Pin the exact overlay tools list: platform ops, then embeds.
 
-    The leading builtin grants (``{"type": "builtin", "name": "read"/"bash"}`` from
-    ``AGENTA_FORCED_TOOLS``) are load-bearing: any custom tool on the wire flips Pi's
-    builtin gating from "Pi defaults" to granted-only, so without an explicit ``read``
-    grant the playbook skill is announced but unloadable (live-QA finding 2026-07-05).
-    ``bash`` keeps skill helper scripts runnable.
+    The overlay no longer injects built-in grants: the runner activates every built-in on every
+    Pi run, so the playbook skill loads and its helper scripts run without one.
     """
     overlay = build_agent_template_overlay()
 
@@ -82,10 +127,7 @@ def test_agent_template_overlay_tools_list_is_pinned_with_builtin_grants_first()
     )
     request_input = catalog.retrieve_revision(slug=REQUEST_INPUT_WORKFLOW_SLUG)
 
-    assert AGENTA_FORCED_TOOLS == ["read", "bash"]
     assert overlay["tools"] == [
-        {"type": "builtin", "name": "read"},
-        {"type": "builtin", "name": "bash"},
         *[{"type": "platform", "op": op_name} for op_name in DEFAULT_BUILD_KIT_OPS],
         {
             "@ag.embed": {

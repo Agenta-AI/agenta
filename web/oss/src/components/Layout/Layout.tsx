@@ -9,7 +9,6 @@ import {eagerAtom} from "jotai-eager"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
-import {currentAppAtom} from "@/oss/state/app"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
 import {getProjectValues, useProjectData} from "@/oss/state/project"
@@ -28,8 +27,8 @@ import {resolveSidebarLastPath} from "../Sidebar/scopes/sidebarLastPath"
 import {resolveSidebarView} from "../Sidebar/scopes/viewRegistry"
 import type {SidebarView} from "../Sidebar/types"
 
-import BreadcrumbContainer from "./assets/Breadcrumbs"
 import {useStyles} from "./assets/styles"
+import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
 import PostHogThemeCapture from "./PostHogThemeCapture"
 import {SidebarIsland} from "./SidebarIsland"
@@ -228,7 +227,6 @@ const AppWithVariants = memo(
             }
         }, [activeSidebarView.id, sidebarLastPath])
 
-        const currentApp = useAtomValue(currentAppAtom)
         const {project} = useProjectData()
         const lastNonDemoProject = useAtomValue(lastNonDemoProjectAtom)
         const [demoReturnHintPending, setDemoReturnHintPending] = useAtom(demoReturnHintPendingAtom)
@@ -306,6 +304,7 @@ const AppWithVariants = memo(
                         return.
                     </p>
                 </Modal>
+                <AuthUpgradeHost />
                 {project?.is_demo && (
                     <>
                         <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium">
@@ -332,10 +331,6 @@ const AppWithVariants = memo(
                                 },
                             ])}
                         >
-                            <BreadcrumbContainer
-                                appTheme={appTheme}
-                                appName={currentApp?.name ?? currentApp?.slug ?? ""}
-                            />
                             {/* ONE stable tree for both app and non-app routes: the layout flags
                                 (committed at routeChangeComplete, AFTER the destination page has
                                 rendered) may flip a beat after a client-side nav — as CLASSNAME
@@ -369,7 +364,7 @@ const AppWithVariants = memo(
                                             <ConfigProvider theme={contentThemeConfig}>
                                                 <div
                                                     className={clsx("w-full", {
-                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-75px)] overflow-hidden":
+                                                        "flex min-h-0 flex-col gap-6 h-[calc(100dvh-29px)] overflow-hidden":
                                                             isFullHeight,
                                                         "flex flex-col":
                                                             !isFullHeight && !isAppRoute,

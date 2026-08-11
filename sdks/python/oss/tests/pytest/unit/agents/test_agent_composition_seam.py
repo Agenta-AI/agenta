@@ -83,6 +83,7 @@ class _FakeBackend(Backend):
     def __init__(self, *, output: str = "hi") -> None:
         self._output = output
         self.created_run_contexts: List[Any] = []
+        self.created_effective_parameters: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -97,14 +98,16 @@ class _FakeBackend(Backend):
         trace=None,
         run_context=None,
         session_id=None,
+        effective_parameters=None,
     ) -> _FakeSession:
         self.created_run_contexts.append(run_context)
+        self.created_effective_parameters.append(effective_parameters)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
 def _no_connection_result() -> ResolvedConnection:
     return ResolvedConnection(
-        provider="openai", model="m", credential_mode="runtime_provided", env={}
+        provider="openai", model="m", credential_mode="runtime_provided"
     )
 
 
@@ -168,8 +171,33 @@ async def test_absent_run_kind_leaves_composition_run_context_untouched():
     assert ctx.to_wire() == {"trace": {"trace_id": "trace-1"}}
 
 
+async def test_handler_carries_the_effective_config_onto_the_session():
+    """The config the handler RAN with reaches the session, verbatim.
+
+    The normalizer hands the handler ``request.data.parameters`` after the resolver has
+    hydrated references (or kept the caller's inline draft), so this is the config a HITL gate
+    parked by this turn must be resumable under (effective-turn-config plan, T1). The wire
+    gates emission on ``session_id``; the handler always carries it.
+    """
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+    params = _params(model={"model": "anthropic/claude-sonnet-4-5"})
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=params,
+    )
+
+    assert backend.created_effective_parameters[0] == params
+
+
 # --------------------------------------------------------------------------- #
-# Drift 1 + 2: capability gating and degradation policy are the SEAM DEFAULT now
+# Drift 1 + 2: capability and fail-closed resolution policy are the SEAM DEFAULT now
 # (previously a bare fallback in handler.py with neither).
 # --------------------------------------------------------------------------- #
 async def test_default_composition_rejects_unsupported_provider_pre_resolve():
@@ -205,7 +233,13 @@ async def test_default_composition_rejects_unconsumable_deployment_post_resolve(
             model="anthropic.claude-x",
             deployment="bedrock",
             credential_mode="env",
-            env={"AWS_ACCESS_KEY_ID": "AKIA"},
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "AWS_ACCESS_KEY_ID"},
+                    "value": "AKIA",
+                    "usage": "local_use",
+                }
+            ],
         )
 
     comp = AgentComposition(
@@ -238,7 +272,13 @@ async def test_named_connection_defers_provider_reject_to_post_resolve():
             model="qwen2.5-coder:7b",
             deployment="custom",
             credential_mode="env",
-            env={"OPENAI_API_KEY": "sk-oai"},
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-oai",
+                    "usage": "opaque_http",
+                }
+            ],
             endpoint={"base_url": "https://93.184.216.34/v1"},
         )
 
@@ -276,7 +316,13 @@ async def test_pi_custom_with_non_openai_family_rejected_post_resolve():
             model="some-model",
             deployment="custom",
             credential_mode="env",
-            env={"ANTHROPIC_API_KEY": "sk-ant"},
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "ANTHROPIC_API_KEY"},
+                    "value": "sk-ant",
+                    "usage": "opaque_http",
+                }
+            ],
             endpoint={"base_url": "https://93.184.216.34/v1"},
         )
 
@@ -301,10 +347,9 @@ async def test_pi_custom_with_non_openai_family_rejected_post_resolve():
         )
 
 
-async def test_default_composition_degrades_default_connection_failure():
-    """An unconfigured default-mode connection degrades to runtime_provided, no raise --
-    even with NO composition override (the SDK default now has the degradation policy
-    the old bare fallback lacked)."""
+async def test_default_composition_fails_closed_on_connection_resolution_failure():
+    """A connection resolution failure fails closed, even with NO composition override
+    (the SDK default never degrades to an implicit runtime-provided fallback)."""
     backend = _FakeBackend(output="echo")
 
     async def _resolve(*, model, context):
@@ -316,13 +361,14 @@ async def test_default_composition_degrades_default_connection_failure():
     )
     handler = make_agent_handler(comp)
 
-    result = await handler(
-        request=_request(),
-        messages=[{"role": "user", "content": "hi"}],
-        parameters=_params("pi_core", model={"provider": "openai", "model": "gpt-5.5"}),
-    )
-
-    assert result == {"messages": [{"role": "assistant", "content": "echo"}]}
+    with pytest.raises(ConnectionResolutionError, match="network unreachable"):
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(
+                "pi_core", model={"provider": "openai", "model": "gpt-5.5"}
+            ),
+        )
 
 
 async def test_composition_override_replaces_default_gating():

@@ -29,12 +29,18 @@ from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.mounts.types import (
+    ATTACHMENTS_MOUNT_NAME,
+    ATTACHMENTS_MOUNT_PURPOSE,
+    RESERVED_SLUG_PREFIX,
+    SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
     MountArtifactNotFound,
     MountFileNotFound,
+    MountImmutableField,
     MountNameInvalid,
     MountNotFound,
     MountPathInvalid,
+    MountProtected,
     MountSlugReserved,
     MountStorageUnavailable,
 )
@@ -43,9 +49,6 @@ from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
-
-# Reserved slug prefix for service-minted (session) slugs; a caller may not author one.
-_RESERVED_SLUG_PREFIX = "__ag__"
 
 # Deterministic UUIDv5 namespace: the project-wide root (uuid5(NAMESPACE_DNS, "agenta"))
 # sub-namespaced under "mounts". Stable across instances/restarts so the same session id
@@ -86,7 +89,19 @@ def mint_session_slug(*, session_id: str, name: str) -> str:
     without truncation, so the existing unique(project_id, slug) constraint holds
     for both session and non-session mounts.
     """
-    return f"{_RESERVED_SLUG_PREFIX}session__{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+    return f"{SESSION_SLUG_PREFIX}{uuid5(_MOUNTS_NAMESPACE, session_id)}__{slugify_mount_name(name)}"
+
+
+def is_protected_mount(mount: Mount) -> bool:
+    # Purpose is durable classification; slug is the transitional fallback for pre-column rows.
+    if mount.purpose == ATTACHMENTS_MOUNT_PURPOSE:
+        return True
+    if not mount.session_id:
+        return False
+    return mount.slug == mint_session_slug(
+        session_id=mount.session_id,
+        name=ATTACHMENTS_MOUNT_NAME,
+    )
 
 
 def mint_agent_id(*, artifact_id: str) -> str:
@@ -109,12 +124,12 @@ def mint_agent_slug(*, artifact_id: str, name: str) -> str:
     """
     canonical_artifact_id = mint_agent_id(artifact_id=artifact_id)
     slug_name = slugify_mount_name(name)
-    return f"{_RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
+    return f"{RESERVED_SLUG_PREFIX}agent__{canonical_artifact_id}__{slug_name}"
 
 
 def reject_reserved_slug(slug: str) -> None:
     """A caller may not author a slug in the reserved namespace (the service mints those)."""
-    if slug.startswith(_RESERVED_SLUG_PREFIX):
+    if slug.startswith(RESERVED_SLUG_PREFIX):
         raise MountSlugReserved(slug)
 
 
@@ -425,6 +440,9 @@ class MountsService:
         #
         mount_create: MountCreate,
     ) -> Mount:
+        if mount_create.purpose is not None:
+            raise MountImmutableField("purpose")
+
         # The caller may not author a reserved slug; the service mints those for session mounts.
         reject_reserved_slug(mount_create.slug)
 
@@ -433,6 +451,11 @@ class MountsService:
         # session id, so unique(project_id, slug) holds for both without a scope-aware constraint.
         if mount_create.session_id is not None:
             name = mount_create.name or mount_create.slug
+            if ATTACHMENTS_MOUNT_NAME in {
+                slugify_mount_name(mount_create.slug),
+                slugify_mount_name(name),
+            }:
+                raise MountNameInvalid(name)
             mount_create = mount_create.model_copy(
                 update={
                     "name": name,
@@ -456,6 +479,7 @@ class MountsService:
         user_id: UUID,
         session_id: str,
         name: str = _SESSION_CWD_NAME,
+        purpose: Optional[str] = None,
     ) -> Mount:
         """Bind (idempotently) one durable mount for a session, keyed by `name`.
 
@@ -468,10 +492,13 @@ class MountsService:
         stored `name` is the slug so it never disagrees with it.
         """
         slug_name = slugify_mount_name(name)
+        if purpose is None and slug_name == ATTACHMENTS_MOUNT_NAME:
+            raise MountNameInvalid(name)
         mount_create = MountCreate(
             slug=mint_session_slug(session_id=session_id, name=slug_name),
             name=slug_name,
             session_id=session_id,
+            purpose=purpose,
         )
         return await self.mounts_dao.upsert_mount(
             project_id=project_id,
@@ -549,6 +576,85 @@ class MountsService:
             name=_SESSION_CWD_NAME,
         )
 
+    # These narrow operations are the only protected-mount bypass.
+    async def get_or_create_attachment_mount(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+    ) -> UUID:
+        mount = await self.get_or_create_session_mount(
+            project_id=project_id,
+            user_id=user_id,
+            session_id=session_id,
+            name=ATTACHMENTS_MOUNT_NAME,
+            purpose=ATTACHMENTS_MOUNT_PURPOSE,
+        )
+        return mount.id
+
+    async def write_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        data: bytes,
+    ) -> None:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
+        validate_file_path(path)
+        mount = await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+            allow_protected=True,
+        )
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        await self.mounts_store.put_object(
+            bucket=self._bucket(),
+            key=key,
+            body=data,
+        )
+
+    async def read_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+    ) -> bytes:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
+        validate_file_path(path)
+        mount = await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+            allow_protected=True,
+        )
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        return await self.mounts_store.get_object(bucket=self._bucket(), key=key)
+
+    async def delete_attachment_original(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+    ) -> None:
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
+        validate_file_path(path)
+        mount = await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+            allow_protected=True,
+        )
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        await self.mounts_store.delete_keys(bucket=self._bucket(), keys=[key])
+
     async def fetch_mount(
         self,
         *,
@@ -556,10 +662,13 @@ class MountsService:
         #
         mount_id: UUID,
     ) -> Optional[Mount]:
-        return await self.mounts_dao.fetch_mount(
+        mount = await self.mounts_dao.fetch_mount(
             project_id=project_id,
             mount_id=mount_id,
         )
+        if mount and is_protected_mount(mount):
+            return None
+        return mount
 
     async def fetch_agent_mount(
         self,
@@ -570,10 +679,11 @@ class MountsService:
     ) -> Optional[Mount]:
         """Fetch the active artifact mount keyed by name without creating it."""
         slug = mint_agent_slug(artifact_id=artifact_id, name=name)
-        return await self.mounts_dao.fetch_mount_by_slug(
+        mount = await self.mounts_dao.fetch_mount_by_slug(
             project_id=project_id,
             slug=slug,
         )
+        return mount
 
     async def edit_mount(
         self,
@@ -583,12 +693,10 @@ class MountsService:
         #
         mount_edit: MountEdit,
     ) -> Optional[Mount]:
-        existing = await self.mounts_dao.fetch_mount(
+        await self._resolve_mount(
             project_id=project_id,
             mount_id=mount_edit.id,
         )
-        if not existing:
-            raise MountNotFound()
 
         return await self.mounts_dao.edit_mount(
             project_id=project_id,
@@ -604,6 +712,10 @@ class MountsService:
         #
         mount_id: UUID,
     ) -> Optional[Mount]:
+        await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+        )
         return await self.mounts_dao.archive_mount(
             project_id=project_id,
             user_id=user_id,
@@ -618,6 +730,10 @@ class MountsService:
         #
         mount_id: UUID,
     ) -> Optional[Mount]:
+        await self._resolve_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+        )
         return await self.mounts_dao.unarchive_mount(
             project_id=project_id,
             user_id=user_id,
@@ -633,11 +749,13 @@ class MountsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Mount]:
-        return await self.mounts_dao.query_mounts(
+        mounts = await self.mounts_dao.query_mounts(
             project_id=project_id,
             mount_query=mount_query,
             windowing=windowing,
         )
+        # Session lifecycle bypasses this filter to retain protected mounts for teardown and archival.
+        return [mount for mount in mounts if not is_protected_mount(mount)]
 
     async def delete_session_mounts(
         self,
@@ -718,6 +836,7 @@ class MountsService:
         *,
         project_id: UUID,
         mount_id: UUID,
+        allow_protected: bool = False,
     ) -> Mount:
         mount = await self.mounts_dao.fetch_mount(
             project_id=project_id,
@@ -725,6 +844,8 @@ class MountsService:
         )
         if not mount:
             raise MountNotFound()
+        if not allow_protected and is_protected_mount(mount):
+            raise MountProtected()
         return mount
 
     def _bucket(self) -> str:

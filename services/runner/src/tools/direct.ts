@@ -83,7 +83,10 @@ export function deepSet(
  * way `deepSet` does (no empty segments, no prototype-polluting keys), so this can never reach
  * through the prototype chain. A path whose parent is missing or not a plain object is a no-op.
  */
-export function deepDelete(target: Record<string, unknown>, path: string): void {
+export function deepDelete(
+  target: Record<string, unknown>,
+  path: string,
+): void {
   const parts = path.split(".");
   for (const part of parts) {
     if (!part) throw new Error(`invalid empty segment in path '${path}'`);
@@ -180,18 +183,26 @@ export function pathParamNames(path: unknown): string[] {
   return names;
 }
 
-function substitutePathParams(path: unknown, params: Record<string, unknown>): string {
+function substitutePathParams(
+  path: unknown,
+  params: Record<string, unknown>,
+): string {
   if (typeof path !== "string") return String(path);
-  return path.replace(/\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g, (_match, name: string) => {
-    const value = readParam(params, name);
-    if (value === undefined || value === null) {
-      throw new Error(`direct-call path parameter '{${name}}' is missing`);
-    }
-    if (!["string", "number", "boolean"].includes(typeof value)) {
-      throw new Error(`direct-call path parameter '{${name}}' must be scalar`);
-    }
-    return encodeURIComponent(String(value));
-  });
+  return path.replace(
+    /\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g,
+    (_match, name: string) => {
+      const value = readParam(params, name);
+      if (value === undefined || value === null) {
+        throw new Error(`direct-call path parameter '{${name}}' is missing`);
+      }
+      if (!["string", "number", "boolean"].includes(typeof value)) {
+        throw new Error(
+          `direct-call path parameter '{${name}}' must be scalar`,
+        );
+      }
+      return encodeURIComponent(String(value));
+    },
+  );
 }
 
 /**
@@ -206,9 +217,9 @@ function substitutePathParams(path: unknown, params: Record<string, unknown>): s
  *     retarget or override a fixed field.
  *  3. `call.context` — the run-context binding (`{ bodyPath: "$ctx.<key>" }`), filled LAST so a
  *     bound field always wins over both the model's args and the static `body`. Each token resolves
- *     against the run's `runContext` (delivered on `/run`); a token that does not resolve is left
- *     unset (the field is simply absent), and the model never sees or sets a bound field. This is
- *     how a self-targeting tool gets its own trace/variant server-side.
+ *     against the run's `runContext` (delivered on `/run`); a token that does not resolve THROWS
+ *     (fail closed; see applyContextBindings), and the model never sees or sets a bound field.
+ *     This is how a self-targeting tool gets its own trace/variant server-side.
  */
 export function assembleBody(
   call: DirectCall,
@@ -246,6 +257,178 @@ export function assembleBody(
   return body;
 }
 
+/**
+ * Remove the model-authored arguments that exist for the human, not for the endpoint.
+ *
+ * A builder tool call may carry an ephemeral `description`: one or two sentences saying what the
+ * call does and why (R12). The frontend shows it beside the call, so it must survive in the
+ * RECORDED call. It must never reach the API, because no endpoint has a field for it and an
+ * ephemeral note must not become part of the audit trail by accident.
+ *
+ * So the strip happens here, at dispatch, and not earlier. Both dispatch modes call this before
+ * they build a request: the direct call before `assembleBody`, and the gateway call before it
+ * posts to `/tools/call`. Stripping before `args_into` matters — with `args_into` set, every model
+ * argument is deep-set at that path, so a description left in place would land INSIDE the payload
+ * object (e.g. `schedule.description`) and silently overwrite a real field.
+ *
+ * Only TOP-LEVEL names are removed. The list is a closed catalog value, never model input, but
+ * keeping it top-level-only means a nested field with the same name is always safe.
+ *
+ * Returns `args` unchanged when there is nothing to strip, so the common path allocates nothing.
+ */
+export function stripEphemeralArgs(
+  args: unknown,
+  ephemeralArgs: string[] | undefined,
+): unknown {
+  return resolveEphemeralArgs(args, ephemeralArgs).args;
+}
+
+/** The schema marker a payload property carries to say it is the ephemeral note, not a field. */
+export const EPHEMERAL_SCHEMA_MARKER = "x-ag-ephemeral";
+
+/**
+ * Whether the endpoint declares a REAL field of this name inside this payload object.
+ *
+ * This is the guard that makes the lift safe to apply by rule rather than by tool name. Four
+ * platform ops carry a genuine `description` inside their payload (`create_schedule` and friends),
+ * and today none of them accepts the ephemeral one, so the two sets do not overlap. That is an
+ * accident of the current catalog and not an invariant anybody enforces, so the runner checks the
+ * advertised schema instead of trusting it: a declared field is the endpoint's, and it is never
+ * lifted or removed.
+ *
+ * An UNKNOWN payload schema also refuses the lift. A rejected call is visible and recoverable; a
+ * silently deleted field is neither, so the tie goes to leaving the arguments alone.
+ */
+function payloadDeclaresField(
+  schema: Record<string, unknown> | undefined,
+  payloadKey: string,
+  name: string,
+): "declared" | "absent" | "unknown" {
+  const properties = schema?.properties;
+  if (!isPlainObject(properties)) return "unknown";
+  const payload = properties[payloadKey];
+  if (!isPlainObject(payload)) return "unknown";
+  const fields = payload.properties;
+  if (!isPlainObject(fields)) return "unknown";
+  if (!Object.prototype.hasOwnProperty.call(fields, name)) return "absent";
+  // A property the catalog marks ephemeral is ADVERTISED but not a field. The schema tolerates the
+  // position models keep writing to, so the call validates instead of being refused, and the note
+  // is still lifted out and never dispatched. Only a literal `true` opts in: a missing or falsy
+  // marker leaves the property a genuine field, which is what protects `create_schedule` and the
+  // three other ops whose payload `description` really is persisted.
+  const field = fields[name];
+  if (isPlainObject(field) && field[EPHEMERAL_SCHEMA_MARKER] === true) {
+    return "absent";
+  }
+  return "declared";
+}
+
+/** What the ephemeral pass found, beyond the arguments it hands to the dispatch. */
+export interface EphemeralArgsResolution {
+  /** The arguments to dispatch: every ephemeral name removed, at the top level and one below it. */
+  args: unknown;
+  /**
+   * Ephemeral values the model wrote INSIDE a payload object, with nothing at the top level.
+   * Keyed by ephemeral name, with the payload key it came from, so a caller can log or record it.
+   */
+  lifted: Array<{ name: string; from: string; value: unknown }>;
+  /** Nested values discarded because the top level already carried the same name. */
+  shadowed: Array<{ name: string; from: string }>;
+}
+
+/**
+ * The ephemeral pass: strip, and lift a misplaced value out of a payload object.
+ *
+ * WHY THE LIFT EXISTS. `description` is ephemeral and belongs at the TOP level of the call. Models
+ * write it one level down instead, inside the payload object, and the two that do this are not
+ * moved by any wording we measured (371 trials). The endpoint's schema is closed, so a nested
+ * `description` is not merely ignored: the call is REJECTED, the agent reads a validation error,
+ * and a build stops for a note that was never meant to reach the API at all.
+ *
+ * Lifting it costs nothing and ends the class. The value is reported to the caller as the call's
+ * description, exactly as a top-level one, and removed from the payload before dispatch.
+ *
+ * DEPTH ONE, AND NEVER DEEPER. Only a DIRECT child of a top-level object is eligible. Real fields
+ * named `description` do exist further down (a skill inside `parameters.agent.skills[]` carries
+ * one, and a user asked for it), so a deeper walk would silently delete content the human meant to
+ * commit. No `accepts_description` op today has a real `description` field at depth one, which is
+ * exactly why the misplaced note is a rejection rather than an overwrite.
+ *
+ * SPEC-DRIVEN, NOT NAME-DRIVEN. This reads only `spec.ephemeralArgs`, so an op that gains
+ * `accepts_description` later inherits the lift with no code change here, and a tool without it is
+ * untouched.
+ *
+ * TOP LEVEL WINS. A model that writes both has already said what it meant in the right place; the
+ * nested copy is dropped and reported so it is visible rather than silent.
+ *
+ * THE LIMIT, STATED. On Pi this only helps once the catalog schema permits the nested position,
+ * because Pi validates against the advertised schema in its own process and rejects the call
+ * before the runner ever sees it. On Claude and Codex nothing validates client-side, so the lift
+ * fixes the class immediately.
+ */
+export function resolveEphemeralArgs(
+  args: unknown,
+  ephemeralArgs: string[] | undefined,
+  inputSchema?: Record<string, unknown>,
+): EphemeralArgsResolution {
+  const lifted: EphemeralArgsResolution["lifted"] = [];
+  const shadowed: EphemeralArgsResolution["shadowed"] = [];
+  if (!ephemeralArgs || ephemeralArgs.length === 0) return { args, lifted, shadowed };
+  if (!isPlainObject(args)) return { args, lifted, shadowed };
+
+  const source = args as Record<string, unknown>;
+  // Every top-level payload object, in the order the model wrote them. Arrays are not payload
+  // objects: a positional element carries no field the note could be mistaken for.
+  const payloadKeys = Object.keys(source).filter((key) =>
+    isPlainObject(source[key]),
+  );
+
+  for (const name of ephemeralArgs) {
+    const topHas = Object.prototype.hasOwnProperty.call(source, name);
+    const nestedIn = payloadKeys.filter(
+      (key) =>
+        Object.prototype.hasOwnProperty.call(
+          source[key] as Record<string, unknown>,
+          name,
+        ) &&
+        // Only a value the endpoint has no field for can be the misplaced note.
+        payloadDeclaresField(inputSchema, key, name) === "absent",
+    );
+    if (!topHas && nestedIn.length > 0) {
+      // The first is the lifted one. More than one is pathological rather than meaningful, so the
+      // rest are reported as shadowed instead of being guessed between or silently kept.
+      const [first, ...rest] = nestedIn;
+      lifted.push({
+        name,
+        from: first,
+        value: (source[first] as Record<string, unknown>)[name],
+      });
+      for (const key of rest) shadowed.push({ name, from: key });
+    } else {
+      for (const key of nestedIn) shadowed.push({ name, from: key });
+    }
+  }
+
+  const removeTop = ephemeralArgs.filter((name) =>
+    Object.prototype.hasOwnProperty.call(source, name),
+  );
+  const touchedPayloads = new Set(
+    [...lifted, ...shadowed].map((entry) => entry.from),
+  );
+  if (removeTop.length === 0 && touchedPayloads.size === 0) {
+    return { args, lifted, shadowed };
+  }
+
+  const next = { ...source };
+  for (const name of removeTop) delete next[name];
+  for (const key of touchedPayloads) {
+    const payload = { ...(next[key] as Record<string, unknown>) };
+    for (const name of ephemeralArgs) delete payload[name];
+    next[key] = payload;
+  }
+  return { args: next, lifted, shadowed };
+}
+
 export function applyContextBindings(
   args: unknown,
   bindings: Record<string, string>,
@@ -258,7 +441,9 @@ export function applyContextBindings(
     deepDelete(body, argPath);
     const value = resolveCtxToken(runContext, token);
     if (value === undefined) {
-      throw new Error(`missing run-context value for tool binding '${argPath}'`);
+      throw new Error(
+        `missing run-context value for tool binding '${argPath}'`,
+      );
     }
     deepSet(body, argPath, value);
   }
@@ -351,6 +536,51 @@ export function directCallUrl(
   return resolved.toString();
 }
 
+/** Contract: what the model may read out of a failed call, in characters. */
+export const MAX_ERROR_DETAIL_CHARS = 2000;
+
+/**
+ * The `detail` of an Agenta error envelope, or undefined when the body is not one.
+ *
+ * WHY THIS DOES NOT LEAK. Every `callDirect` URL comes from `directCallUrl`, which locks the
+ * origin to the run's own Agenta and confines the path to its API mount. The one remaining call
+ * site (the relay's `call` branch) uses it, so the responder is always our own API. The
+ * config-text reader was the second until the API migration moved it to the `/tools/call` seam;
+ * its failures now arrive as the handler envelope through `callAgentaTool` instead of through
+ * this function.
+ * `detail` is the one field that API puts a caller-facing reason in: a string for the git
+ * exceptions, an object carrying `code`, `message` and `next_step` for a change-set refusal or a
+ * revision conflict, a list for a FastAPI validation error.
+ *
+ * WHY IT IS STILL SHAPE-GATED. Our origin can sit behind a proxy or a load balancer, and those
+ * answer with HTML or with JSON of their own. A body that is not an object carrying a usable
+ * `detail` therefore keeps the redacted message, so an upstream the runner did not write can put
+ * nothing in front of the model. Passing the body through for every 4xx would fail that case, and
+ * a 5xx page can carry an internal hostname or a stack trace.
+ *
+ * WHY IT MATTERS. Without it the model reads `HTTP 422` and nothing else. The change-set engine
+ * answers a wrong target or a duplicate key with a code and a next step precisely so the agent can
+ * recover by itself, and the redaction was throwing that away one layer above it.
+ */
+export function agentaErrorDetail(bodyText: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyText);
+  } catch {
+    return undefined;
+  }
+  if (!isPlainObject(parsed) || !("detail" in parsed)) return undefined;
+  const detail = parsed.detail;
+  if (detail === null || detail === undefined) return undefined;
+  // A string reads better unquoted. Anything else goes back out as it arrived, because the
+  // structure IS the information the model needs.
+  const text = typeof detail === "string" ? detail : JSON.stringify(detail);
+  if (!text) return undefined;
+  return text.length > MAX_ERROR_DETAIL_CHARS
+    ? `${text.slice(0, MAX_ERROR_DETAIL_CHARS)} (truncated)`
+    : text;
+}
+
 /**
  * One direct call to an Agenta endpoint. Reuses the run's caller credential (`authorization`),
  * combines an optional caller `signal` with the per-tool timeout, and returns the response text
@@ -406,12 +636,18 @@ export async function callDirect(
 
   const bodyText = await response.text();
   if (!response.ok) {
-    // Keep the internal URL and the upstream response body server-side; the model gets only the
-    // status code. (`redirect: "manual"` makes a 3xx a non-ok response, so it lands here too.)
+    // Keep the internal URL and the raw body server-side. The model gets the status, plus the
+    // `detail` field when the body is one of OUR error envelopes. (`redirect: "manual"` makes a
+    // 3xx a non-ok response, so it lands here too, and it carries no `detail`.)
     console.error(
       `direct tool call ${method} ${url} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
     );
-    throw new Error(`direct tool call failed: HTTP ${response.status}`);
+    const detail = agentaErrorDetail(bodyText);
+    throw new Error(
+      detail === undefined
+        ? `direct tool call failed: HTTP ${response.status}`
+        : `direct tool call failed: HTTP ${response.status}: ${detail}`,
+    );
   }
   return bodyText;
 }

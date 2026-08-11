@@ -1,14 +1,19 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
-import {shouldAdoptServerTranscript} from "@agenta/entities/session"
+import {revalidateSessionRecordsAtom, shouldAdoptServerTranscript} from "@agenta/entities/session"
 import {type UIMessage} from "ai"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
+
+import {projectIdAtom} from "@/oss/state/project"
 
 import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
 import {sessionLivenessAtomFamily} from "../state/liveness"
+import {useChatScopeKey} from "../state/scope"
 import {isSessionFresh} from "../state/sessionEphemera"
+import {activeSessionIdAtomFamily} from "../state/sessions"
 
 import {type ScrollIntent} from "./useScrollIntent"
+import {useSessionRecordsWatch} from "./useSessionRecordsWatch"
 
 /** Catch-up cadence while a session runs elsewhere — matches the records query's own staleTime and
  * the liveness poll, so a tick refetches instead of resolving from a still-fresh cache. */
@@ -242,6 +247,34 @@ export const useSessionHydration = ({
         // Deliberately NOT keyed on `adoptServerTranscript` — the poll reads it through the ref
         // above, so a re-render can't cancel a pending tick or reset the backoff.
     }, [runningElsewhere, sessionId])
+
+    // ── Push counterpart to that poll: the session watch relay ─────────────────
+    // The relay ticks whenever this session's durable records change — a turn resumed on another
+    // device, an approval answered from mobile — so an open desktop tab converges in seconds instead
+    // of needing a reload (the poll above stays the fallback, and only runs while a run is live).
+    // One EventSource per ACTIVE conversation: antd Tabs keeps inactive panes mounted, so `enabled`
+    // holds the subscription to the visible session. Foreground-only + throttled inside the hook.
+    const scopeKey = useChatScopeKey()
+    const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
+    const projectId = useAtomValue(projectIdAtom)
+    const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const refreshFromRecords = useCallback(() => {
+        // Skipped while THIS tab streams — it is already the live truth, and `onFinish` revalidates.
+        if (busyRef.current) return
+        // A tick usually lands inside the records query's stale window, so the shared cache would
+        // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
+        revalidateSessionRecords(sessionId)
+        void loadSessionMessages(sessionId).then((transcript) =>
+            // A background catch-up must not yank a reader who scrolled up — as with the poll.
+            adoptServerTranscriptRef.current(transcript, {armJump: false}),
+        )
+    }, [sessionId, busyRef, revalidateSessionRecords])
+    useSessionRecordsWatch({
+        sessionId,
+        projectId,
+        enabled: activeSessionId === sessionId,
+        onRecordsChanged: refreshFromRecords,
+    })
 
     return {isHydrating, hydratedEmpty, runningElsewhere}
 }

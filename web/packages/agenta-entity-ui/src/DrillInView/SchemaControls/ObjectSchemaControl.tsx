@@ -17,8 +17,8 @@ import {memo, useMemo, useState} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatLabel} from "@agenta/ui/drill-in"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 // Forward declaration - actual component imported to avoid circular deps
@@ -146,12 +146,8 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (!schema?.properties || propertyKeys.length === 0) {
         return (
             <div className={clsx("flex flex-col gap-1", className)}>
-                {showHeader && (
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                )}
-                <Typography.Text type="secondary" className="text-xs">
-                    No properties defined
-                </Typography.Text>
+                {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
+                <span className="text-xs text-colorTextDescription">No properties defined</span>
             </div>
         )
     }
@@ -160,13 +156,11 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (specialType === "tool_configuration") {
         return (
             <div className={clsx("flex flex-col gap-2", className)}>
-                {showHeader && (
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                )}
+                {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
                 <div className="bg-gray-50 p-3 rounded-md border border-gray-200">
-                    <Typography.Text type="secondary" className="text-xs">
+                    <span className="text-xs text-colorTextDescription">
                         Tool Configuration (JSON Editor)
-                    </Typography.Text>
+                    </span>
                     <pre className="text-xs mt-2 overflow-auto max-h-[200px]">
                         {JSON.stringify(value, null, 2)}
                     </pre>
@@ -179,9 +173,7 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (!SchemaPropertyRenderer) {
         return (
             <div className={clsx("flex flex-col gap-2", className)}>
-                {showHeader && (
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                )}
+                {showHeader && <span className="text-sm font-medium text-colorText">{label}</span>}
                 <pre className="text-xs bg-gray-50 p-2 rounded overflow-auto max-h-[200px]">
                     {JSON.stringify(value, null, 2)}
                 </pre>
@@ -219,16 +211,19 @@ export const ObjectSchemaControl = memo(function ObjectSchemaControl({
     if (showHeader) {
         const headerContent = (
             <div className="flex items-center gap-2 mb-2">
-                <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
+                <span className="text-sm font-medium text-colorText">{label}</span>
             </div>
         )
 
         return (
             <div className={clsx("flex flex-col", className)}>
                 {withTooltip && tooltipText ? (
-                    <Tooltip title={tooltipText} placement="right">
-                        {headerContent}
-                    </Tooltip>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>{headerContent}</TooltipTrigger>
+                            <TooltipContent side="right">{tooltipText}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 ) : (
                     headerContent
                 )}
@@ -262,24 +257,31 @@ export const CollapsibleObjectControl = memo(function CollapsibleObjectControl({
 
     const tooltipText = description ?? (schema?.description as string | undefined) ?? ""
 
+    const toggle = (
+        <Button
+            variant="ghost"
+            className="flex items-center gap-1.5 px-0 h-auto"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+        >
+            <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
+                {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
+            </span>
+            <span className="text-sm font-medium">{label}</span>
+        </Button>
+    )
+
     return (
         <div className={clsx("flex flex-col gap-2", className)}>
-            <Tooltip
-                title={tooltipText}
-                placement="right"
-                open={withTooltip && tooltipText ? undefined : false}
-            >
-                <Button
-                    type="text"
-                    className="flex items-center gap-1.5 px-0 h-auto"
-                    onClick={() => setIsCollapsed(!isCollapsed)}
-                >
-                    <span className="text-[var(--ag-rgba-051729-45)] flex items-center">
-                        {isCollapsed ? <CaretRight size={14} /> : <CaretDown size={14} />}
-                    </span>
-                    <Typography.Text className="text-sm font-medium">{label}</Typography.Text>
-                </Button>
-            </Tooltip>
+            {withTooltip && tooltipText ? (
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>{toggle}</TooltipTrigger>
+                        <TooltipContent side="right">{tooltipText}</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            ) : (
+                toggle
+            )}
 
             {!isCollapsed && (
                 <ObjectSchemaControl

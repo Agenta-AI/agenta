@@ -3,7 +3,7 @@
 Locks the three model-string shapes the design promises (``"openai/gpt-5.5"``, ``"gpt-5.5"``,
 a full object with a connection), the first-slash split (so a custom ``my-gw/llama-3`` parses
 correctly and a provider slug is never re-split), the ``Connection`` validity rules, and the
-secret hygiene of ``ResolvedConnection.to_wire()`` (it never emits ``env``).
+secret hygiene of ``ResolvedConnection`` (typed credentials, masked dumps).
 """
 
 from __future__ import annotations
@@ -17,6 +17,8 @@ from agenta.sdk.agents.connections import (
     ModelRef,
     ResolvedConnection,
 )
+from agenta.sdk.agents.connections.endpoints import build_resolved_connection
+from agenta.sdk.agents.connections.errors import InvalidConnectionConfigurationError
 
 
 # ----------------------------------------------------------------- ModelRef.coerce
@@ -134,23 +136,45 @@ def test_no_default_mode():
 # --------------------------------------------------- ResolvedConnection / Endpoint shape
 
 
-def test_resolved_connection_to_wire_excludes_env():
+def test_resolved_connection_to_wire_nests_typed_credentials():
     resolved = ResolvedConnection(
         provider="openai",
         model="gpt-5.5",
         credential_mode="env",
-        env={"OPENAI_API_KEY": "sk-secret"},
+        credentials=[
+            {
+                "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                "value": "sk-secret",
+                "usage": "opaque_http",
+            }
+        ],
         endpoint=Endpoint(base_url="https://gw.example/v1"),
     )
-    wire = resolved.to_wire()
-    assert "env" not in wire
-    assert "sk-secret" not in repr(wire)
-    assert wire == {
+    assert resolved.to_wire() == {
         "provider": "openai",
-        "model": "gpt-5.5",
         "deployment": "direct",
         "credentialMode": "env",
+        "credentials": [
+            {
+                "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                "value": "sk-secret",
+                "usage": "opaque_http",
+            }
+        ],
         "endpoint": {"baseUrl": "https://gw.example/v1"},
+    }
+
+
+def test_resolved_connection_to_wire_emits_model_capabilities_when_set():
+    resolved = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="runtime_provided",
+        input_modalities=["text", "image"],
+    )
+
+    assert resolved.to_wire()["modelCapabilities"] == {
+        "inputModalities": ["text", "image"]
     }
 
 
@@ -162,35 +186,90 @@ def test_resolved_connection_to_wire_omits_endpoint_when_absent():
     )
     wire = resolved.to_wire()
     assert "endpoint" not in wire
+    assert "modelCapabilities" not in wire
+    assert wire["credentials"] == []
     assert wire["credentialMode"] == "runtime_provided"
 
 
-def test_resolved_connection_env_is_hidden_from_repr():
+def test_local_use_credentials_do_not_require_an_http_endpoint():
+    resolved = build_resolved_connection(
+        provider="bedrock",
+        model="anthropic.claude-x",
+        deployment="bedrock",
+        credential_mode="env",
+        values={"AWS_PROFILE": "profile"},
+    )
+    assert resolved.endpoint is None
+    assert resolved.credential_mode == "env"
+    assert [credential.usage for credential in resolved.credentials] == ["local_use"]
+
+
+@pytest.mark.parametrize("values", [{"": "value"}, {"OPENAI_API_KEY": ""}])
+def test_build_resolved_connection_maps_malformed_bindings_to_configuration_error(
+    values,
+):
+    # A malformed binding is a caller configuration problem: it must surface as the typed
+    # 422 error (like the endpoint-resolution failures), never as a bare ValueError (500).
+    with pytest.raises(
+        InvalidConnectionConfigurationError,
+        match="non-empty names and values",
+    ):
+        build_resolved_connection(
+            provider="openai",
+            model="gpt-5.5",
+            credential_mode="env",
+            values=values,
+        )
+
+
+def test_resolved_connection_credential_is_hidden_from_repr():
     resolved = ResolvedConnection(
         provider="openai",
         model="gpt-5.5",
         credential_mode="env",
-        env={"OPENAI_API_KEY": "do-not-print"},
+        credentials=[
+            {
+                "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                "value": "do-not-print",
+                "usage": "opaque_http",
+            }
+        ],
+        endpoint=Endpoint(base_url="https://api.openai.com/v1"),
     )
     assert "do-not-print" not in repr(resolved)
 
 
-def test_resolved_connection_env_is_masked_from_model_dump():
+def _env_credentials(env: dict[str, str]) -> list[dict]:
+    return [
+        {
+            "binding": {"kind": "environment", "name": name},
+            "value": value,
+            "usage": "opaque_http",
+        }
+        for name, value in env.items()
+    ]
+
+
+def test_resolved_connection_credential_is_masked_from_model_dump():
     # F-SDK-DUMP: repr hiding is not enough — a dump must not carry the credential either.
     resolved = ResolvedConnection(
         provider="openai",
         model="gpt-5.5",
         credential_mode="env",
-        env={"OPENAI_API_KEY": "do-not-dump"},
+        credentials=_env_credentials({"OPENAI_API_KEY": "do-not-dump"}),
+        endpoint=Endpoint(base_url="https://api.openai.com/v1"),
     )
     assert "do-not-dump" not in str(resolved.model_dump())
     assert "do-not-dump" not in resolved.model_dump_json()
-    assert resolved.model_dump()["env"] == {"OPENAI_API_KEY": "**********"}
+    assert resolved.model_dump()["credentials"][0]["value"] == "**********"
     # The credential is still readable through attribute access (the harness path).
-    assert resolved.env["OPENAI_API_KEY"] == "do-not-dump"
+    assert resolved.credentials[0].value == "do-not-dump"
+    # ... and through the wire/local-materialization consumers.
+    assert resolved.to_wire()["credentials"][0]["value"] == "do-not-dump"
+    assert resolved.plaintext_environment() == {"OPENAI_API_KEY": "do-not-dump"}
 
 
-def test_session_config_dump_does_not_leak_resolved_connection_env():
+def test_session_config_dump_does_not_leak_resolved_connection_credential():
     # The nested case: a SessionConfig dump must not surface the connection's credential.
     from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig
 
@@ -200,7 +279,104 @@ def test_session_config_dump_does_not_leak_resolved_connection_env():
             provider="openai",
             model="gpt-5.5",
             credential_mode="env",
-            env={"OPENAI_API_KEY": "do-not-dump"},
+            credentials=_env_credentials({"OPENAI_API_KEY": "do-not-dump"}),
+            endpoint=Endpoint(base_url="https://api.openai.com/v1"),
         ),
     )
     assert "do-not-dump" not in config.model_dump_json()
+
+
+@pytest.mark.parametrize(
+    "credentials, endpoint, mode",
+    [
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": ""},
+                    "value": "key",
+                    "usage": "opaque_http",
+                }
+            ],
+            Endpoint(base_url="https://api.example"),
+            "env",
+        ),
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": "KEY"},
+                    "value": "",
+                    "usage": "opaque_http",
+                }
+            ],
+            Endpoint(base_url="https://api.example"),
+            "env",
+        ),
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": "KEY"},
+                    "value": "key",
+                    "usage": "opaque_http",
+                }
+            ],
+            None,
+            "env",
+        ),
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": "KEY"},
+                    "value": "key",
+                    "usage": "opaque_http",
+                }
+            ],
+            Endpoint(base_url="http://api.example"),
+            "env",
+        ),
+        ([], Endpoint(base_url="https://api.example"), "env"),
+        (
+            [
+                {
+                    "binding": {"kind": "environment", "name": "KEY"},
+                    "value": "key",
+                    "usage": "local_use",
+                }
+            ],
+            Endpoint(base_url="https://api.example"),
+            "runtime_provided",
+        ),
+    ],
+)
+def test_resolved_connection_rejects_invalid_credential_combinations(
+    credentials, endpoint, mode
+):
+    with pytest.raises(ValidationError):
+        ResolvedConnection(
+            provider="test",
+            model="m",
+            credential_mode=mode,
+            credentials=credentials,
+            endpoint=endpoint,
+        )
+
+
+def test_plaintext_environment_materializes_only_at_local_boundary():
+    resolved = ResolvedConnection(
+        provider="anthropic",
+        model="claude",
+        deployment="bedrock",
+        credential_mode="env",
+        environment={"AWS_REGION": "us-east-1"},
+        credentials=[
+            {
+                "binding": {"kind": "environment", "name": "AWS_ACCESS_KEY_ID"},
+                "value": "AKIA",
+                "usage": "local_use",
+            }
+        ],
+        endpoint=Endpoint(base_url="https://bedrock-runtime.us-east-1.amazonaws.com"),
+    )
+    assert resolved.plaintext_environment() == {
+        "AWS_REGION": "us-east-1",
+        "AWS_ACCESS_KEY_ID": "AKIA",
+    }

@@ -11,7 +11,7 @@ review lens: what this adapter does and what to check when it moves.
 
 ## The contract
 
-It supports `pi_core`, `pi_agenta`, and `claude`, and holds a `local` or `daytona` sandbox.
+It supports `pi_core`, `pi_agenta`, `claude`, and `codex`, and holds a `local` or `daytona` sandbox.
 Its engine id is the hard-coded `"sandbox-agent"`, the one engine. The constructor resolves
 the runner: a `url` selects HTTP delivery, otherwise a resolved `command` selects a CLI
 subprocess.

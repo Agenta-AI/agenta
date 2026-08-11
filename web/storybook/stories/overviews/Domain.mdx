@@ -1,0 +1,31 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/ui/Domain/Overview" />
+
+# Domain
+
+The heavier, product-specific components — editors, chat, tables, cell renderers, provider
+pickers. They carry real domain logic and normally read from atoms / fetchers; in Storybook
+they are rendered off **mocked data** so no live state, network, or provider context is
+needed.
+
+| Component                | What it is                                 | Notes                                    |
+| ------------------------ | ------------------------------------------ | ---------------------------------------- |
+| **LLMIcons**             | Provider / model icon set.                 | pure icon lookup.                        |
+| **SelectLLMProvider**    | Provider + model picker.                   | rendered against a static provider list. |
+| **ChatMessage**          | Rendered chat turn (role, content, tools). | mocked message objects.                  |
+| **SharedEditor**         | Shared code / prompt editor surface.       | mocked value; no autosave wiring.        |
+| **CellRenderers**        | Table cell renderers by value type.        | rendered off sample row data.            |
+| **RichChatInput**        | Composer with attachments / rich content.  | local state; upload mocked.              |
+| **Editor**               | Standalone rich-text / code editor.        | mocked value.                            |
+| **DrillIn**              | Master/detail drill-in navigation shell.   | mocked navigation tree.                  |
+| **InfiniteVirtualTable** | Virtualized, infinitely-scrolling table.   | mocked rows; virtualization live.        |
+
+**How to read these stories**
+
+- Data is injected as props / static fixtures — there are **no atoms or fetchers** behind
+  these stories, so they render deterministically for the docs and VRT gate.
+- These are compositions, not antd replacements; open a story to see the composed surface
+  rather than a side-by-side.
+
+Open a component's **Docs** tab for its full prop table.

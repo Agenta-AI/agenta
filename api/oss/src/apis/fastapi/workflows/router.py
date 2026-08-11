@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Request, status, HTTPException, Depends
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import invalidate_cache
@@ -13,9 +14,13 @@ from oss.src.core.shared.dtos import (
     Reference,
 )
 from oss.src.core.git.utils import build_retrieval_info
+from oss.src.core.git.types import CommitLockTimeout
+from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
+from oss.src.core.workflows.change_set import ChangeSetError
 from oss.src.core.workflows.service import (
+    RevisionConflictError,
     WorkflowsService,
     SimpleWorkflowsService,
 )
@@ -52,6 +57,7 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowRevisionsLogRequest,
     WorkflowRevisionResponse,
     WorkflowRevisionsResponse,
+    #
     #
     WorkflowRevisionResolveRequest,
     WorkflowRevisionResolveResponse,
@@ -1497,6 +1503,7 @@ class WorkflowsRouter:
 
     @intercept_exceptions()
     @handle_workflow_exceptions()
+    @handle_git_exceptions()
     async def commit_workflow_revision(
         self,
         request: Request,
@@ -1504,6 +1511,22 @@ class WorkflowsRouter:
         workflow_variant_id: Optional[UUID] = None,
         #
         workflow_revision_commit_request: WorkflowRevisionCommitRequest,
+    ) -> WorkflowRevisionResponse:
+        """The human and SDK route: no write scope, the caller owns the whole revision."""
+        return await self._commit_workflow_revision(
+            request=request,
+            workflow_variant_id=workflow_variant_id,
+            workflow_revision_commit_request=workflow_revision_commit_request,
+            scope_policy=None,
+        )
+
+    async def _commit_workflow_revision(
+        self,
+        *,
+        request: Request,
+        workflow_variant_id: Optional[UUID],
+        workflow_revision_commit_request: WorkflowRevisionCommitRequest,
+        scope_policy,
     ) -> WorkflowRevisionResponse:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
@@ -1542,6 +1565,43 @@ class WorkflowsRouter:
                 status_code=400,
                 detail="Provide either data or delta for a commit, not both.",
             )
+        # A scoped caller states changes, never a whole configuration: a full replacement
+        # carries every field the scope exists to protect, so it is refused rather than
+        # filtered. The agent's tool only ever sends a delta.
+        if scope_policy is not None and not has_delta:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "full_data_not_committable",
+                    "message": (
+                        "This route commits a change to the configuration, not a whole "
+                        "configuration."
+                    ),
+                    "next_step": (
+                        "Send the change as `delta`, targeting the fields you want to "
+                        "alter."
+                    ),
+                    "retryable": False,
+                },
+            )
+        # `description` on a scoped commit is dropped, never stored. The model never sets the
+        # persisted revision description (read-config.md 12.2); the field it does write is the
+        # ephemeral per-call note, which shares this name and must not reach the audit trail
+        # (12.3). The runner strips that note before dispatch, so one arriving here means the
+        # runner did not, and storing it would persist exactly what the contract forbids.
+        if (
+            scope_policy is not None
+            and workflow_revision_commit.description is not None
+        ):
+            workflow_revision_commit = workflow_revision_commit.model_copy(
+                update={"description": None}
+            )
+            workflow_revision_commit_request = (
+                workflow_revision_commit_request.model_copy(
+                    update={"workflow_revision": workflow_revision_commit}
+                )
+            )
+
         if not has_data and not has_delta:
             current_revision = await self.workflows_service.fetch_workflow_revision(
                 project_id=UUID(request.state.project_id),
@@ -1554,27 +1614,89 @@ class WorkflowsRouter:
                     detail="workflow_revision.data is required when committing a workflow revision.",
                 )
 
-        workflow_revision = await self.workflows_service.commit_workflow_revision(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
-        )
+        try:
+            outcome = await self.workflows_service.commit_workflow_revision_checked(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
+                #
+                scope_policy=scope_policy,
+            )
+        except RevisionConflictError as e:
+            raise HTTPException(status_code=409, detail=e.to_detail()) from e
+        except ChangeSetError as e:
+            raise HTTPException(status_code=422, detail=e.to_detail()) from e
+        except NonEmbeddableWorkflowReferenceError as e:
+            # One code, one status. This used to answer 422 here and 400 everywhere else
+            # the same failure is raised, so a caller had to learn the status per route
+            # rather than per cause (audit leak C31).
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "non_embeddable_reference",
+                    "message": str(e),
+                    "retryable": False,
+                    "next_step": (
+                        "Remove the embedded reference to that workflow and send the "
+                        "commit again."
+                    ),
+                },
+            ) from e
+        except CommitLockTimeout as e:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    # The one genuinely retryable failure on this path: the request was
+                    # never applied, and the identical bytes can succeed once the commit
+                    # in flight releases the variant lock.
+                    "code": "commit_lock_timeout",
+                    "message": e.message,
+                    "retryable": True,
+                    "next_step": (
+                        "Wait for the commit in flight to finish, then send this commit "
+                        "again."
+                    ),
+                    "details": {
+                        "variant_id": str(e.variant_id) if e.variant_id else None,
+                        "timeout_ms": env.postgres.commit_lock_timeout_ms,
+                    },
+                },
+            ) from e
 
-        # Invalidate legacy caches so the registry page reflects the new revision
-        await invalidate_cache(project_id=request.state.project_id)
+        workflow_revision = outcome.revision
 
-        await _emit_committed_revision_data_event(
-            request=request,
-            workflow_revision=workflow_revision,
-        )
+        # A commit that reports success with nothing to show for it is a failure the DAO
+        # swallowed. Answering 200 here would tell the caller its change landed.
+        if outcome.status == "committed" and not workflow_revision:
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    # NOT retryable, and no next_step. This fires when the write layer
+                    # reported success and produced nothing, which is an invariant failure
+                    # inside the server. Telling a caller to retry an unknown-state write
+                    # invites a duplicate commit; there is no action it can take.
+                    "code": "commit_failed",
+                    "message": "The commit did not produce a revision.",
+                    "retryable": False,
+                },
+            )
 
-        workflow_revision_response = WorkflowRevisionResponse(
+        # A commit event evicts the warm session, so `no_change` must emit nothing.
+        if outcome.status == "committed":
+            await invalidate_cache(project_id=request.state.project_id)
+
+            await _emit_committed_revision_data_event(
+                request=request,
+                workflow_revision=workflow_revision,
+            )
+
+        return WorkflowRevisionResponse(
             count=1 if workflow_revision else 0,
             workflow_revision=workflow_revision,
+            status=outcome.status,
+            warnings=outcome.warnings or None,
         )
-
-        return workflow_revision_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionsResponse(), exclude=[HTTPException])

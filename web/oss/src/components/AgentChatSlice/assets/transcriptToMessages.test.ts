@@ -36,6 +36,48 @@ const firstPart = (records: SessionRecord[]): Record<string, unknown> => {
 }
 
 describe("transcriptToMessages approval hydration", () => {
+    it("replays the approved-content manifest as the egress's sibling data part", () => {
+        // `tool-approval-request` is a strict object, so the manifest cannot ride the approval
+        // itself; replay must mirror the live data part or a reload loses the card.
+        const manifest = {
+            version: 1,
+            files: [{relativePath: "notes.md", bytes: 12, digest: "abc", executableBit: false}],
+            diffs: [],
+            totalBytes: 12,
+            contentDigest: "def",
+        }
+        const messages = transcriptToMessages([
+            record("record-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "commit_revision",
+                input: {},
+            }),
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1", manifest},
+            }),
+        ])
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0].state).toBe("approval-requested")
+        const data = parts.find((p) => p.type === "data-approval-manifest")?.data as Record<
+            string,
+            unknown
+        >
+        expect(data).toBeDefined()
+        expect(data.toolCallId).toBe("tool-1")
+        expect(data.manifest).toEqual(manifest)
+    })
+
+    it("emits no manifest part when the gate carries none", () => {
+        const messages = transcriptToMessages(approvalRecords())
+        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+        expect(parts.some((p) => p.type === "data-approval-manifest")).toBe(false)
+    })
+
     it("overlays a persisted approval response with the live response shape", () => {
         const part = firstPart([
             ...approvalRecords(),
@@ -283,6 +325,176 @@ describe("transcriptToMessages approval hydration", () => {
             "trace-resume",
         )
     })
+
+    it("settles a resumed turn's gate even when the log has no interaction_response", () => {
+        // Real shape of an approval answered on ANOTHER device (verified against `records`): the
+        // paused turn carries the request, the resume turn carries only thought/usage/message/done —
+        // no `interaction_response`, no re-emitted call, no `tool_result`. The gate must NOT replay
+        // as pending, or the desktop reload keeps showing "Approval needed to continue".
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            record("r-call", {
+                type: "tool_call",
+                id: "tool-1",
+                name: "bash",
+                input: {command: "cat > hello.md"},
+            }),
+            record("r-req", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {toolCallId: "tool-1"},
+            }),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-thought", {type: "thought", text: "the user approved it"}),
+            record("r-msg", {type: "message", text: "Created hello.md"}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(messages).toHaveLength(2)
+        const assistant = messages![1]
+        const parts = assistant.parts as unknown as Record<string, unknown>[]
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+            approval: {id: "approval-1"},
+        })
+        expect(
+            (assistant as unknown as {metadata?: {paused?: boolean}}).metadata?.paused,
+        ).toBeFalsy()
+    })
+
+    it("keeps a still-parked turn's gate pending (no resume records yet)", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            ...approvalRecords(),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+        ])
+
+        const parts = messages![1].parts as unknown as Record<string, unknown>[]
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-requested",
+        })
+    })
+
+    it("leaves a denied call denied across the pause boundary", () => {
+        const messages = transcriptToMessages([
+            record("r-user", {type: "message", text: "create hello.md"}, "user"),
+            ...approvalRecords(),
+            record("r-done-paused", {type: "done", stopReason: "paused"}),
+            record("r-result-denied", {type: "tool_result", id: "tool-1", denied: true}),
+            record("r-msg", {type: "message", text: "Okay, skipping it."}),
+            record("r-done", {type: "done"}),
+        ])
+
+        const parts = messages![1].parts as unknown as Record<string, unknown>[]
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "output-denied",
+        })
+    })
+})
+
+/**
+ * Cold approval resume: the harness re-raises the approved call under a NEW toolCallId, so the
+ * response's `toolCallId` no longer matches the gated part. Only the interaction id still does.
+ */
+describe("transcriptToMessages cold approval resume (re-raised tool call id)", () => {
+    const pausedTurn = (): SessionRecord[] => [
+        record("r-user", {type: "message", text: "delete the file"}, "user"),
+        record("r-call-old", {
+            type: "tool_call",
+            id: "tool-old",
+            name: "bash",
+            input: {command: "rm x"},
+        }),
+        record("r-req", {
+            type: "interaction_request",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-old"},
+        }),
+        record("r-done-paused", {type: "done", stopReason: "paused"}),
+        record("r-call-new", {
+            type: "tool_call",
+            id: "tool-new",
+            name: "bash",
+            input: {command: "rm x"},
+        }),
+    ]
+
+    const response = (approved: boolean): SessionRecord =>
+        record("r-resp", {
+            type: "interaction_response",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-new", approved},
+        })
+
+    const errorResult = (): SessionRecord =>
+        record("r-result", {
+            type: "tool_result",
+            id: "tool-new",
+            output: "boom",
+            isError: true,
+        })
+
+    const toolParts = (records: SessionRecord[]): Record<string, unknown>[] => {
+        const messages = transcriptToMessages(records)
+        expect(messages).not.toBeNull()
+        return (messages ?? [])
+            .flatMap((message) => message.parts as unknown as Record<string, unknown>[])
+            .filter((part) => "toolCallId" in part)
+    }
+
+    it("settles the gated part when the response arrives before the re-raised result", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            response(true),
+            errorResult(),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-error",
+            errorText: "boom",
+            approval: {id: "approval-1", approved: true},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+
+    it("settles the gated part when the re-raised result arrives before the response", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            errorResult(),
+            response(true),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-error",
+            errorText: "boom",
+            approval: {id: "approval-1", approved: true},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
+
+    it("resolves a denied re-raised call to output-denied", () => {
+        const parts = toolParts([
+            ...pausedTurn(),
+            response(false),
+            record("r-result", {type: "tool_result", id: "tool-new", denied: true}),
+            record("r-done", {type: "done"}),
+        ])
+
+        expect(parts).toHaveLength(1)
+        expect(parts[0]).toMatchObject({
+            state: "output-denied",
+            approval: {id: "approval-1", approved: false},
+        })
+        expect(parts.filter((part) => part.state === "approval-requested")).toEqual([])
+    })
 })
 
 describe("transcriptToMessages paused end-marker", () => {
@@ -349,5 +561,64 @@ describe("transcriptToMessages turn growth is invisible to a message count", () 
         const full = transcriptToMessages(completed())
 
         expect(full?.[0].parts.length).toBeGreaterThan(partial?.[0].parts.length ?? 0)
+    })
+})
+
+describe("transcriptToMessages attachments", () => {
+    it("rebuilds user attachment references as file parts with filenames", () => {
+        const messages = transcriptToMessages([
+            record(
+                "record-user",
+                {
+                    type: "message",
+                    text: "Inspect this",
+                    attachments: [
+                        {
+                            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+                            filename: "diagram.png",
+                            mediaType: "image/png",
+                            size: 42,
+                        },
+                    ],
+                },
+                "user",
+            ),
+        ])
+
+        expect(messages?.[0]).toMatchObject({
+            role: "user",
+            parts: [
+                {type: "text", text: "Inspect this"},
+                {
+                    type: "file",
+                    filename: "diagram.png",
+                    mediaType: "image/png",
+                    providerMetadata: {
+                        agenta: {attachmentId: "019c1e0a-f911-7000-8000-000000000001", size: 42},
+                    },
+                },
+            ],
+        })
+        expect((messages?.[0].parts[1] as {url: string}).url).toContain(
+            "/sessions/attachments/019c1e0a-f911-7000-8000-000000000001/content?session_id=session-1",
+        )
+    })
+
+    it("ignores an attachment delivery record instead of rendering a part", () => {
+        const delivery = record("record-delivery", {
+            type: "attachment_delivery",
+            attachmentId: "019c1e0a-f911-7000-8000-000000000001",
+            outcome: "workspace_only",
+            reasonCode: "model_modality_unknown",
+            workingPath: "attachments/019c1e0a-f911-7000-8000-000000000001/archive.zip",
+        })
+
+        expect(transcriptToMessages([delivery])).toBeNull()
+        expect(
+            transcriptToMessages([
+                record("record-text", {type: "message", text: "Done."}),
+                delivery,
+            ])?.[0].parts,
+        ).toEqual([{type: "text", text: "Done."}])
     })
 })

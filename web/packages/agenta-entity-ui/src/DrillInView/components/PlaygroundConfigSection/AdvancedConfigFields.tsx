@@ -5,7 +5,6 @@ import {HeightCollapse} from "@agenta/ui"
 import {formatLabel} from "@agenta/ui/drill-in"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
-import {Typography} from "antd"
 
 import {validateConfigAgainstSchema} from "../../SchemaControls/schemaValidator"
 
@@ -14,6 +13,8 @@ export interface AdvancedConfigFieldsProps {
     value: Record<string, unknown>
     onChange: (key: string, next: unknown) => void
     disabled?: boolean
+    /** Uncontrolled initial disclosure state. */
+    defaultOpen?: boolean
 }
 
 export const AdvancedConfigFields = memo(function AdvancedConfigFields({
@@ -21,11 +22,18 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
     value,
     onChange,
     disabled,
+    defaultOpen = false,
 }: AdvancedConfigFieldsProps) {
-    const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+    const [isAdvancedOpen, setIsAdvancedOpen] = useState(defaultOpen)
     const rootRef = useRef<HTMLDivElement>(null)
+    const didMountRef = useRef(false)
 
     useEffect(() => {
+        // Scroll only on a user toggle — an open-at-mount instance must not move the page.
+        if (!didMountRef.current) {
+            didMountRef.current = true
+            return
+        }
         if (!isAdvancedOpen) return
 
         const timeout = window.setTimeout(() => {
@@ -55,7 +63,7 @@ export const AdvancedConfigFields = memo(function AdvancedConfigFields({
                 ) : (
                     <CaretRight size={14} weight="bold" />
                 )}
-                <span className="font-medium">Advanced</span>
+                <span className="font-medium text-xs">Advanced</span>
             </button>
             <HeightCollapse open={isAdvancedOpen}>
                 <div className="flex flex-col gap-4 pl-5">
@@ -146,19 +154,19 @@ const AdvancedJsonField = memo(function AdvancedJsonField({
     return (
         <div className="flex flex-col gap-1">
             <div className="flex flex-col gap-0.5">
-                <Typography.Text className="font-medium">{label}</Typography.Text>
-                <Typography.Text type="secondary" className="text-xs leading-snug">
+                <span className="font-medium text-xs">{label}</span>
+                <span className="text-xs leading-snug text-colorTextDescription">
                     Provider-specific chat template options sent with the model request in JSON
                     format.{" "}
                     <a
                         href="https://agenta.ai/docs/prompt-engineering/playground/chat-template-kwargs"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-gray-500"
+                        className="text-gray-500 underline decoration-dotted underline-offset-2"
                     >
                         Learn more
                     </a>
-                </Typography.Text>
+                </span>
             </div>
             <SharedEditor
                 key={`llm-config-${fieldKey}`}

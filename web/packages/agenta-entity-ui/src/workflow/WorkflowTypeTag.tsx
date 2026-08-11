@@ -8,7 +8,14 @@ import {
     type WorkflowType,
 } from "@agenta/entities/workflow"
 import {cn} from "@agenta/ui"
-import {Tag, Tooltip} from "antd"
+import {
+    Badge,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+    type BadgeProps,
+} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -31,10 +38,27 @@ export interface WorkflowTypeTagProps {
     className?: string
 }
 
+// All 13 antd preset hues now exist as Badge variants (palette `presetTag`).
+const BADGE_PRESET: Partial<Record<string, BadgeProps["variant"]>> = {
+    blue: "blue",
+    green: "green",
+    orange: "orange",
+    red: "red",
+    purple: "purple",
+    cyan: "cyan",
+    magenta: "magenta",
+    gold: "gold",
+    pink: "pink",
+    yellow: "yellow",
+    volcano: "volcano",
+    geekblue: "geekblue",
+    lime: "lime",
+}
+
 /**
- * Shared bordered-pill tag used for both app and evaluator type badges.
+ * Shared preset-pill tag used for both app and evaluator type badges.
  * Taking a resolved `{label, color}` lets both branches produce visually
- * identical Tags — the only difference is how label/color are computed.
+ * identical pills — the only difference is how label/color are computed.
  */
 const TypePill = ({
     label,
@@ -44,24 +68,28 @@ const TypePill = ({
     label: string
     color: WorkflowTypeColor | null
     className?: string
-}) => (
-    // Tooltip surfaces the full label when truncated — user-deployed
-    // evaluators have URI keys like `__main__.MyEvaluator` that exceed
-    // any column width we'd want to give a type column.
-    <Tooltip title={label} placement="topLeft">
-        <Tag
-            bordered
-            // Use antd's preset color name (e.g. "blue", "gold") rather than the
-            // resolved hex so the tag adapts to light/dark via the active algorithm.
-            // The preset hex in WorkflowTypeColor matches antd's light palette exactly,
-            // so light mode is unchanged.
-            color={color?.name}
-            className={cn("!m-0 max-w-[160px] truncate", className)}
-        >
-            {label}
-        </Tag>
-    </Tooltip>
-)
+}) => {
+    // Use the preset color name (e.g. "blue", "gold") rather than the resolved
+    // hex so the pill adapts to light/dark via the theme-flipping tokens.
+    const variant = color?.name ? BADGE_PRESET[color.name] : undefined
+    return (
+        // Tooltip surfaces the full label when truncated — user-deployed
+        // evaluators have URI keys like `__main__.MyEvaluator` that exceed
+        // any column width we'd want to give a type column.
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Badge variant={variant} className={cn("max-w-[160px]", className)}>
+                        <span className="truncate">{label}</span>
+                    </Badge>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start">
+                    {label}
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    )
+}
 
 const EvaluatorTag = ({
     workflowKey,

@@ -26,14 +26,22 @@ from fastapi import (
     Query,
     Request,
     Response,
-    UploadFile,
     status,
 )
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+
+# FastAPI route params need fastapi.UploadFile; request.form() yields starlette's base class.
+from fastapi import UploadFile as FastAPIUploadFile
+from starlette.datastructures import UploadFile
 from typing import Any, Optional, Union
 
+from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
+
+from oss.src.dbs.redis.sessions.contract import watch_channel
+from oss.src.dbs.redis.shared.engine import get_streams_engine
+from oss.src.apis.fastapi.sessions.watch import watch_event_stream
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -69,6 +77,19 @@ from oss.src.core.sessions.interactions.dtos import (
 )
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.interactions.types import InteractionNotFound
+from oss.src.core.sessions.attachments.dtos import Attachment
+from oss.src.core.sessions.attachments.service import SessionAttachmentsService
+from oss.src.core.sessions.attachments.types import (
+    AttachmentConflict,
+    AttachmentInvalid,
+    AttachmentLengthRequired,
+    AttachmentNotFound,
+    AttachmentQuotaExceeded,
+    AttachmentRequestInvalid,
+    AttachmentStateConflict,
+    AttachmentTooLarge,
+    AttachmentUploadInFlight,
+)
 from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
@@ -80,6 +101,7 @@ from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
 from oss.src.apis.fastapi.mounts.utils import (
     BINARY_RESPONSE,
+    _content_disposition_attachment,
     download_mount_file,
     sign_mount_credentials,
     upload_mount_file,
@@ -113,6 +135,10 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionInteractionResponse,
     SessionInteractionsResponse,
     SessionInteractionTransitionRequest,
+    SessionAttachment,
+    SessionAttachmentReferenceRequest,
+    SessionAttachmentResponse,
+    SessionAttachmentsResponse,
     # mounts
     SessionMountQueryRequest,
     SessionMountResponse,  # noqa: F401  (exported for OpenAPI/single-mount future use)
@@ -130,6 +156,8 @@ from oss.src.apis.fastapi.sessions.models import (
 )
 
 log = get_module_logger(__name__)
+_ATTACHMENT_MULTIPART_OVERHEAD_BYTES = 64 * 1024
+_MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 
 # matches the streams contract allowlist (dbs/redis/sessions/contract.py)
 _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
@@ -181,6 +209,64 @@ def _handle_session_exceptions():
         return wrapper
 
     return decorator
+
+
+def _handle_attachment_exceptions():
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except (AttachmentInvalid, AttachmentRequestInvalid) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=e.message,
+                ) from e
+            except AttachmentLengthRequired as e:
+                raise HTTPException(
+                    status_code=status.HTTP_411_LENGTH_REQUIRED,
+                    detail=e.message,
+                ) from e
+            except AttachmentTooLarge as e:
+                raise HTTPException(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    detail=e.message,
+                ) from e
+            except AttachmentQuotaExceeded as e:
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=e.message,
+                ) from e
+            except AttachmentNotFound as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=e.message,
+                ) from e
+            except AttachmentUploadInFlight as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
+                    headers={"Retry-After": str(e.retry_after_seconds)},
+                ) from e
+            except (AttachmentConflict, AttachmentStateConflict) as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
+                ) from e
+
+        return wrapper
+
+    return decorator
+
+
+def _to_session_attachment(attachment: Attachment) -> SessionAttachment:
+    return SessionAttachment(
+        attachment_id=attachment.id,
+        filename=attachment.filename,
+        media_type=attachment.media_type,
+        size=attachment.size,
+        created_at=attachment.created_at,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -252,6 +338,15 @@ class SessionStreamsRouter:
             methods=["PUT", "POST"],
             operation_id="set_session_stream_header",
             tags=["Sessions"],
+        )
+
+        self.router.add_api_route(
+            "/sessions/streams/watch",
+            self.watch_session_stream,
+            methods=["GET"],
+            operation_id="watch_session_stream",
+            tags=["Sessions"],
+            response_model=None,
         )
 
     @intercept_exceptions()
@@ -439,6 +534,71 @@ class SessionStreamsRouter:
         )
         return SessionStreamResponse(stream=stream)
 
+    @intercept_exceptions()
+    @_handle_session_exceptions()
+    async def watch_session_stream(
+        self,
+        request: Request,
+        session_id: str = Query(...),
+    ) -> StreamingResponse:
+        """Server-sent events relay for one session (M3 live relay).
+
+        Emits change notifications only — never record payloads; clients
+        revalidate through the regular query endpoints on each event:
+
+        - ``event: records-changed`` — ``{"session_id"}``; new/updated rows
+          landed in the record log (published post-DB-commit).
+        - ``event: lifecycle`` — ``{"session_id", "state": "running"|"ended"}``.
+        - ``event: interaction`` — ``{"session_id", "status": "pending"|"resolved"}``.
+        - ``: heartbeat`` comment frames while idle (keep-alive).
+
+        Auth is the standard middleware (cookie ``sAccessToken``, ApiKey, or
+        Bearer) evaluated once at connect; scope is the credential's project.
+        Browsers authenticate by cookie — ``EventSource`` cannot set headers —
+        so a connect landing on an expired access token 401s like any other
+        request. There is no interceptor to refresh-and-retry a stream, so the
+        client must refresh the session itself and reopen (see the web hooks).
+
+        The stream has no replay/cursor semantics — ``EventSource`` reconnects
+        and clients revalidate once on every ``open``, which covers any missed
+        notifications.
+
+        NOTE (spec surface): this route appears in OpenAPI for documentation,
+        but Fern does not model SSE — consume it with a native ``EventSource``
+        (same-origin ``/api`` + cookie auth needs no custom headers), not the
+        generated client.
+        """
+        _validate_session_id_http(session_id)
+        project_id = request.state.project_id
+        user_id = request.state.user_id
+
+        has_permission = await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+
+        stream = watch_event_stream(
+            channel=watch_channel(str(project_id), session_id),
+            # One pubsub connection per SSE connection (v1 — simplest correct
+            # teardown story; revisit with a shared listener if counts grow).
+            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+            retry_milliseconds=env.sessions.watch_retry_milliseconds,
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                # Disable proxy buffering so frames flush immediately.
+                "X-Accel-Buffering": "no",
+            },
+        )
+
 
 class RecordsRouter:
     """Records sub-router — /sessions/records/*"""
@@ -558,10 +718,15 @@ class InteractionsRouter:
         interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
         respond_task: Optional[Any] = None,
+        # InteractionsDispatcher (typed loosely, like respond_task: the API layer does not
+        # import the tasks layer). When present, the no-worker respond fallback goes through
+        # it so both paths share ONE answer-composition implementation.
+        interactions_dispatcher: Optional[Any] = None,
     ) -> None:
         self.interactions_service = interactions_service
         self.workflows_service = workflows_service
         self.respond_task = respond_task
+        self.interactions_dispatcher = interactions_dispatcher
 
         self.router = APIRouter()
 
@@ -829,13 +994,21 @@ class InteractionsRouter:
                 detail="Interaction is no longer pending",
             )
 
-        # Enqueue onto the interactions worker when wired; otherwise fall back to an
-        # inline blocking invoke (keeps the route usable in minimal/test compositions).
+        # Enqueue onto the interactions worker when wired; otherwise fall back to the
+        # dispatcher directly (same answer composition, fired in-process), or as a last
+        # resort an inline blocking invoke (keeps minimal/test compositions usable).
         if self.respond_task is not None:
             await self.respond_task.kiq(
                 project_id=str(project_id),
                 user_id=str(user_id),
                 interaction_id=str(interaction_id),
+                answer=answer,
+            )
+        elif self.interactions_dispatcher is not None:
+            await self.interactions_dispatcher.respond(
+                project_id=UUID(str(project_id)),
+                user_id=UUID(str(user_id)),
+                interaction_id=interaction_id,
                 answer=answer,
             )
         else:
@@ -867,6 +1040,179 @@ class InteractionsRouter:
             )
 
         return SessionInteractionResponse(count=1, interaction=interaction)
+
+
+class SessionAttachmentsRouter:
+    def __init__(
+        self,
+        *,
+        attachments_service: SessionAttachmentsService,
+    ) -> None:
+        self.attachments_service = attachments_service
+        self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/attachments",
+            self.create_session_attachment,
+            methods=["POST"],
+            operation_id="create_session_attachment",
+            response_model=SessionAttachmentResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/attachments/{attachment_id}/content",
+            self.download_session_attachment_content,
+            methods=["GET"],
+            operation_id="download_session_attachment_content",
+            response_model=None,
+            response_class=Response,
+            responses=BINARY_RESPONSE,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/attachments/reference",
+            self.reference_session_attachments,
+            methods=["POST"],
+            operation_id="reference_session_attachments",
+            response_model=SessionAttachmentsResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+
+    async def _check(self, request: Request, permission: Permission) -> None:
+        # Session-only permissions keep the protected mount out of the authorization model.
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=permission,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+    async def _read_bounded(self, *, file: UploadFile) -> bytes:
+        max_raw_bytes = self.attachments_service.limits.max_raw_bytes
+        data = bytearray()
+        while len(data) <= max_raw_bytes:
+            remaining = max_raw_bytes + 1 - len(data)
+            chunk = await file.read(min(64 * 1024, remaining))
+            if not chunk:
+                return bytes(data)
+            data.extend(chunk)
+        raise AttachmentTooLarge(size=len(data), limit=max_raw_bytes)
+
+    @intercept_exceptions()
+    @_handle_attachment_exceptions()
+    @handle_mount_exceptions()
+    async def create_session_attachment(
+        self,
+        request: Request,
+        *,
+        session_id: str = Query(...),
+    ) -> SessionAttachmentResponse:
+        # Authorize first: the size limits below must not be probeable by an unauthorized caller.
+        _validate_session_id_http(session_id)
+        await self._check(request, Permission.EDIT_SESSIONS)
+
+        # The Content-Length check must stay above `request.form()`: touching form data (or
+        # declaring the file as a File(...) route param) spools the whole body to disk first.
+        content_length = request.headers.get("content-length")
+        if content_length is None:
+            raise AttachmentLengthRequired()
+        try:
+            request_size = int(content_length)
+        except ValueError as error:
+            raise AttachmentRequestInvalid(
+                "Content-Length must be an integer."
+            ) from error
+
+        max_request_bytes = (
+            self.attachments_service.limits.max_raw_bytes
+            + _ATTACHMENT_MULTIPART_OVERHEAD_BYTES
+        )
+        if request_size < 0:
+            raise AttachmentRequestInvalid("Content-Length cannot be negative.")
+        if request_size > max_request_bytes:
+            raise AttachmentTooLarge(size=request_size, limit=max_request_bytes)
+
+        form = await request.form()
+        file = form.get("file")
+        idempotency_key = form.get("idempotency_key")
+        if not isinstance(file, UploadFile):
+            raise AttachmentRequestInvalid("A file upload is required.")
+        if not isinstance(idempotency_key, str):
+            raise AttachmentRequestInvalid("An idempotency_key form field is required.")
+        # The key is part of a composite btree index, which rejects oversized values at the DAO.
+        if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+            raise AttachmentRequestInvalid(
+                f"idempotency_key must be at most {_MAX_IDEMPOTENCY_KEY_CHARACTERS} characters."
+            )
+
+        data = await self._read_bounded(file=file)
+        attachment = await self.attachments_service.create_attachment(
+            project_id=UUID(str(request.state.project_id)),
+            user_id=UUID(str(request.state.user_id)),
+            session_id=session_id,
+            idempotency_key=idempotency_key,
+            filename=file.filename,
+            declared_media_type=file.content_type,
+            data=data,
+        )
+        return SessionAttachmentResponse(
+            count=1,
+            attachment=_to_session_attachment(attachment),
+        )
+
+    @intercept_exceptions()
+    @_handle_attachment_exceptions()
+    @handle_mount_exceptions()
+    async def download_session_attachment_content(
+        self,
+        request: Request,
+        attachment_id: UUID,
+        *,
+        session_id: str = Query(...),
+    ) -> Response:
+        _validate_session_id_http(session_id)
+        await self._check(request, Permission.VIEW_SESSIONS)
+
+        content = await self.attachments_service.fetch_attachment_content(
+            project_id=UUID(str(request.state.project_id)),
+            session_id=session_id,
+            attachment_id=attachment_id,
+        )
+        return Response(
+            content=content.data,
+            media_type=content.attachment.media_type,
+            headers={
+                "Content-Disposition": _content_disposition_attachment(
+                    content.attachment.filename
+                ),
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    @intercept_exceptions()
+    @_handle_attachment_exceptions()
+    async def reference_session_attachments(
+        self,
+        request: Request,
+        *,
+        body: SessionAttachmentReferenceRequest,
+    ) -> SessionAttachmentsResponse:
+        _validate_session_id_http(body.session_id)
+        await self._check(request, Permission.RUN_SESSIONS)
+
+        attachments = await self.attachments_service.reference_attachments(
+            project_id=UUID(str(request.state.project_id)),
+            session_id=body.session_id,
+            attachment_ids=body.attachment_ids,
+        )
+        return SessionAttachmentsResponse(
+            count=len(attachments),
+            attachments=[
+                _to_session_attachment(attachment) for attachment in attachments
+            ],
+        )
 
 
 class SessionMountsRouter:
@@ -1042,7 +1388,7 @@ class SessionMountsRouter:
         request: Request,
         mount_id: UUID,
         *,
-        file: UploadFile,
+        file: FastAPIUploadFile,
         path: Optional[str] = Query(default=None),
     ) -> MountFileWrittenResponse:
         await self._check(request, Permission.EDIT_SESSIONS, Permission.EDIT_MOUNTS)
@@ -1308,6 +1654,7 @@ class SessionsRootRouter:
                 references=body.references,
                 include_ended=body.include_ended,
                 include_archived=body.include_archived,
+                search=body.search,
             ),
             windowing=body.windowing,
         )
@@ -1398,6 +1745,7 @@ class SessionsRouter:
       sessions_router.streams.router               → no prefix (paths include /sessions/streams/…)
       sessions_router.records.router               → prefix /sessions/records
       sessions_router.interactions.router          → prefix /sessions/interactions
+      sessions_router.attachments.router           → prefix /sessions
       sessions_router.mounts.router                → prefix /sessions
       sessions_router.turns.router                 → prefix /sessions/turns
       sessions_router.root.router                  → no prefix (paths include /sessions/query, /sessions/, /sessions/archive, /sessions/unarchive)
@@ -1410,11 +1758,13 @@ class SessionsRouter:
         records_service: RecordsService,
         interactions_service: SessionInteractionsService,
         workflows_service: WorkflowsService,
+        attachments_service: SessionAttachmentsService,
         session_mounts_service: SessionMountsService,
         mounts_service: MountsService,
         turns_service: SessionTurnsService,
         sessions_service: SessionsService,
         respond_task: Optional[Any] = None,
+        interactions_dispatcher: Optional[Any] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
             service=streams_service,
@@ -1425,6 +1775,10 @@ class SessionsRouter:
             interactions_service=interactions_service,
             workflows_service=workflows_service,
             respond_task=respond_task,
+            interactions_dispatcher=interactions_dispatcher,
+        )
+        self.attachments = SessionAttachmentsRouter(
+            attachments_service=attachments_service,
         )
         self.mounts = SessionMountsRouter(
             session_mounts_service=session_mounts_service,

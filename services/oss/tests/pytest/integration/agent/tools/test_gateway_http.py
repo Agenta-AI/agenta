@@ -25,7 +25,8 @@ _GATEWAY = {
 async def test_no_gateway_short_circuits_without_http(install_http):
     capture = install_http(gateway, raises=AssertionError("must not call HTTP"))
     resolved = await resolve_tools(["read"])
-    assert resolved.builtin_names == ["read"]
+    # A bare built-in name is a legacy entry: accepted, ignored, and never a resolved spec.
+    assert resolved.tool_specs == []
     assert capture == {}
 
 

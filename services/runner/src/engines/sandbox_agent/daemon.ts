@@ -201,16 +201,16 @@ export function inheritableProviderEnvVars(
 
 export interface BuildDaemonEnvOptions {
   /**
-   * Clear-then-apply (Security rule 5): on a MANAGED run (`credentialMode === "env"`) the
-   * resolved `secrets` are the sole authority, so the daemon must NOT inherit the sidecar's own
-   * provider keys (the caller applies only `plan.secrets`). When true, no `KNOWN_PROVIDER_ENV_VARS`
-   * are copied. When false (a `runtime_provided` / `none` run), the daemon keeps the inherited
-   * provider/auth keys so the harness's own login still works.
+   * Clear-then-apply (Security rule 5): on a managed (`credentialMode "env"`) or credential-less
+   * (`"none"`) run the resolved model environment is the sole authority, so the daemon must NOT
+   * inherit the sidecar's own provider keys (the caller applies only `plan.modelEnvironment`).
+   * When true, no `KNOWN_PROVIDER_ENV_VARS` are copied. When false (a `runtime_provided` run),
+   * the daemon keeps the inherited provider/auth keys so the harness's own login still works.
    */
   clearProviderEnv?: boolean;
-  /** The run's resolved provider family (`request.provider`); narrows the inherited key set. */
+  /** The run's resolved provider family (`request.modelConnection.provider`); narrows the inherited key set. */
   provider?: string;
-  /** The run's resolved deployment surface (`request.deployment`); adds its cloud cred group. */
+  /** The run's resolved deployment surface (`request.modelConnection.deployment`); adds its cloud cred group. */
   deployment?: string;
   /**
    * Escape hatch: inherit EVERY `KNOWN_PROVIDER_ENV_VARS` entry instead of just the declared
@@ -235,12 +235,14 @@ export function inheritAllProviderKeys(
  * launch variables and (for non-managed runs) known provider auth, not the full sidecar
  * environment.
  *
- * Clear-then-apply (Security rule 5 in the provider-model-auth design): on a managed run
- * (`clearProviderEnv`) this copies NONE of `KNOWN_PROVIDER_ENV_VARS`, so the only provider env
- * the daemon ever sees is what the caller applies from `plan.secrets`. An inherited
- * `ANTHROPIC_API_KEY` can therefore not leak into a resolved OpenAI run. For a `runtime_provided`
- * / `none` run the harness uses its own login, so the inherited keys are kept — but only the ones
- * the run's DECLARED provider/deployment needs (RUN-SEC-1), not every configured provider key.
+ * Clear-then-apply (Security rule 5 in the provider-model-auth design): on a managed (`"env"`)
+ * or credential-less (`"none"`) run (`clearProviderEnv`) this copies NONE of
+ * `KNOWN_PROVIDER_ENV_VARS`, so the only provider env the daemon ever sees is what the caller
+ * applies from `plan.modelEnvironment`. An inherited `ANTHROPIC_API_KEY` can therefore not leak
+ * into a resolved OpenAI run, and a `"none"` run (which asserts no credential) inherits nothing.
+ * For a `runtime_provided` run the harness uses its own login, so the inherited keys are kept —
+ * but only the ones the run's DECLARED provider/deployment needs (RUN-SEC-1), not every
+ * configured provider key.
  */
 export function buildDaemonEnv(
   _harness: string,
@@ -266,6 +268,10 @@ export function buildDaemonEnv(
   // a self-managed Claude login keeps pointing at its config dir.
   if (process.env.CLAUDE_CONFIG_DIR)
     env.CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
+  // CODEX_HOME is a config-dir path, not a credential, so it is safe to inherit on every run: a
+  // self-managed Codex login (a later milestone) mounts its directory and points CODEX_HOME at it.
+  // A managed Codex run overrides this per run with `<cwd>/.codex` (see codex-assets.configureCodexHome).
+  if (process.env.CODEX_HOME) env.CODEX_HOME = process.env.CODEX_HOME;
 
   if (process.env.HOME) env.HOME = process.env.HOME;
 
@@ -274,8 +280,8 @@ export function buildDaemonEnv(
   for (const key of KNOWN_SANDBOX_ENV_VARS) env[key] = "";
 
   // Managed run: clear (inherit no provider keys); the caller applies only the resolved
-  // `plan.secrets`. Non-managed run: keep only the DECLARED provider's own keys so its login
-  // works without handing the harness every other provider's credential.
+  // `plan.modelEnvironment`. Non-managed run: keep only the DECLARED provider's own keys so its
+  // login works without handing the harness every other provider's credential.
   if (!clearProviderEnv) {
     const inheritable = inheritAllProviderEnv
       ? KNOWN_PROVIDER_ENV_VARS

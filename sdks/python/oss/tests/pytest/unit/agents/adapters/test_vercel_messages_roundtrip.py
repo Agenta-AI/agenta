@@ -94,6 +94,29 @@ class TestRoundTripLosslessForEmittedKinds:
         assert block.mime_type == "application/pdf"
 
 
+class TestOutboundAttachmentDropIsObservable:
+    def test_attachment_block_is_dropped_and_logged(self, caplog):
+        caplog.set_level(logging.DEBUG)
+        attachment_id = "01995d1a-2f83-7c4d-8a6b-123456789abc"
+        ui = message_to_vercel_ui_message(
+            Message(
+                role="user",
+                content=[
+                    ContentBlock(
+                        type="attachment",
+                        attachment_id=attachment_id,
+                        filename="photo.png",
+                        mime_type="image/png",
+                    )
+                ],
+            )
+        )
+
+        assert ui["parts"] == []
+        assert "dropping outbound attachment block" in caplog.text
+        assert attachment_id in caplog.text
+
+
 class TestInboundReasoningDroppedSymmetrically:
     def test_inbound_reasoning_part_is_dropped_and_logged(self, caplog):
         # Reasoning is stream-only (stream.py maps `thought` events to `reasoning` frames).

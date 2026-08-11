@@ -4,6 +4,7 @@ import {
     latestMountFilesQueryFamily,
     mountFilesQueryFamily,
     mountRootQueryFamily,
+    pickCwdMount,
     sessionFileActivityAtomFamily,
     sessionMountsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
@@ -134,7 +135,7 @@ export function useSessionDrive(
 ): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
     const mounts = mountsQuery.data ?? []
-    const mount = mounts.find((m) => m.slug === "cwd") ?? mounts[0] ?? null
+    const mount = pickCwdMount(mounts)
 
     const filesQuery = useAtomValue(
         mountFilesQueryFamily({mountId: mount?.id ?? "", includeGitignored}),
@@ -333,7 +334,7 @@ const SUMMARY_LATEST_LIMIT = 5
 export function useSessionDriveSummary(sessionId: string, artifactId?: string): SessionDriveData {
     const mountsQuery = useAtomValue(sessionMountsQueryFamily(sessionId))
     const mounts = mountsQuery.data ?? []
-    const mount = mounts.find((m) => m.slug === "cwd") ?? mounts[0] ?? null
+    const mount = pickCwdMount(mounts)
 
     const agentMountQuery = useAtomValue(agentMountQueryFamily(artifactId ?? ""))
     const agentMount = artifactId ? (agentMountQuery.data ?? null) : null

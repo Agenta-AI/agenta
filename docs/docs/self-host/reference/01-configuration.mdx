@@ -158,7 +158,7 @@ never by guessing at shape or entropy.
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 
 :::warning Custom-code evaluator runner
-`AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/evaluation/configure-evaluators/custom-evaluator) execute:
+`AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/1.0/evaluation/configure-evaluators/custom-evaluator) execute:
 
 - `local` (default): raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. This is what makes self-hosting work with zero configuration; the deployment logs a warning while it's active.
 - `restricted`: in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access. Set this to harden a shared/multi-tenant deployment.
@@ -293,6 +293,7 @@ Read by the `runner` service. Required only when `daytona` is enabled.
 | `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
 | `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
 | `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
+| `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` | Set to `off` to stop hiding API keys from the sandbox | Unset (hiding is on) | no | `...daytona.opaqueSecrets` |
 
 When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
 starts from its pinned default snapshot `agenta-agent-sandbox-v1`. The two variables are mutually
@@ -300,6 +301,62 @@ exclusive. The autostop and autodelete values must be positive integers. See
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow,
 and [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the
 CPU, memory, and disk each sandbox gets.
+
+#### Hiding API keys from the sandbox
+
+A Daytona run hides its model and MCP API keys from the sandbox, and this is on by default. The
+runner stores each key as a Daytona Secret restricted to the one hostname that key authenticates
+against, and puts a placeholder in the sandbox instead. Daytona substitutes the real value into
+outbound requests to that host, so the model call and the MCP call still work. Requests to any
+other host carry only the placeholder.
+
+This matters because an agent writes and runs its own code. Without it, a prompt injection that
+persuades the agent to print its own environment prints your keys.
+
+:::warning Upgrading from a version before v0.108.1 requires a key change
+The permission this needs is new, and enabling it is not optional.
+
+A Daytona API key is minted with a set of permissions, and a key that can create sandboxes does
+**not** automatically have the separate permission to manage Secrets. If your key lacks it, every
+Daytona run that carries a model or MCP key fails at sandbox creation as soon as you upgrade.
+
+Grant the key in `AGENTA_RUNNER_DAYTONA_API_KEY` permission to manage Secrets, or reissue it with
+that permission, before upgrading. The failure names this variable and the permission, so it is
+recognizable, but the runs still fail until the key is fixed.
+
+The runner never falls back to sending keys as plaintext on its own, because silently doing the
+unprotected thing is worse than stopping. If you would rather not grant the permission, set
+`AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=off` and keys go to the sandbox as plain environment
+variables, exactly as they did before v0.108.1.
+:::
+
+**Turning it off.** Set `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=off`. The values `false`, `0`, `no`,
+`disabled`, and `plaintext` work too. Anything the runner does not recognize leaves hiding on, so a
+typo in this variable cannot silently remove the protection.
+
+In Helm, quote the value. YAML reads a bare `off` as the boolean `false`, and the chart's
+`values.schema.json` types `opaqueSecrets` as a string, so an unquoted value fails the install with
+`agentRunner.providers.daytona.opaqueSecrets: Invalid type. Expected: string, given: boolean`.
+
+```yaml
+agentRunner:
+  providers:
+    daytona:
+      opaqueSecrets: "off" # quote it: a bare off is a YAML boolean
+```
+
+**What `process_local` means.** Setting the variable to `process_local` is the same as leaving it
+unset, and the name states the cleanup guarantee: the runner tracks the Secret records it created
+in its own memory and deletes them when the sandbox goes away. Restart the runner while sandboxes
+are live and those records are orphaned in your Daytona account until you remove them. A future
+mode will add durable tracking, which is why the setting takes a mode name rather than a plain
+`on`.
+
+**What cannot be hidden.** Keys that a provider SDK signs with locally instead of sending, which
+today means the AWS access keys used for Bedrock and the Google service account credentials used
+for Vertex AI, still reach the sandbox in full. Nothing Daytona substitutes on the way out can help
+there, because the secret never leaves the sandbox in the first place. Those runs work normally;
+they just do not get this protection.
 
 :::warning The bare `DAYTONA_*` variables configure a different sandbox
 `DAYTONA_API_KEY`, `DAYTONA_API_URL`, `DAYTONA_TARGET`, `DAYTONA_SNAPSHOT`, and
@@ -601,6 +658,48 @@ reachable. Enable the `ngrok` tunnel (the compose `with-tunnel` profile) or poin
 `AGENTA_STORE_ENDPOINT_URL` at a public S3 URL. Only the scoped, short-lived credentials ever
 cross into a remote sandbox.
 :::
+
+## Agenta attachments
+
+Bounds the files a user can attach to an agent chat turn. The API enforces the per-file sizes
+and the per-session quotas when a file is uploaded, and deletes expired attachments in a
+background sweep. The runner enforces how many attachments one turn carries. Attachment bytes
+live in the [store](#store-durable-object-store), so uploads fail while the store is
+unconfigured.
+
+The chart has no dedicated values keys for these. Set them through the per-deployment env map:
+`api.env.<NAME>` for the API variables, `agentRunner.env.<NAME>` for the runner ones.
+
+Read by the `api` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_ATTACHMENTS_MAX_IMAGE_BYTES` | `agenta.sessions.attachments.max_image_bytes` | Size of one image | `10485760` (10 MB) |
+| `AGENTA_ATTACHMENTS_MAX_AUDIO_BYTES` | `agenta.sessions.attachments.max_audio_bytes` | Size of one audio file | `15728640` (15 MB) |
+| `AGENTA_ATTACHMENTS_MAX_DOCUMENT_BYTES` | `agenta.sessions.attachments.max_document_bytes` | Size of one document | `10485760` (10 MB) |
+| `AGENTA_ATTACHMENTS_MAX_OTHER_BYTES` | `agenta.sessions.attachments.max_other_bytes` | Size of one file of any other kind | `10485760` (10 MB) |
+| `AGENTA_ATTACHMENTS_MAX_PER_SESSION_COUNT` | `agenta.sessions.attachments.max_per_session_count` | Stored attachments one session may hold | `1000` |
+| `AGENTA_ATTACHMENTS_MAX_PER_SESSION_BYTES` | `agenta.sessions.attachments.max_per_session_bytes` | Total stored bytes across one session | `268435456` (256 MB) |
+| `AGENTA_ATTACHMENTS_MAX_PENDING_PER_SESSION` | `agenta.sessions.attachments.max_pending_per_session` | Uploads in flight for one session at once | `20` |
+| `AGENTA_ATTACHMENTS_PENDING_TTL_SECONDS` | `agenta.sessions.attachments.pending_ttl_seconds` | How long an unfinished upload is held before the sweep reclaims it | `900` (15 minutes) |
+| `AGENTA_ATTACHMENTS_UNREFERENCED_TTL_SECONDS` | `agenta.sessions.attachments.unreferenced_ttl_seconds` | How long an uploaded attachment that no message references is kept | `86400` (24 hours) |
+| `AGENTA_ATTACHMENTS_SWEEP_INTERVAL_SECONDS` | `agenta.sessions.attachments.sweep_interval_seconds` | Gap between two attachment sweeps | `3600` (1 hour) |
+
+The kind of a file (image, audio, document, other) comes from its media type, and an upload
+over its kind's cap is rejected before anything is stored. The count and byte quotas apply to
+stored attachments and are checked as each upload is claimed. The sweep runs inside the API
+process, and a lock lets one replica sweep at a time.
+
+Read by the `runner` service:
+
+| Env var | env.py path | What it bounds | Default |
+|---|---|---|---|
+| `AGENTA_ATTACHMENTS_MAX_PER_TURN` | n/a (read by the runner) | Attachments one user turn may carry | `100` |
+| `AGENTA_ATTACHMENTS_FETCH_TIMEOUT_MS` | n/a (read by the runner) | Wait for one attachment's bytes to download | `15000` (15 seconds) |
+
+A turn that carries more than `AGENTA_ATTACHMENTS_MAX_PER_TURN` attachments fails before the
+run starts. The runner also refuses any single attachment body over 16 MB. That ceiling is
+fixed in code, so raising a per-file cap above it stores files the runner cannot fetch.
 
 ## Agenta egress
 

@@ -1,8 +1,9 @@
 {
     "name": "agenta-web",
-    "version": "0.106.2",
+    "version": "0.111.0",
     "workspaces": [
         "ee",
+        "mobile",
         "oss",
         "tests",
         "variants-state",
@@ -48,8 +49,10 @@
     "scripts": {
         "build-oss": "turbo run build --filter=@agenta/oss",
         "build-ee": "turbo run build --filter=@agenta/ee",
+        "build-mobile": "turbo run build --filter=@agenta/mobile",
         "dev-ee": "turbo run dev --filter=@agenta/ee",
         "dev-oss": "turbo run dev --filter=@agenta/oss",
+        "dev-mobile": "turbo run dev --filter=@agenta/mobile",
         "lint": "turbo run lint",
         "lint-fix": "turbo run lint -- --fix",
         "type-check": "pnpm --filter @agenta/oss exec tsc --noEmit && pnpm --filter @agenta/ee exec tsc --noEmit",
@@ -68,7 +71,7 @@
         "test:datalayer": "pnpm test:revision-centric && pnpm test:apps && pnpm test:environments && pnpm test:deployments && pnpm test:orgs && pnpm test:profile && pnpm test:workspace && pnpm test:project && pnpm test:newPlayground && pnpm test:observability",
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts"
+        "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts && pnpm --filter @agenta/mobile generate:tokens"
     },
     "pnpm": {
         "overrides": {

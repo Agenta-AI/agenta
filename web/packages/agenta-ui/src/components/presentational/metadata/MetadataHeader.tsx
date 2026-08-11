@@ -23,9 +23,8 @@
 
 import React from "react"
 
-import {Tooltip} from "antd"
-
 import {cn, flexLayouts, textColors} from "../../../utils/styles"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 // ============================================================================
 // TYPES
@@ -86,23 +85,44 @@ export function MetadataHeader({
                 className,
             )}
         >
-            {label && (
-                <Tooltip title={labelTooltip}>
+            {label &&
+                (labelTooltip ? (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className={cn("font-medium", textColors.secondary)}>
+                                    {label}
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{labelTooltip}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                ) : (
                     <span className={cn("font-medium", textColors.secondary)}>{label}</span>
-                </Tooltip>
-            )}
-            {value && (
-                <Tooltip title={valueTooltip}>
+                ))}
+            {value &&
+                (valueTooltip ? (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span
+                                    className={cn("font-mono truncate", textColors.quaternary)}
+                                    style={{maxWidth: maxValueWidth}}
+                                >
+                                    {value}
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{valueTooltip}</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                ) : (
                     <span
                         className={cn("font-mono truncate", textColors.quaternary)}
                         style={{maxWidth: maxValueWidth}}
                     >
                         {value}
                     </span>
-                </Tooltip>
-            )}
+                ))}
         </div>
     )
 }
-
-export default MetadataHeader
