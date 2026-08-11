@@ -112,6 +112,25 @@ describe("isHitlPending", () => {
         expect(isHitlPending([assistantText("hello"), user("again")])).toBe(false)
     })
 
+    it("is true when an earlier assistant message still has a pending client tool", () => {
+        const messages = [
+            {
+                id: "a-pending",
+                role: "assistant",
+                parts: [
+                    {
+                        type: "tool-request_connection",
+                        toolCallId: "call-connect",
+                        state: "input-available",
+                    },
+                ],
+            },
+            user("again"),
+            assistantText("starting the next turn"),
+        ]
+        expect(isHitlPending(messages)).toBe(true)
+    })
+
     it("is false for an empty conversation", () => {
         expect(isHitlPending([])).toBe(false)
     })

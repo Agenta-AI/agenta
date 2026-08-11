@@ -1,12 +1,11 @@
 // Copied verbatim from web/oss/src/components/AgentChatSlice/assets/loadSession.ts (2026-07-25);
 // the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
 // Keep byte-parity if either side changes.
-// Adaptations: none — `fetchSessionRecordsAtom`/`fetchCancelledClientToolTokensAtom` already read
+// Adaptations: none — `fetchSessionRecordsAtom`/`fetchSessionInteractionStatesAtom` already read
 // `projectIdAtom` internally from `@agenta/entities/session` (an allowed package dep), so no
 // OSS-app-only import is involved and no signature change was needed.
-// Re-synced 2026-08-10: the cancelled-client-tool-tokens join (transcript replay respecting a
-// terminal `session_interactions` status — a resurrected parked form must not replay interactive).
-import {fetchCancelledClientToolTokensAtom, fetchSessionRecordsAtom} from "@agenta/entities/session"
+// Re-synced 2026-08-10: interaction rows now provide replay lifecycle and saved outcomes.
+import {fetchSessionInteractionStatesAtom, fetchSessionRecordsAtom} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {getDefaultStore} from "jotai"
 
@@ -50,17 +49,16 @@ export const loadSessionMessages = async (
     // notice instead of leaking an unhandled rejection.
     try {
         const store = getDefaultStore()
-        // Best-effort join (never throws, see the atom's doc) — a resurrected cancelled part
-        // is cosmetic, so it must never gate whether the transcript loads at all.
-        const [{records, refreshed}, cancelledClientToolTokens] = await Promise.all([
+        // The best-effort lifecycle join must never gate transcript loading.
+        const [{records, refreshed}, interactionRowStates] = await Promise.all([
             store.set(fetchSessionRecordsAtom, sessionId),
-            store.set(fetchCancelledClientToolTokensAtom, sessionId),
+            store.set(fetchSessionInteractionStatesAtom, sessionId),
         ])
         if (refreshed && onRefreshed) {
             void refreshed
                 .then((fresh) => {
                     if (!fresh || fresh.length === 0) return
-                    const freshMsgs = transcriptToMessages(fresh, {cancelledClientToolTokens})
+                    const freshMsgs = transcriptToMessages(fresh, {interactionRowStates})
                     if (freshMsgs && freshMsgs.length > 0) {
                         onRefreshed({messages: freshMsgs, recordCount: fresh.length})
                     }
@@ -73,7 +71,7 @@ export const loadSessionMessages = async (
                 })
         }
         if (!records || records.length === 0) return null
-        const messages = transcriptToMessages(records, {cancelledClientToolTokens})
+        const messages = transcriptToMessages(records, {interactionRowStates})
         return messages ? {messages, recordCount: records.length} : null
     } catch (err) {
         console.warn("[loadSessionMessages] hydration fetch failed:", err)

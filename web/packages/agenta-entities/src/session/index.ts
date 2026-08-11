@@ -10,6 +10,7 @@ export {
     queryInteractions,
     fetchInteraction,
     respondInteraction,
+    transitionInteraction,
     isInteractionConflict,
     querySessionStreams,
     querySessions,
@@ -33,6 +34,7 @@ export {
     type QueryInteractionsParams,
     type InteractionScopedParams,
     type RespondInteractionParams,
+    type TransitionInteractionParams,
     type CommandSessionStreamParams,
 } from "./api/api"
 export {
@@ -90,9 +92,12 @@ export {
     type SessionRecordsFetchResult,
 } from "./state/records"
 export {
-    fetchCancelledClientToolTokensAtom,
-    cancelledClientToolTokensQueryKey,
+    fetchSessionInteractionStatesAtom,
+    revalidateSessionInteractionsAtom,
+    type SessionInteractionRowState,
+    type SessionInteractionRowStates,
 } from "./state/interactionStatus"
+export {recordInteractionAnswerAtom} from "./state/interactionAnswer"
 export {
     sessionMountsQueryFamily,
     mountFilesQueryFamily,

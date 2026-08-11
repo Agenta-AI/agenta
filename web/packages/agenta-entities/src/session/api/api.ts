@@ -174,6 +174,46 @@ export interface RespondInteractionParams extends InteractionScopedParams {
 export const isInteractionConflict = (error: unknown): boolean =>
     (error as {statusCode?: number} | null)?.statusCode === 409
 
+export interface TransitionInteractionParams extends SessionScopedParams {
+    token: string
+    status: SessionInteractionStatusCode
+    resolution?: Record<string, unknown>
+}
+
+/**
+ * Write a row lifecycle transition by `session_id` + `token`, not row id.
+ * Status and resolution stay atomic so the stale sweep cannot win between writes.
+ */
+export async function transitionInteraction({
+    sessionId,
+    token,
+    status,
+    resolution,
+    projectId,
+    appId,
+    abortSignal,
+}: TransitionInteractionParams): Promise<SessionInteraction | null> {
+    if (!projectId || !sessionId || !token) return null
+
+    const data = await getSessionsClient().transitionInteraction(
+        {
+            session_id: sessionId,
+            token,
+            status,
+            // The generated type predates the widened resolution payload.
+            resolution: resolution as AgentaApi.SessionInteractionResolution | undefined,
+        },
+        projectScopedRequest(projectId, appId, abortSignal),
+    )
+
+    const validated = safeParseWithLogging(
+        sessionInteractionResponseSchema,
+        data,
+        "[transitionInteraction]",
+    )
+    return validated?.interaction ?? null
+}
+
 /**
  * Resolve a HITL interaction (approve/deny/input) — the detached respond dispatcher.
  *

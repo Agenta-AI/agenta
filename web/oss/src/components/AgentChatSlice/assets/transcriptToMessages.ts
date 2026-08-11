@@ -1,4 +1,9 @@
-import type {SessionRecord} from "@agenta/entities/session"
+import type {
+    SessionInteractionRowState,
+    SessionInteractionRowStates,
+    SessionRecord,
+} from "@agenta/entities/session"
+import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import type {UIMessage} from "ai"
 
 import {attachmentContentUrl} from "./attachmentMedia"
@@ -104,41 +109,71 @@ const isRunnerSentinelError = (part: Part): boolean => {
     )
 }
 
-/** Tool name from a replayed part's `type`/`toolName` — mirrors clientTools/meta.ts's
- * `clientToolName`, kept local since this file has no dependency on the app's client-tool layer. */
-const partToolName = (part: Part): string => {
-    if (part.type === "dynamic-tool") return typeof part.toolName === "string" ? part.toolName : ""
-    return typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
+function settleClientToolPart(part: Part, row: SessionInteractionRowState): void {
+    if (part.state !== "input-available") return
+
+    if (row.resolution) {
+        if (row.resolution.outcome === "error") {
+            const error = row.resolution.error
+            part.state = "output-error"
+            part.errorText =
+                typeof error === "string" && error ? error : "The request ended without a result."
+        } else {
+            const output = row.resolution.output
+            part.state = "output-available"
+            part.output =
+                typeof output === "object" && output !== null && !Array.isArray(output)
+                    ? output
+                    : {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+        }
+        return
+    }
+
+    if (row.status === "cancelled" || row.status === "responded" || row.status === "resolved") {
+        part.state = "output-available"
+        part.output = {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+    }
 }
 
 /**
- * The settled output to synthesize for a client-tool interaction the backend already cancelled
- * (`session_interactions.status === "cancelled"`) whose transcript never got a settling
- * `tool_result` — see `fetchCancelledClientToolTokensAtom`'s doc for why the record log alone
- * can't tell. Mirrors each widget's OWN cancelled-terminal shape (`ConnectOutput.reason` /
- * `ElicitationResult.action`) so a resurrected part renders exactly like a live cancel — an inert
- * chip, never an interactive, answerable form. Keyed by the same tool name the client-tool
- * registry dispatches on (`registry.tsx`'s `BY_TOOL_NAME`); an unregistered kind falls back to a
- * bare empty output, which still settles (out of `input-available`) even with no dedicated chip.
+ * An approval gate whose row is terminal. Approval rows always recorded their outcome correctly,
+ * so they are trustworthy here. A verdict replays the real answer. A swept row proves only that
+ * the gate died unanswered — and that the gated tool never ran — so it settles denied rather than
+ * claiming an approval nobody gave. Either way the gate stops reading as still awaiting the user:
+ * a dead gate left `approval-requested` holds the message queue forever once the scans that read
+ * it cover the whole transcript.
  */
-const CANCELLED_CLIENT_TOOL_OUTPUT: Record<string, Part> = {
-    request_connection: {connected: false, reason: "cancelled"},
-    request_input: {action: "cancel"},
+function settleApprovalPart(part: Part, row: SessionInteractionRowState): void {
+    if (part.state !== "approval-requested") return
+
+    const verdict = row.resolution?.verdict
+    if (verdict === "approved" || verdict === "denied") {
+        part.state = "approval-responded"
+        part.approval = {id: row.token, approved: verdict === "approved"}
+        return
+    }
+    if (row.status === "cancelled") {
+        part.state = "output-denied"
+        return
+    }
+    if (row.status === "responded" || row.status === "resolved") part.state = "approval-responded"
 }
 
-/** Apply the cancelled-interaction override to every still-`input-available` client-tool part
- * whose token the interactions join marked cancelled. Runs once, after the full record sweep, so
- * a LATER `tool_result` for the same toolCallId (a real settle) always wins over this fallback. */
-function applyCancelledInteractions(
+function applyInteractionRowStates(
     index: TranscriptIndex,
-    cancelledClientToolTokens: ReadonlySet<string> | undefined,
+    interactionRowStates: SessionInteractionRowStates | undefined,
 ): void {
-    if (!cancelledClientToolTokens || cancelledClientToolTokens.size === 0) return
-    for (const [toolCallId, part] of index.tools) {
-        if (part.state !== "input-available") continue
-        if (!cancelledClientToolTokens.has(toolCallId)) continue
-        part.state = "output-available"
-        part.output = CANCELLED_CLIENT_TOOL_OUTPUT[partToolName(part)] ?? {}
+    if (!interactionRowStates || interactionRowStates.size === 0) return
+    for (const row of interactionRowStates.values()) {
+        // Token equality supports rows written before the runner stamped the tool-call id; an
+        // approval gate is also indexed under its interaction id, which IS the row token.
+        const toolCallId = row.toolCallId ?? row.token
+        const part = index.tools.get(toolCallId) ?? index.approvals.get(row.token)
+        if (!part) continue
+
+        if (row.kind === "user_approval") settleApprovalPart(part, row)
+        else if (row.kind === "client_tool" || row.kind === "user_input")
+            settleClientToolPart(part, row)
     }
 }
 
@@ -404,11 +439,8 @@ function applyEvent(
 }
 
 export interface TranscriptToMessagesOptions {
-    /** Tokens (== toolCallId) of this session's CANCELLED `client_tool` interactions — see
-     * `fetchCancelledClientToolTokensAtom`. A resurrected part for one of these replays inert
-     * instead of as a live, answerable form. Omit when the caller has no interaction-status join
-     * available; every part then replays exactly as before (unaffected, not a regression). */
-    cancelledClientToolTokens?: ReadonlySet<string>
+    /** Row lifecycle settles replayed interactions; omit it to preserve record-only replay. */
+    interactionRowStates?: SessionInteractionRowStates
 }
 
 /**
@@ -476,11 +508,8 @@ export function transcriptToMessages(
         }
     }
 
-    // Same "settle whatever the record log alone left parked" idea as the resumed-approval pass
-    // above, for client tools: a token the caller's interaction-status join says is CANCELLED
-    // never got its own `tool_result` (a real settle would have), so it replays parked forever
-    // without this.
-    applyCancelledInteractions(index, options?.cancelledClientToolTokens)
+    // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
+    applyInteractionRowStates(index, options?.interactionRowStates)
 
     const messages = drafts
         .filter((d) => d.parts.length > 0)
