@@ -1,10 +1,29 @@
 # Gateways: secrets
 
-Secret kinds, credential ownership, and resolution. Supersedes the scoping draft in `raw/`;
-this is the version the implementation follows.
+Secret kinds, ownership, and resolution. Supersedes the scoping draft in `raw/`; this is the
+version the implementation follows.
 
 **Status: the storage pattern and the kinds are settled. Ownership is designed, not
 scheduled.**
+
+## Vocabulary
+
+The tree already fixes these words, and this document follows it:
+
+- A customer's provider key is a **secret**.
+- **Credentials** means Agenta's own auth — API keys, secret tokens, access tokens.
+- **`secret_origin`** is `vault` when the secret is the customer's and `local` when it is the
+  platform's.
+
+Other documents here still say "credential" for upstream provider material. That is the older
+wording and it should move to this one. `raw/related-work.md` records why.
+
+`secret_origin` answers a different question from the owner axis below. The owner says *which
+stored secret to look up*; the origin says *whose money the call spends*. Parallel work on
+bring-your-own secrets already uses the origin to zero-rate customer-funded usage.
+
+**A prerequisite, not an assumption.** This document assumes resolution through the secrets
+service is safe. The read surface is not safe today — see `open-reviews.md` OR14.
 
 ## The storage pattern: reference, never hold
 

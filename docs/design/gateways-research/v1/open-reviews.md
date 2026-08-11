@@ -90,6 +90,18 @@ no models at all**, and the runner only picks and checks a model id.
 Two consequences carried into the design: the north port needs an embeddings route, and the
 `llm_v0` handler's module-level key assignment must not reach a shared process. See OR13.
 
+### OR14. The secrets read surface is not safe yet — a prerequisite
+
+Parallel work on bring-your-own secrets records that the secrets read route returns plaintext
+material to any caller holding the view permission, and that the agent path resolves straight
+through it and bypasses the gates.
+
+**Every claim in this design assumes resolution through the secrets service is safe.** It is
+not today. Check the current state of that route before any gateway work depends on it, and
+treat the fix as a prerequisite rather than a parallel task.
+
+That work also names it as its own first task, so coordinate rather than fix it twice.
+
 ### OR13. The global key assignment — do this first
 
 The `llm_v0` handler sets the provider key on **module-level attributes of the router
