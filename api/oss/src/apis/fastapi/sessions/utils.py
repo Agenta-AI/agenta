@@ -12,7 +12,9 @@ from oss.src.core.sessions.dtos import (
 )
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.core.shared.dtos import Windowing
-from oss.src.dbs.postgres.sessions.streams.mappings import SESSION_RESERVED_TAG_KEYS
+from oss.src.dbs.postgres.sessions.streams.mappings import (
+    SESSION_RESERVED_TAG_NAMESPACE,
+)
 
 SessionStreamT = TypeVar("SessionStreamT", bound=SessionStream)
 
@@ -159,6 +161,25 @@ def normalize_session_query_request(
         canonicalize=_canonical_list,
     )
 
+    final_origins = _unique_sorted(origins)
+    final_exclude_origins = _unique_sorted(exclude_origins)
+    if final_origins and final_exclude_origins:
+        # An AND of the two predicates (P2-11): an origin in both lists can never
+        # match, so the whole query silently returns zero rows instead of
+        # surfacing the caller's contradiction — the same "contained here, not in
+        # the shared helper" reasoning as the P1-2 cursor check above.
+        contradictory = sorted(
+            value.value for value in set(final_origins) & set(final_exclude_origins)
+        )
+        if contradictory:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    f"Contradictory origin filter: {contradictory} present in both "
+                    "the include and exclude origin lists."
+                ),
+            )
+
     return NormalizedSessionQuery(
         predicates=SessionQuery(
             turn_references=turn_references,
@@ -166,8 +187,8 @@ def normalize_session_query_request(
             flags=liveness,
             session_ids=_unique_sorted(body.session_ids),
             exclude_session_ids=_unique_sorted(exclude_session_ids),
-            origins=_unique_sorted(origins),
-            exclude_origins=_unique_sorted(exclude_origins),
+            origins=final_origins,
+            exclude_origins=final_exclude_origins,
         ),
         lifecycle=SessionQueryLifecycle(
             include_ended=body.include_ended,
@@ -235,7 +256,7 @@ def sanitize_session_tags(tags: Optional[dict[str, Any]]) -> Optional[dict[str, 
     return {
         key: value
         for key, value in tags.items()
-        if key not in SESSION_RESERVED_TAG_KEYS
+        if not key.startswith(SESSION_RESERVED_TAG_NAMESPACE)
     }
 
 

@@ -292,7 +292,14 @@ def _compile_stream_query(
     ).replace("\n", " ")
 
 
-def test_origin_include_and_exclude_apply_before_pagination():
+def test_dao_still_ands_a_contradictory_filter_it_is_handed_directly():
+    # P2-11: the DAO itself has no opinion on whether include/exclude contradict —
+    # it just ANDs both predicates, which always compiles to zero rows for an
+    # origin present in both lists. `normalize_session_query_request` (see
+    # `test_contradictory_origin_filter_is_rejected_with_422` below) is what
+    # actually rejects this before a real request ever reaches the DAO; this
+    # test only pins the DAO's own mechanical behavior for any other caller
+    # that builds a `SessionStreamQuery` directly.
     sql = _compile_stream_query(
         filter=SessionStreamQuery(
             origins=[SessionOrigin.trigger],
@@ -305,6 +312,38 @@ def test_origin_include_and_exclude_apply_before_pagination():
     assert " IN ('trigger')" in sql
     assert "NOT IN ('trigger')" in sql
     assert sql.index("ag.origin") < sql.index("ORDER BY") < sql.index("LIMIT")
+
+
+def test_contradictory_origin_filter_is_rejected_with_422():
+    with pytest.raises(HTTPException) as excinfo:
+        normalize_session_query_request(
+            SessionQueryRequest(
+                session=SessionPredicatesRequest(origins=[SessionOrigin.trigger]),
+                exclude=SessionExcludeRequest(origins=[SessionOrigin.trigger]),
+            )
+        )
+    assert excinfo.value.status_code == 422
+
+    # Overlapping in a longer list is still contradictory even when the lists
+    # aren't identical.
+    with pytest.raises(HTTPException) as excinfo:
+        normalize_session_query_request(
+            SessionQueryRequest(
+                session=SessionPredicatesRequest(
+                    origins=[SessionOrigin.trigger, SessionOrigin.manual]
+                ),
+                exclude=SessionExcludeRequest(origins=[SessionOrigin.trigger]),
+            )
+        )
+    assert excinfo.value.status_code == 422
+
+    # Disjoint include/exclude is a normal, valid request.
+    normalize_session_query_request(
+        SessionQueryRequest(
+            session=SessionPredicatesRequest(origins=[SessionOrigin.manual]),
+            exclude=SessionExcludeRequest(origins=[SessionOrigin.trigger]),
+        )
+    )
 
 
 def test_excluding_trigger_retains_null_and_unstamped_rows():
@@ -650,23 +689,23 @@ def test_malformed_trigger_and_delivery_ids_degrade_independently():
     assert delivery is None
 
 
-def test_reserved_attribution_tag_sanitizer_is_enabled_and_narrow():
+def test_reserved_attribution_tag_sanitizer_strips_the_whole_ag_namespace():
+    # P3-7: the whole "ag." prefix is reserved, not five exact names — a caller
+    # tag like "ag.private" or a future "ag.trigger.custom" must be stripped
+    # too, not preserved just because it isn't one of the writer's five keys.
     tags = {
         "ag.origin": "trigger",
         "ag.trigger.id": str(uuid4()),
         "ag.trigger.kind": "schedule",
         "ag.trigger.delivery_id": str(uuid4()),
         "ag.trigger.name": "Legacy snapshot",
-        "ag.trigger.custom": "preserve",
-        "ag.private": "preserve",
+        "ag.trigger.custom": "not preserved anymore",
+        "ag.private": "not preserved anymore",
         "team": "support",
     }
 
-    assert sanitize_session_tags(tags) == {
-        "ag.trigger.custom": "preserve",
-        "ag.private": "preserve",
-        "team": "support",
-    }
+    # Only a genuinely non-"ag." tag survives.
+    assert sanitize_session_tags(tags) == {"team": "support"}
     assert len(tags) == 8
 
     # P1-7: the reserved-key list had already drifted across three hand-copied

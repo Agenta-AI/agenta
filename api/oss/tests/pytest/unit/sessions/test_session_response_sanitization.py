@@ -31,10 +31,13 @@ RESERVED_TAGS = {
     "ag.trigger.kind": "schedule",
     "ag.trigger.delivery_id": "delivery-id",
     "ag.trigger.name": "Legacy name",
-}
-USER_TAGS = {
+    # P3-7: the whole "ag." namespace is reserved, not just the five exact
+    # attribution keys above — these two used to be preserved as "caller-owned"
+    # and no longer are.
     "ag.trigger.custom": {"spacing": "  unchanged\n  ", "values": [1, None]},
     "ag.private": False,
+}
+USER_TAGS = {
     "team": "support",
 }
 ALL_TAGS = {**RESERVED_TAGS, **USER_TAGS}

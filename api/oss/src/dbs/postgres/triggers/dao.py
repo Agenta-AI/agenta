@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.triggers.dtos import (
+    TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
     TriggerDelivery,
     TriggerDeliveryCreate,
     TriggerDeliveryData,
@@ -690,7 +691,7 @@ class TriggersDAO(TriggersDAOInterface):
     ) -> bool:
         async with self.engine.session() as session:
             stmt = (
-                select(TriggerDeliveryDBE.id)
+                select(TriggerDeliveryDBE.status)
                 .where(
                     TriggerDeliveryDBE.project_id == project_id,
                     TriggerDeliveryDBE.subscription_id == subscription_id,
@@ -699,9 +700,13 @@ class TriggersDAO(TriggersDAOInterface):
                 .limit(1)
             )
 
-            result = await session.execute(stmt)
+            status = (await session.execute(stmt)).scalar_one_or_none()
 
-            return result.scalar_one_or_none() is not None
+        return self._dedup_seen_from_status(
+            status=status,
+            subscription_id=subscription_id,
+            event_id=event_id,
+        )
 
     async def dedup_seen_schedule(
         self,
@@ -712,7 +717,7 @@ class TriggersDAO(TriggersDAOInterface):
     ) -> bool:
         async with self.engine.session() as session:
             stmt = (
-                select(TriggerDeliveryDBE.id)
+                select(TriggerDeliveryDBE.status)
                 .where(
                     TriggerDeliveryDBE.project_id == project_id,
                     TriggerDeliveryDBE.schedule_id == schedule_id,
@@ -721,9 +726,37 @@ class TriggersDAO(TriggersDAOInterface):
                 .limit(1)
             )
 
-            result = await session.execute(stmt)
+            status = (await session.execute(stmt)).scalar_one_or_none()
 
-            return result.scalar_one_or_none() is not None
+        return self._dedup_seen_from_status(
+            status=status,
+            subscription_id=schedule_id,
+            event_id=event_id,
+        )
+
+    @staticmethod
+    def _dedup_seen_from_status(
+        *,
+        status: Optional[dict],
+        subscription_id: UUID,
+        event_id: str,
+    ) -> bool:
+        """No row at all is unambiguously unseen. A row stuck in the one
+        retryable terminal state (P1-8) is NOT a duplicate either — the retry
+        must reach the atomic claim, the actual authority on whether a
+        re-claim wins, instead of short-circuiting here. Every other status
+        (claimed, success, or a permanent failure) is a genuine duplicate."""
+        if status is None:
+            return False
+        if (status or {}).get("code") == TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE:
+            log.info(
+                "[TRIGGERS] Retryable delivery found for (parent=%s, event=%s) "
+                "— treating as a retry, not a duplicate",
+                subscription_id,
+                event_id,
+            )
+            return False
+        return True
 
     # --- SCHEDULES ---------------------------------------------------------- #
 

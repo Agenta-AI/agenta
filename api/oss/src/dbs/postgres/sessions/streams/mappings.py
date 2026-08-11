@@ -27,9 +27,9 @@ SESSION_TRIGGER_DELIVERY_ID_TAG_KEY = "ag.trigger.delivery_id"
 # Legacy: no current writer, but rows stamped before this diff may still carry it.
 SESSION_TRIGGER_NAME_TAG_KEY = "ag.trigger.name"
 
-# Single source of truth for "which tag keys are system attribution, never
-# caller-owned" — the writer (`trigger_attribution_tags`) and every sanitizer
-# import this instead of hand-copying the key list (P1-7: it had already drifted).
+# Single source of truth for "which exact tag keys the writer stamps" — used by
+# the writer-side subset assert (P1-7's test) so a future fifth attribution key
+# is caught if it isn't inside the reserved namespace below.
 SESSION_RESERVED_TAG_KEYS = frozenset(
     {
         SESSION_ORIGIN_TAG_KEY,
@@ -39,6 +39,14 @@ SESSION_RESERVED_TAG_KEYS = frozenset(
         SESSION_TRIGGER_NAME_TAG_KEY,
     }
 )
+
+# The reserved namespace (P3-7): the whole "ag." prefix is reserved, not just
+# these five exact names — a future "ag.custom" read as caller-owned today,
+# which contradicts what the names promise. There is no tag write path yet, so
+# this closes the door before one exists rather than patching a live hole.
+# Exact semantics, deliberately simple: `key.startswith("ag.")` — no case
+# folding, no whitespace trimming.
+SESSION_RESERVED_TAG_NAMESPACE = "ag."
 
 
 def trigger_attribution_tags(
@@ -64,7 +72,7 @@ def _strip_reserved_tags(
     sanitized = {
         key: value
         for key, value in tags.items()
-        if key not in SESSION_RESERVED_TAG_KEYS
+        if not key.startswith(SESSION_RESERVED_TAG_NAMESPACE)
     }
     # All-reserved tags must read back as absent, not `{}` (P3-8).
     return sanitized or None

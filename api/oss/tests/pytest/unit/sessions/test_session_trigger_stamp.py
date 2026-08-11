@@ -121,6 +121,15 @@ async def test_claim_compiles_as_one_postgres_statement():
     assert "FOR UPDATE" in sql
     assert "claimed_trigger_delivery AS" in sql
     assert "INSERT INTO trigger_deliveries" in sql
+    # P1-8: the delivery claim re-claims a retryable-failed row instead of
+    # leaving it permanently stuck — DO UPDATE, gated on the existing row's
+    # status, not a bare DO NOTHING.
+    assert "ON CONFLICT (project_id, subscription_id, event_id)" in sql
+    delivery_insert = sql.split("INSERT INTO trigger_deliveries", 1)[1].split(
+        "INSERT INTO session_streams", 1
+    )[0]
+    assert "DO UPDATE SET" in delivery_insert
+    assert "WHERE (trigger_deliveries.status" in delivery_insert
     assert "INSERT INTO session_streams" in sql
     assert "ON CONFLICT (project_id, session_id) DO UPDATE" in sql
     assert "coalesce(session_streams.tags" in sql

@@ -27,6 +27,7 @@ from oss.src.core.sessions.streams.interfaces import (
 )
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 from oss.src.core.shared.dtos import Status, Windowing
+from oss.src.core.triggers.dtos import TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -45,6 +46,13 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     map_stream_dto_to_dbe_edit,
     map_stream_dto_to_dbe_header_edit,
 )
+
+# The trigger claim lives in the sessions DAO, not triggers/dao.py (P2-13,
+# accepted + documented per the ruling): the delivery INSERT and the session's
+# attribution INSERT must land in one statement for atomicity — one committed
+# session_streams row is what proves a delivery was claimed. Splitting them
+# across two DAOs would need a second round-trip and reopen the race this
+# claim exists to close. See claim_trigger_delivery below.
 from oss.src.dbs.postgres.triggers.dbes import (
     TriggerDeliveryDBE,
     TriggerScheduleDBE,
@@ -143,23 +151,40 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             .cte("live_trigger_configuration")
         )
         delivery_columns = list(delivery_values)
-        claimed_delivery = (
-            insert(TriggerDeliveryDBE)
-            .from_select(
-                delivery_columns,
-                select(
-                    *(
-                        literal(
-                            delivery_values[column],
-                            type_=TriggerDeliveryDBE.__table__.c[column].type,
-                        )
-                        for column in delivery_columns
+        delivery_insert = insert(TriggerDeliveryDBE).from_select(
+            delivery_columns,
+            select(
+                *(
+                    literal(
+                        delivery_values[column],
+                        type_=TriggerDeliveryDBE.__table__.c[column].type,
                     )
-                ).select_from(live_parent),
-            )
-            .on_conflict_do_nothing(
+                    for column in delivery_columns
+                )
+            ).select_from(live_parent),
+        )
+        claimed_delivery = (
+            delivery_insert.on_conflict_do_update(
                 index_elements=index_elements,
                 index_where=index_where,
+                # Retry re-claim (P1-8): a delivery stuck in the one retryable
+                # terminal state (500 — the runner was unreachable, not a
+                # permanent rejection) can be re-claimed by a fresh attempt.
+                # Any other existing row (still claimed, or a terminal
+                # non-retryable status) fails this WHERE and the row is left
+                # untouched — the same outcome DO NOTHING gave for every case
+                # except this one. `dedup_seen` gates on the identical status
+                # check so a retry actually reaches this claim instead of
+                # short-circuiting before it.
+                where=TriggerDeliveryDBE.status["code"].astext
+                == TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE,
+                set_={
+                    "id": delivery_insert.excluded.id,
+                    "created_by_id": delivery_insert.excluded.created_by_id,
+                    "status": delivery_insert.excluded.status,
+                    "data": delivery_insert.excluded.data,
+                    "updated_at": datetime.now(timezone.utc),
+                },
             )
             .returning(TriggerDeliveryDBE.id)
             .cte("claimed_trigger_delivery")

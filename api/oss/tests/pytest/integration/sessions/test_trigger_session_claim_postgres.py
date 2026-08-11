@@ -289,12 +289,12 @@ async def test_claim_atomically_merges_tags_flags_and_delivery_data(trigger_proj
     assert stream.turn_id == turn_id
     assert stream.meta == {"source": "existing"}
     assert stream.flags.is_running is True
-    # Reserved attribution keys are stripped at the DTO mapping chokepoint (P1-6) —
-    # only caller-owned tags survive on `stream.tags`. The typed fields carry the
-    # attribution instead.
+    # The whole "ag." namespace is stripped at the DTO mapping chokepoint
+    # (P1-6/P3-7) — only genuinely non-"ag." tags survive on `stream.tags`,
+    # including "ag.private" despite not being one of the five attribution
+    # keys. The typed fields carry the attribution instead.
     assert stream.tags == {
         "customer": "acme",
-        "ag.private": "keep",
     }
     assert stream.origin == SessionOrigin.trigger
     assert stream.trigger is not None
@@ -506,6 +506,228 @@ async def test_attribution_failure_rolls_back_claim_and_allows_retry(trigger_pro
         attribution=attribution,
     )
     assert retried is True
+
+
+async def _seed_delivery(
+    engine,
+    *,
+    delivery_id,
+    project_id,
+    user_id,
+    schedule_id,
+    event_id,
+    status_code,
+    data="{}",
+):
+    async with engine.session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO trigger_deliveries "
+                "(id, project_id, created_by_id, schedule_id, event_id, status, data) "
+                "VALUES (:id, :project_id, :user_id, :schedule_id, :event_id, "
+                "CAST(:status AS jsonb), CAST(:data AS json))"
+            ),
+            {
+                "id": delivery_id,
+                "project_id": project_id,
+                "user_id": user_id,
+                "schedule_id": schedule_id,
+                "event_id": event_id,
+                "status": f'{{"code": "{status_code}", "message": "x"}}',
+                "data": data,
+            },
+        )
+        await session.commit()
+
+
+async def test_retryable_failed_delivery_can_be_reclaimed_exactly_once(trigger_project):
+    """P1-8: a delivery stuck in the one retryable terminal state (500 — the
+    runner was unreachable, not a permanent rejection) must be re-claimable by
+    a fresh attempt, and the re-claim itself is exactly-once — a second
+    concurrent re-claim against the now-"102 claimed" row must lose, the same
+    as any other claim."""
+    engine = get_transactions_engine()
+    streams_dao = SessionStreamsDAO(engine=engine)
+    triggers_dao = TriggersDAO(engine=engine)
+    project_id = trigger_project["project_id"]
+    user_id = trigger_project["user_id"]
+    schedule_id = trigger_project["schedule_id"]
+    event_id = "retry-500-event"
+    original_delivery_id = uuid.uuid4()
+
+    # Mirrors what `_complete_delivery` writes after an invoke failure.
+    await _seed_delivery(
+        engine,
+        delivery_id=original_delivery_id,
+        project_id=project_id,
+        user_id=user_id,
+        schedule_id=schedule_id,
+        event_id=event_id,
+        status_code="500",
+        data='{"session_id": "original-session", "error": "runner unavailable"}',
+    )
+
+    retry_attribution = SessionTriggerAttribution(
+        configuration_id=schedule_id,
+        kind=SessionTriggerKind.schedule,
+        delivery_id=uuid.uuid4(),
+    )
+    retry_session_id = uuid.uuid4().hex
+
+    reclaimed = await streams_dao.claim_trigger_delivery(
+        project_id=project_id,
+        user_id=user_id,
+        event_id=event_id,
+        session_id=retry_session_id,
+        attribution=retry_attribution,
+    )
+    assert reclaimed is True
+
+    # The row's identity now belongs to the retry: the SAME (project, schedule,
+    # event) row is reused, but with a fresh id/status/data/session — a retry
+    # is not a second delivery.
+    delivery = await triggers_dao.fetch_delivery(
+        project_id=project_id, delivery_id=retry_attribution.delivery_id
+    )
+    assert delivery is not None
+    assert delivery.status.code == "102"
+    assert delivery.status.message == "claimed"
+    assert delivery.data.session_id == retry_session_id
+    assert (
+        await triggers_dao.fetch_delivery(
+            project_id=project_id, delivery_id=original_delivery_id
+        )
+        is None
+    ), "the original failed row's id must not survive as a separate row"
+
+    stream = await streams_dao.get_by_session_id(
+        project_id=project_id, session_id=retry_session_id
+    )
+    assert stream is not None
+    assert stream.delivery is not None
+    assert stream.delivery.id == retry_attribution.delivery_id
+
+    # A second re-claim attempt against the SAME event must now lose: the row
+    # is "102 claimed", not "500", so the retryable WHERE no longer matches —
+    # exactly the DO-NOTHING outcome a fresh duplicate claim always got.
+    second_claim = await streams_dao.claim_trigger_delivery(
+        project_id=project_id,
+        user_id=user_id,
+        event_id=event_id,
+        session_id=uuid.uuid4().hex,
+        attribution=SessionTriggerAttribution(
+            configuration_id=schedule_id,
+            kind=SessionTriggerKind.schedule,
+            delivery_id=uuid.uuid4(),
+        ),
+    )
+    assert second_claim is False
+
+
+@pytest.mark.parametrize("status_code", ["102", "200", "409"])
+async def test_non_retryable_delivery_cannot_be_reclaimed(trigger_project, status_code):
+    """A delivery that is still in-flight (102), succeeded (200), or failed for a
+    permanent reason (409 — e.g. an invalid subscription) must never be
+    re-claimed — only the one retryable terminal state (500) may be."""
+    engine = get_transactions_engine()
+    streams_dao = SessionStreamsDAO(engine=engine)
+    triggers_dao = TriggersDAO(engine=engine)
+    project_id = trigger_project["project_id"]
+    user_id = trigger_project["user_id"]
+    schedule_id = trigger_project["schedule_id"]
+    event_id = f"non-retryable-{status_code}-event"
+    existing_delivery_id = uuid.uuid4()
+
+    await _seed_delivery(
+        engine,
+        delivery_id=existing_delivery_id,
+        project_id=project_id,
+        user_id=user_id,
+        schedule_id=schedule_id,
+        event_id=event_id,
+        status_code=status_code,
+        data='{"session_id": "original-session"}',
+    )
+
+    claimed = await streams_dao.claim_trigger_delivery(
+        project_id=project_id,
+        user_id=user_id,
+        event_id=event_id,
+        session_id=uuid.uuid4().hex,
+        attribution=SessionTriggerAttribution(
+            configuration_id=schedule_id,
+            kind=SessionTriggerKind.schedule,
+            delivery_id=uuid.uuid4(),
+        ),
+    )
+    assert claimed is False
+
+    # The original row is untouched — no partial/attempted overwrite.
+    delivery = await triggers_dao.fetch_delivery(
+        project_id=project_id, delivery_id=existing_delivery_id
+    )
+    assert delivery is not None
+    assert delivery.status.code == status_code
+    assert delivery.data.session_id == "original-session"
+
+
+async def test_dedup_seen_schedule_treats_retryable_failure_as_unseen(trigger_project):
+    """P1-8: the dedup pre-check must not short-circuit a retry before it ever
+    reaches the atomic claim — that claim is the actual authority on whether a
+    re-claim wins. Only a genuinely terminal (non-retryable) status counts as
+    "seen"."""
+    engine = get_transactions_engine()
+    triggers_dao = TriggersDAO(engine=engine)
+    project_id = trigger_project["project_id"]
+    user_id = trigger_project["user_id"]
+    schedule_id = trigger_project["schedule_id"]
+    event_id = "dedup-500-event"
+
+    assert (
+        await triggers_dao.dedup_seen_schedule(
+            project_id=project_id, schedule_id=schedule_id, event_id=event_id
+        )
+        is False
+    ), "no row at all is unambiguously unseen"
+
+    await _seed_delivery(
+        engine,
+        delivery_id=uuid.uuid4(),
+        project_id=project_id,
+        user_id=user_id,
+        schedule_id=schedule_id,
+        event_id=event_id,
+        status_code="500",
+    )
+    assert (
+        await triggers_dao.dedup_seen_schedule(
+            project_id=project_id, schedule_id=schedule_id, event_id=event_id
+        )
+        is False
+    ), "a retryable failure must not read as a duplicate"
+
+    async with engine.session() as session:
+        await session.execute(
+            text(
+                "UPDATE trigger_deliveries SET status = CAST(:status AS jsonb) "
+                "WHERE project_id = :project_id AND schedule_id = :schedule_id "
+                "AND event_id = :event_id"
+            ),
+            {
+                "status": '{"code": "200", "message": "success"}',
+                "project_id": project_id,
+                "schedule_id": schedule_id,
+                "event_id": event_id,
+            },
+        )
+        await session.commit()
+
+    assert (
+        await triggers_dao.dedup_seen_schedule(
+            project_id=project_id, schedule_id=schedule_id, event_id=event_id
+        )
+        is True
+    ), "a genuinely completed delivery is a duplicate"
 
 
 async def test_abandon_claimed_session_soft_deletes_the_phantom_row(trigger_project):
