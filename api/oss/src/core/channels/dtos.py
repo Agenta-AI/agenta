@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Set
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from oss.src.core.shared.dtos import (
     Header,
@@ -192,6 +192,41 @@ class ChannelIdentity(BaseModel):
     keys: Dict[ChannelKeyGrain, List[str]] = Field(default_factory=dict)
 
 
+# ---------------------------------------------------------------------------
+# Setup declaration
+#
+# Three slots, any of them empty: instructions we give, a document we
+# generate, fields we ask for. Empty is a declaration, not a special case —
+# Agenta fills none, Slack fills all three. `fields` is what the form
+# renders; what is stored and valid is the CHANNEL_SECRET discriminator's
+# job, so this list restates no type.
+# ---------------------------------------------------------------------------
+
+
+class ChannelSetupField(BaseModel):
+    name: str
+    label: str
+    secret: bool = False
+    required: bool = True
+    help: Optional[str] = None
+
+
+class ChannelSetupDoc(BaseModel):
+    """What `build_setup_document` generates, request-url-dependent and so
+    never baked into the static capability declaration."""
+
+    format: str
+    content: str
+    filename: Optional[str] = None
+    link: Optional[str] = None
+
+
+class ChannelSetup(BaseModel):
+    instructions: List[str] = Field(default_factory=list)
+    document: Optional[ChannelSetupDoc] = None
+    fields: List[ChannelSetupField] = Field(default_factory=list)
+
+
 class ChannelCapabilities(BaseModel):
     channel: str
     protocol: ChannelProtocol = Field(default_factory=ChannelProtocol)
@@ -202,6 +237,7 @@ class ChannelCapabilities(BaseModel):
     fill: ChannelFill = Field(default_factory=ChannelFill)
     rendering: ChannelRendering = Field(default_factory=ChannelRendering)
     identity: ChannelIdentity = Field(default_factory=ChannelIdentity)
+    setup: ChannelSetup = Field(default_factory=ChannelSetup)
     #
     commands: List[str] = Field(default_factory=list)
 
@@ -302,11 +338,40 @@ class ChannelThreadData(BaseModel):
     external_locator: Optional[Dict[str, Any]] = None
 
 
+# Defensive, not exhaustive: the union of every channel's own secret field
+# names would need the adapter registry, which a leaf DTO must not import.
+_REDACTED_CREDENTIAL_FIELDS = {"bot_token", "signing_secret", "webhook_secret"}
+_REDACTED_VALUE = "[REDACTED]"
+
+
+def _redact_credentials(value: Any) -> Any:
+    """A platform that echoes a credential back would otherwise put it in
+    our log; strip known field names wherever they appear, recursively."""
+
+    if isinstance(value, dict):
+        return {
+            key: (
+                _REDACTED_VALUE
+                if isinstance(key, str) and key.lower() in _REDACTED_CREDENTIAL_FIELDS
+                else _redact_credentials(val)
+            )
+            for key, val in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_credentials(item) for item in value]
+    return value
+
+
 class ChannelInboxEventProcessed(BaseModel):
     """What core reads. The adapter's normalisation of the platform's payload."""
 
     content: List[Dict[str, Any]]  # normalised parts
     sender: Dict[str, Any]  # platform user, pre-identity-link
+
+    @field_validator("content", "sender", mode="after")
+    @classmethod
+    def _redact(cls, value):
+        return _redact_credentials(value)
 
 
 class ChannelInboxEventData(BaseModel):
@@ -322,6 +387,11 @@ class ChannelOutboxEventData(BaseModel):
     external_locator: Optional[Dict[str, Any]] = None  # the receipt
     processed: Optional[Dict[str, Any]] = None  # the request we posted
     # raw:            Optional[Dict[str, Any]] = None
+
+    @field_validator("processed", mode="after")
+    @classmethod
+    def _redact(cls, value):
+        return _redact_credentials(value) if value is not None else value
 
 
 # ---------------------------------------------------------------------------
@@ -346,16 +416,25 @@ class ChannelConnection(Identifier, Slug, Lifecycle, Header, Metadata):
 
 class ChannelConnectionCreate(Slug, Header, Metadata):
     channel: str
+    # derived, never taken from the caller — the service composes it from the
+    # locator once verification discovers what it must
     external_key: UUID
     #
     data: Optional[Dict[str, Any]] = None
+    # raw field values for the declared setup fields; verified, written to a
+    # CHANNEL_SECRET row, and never persisted on this row or echoed back
+    credentials: Optional[Dict[str, Any]] = None
     flags: ChannelConnectionFlags = Field(default_factory=ChannelConnectionFlags)
 
 
 class ChannelConnectionEdit(Identifier, Header, Metadata):
     # channel and external_key are dropped: repointing a connection at a
     # different installation is a different row, not an edit of this one.
+    slug: Optional[str] = None
     data: Optional[Dict[str, Any]] = None
+    # present only to rotate: re-verified, then replaces the secret row's
+    # contents without moving external_key
+    credentials: Optional[Dict[str, Any]] = None
     flags: ChannelConnectionFlags = Field(default_factory=ChannelConnectionFlags)
 
 
@@ -706,6 +785,37 @@ class ChannelCapabilitiesResponse(BaseModel):
 class ChannelConnectionsResponse(BaseModel):
     count: int = 0
     connections: List[ChannelConnection] = Field(default_factory=list)
+
+
+class ChannelConnectionRequest(BaseModel):
+    connection: ChannelConnectionCreate
+
+
+class ChannelConnectionEditRequest(BaseModel):
+    connection: ChannelConnectionEdit
+
+
+class ChannelConnectionResponse(BaseModel):
+    count: int = 0
+    connection: Optional[ChannelConnection] = None
+
+
+class ChannelConnectionTeardownResponse(BaseModel):
+    """Archive/unarchive: say what changed, and what did not — we never own
+    the customer's app, so nothing here uninstalls anything on their side."""
+
+    count: int = 0
+    connection: Optional[ChannelConnection] = None
+    platform_notice: str
+
+
+class ChannelConnectionSetupResponse(BaseModel):
+    """The declaration, plus the generated document: `setup.fields` and
+    `setup.instructions` come straight from the capability declaration,
+    `setup.document` is rebuilt per request from `build_setup_document`."""
+
+    count: int = 0
+    setup: Optional[ChannelSetup] = None
 
 
 class ChannelAgentRequest(BaseModel):

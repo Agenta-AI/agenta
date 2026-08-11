@@ -119,6 +119,9 @@ def map_connection_dto_to_dbe_edit(
 ) -> None:
     connection_dbe.updated_by_id = user_id
 
+    if connection.slug is not None:
+        connection_dbe.slug = connection.slug
+
     connection_dbe.name = connection.name
     connection_dbe.description = connection.description
 

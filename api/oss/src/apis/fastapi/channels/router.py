@@ -12,8 +12,13 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelAgentResponse,
     ChannelAgentsResponse,
     ChannelCapabilitiesResponse,
+    ChannelConnectionCreateRequest,
+    ChannelConnectionEditRequest,
     ChannelConnectionQueryRequest,
+    ChannelConnectionResponse,
+    ChannelConnectionSetupResponse,
     ChannelConnectionsResponse,
+    ChannelConnectionTeardownResponse,
     ChannelGrantCreateRequest,
     ChannelGrantEditRequest,
     ChannelGrantQueryRequest,
@@ -39,7 +44,11 @@ from oss.src.apis.fastapi.channels.models import (
 )
 from oss.src.core.channels.types import (
     ChannelAgentNotFound,
+    ChannelConnectionIncomplete,
+    ChannelConnectionKeyUndeclared,
     ChannelConnectionNotFound,
+    ChannelConnectionVerificationFailed,
+    ChannelLocatorIncomplete,
     ChannelNotSupported,
     ChannelSpaceNotFound,
     ChannelThreadNotFound,
@@ -110,13 +119,53 @@ class ChannelsRouter:
             response_model_exclude_none=True,
         )
 
-        # --- Connections (read-only) ------------------------------------------- #
+        # --- Connections ------------------------------------------------------ #
+        self.router.add_api_route(
+            "/connections/",
+            self.create_channel_connection,
+            methods=["POST"],
+            operation_id="create_channel_connection",
+            response_model=ChannelConnectionResponse,
+            response_model_exclude_none=True,
+        )
         self.router.add_api_route(
             "/connections/query",
             self.query_channel_connections,
             methods=["POST"],
             operation_id="query_channel_connections",
             response_model=ChannelConnectionsResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/edit",
+            self.edit_channel_connection,
+            methods=["POST"],
+            operation_id="edit_channel_connection",
+            response_model=ChannelConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/archive",
+            self.archive_channel_connection,
+            methods=["POST"],
+            operation_id="archive_channel_connection",
+            response_model=ChannelConnectionTeardownResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/unarchive",
+            self.unarchive_channel_connection,
+            methods=["POST"],
+            operation_id="unarchive_channel_connection",
+            response_model=ChannelConnectionTeardownResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/setup",
+            self.fetch_channel_connection_setup,
+            methods=["GET"],
+            operation_id="fetch_channel_connection_setup",
+            response_model=ChannelConnectionSetupResponse,
             response_model_exclude_none=True,
         )
 
@@ -369,6 +418,36 @@ class ChannelsRouter:
     # -----------------------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def create_channel_connection(
+        self,
+        request: Request,
+        *,
+        body: ChannelConnectionCreateRequest,
+    ) -> ChannelConnectionResponse:
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        try:
+            connection = await self.channels_service.create_connection(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                connection=body.connection,
+            )
+        except (
+            ChannelConnectionVerificationFailed,
+            ChannelConnectionIncomplete,
+            ChannelConnectionKeyUndeclared,
+            ChannelLocatorIncomplete,
+        ) as e:
+            # the platform's own verification error, surfaced as it gave it
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        return ChannelConnectionResponse(
+            count=1 if connection else 0, connection=connection
+        )
+
+    @intercept_exceptions()
     async def query_channel_connections(
         self,
         request: Request,
@@ -388,6 +467,136 @@ class ChannelsRouter:
             count=len(connections),
             connections=connections,
         )
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def edit_channel_connection(
+        self,
+        request: Request,
+        *,
+        connection_id: UUID,
+        body: ChannelConnectionEditRequest,
+    ) -> ChannelConnectionResponse:
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        if str(connection_id) != str(body.connection.id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Path connection_id does not match body id",
+            )
+
+        try:
+            connection = await self.channels_service.edit_connection(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                connection=body.connection,
+            )
+        except ChannelConnectionVerificationFailed as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        if connection is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Channel connection not found",
+            )
+
+        return ChannelConnectionResponse(count=1, connection=connection)
+
+    @intercept_exceptions()
+    async def archive_channel_connection(
+        self,
+        request: Request,
+        *,
+        connection_id: UUID,
+    ) -> ChannelConnectionTeardownResponse:
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        connection = await self.channels_service.archive_connection(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            #
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Channel connection not found",
+            )
+
+        return ChannelConnectionTeardownResponse(
+            count=1,
+            connection=connection,
+            platform_notice=(
+                "Archived on our side only. We never own the customer's app, "
+                "so nothing was uninstalled or removed on the platform."
+            ),
+        )
+
+    @intercept_exceptions()
+    async def unarchive_channel_connection(
+        self,
+        request: Request,
+        *,
+        connection_id: UUID,
+    ) -> ChannelConnectionTeardownResponse:
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        connection = await self.channels_service.unarchive_connection(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            #
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Channel connection not found",
+            )
+
+        return ChannelConnectionTeardownResponse(
+            count=1,
+            connection=connection,
+            platform_notice=(
+                "Unarchived on our side only; nothing changed on the platform "
+                "either way."
+            ),
+        )
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def fetch_channel_connection_setup(
+        self,
+        request: Request,
+        *,
+        connection_id: UUID,
+    ) -> ChannelConnectionSetupResponse:
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        connection = await self.channels_service.fetch_connection(
+            project_id=UUID(request.state.project_id),
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Channel connection not found",
+            )
+
+        request_url = (
+            f"{str(request.base_url).rstrip('/')}/channels/{connection.channel}/events/"
+        )
+
+        try:
+            setup = await self.channels_service.get_connection_setup(
+                project_id=UUID(request.state.project_id),
+                connection_id=connection_id,
+                request_url=request_url,
+            )
+        except ChannelConnectionNotFound as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return ChannelConnectionSetupResponse(count=1, setup=setup)
 
     # -----------------------------------------------------------------------
     # Agents

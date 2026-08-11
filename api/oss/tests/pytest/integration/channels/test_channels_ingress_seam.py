@@ -147,9 +147,9 @@ async def seam(channels_scope):
             external_key=external_key,
             slug="seam-connection",
             data={
-                "signing_secret": "unused",
-                "bot_token": "xoxb-fake",
-                "installation_id": channels_scope["external_id"],
+                "connection_locator": {
+                    "installation_id": channels_scope["external_id"],
+                },
             },
         ),
     )

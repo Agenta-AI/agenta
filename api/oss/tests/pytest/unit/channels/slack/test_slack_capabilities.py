@@ -34,6 +34,38 @@ EXPECTED = {
             "thread": ["team", "channel", "thread_ts"],
         },
     },
+    "setup": {
+        "instructions": [
+            "Create a Slack app from the generated manifest (own app, not ours).",
+            "Install it to your workspace and approve the requested scopes.",
+            "Copy the Bot User OAuth Token from Settings -> Install App.",
+            "Copy the Signing Secret and the App ID from Settings -> Basic Information.",
+        ],
+        "document": None,
+        "fields": [
+            {
+                "name": "bot_token",
+                "label": "Bot User OAuth Token",
+                "secret": True,
+                "required": True,
+                "help": "Settings -> Install App",
+            },
+            {
+                "name": "signing_secret",
+                "label": "Signing Secret",
+                "secret": True,
+                "required": True,
+                "help": "Settings -> Basic Information",
+            },
+            {
+                "name": "api_app_id",
+                "label": "App ID",
+                "secret": False,
+                "required": True,
+                "help": "Settings -> Basic Information",
+            },
+        ],
+    },
     "commands": ["new", "sessions", "use"],
 }
 
@@ -75,3 +107,22 @@ def test_conversation_units_use_key_grain_not_session_scope_vocabulary():
         ChannelKeyGrain.SPACE,
     }
     assert capabilities.conversation.default == ChannelKeyGrain.THREAD
+
+
+def test_setup_declares_two_secret_fields_and_one_discovered_exception():
+    """team_id and bot_user_id are discovered by verify_connection, never
+    asked for. api_app_id is the one field auth.test cannot hand back, so
+    it rides the form alongside the two secrets rather than an incomplete
+    connection key."""
+
+    capabilities = fetch_slack_capabilities()
+    fields = {field.name: field for field in capabilities.setup.fields}
+
+    assert set(fields) == {"bot_token", "signing_secret", "api_app_id"}
+    assert fields["bot_token"].secret is True
+    assert fields["signing_secret"].secret is True
+    assert fields["api_app_id"].secret is False
+    assert all(field.required for field in fields.values())
+    assert capabilities.setup.instructions
+    # request-url-dependent: never baked into the static declaration
+    assert capabilities.setup.document is None

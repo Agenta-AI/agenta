@@ -38,6 +38,40 @@ SLACK_CAPABILITIES: dict = {
             "thread": ["team", "channel", "thread_ts"],
         },
     },
+    "setup": {
+        "instructions": [
+            "Create a Slack app from the generated manifest (own app, not ours).",
+            "Install it to your workspace and approve the requested scopes.",
+            "Copy the Bot User OAuth Token from Settings -> Install App.",
+            "Copy the Signing Secret and the App ID from Settings -> Basic Information.",
+        ],
+        "fields": [
+            {
+                "name": "bot_token",
+                "label": "Bot User OAuth Token",
+                "secret": True,
+                "required": True,
+                "help": "Settings -> Install App",
+            },
+            {
+                "name": "signing_secret",
+                "label": "Signing Secret",
+                "secret": True,
+                "required": True,
+                "help": "Settings -> Basic Information",
+            },
+            # Not secret: auth.test does not return it for a pasted bot
+            # token, so the own-app flow asks for it alongside the two
+            # secrets rather than leaving the connection key incomplete.
+            {
+                "name": "api_app_id",
+                "label": "App ID",
+                "secret": False,
+                "required": True,
+                "help": "Settings -> Basic Information",
+            },
+        ],
+    },
     "commands": ["new", "sessions", "use"],
 }
 

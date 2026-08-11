@@ -13,10 +13,15 @@ from oss.src.core.channels.adapters.slack.adapter import (
 )
 from oss.src.core.channels.dtos import (
     ChannelConnection,
+    ChannelConnectionCreate,
     ChannelRequestContext,
     ChannelSpaceKind,
 )
-from oss.src.core.channels.types import ChannelSignatureInvalid
+from oss.src.core.channels.types import (
+    ChannelConnectionIncomplete,
+    ChannelConnectionVerificationFailed,
+    ChannelSignatureInvalid,
+)
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.dtos import ChannelKeyGrain
 
@@ -441,6 +446,81 @@ def test_org_wide_install_and_a_per_workspace_install_of_the_same_app_differ():
     )
 
     assert key_org_wide != key_per_workspace
+
+
+# --- verify_connection / build_setup_document -------------------------------- #
+
+
+def _create_stub(**overrides):
+    fields = {
+        "channel": "slack",
+        "external_key": uuid4(),
+        "slug": "acme",
+    }
+    fields.update(overrides)
+    return ChannelConnectionCreate(**fields)
+
+
+async def test_verify_connection_returns_discovered_fields_on_success():
+    adapter, transport = _adapter_with_stub(
+        [{"ok": True, "team_id": "T1", "user_id": "UBOT1"}]
+    )
+
+    discovered = await adapter.verify_connection(
+        connection=_create_stub(),
+        credentials={"bot_token": "xoxb-good", "signing_secret": "sec"},
+    )
+
+    assert discovered == {"team_id": "T1", "bot_user_id": "UBOT1"}
+    sent_auth = transport.requests[0].headers["authorization"]
+    assert sent_auth == "Bearer xoxb-good"
+
+
+async def test_verify_connection_omits_absent_discovered_fields():
+    """auth.test does not return api_app_id -- "where present" means it is
+    simply absent from what is returned, not defaulted to empty."""
+
+    adapter, _ = _adapter_with_stub([{"ok": True, "team_id": "T1", "user_id": "U1"}])
+
+    discovered = await adapter.verify_connection(
+        connection=_create_stub(),
+        credentials={"bot_token": "xoxb-good", "signing_secret": "sec"},
+    )
+
+    assert "api_app_id" not in discovered
+
+
+async def test_verify_connection_raises_on_a_rejected_token():
+    """Nothing is written on this path -- the platform's own error surfaces
+    as it gave it."""
+
+    adapter, _ = _adapter_with_stub([{"ok": False, "error": "invalid_auth"}])
+
+    with pytest.raises(ChannelConnectionVerificationFailed):
+        await adapter.verify_connection(
+            connection=_create_stub(),
+            credentials={"bot_token": "xoxb-bad", "signing_secret": "sec"},
+        )
+
+
+async def test_verify_connection_requires_a_bot_token():
+    adapter = SlackAdapter()
+
+    with pytest.raises(ChannelConnectionIncomplete):
+        await adapter.verify_connection(connection=_create_stub(), credentials={})
+
+
+async def test_build_setup_document_embeds_the_manifest_for_the_given_url():
+    adapter = SlackAdapter()
+
+    doc = await adapter.build_setup_document(
+        request_url="https://example.com/channels/slack/events/"
+    )
+
+    assert doc is not None
+    assert "https://example.com/channels/slack/events/" in doc.content
+    assert "chat:write" in doc.content
+    assert doc.link is not None and doc.link.startswith("https://api.slack.com/apps")
 
 
 # --- egress (stubbed HTTP transport) ---------------------------------------- #

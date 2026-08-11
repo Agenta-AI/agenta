@@ -100,9 +100,13 @@ async def slack_seam(channels_scope):
             external_key=external_key,
             slug="slack-seam-connection",
             data={
+                "connection_locator": {
+                    "api_app_id": API_APP_ID,
+                    "enterprise_id": "",
+                    "team_id": team_id,
+                },
                 "signing_secret": SIGNING_SECRET,
                 "bot_token": "xoxb-fake",
-                "team_id": team_id,
             },
         ),
     )

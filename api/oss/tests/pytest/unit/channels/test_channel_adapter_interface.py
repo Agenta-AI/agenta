@@ -76,9 +76,9 @@ def _positional_params(node):
 def test_every_method_parameter_after_self_is_keyword_only():
     """Grep-based check via the AST: no positional parameter besides `self`
     in any method signature on the interface, sync methods included. The
-    expected count is derived from the class's own abstractmethods rather
-    than a literal, so adding a method updates this check instead of
-    silently evading it."""
+    expected count is derived from the class's own abstractmethods plus its
+    own concrete (defaulted) methods rather than a literal, so adding a
+    method updates this check instead of silently evading it."""
 
     source = inspect.getsource(interface_module)
     tree = ast.parse(source)
@@ -98,7 +98,17 @@ def test_every_method_parameter_after_self_is_keyword_only():
             "— every method must be keyword-only after *."
         )
 
-    assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__)
+    concrete_methods = [
+        node.name
+        for node in methods
+        if node.name not in ChannelAdapterInterface.__abstractmethods__
+    ]
+    # build_setup_document, verify_connection: the two methods that default
+    # to nothing instead of forcing every adapter to implement them.
+    assert set(concrete_methods) == {"build_setup_document", "verify_connection"}
+    assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
+        concrete_methods
+    )
 
 
 def test_keyword_only_check_fails_on_a_sync_method_with_a_positional_parameter():

@@ -16,6 +16,8 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelAgentCreateRequest,
     ChannelAgentEditRequest,
     ChannelAgentQueryRequest,
+    ChannelConnectionCreateRequest,
+    ChannelConnectionEditRequest,
     ChannelConnectionQueryRequest,
     ChannelGrantCreateRequest,
     ChannelGrantEditRequest,
@@ -36,6 +38,8 @@ from oss.src.core.channels.dtos import (
     ChannelAgentData,
     ChannelAgentEdit,
     ChannelAgentFlags,
+    ChannelConnectionCreate,
+    ChannelConnectionEdit,
     ChannelGrant,
     ChannelGrantCreate,
     ChannelGrantData,
@@ -131,6 +135,41 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
                 req, body=ChannelConnectionQueryRequest()
             ),
             True,
+        ),
+        (
+            lambda r, req: r.create_channel_connection(
+                req,
+                body=ChannelConnectionCreateRequest(
+                    connection=ChannelConnectionCreate(
+                        channel="slack",
+                        external_key=uuid4(),
+                        slug="c",
+                    )
+                ),
+            ),
+            False,
+        ),
+        (
+            lambda r, req: r.edit_channel_connection(
+                req,
+                connection_id=uuid4(),
+                body=ChannelConnectionEditRequest(
+                    connection=ChannelConnectionEdit(id=uuid4())
+                ),
+            ),
+            False,
+        ),
+        (
+            lambda r, req: r.archive_channel_connection(req, connection_id=uuid4()),
+            False,
+        ),
+        (
+            lambda r, req: r.unarchive_channel_connection(req, connection_id=uuid4()),
+            False,
+        ),
+        (
+            lambda r, req: r.fetch_channel_connection_setup(req, connection_id=uuid4()),
+            False,
         ),
         (
             lambda r, req: r.create_channel_agent(
@@ -293,7 +332,12 @@ async def test_permission_matrix_covers_every_registered_route():
     exercised = {
         "list_channels",
         "fetch_channel_capabilities",
+        "create_channel_connection",
         "query_channel_connections",
+        "edit_channel_connection",
+        "archive_channel_connection",
+        "unarchive_channel_connection",
+        "fetch_channel_connection_setup",
         "create_channel_agent",
         "list_channel_agents",
         "query_channel_agents",
@@ -447,6 +491,7 @@ def test_trailing_slash_audit():
     router = _router()
     collection_paths = {
         "/catalog/channels/",
+        "/connections/",
         "/agents/",
         "/spaces/",
         "/grants/",
@@ -459,6 +504,10 @@ def test_trailing_slash_audit():
     }
     item_or_action_paths = {
         "/connections/query",
+        "/connections/{connection_id}/edit",
+        "/connections/{connection_id}/archive",
+        "/connections/{connection_id}/unarchive",
+        "/connections/{connection_id}/setup",
         "/agents/query",
         "/agents/{agent_id}",
         "/agents/{agent_id}/default",
