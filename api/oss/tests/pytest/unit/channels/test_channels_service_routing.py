@@ -21,6 +21,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentData,
     ChannelAgentFlags,
     ChannelConnection,
+    ChannelConnectionFlags,
     ChannelGrant,
     ChannelGrantData,
     ChannelGrantEffect,
@@ -64,6 +65,7 @@ def _make_fake_dao():
             slug="conn-1",
             channel="agenta",
             external_key=uuid4(),
+            flags=ChannelConnectionFlags(is_verified=True),
         )
     )
     dao.fetch_space_by_key = AsyncMock(return_value=None)
@@ -142,7 +144,7 @@ def _make_space(*, capabilities):
     )
 
 
-def _make_agent(*, slug="triage", policy=None):
+def _make_agent(*, slug="triage", policy=None, flags=None):
     return ChannelAgent(
         id=uuid4(),
         slug=slug,
@@ -152,7 +154,7 @@ def _make_agent(*, slug="triage", policy=None):
             references={"workflow_revision": {"id": str(uuid4())}},
             policy=policy,
         ),
-        flags=ChannelAgentFlags(),
+        flags=flags or ChannelAgentFlags(),
     )
 
 
@@ -1099,3 +1101,83 @@ class TestChannelDefaultsGrainToScope:
         defaults = _channel_defaults(self._capabilities(ChannelKeyGrain.CONNECTION))
 
         assert defaults.session_scope is ChannelSessionScope.MESSAGE
+
+
+class TestLifecycleRefusals:
+    """Every switched-off row refuses exactly like an absent one: `None`, with
+    no way for a sender to tell which of the two it hit."""
+
+    async def test_inactive_connection_refuses_before_provisioning_a_space(self):
+        dao = _make_fake_dao()
+        dao.fetch_connection = AsyncMock(
+            return_value=ChannelConnection(
+                id=uuid4(),
+                slug="conn-1",
+                channel="agenta",
+                external_key=uuid4(),
+                flags=ChannelConnectionFlags(is_active=False, is_verified=True),
+            )
+        )
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=_make_event()
+        )
+
+        assert result is None
+        dao.get_or_create_space.assert_not_awaited()
+
+    async def test_unverified_connection_refuses(self):
+        dao = _make_fake_dao()
+        dao.fetch_connection = AsyncMock(
+            return_value=ChannelConnection(
+                id=uuid4(),
+                slug="conn-1",
+                channel="agenta",
+                external_key=uuid4(),
+                flags=ChannelConnectionFlags(is_verified=False),
+            )
+        )
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=_make_event()
+        )
+
+        assert result is None
+        dao.get_or_create_space.assert_not_awaited()
+
+    async def test_inactive_space_refuses(self):
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(
+            return_value=ChannelSpace(
+                id=uuid4(),
+                connection_id=uuid4(),
+                kind=ChannelSpaceKind.TOPIC,
+                external_key=uuid4(),
+                data=ChannelSpaceData(external_locator=_LOCATOR),
+                flags=ChannelSpaceFlags(is_active=False),
+            )
+        )
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=_make_event()
+        )
+
+        assert result is None
+        dao.fetch_agent_by_slug.assert_not_awaited()
+
+    async def test_inactive_agent_refuses_like_an_absent_one(self):
+        agent = _make_agent(slug="triage", flags=ChannelAgentFlags(is_active=False))
+        dao = _make_fake_dao()
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        service = _make_service(dao=dao, adapter=WellBehavedFakeAdapter())
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=_make_event()
+        )
+
+        assert result is None
+        # refused before any grant is consulted: the agent is gone, not denied
+        dao.query_matching_grants.assert_not_awaited()

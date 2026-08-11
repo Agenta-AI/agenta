@@ -66,7 +66,7 @@ def _connection() -> ChannelConnection:
         channel="bridge",
         external_key=uuid4(),
         data={
-            "secret": SECRET,
+            "signing_secret": SECRET,
             "delivery_url": "https://bridge.example/deliver",
             "connection_locator": {"source": "acme-wecom"},
             "capabilities": capabilities,

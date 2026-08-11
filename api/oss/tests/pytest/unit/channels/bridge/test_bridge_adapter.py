@@ -40,7 +40,7 @@ def _connection(
     *, integration_key: str = "acme-wecom", capabilities: Any = None
 ) -> ChannelConnection:
     data = {
-        "secret": SECRET,
+        "signing_secret": SECRET,
         "delivery_url": "https://bridge.example/deliver",
         "connection_locator": {"source": integration_key},
     }

@@ -118,6 +118,8 @@ class ChannelsService:
             connection=connection,
             credentials=connection.credentials or {},
         )
+        # reaching here IS the verification: a refusal raises above this line
+        connection.flags.is_verified = True
 
         locator_input = {**(connection.data or {}), **discovered}
         # a channel whose identity includes the project takes it from the scope
@@ -994,6 +996,11 @@ class ChannelsService:
         if connection is None:
             raise ChannelConnectionNotFound(connection_id=connection_id)
 
+        # refused before a space is provisioned: nothing should be created
+        # against a connection that is switched off or never verified
+        if not connection.flags.is_active or not connection.flags.is_verified:
+            return None
+
         capabilities = await self.fetch_capabilities(
             channel=connection.channel, connection=connection
         )
@@ -1029,6 +1036,9 @@ class ChannelsService:
             space_id=space.id,
         )
 
+        if not space.flags.is_active:
+            return None
+
         agent = await self._addressed_agent(
             project_id=project_id,
             connection_id=connection_id,
@@ -1036,7 +1046,8 @@ class ChannelsService:
             event=event,
             capabilities=capabilities,
         )
-        if agent is None:
+        # a deactivated agent refuses exactly like an absent one
+        if agent is None or not agent.flags.is_active:
             return None
 
         matching_grants = await self.channels_dao.query_matching_grants(

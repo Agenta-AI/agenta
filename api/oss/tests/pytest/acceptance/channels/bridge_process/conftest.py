@@ -112,7 +112,7 @@ async def bridge_scope():
     ):
         connection_id = uuid.uuid4()
         data = {
-            "secret": secret,
+            "signing_secret": secret,
             "delivery_url": delivery_url,
             "connection_locator": {"source": integration_key},
         }

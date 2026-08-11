@@ -58,7 +58,7 @@ def _connection(
         channel="bridge",
         external_key=uuid4(),
         data={
-            "secret": secret,
+            "signing_secret": secret,
             "delivery_url": delivery_url,
             "connection_locator": {"source": integration_key},
         },

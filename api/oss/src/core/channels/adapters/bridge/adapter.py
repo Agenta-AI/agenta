@@ -43,7 +43,7 @@ _DEFAULT_CAPABILITIES = ChannelCapabilities(
 
 def _bridge_secret(connection: ChannelConnection) -> str:
     data = connection.data if isinstance(connection.data, dict) else {}
-    secret = data.get("secret")
+    secret = data.get("signing_secret")
     if not secret:
         raise ChannelSignatureInvalid(channel="bridge")
     return secret
