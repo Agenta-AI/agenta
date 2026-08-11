@@ -22,12 +22,15 @@ wording and it should move to this one. `raw/related-work.md` records why.
 stored secret to look up*; the origin says *whose money the call spends*. Parallel work on
 bring-your-own secrets already uses the origin to zero-rate customer-funded usage.
 
-**A prerequisite, not an assumption.** This document assumes resolution through the secrets
-service is safe. The read surface is not safe today — see `open-reviews.md` OR14.
+**The read surface is an outcome, not a gate.** The secrets read route returns plaintext to any
+caller holding the view permission, and the agent path resolves straight through it. That cannot
+be fixed first: callers read it today because it is how they obtain a provider key at all. Once
+everything goes through the gateway, nothing needs that route, and only then can it be
+restricted. See `notes.md`.
 
 ## The storage pattern: reference, never hold
 
-The gateways store **no credential material**. A domain row carries a `secret_id`, the
+The gateways store **no secret material**. A domain row carries a `secret_id`, the
 secrets service holds the encrypted value, and the consumer resolves it at use time through
 the vault service, reading the value off the returned DTO. Domain responses exclude the
 secret and its id.
@@ -48,33 +51,53 @@ Existing kinds are `provider_key`, `custom_provider`, `sso_provider`, `webhook_p
 wrapper, the discriminated union on the secret DTO, and a validation branch in the kind
 validator.
 
-Two kinds, because a static credential and a grant have different lifecycles.
+**Never overload an existing kind.** The general-purpose custom secret and custom provider
+kinds exist for other things, and reusing one to avoid adding a kind is a false economy.
 
-### `mcp_provider`
+Two new kinds, per D14.
 
-A static credential an MCP server expects in a header — an API key, a personal access token,
-a bearer value. Shape mirrors the webhook provider's: a key, plus the header name when it is
-not the standard authorization header. No expiry, no rotation.
+### `oauth_provider`
 
-*To establish:* whether the header name belongs on the secret or on the server registry row.
-It is arguably routing rather than credential, which would put it on the registry.
+Our client registration with an authorization server. The SSO kind is the precedent in both
+name and shape — it already stores a client id, a client secret, an issuer URL and scopes,
+which is exactly this.
+
+One per authorization server. Long-lived, rarely rotated, owned by the platform or the project.
 
 ### `oauth_grant`
 
-A token set: access token, refresh token, expiry, granted scopes, issuing authorization
-server, and the audience the token was minted for. Tokens are audience-bound, so a grant is
-identified by the upstream resource rather than merely by the provider.
+A user's tokens: access token, refresh token, expiry, the scopes actually granted, and the
+server the token was minted for. Tokens are audience-bound, so a grant is identified by the
+upstream server rather than by the provider.
 
-**Deliberately not named for MCP.** The shape is protocol-agnostic — a model provider
-authenticating by OAuth needs exactly this — and an MCP-specific name would misplace it the
-first time the model plane wants one.
+One per owner per server. Rewritten on every refresh, owned by a person.
 
-### Rejected
+### Why two kinds rather than one with sub-kinds
 
-A single kind carrying an auth-scheme discriminator, with either a key or a token set inside.
-Fewer enum values, but it merges the kind that rotates with the kind that does not, and puts
-a protocol name on a structure both planes want. Noted rather than dismissed: the existing
-enum mixes shape-named kinds with consumer-named ones, so either convention has precedent.
+The sub-kind pattern here discriminates the *same thing across vendors* — a provider key has
+one shape and one lifecycle whether it is OpenAI or Anthropic, and the inner field only names
+the vendor.
+
+These two share no fields, and differ in cardinality, lifetime, rotation frequency and owner. A
+single kind would need a union inside it anyway, and every query for one user's grants would
+filter on an inner field instead of on the kind itself.
+
+### What is deliberately absent
+
+**No kind for a static MCP credential.** Under the current scope (D15) the targets are Agenta's
+own MCP gateway and OAuth-protected servers. A third-party server authenticating with a static
+token would need one; that is deferred, not designed away. Its shape is trivial when it arrives
+— the webhook kind is already just a key — and the header it travels in is routing, so that
+belongs on the server's registry row rather than in the vault.
+
+**No kind for the inbound gateway credential.** It is minted, ephemeral and never stored
+(D13). It is Agenta's own auth, not customer provider material, so it is not a secret at all.
+
+### Coordination
+
+The parallel bring-your-own-secrets work is adding kinds to this same enum for sandbox
+providers and the tool gateway key. Several new kinds are entering one enum from two
+directions; agree naming and shapes in one pass.
 
 ## Ownership
 

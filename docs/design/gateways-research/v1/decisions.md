@@ -37,14 +37,17 @@ then uses on the caller's behalf is a separate binding, settled in `secrets.md`;
 identity and credential ownership are independent, and conflating them is what made this look
 harder than it is.
 
-## D3. The gateways hold no credential material
+## D3. The gateways hold no secret material
 
 A domain row carries a secret id; the secrets service holds the value; the consumer resolves
 it at use time. This is the pattern webhook subscriptions and SSO providers already use.
 
 **Why it matters beyond tidiness:** encryption, key management, rotation and deletion stay in
 one place instead of gaining a second. It also removes what looked like the design's one new
-component — there is no token store, only new secret kinds.
+component — there is no token store, only new secret kinds (D14).
+
+This is about *secrets* — customer provider material. The credential that authenticates a
+caller into a gateway is a different thing and is not stored at all (D13).
 
 ## D4. Ports and adapters everywhere, including inside the SDK
 
@@ -140,6 +143,111 @@ same move on the billing side.
 
 **What this rules out:** a second request path for any concern. If billing needs something the
 gateway does not expose, the gateway grows it. Billing does not route around it.
+
+## D13. The inbound credential is minted, ephemeral, and never stored
+
+The credential that authenticates a caller **into** a gateway is not a new kind of thing and
+does not live in the vault. By the established vocabulary it is a *credential* — Agenta's own
+auth — not a *secret*, which is customer provider material.
+
+**It is minted per use and expires.** The platform already signs short-lived scope-carrying
+tokens for exactly this purpose: the access router re-mints a fresh ephemeral token on every
+permission check rather than echoing an API key, and services and the runner refresh
+periodically. The gateways use that same signer.
+
+**One token per target, minted in a batch.** A run reaching three MCP servers gets three
+tokens in one minting call, each valid for one target. A leaked token then reaches one server,
+not the whole gateway. The wire already carries per-server credentials, so nothing new is
+needed to deliver them.
+
+**Why ephemeral beats a durable scoped key.** There is nothing at rest to steal, nothing to
+rotate, no revocation path to build, and no new secret kind. Expiry is the revocation. A
+durable per-endpoint key would be better than passing the user's own API key, and worse than
+this.
+
+**Why not the user's own API key.** It carries everything that user can do, it cannot be
+rotated without breaking their other integrations, and it would sit inside an agent-controlled
+sandbox.
+
+The one extension needed: the existing signer carries the principal but not a target. The
+gateways need an audience claim so a token minted for one server cannot be replayed against
+another.
+
+**The known failure mode.** Per-turn credential material must stay out of any session
+fingerprint that decides whether a warm session may be reused. The runner already excludes its
+tool-callback bearer from the credential epoch for this reason, and a regression that folded
+per-turn material into that hash has already been fixed once. Gateway tokens are the same kind
+of material and inherit the same rule.
+
+## D14. Two OAuth secret kinds, and no static MCP kind
+
+**`oauth_provider`** holds our client registration with an authorization server. The existing
+SSO kind is the precedent in both name and shape — it already stores a client id, a client
+secret, an issuer URL and scopes.
+
+**`oauth_grant`** holds a user's tokens: access, refresh, expiry, granted scopes, and the
+server the token was minted for.
+
+**Two kinds, not sub-kinds of one.** The sub-kind pattern in this codebase discriminates the
+*same thing across vendors* — a provider key has one shape and one lifecycle whether it is
+OpenAI or Anthropic. These two share no fields, and they differ in cardinality (one per
+authorization server versus one per user per server), in lifetime, in rotation frequency, and
+in owner. A single kind would need a union inside it, and every query for a user's grants would
+filter on an inner field instead of on the kind.
+
+**No new kind for static MCP credentials in this scope.** Under D15 the targets are Agenta's own
+MCP gateway and OAuth-protected servers. A third-party server authenticating with a static token
+would need one, and that is deferred rather than designed away.
+
+**Never overload an existing kind.** The general-purpose custom secret and custom provider kinds
+exist for other things. Coordinate with the parallel bring-your-own-secrets work, which is adding
+kinds to this same enum for sandbox providers and the tool gateway key.
+
+## D15. Current scope is the gateways, agent v0, the runner, and the harnesses
+
+No other service changes yet. The evaluator path — including the two callers that use embeddings
+rather than chat — comes later, and so does the question of whether embeddings share the model
+registry.
+
+D1 remains the target. This is where it starts.
+
+## D16. One URL per MCP server, namespaced identifier, pass-through
+
+Each registered server gets its own gateway URL. The identifier in that URL carries a namespace,
+because a bare name identifies nothing once there are Composio-backed servers, Agenta-internal
+ones, built-ins, and user-defined custom ones — some per-user, some project-wide. It is an id or
+a slug, never a display name.
+
+Because the server is already distinguished by its URL, **tool names are not touched**. The
+gateway is a transparent proxy per server, not a wrapper: same tool names, same schemas, same
+errors, same list responses. It changes the route and the credential and nothing else the agent
+can observe.
+
+A merged endpoint with namespaced tool names was rejected. It would rename what the model sees,
+tie the tool list to credential health, and fight the list caching the protocol now encourages.
+
+## D17. Step-up scopes are an interaction, not a failure
+
+Two halves, both needed.
+
+**At connect time the user selects scopes.** Not a blanket request for everything the server
+advertises — offer the set and let them choose.
+
+**At step-up the gateway raises an interaction.** When a call needs a permission that was never
+granted, this is the same situation as a tool needing a connection that does not exist yet, and
+that path already exists: an interaction and a connect affordance rather than a failure. Step-up
+reuses it, asking for additional permissions on an existing connection.
+
+Failing with a clear error was rejected: it is the same situation as a missing connection, where
+we already do not fail.
+
+## D18. A dead secret does not hide tools
+
+When a secret is revoked or cannot refresh, the server's tools stay listed and the call fails.
+The existing escalation and interaction paths let the user reconnect.
+
+Hiding tools was rejected because it changes what the agent can do without telling anyone.
+Anything beyond this is a question about the interface, which this design does not settle.
 
 ---
 

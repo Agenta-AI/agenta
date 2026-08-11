@@ -59,6 +59,69 @@ It is a separate concern — internal tool delivery, not third-party server brok
 conflating the two would drag its permission-rule and transport constraints into a design that
 does not need them. Excluded deliberately.
 
+### Two "prerequisites" had the causality backwards
+
+An earlier revision listed two things as blockers in front of the gateway. Both are the
+reverse: they are outcomes the gateway makes possible.
+
+**The secrets read surface.** It returns plaintext to any caller holding the view permission,
+and the agent path resolves straight through it. This was written up as something to fix first.
+It cannot be fixed first — callers read that route because it is how they obtain a provider key
+at all. Only once everything goes through the gateway does nothing need it, and only then can it
+be restricted.
+
+The reasoning behind the error is worth recording: it assumed the gateway's value was mainly
+security, so an unsafe vault appeared to undermine it. The gateway is also governance, identity,
+metering and inversion of control, none of which depend on the vault's current read behaviour.
+
+**Module-level provider keys in one handler.** Also written up as a blocker. That pattern exists
+*because* there is no gateway and no dependency injection — a handler mutates library globals
+because nothing hands it a resolved connection. It is one of the things the gateway fixes, so it
+cannot gate the gateway. The handler in question is also unused and likely to be dropped, which
+makes the finding moot as well as misplaced.
+
+**The general lesson:** when something in the current design looks like it must be fixed first,
+check whether the new design is what makes the fix possible. Sequencing a fix ahead of its
+enabler produces a plan that cannot start.
+
+### A static secret kind was proposed twice and withdrawn twice
+
+First proposed as a new kind, then withdrawn in favour of reusing the general-purpose custom
+secret kind, then withdrawn again because existing kinds must not be overloaded — each exists
+for something specific.
+
+The resolution is that no static kind is needed *in the current scope*, because the targets are
+Agenta's own gateway and OAuth-protected servers. It returns when a third-party server
+authenticating with a static token does.
+
+### The inbound credential was confused with the upstream secret
+
+An early draft treated the credential authenticating a caller *into* the gateway as a thing
+needing a vault kind. It is not a secret at all — by the vocabulary the tree already uses, it is
+a *credential*, Agenta's own auth. It is minted, ephemeral and never stored (D13).
+
+The mechanism already existed on both ends and neither was found before proposing a new one: the
+access router already re-mints short-lived signed scope-carrying tokens rather than echoing an
+API key, and the runner already treats its tool-callback bearer as per-turn material excluded
+from the session fingerprint.
+
+### Step-up was designed as a failure before the existing path was checked
+
+An early recommendation was to request every scope a server advertises at connect time, and to
+fail a call with a clear error when a step-up happened anyway. Both were wrong.
+
+Requesting everything removes the user's choice; the correct default is to let them select.
+Failing is inconsistent with what already happens when a tool needs a connection that does not
+exist — that raises an interaction with a connect affordance. Step-up is the same situation and
+reuses the same path.
+
+### Scope crept from the callers to the whole tree
+
+The embeddings finding — two evaluator callers that cannot use a chat-only gateway — was
+correct, and was then used to argue that the north port needed an embeddings route now. The
+current scope is the gateways, agent v0, the runner and the harnesses (D15). Other services come
+later, and so does that route.
+
 ---
 
 ## Observations

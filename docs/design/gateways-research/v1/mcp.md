@@ -107,16 +107,29 @@ Two things to verify at implementation time, tracked in `open-reviews.md`: no MC
 direct dependency today in either the runner or the Python projects, and refresh-token
 support was still landing across SDKs during 2026, so pin a version that has it.
 
+## Endpoint shape — settled
+
+One URL per registered server, with a namespaced identifier in the path (D16). Because the
+server is distinguished by its URL, **tool names pass through untouched**: the gateway is a
+transparent proxy per server, not a wrapper. Same names, same schemas, same errors, same list
+responses.
+
+The identifier is an id or a slug carrying a namespace, never a display name. A bare name
+identifies nothing once there are Composio-backed servers, Agenta-internal ones, built-ins and
+user-defined custom ones, some per-user and some project-wide.
+
+This also removes the list-composition problem: each list response comes from exactly one
+server, so caching is per server and a dead secret on one server cannot affect another's list.
+
+## Step-up — settled
+
+Two halves (D17). At connect time the user **selects** scopes rather than granting everything a
+server advertises. At step-up the gateway raises an **interaction**, reusing the path that
+already exists for a tool needing a connection that does not exist yet.
+
 ## Open
 
-- **Endpoint shape.** One merged endpoint whose tool list spans every registered server, with
-  names namespaced to avoid collisions, or one endpoint per server. Header routing makes the
-  merged form cheap; namespacing changes the names the model sees, which affects prompts and
-  per-tool permission rules.
-- **Step-up handling.** Over-request scopes at connect time, fail actionably, or pause the
-  run. The spec recommends least privilege with incremental step-up; an agent platform may
-  reasonably prefer fewer interruptions.
-- **List composition.** How a merged list behaves when one server's credential is dead, given
-  the revision actively encourages caching list results.
 - **stdio servers.** The spec directs them to take credentials from the environment. Whether
   we support them at all through a gateway, and where they would run, is unsettled.
+- **Static-credential third-party servers.** Out of the current scope (D15), and they will need
+  a secret kind when they arrive (`secrets.md`).

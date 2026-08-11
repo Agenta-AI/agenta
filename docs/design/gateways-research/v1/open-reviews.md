@@ -90,30 +90,29 @@ no models at all**, and the runner only picks and checks a model id.
 Two consequences carried into the design: the north port needs an embeddings route, and the
 `llm_v0` handler's module-level key assignment must not reach a shared process. See OR13.
 
-### OR14. The secrets read surface is not safe yet — a prerequisite
+### OR14. The secrets read surface — close it once nothing needs it
 
-Parallel work on bring-your-own secrets records that the secrets read route returns plaintext
-material to any caller holding the view permission, and that the agent path resolves straight
-through it and bypasses the gates.
+The secrets read route returns plaintext material to any caller holding the view permission,
+and the agent path resolves straight through it.
 
-**Every claim in this design assumes resolution through the secrets service is safe.** It is
-not today. Check the current state of that route before any gateway work depends on it, and
-treat the fix as a prerequisite rather than a parallel task.
+**This is an outcome, not a prerequisite.** Callers read that route because it is how they get
+a provider key at all, so it cannot be restricted while they still depend on it. Once
+everything goes through the gateway, nothing needs it — and that is the moment to close it.
 
-That work also names it as its own first task, so coordinate rather than fix it twice.
+Track it as the last review of the conversion, not the first. Parallel bring-your-own-secrets
+work wants the same outcome, so coordinate on who closes it.
 
-### OR13. The global key assignment — do this first
+### OR13. Module-level provider keys — an outcome of the conversion
 
-The `llm_v0` handler sets the provider key on **module-level attributes of the router
-library** before it calls. That is process-wide state.
+One handler sets provider keys on module-level attributes of the routing library, which is
+process-wide state and would be a cross-tenant leak in a shared process.
 
-One tenant per workflow process makes it survivable today. A shared gateway process makes it
-a **cross-tenant credential leak**: one caller's key stays set and serves the next caller.
+**Not a prerequisite either.** That pattern exists because nothing hands the handler a resolved
+connection; proper injection through the gateway is what removes it. The handler is also
+reported unused and likely to be dropped, which may close this without any work.
 
-Convert it to per-call arguments before or during the move. The provider-settings builder
-already produces the correct shape, so the correct pattern exists in the same codebase.
-
-Review that no other code assigns to the library's module attributes.
+Review at conversion time that nothing assigns to the library's module attributes, rather than
+scheduling a fix ahead of the gateway.
 
 ### OR10. Subscription-authenticated harnesses
 
