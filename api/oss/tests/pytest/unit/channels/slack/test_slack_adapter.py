@@ -14,6 +14,7 @@ from oss.src.core.channels.adapters.slack.adapter import (
 from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelConnectionCreate,
+    ChannelEventKind,
     ChannelRequestContext,
     ChannelSpaceKind,
 )
@@ -319,6 +320,77 @@ async def test_two_distinct_threads_compose_to_distinct_external_keys():
     assert key_a != key_b
 
 
+# --- parse_event: block_actions ------------------------------------------- #
+
+
+def _block_actions_body(**overrides) -> bytes:
+    from urllib.parse import urlencode
+
+    payload = {
+        "type": "block_actions",
+        "team": {"id": "T1"},
+        "user": {"id": "U1"},
+        "container": {"channel_id": "C1", "message_ts": "1000.1"},
+        "message": {"thread_ts": "1000.1"},
+        "actions": [
+            {
+                "action_id": "approve_button",
+                "value": "approve",
+                "type": "button",
+                "action_ts": "1700000000.000100",
+            }
+        ],
+    }
+    payload.update(overrides)
+    return urlencode({"payload": json.dumps(payload)}).encode()
+
+
+async def test_parse_event_handles_block_actions_and_extracts_the_token():
+    adapter = SlackAdapter()
+
+    event = await adapter.parse_event(body=_block_actions_body())
+
+    assert event is not None
+    assert event.kind == ChannelEventKind.ACTION
+    assert event.processed.content == [{"type": "text", "text": "approve"}]
+    assert event.addressed is True
+
+
+async def test_parse_event_block_actions_locator_comes_from_container_not_event():
+    """A `block_actions` payload has no `event` key at all -- the locator
+    must come from `container`/`team`."""
+
+    adapter = SlackAdapter()
+
+    event = await adapter.parse_event(body=_block_actions_body())
+
+    assert event.external_locator == {
+        "team": "T1",
+        "channel": "C1",
+        "thread_ts": "1000.1",
+    }
+
+
+async def test_parse_event_block_actions_external_id_is_the_actions_own_id():
+    """Redelivery of the SAME click reuses the same external_id -- a
+    dedup-by-insert against it writes no second row."""
+
+    adapter = SlackAdapter()
+
+    first = await adapter.parse_event(body=_block_actions_body())
+    second = await adapter.parse_event(body=_block_actions_body())
+
+    assert first.external_id == second.external_id
+
+
+async def test_parse_event_block_actions_external_id_is_not_the_message_ts():
+    adapter = SlackAdapter()
+
+    event = await adapter.parse_event(body=_block_actions_body())
+
+    assert "1000.1" not in event.external_id
+
+
 # --- CONNECTION-grain identity -------------------------------------------- #
 
 
@@ -543,6 +615,29 @@ def _adapter_with_stub(responses: List[Dict[str, Any]]):
     transport = _StubTransport(responses)
     client = httpx.AsyncClient(transport=transport, base_url="https://slack.com/api")
     return SlackAdapter(http_client=client), transport
+
+
+async def test_button_value_reaches_slack_as_the_blocks_own_value():
+    """F13: the renderer used to send the button's `id` as Slack's `value`,
+    so whatever token a caller put on the button never reached Slack, and a
+    click could never carry it back."""
+
+    adapter, transport = _adapter_with_stub([{"ok": True, "channel": "C1", "ts": "1"}])
+    connection = _connection()
+
+    await adapter.post_message(
+        connection=connection,
+        locator={"channel": "C1"},
+        content=[
+            {"type": "button", "id": "0", "label": "Approve", "value": "approve"},
+            {"type": "button", "id": "1", "label": "Deny", "value": "deny"},
+        ],
+        idempotency_key=uuid4(),
+    )
+
+    sent = json.loads(transport.requests[0].content)
+    elements = sent["blocks"][0]["elements"]
+    assert {e["value"] for e in elements} == {"approve", "deny"}
 
 
 async def test_content_over_max_chars_splits_into_multiple_posts():

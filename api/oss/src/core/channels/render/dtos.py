@@ -25,7 +25,20 @@ class RenderPart(BaseModel):
     arguments: Optional[Dict[str, Any]] = None
 
 
+class RenderChoiceOption(BaseModel):
+    """One option behind a rendered choice, regardless of whether it landed
+    as buttons or as numbered text -- the outbox reads this to persist the
+    thread's pending choice, never the rendered parts themselves."""
+
+    label: str
+    token: str
+
+
 class RenderItem(BaseModel):
     """One outbox row's worth of content — independently postable and editable."""
 
     parts: List[RenderPart]
+    # set only when this item IS a choice -- present whether it rendered as
+    # buttons or degraded to numbered text, since the outbox must persist the
+    # same pending choice either way.
+    choice: Optional[List[RenderChoiceOption]] = None

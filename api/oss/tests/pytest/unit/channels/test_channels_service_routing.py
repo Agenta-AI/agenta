@@ -6,6 +6,7 @@ for the adapter port so capabilities come from a real declaration shape
 rather than a hand-rolled one.
 """
 
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock
@@ -29,6 +30,8 @@ from oss.src.core.channels.dtos import (
     ChannelInboxTriggerFlags,
     ChannelEventKind,
     ChannelEventOrigin,
+    ChannelPendingChoice,
+    ChannelPendingChoiceItem,
     ChannelPolicy,
     ChannelSessionScope,
     ChannelSpace,
@@ -453,6 +456,179 @@ class TestResolveRouting:
         assert result is not None
         assert created["thread"].external_key == event.id
         dao.fetch_current_thread.assert_not_called()
+
+
+def _pending_choice(*pairs):
+    return ChannelPendingChoice(
+        choices=[ChannelPendingChoiceItem(label=lbl, token=t) for lbl, t in pairs],
+        posted_at=datetime.now(timezone.utc),
+    )
+
+
+class TestActionResolution:
+    """`resolve()`'s wiring of `resolve_pending_choice` -- a click and a
+    numbered reply converging on the identical rewrite, and an unresolved
+    action being ignored rather than refused."""
+
+    async def test_click_and_numbered_reply_produce_the_same_write(self):
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(slug="triage")
+        pending = _pending_choice(("Approve", "approve"), ("Deny", "deny"))
+        thread = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=uuid4(),
+            session_id="sess-1",
+            data=ChannelThreadData(pending_choice=pending),
+            flags=ChannelThreadFlags(),
+        )
+
+        written = []
+
+        async def _record(*, project_id, event_id, content):
+            written.append(content)
+            return None
+
+        for kind, text in (
+            (ChannelEventKind.ACTION, "approve"),
+            (ChannelEventKind.MESSAGE, "1"),
+        ):
+            dao = _make_fake_dao()
+            dao.fetch_space_by_key = AsyncMock(return_value=space)
+            dao.fetch_default_agent = AsyncMock(return_value=agent)
+            dao.fetch_current_thread = AsyncMock(return_value=thread)
+            dao.count_grants = AsyncMock(return_value=0)
+            dao.resolve_inbox_event_as_action = AsyncMock(side_effect=_record)
+
+            service = _make_service(dao=dao, adapter=adapter)
+            event = _make_event(text=text)
+            event.kind = kind
+
+            result = await service.resolve(
+                project_id=uuid4(), connection_id=uuid4(), event=event
+            )
+
+            assert result is not None
+            dao.create_thread.assert_not_called()
+
+        assert written == [
+            [{"type": "text", "text": "approve"}],
+            [{"type": "text", "text": "approve"}],
+        ]
+
+    async def test_unknown_action_token_is_ignored_not_refused(self):
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(slug="triage")
+        pending = _pending_choice(("Approve", "approve"), ("Deny", "deny"))
+        thread = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=uuid4(),
+            session_id="sess-1",
+            data=ChannelThreadData(pending_choice=pending),
+            flags=ChannelThreadFlags(),
+        )
+
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_default_agent = AsyncMock(return_value=agent)
+        dao.fetch_current_thread = AsyncMock(return_value=thread)
+        dao.count_grants = AsyncMock(return_value=0)
+        dao.resolve_inbox_event_as_action = AsyncMock()
+
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(text="tok_bogus")
+        event.kind = ChannelEventKind.ACTION
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is None
+        dao.resolve_inbox_event_as_action.assert_not_called()
+        dao.create_thread.assert_not_called()
+
+    async def test_a_token_from_a_superseded_choice_is_ignored(self):
+        """A newer choice already replaced the thread's pending_choice
+        field wholesale -- the old token from an hour-old question is
+        simply absent from it now, and this must not answer anything."""
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(slug="triage")
+        current_pending = _pending_choice(("Yes", "yes"), ("No", "no"))
+        thread = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=uuid4(),
+            session_id="sess-1",
+            data=ChannelThreadData(pending_choice=current_pending),
+            flags=ChannelThreadFlags(),
+        )
+
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_default_agent = AsyncMock(return_value=agent)
+        dao.fetch_current_thread = AsyncMock(return_value=thread)
+        dao.count_grants = AsyncMock(return_value=0)
+        dao.resolve_inbox_event_as_action = AsyncMock()
+
+        service = _make_service(dao=dao, adapter=adapter)
+        # "approve" answered the OLD (now-superseded) choice
+        event = _make_event(text="approve")
+        event.kind = ChannelEventKind.ACTION
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is None
+        dao.resolve_inbox_event_as_action.assert_not_called()
+
+    async def test_a_message_that_fails_to_match_stays_an_ordinary_message(self):
+        """kind stays MESSAGE when there is nothing to resolve against --
+        unlike a click, plain text is only ever an answer attempt when it
+        actually matches, never ignored outright."""
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(slug="triage")
+        pending = _pending_choice(("Approve", "approve"), ("Deny", "deny"))
+        thread = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=uuid4(),
+            session_id="sess-1",
+            data=ChannelThreadData(pending_choice=pending),
+            flags=ChannelThreadFlags(),
+        )
+
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_default_agent = AsyncMock(return_value=agent)
+        dao.fetch_current_thread = AsyncMock(return_value=thread)
+        dao.count_grants = AsyncMock(return_value=0)
+        dao.resolve_inbox_event_as_action = AsyncMock()
+
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(text="what time is the meeting")
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        dao.resolve_inbox_event_as_action.assert_not_called()
 
 
 class TestComposeInput:

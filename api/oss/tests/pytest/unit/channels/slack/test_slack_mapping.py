@@ -3,6 +3,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     classify_space_kind,
     extract_sigils,
     is_bot_authored,
+    parse_block_action,
     render_approval_card,
     render_buttons_or_degrade,
     split_for_max_chars,
@@ -136,3 +137,75 @@ def test_approval_card_sources_only_the_recorded_tool_call():
 
     assert "delete_file" in card["text"]
     assert "/tmp/x" in card["text"]
+
+
+# --- block_actions parsing --------------------------------------------------- #
+
+
+def _block_actions_payload(**overrides):
+    payload = {
+        "type": "block_actions",
+        "team": {"id": "T1"},
+        "user": {"id": "U1"},
+        "container": {"channel_id": "C1", "message_ts": "1000.1"},
+        "message": {"thread_ts": "1000.1"},
+        "actions": [
+            {
+                "action_id": "approve_button",
+                "block_id": "b1",
+                "value": "approve",
+                "type": "button",
+                "action_ts": "1700000000.000100",
+            }
+        ],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_parse_block_action_extracts_token_and_locator_from_container():
+    token, external_id, locator, user_id = parse_block_action(_block_actions_payload())
+
+    assert token == "approve"
+    assert locator == {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
+    assert user_id == "U1"
+
+
+def test_parse_block_action_external_id_is_the_actions_own_identity():
+    """Not the message's ts -- every button on the same message would
+    otherwise share one id and dedup into a single row."""
+
+    _, external_id_1, _, _ = parse_block_action(_block_actions_payload())
+    _, external_id_2, _, _ = parse_block_action(
+        _block_actions_payload(
+            actions=[
+                {
+                    "action_id": "deny_button",
+                    "value": "deny",
+                    "type": "button",
+                    "action_ts": "1700000000.000200",
+                }
+            ]
+        )
+    )
+
+    assert external_id_1 != external_id_2
+    assert "1000.1" not in external_id_1  # the message's own ts, not this
+
+
+def test_parse_block_action_redelivery_of_the_same_click_reuses_the_same_id():
+    _, first, _, _ = parse_block_action(_block_actions_payload())
+    _, second, _, _ = parse_block_action(_block_actions_payload())
+
+    assert first == second
+
+
+def test_parse_block_action_missing_value_returns_none():
+    payload = _block_actions_payload(
+        actions=[{"action_id": "approve_button", "type": "button"}]
+    )
+    assert parse_block_action(payload) is None
+
+
+def test_parse_block_action_no_actions_returns_none():
+    assert parse_block_action(_block_actions_payload(actions=[])) is None

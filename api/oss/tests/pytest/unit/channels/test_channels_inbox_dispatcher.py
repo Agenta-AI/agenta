@@ -243,6 +243,34 @@ class TestBacklogAndInvoke:
         assert settle_kwargs["state"] == ChannelTriggerState.SETTLED
         assert settle_kwargs["trigger_id"] == trigger.id
 
+    async def test_action_kind_event_dispatches_exactly_like_a_message(self):
+        """No special-case branch for ACTION anywhere in the dispatcher --
+        it is an ordinary addressing event, same as MESSAGE."""
+
+        event = _make_event()
+        event.kind = ChannelEventKind.ACTION
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        channels_service = _make_channels_service(
+            resolution=resolution, trigger=trigger
+        )
+
+        invoked = {}
+
+        async def fake_invoke(*, project_id, resolution, turn_input, turn_id):
+            invoked["called"] = True
+            return turn_id
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=fake_invoke
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        assert invoked.get("called") is True
+        channels_service.settle_turn.assert_awaited_once()
+
     async def test_open_turn_called_before_invoke(self):
         """`open_turn` writes the trigger row at STARTED before invoke is
         called — asserted via a fake invoke that raises before returning and

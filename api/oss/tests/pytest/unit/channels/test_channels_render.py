@@ -109,6 +109,12 @@ def test_pending_interaction_renders_as_card_with_buttons_when_supported():
     assert len(button_parts) == 2
     assert {p.value for p in button_parts} == {"approve", "deny"}
 
+    # the pending-choice shape the outbox persists -- present whether this
+    # rendered as buttons or degraded to numbered text.
+    assert items[0].choice is not None
+    assert {c.token for c in items[0].choice} == {"approve", "deny"}
+    assert {c.label for c in items[0].choice} == {"Approve", "Deny"}
+
 
 def test_pending_interaction_degrades_to_numbered_text_when_buttons_unsupported():
     folded = {
@@ -129,6 +135,11 @@ def test_pending_interaction_degrades_to_numbered_text_when_buttons_unsupported(
     assert part.type == "text"
     assert "1. Approve" in part.text
     assert "2. Deny" in part.text
+
+    # the numbered-text degradation still carries the same choice shape --
+    # this is what makes a reply of "1" resolvable at all.
+    assert items[0].choice is not None
+    assert [c.token for c in items[0].choice] == ["approve", "deny"]
 
 
 def test_pending_interaction_degrades_to_numbered_text_when_option_count_exceeds_max():

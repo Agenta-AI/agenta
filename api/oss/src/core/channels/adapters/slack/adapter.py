@@ -16,6 +16,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     classify_space_kind,
     extract_sigils,
     is_bot_authored,
+    parse_block_action,
     render_buttons_or_degrade,
     split_for_max_chars,
 )
@@ -172,7 +173,12 @@ class SlackAdapter(ChannelAdapterInterface):
     async def parse_event(
         self, *, body: bytes, connection: Optional[ChannelConnection] = None
     ) -> Optional[ChannelInboundEvent]:
-        payload = _parse_json(body)
+        # block_actions arrives form-encoded (payload= field); event_callback
+        # arrives as raw JSON. _parse_slack_payload handles both.
+        payload = _parse_slack_payload(body)
+
+        if payload.get("type") == "block_actions":
+            return _parse_block_actions_event(payload)
 
         # URL verification handshake and non-event-callback payloads carry no
         # message to act on.
@@ -386,6 +392,31 @@ def _parse_slack_payload(body: bytes) -> Dict[str, Any]:
     return _parse_json(payload_field[0].encode("utf-8"))
 
 
+def _parse_block_actions_event(
+    payload: Dict[str, Any],
+) -> Optional[ChannelInboundEvent]:
+    parsed = parse_block_action(payload)
+    if parsed is None:
+        return None
+
+    token, external_id, locator, user_id = parsed
+
+    return ChannelInboundEvent(
+        external_id=external_id,
+        kind=ChannelEventKind.ACTION,
+        # the space almost certainly already exists (the choice was posted
+        # there); TOPIC is a conservative guess for the never-seen case,
+        # since block_actions carries no is_im/is_mpim flag to classify from.
+        space_kind=ChannelSpaceKind.TOPIC,
+        external_locator=locator,
+        processed=ChannelInboxEventProcessed(
+            content=[{"type": "text", "text": token}],
+            sender={"id": user_id},
+        ),
+        addressed=True,
+    )
+
+
 def _is_enterprise_install(payload: Dict[str, Any]) -> bool:
     """Slack's own `authorizations[0]` is authoritative when present; a flat
     top-level flag (form-encoded slash payloads send it as a string) is the
@@ -452,7 +483,12 @@ def _render_content(content: List[Dict[str, Any]]) -> tuple:
 
     if buttons:
         options = [
-            {"label": b.get("label", b.get("id", "")), "value": b.get("id", "")}
+            {
+                "label": b.get("label", b.get("id", "")),
+                # the token: dropping to id here is what F13 was -- a value
+                # that never reaches Slack can never come back on a click.
+                "value": b.get("value") or b.get("id", ""),
+            }
             for b in buttons
         ]
         rendered = render_buttons_or_degrade(options, buttons_max=BUTTONS_MAX)

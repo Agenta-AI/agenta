@@ -248,7 +248,24 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def close_thread(self, **kwargs):
         raise NotImplementedError
 
+    async def set_pending_choice(self, *, project_id, thread_id, pending_choice):
+        thread = self.threads.get(thread_id)
+        if thread is None:
+            return None
+        updated = thread.model_copy(
+            update={
+                "data": thread.data.model_copy(
+                    update={"pending_choice": pending_choice}
+                )
+            }
+        )
+        self.threads[thread_id] = updated
+        return updated
+
     async def record_inbox_event(self, **kwargs):
+        raise NotImplementedError
+
+    async def resolve_inbox_event_as_action(self, **kwargs):
         raise NotImplementedError
 
     async def record_inbox_events(self, **kwargs):
@@ -530,6 +547,89 @@ async def test_pending_interaction_renders_card_from_recorded_tool_call(
     content = row.data.processed["content"]
     assert any(part.get("type") == "card" for part in content)
     assert any(part.get("tool") == "delete_file" for part in content)
+
+
+@pytest.mark.asyncio
+async def test_pending_interaction_writes_the_thread_s_pending_choice(
+    worker, channels_dao, records_dao
+):
+    """Written by the outbox at render time, on the thread -- not a
+    side-effect of delivery."""
+
+    session_id = "sess-choice-1"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-choice-1"
+    )
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-choice-1",
+        record_type="interaction_request",
+        attributes={"id": "int-1", "payload": {"toolCall": {"name": "delete_file"}}},
+    )
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-choice-1",
+        record_type="done",
+        attributes={"stopReason": "paused"},
+    )
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-choice-1",
+        session_id=session_id,
+    )
+
+    stored = channels_dao.threads[thread.id]
+    assert stored.data.pending_choice is not None
+    tokens = {c.token for c in stored.data.pending_choice.choices}
+    assert tokens == {"approve", "deny"}
+    labels = {c.label for c in stored.data.pending_choice.choices}
+    assert labels == {"Approve", "Deny"}
+
+
+@pytest.mark.asyncio
+async def test_a_second_rendered_choice_replaces_the_first_wholesale(
+    worker, channels_dao, records_dao
+):
+    """Newest wins: the write is a wholesale replace, not an append -- which
+    is the entire supersession mechanism."""
+
+    session_id = "sess-choice-2"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+
+    for turn_id in ("turn-choice-2a", "turn-choice-2b"):
+        await worker.on_turn_started(
+            project_id=PROJECT_ID, thread=thread, turn_id=turn_id
+        )
+        records_dao.seed(
+            session_id=session_id,
+            turn_id=turn_id,
+            record_type="interaction_request",
+            attributes={
+                "id": "int-1",
+                "payload": {"toolCall": {"name": "delete_file"}},
+            },
+        )
+        records_dao.seed(
+            session_id=session_id,
+            turn_id=turn_id,
+            record_type="done",
+            attributes={"stopReason": "paused"},
+        )
+        await worker.on_turn_ended(
+            project_id=PROJECT_ID,
+            thread=thread,
+            turn_id=turn_id,
+            session_id=session_id,
+        )
+
+    stored = channels_dao.threads[thread.id]
+    # exactly one pending choice ever exists on the row -- the second post
+    # did not accumulate alongside the first.
+    assert len(stored.data.pending_choice.choices) == 2
 
 
 @pytest.mark.asyncio

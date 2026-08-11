@@ -15,6 +15,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionEdit,
     ChannelConnectionQuery,
     ChannelDeliveryState,
+    ChannelEventKind,
     ChannelGrant,
     ChannelGrantCreate,
     ChannelGrantEdit,
@@ -29,6 +30,7 @@ from oss.src.core.channels.dtos import (
     ChannelOutboxEventCreate,
     ChannelOutboxEventData,
     ChannelOutboxEventQuery,
+    ChannelPendingChoice,
     ChannelSpace,
     ChannelSpaceCreate,
     ChannelSpaceEdit,
@@ -1146,6 +1148,39 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
 
+    async def set_pending_choice(
+        self,
+        *,
+        project_id: UUID,
+        #
+        thread_id: UUID,
+        pending_choice: Optional[ChannelPendingChoice],
+    ) -> Optional[ChannelThread]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelThreadDBE).where(
+                ChannelThreadDBE.project_id == project_id,
+                ChannelThreadDBE.id == thread_id,
+            )
+
+            result = await session.execute(stmt)
+            thread_dbe = result.scalar_one_or_none()
+
+            if not thread_dbe:
+                return None
+
+            data = dict(thread_dbe.data or {})
+            data["pending_choice"] = (
+                pending_choice.model_dump(mode="json") if pending_choice else None
+            )
+            thread_dbe.data = data
+            thread_dbe.updated_at = datetime.now(timezone.utc)
+
+            await session.commit()
+
+            await session.refresh(thread_dbe)
+
+            return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
+
     # --- inbox: the log --------------------------------------------------- #
 
     async def record_inbox_event(
@@ -1350,6 +1385,41 @@ class ChannelsDAO(ChannelsDAOInterface):
                 map_inbox_event_dbe_to_dto(event_dbe=dbe)
                 for dbe in result.scalars().all()
             ]
+
+    async def resolve_inbox_event_as_action(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+        content: List[dict],
+    ) -> Optional[ChannelInboxEvent]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelInboxEventDBE).where(
+                ChannelInboxEventDBE.project_id == project_id,
+                ChannelInboxEventDBE.id == event_id,
+            )
+
+            result = await session.execute(stmt)
+            event_dbe = result.scalar_one_or_none()
+
+            if not event_dbe:
+                return None
+
+            data = dict(event_dbe.data or {})
+            processed = dict(data.get("processed") or {})
+            processed["content"] = content
+            data["processed"] = processed
+
+            event_dbe.data = data
+            event_dbe.kind = ChannelEventKind.ACTION.value
+            event_dbe.updated_at = datetime.now(timezone.utc)
+
+            await session.commit()
+
+            await session.refresh(event_dbe)
+
+            return map_inbox_event_dbe_to_dto(event_dbe=event_dbe)
 
     # --- inbox: the offsets ------------------------------------------------ #
 

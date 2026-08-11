@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -11,6 +12,8 @@ from oss.src.core.channels.dtos import (
     ChannelOutboxEvent,
     ChannelOutboxEventCreate,
     ChannelOutboxEventData,
+    ChannelPendingChoice,
+    ChannelPendingChoiceItem,
     ChannelThread,
     ChannelThreadQuery,
 )
@@ -165,6 +168,21 @@ class ChannelsOutboxWorker:
                 turn_id=turn_id,
                 item_index=item_index,
             )
+
+            if item.choice:
+                # written here, not at send time -- a choice is state on the
+                # thread from the moment it renders, independent of delivery.
+                await self.channels_service.channels_dao.set_pending_choice(
+                    project_id=project_id,
+                    thread_id=thread.id,
+                    pending_choice=ChannelPendingChoice(
+                        choices=[
+                            ChannelPendingChoiceItem(label=o.label, token=o.token)
+                            for o in item.choice
+                        ],
+                        posted_at=datetime.now(timezone.utc),
+                    ),
+                )
 
             await self._send(
                 project_id=project_id,
