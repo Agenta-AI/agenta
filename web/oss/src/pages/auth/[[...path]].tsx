@@ -14,7 +14,10 @@ import {Alert, Button, Select, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
-import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
+import {
+    clearLoginAttemptInfo,
+    getLoginAttemptInfo,
+} from "supertokens-auth-react/recipe/passwordless"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
@@ -57,6 +60,7 @@ const Auth = () => {
     const [lastMethod, setLastMethod] = useState<string | null>(null)
     const discoveryInProgress = useRef(false)
     const discoveryAbortRef = useRef<AbortController | null>(null)
+    const hasCheckedInitialOTP = useRef(false)
     const ssoRedirectInFlight = useRef(false)
     const [availableMethods, setAvailableMethods] = useState<{
         "email:password"?: boolean
@@ -184,14 +188,17 @@ const Auth = () => {
         }
     }
 
+    // A stale attempt survives a remount, but the base info this app's custom UI persists
+    // (deviceId/preAuthSessionId/flowType) never includes the email — there's nothing to resume
+    // the OTP screen with. Clear it instead of gating isLoginCodeVisible open against a screen
+    // that can never render (#5168).
     const hasInitialOTPBeenSent = async () => {
         if (!isPasswordlessDemo) return
-        const hasEmailSended = (await getLoginAttemptInfo()) !== undefined
-        if (hasEmailSended) {
-            setIsLoginCodeVisible(true)
-        } else {
-            setIsLoginCodeVisible(false)
+        const attemptInfo = await getLoginAttemptInfo()
+        if (attemptInfo) {
+            await clearLoginAttemptInfo()
         }
+        setIsLoginCodeVisible(false)
     }
 
     const parseSsoOrgSlug = (thirdPartyId?: string): string | null => {
@@ -249,7 +256,9 @@ const Auth = () => {
     }, [])
 
     useEffect(() => {
-        if (isPasswordlessDemo) {
+        // Guard against StrictMode's dev-mode double-invoke calling clearLoginAttemptInfo twice.
+        if (isPasswordlessDemo && !hasCheckedInitialOTP.current) {
+            hasCheckedInitialOTP.current = true
             hasInitialOTPBeenSent()
         }
     }, [])
