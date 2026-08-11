@@ -296,16 +296,9 @@ const PlaygroundVariantConfigHeader = ({
                     </>
                 ) : (
                     <>
-                        {!embedded && !isEvaluatorEntity && (
-                            // Agents get a labeled secondary "Deploy" so the action row reads as a
-                            // hierarchy (primary Commit, secondary Deploy, ghost kebab); other
-                            // surfaces keep the icon-only deploy.
-                            <DeployVariantButton
-                                revisionId={variantId}
-                                {...(isAgentEffective
-                                    ? ({label: "Deploy", type: "default", size: "small"} as const)
-                                    : {})}
-                            />
+                        {/* Agent playgrounds don't deploy — Commit is the only publish action there. */}
+                        {!embedded && !isEvaluatorEntity && !isAgentEffective && (
+                            <DeployVariantButton revisionId={variantId} />
                         )}
 
                         <CommitVariantChangesButton
