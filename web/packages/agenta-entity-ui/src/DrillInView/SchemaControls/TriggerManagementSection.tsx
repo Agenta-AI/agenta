@@ -125,6 +125,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     onSelect={() => {
                         if (record.id)
                             openDeliveries({
+                                mode: "owner-history",
                                 owner: {kind: "subscription", id: record.id},
                                 name: record.name ?? undefined,
                                 playgroundEntityId: entityId ?? undefined,
@@ -215,6 +216,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                     onSelect={() => {
                         if (record.id)
                             openDeliveries({
+                                mode: "owner-history",
                                 owner: {kind: "schedule", id: record.id},
                                 name: record.name ?? undefined,
                                 playgroundEntityId: entityId ?? undefined,

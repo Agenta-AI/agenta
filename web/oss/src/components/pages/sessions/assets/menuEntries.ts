@@ -23,3 +23,38 @@ export const toSessionMenuEntries = (items: MenuProps["items"]): SessionMenuEntr
             ]
         return []
     })
+
+export const toAntdMenuEntries = (items: SessionMenuEntry[]): MenuProps["items"] =>
+    items.map((item) =>
+        "type" in item
+            ? {type: "divider" as const}
+            : {
+                  key: item.key,
+                  label: item.label,
+                  danger: item.danger,
+                  disabled: item.disabled,
+              },
+    )
+
+export const mergeSessionMenuEntries = (
+    sessionItems: SessionMenuEntry[],
+    automationItems: SessionMenuEntry[],
+): SessionMenuEntry[] => {
+    if (!automationItems.length) return sessionItems
+    const dividerIndex = sessionItems.findIndex((item) => "type" in item)
+    if (dividerIndex < 0) return [...sessionItems, ...automationItems]
+    return [
+        ...sessionItems.slice(0, dividerIndex),
+        ...automationItems,
+        ...sessionItems.slice(dividerIndex),
+    ]
+}
+
+export function selectSessionContextMenuItem(
+    event: {stopPropagation: () => void},
+    key: string,
+    onSelect: (key: string) => void,
+) {
+    event.stopPropagation()
+    onSelect(key)
+}

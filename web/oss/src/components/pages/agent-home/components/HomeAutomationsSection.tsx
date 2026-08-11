@@ -1,4 +1,5 @@
 import SessionListCard from "@/oss/components/pages/sessions/components/SessionListCard"
+import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
 /**
  * What the automations actually did — the sessions they produced, not a schedule of what's next.
@@ -12,7 +13,7 @@ const HomeAutomationsSection = () => (
         // Pinned runs lead here too. The pinned query carries `origin`, so it stays this card's
         // own set — the Sessions card still excludes trigger-origin sessions from its group.
         withPinned
-        origin="trigger"
+        policy={sessionListPolicies.homeAutomation}
         title="Automation runs"
         emptyText="Runs from your automations will show up here."
         limit={5}

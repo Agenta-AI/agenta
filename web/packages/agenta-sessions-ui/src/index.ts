@@ -9,7 +9,15 @@ export {SessionRow, type SessionRowProps} from "./SessionRow"
 export {SessionAgentName} from "./SessionAgentName"
 export {SessionPinButton} from "./SessionPinButton"
 export {SessionStatusIcon} from "./SessionStatusIcon"
+export {SessionAutomationKind} from "./SessionAutomationKind"
 export {type SessionMenuEntry, isMenuDivider} from "./menu"
+export {
+    isSessionAutomationAction,
+    OPEN_SESSION_AUTOMATION_ACTION,
+    sessionAutomationMenuEntries,
+    VIEW_SESSION_DELIVERY_ACTION,
+    type SessionAutomationActionKey,
+} from "./automationMenu"
 export {
     SessionListSkeleton,
     SessionListEmpty,

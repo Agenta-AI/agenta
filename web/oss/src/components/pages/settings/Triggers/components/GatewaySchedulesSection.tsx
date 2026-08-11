@@ -194,6 +194,7 @@ export default function GatewaySchedulesSection() {
                             onClick: (record: ScheduleRow) => {
                                 if (record.id)
                                     openDeliveries({
+                                        mode: "owner-history",
                                         owner: {kind: "schedule", id: record.id},
                                         name: record.name ?? undefined,
                                     })

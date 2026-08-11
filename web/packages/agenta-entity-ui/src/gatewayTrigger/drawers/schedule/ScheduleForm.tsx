@@ -21,7 +21,7 @@ import {
     type TriggerScheduleEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule, workflowVariantsListDataAtomFamily} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
@@ -40,6 +40,7 @@ import {RequiredTitle} from "../shared/RequiredTitle"
 import {
     RunVersionField,
     buildRunVersionReferences,
+    composeRevisionLabel,
     extractBoundWorkflowId,
     isRunVersionBound,
 } from "../shared/RunVersionField"
@@ -88,6 +89,7 @@ export function ScheduleForm({
         create,
         edit,
     } = useTriggerSchedule(scheduleId)
+    const isDeleted = Boolean(schedule?.deleted_at)
 
     const [name, setName] = useState("")
     const [cron, setCron] = useState(DEFAULT_CRON)
@@ -98,6 +100,11 @@ export function ScheduleForm({
     const [workflowSelection, setWorkflowSelection] =
         useState<WorkflowRevisionSelectionResult | null>(null)
     const [workflowLabel, setWorkflowLabel] = useState<string | null>(null)
+    // The bound workflow (app) id from `refs.application`. A stored `application_variant`
+    // pin (the default "runs whatever is deployed variant" bind — see `extractDefaultBindId`)
+    // has no revision id, so `workflowRevId` below holds a VARIANT id — unresolvable by the
+    // revision-keyed selectors. This id is the fallback key that still resolves an app name.
+    const [boundWorkflowId, setBoundWorkflowId] = useState<string | null>(null)
     const [inputsText, setInputsText] = useState("{}")
 
     // Run agent version: bind to a specific revision (the picker) or to an
@@ -119,16 +126,36 @@ export function ScheduleForm({
         workflowMolecule.selectors.variantLabel(workflowRevId ?? ""),
     )
     const resolvedRevData = useAtomValue(workflowMolecule.selectors.data(workflowRevId ?? ""))
+    // Fallback path for a variant-only pin (`workflowRevId` is a VARIANT id, not a revision
+    // id): the selectors above key off a revision/workflow id and resolve to null, so recover
+    // the app name from `boundWorkflowId` and the variant name from its variants list.
+    const fallbackArtifact = useAtomValue(
+        workflowMolecule.selectors.artifactName(boundWorkflowId ?? ""),
+    )
+    const boundWorkflowVariants = useAtomValue(
+        workflowVariantsListDataAtomFamily(boundWorkflowId ?? ""),
+    )
+    const fallbackVariant = useMemo(() => {
+        const variant = boundWorkflowVariants.find((v) => v.id === workflowRevId)
+        return variant?.name ?? variant?.slug ?? null
+    }, [boundWorkflowVariants, workflowRevId])
     const resolvedRevisionName = useMemo(() => {
         if (!workflowRevId) return null
-        const segs: string[] = []
-        if (resolvedArtifact) segs.push(resolvedArtifact)
-        if (resolvedVariant && resolvedVariant !== resolvedArtifact) segs.push(resolvedVariant)
-        let label = segs.join(" / ")
-        const version = resolvedRevData?.version
-        if (version != null) label = label ? `${label} · v${version}` : `v${version}`
-        return label || null
-    }, [workflowRevId, resolvedArtifact, resolvedVariant, resolvedRevData?.version])
+        return composeRevisionLabel({
+            artifact: resolvedArtifact,
+            fallbackArtifact,
+            variant: resolvedVariant,
+            fallbackVariant,
+            version: resolvedRevData?.version,
+        })
+    }, [
+        workflowRevId,
+        resolvedArtifact,
+        resolvedVariant,
+        resolvedRevData?.version,
+        fallbackArtifact,
+        fallbackVariant,
+    ])
 
     // In a playground the workflow is already known (the agent), so scope the picker
     // to that workflow — pick a variant + revision, not an arbitrary workflow. In
@@ -198,6 +225,7 @@ export function ScheduleForm({
         } else {
             setWorkflowRevId(extractBoundWorkflowId(refs))
             // Label is resolved from the revision id below, not stored as the raw id.
+            setBoundWorkflowId(refs?.application?.id ?? null)
         }
         setInputsText(JSON.stringify(schedule.data?.inputs_fields ?? {}, null, 2))
     }, [isEdit, schedule, scheduleFetching, scheduleId])
@@ -217,6 +245,7 @@ export function ScheduleForm({
         const label = state?.defaultBoundLabel ?? appId ?? variantId
         setWorkflowRevId(variantId)
         setWorkflowLabel(label)
+        setBoundWorkflowId(appId)
         setWorkflowSelection({
             type: "workflowRevision",
             id: variantId,
@@ -307,6 +336,7 @@ export function ScheduleForm({
     )
 
     const handleSubmit = useCallback(async () => {
+        if (isDeleted) return
         if (!cronValidation.valid) {
             message.error(cronValidation.error ?? "Invalid cron expression")
             return
@@ -427,6 +457,7 @@ export function ScheduleForm({
         create,
         onClose,
         onSaved,
+        isDeleted,
     ])
 
     // Per-section header state: icon tint (complete / warning / default) and a
@@ -463,7 +494,7 @@ export function ScheduleForm({
     const messageStatus = composedMessage.trim() ? "complete" : "default"
     // Create is gated on completeness, not on dirtiness — a schedule pre-bound from an
     // agent's config panel already matches its baseline (see the subscription form).
-    const canSubmit = isEdit ? isDirty : cronValid && versionChosen
+    const canSubmit = !isDeleted && (isEdit ? isDirty : cronValid && versionChosen)
 
     if (isEdit && scheduleLoading) {
         return (
@@ -479,86 +510,92 @@ export function ScheduleForm({
                 hidden ? " hidden" : ""
             }`}
         >
-            <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
-                <ConfigAccordionSection
-                    size="compact"
-                    collapsible={false}
-                    icon={<Tag size={15} />}
-                    title="Name"
-                    status={name.trim() ? "complete" : "default"}
-                >
-                    <Input
-                        placeholder="Schedule name"
-                        value={name}
-                        onChange={(e) => {
-                            setName(e.target.value)
-                            onNameChange?.(e.target.value)
-                        }}
-                    />
-                </ConfigAccordionSection>
+            {isDeleted ? (
+                <p className="m-0 bg-colorWarningBg px-6 py-3 text-xs text-colorWarningText">
+                    This schedule was deleted. Its saved configuration is read-only.
+                </p>
+            ) : null}
+            <fieldset disabled={isDeleted} className="contents">
+                <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+                    <ConfigAccordionSection
+                        size="compact"
+                        collapsible={false}
+                        icon={<Tag size={15} />}
+                        title="Name"
+                        status={name.trim() ? "complete" : "default"}
+                    >
+                        <Input
+                            placeholder="Schedule name"
+                            value={name}
+                            onChange={(e) => {
+                                setName(e.target.value)
+                                onNameChange?.(e.target.value)
+                            }}
+                        />
+                    </ConfigAccordionSection>
 
-                <ConfigAccordionSection
-                    size="compact"
-                    icon={<Clock size={15} />}
-                    title={<RequiredTitle>When should it run?</RequiredTitle>}
-                    status={cronValid ? "complete" : "warning"}
-                    summary={cronValid ? describeCron(cron) : undefined}
-                    summaryCollapsedOnly
-                >
-                    <ScheduleBuilderField value={cron} onChange={setCron} />
-                </ConfigAccordionSection>
+                    <ConfigAccordionSection
+                        size="compact"
+                        icon={<Clock size={15} />}
+                        title={<RequiredTitle>When should it run?</RequiredTitle>}
+                        status={cronValid ? "complete" : "warning"}
+                        summary={cronValid ? describeCron(cron) : undefined}
+                        summaryCollapsedOnly
+                    >
+                        <ScheduleBuilderField value={cron} onChange={setCron} />
+                    </ConfigAccordionSection>
 
-                <ConfigAccordionSection
-                    size="compact"
-                    defaultOpen={false}
-                    icon={<CalendarBlank size={15} />}
-                    title="Active window"
-                    status={windowSet ? "complete" : "default"}
-                    summary={windowSummary}
-                    summaryCollapsedOnly
-                >
-                    <WindowField
-                        startTime={startTime}
-                        endTime={endTime}
-                        onChangeStart={setStartTime}
-                        onChangeEnd={setEndTime}
-                    />
-                </ConfigAccordionSection>
+                    <ConfigAccordionSection
+                        size="compact"
+                        defaultOpen={false}
+                        icon={<CalendarBlank size={15} />}
+                        title="Active window"
+                        status={windowSet ? "complete" : "default"}
+                        summary={windowSummary}
+                        summaryCollapsedOnly
+                    >
+                        <WindowField
+                            startTime={startTime}
+                            endTime={endTime}
+                            onChangeStart={setStartTime}
+                            onChangeEnd={setEndTime}
+                        />
+                    </ConfigAccordionSection>
 
-                <ConfigAccordionSection
-                    size="compact"
-                    icon={<GitBranch size={15} />}
-                    title={<RequiredTitle>Which version runs?</RequiredTitle>}
-                    status={versionChosen ? "complete" : "warning"}
-                    summary={versionSummary}
-                    summaryCollapsedOnly
-                >
-                    <RunVersionField
-                        bindMode={bindMode}
-                        onBindModeChange={setBindMode}
-                        revisionAdapter={revisionAdapter}
-                        revisionPlaceholder={
-                            workflowLabel ??
-                            resolvedRevisionName ??
-                            (playgroundEntityId
-                                ? "Select a variant revision"
-                                : "Select workflow revision")
-                        }
-                        onRevisionSelect={(selection) => {
-                            setWorkflowRevId(selection.id)
-                            setWorkflowSelection(selection)
-                            const m = selection.metadata
-                            const app = playgroundAppName ?? m.workflowName
-                            const segs: string[] = []
-                            if (app) segs.push(app)
-                            if (m.variantName && m.variantName !== app) segs.push(m.variantName)
-                            let label = segs.join(" / ")
-                            if (m.revision != null)
-                                label = label ? `${label} · v${m.revision}` : `v${m.revision}`
-                            setWorkflowLabel(label || selection.label)
-                        }}
-                        hideEnvironment
-                        /* Deployed option temporarily hidden — drop `hideEnvironment`
+                    <ConfigAccordionSection
+                        size="compact"
+                        icon={<GitBranch size={15} />}
+                        title={<RequiredTitle>Which version runs?</RequiredTitle>}
+                        status={versionChosen ? "complete" : "warning"}
+                        summary={versionSummary}
+                        summaryCollapsedOnly
+                    >
+                        <RunVersionField
+                            bindMode={bindMode}
+                            onBindModeChange={setBindMode}
+                            revisionAdapter={revisionAdapter}
+                            revisionPlaceholder={
+                                workflowLabel ??
+                                resolvedRevisionName ??
+                                (playgroundEntityId
+                                    ? "Select a variant revision"
+                                    : "Select workflow revision")
+                            }
+                            onRevisionSelect={(selection) => {
+                                setWorkflowRevId(selection.id)
+                                setWorkflowSelection(selection)
+                                const m = selection.metadata
+                                const app = playgroundAppName ?? m.workflowName
+                                const segs: string[] = []
+                                if (app) segs.push(app)
+                                if (m.variantName && m.variantName !== app) segs.push(m.variantName)
+                                let label = segs.join(" / ")
+                                if (m.revision != null)
+                                    label = label ? `${label} · v${m.revision}` : `v${m.revision}`
+                                setWorkflowLabel(label || selection.label)
+                            }}
+                            hideEnvironment
+                            /* Deployed option temporarily hidden — drop `hideEnvironment`
                                and uncomment to restore.
                             envOptions={envOptions}
                             envLoading={
@@ -572,34 +609,40 @@ export function ScheduleForm({
                                     : undefined
                             }
                             */
-                    />
-                </ConfigAccordionSection>
+                        />
+                    </ConfigAccordionSection>
 
-                <ConfigAccordionSection
-                    size="compact"
-                    noDivider
-                    icon={<ChatText size={15} />}
-                    title="What should the agent do?"
-                    status={messageStatus}
-                    summary={composedMessage.trim() || undefined}
-                    summaryCollapsedOnly
-                >
-                    <MessageComposer
-                        inputsText={inputsText}
-                        onChange={setInputsText}
-                        isChat={isChatInput}
-                        primaryKey={primaryInputKey}
-                        disabled={isMutating}
-                    />
-                </ConfigAccordionSection>
-            </div>
+                    <ConfigAccordionSection
+                        size="compact"
+                        noDivider
+                        icon={<ChatText size={15} />}
+                        title="What should the agent do?"
+                        status={messageStatus}
+                        summary={composedMessage.trim() || undefined}
+                        summaryCollapsedOnly
+                    >
+                        <MessageComposer
+                            inputsText={inputsText}
+                            onChange={setInputsText}
+                            isChat={isChatInput}
+                            primaryKey={primaryInputKey}
+                            disabled={isMutating}
+                        />
+                    </ConfigAccordionSection>
+                </div>
+            </fieldset>
 
             <DrawerFooter
                 enabled={enabled}
-                onEnabledChange={setEnabled}
+                onEnabledChange={isDeleted ? undefined : setEnabled}
+                left={
+                    isDeleted ? (
+                        <span className="text-xs text-colorTextSecondary">Deleted</span>
+                    ) : undefined
+                }
                 onCancel={onClose}
                 run={
-                    playgroundEntityId ? (
+                    playgroundEntityId && !isDeleted ? (
                         <RunInPlaygroundButton
                             playgroundEntityId={playgroundEntityId}
                             name={name}

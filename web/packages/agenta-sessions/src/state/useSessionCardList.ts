@@ -7,12 +7,33 @@ import {useAtomValue} from "jotai"
 import {sessionRowVm, type SessionRowVm} from "../row/viewModel"
 
 import {pinnedSessionIdsAtom} from "./pins"
+import type {SessionListRequestPolicy} from "./sessionListPolicy"
 import {
     pendingBySessionId,
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
+    type SessionListOptions,
 } from "./useSessionList"
+
+/**
+ * A pin is an explicit user request and overrides the surface's origin filter — a pinned
+ * automation session must still show on a human-mode (exclude-trigger) card (P2-8).
+ */
+export function pinnedSessionListArgs(
+    policy: SessionListRequestPolicy,
+    agentId: string | undefined,
+    pinnedIds: string[],
+    enabled: boolean,
+): SessionListOptions {
+    return {
+        originPolicy: "all",
+        expansions: policy.expansions,
+        agentId,
+        sessionIds: pinnedIds,
+        enabled,
+    }
+}
 
 export interface SessionCardGroup {
     key: "waiting" | "pinned" | "recent"
@@ -22,10 +43,9 @@ export interface SessionCardGroup {
 }
 
 export interface UseSessionCardListArgs {
+    policy: SessionListRequestPolicy
     /** Scope to one agent's sessions — the app overview. Omit for the whole project. */
     agentId?: string
-    /** Restrict to one origin (e.g. automation runs). Omit for everything but automations. */
-    origin?: string
     /** Caps the CARD, not each group — pinning a visible row is a pure reorder, never growth. */
     limit?: number
     /** Pinned sessions lead the list, and are excluded from the recent rows below them. */
@@ -47,11 +67,11 @@ export interface UseSessionCardListArgs {
  * errand, and the list's own query already holds the next page.
  */
 export const useSessionCardList = ({
+    policy,
     agentId,
-    origin,
     limit = 7,
     withPinned = false,
-}: UseSessionCardListArgs = {}) => {
+}: UseSessionCardListArgs) => {
     const [extraRows, setExtraRows] = useState(0)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -68,20 +88,19 @@ export const useSessionCardList = ({
     const useWaiting = waitingIds.length > 0
 
     const waitingQuery = useSessionList({
+        originPolicy: policy.origin,
+        expansions: policy.expansions,
         agentId,
-        origin,
         sessionIds: waitingIds,
-        showTriggered: Boolean(origin),
         enabled: useWaiting,
     })
     const usePins = withPinned && pinnedIds.length > 0
-    const pinnedQuery = useSessionList({agentId, origin, sessionIds: pinnedIds, enabled: usePins})
+    const pinnedQuery = useSessionList(pinnedSessionListArgs(policy, agentId, pinnedIds, usePins))
     const listQuery = useSessionList({
+        originPolicy: policy.origin,
+        expansions: policy.expansions,
         agentId,
-        origin,
         excludeSessionIds: withPinned ? [...pinnedIds, ...waitingIds] : waitingIds,
-        // Automations are their own list here, so they must not also appear in the recent one.
-        showTriggered: Boolean(origin),
     })
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])

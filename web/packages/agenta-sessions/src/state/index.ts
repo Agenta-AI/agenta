@@ -13,12 +13,21 @@ export {
 } from "./filters"
 export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
 export {
+    sessionListRequestFilters,
+    sessionListIdGroupLimit,
+    selectedSessionListPolicy,
+    type SessionOriginPolicy,
+    type SessionListRequestPolicy,
+} from "./sessionListPolicy"
+export {
     useSessionList,
     useActionableInteractions,
     pendingBySessionId,
+    sessionListIdWindow,
     rowsFromPages,
     SESSIONS_PAGE_SIZE,
     type SessionPending,
+    type SessionListOptions,
 } from "./useSessionList"
 export {
     useSessionsList,

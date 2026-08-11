@@ -39,6 +39,7 @@ export function MappingSection({
     isEdit,
     isChat,
     primaryKey,
+    disabled,
 }: {
     value: string
     onChange: (next: string) => void
@@ -55,6 +56,9 @@ export function MappingSection({
     isEdit: boolean
     isChat: boolean
     primaryKey: string
+    /** The surrounding fieldset covers native controls (buttons); the raw-JSON `Editor` and the
+     * composer's contenteditable `PillEditor` aren't native form controls, so they need this. */
+    disabled?: boolean
 }) {
     const samplePayload = eventSample
     const context = useMemo(() => buildPreviewContext(eventSample), [eventSample])
@@ -163,6 +167,7 @@ export function MappingSection({
                     error={error}
                     onErrorChange={onErrorChange}
                     eventPayload={eventSample}
+                    disabled={disabled}
                 />
             </div>
         )
@@ -185,6 +190,7 @@ export function MappingSection({
                         showToolbar={false}
                         language="json"
                         dimensions={{width: "100%", height: 140}}
+                        disabled={disabled}
                     />
                 </div>
             ) : (
@@ -271,6 +277,7 @@ export function MappingSection({
                                     ? "Type a message and click a field on the left to insert its value…"
                                     : "Build the agent's input — type text and click fields on the left…"
                             }
+                            disabled={disabled}
                         />
                         {samplePayload && template.trim() && (
                             <div className="rounded-md bg-[var(--ag-colorFillQuaternary)] px-2.5 py-1.5">

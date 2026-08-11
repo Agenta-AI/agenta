@@ -9,6 +9,7 @@ import {
 import {useAtomValue} from "jotai"
 
 import {sessionOpenTarget} from "@/oss/components/AgentChatSlice/assets/sessionOpenTarget"
+import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 import {projectIdAtom} from "@/oss/state/project"
 
 /**
@@ -29,9 +30,9 @@ export function useWaitingByAgent(): Map<string, number> {
     }, [interactions.data])
 
     const waitingQuery = useSessionList({
+        originPolicy: sessionListPolicies.agentActivity.origin,
+        expansions: sessionListPolicies.agentActivity.expansions,
         sessionIds: waitingIds,
-        // An automation run that needs approval still belongs to the agent that ran it.
-        showTriggered: true,
         enabled: waitingIds.length > 0,
     })
 
@@ -54,8 +55,9 @@ export function useWaitingByAgent(): Map<string, number> {
  */
 export function useAgentLastSession(agentId: string) {
     const query = useSessionList({
+        originPolicy: sessionListPolicies.agentActivity.origin,
+        expansions: sessionListPolicies.agentActivity.expansions,
         agentId,
-        showTriggered: true,
         limit: 1,
         enabled: Boolean(agentId),
     })

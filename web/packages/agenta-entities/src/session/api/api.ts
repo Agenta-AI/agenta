@@ -8,7 +8,7 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
-import type {AgentaApi} from "@agentaai/api-client"
+import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {
@@ -19,6 +19,7 @@ import {
     sessionRecordsQueryResponseSchema,
     sessionsQueryResponseSchema,
     sessionStreamCommandResponseSchema,
+    sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
     sessionStreamsResponseSchema,
@@ -28,8 +29,12 @@ import {
     type SessionInteractionKind,
     type SessionInteractionStatusCode,
     type SessionRecord,
+    type SessionExpansion,
+    type SessionOrigin,
     type SessionStream,
     type SessionStreamCommandResponse,
+    type SessionsQueryResponse,
+    type SessionWindowing,
 } from "../core/schema"
 
 import {
@@ -286,44 +291,92 @@ export async function querySessionStreams({
     return validated?.streams ?? null
 }
 
-export interface QuerySessionsParams {
-    projectId: string
-    /** Workflow refs to scope by — pass `[{id: appId}]` for one agent's sessions (JSONB `@>`
-     * containment against the turns' references). Omit for every session in the project. */
-    references?: {id?: string; slug?: string; version?: string}[]
-    /** Include ended (killed) sessions so the list keeps resumable history — default true. With
-     * this, an absent session means hard-deleted, which the reconciler uses to prune the cache. */
-    includeEnded?: boolean
-    /** Include archived sessions — default true so the reconciler can carry an `archived` flag and
-     * hide them by display filter, rather than mistake an archived row for a hard-delete and prune
-     * it. Set false only for a view that wants strictly non-archived rows. */
-    includeArchived?: boolean
-    /** Case-insensitive substring match over the session title (`session_streams.name`). */
+interface SessionPredicatesParams {
     search?: string
-    /** Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags. */
-    flags?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
-    /** Restrict to an explicit id set — the pushdown for any predicate that lives outside the
-     * stream row (client-held pins, sessions named by a pending-interaction lookup). The server
-     * still owns the intersection, the ordering and the windowing, so counts and empty states
-     * stay correct; filtering a fetched page client-side would filter the window, not the set. */
+    liveness?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
+    origins?: SessionOrigin[]
+}
+
+interface SessionExcludeParams {
     sessionIds?: string[]
-    /** Its complement — drop ids already rendered as their own group (pins) from the main list. */
-    excludeSessionIds?: string[]
-    /** Who started the session: "manual", "trigger". Absent means every origin. */
-    origin?: string
-    /** Hide one origin while still showing sessions written before origins were stamped. */
-    excludeOrigin?: string
+    origins?: SessionOrigin[]
+}
+
+type SessionWindowingParams = Pick<
+    SessionWindowing,
+    "limit" | "next" | "newest" | "oldest" | "order"
+>
+
+export interface QuerySessionsPageParams {
+    projectId: string
+    session?: SessionPredicatesParams
+    sessionIds?: string[]
+    exclude?: SessionExcludeParams
+    turnReferences?: {id?: string; slug?: string; version?: string}[]
+    includeEnded?: boolean
+    includeArchived?: boolean
+    includeTotal?: boolean
+    expand?: SessionExpansion[]
+    windowing?: SessionWindowingParams
     appId?: string
     abortSignal?: AbortSignal
     lowPriority?: boolean
-    /** Page size — omit for the server default (no `windowing` sent at all, preserving prior
-     * unpaginated behavior). */
+}
+
+/** Temporary flat options retained for list-only callers that have not migrated. */
+export interface QuerySessionsParams {
+    projectId: string
+    references?: {id?: string; slug?: string; version?: string}[]
+    includeEnded?: boolean
+    includeArchived?: boolean
+    search?: string
+    flags?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}
+    sessionIds?: string[]
+    excludeSessionIds?: string[]
+    origin?: SessionOrigin
+    excludeOrigin?: SessionOrigin
+    appId?: string
+    abortSignal?: AbortSignal
+    lowPriority?: boolean
     limit?: number
-    /** Cursor: the `id` of the last row from the previous page. */
     next?: string
-    /** Cursor: the activity value (`updated_at ?? created_at`, server-coalesced) of the last
-     * row from the previous page (pairs with `next`). */
     newest?: string
+    oldest?: string
+    order?: "ascending" | "descending"
+}
+
+/** `sessionsQueryResponseSchema` with `sessions` loosened to `unknown[]` — the envelope
+ * (`count`/`total`/`windowing`) still validates as a whole, but each row is parsed
+ * individually below so one bad row can't fail the page (P2-9). */
+const sessionsQueryEnvelopeSchema = sessionsQueryResponseSchema.extend({
+    sessions: z.array(z.unknown()),
+})
+
+/**
+ * Validates a `/sessions/query` response per row instead of as one array: a single
+ * malformed row (a schema drift, a value the frontend enum doesn't know yet) is dropped and
+ * logged, not treated as a reason to empty the whole page. Logs unconditionally — including
+ * production — since a silently shrinking session list is worse than a noisy console.
+ */
+function parseSessionsQueryResponse(data: unknown, context: string): SessionsQueryResponse | null {
+    const envelope = sessionsQueryEnvelopeSchema.safeParse(data)
+    if (!envelope.success) {
+        console.error(`${context} Invalid response envelope:`, envelope.error.flatten())
+        return null
+    }
+    const sessions: SessionStream[] = []
+    envelope.data.sessions.forEach((row, index) => {
+        const parsed = sessionStreamSchema.safeParse(row)
+        if (parsed.success) {
+            sessions.push(parsed.data)
+        } else {
+            console.error(
+                `${context} Dropping invalid session row at index ${index}:`,
+                parsed.error.flatten(),
+            )
+        }
+    })
+    return {...envelope.data, sessions}
 }
 
 /**
@@ -332,6 +385,48 @@ export interface QuerySessionsParams {
  * server source the reconciling sidebar merges over its localStorage cache. Ordered by last
  * activity (`updated_at`) server-side. Returns `null` on failure / missing project scope.
  */
+export async function querySessionsPage({
+    projectId,
+    session,
+    exclude,
+    turnReferences,
+    includeEnded,
+    includeArchived,
+    includeTotal,
+    expand,
+    windowing,
+    sessionIds,
+    appId,
+    abortSignal,
+    lowPriority,
+}: QuerySessionsPageParams): Promise<SessionsQueryResponse | null> {
+    if (!projectId) return null
+
+    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
+    const data = await callFern("[querySessionsPage]", () =>
+        client.querySessions(
+            {
+                session,
+                session_ids: sessionIds,
+                exclude: exclude
+                    ? {session_ids: exclude.sessionIds, origins: exclude.origins}
+                    : undefined,
+                turn_references: turnReferences,
+                include_ended: includeEnded,
+                include_archived: includeArchived,
+                include_total: includeTotal,
+                expand,
+                windowing,
+            },
+            projectScopedRequest(projectId, appId, abortSignal),
+        ),
+    )
+    if (!data) return null
+
+    return parseSessionsQueryResponse(data, "[querySessionsPage]")
+}
+
+/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
 export async function querySessions({
     projectId,
     references,
@@ -349,48 +444,39 @@ export async function querySessions({
     limit,
     next,
     newest,
+    oldest,
+    order,
 }: QuerySessionsParams): Promise<SessionStream[] | null> {
-    if (!projectId) return null
-
-    // Only attach `windowing` when a caller actually opts into pagination — an absent
-    // field preserves the prior unwindowed (server-default-ordered) query shape.
-    const windowing =
-        limit !== undefined || next !== undefined || newest !== undefined
-            ? {limit, next, newest}
-            : undefined
-
-    const client = lowPriority ? getLowPrioritySessionsClient() : getSessionsClient()
-    const data = await callFern("[querySessions]", () =>
-        client.querySessions(
-            {
-                references,
-                include_ended: includeEnded,
-                include_archived: includeArchived,
-                windowing,
-                // TODO(fern-regen): `search`/`flags`/`session_ids`/`exclude_session_ids` aren't in
-                // the generated SessionQueryRequest yet (regen out of scope) — widen the type
-                // until the client picks them up.
-                search,
-                flags,
-                session_ids: sessionIds,
-                exclude_session_ids: excludeSessionIds,
-                origin,
-                exclude_origin: excludeOrigin,
-            } as AgentaApi.SessionQueryRequest & {
-                search?: string
-                flags?: QuerySessionsParams["flags"]
-                session_ids?: string[]
-                exclude_session_ids?: string[]
-                origin?: string
-                exclude_origin?: string
-            },
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return null
-
-    const validated = safeParseWithLogging(sessionsQueryResponseSchema, data, "[querySessions]")
-    return validated?.sessions ?? null
+    const page = await querySessionsPage({
+        projectId,
+        session:
+            search !== undefined || flags !== undefined || origin !== undefined
+                ? {search, liveness: flags, origins: origin ? [origin] : undefined}
+                : undefined,
+        sessionIds,
+        exclude:
+            excludeSessionIds !== undefined || excludeOrigin !== undefined
+                ? {
+                      sessionIds: excludeSessionIds,
+                      origins: excludeOrigin ? [excludeOrigin] : undefined,
+                  }
+                : undefined,
+        turnReferences: references,
+        includeEnded,
+        includeArchived,
+        windowing:
+            limit !== undefined ||
+            next !== undefined ||
+            newest !== undefined ||
+            oldest !== undefined ||
+            order !== undefined
+                ? {limit, next, newest, oldest, order}
+                : undefined,
+        appId,
+        abortSignal,
+        lowPriority,
+    })
+    return page?.sessions ?? null
 }
 
 export interface SetSessionHeaderParams {
