@@ -17,7 +17,6 @@ Without these there is no gateway, only an open proxy. They are not markable.
 |---|---|
 | Ingress surface | Something has to receive the call |
 | Token verification | Without it anyone reaches any target |
-| Target claim on the token | Without it a token minted for one target works on every other |
 | Secret resolution | The gateway has to find the upstream secret |
 | Secret injection | This is the containment property, and the point of the gateway |
 | Forward and return | Including streaming, since every harness streams |
@@ -48,7 +47,7 @@ derivable from the provider name and no slug is needed. Only custom endpoints be
 | ? | Item | Suggestion |
 |---|---|---|
 | | Permission check on the target | **In** — otherwise any authenticated user reaches any registered target |
-| | Entitlement check | **Out** — coarser plan gating already exists elsewhere |
+| | Entitlement check | **In** — settled, not a suggestion; permission and entitlement checks are both in for both gateways, and only credit checks are postponed (`plan.md`) |
 | | Audit record | **In**, emitted into the existing events domain rather than a new table |
 | | Usage recorded | **In** — cannot be backfilled |
 | | Usage charged | **Out** — the ledger is a separate effort |

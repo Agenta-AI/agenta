@@ -132,30 +132,33 @@ other.
 
 ---
 
-## Wave 0 — the shared state
+## Wave 0 — the shared state — DONE
 
-**Nothing forks until the shared state is written down.** `entities.md` is a skeleton today: it
-proposes the layout and the table inventory and marks the rest to establish. Wave 0 fills it in,
-column by column, following the repo's standard domain structure.
+**Nothing forks until the shared state is written down**, because the seed commit is taken
+**verbatim** from the entity document, so anything vague there becomes a conflict later across
+every worktree that inherited it.
 
-What it has to define, for the gateway domain, the policy core and the new secret kinds:
+`entities.md` is now written in full — every layer, column by column, for both planes, the policy
+core and the two new secret kinds. It carries no unresolved markers.
 
-| Layer | What wave 0 settles |
+| Layer | What wave 0 settled |
 |---|---|
-| `dbas` | Shared mixins, including whatever the owner dimension needs |
-| `dbes` | Concrete entities and every column |
-| `dtos` | Domain contracts, including the new secret kinds' settings and union arms |
-| `types` | Domain exceptions, and whether the existing connection-state enums are reused or unified |
-| `models` | Request and response schemas for the routers |
-| DAO methods | Every verb and its exact signature — each taking the owner (D10) |
-| Service methods | Orchestration, depending on interfaces and never on concrete DAOs or adapters |
-| Router methods | Route declarations, noting that the two ingress surfaces have externally fixed shapes |
+| `dbas` | Shared mixins, and what the owner dimension needs in each signature now versus in storage later |
+| `dbes` | Three new tables and every column, with the foreign key on the secret reference chosen per table |
+| `dtos` | Domain contracts, the two secret kinds' settings pairs and union arms, and the family-shared enums that end the triplicate copies |
+| `types` | The domain exception hierarchy on both planes plus the policy core |
+| `models` | Request and response schemas for the management routers |
+| DAO methods | Every verb with its exact signature, each taking the owner (D10) |
+| Service methods | Orchestration against interfaces, never concrete DAOs or adapters |
+| Router methods | Route declarations, with the data plane and the management CRUD as separate router objects because their shapes are incompatible |
 
-This is the same move the channels design made, and for the same reason: the seed commit is
-taken **verbatim** from the entity document, so anything vague there becomes a conflict later
-across every worktree that inherited it.
+Beyond the layers, it settled where the code lives (both planes are members inside the gateway
+family, not leaves beside it; the family gets its first API folder), that the policy core is a
+module with a service facade and no tables of its own, that new code uses the frozen auth scope
+rather than the family's current habit of reading request state directly, and the six new
+permission subjects.
 
-**Done when:** every symbol a wave 1 package needs to import exists in the document, with its
+**Done test, met:** every symbol a wave 1 package needs to import exists in the document with its
 signature, and no package's surface is described only in prose.
 
 ### The seed

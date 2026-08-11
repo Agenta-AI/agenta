@@ -15,7 +15,8 @@ service; do not write an OAuth client and do not add a second place credentials 
 
 Verify the adapter stores only a `secret_id` on the gateway's own rows and resolves through
 `get_secret_by_id`, matching the webhook dispatcher and SSO provider precedent, and that no
-gateway response can serialize the secret or its id.
+gateway response can serialize the secret **material**. The id itself is a handle and does
+travel in responses — see `secrets.md` for why withholding it would break full-PUT edits.
 
 To verify at implementation time:
 
@@ -140,6 +141,21 @@ reported unused and likely to be dropped, which may close this without any work.
 
 Review at conversion time that nothing assigns to the library's module attributes, rather than
 scheduling a fix ahead of the gateway.
+
+### OR15. The audit pipeline is lossy, and compliance is not
+
+Found while writing `entities.md`. The events stream the audit record rides (D22) **drops writes**
+under a Redis outage and under its own first-layer quota, and its publish helper swallows
+failures rather than surfacing them. That is a reasonable posture for telemetry and the wrong one
+for a compliance record, which `policy.md` requires to be non-lossy.
+
+**D22 stands** — one pipeline, no second audit table. This is a durability gap in the events
+domain, not an argument for routing around it, and D12 is explicit that if the gateway needs
+something the shared mechanism does not offer, the mechanism grows it.
+
+Review at the point the audit record ships: what the drop rate actually is, whether a
+compliance-grade class of event can be marked non-droppable within the existing stream, and who
+owns that change. Coordinate with the events domain rather than solving it inside a gateway.
 
 ### OR10. Subscription-authenticated harnesses
 

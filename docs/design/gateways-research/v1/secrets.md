@@ -32,8 +32,15 @@ restricted. See `notes.md`.
 
 The gateways store **no secret material**. A domain row carries a `secret_id`, the
 secrets service holds the encrypted value, and the consumer resolves it at use time through
-the vault service, reading the value off the returned DTO. Domain responses exclude the
-secret and its id.
+the vault service, reading the value off the returned DTO.
+
+**Domain responses exclude the secret material. They do not exclude the id.** An earlier draft
+here said they exclude both; the code says otherwise, and the code is right. The webhook
+subscription response carries its `secret_id` and withholds only the value — which it has to,
+because edits in this codebase are a full PUT sourced from the freshly fetched entity, so a
+response that dropped the id would make every edit silently unbind the secret. The id is a
+handle, not a secret; resolving it still requires the vault, the encryption context and the
+caller's scope.
 
 Webhook subscriptions and SSO providers already work exactly this way. Following it settles
 several things that would otherwise be design work:
