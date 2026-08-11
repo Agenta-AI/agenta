@@ -75,12 +75,14 @@ export function InputsMappingField({
     error,
     onErrorChange,
     eventPayload,
+    disabled,
 }: {
     value: string
     onChange: (next: string) => void
     error: string | null
     onErrorChange: (next: string | null) => void
     eventPayload: Record<string, unknown> | null
+    disabled?: boolean
 }) {
     const context = useMemo(() => buildPreviewContext(eventPayload), [eventPayload])
     const {leaves, parseError} = useMemo(() => analyzeMapping(value, context), [value, context])
@@ -105,6 +107,7 @@ export function InputsMappingField({
                         showToolbar={false}
                         language="json"
                         dimensions={{width: "100%", height: 120}}
+                        disabled={disabled}
                     />
                 </div>
                 {!error && (

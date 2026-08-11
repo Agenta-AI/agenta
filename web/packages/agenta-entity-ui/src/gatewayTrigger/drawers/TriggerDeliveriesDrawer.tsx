@@ -142,9 +142,7 @@ function OwnerDeliveryHistory({
                         if (record.__isSkeleton) return null
                         const type = record.status?.type ?? record.status?.code
                         const badge = (
-                            <Badge variant={deliveryStatusColor(record.status?.type)}>
-                                {type ?? "unknown"}
-                            </Badge>
+                            <Badge variant={deliveryStatusColor(type)}>{type ?? "unknown"}</Badge>
                         )
                         if (!record.status?.message) return badge
                         return (

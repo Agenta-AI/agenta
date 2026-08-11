@@ -52,7 +52,7 @@ const activity = (session: SessionStream): number => {
 
 export const projectSessionSummary = (session: SessionStream): ServerSessionSummary => ({
     id: session.session_id,
-    title: session.name?.trim() ? session.name : undefined,
+    title: session.name?.trim() || undefined,
     createdAt: session.created_at ? Date.parse(session.created_at) || undefined : undefined,
     lastMessageAt: activity(session) || undefined,
     ended: Boolean(session.deleted_at),

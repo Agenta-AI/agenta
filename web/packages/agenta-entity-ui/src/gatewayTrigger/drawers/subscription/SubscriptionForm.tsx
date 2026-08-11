@@ -771,6 +771,7 @@ export function SubscriptionForm({
                             isEdit={isEdit}
                             isChat={isChatInput}
                             primaryKey={primaryInputKey}
+                            disabled={isDeleted}
                         />
                     </ConfigAccordionSection>
                 </div>

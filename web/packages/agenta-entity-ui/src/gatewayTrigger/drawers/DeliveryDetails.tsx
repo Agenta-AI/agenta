@@ -87,7 +87,13 @@ export function DeliveryDetails({
             </DetailRow>
             <DetailRow label="Status">
                 <span className="flex flex-wrap items-center gap-2">
-                    <Badge variant={deliveryStatusColor(delivery.status?.type)}>{status}</Badge>
+                    <Badge
+                        variant={deliveryStatusColor(
+                            delivery.status?.type ?? delivery.status?.code,
+                        )}
+                    >
+                        {status}
+                    </Badge>
                     {delivery.status?.message ? (
                         <span className="text-colorTextSecondary">{delivery.status.message}</span>
                     ) : null}

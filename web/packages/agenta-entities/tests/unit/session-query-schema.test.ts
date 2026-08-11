@@ -164,6 +164,37 @@ describe("sessionsQueryResponseSchema (envelope)", () => {
         expect(out.sessions[0].delivery).toBeUndefined()
         expect(out.sessions[0].last_message).toBeUndefined()
     })
+
+    it("degrades an unrecognized origin/trigger.kind to undefined instead of failing the row", () => {
+        const unknownEnums = {
+            count: 2,
+            sessions: [
+                {
+                    ...wireRow,
+                    session_id: "sess-unknown-origin",
+                    origin: "a-future-origin-value",
+                },
+                {
+                    ...wireRow,
+                    session_id: "sess-unknown-trigger-kind",
+                    trigger: {
+                        id: "44444444-4444-4444-4444-444444444444",
+                        kind: "a-future-trigger-kind",
+                        name: "Nightly digest",
+                    },
+                },
+            ],
+        }
+        // The whole array must still parse — a single row's unrecognized enum value must not
+        // null out the response for every other row on the page (see the origin/trigger/delivery
+        // `.catch(undefined)` in `sessionStreamSchema`).
+        const out = sessionsQueryResponseSchema.parse(unknownEnums)
+        expect(out.sessions).toHaveLength(2)
+        expect(out.sessions[0].session_id).toBe("sess-unknown-origin")
+        expect(out.sessions[0].origin).toBeUndefined()
+        expect(out.sessions[1].session_id).toBe("sess-unknown-trigger-kind")
+        expect(out.sessions[1].trigger).toBeUndefined()
+    })
 })
 
 describe("drift guard: a renamed wire key is silently dropped, not rejected", () => {

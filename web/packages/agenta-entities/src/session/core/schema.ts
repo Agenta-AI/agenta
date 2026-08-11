@@ -154,9 +154,12 @@ export const sessionStreamSchema = z.object({
     deleted_at: z.string().nullish(),
     // `archived_at` set = hidden-but-recoverable (distinct from `deleted_at`=ended, still resumable).
     archived_at: z.string().nullish(),
-    origin: sessionOriginSchema.nullish(),
-    trigger: sessionTriggerSchema.nullish(),
-    delivery: sessionDeliverySchema.nullish(),
+    // `.catch(undefined)`: an unrecognized origin/trigger/delivery value must degrade this ONE
+    // field to undefined, not fail the row — `sessionsQueryResponseSchema` validates the whole
+    // `sessions` array in one parse, so a rejected leaf here would null out the entire page.
+    origin: sessionOriginSchema.nullish().catch(undefined),
+    trigger: sessionTriggerSchema.nullish().catch(undefined),
+    delivery: sessionDeliverySchema.nullish().catch(undefined),
     // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
     // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
     references: z.array(sessionReferenceSchema).nullish(),
