@@ -94,8 +94,9 @@ const Accept: FC = () => {
                         {
                             token,
                             organizationId,
-                            workspaceId,
-                            projectId,
+                            // typed as-is: invite params can be absent; the request URL always interpolated them
+                            workspaceId: workspaceId as string,
+                            projectId: projectId as string,
                             email,
                         },
                         true,
@@ -109,12 +110,9 @@ const Accept: FC = () => {
                     const targetWorkspace = workspaceId || organizationId
                     cacheWorkspaceOrgPair(targetWorkspace, organizationId)
                     clearInvite()
-                    if (isSurvey) {
+                    if (isSurvey && isEE()) {
                         const redirect = encodeURIComponent(`/w/${targetWorkspace}`)
-                        const targetPath = isEE()
-                            ? `/post-signup?redirect=${redirect}`
-                            : `/get-started?redirect=${redirect}`
-                        await router.replace(targetPath)
+                        await router.replace(`/post-signup?redirect=${redirect}`)
                     } else if (targetWorkspace && projectId) {
                         const nextPath = buildPostLoginPath({
                             workspaceId: targetWorkspace,
@@ -149,7 +147,7 @@ const Accept: FC = () => {
 
                         const nextPath = buildPostLoginPath({
                             workspaceId: targetWorkspace,
-                            projectId,
+                            projectId: projectId ?? null,
                         })
                         await router.replace(nextPath)
                     } else {
@@ -194,12 +192,9 @@ const Accept: FC = () => {
                 }
 
                 clearInvite()
-                if (isSurvey) {
+                if (isSurvey && isEE()) {
                     const redirect = encodeURIComponent(`/w/${workspaceId || organizationId || ""}`)
-                    const targetPath = isEE()
-                        ? `/post-signup?redirect=${redirect}`
-                        : `/get-started?redirect=${redirect}`
-                    await router.replace(targetPath)
+                    await router.replace(`/post-signup?redirect=${redirect}`)
                 } else if (workspaceId || organizationId) {
                     const nextPath = buildPostLoginPath({
                         workspaceId: workspaceId || organizationId || null,

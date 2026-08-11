@@ -2,6 +2,7 @@
 
 import glob
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
@@ -41,9 +42,18 @@ def load_mdx(docs_path: str, base_url: str) -> List[Document]:
                 # Get title from frontmatter or filename
                 title = post.get("title", Path(file_path).stem)
 
-                # Convert file path to URL
-                relative_path = os.path.relpath(file_path, docs_path)
-                url_path = os.path.splitext(relative_path)[0]
+                # Convert file path to the public docs URL. Docusaurus strips numeric
+                # ordering prefixes (`01-architecture.mdx` → `/architecture`), so strip
+                # `NN-` from each path segment. An absolute frontmatter `slug` wins.
+                slug = post.get("slug")
+                if isinstance(slug, str) and slug.startswith("/"):
+                    url_path = slug.strip("/")
+                else:
+                    relative_path = os.path.relpath(file_path, docs_path)
+                    no_ext = os.path.splitext(relative_path)[0]
+                    url_path = "/".join(
+                        re.sub(r"^\d+-", "", seg) for seg in no_ext.split(os.sep)
+                    )
                 url = f"{base_url.rstrip('/')}/{url_path}"
 
                 documents.append(

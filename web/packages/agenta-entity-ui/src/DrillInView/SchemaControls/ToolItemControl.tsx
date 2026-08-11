@@ -22,8 +22,8 @@ import {safeStringify} from "@agenta/shared/utils"
 import {CollapseToggleButton, getCollapseStyle} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
-import {CopySimple, MinusCircle} from "@phosphor-icons/react"
-import {Button, Tooltip, Typography} from "antd"
+import {Button, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {CopySimple, GraphIcon, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, parseGatewayFunctionName, type ToolObj} from "./toolUtils"
@@ -149,6 +149,45 @@ function inferBuiltinToolInfo(toolObj: ToolObj): BuiltinToolInfo | undefined {
 }
 
 // ============================================================================
+// WORKFLOW-REFERENCE TOOL DETECTION
+// ============================================================================
+
+/** A `type:"reference"` tools[] entry (#4860): the agent calls it and the backend runs the
+ * referenced workflow server-side as a callback tool. Detected by the `type` discriminator, and
+ * checked BEFORE the builtin inference (which would otherwise misclassify it as builtin). */
+export function inferIsReferenceTool(toolObj: ToolObj): boolean {
+    return Boolean(
+        toolObj &&
+        typeof toolObj === "object" &&
+        !Array.isArray(toolObj) &&
+        (toolObj as Record<string, unknown>).type === "reference",
+    )
+}
+
+interface ReferenceToolInfo {
+    slug?: string
+    version?: string
+    environment?: string
+    name?: string
+    description?: string
+}
+
+/** Pull the referenced workflow (slug/version/environment) and the model-facing name/description
+ * out of a `type:"reference"` tool entry. Shape:
+ * `{ type:"reference", ref_by, slug, version?, environment?, name, description, input_schema }`. */
+function inferReferenceToolInfo(toolObj: ToolObj): ReferenceToolInfo | undefined {
+    if (!inferIsReferenceTool(toolObj)) return undefined
+    const obj = toolObj as Record<string, unknown>
+    return {
+        slug: typeof obj.slug === "string" ? obj.slug : undefined,
+        version: typeof obj.version === "string" ? obj.version : undefined,
+        environment: typeof obj.environment === "string" ? obj.environment : undefined,
+        name: typeof obj.name === "string" ? obj.name : undefined,
+        description: typeof obj.description === "string" ? obj.description : undefined,
+    }
+}
+
+// ============================================================================
 // TOOL STATE HOOK
 // ============================================================================
 
@@ -256,6 +295,8 @@ interface ToolHeaderProps {
     builtinToolLabel?: string
     builtinIcon?: React.ReactNode
     gatewayHeader?: React.ReactNode
+    isReferenceTool?: boolean
+    referenceSlug?: string
     containerRef?: React.RefObject<HTMLElement | null>
 }
 
@@ -279,9 +320,9 @@ function GatewayToolHeaderIdentity({
                     className="h-6 w-6 rounded object-contain shrink-0"
                 />
             ) : null}
-            <Typography.Text className="truncate">
+            <span className="truncate">
                 {integrationKey} / {actionLabel} / {connectionLabel}
-            </Typography.Text>
+            </span>
         </div>
     )
 }
@@ -344,6 +385,8 @@ const ToolHeader = memo(function ToolHeader({
     builtinToolLabel,
     builtinIcon,
     gatewayHeader,
+    isReferenceTool,
+    referenceSlug,
     containerRef,
 }: ToolHeaderProps) {
     return (
@@ -351,6 +394,25 @@ const ToolHeader = memo(function ToolHeader({
             <div className="grow min-w-0">
                 {gatewayHeader ? (
                     gatewayHeader
+                ) : isReferenceTool ? (
+                    <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[var(--ag-c-F8FAFC)]">
+                                <GraphIcon size={14} />
+                            </span>
+                            <span className="text-sm font-semibold truncate">
+                                {name || referenceSlug || "Workflow tool"}
+                            </span>
+                            {referenceSlug && (
+                                <span className="text-xs truncate text-colorTextDescription">
+                                    / {referenceSlug}
+                                </span>
+                            )}
+                        </div>
+                        {desc ? (
+                            <span className="text-xs text-colorTextDescription">{desc}</span>
+                        ) : null}
+                    </div>
                 ) : isBuiltinTool ? (
                     <div className="flex items-center gap-1">
                         <div className="flex items-center">
@@ -359,59 +421,67 @@ const ToolHeader = memo(function ToolHeader({
                                     {builtinIcon}
                                 </span>
                             )}
-                            {builtinProviderLabel && (
-                                <Typography.Text>{builtinProviderLabel}</Typography.Text>
-                            )}
+                            {builtinProviderLabel && <span>{builtinProviderLabel}</span>}
                         </div>
 
                         {builtinToolLabel && (
                             <>
-                                {builtinProviderLabel && <Typography.Text>/</Typography.Text>}
-                                <Typography.Text type="secondary">
+                                {builtinProviderLabel && <span>/</span>}
+                                <span className="text-colorTextDescription">
                                     {builtinToolLabel}
-                                </Typography.Text>
+                                </span>
                             </>
                         )}
                     </div>
                 ) : (
                     <div className="flex flex-col gap-0.5">
-                        <Typography.Text strong className="text-sm truncate">
+                        <span className="text-sm font-semibold truncate">
                             {name || "Function Name"}
-                        </Typography.Text>
+                        </span>
                         {desc ? (
-                            <Typography.Text type="secondary" className="text-xs">
-                                {desc}
-                            </Typography.Text>
+                            <span className="text-xs text-colorTextDescription">{desc}</span>
                         ) : (
-                            <Typography.Text type="secondary" className="text-xs opacity-50">
+                            <span className="text-xs opacity-50 text-colorTextDescription">
                                 Function Description
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 )}
             </div>
 
             <div className="flex items-center gap-1 invisible group-hover/tool:visible shrink-0">
-                {!isReadOnly && onDuplicate && (
-                    <Tooltip title="Duplicate">
-                        <Button
-                            icon={<CopySimple size={14} />}
-                            type="text"
-                            onClick={onDuplicate}
-                            size="small"
-                        />
-                    </Tooltip>
-                )}
-                {!isReadOnly && onDelete && (
-                    <Tooltip title="Remove">
-                        <Button
-                            icon={<MinusCircle size={14} />}
-                            type="text"
-                            onClick={onDelete}
-                            size="small"
-                        />
-                    </Tooltip>
-                )}
+                <TooltipProvider>
+                    {!isReadOnly && onDuplicate && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Duplicate"
+                                    onClick={onDuplicate}
+                                >
+                                    <CopySimple size={14} />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Duplicate</TooltipContent>
+                        </Tooltip>
+                    )}
+                    {!isReadOnly && onDelete && (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Remove"
+                                    onClick={onDelete}
+                                >
+                                    <MinusCircle size={14} />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Remove</TooltipContent>
+                        </Tooltip>
+                    )}
+                </TooltipProvider>
                 <CollapseToggleButton
                     collapsed={minimized}
                     onToggle={onToggleMinimize}
@@ -470,6 +540,8 @@ export const ToolItemControl = memo(function ToolItemControl({
     const [minimized, setMinimized] = useState(() => {
         if (value && typeof value === "object" && !Array.isArray(value)) {
             const obj = value as Record<string, unknown>
+            // Workflow-reference tools have an informative header; start them collapsed.
+            if (obj.type === "reference") return true
             if (obj.agenta_metadata && typeof obj.agenta_metadata === "object") {
                 const meta = obj.agenta_metadata as Record<string, unknown>
                 return meta.source === "gateway" || meta.source === "builtin"
@@ -526,7 +598,27 @@ export const ToolItemControl = memo(function ToolItemControl({
         return false
     }, [agentaMetadata])
 
-    const isBuiltinTool = isBuiltinFromMeta || isBuiltinInferred
+    // Workflow-reference tools (#4860) are detected by the `type:"reference"` discriminator and
+    // take precedence over builtin inference (which would otherwise misclassify them as builtin).
+    const isReferenceTool = useMemo(() => inferIsReferenceTool(toolObj), [toolObj])
+    const referenceInfo = useMemo(() => inferReferenceToolInfo(toolObj), [toolObj])
+
+    const isBuiltinTool = !isReferenceTool && (isBuiltinFromMeta || isBuiltinInferred)
+
+    // Header name/description: reference tools carry them at the top level; custom function tools
+    // carry them under `function`.
+    const functionDescription =
+        (toolObj as Record<string, unknown>)?.function &&
+        typeof (toolObj as Record<string, unknown>).function === "object"
+            ? (((toolObj as Record<string, unknown>).function as Record<string, unknown>)
+                  .description as string | undefined)
+            : undefined
+    const displayName = isReferenceTool
+        ? (referenceInfo?.name ?? referenceInfo?.slug ?? "")
+        : (functionName ?? "")
+    const displayDesc = isReferenceTool
+        ? (referenceInfo?.description ?? "")
+        : (functionDescription ?? "")
 
     const inferredToolInfo = useMemo(() => inferBuiltinToolInfo(toolObj), [toolObj])
     const fallbackToolLabel = useMemo(() => inferBuiltinLabel(toolObj), [toolObj])
@@ -622,26 +714,8 @@ export const ToolItemControl = memo(function ToolItemControl({
                 className={clsx("group/tool flex flex-col gap-2 border rounded-lg p-3", className)}
             >
                 <ToolHeader
-                    name={
-                        (toolObj as Record<string, unknown>)?.function
-                            ? ((
-                                  (toolObj as Record<string, unknown>).function as Record<
-                                      string,
-                                      string
-                                  >
-                              )?.name ?? "")
-                            : ""
-                    }
-                    desc={
-                        (toolObj as Record<string, unknown>)?.function
-                            ? ((
-                                  (toolObj as Record<string, unknown>).function as Record<
-                                      string,
-                                      string
-                                  >
-                              )?.description ?? "")
-                            : ""
-                    }
+                    name={displayName}
+                    desc={displayDesc}
                     isReadOnly={isReadOnly}
                     minimized={minimized}
                     onToggleMinimize={() => setMinimized((v) => !v)}
@@ -652,10 +726,13 @@ export const ToolItemControl = memo(function ToolItemControl({
                     builtinToolLabel={toolLabel}
                     builtinIcon={providerIcon}
                     gatewayHeader={gatewayHeader}
+                    isReferenceTool={isReferenceTool}
+                    referenceSlug={referenceInfo?.slug}
                     containerRef={containerRef}
                 />
                 {!minimized && (
                     <textarea
+                        aria-label="Tool configuration"
                         className="font-mono text-xs p-2 border rounded min-h-[120px] resize-y w-full"
                         value={editorText}
                         onChange={(e) => onEditorChange(e.target.value)}
@@ -679,7 +756,7 @@ export const ToolItemControl = memo(function ToolItemControl({
                     language: "json",
                     showLineNumbers: true,
                     noProvider: true,
-                    validationSchema: isBuiltinTool ? undefined : TOOL_SCHEMA,
+                    validationSchema: isBuiltinTool || isReferenceTool ? undefined : TOOL_SCHEMA,
                 }}
                 handleChange={(e: string) => {
                     if (isReadOnly) return
@@ -693,26 +770,8 @@ export const ToolItemControl = memo(function ToolItemControl({
                 state={isReadOnly ? "readOnly" : "filled"}
                 header={
                     <ToolHeader
-                        name={
-                            (toolObj as Record<string, unknown>)?.function
-                                ? ((
-                                      (toolObj as Record<string, unknown>).function as Record<
-                                          string,
-                                          string
-                                      >
-                                  )?.name ?? "")
-                                : ""
-                        }
-                        desc={
-                            (toolObj as Record<string, unknown>)?.function
-                                ? ((
-                                      (toolObj as Record<string, unknown>).function as Record<
-                                          string,
-                                          string
-                                      >
-                                  )?.description ?? "")
-                                : ""
-                        }
+                        name={displayName}
+                        desc={displayDesc}
                         isReadOnly={isReadOnly}
                         minimized={minimized}
                         onToggleMinimize={() => setMinimized((v) => !v)}
@@ -723,6 +782,8 @@ export const ToolItemControl = memo(function ToolItemControl({
                         builtinToolLabel={toolLabel}
                         builtinIcon={providerIcon}
                         gatewayHeader={gatewayHeader}
+                        isReferenceTool={isReferenceTool}
+                        referenceSlug={referenceInfo?.slug}
                         containerRef={containerRef}
                     />
                 }

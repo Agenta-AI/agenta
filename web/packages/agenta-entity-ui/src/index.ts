@@ -51,6 +51,10 @@ export {
     MoleculeDrillInFieldItem,
     MoleculeDrillInProvider,
     PlaygroundConfigSection,
+    AgentConfigSkeleton,
+    AgentOperationsSections,
+    AgentOperationsSkeleton,
+    preloadAgentTemplateControl,
     useDrillIn,
     type PlaygroundConfigSectionProps,
     type ConfigViewMode,
@@ -290,6 +294,7 @@ export {
     type CommitSubmitResult,
     type CommitModeOption,
     type CommitCreateFieldsConfig,
+    type CommitDeployOption,
     // Commit modal state atoms
     commitModalOpenAtom,
     commitModalEntityAtom,
@@ -469,7 +474,6 @@ export {
     SearchInput,
     EntityPicker,
     CascadingVariant,
-    CascaderVariant,
     BreadcrumbVariant,
     ListPopoverVariant,
     PopoverCascaderVariant,
@@ -484,7 +488,6 @@ export {
     type EntityPickerProps,
     type EntityPickerBaseProps,
     type CascadingVariantProps,
-    type CascaderVariantProps,
     type BreadcrumbVariantProps,
     type ListPopoverVariantProps,
     type PopoverCascaderVariantProps,
@@ -540,3 +543,13 @@ export {
     WorkflowKindTag,
     type WorkflowKindTagProps,
 } from "./workflow"
+
+// ============================================================================
+// SHARED DRAWER PRIMITIVES
+// ============================================================================
+
+export {
+    SectionRail,
+    type SectionRailProps,
+    type SectionRailItem,
+} from "./drawers/shared/SectionRail"

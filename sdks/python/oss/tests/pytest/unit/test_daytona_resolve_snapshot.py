@@ -104,6 +104,27 @@ def test_resolve_snapshot_id_skips_inactive_snapshots(runner, monkeypatch):
     assert runner._resolve_snapshot_id() == "id-2"
 
 
+def test_resolve_snapshot_id_prefers_code_specific_var(runner, monkeypatch):
+    monkeypatch.setenv("DAYTONA_SNAPSHOT_CODE", "snap-code")
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return _make_response(
+            [
+                {"id": "id-1", "name": "snap", "state": "active", "regionIds": ["eu"]},
+                {
+                    "id": "id-2",
+                    "name": "snap-code",
+                    "state": "active",
+                    "regionIds": ["eu"],
+                },
+            ]
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+
+    assert runner._resolve_snapshot_id() == "id-2"
+
+
 def test_resolve_snapshot_id_raises_when_no_match(runner, monkeypatch):
     def fake_get(url, params=None, headers=None, timeout=None):
         return _make_response(
@@ -118,6 +139,7 @@ def test_resolve_snapshot_id_raises_when_no_match(runner, monkeypatch):
 
 def test_resolve_snapshot_id_raises_when_snapshot_unset(runner, monkeypatch):
     monkeypatch.delenv("DAYTONA_SNAPSHOT", raising=False)
+    monkeypatch.delenv("DAYTONA_SNAPSHOT_CODE", raising=False)
 
     with pytest.raises(RuntimeError, match="No Daytona snapshot configured"):
         runner._resolve_snapshot_id()

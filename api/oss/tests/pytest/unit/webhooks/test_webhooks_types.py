@@ -139,6 +139,7 @@ async def test_test_subscription_persists_delivery_for_saved_subscription():
         payload_json="{}",
         request_headers={"content-type": "application/json"},
         data=WebhookDeliveryData(url="https://example.com/webhook"),
+        resolved_ip="93.184.216.34",
     )
     response = SimpleNamespace(status_code=200, text="ok", is_success=True)
 
@@ -243,6 +244,7 @@ async def test_test_subscription_does_not_persist_for_new_subscription():
         payload_json="{}",
         request_headers={"content-type": "application/json"},
         data=WebhookDeliveryData(url="https://example.com/webhook"),
+        resolved_ip="93.184.216.34",
     )
     response = SimpleNamespace(status_code=200, text="ok", is_success=True)
 

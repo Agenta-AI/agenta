@@ -170,7 +170,10 @@ export function renderChatMessages({
                 key={`${keyPrefix}-${i}`}
                 className={clsx([
                     "w-full flex flex-col gap-2",
-                    {"[&_.agenta-shared-editor]:!p-0": view === "table"},
+                    // `view` is narrowed to "single" | undefined after the early
+                    // `view === "table"` return above, so this is always false at runtime;
+                    // the cast keeps that exact behavior while satisfying TS.
+                    {"[&_.agenta-shared-editor]:!p-0": (view as string) === "table"},
                 ])}
             >
                 {editorType === "simple" ? (
@@ -179,7 +182,7 @@ export function renderChatMessages({
                         handleChange={() => {}}
                         headerName={msg.role}
                         headerClassName="capitalize"
-                        initialValue={textContent}
+                        initialValue={textContent as string}
                         editorType="borderless"
                         state="readOnly"
                         placeholder="N/A"
@@ -227,7 +230,10 @@ export function renderChatMessages({
                     <SharedEditor
                         state={view === "single" ? "readOnly" : "default"}
                         header={
-                            view === "table" ? (
+                            // `view` is narrowed to "single" | undefined after the early
+                            // return above, so this is always false at runtime; cast keeps
+                            // the exact behavior while satisfying TS.
+                            (view as string) === "table" ? (
                                 <Tooltip title={`Message role: ${msg.role}`} className="w-fit">
                                     <span className="capitalize italic">{msg.role}</span>
                                 </Tooltip>
@@ -248,7 +254,7 @@ export function renderChatMessages({
                                 </div>
                             )
                         }
-                        initialValue={textContent}
+                        initialValue={textContent as string}
                         className="hover:!border-[transparent]"
                         editorClassName="!text-xs"
                         editorProps={{enableResize: true}}

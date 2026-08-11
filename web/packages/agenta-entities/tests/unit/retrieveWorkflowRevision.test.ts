@@ -12,15 +12,25 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const fernRetrieve = vi.fn()
 
-// Mock `@agenta/sdk` so we can replace the Fern client method without
-// constructing a real client (which would try to read env vars and
-// initialize transport). `getAgentaSdkClient` returns the same fake
-// every call, so per-test state lives on `fernRetrieve`.
+// `workflow/api/api.ts` pulls from both SDK entrypoints: retrieveWorkflowRevision
+// goes through the per-resource getter (PR #4864), while fetchSimpleApplication
+// still uses the bare client. Mock both so no real transport is constructed.
 vi.mock("@agenta/sdk", () => ({
     getAgentaSdkClient: () => ({
-        workflows: {
-            retrieveWorkflowRevision: fernRetrieve,
+        applications: {
+            fetchSimpleApplication: vi.fn(),
         },
+    }),
+}))
+
+// Normal + low-priority variants share the fake — the priority is a fetch hint,
+// not a behavior change.
+vi.mock("@agenta/sdk/resources", () => ({
+    getWorkflowsClient: () => ({
+        retrieveWorkflowRevision: fernRetrieve,
+    }),
+    getLowPriorityWorkflowsClient: () => ({
+        retrieveWorkflowRevision: fernRetrieve,
     }),
 }))
 

@@ -36,6 +36,10 @@ export const processEnv = {
         process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY,
     NEXT_PUBLIC_LOG_APP_ATOMS: process.env.NEXT_PUBLIC_LOG_APP_ATOMS,
     NEXT_PUBLIC_ENABLE_ATOM_LOGS: process.env.NEXT_PUBLIC_ENABLE_ATOM_LOGS,
+    NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED,
+    NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS:
+        process.env.NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS,
+    NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: process.env.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY,
 }
 
 /**
@@ -45,7 +49,7 @@ export const processEnv = {
 export const getEnv = (envKey: string): string => {
     // Check for runtime config first (browser/worker)
     const runtimeEnv = (globalThis as RuntimeGlobal).__env
-    if (runtimeEnv && Object.keys(runtimeEnv).length > 0 && runtimeEnv[envKey]) {
+    if (runtimeEnv && Object.prototype.hasOwnProperty.call(runtimeEnv, envKey)) {
         return runtimeEnv[envKey]
     }
 
@@ -71,4 +75,34 @@ export const getAgentaWebUrl = (): string => {
     const webUrl = getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")
     if (webUrl) return webUrl
     return buildRuntimeOrigin() ?? ""
+}
+
+// Mirror the API `_TRUTHY` rule: unset defaults to enabled, only truthy values enable.
+const SANDBOX_LOCAL_TRUTHY = new Set(["true", "1", "t", "y", "yes", "on", "enable", "enabled"])
+
+export const isSandboxLocalEnabled = (): boolean => {
+    const raw = getEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED") || "true"
+    return SANDBOX_LOCAL_TRUTHY.has(raw.trim().toLowerCase())
+}
+
+/**
+ * Send only the trailing user message per agent turn and let the runner rebuild prior history
+ * from the durable record log. ON unless set to the literal "false"; absent AND empty both mean
+ * on (compose passes `${VAR:-}`, which sets an empty string when unset). Disable it ONLY
+ * together with the backend `AGENTA_SESSIONS_RECONSTRUCT=false`, or a cold turn loses its
+ * context.
+ */
+export const isSessionsLastMessageOnlyEnabled = (): boolean => {
+    const raw = getEnv("NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY")
+    return raw.trim().toLowerCase() !== "false"
+}
+
+/** The sandbox providers this deployment enabled, normalized to lowercase ids. Unset/empty
+ * falls back to `["local"]` so the picker never hides every option. */
+export const getEnabledSandboxProviders = (): string[] => {
+    const providers = getEnv("NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS")
+        .split(",")
+        .map((provider) => provider.trim().toLowerCase())
+        .filter(Boolean)
+    return providers.length > 0 ? providers : ["local"]
 }

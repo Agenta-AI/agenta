@@ -44,8 +44,7 @@ async def discover(request: DiscoverRequest):
     Returns minimal information needed for authentication flow.
     """
     try:
-        result = await auth_service.discover(request.email)
-        return DiscoverResponse(**result)
+        return await auth_service.discover(request.email)
     except Exception as e:
         log.error("[DISCOVERY]", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

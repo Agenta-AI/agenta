@@ -20,13 +20,13 @@
  */
 
 import type {ComponentProps} from "react"
-import {useState} from "react"
+import {memo, useState} from "react"
 
 import {Check, Copy} from "@phosphor-icons/react"
-import {Button} from "antd"
 
 import {message} from "../../utils/appMessageContext"
 import {copyToClipboard} from "../../utils/copyToClipboard"
+import {Button} from "../ui/button"
 
 // ============================================================================
 // TYPES
@@ -70,7 +70,7 @@ export interface CopyButtonProps extends Omit<ComponentProps<typeof Button>, "on
 /**
  * A button that copies text to clipboard with visual feedback
  */
-export function CopyButton({
+export const CopyButton = memo(function CopyButton({
     text,
     buttonText = "Copy",
     icon = false,
@@ -90,7 +90,9 @@ export function CopyButton({
 
         const success = await copyToClipboard(text)
         if (success) {
-            message.success(successMessage)
+            if (successMessage) {
+                message.success(successMessage)
+            }
             setCopied(true)
             onCopy?.()
 
@@ -104,10 +106,17 @@ export function CopyButton({
     const iconNode = copied ? <Check size={14} /> : <Copy size={14} />
 
     return (
-        <Button icon={icon ? iconNode : undefined} onClick={handleClick} {...props}>
+        // Icon-only (buttonText={null}) has no text to name it — supply one.
+        <Button
+            variant="outline"
+            onClick={handleClick}
+            aria-label={buttonText ? undefined : "Copy"}
+            {...props}
+        >
+            {icon ? iconNode : undefined}
             {buttonText}
         </Button>
     )
-}
+})
 
 export default CopyButton

@@ -20,6 +20,7 @@ import asyncio
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from unittest.mock import patch
 import pytest
 
 from agenta.sdk.contexts.running import RunningContext, running_context_manager
@@ -57,8 +58,7 @@ def evaluate(body: str) -> str:
     return f"def evaluate(inputs, output, trace):\n    {body}\n"
 
 
-# Markers indicating the Daytona sandbox backend is unavailable (no usable
-# snapshot/region, depleted credits, suspended org) rather than a code defect.
+# Markers indicating the Daytona sandbox backend is unavailable, not a code defect.
 _DAYTONA_UNAVAILABLE_MARKERS = (
     "Failed to create sandbox",
     "is not available in region",
@@ -186,7 +186,10 @@ class TestHookV0Acceptance:
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
-                result = run(_hook_v0(inputs={"question": "Paris?"}, outputs="Paris"))
+                with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", True):
+                    result = run(
+                        _hook_v0(inputs={"question": "Paris?"}, outputs="Paris")
+                    )
         finally:
             server.shutdown()
 
@@ -228,7 +231,8 @@ class TestHookV0Acceptance:
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
-                run(_hook_v0(inputs={"city": "Paris"}, outputs="correct"))
+                with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", True):
+                    run(_hook_v0(inputs={"city": "Paris"}, outputs="correct"))
 
             ready.wait(timeout=2)
         finally:
@@ -269,13 +273,14 @@ class TestHookV0Acceptance:
             ctx = RunningContext(revision=revision.model_dump(mode="json"))
 
             with running_context_manager(ctx):
-                run(
-                    _hook_v0(
-                        inputs={"q": "What is 2+2?"},
-                        outputs="4",
-                        testcase={"correct_answer": "4"},
+                with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", True):
+                    run(
+                        _hook_v0(
+                            inputs={"q": "What is 2+2?"},
+                            outputs="4",
+                            testcase={"correct_answer": "4"},
+                        )
                     )
-                )
         finally:
             server.shutdown()
 
@@ -521,6 +526,12 @@ class TestLlmV0Acceptance:
         assert retrieve_handler("agenta:builtin:prompt:v0") is None
         assert retrieve_interface("agenta:builtin:prompt:v0") is None
 
-    def test_agent_alias_is_not_registered(self):
-        assert retrieve_handler("agenta:builtin:agent:v0") is None
-        assert retrieve_interface("agenta:builtin:agent:v0") is None
+    def test_agent_interface_is_registered_with_handler(self):
+        # agent_v0 is SDK-registered: any SDK process can resolve the URI.
+        handler = retrieve_handler("agenta:builtin:agent:v0")
+        assert handler is not None
+        assert callable(handler)
+
+        revision = retrieve_interface("agenta:builtin:agent:v0")
+        assert isinstance(revision, WorkflowRevisionData)
+        assert revision.uri == "agenta:builtin:agent:v0"

@@ -178,7 +178,7 @@ class TracingRouter:
             "/sessions/query",
             self.list_sessions,
             methods=["POST"],
-            operation_id="query_sessions",
+            operation_id="query_sessions_tracing",
             status_code=status.HTTP_200_OK,
             response_model=SessionIdsResponse,
             response_model_exclude_none=True,

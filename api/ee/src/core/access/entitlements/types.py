@@ -23,7 +23,7 @@ class DefaultPlan(str, Enum):
 
 # Permission slugs that the OWNER role always implies. `"*"` is the wildcard
 # permission recognized by `permissions.py`. The `RequiredRole` enum itself now
-# lives in `ee.src.core.access.permissions.types`.
+# lives in `oss.src.core.access.permissions.types`.
 OWNER_PERMISSIONS: list[str] = ["*"]
 
 
@@ -54,6 +54,7 @@ class Counter(str, Enum):
     TRACES_RETRIEVED = "traces_retrieved"
     CREDITS_CONSUMED = "credits_consumed"
     EVENTS_INGESTED = "events_ingested"
+    RECORDS_INGESTED = "records_ingested"
 
 
 class Gauge(str, Enum):
@@ -69,8 +70,9 @@ class Retention(int, Enum):
     EPHEMERAL = 0  # instant
     HOURLY = 60  # 1 hour = 60 minutes
     DAILY = 1440  # 24 hours = 1 day = 1440 minutes
+    WEEKLY = 10080  # 7 days = 168 hours = 10080 minutes
     MONTHLY = 44640  # 31 days = 744 hours = 44640 minutes
-    QUARTERLY = 131040  # 91 days = 2184 hours = 131040 minutes
+    QUARTERLY = 132480  # 92 days = 2208 hours = 132480 minutes
     YEARLY = 525600  # 365 days = 8760 hours = 525600 minutes
 
 
@@ -189,10 +191,10 @@ ENDPOINTS = {
 DEFAULT_CATALOG = [
     {
         "title": "Hobby",
-        "description": "Great for hobby projects and POCs.",
+        "description": "For individuals exploring Agenta.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_HOBBY.value,
-        "retention": Retention.MONTHLY.value,
+        "retention": Retention.WEEKLY.value,
         "price": {
             "base": {
                 "type": "flat",
@@ -201,40 +203,25 @@ DEFAULT_CATALOG = [
             },
         },
         "features": [
-            "Unlimited prompts",
-            "20 evaluations/month",
-            "5k traces/month",
-            "2 seats included",
-            "30 days retention period",
-            "Community support via Github",
+            "2 team members",
+            "Unlimited projects",
+            "Unlimited agents and workflows",
+            "5,000 agent runs / month",
+            "1-week trace data retention",
+            "Community support through GitHub Issues",
         ],
     },
     {
         "title": "Pro",
-        "description": "For production projects.",
+        "description": "For teams running agents in production.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_PRO.value,
-        "retention": Retention.QUARTERLY.value,
+        "retention": Retention.MONTHLY.value,
         "price": {
             "base": {
                 "type": "flat",
                 "currency": "USD",
-                "amount": 49.00,
-            },
-            "users": {
-                "type": "tiered",
-                "currency": "USD",
-                "tiers": [
-                    {
-                        "limit": 3,
-                        "amount": 0.00,
-                    },
-                    {
-                        "limit": 10,
-                        "amount": 20.00,
-                        "rate": 1,
-                    },
-                ],
+                "amount": 29.00,
             },
             "traces": {
                 "type": "tiered",
@@ -252,32 +239,33 @@ DEFAULT_CATALOG = [
             },
         },
         "features": [
-            "Unlimited prompts",
+            "Unlimited team members",
+            "Unlimited projects, agents, and workflows",
+            "Unlimited schedules and event triggers",
+            "10,000 agent runs / month included, then $5 per additional 10,000",
             "Unlimited evaluations",
-            "10k traces / month included then $5 for every 10k",
-            "3 seats included then $20 per seat",
-            "90 days retention period",
-            "In-app support",
+            "1-month trace data retention",
+            "Community support through GitHub Issues",
         ],
     },
     {
         "title": "Business",
-        "description": "For scale, security, and support.",
+        "description": "For teams that need governance, compliance, and priority support.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_BUSINESS.value,
-        "retention": Retention.YEARLY.value,
+        "retention": Retention.QUARTERLY.value,
         "price": {
             "base": {
                 "type": "flat",
                 "currency": "USD",
-                "amount": 399.00,
+                "amount": 299.00,
             },
             "traces": {
                 "type": "tiered",
                 "currency": "USD",
                 "tiers": [
                     {
-                        "limit": 1_000_000,
+                        "limit": 10_000,
                         "amount": 0.00,
                     },
                     {
@@ -289,33 +277,34 @@ DEFAULT_CATALOG = [
         },
         "features": [
             "Everything in Pro",
-            "Unlimited seats",
-            "1M traces / month included then $5 for every 10k",
-            "Multiple workspaces",
-            "Roles and RBAC",
-            "Enterprise SSO",
-            "SOC 2 reports",
-            "HIPAA BAA [soon]",
-            "Private Slack Channel",
-            "Business SLA",
-            "365 days retention period",
+            "10,000 agent runs / month included, then $5 per additional 10,000",
+            "Team roles and role-based access control",
+            "SSO",
+            "SOC 2 Type II report",
+            "3-month trace data retention",
+            "Priority support",
+            "Private Slack Connect channel",
         ],
     },
     {
         "title": "Enterprise",
-        "description": "For large organizations or custom needs.",
+        "description": "For organizations that need advanced controls and dedicated support.",
         "type": "standard",
         "features": [
             "Everything in Business",
+            "Custom usage and trace data retention",
             "Custom roles",
-            "Enterprise SSO",
             "Audit logs",
+            "Custom domains",
+            "HIPAA BAA [soon]",
+            "Security reviews",
+            "Custom security and legal terms",
             "Self-hosting options",
             "Bring Your Own Cloud (BYOC)",
-            "Security reviews",
+            "Deployment and onboarding support",
             "Dedicated support",
-            "Custom SLA",
-            "Custom terms",
+            "Private Slack Connect channel",
+            "Custom service-level agreement",
         ],
     },
     {
@@ -348,7 +337,7 @@ DEFAULT_ENTITLEMENTS = {
             Counter.TRACES_INGESTED: Quota(
                 free=5_000,
                 limit=5_000,
-                retention=Retention.MONTHLY,
+                retention=Retention.WEEKLY,
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
@@ -363,7 +352,11 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.EVENTS_INGESTED: Quota(
-                retention=Retention.MONTHLY,
+                retention=Retention.WEEKLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                retention=Retention.WEEKLY,
                 period=Period.MONTHLY,
             ),
         },
@@ -436,7 +429,7 @@ DEFAULT_ENTITLEMENTS = {
             ),
             Counter.TRACES_INGESTED: Quota(
                 free=10_000,
-                retention=Retention.QUARTERLY,
+                retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
@@ -451,14 +444,16 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.EVENTS_INGESTED: Quota(
-                retention=Retention.QUARTERLY,
+                retention=Retention.MONTHLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                retention=Retention.MONTHLY,
                 period=Period.MONTHLY,
             ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
-                free=3,
-                limit=10,
                 strict=True,
             ),
         },
@@ -523,8 +518,8 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_INGESTED: Quota(
-                free=1_000_000,
-                retention=Retention.YEARLY,
+                free=10_000,
+                retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
             Counter.TRACES_RETRIEVED: Quota(
@@ -539,7 +534,11 @@ DEFAULT_ENTITLEMENTS = {
                 period=Period.MONTHLY,
             ),
             Counter.EVENTS_INGESTED: Quota(
-                retention=Retention.YEARLY,
+                retention=Retention.QUARTERLY,
+                period=Period.MONTHLY,
+            ),
+            Counter.RECORDS_INGESTED: Quota(
+                retention=Retention.QUARTERLY,
                 period=Period.MONTHLY,
             ),
         },
@@ -625,6 +624,9 @@ DEFAULT_ENTITLEMENTS = {
             Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
+            Counter.RECORDS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -660,6 +662,9 @@ DEFAULT_ENTITLEMENTS = {
             Counter.EVENTS_INGESTED: Quota(
                 period=Period.MONTHLY,
             ),
+            Counter.RECORDS_INGESTED: Quota(
+                period=Period.MONTHLY,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(
@@ -676,7 +681,6 @@ DEFAULT_ENTITLEMENTS = {
 # name to report under (`REPORTS[key]`).
 REPORTS: dict[str, str] = {
     Counter.TRACES_INGESTED.value: "traces",
-    Gauge.USERS.value: "users",
 }
 
 CONSTRAINTS = {
@@ -699,6 +703,7 @@ CONSTRAINTS = {
             Counter.TRACES_RETRIEVED,
             Counter.CREDITS_CONSUMED,
             Counter.EVENTS_INGESTED,
+            Counter.RECORDS_INGESTED,
         ],
     },
 }

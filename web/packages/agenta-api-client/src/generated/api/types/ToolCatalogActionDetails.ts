@@ -8,6 +8,7 @@ export interface ToolCatalogActionDetails {
     description?: (string | null) | undefined;
     categories?: string[] | undefined;
     logo?: (string | null) | undefined;
+    read_only?: (boolean | null) | undefined;
     schemas?: (AgentaApi.JsonSchemasOutput | null) | undefined;
     scopes?: (string[] | null) | undefined;
 }

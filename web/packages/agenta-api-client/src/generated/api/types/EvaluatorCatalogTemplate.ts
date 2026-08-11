@@ -6,6 +6,7 @@ export interface EvaluatorCatalogTemplate {
     name?: (string | null) | undefined;
     description?: (string | null) | undefined;
     key: string;
+    slug?: (string | null) | undefined;
     categories?: (string[] | null) | undefined;
     flags?: (AgentaApi.WorkflowCatalogFlags | null) | undefined;
     data?: (AgentaApi.WorkflowRevisionDataOutput | null) | undefined;

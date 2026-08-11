@@ -10,4 +10,6 @@ export interface SimpleApplicationResponse {
     count?: number | undefined;
     /** The application with `variant_id`, `revision_id`, and the revision's `data` merged. `data.url` is the invocation URL. */
     application?: (AgentaApi.SimpleApplication | null) | undefined;
+    /** Read-only platform context derived for this response. */
+    additional_context?: (AgentaApi.SimpleApplicationAdditionalContext | null) | undefined;
 }

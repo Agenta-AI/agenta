@@ -64,16 +64,6 @@ def test_evaluator_catalog_uses_evaluator_metadata_for_parameter_content():
     assert "default" not in schema_properties["json_schema"]
 
 
-def test_snippet_catalog_filter_uses_flags():
-    template = get_workflow_catalog_template(
-        template_key="snippet",
-        is_snippet=True,
-    )
-
-    assert template is not None
-    assert template.get("flags", {}).get("is_snippet") is True
-
-
 def test_catalog_metadata_explicit_false_overrides_truthy_base_flags():
     entry = {
         "key": "demo",

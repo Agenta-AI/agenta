@@ -181,12 +181,18 @@ export {
 export {
     // Trace-level query atom (for fetching entire traces with all spans)
     traceEntityAtomFamily,
+    // Lightweight summary query (root span + errored spans, flat /spans/query)
+    traceSummaryQueryAtomFamily,
+    type TraceSummarySpans,
     // Trace-level derived atoms (convenience: traceId → rootSpan / inputs / outputs)
     traceRootSpanAtomFamily,
     traceInputsAtomFamily,
     traceOutputsAtomFamily,
     // Cache invalidation utility
     invalidateTraceEntityCache,
+    // Freshness mark: call at run completion so not-found retries stay aggressive
+    // only for traces that may still be ingesting
+    markTraceAsFresh,
     // Error classes
     SpanNotFoundError,
     TraceNotFoundError,

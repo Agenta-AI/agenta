@@ -25,143 +25,6 @@ class WorkspacesClient:
         """
         return self._raw_client
     
-    def get_all_workspace_permissions(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Permission]:
-        """
-        Get all workspace permissions.
-        
-        Returns a list of all available workspace permissions.
-        
-        Returns:
-            List[Permission]: A list of Permission objects representing the available workspace permissions.
-        
-        Raises:
-            HTTPException: If there is an error retrieving the workspace permissions.
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.List[Permission]
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.workspaces.get_all_workspace_permissions()
-        """
-        _response = self._raw_client.get_all_workspace_permissions(request_options=request_options)
-        return _response.data
-    
-    def assign_role_to_user(self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
-        """
-        Assigns a role to a user in a workspace.
-        
-        Args:
-            payload (UserRole): The payload containing the organization id, user email, and role to assign.
-            workspace_id (str): The ID of the workspace.
-            request (Request): The FastAPI request object.
-        
-        Returns:
-            bool: True if the role was successfully assigned, False otherwise.
-        
-        Raises:
-            HTTPException: If the user does not have permission to perform this action.
-            HTTPException: If there is an error assigning the role to the user.
-        
-        Parameters
-        ----------
-        workspace_id : str
-        
-        email : str
-        
-        organization_id : str
-        
-        role : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Any
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.workspaces.assign_role_to_user(
-            workspace_id="workspace_id",
-            email="email",
-            organization_id="organization_id",
-        )
-        """
-        _response = self._raw_client.assign_role_to_user(workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options)
-        return _response.data
-    
-    def unassign_role_from_user(self, workspace_id: str, *, email: str, organization_id: str, role: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
-        """
-        Delete a role assignment from a user in a workspace.
-        
-        Args:
-            workspace_id (str): The ID of the workspace.
-            email (str): The email of the user to remove the role from.
-            organization_id (str): The ID of the organization.
-            role (str): The role to remove from the user.
-            request (Request): The FastAPI request object.
-        
-        Returns:
-            bool: True if the role assignment was successfully deleted.
-        
-        Raises:
-            HTTPException: If there is an error in the request or the user does not have permission to perform the action.
-            HTTPException: If there is an error in updating the user's roles.
-        
-        Parameters
-        ----------
-        workspace_id : str
-        
-        email : str
-        
-        organization_id : str
-        
-        role : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Any
-            Successful Response
-        
-        Examples
-        --------
-        from agenta import AgentaApi
-        
-        client = AgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        client.workspaces.unassign_role_from_user(
-            workspace_id="workspace_id",
-            email="email",
-            organization_id="organization_id",
-            role="role",
-        )
-        """
-        _response = self._raw_client.unassign_role_from_user(workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options)
-        return _response.data
-    
     def get_workspace(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Workspace]:
         """
         Get workspace details.
@@ -230,6 +93,119 @@ class WorkspacesClient:
         _response = self._raw_client.get_all_workspace_roles(request_options=request_options)
         return _response.data
     
+    def get_all_workspace_permissions(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Permission]:
+        """
+        Get all available workspace permissions.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.List[Permission]
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.workspaces.get_all_workspace_permissions()
+        """
+        _response = self._raw_client.get_all_workspace_permissions(request_options=request_options)
+        return _response.data
+    
+    def assign_role_to_user(self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Assign a role to a user in a workspace.
+        
+        Args:
+            payload (UserRole): The organization id, user email, and role to assign.
+            workspace_id (str): The ID of the workspace.
+        
+        Parameters
+        ----------
+        workspace_id : str
+        
+        email : str
+        
+        organization_id : str
+        
+        role : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.workspaces.assign_role_to_user(
+            workspace_id="workspace_id",
+            email="email",
+            organization_id="organization_id",
+        )
+        """
+        _response = self._raw_client.assign_role_to_user(workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options)
+        return _response.data
+    
+    def unassign_role_from_user(self, workspace_id: str, *, email: str, organization_id: str, role: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Remove a role assignment from a user in a workspace.
+        
+        Args:
+            email (str): The email of the user.
+            organization_id (str): The ID of the organization.
+            role (str): The role to remove.
+            workspace_id (str): The ID of the workspace.
+        
+        Parameters
+        ----------
+        workspace_id : str
+        
+        email : str
+        
+        organization_id : str
+        
+        role : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        from agenta import AgentaApi
+        
+        client = AgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        client.workspaces.unassign_role_from_user(
+            workspace_id="workspace_id",
+            email="email",
+            organization_id="organization_id",
+            role="role",
+        )
+        """
+        _response = self._raw_client.unassign_role_from_user(workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options)
+        return _response.data
+    
     def remove_user_from_workspace(self, workspace_id: str, *, email: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
         """
         Remove a user from a workspace.
@@ -280,167 +256,6 @@ class AsyncWorkspacesClient:
         AsyncRawWorkspacesClient
         """
         return self._raw_client
-    
-    async def get_all_workspace_permissions(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Permission]:
-        """
-        Get all workspace permissions.
-        
-        Returns a list of all available workspace permissions.
-        
-        Returns:
-            List[Permission]: A list of Permission objects representing the available workspace permissions.
-        
-        Raises:
-            HTTPException: If there is an error retrieving the workspace permissions.
-        
-        Parameters
-        ----------
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.List[Permission]
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.workspaces.get_all_workspace_permissions()
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.get_all_workspace_permissions(request_options=request_options)
-        return _response.data
-    
-    async def assign_role_to_user(self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
-        """
-        Assigns a role to a user in a workspace.
-        
-        Args:
-            payload (UserRole): The payload containing the organization id, user email, and role to assign.
-            workspace_id (str): The ID of the workspace.
-            request (Request): The FastAPI request object.
-        
-        Returns:
-            bool: True if the role was successfully assigned, False otherwise.
-        
-        Raises:
-            HTTPException: If the user does not have permission to perform this action.
-            HTTPException: If there is an error assigning the role to the user.
-        
-        Parameters
-        ----------
-        workspace_id : str
-        
-        email : str
-        
-        organization_id : str
-        
-        role : typing.Optional[str]
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Any
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.workspaces.assign_role_to_user(
-                workspace_id="workspace_id",
-                email="email",
-                organization_id="organization_id",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.assign_role_to_user(workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options)
-        return _response.data
-    
-    async def unassign_role_from_user(self, workspace_id: str, *, email: str, organization_id: str, role: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
-        """
-        Delete a role assignment from a user in a workspace.
-        
-        Args:
-            workspace_id (str): The ID of the workspace.
-            email (str): The email of the user to remove the role from.
-            organization_id (str): The ID of the organization.
-            role (str): The role to remove from the user.
-            request (Request): The FastAPI request object.
-        
-        Returns:
-            bool: True if the role assignment was successfully deleted.
-        
-        Raises:
-            HTTPException: If there is an error in the request or the user does not have permission to perform the action.
-            HTTPException: If there is an error in updating the user's roles.
-        
-        Parameters
-        ----------
-        workspace_id : str
-        
-        email : str
-        
-        organization_id : str
-        
-        role : str
-        
-        request_options : typing.Optional[RequestOptions]
-            Request-specific configuration.
-        
-        Returns
-        -------
-        typing.Any
-            Successful Response
-        
-        Examples
-        --------
-        import asyncio
-        
-        from agenta import AsyncAgentaApi
-        
-        client = AsyncAgentaApi(
-            api_key="YOUR_API_KEY",
-        )
-        
-        
-        async def main() -> None:
-            await client.workspaces.unassign_role_from_user(
-                workspace_id="workspace_id",
-                email="email",
-                organization_id="organization_id",
-                role="role",
-            )
-        
-        
-        asyncio.run(main())
-        """
-        _response = await self._raw_client.unassign_role_from_user(workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options)
-        return _response.data
     
     async def get_workspace(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Workspace]:
         """
@@ -524,6 +339,143 @@ class AsyncWorkspacesClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.get_all_workspace_roles(request_options=request_options)
+        return _response.data
+    
+    async def get_all_workspace_permissions(self, *, request_options: typing.Optional[RequestOptions] = None) -> typing.List[Permission]:
+        """
+        Get all available workspace permissions.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.List[Permission]
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.workspaces.get_all_workspace_permissions()
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.get_all_workspace_permissions(request_options=request_options)
+        return _response.data
+    
+    async def assign_role_to_user(self, workspace_id: str, *, email: str, organization_id: str, role: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Assign a role to a user in a workspace.
+        
+        Args:
+            payload (UserRole): The organization id, user email, and role to assign.
+            workspace_id (str): The ID of the workspace.
+        
+        Parameters
+        ----------
+        workspace_id : str
+        
+        email : str
+        
+        organization_id : str
+        
+        role : typing.Optional[str]
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.workspaces.assign_role_to_user(
+                workspace_id="workspace_id",
+                email="email",
+                organization_id="organization_id",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.assign_role_to_user(workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options)
+        return _response.data
+    
+    async def unassign_role_from_user(self, workspace_id: str, *, email: str, organization_id: str, role: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:
+        """
+        Remove a role assignment from a user in a workspace.
+        
+        Args:
+            email (str): The email of the user.
+            organization_id (str): The ID of the organization.
+            role (str): The role to remove.
+            workspace_id (str): The ID of the workspace.
+        
+        Parameters
+        ----------
+        workspace_id : str
+        
+        email : str
+        
+        organization_id : str
+        
+        role : str
+        
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        typing.Any
+            Successful Response
+        
+        Examples
+        --------
+        import asyncio
+        
+        from agenta import AsyncAgentaApi
+        
+        client = AsyncAgentaApi(
+            api_key="YOUR_API_KEY",
+        )
+        
+        
+        async def main() -> None:
+            await client.workspaces.unassign_role_from_user(
+                workspace_id="workspace_id",
+                email="email",
+                organization_id="organization_id",
+                role="role",
+            )
+        
+        
+        asyncio.run(main())
+        """
+        _response = await self._raw_client.unassign_role_from_user(workspace_id, email=email, organization_id=organization_id, role=role, request_options=request_options)
         return _response.data
     
     async def remove_user_from_workspace(self, workspace_id: str, *, email: str, request_options: typing.Optional[RequestOptions] = None) -> typing.Any:

@@ -1,61 +1,42 @@
 import React, {useCallback, useMemo, useRef, useState} from "react"
 
 import {
-    actionsSearchAtom,
-    catalogDrawerOpenAtom,
-    executionDrawerAtom,
-    integrationsSearchAtom,
     isConnectionActive,
-    useCatalogActions,
-    useCatalogIntegrations,
-    useIntegrationConnections,
+    toolActionsSearchAtom,
+    toolCatalogDrawerOpenAtom,
+    toolExecutionDrawerAtom,
+    toolIntegrationsSearchAtom,
+    useToolCatalogActions,
+    useToolCatalogIntegrations,
+    useToolIntegrationConnections,
     type ToolCatalogIntegration,
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {ScrollSentinel, ScrollToTopButton} from "@agenta/ui"
-import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
+import {Tag} from "@agenta/ui/components/presentational"
+import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {
-    Badge,
     Button,
-    Card,
     Divider,
-    Drawer,
-    Dropdown,
-    Empty,
-    Input,
-    Spin,
-    Tag,
-    Typography,
-} from "antd"
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    EmptyState,
+    InputAffix,
+    Spinner,
+} from "@agenta/ui/ui"
+import {ArrowLeft, CaretDown, MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import {useAtom, useSetAtom} from "jotai"
 import Image from "next/image"
+
+import {CatalogCard, ExpandableText} from "../components/catalogPrimitives"
 
 import ConnectDrawer from "./ConnectDrawer"
 
 type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDetails
-
-// ---------------------------------------------------------------------------
-// Expandable description — 2-line clamp with inline "see more" / "see less"
-// ---------------------------------------------------------------------------
-
-function ExpandableText({text}: {text: string}) {
-    return (
-        <Typography.Paragraph
-            type="secondary"
-            className="!text-xs !mb-0"
-            ellipsis={{
-                rows: 3,
-                expandable: "collapsible",
-                symbol: (expanded) => (expanded ? "see less" : "see more"),
-            }}
-        >
-            {text}
-        </Typography.Paragraph>
-    )
-}
 
 // ---------------------------------------------------------------------------
 // CatalogDrawer (root)
@@ -66,7 +47,7 @@ interface Props {
 }
 
 export default function CatalogDrawer({onConnectionCreated}: Props) {
-    const [open, setOpen] = useAtom(catalogDrawerOpenAtom)
+    const [open, setOpen] = useAtom(toolCatalogDrawerOpenAtom)
     const [selectedIntegration, setSelectedIntegration] = useState<CatalogIntegrationItem | null>(
         null,
     )
@@ -74,8 +55,8 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
         null,
     )
 
-    const setIntegrationsSearch = useSetAtom(integrationsSearchAtom)
-    const setActionsSearch = useSetAtom(actionsSearchAtom)
+    const setIntegrationsSearch = useSetAtom(toolIntegrationsSearchAtom)
+    const setActionsSearch = useSetAtom(toolActionsSearchAtom)
 
     const handleClose = useCallback(() => {
         setOpen(false)
@@ -101,7 +82,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
 
     return (
         <>
-            <Drawer
+            <EnhancedDrawer
                 open={open}
                 onClose={handleClose}
                 title={selectedIntegration ? "Browse Actions" : "Browse Integrations"}
@@ -125,7 +106,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
                 ) : (
                     <IntegrationsView onSelect={setSelectedIntegration} />
                 )}
-            </Drawer>
+            </EnhancedDrawer>
 
             {connectIntegration && (
                 <ConnectDrawer
@@ -148,7 +129,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
 // ---------------------------------------------------------------------------
 
 function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegrationItem) => void}) {
-    const setAtom = useSetAtom(integrationsSearchAtom)
+    const setAtom = useSetAtom(toolIntegrationsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -160,36 +141,27 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
         hasNextPage,
         isFetchingNextPage,
         requestMore,
-    } = useCatalogIntegrations()
+    } = useToolCatalogIntegrations()
 
     const sentinelIndex = useMemo(
         () => Math.max(0, integrations.length - prefetchThreshold),
         [integrations.length, prefetchThreshold],
     )
 
-    if (isLoading && integrations.length === 0) {
-        return (
-            <div className="flex items-center justify-center py-12">
-                <Spin />
-            </div>
-        )
-    }
-
     return (
         <div className="flex flex-col h-full overflow-hidden">
             {/* Sticky header */}
             <div className="flex flex-col gap-3 px-6 pt-4 pb-3 shrink-0">
-                <Input
+                <InputAffix
                     placeholder="Search integrations…"
                     prefix={<MagnifyingGlass size={16} />}
                     value={search.value}
-                    onChange={(e) => search.onChange(e.target.value)}
+                    onValueChange={(value) => search.onChange(value)}
                     allowClear
-                    onClear={() => search.onChange("")}
                 />
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-colorTextDescription">
                     {total} integration{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -199,8 +171,12 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                 ref={scrollRef}
                 className="flex-1 overflow-y-auto overscroll-contain px-6 py-3 relative"
             >
-                {integrations.length === 0 ? (
-                    <Empty description="No integrations found" />
+                {isLoading && integrations.length === 0 ? (
+                    <div className="flex items-center justify-center py-12">
+                        <Spinner />
+                    </div>
+                ) : integrations.length === 0 ? (
+                    <EmptyState description="No integrations found" />
                 ) : (
                     <div className="flex flex-col gap-2">
                         {integrations.map((integration, i) => (
@@ -212,11 +188,9 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                                         isFetching={isFetchingNextPage}
                                     />
                                 )}
-                                <Card
-                                    hoverable
+                                <CatalogCard
                                     onClick={() => onSelect(integration)}
                                     className="cursor-pointer"
-                                    size="small"
                                 >
                                     <div className="flex items-start gap-3">
                                         {integration.logo && (
@@ -231,28 +205,23 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                                         )}
                                         <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
-                                                <Typography.Text strong className="truncate">
+                                                <span className="truncate font-medium">
                                                     {integration.name}
-                                                </Typography.Text>
+                                                </span>
                                                 {integration.actions_count != null && (
-                                                    <Badge
-                                                        count={`${integration.actions_count} actions`}
-                                                        size="small"
-                                                        color="blue"
-                                                    />
+                                                    <span className="inline-flex shrink-0 items-center rounded-full bg-colorInfo px-2 py-0.5 text-[11px] leading-4 text-white">
+                                                        {integration.actions_count} actions
+                                                    </span>
                                                 )}
                                             </div>
                                             {integration.description && (
-                                                <Typography.Text
-                                                    type="secondary"
-                                                    className="text-xs line-clamp-2"
-                                                >
+                                                <span className="text-xs text-colorTextDescription line-clamp-2">
                                                     {integration.description}
-                                                </Typography.Text>
+                                                </span>
                                             )}
                                         </div>
                                     </div>
-                                </Card>
+                                </CatalogCard>
                             </React.Fragment>
                         ))}
 
@@ -265,7 +234,7 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
 
                         {isFetchingNextPage && (
                             <div className="flex items-center justify-center py-4">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                     </div>
@@ -290,11 +259,11 @@ function ActionsView({
     onBack: () => void
     onConnect: () => void
 }) {
-    const setAtom = useSetAtom(actionsSearchAtom)
+    const setAtom = useSetAtom(toolActionsSearchAtom)
     const search = useDebouncedAtomSearch(setAtom)
     const scrollRef = useRef<HTMLDivElement>(null)
-    const setExecutionDrawer = useSetAtom(executionDrawerAtom)
-    const {connections} = useIntegrationConnections(integration.key)
+    const setExecutionDrawer = useSetAtom(toolExecutionDrawerAtom)
+    const {connections} = useToolIntegrationConnections(integration.key)
 
     const handleOpenConnection = useCallback(
         (conn: ToolConnection) => {
@@ -309,23 +278,6 @@ function ActionsView({
         [setExecutionDrawer, integration.name, integration.logo],
     )
 
-    const connectMenuItems = useMemo<MenuProps["items"]>(
-        () =>
-            connections.map((conn) => ({
-                key: conn.id ?? conn.slug ?? "",
-                label: (
-                    <div className="flex items-center gap-2">
-                        <span className="truncate">{conn.name || conn.slug}</span>
-                        {isConnectionActive(conn) && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
-                        )}
-                    </div>
-                ),
-                onClick: () => handleOpenConnection(conn),
-            })),
-        [connections, handleOpenConnection],
-    )
-
     const {
         actions,
         total,
@@ -334,7 +286,7 @@ function ActionsView({
         hasNextPage,
         isFetchingNextPage,
         requestMore,
-    } = useCatalogActions(integration.key)
+    } = useToolCatalogActions(integration.key)
 
     const sentinelIndex = useMemo(
         () => Math.max(0, actions.length - prefetchThreshold),
@@ -347,12 +299,14 @@ function ActionsView({
             <div className="flex flex-col gap-3 px-6 pt-4 pb-3 shrink-0">
                 <div className="flex items-center gap-3">
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon"
                         aria-label="Go back"
-                        icon={<ArrowLeft size={16} />}
                         onClick={onBack}
                         className="shrink-0"
-                    />
+                    >
+                        <ArrowLeft size={16} />
+                    </Button>
                     {integration.logo && (
                         <Image
                             src={integration.logo}
@@ -363,23 +317,48 @@ function ActionsView({
                             unoptimized
                         />
                     )}
-                    <Typography.Text strong className="truncate flex-1">
-                        {integration.name}
-                    </Typography.Text>
+                    <span className="truncate flex-1 font-medium">{integration.name}</span>
                     <div className="shrink-0">
                         {connections.length > 0 ? (
-                            <Dropdown.Button
-                                type="primary"
-                                trigger={["click"]}
-                                menu={{items: connectMenuItems}}
-                                icon={<CaretDown size={12} />}
-                                onClick={onConnect}
-                            >
-                                <Plus size={14} />
-                                Connect
-                            </Dropdown.Button>
+                            // Was antd `Dropdown.Button` — a split primary button: main
+                            // action connects, the caret opens the connections menu.
+                            <div className="flex items-stretch gap-px">
+                                <Button onClick={onConnect} className="rounded-r-none">
+                                    <Plus size={14} />
+                                    Connect
+                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            aria-label="Open connections"
+                                            size="icon"
+                                            className="rounded-l-none"
+                                        >
+                                            <CaretDown size={12} />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        {connections.map((conn) => (
+                                            <DropdownMenuItem
+                                                key={conn.id ?? conn.slug ?? ""}
+                                                onClick={() => handleOpenConnection(conn)}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="truncate">
+                                                        {conn.name || conn.slug}
+                                                    </span>
+                                                    {isConnectionActive(conn) && (
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />
+                                                    )}
+                                                </div>
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
                         ) : (
-                            <Button type="primary" icon={<Plus size={14} />} onClick={onConnect}>
+                            <Button onClick={onConnect}>
+                                <Plus size={14} />
                                 Connect
                             </Button>
                         )}
@@ -387,18 +366,17 @@ function ActionsView({
                 </div>
                 {integration.description && <ExpandableText text={integration.description} />}
 
-                <Input
+                <InputAffix
                     placeholder="Search actions…"
                     prefix={<MagnifyingGlass size={16} />}
                     value={search.value}
-                    onChange={(e) => search.onChange(e.target.value)}
+                    onValueChange={(value) => search.onChange(value)}
                     allowClear
-                    onClear={() => search.onChange("")}
                 />
 
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-colorTextDescription">
                     {total} action{total !== 1 ? "s" : ""}
-                </Typography.Text>
+                </span>
             </div>
 
             <Divider className="!m-0" />
@@ -410,10 +388,10 @@ function ActionsView({
             >
                 {isLoading && actions.length === 0 ? (
                     <div className="flex items-center justify-center py-8">
-                        <Spin />
+                        <Spinner />
                     </div>
                 ) : actions.length === 0 ? (
-                    <Empty description="No actions found" />
+                    <EmptyState description="No actions found" />
                 ) : (
                     <div className="flex flex-col gap-2">
                         {actions.map((action, i) => (
@@ -425,25 +403,25 @@ function ActionsView({
                                         isFetching={isFetchingNextPage}
                                     />
                                 )}
-                                <Card hoverable className="cursor-pointer" size="small">
+                                <CatalogCard className="cursor-pointer">
                                     <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
-                                            <Typography.Text strong className="truncate">
+                                            <span className="truncate font-medium">
                                                 {action.name}
-                                            </Typography.Text>
+                                            </span>
                                             {action.categories?.slice(0, 2).map((c) => (
-                                                <Tag key={c} className="text-xs">
+                                                <Tag key={c} tone="default" className="text-xs">
                                                     {c}
                                                 </Tag>
                                             ))}
                                         </div>
                                         {action.description && (
-                                            <Typography.Text type="secondary" className="text-xs">
+                                            <span className="text-xs text-colorTextDescription">
                                                 {action.description}
-                                            </Typography.Text>
+                                            </span>
                                         )}
                                     </div>
-                                </Card>
+                                </CatalogCard>
                             </React.Fragment>
                         ))}
 
@@ -456,7 +434,7 @@ function ActionsView({
 
                         {isFetchingNextPage && (
                             <div className="flex items-center justify-center py-4">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                     </div>

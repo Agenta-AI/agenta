@@ -15,13 +15,11 @@
  *      processor derives scenarios from the addressed step's existing cells, so a
  *      brand-new step needs EXPLICIT scenario_ids or it no-ops.
  */
-import {getAgentaSdkClient} from "@agenta/sdk"
-
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getEvaluationsClient} from "@agenta/sdk/resources"
 
 export type EvaluatorOrigin = "custom" | "human" | "auto"
 
-const client = () => getAgentaSdkClient({host: getAgentaApiUrl()}).evaluations
+const client = () => getEvaluationsClient()
 
 /**
  * Step targets as `{revisionId: origin}`. ALWAYS send the run's existing origins — the

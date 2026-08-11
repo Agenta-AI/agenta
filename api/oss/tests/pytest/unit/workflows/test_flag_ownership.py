@@ -59,11 +59,43 @@ async def test_create_workflow_persists_only_artifact_flags():
 
     artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
     assert artifact_create.flags is not None
+    # Only the role flags land on the artifact; is_chat / is_custom are revision-level facts.
     assert artifact_create.flags == {
         "is_application": True,
         "is_evaluator": False,
         "is_snippet": False,
     }
+
+
+@pytest.mark.asyncio
+async def test_create_workflow_does_not_persist_revision_flags_on_artifact():
+    """is_skill and is_custom are revision-level (uri-derived) facts; neither lands on the artifact,
+    only the role flags do."""
+    workflows_dao = AsyncMock()
+    service = WorkflowsService(workflows_dao=workflows_dao)
+
+    workflow_id = uuid4()
+    workflows_dao.create_artifact.return_value = Workflow(
+        id=workflow_id,
+        slug="skill-wf",
+        flags=WorkflowArtifactFlags(is_snippet=True),
+    )
+
+    await service.create_workflow(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        workflow_create=WorkflowCreate(
+            slug="skill-wf",
+            flags=WorkflowFlags(is_skill=True, is_evaluator=False, is_custom=True),
+        ),
+    )
+
+    artifact_create = workflows_dao.create_artifact.await_args.kwargs["artifact_create"]
+    assert artifact_create.flags is not None
+    assert artifact_create.flags["is_evaluator"] is False
+    # is_skill and is_custom are revision-level (uri-derived) flags; neither lands on the artifact.
+    assert "is_skill" not in artifact_create.flags
+    assert "is_custom" not in artifact_create.flags
 
 
 @pytest.mark.asyncio
@@ -252,10 +284,14 @@ async def test_create_workflow_revision_v0_persists_explicit_revision_flags():
         "is_code": False,
         "is_match": False,
         "is_feedback": False,
+        "is_agent": False,
+        "is_skill": False,
         "is_chat": True,
         "has_url": False,
         "has_script": False,
         "has_handler": False,
+        # is_static is server-owned (slug-derived); hard-coded false on write.
+        "is_static": False,
     }
     assert workflow_revision is not None
     assert workflow_revision.flags == WorkflowRevisionFlags(is_application=True)
@@ -275,6 +311,12 @@ async def test_edit_workflow_revision_persists_only_revision_flags():
         workflow_variant_id=variant_id,
         slug="rev",
         flags=WorkflowRevisionFlags(is_chat=True),
+    )
+    workflows_dao.fetch_revision.return_value = WorkflowRevision(
+        id=revision_id,
+        workflow_id=artifact_id,
+        workflow_variant_id=variant_id,
+        slug="rev",
     )
     workflows_dao.fetch_artifact.return_value = Workflow(
         id=artifact_id,
@@ -449,6 +491,11 @@ async def test_edit_workflow_refreshes_artifact_cache(monkeypatch):
         slug="wf",
         flags=WorkflowArtifactFlags(is_application=True),
     )
+    workflows_dao.fetch_artifact.return_value = Workflow(
+        id=workflow_id,
+        slug="wf",
+        flags=WorkflowArtifactFlags(is_application=True),
+    )
 
     monkeypatch.setattr(workflows_service_module, "get_cache", AsyncMock())
     set_cache = AsyncMock()
@@ -476,3 +523,63 @@ async def test_edit_workflow_refreshes_artifact_cache(monkeypatch):
     assert set_cache.await_args.kwargs["project_id"] == str(project_id)
     assert set_cache.await_args.kwargs["key"] == str(workflow_id)
     assert set_cache.await_args.kwargs["value"] == workflow
+
+
+class TestTheVersionZeroReadPath:
+    """Version 0 is the empty placeholder, and only the empty one skips the merge.
+
+    A first commit that carries content now STORES that content (the DAO's version-0 rule
+    used to null it). Such a revision is version 0 and configured, so it has to read like
+    any other: skipping the merge would strip the artifact-owned flags and drop the
+    variant out of every flag-filtered listing.
+    """
+
+    @staticmethod
+    def _service(revision):
+        workflows_dao = AsyncMock()
+        workflows_dao.fetch_revision.return_value = revision
+        workflows_dao.fetch_artifact.return_value = Workflow(
+            id=revision.workflow_id,
+            slug="wf",
+            flags=WorkflowArtifactFlags(is_application=True),
+        )
+        return WorkflowsService(workflows_dao=workflows_dao)
+
+    @staticmethod
+    def _revision(**kwargs):
+        return WorkflowRevision(
+            id=uuid4(),
+            workflow_id=uuid4(),
+            workflow_variant_id=uuid4(),
+            slug="rev",
+            version="0",
+            **kwargs,
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_first_revision_with_data_keeps_the_artifact_flags(self):
+        revision = self._revision(
+            data=WorkflowRevisionData(uri="agenta:builtin:completion:v0"),
+            flags=WorkflowRevisionFlags(is_custom=True),
+        )
+
+        read = await self._service(revision).fetch_workflow_revision(
+            project_id=uuid4(),
+            workflow_variant_ref=Reference(id=revision.workflow_variant_id),
+        )
+
+        assert read.flags.is_application is True, (
+            "a configured version-0 revision lost its artifact flags"
+        )
+        assert read.flags.is_custom is True
+
+    @pytest.mark.asyncio
+    async def test_the_empty_placeholder_is_left_unmerged(self):
+        revision = self._revision()
+
+        read = await self._service(revision).fetch_workflow_revision(
+            project_id=uuid4(),
+            workflow_variant_ref=Reference(id=revision.workflow_variant_id),
+        )
+
+        assert read.flags is None, "the seed is not configured and carries no flags"

@@ -6,6 +6,12 @@ class SecretKind(str, Enum):
     CUSTOM_PROVIDER = "custom_provider"
     SSO_PROVIDER = "sso_provider"
     WEBHOOK_PROVIDER = "webhook_provider"
+    CUSTOM_SECRET = "custom_secret"
+
+
+class CustomSecretFormat(str, Enum):
+    TEXT = "text"
+    JSON = "json"
 
 
 class StandardProviderKind(str, Enum):

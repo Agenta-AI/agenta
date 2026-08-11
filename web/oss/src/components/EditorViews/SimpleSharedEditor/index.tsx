@@ -1,11 +1,13 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {
     EditorProvider,
     useLexicalComposerContext,
     ON_CHANGE_LANGUAGE,
     $isCodeBlockNode,
     TOGGLE_MARKDOWN_VIEW,
+    type CodeLanguage,
 } from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {mergeRegister} from "@lexical/utils"
@@ -24,8 +26,6 @@ import {Button, MenuProps} from "antd"
 import clsx from "clsx"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
-
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 
 import {checkIsHTML, checkIsJSON, checkIsYAML, getDisplayedContent} from "../assets/helper"
 
@@ -53,7 +53,8 @@ const SimpleSharedEditorContent = ({
 }: SimpleSharedEditorProps) => {
     const [minimized, setMinimized] = useState(() => Boolean(defaultMinimized))
     const [isCopied, setIsCopied] = useState(false)
-    const [language, setLanguage] = useState<Format>(() =>
+    // The code block can carry any CodeLanguage (via editorProps), beyond the dropdown's Format set.
+    const [language, setLanguage] = useState<Format | CodeLanguage>(() =>
         isJSON ? "json" : isYAML ? "yaml" : "text",
     )
 
@@ -84,7 +85,8 @@ const SimpleSharedEditorContent = ({
             editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: "yaml"})
         } else if (isHTML) {
             setLanguage("html")
-            editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: "html"})
+            // "html" has no CodeLanguage grammar — the tokenizer falls back; typed as-is.
+            editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: "html" as string as CodeLanguage})
         } else {
             setLanguage("markdown")
         }

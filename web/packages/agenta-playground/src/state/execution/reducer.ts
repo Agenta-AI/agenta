@@ -576,6 +576,7 @@ export const resetExecutionAtom = atom(null, (get, set, payload: {loadableId: st
         stepsById: {},
         stepIds: [],
         resultsByKey: {},
+        backendSessionIdBySession: {},
     })
 })
 

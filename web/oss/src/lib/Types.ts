@@ -68,6 +68,18 @@ export interface Testset {
     columns?: string[]
 }
 
+export interface PreviewTestCase {
+    created_at: string
+    created_by_id: string
+
+    id: string
+    set_id: string
+    testset_id: string
+    data: Record<string, any>
+    /** Legacy testcases carry inputs instead of data */
+    inputs?: Record<string, any>
+}
+
 export interface PreviewTestset {
     id: string
     name: string
@@ -322,6 +334,23 @@ export enum EvaluationStatusType {
     ERROR = "error",
 }
 
+export interface Parameter {
+    name: string
+    type: string
+    input: boolean
+    required: boolean
+    default?: any
+    enum?: string[]
+    minimum?: number
+    maximum?: number
+    choices?: Record<string, string[]>
+}
+
+export interface CorrectAnswer {
+    key: string
+    value: string
+}
+
 export interface _Evaluation {
     id: string
     appId: string
@@ -351,6 +380,19 @@ export interface _Evaluation {
     average_cost?: TypedValue & {error: null | EvaluationError}
     total_cost?: TypedValue & {error: null | EvaluationError}
     variant_revision_ids: string[]
+}
+
+export interface _EvaluationScenario {
+    id: string
+    evaluation_id: string
+    evaluation: _Evaluation
+    evaluators_configs: EvaluatorConfig[]
+    inputs: (TypedValue & {name: string})[]
+    outputs: {result: TypedValue; cost?: number; latency?: number}[]
+    correct_answers?: CorrectAnswer[]
+    is_pinned?: boolean
+    note?: string
+    results: {evaluator_config: string; result: TypedValue & {error: null | EvaluationError}}[]
 }
 
 type ValueType = number | string | boolean | GenericObject | null

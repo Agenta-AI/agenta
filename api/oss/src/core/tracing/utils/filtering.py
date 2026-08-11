@@ -533,6 +533,12 @@ def parse_condition(
         _parse_uuid_field_condition(condition)
     elif condition.field == Fields.CONTENT:
         _parse_fts_field_condition(condition)
+    elif condition.field == Fields.SESSION_ID:
+        _parse_string_field_condition(condition)
+    elif condition.field == Fields.USER_ID:
+        _parse_string_field_condition(condition)
+    elif condition.field == Fields.AGENT_ID:
+        _parse_string_field_condition(condition)
     else:
         # raise FilteringException(
         #     f"Unsupported condition field '{condition.field}'.",

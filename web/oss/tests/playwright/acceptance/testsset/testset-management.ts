@@ -15,7 +15,17 @@ import {
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 
+import type {Page} from "@playwright/test"
+
 const scenarios = createScenarios(test)
+
+/**
+ * The testcase edit drawer. It renders through `EnhancedDrawer` — a facade over the
+ * @agenta/ui (Radix) `Sheet` — so it is a `role="dialog"` node with no `.ant-drawer`
+ * wrapper and no separate `.ant-drawer-body` element; field lookups scope to the
+ * dialog itself. (The commit modals in this file are matched separately.)
+ */
+const testcaseDrawer = (page: Page) => page.getByRole("dialog")
 
 const smokeTags = buildAcceptanceTags({
     scope: [TestScope.DATASETS],
@@ -41,11 +51,11 @@ const lightTags = buildAcceptanceTags({
     speed: TestSpeedType.FAST,
 })
 
-const navigateToTestsets = async (page: any, uiHelpers: any) => {
-    await page.goto("/apps", {waitUntil: "domcontentloaded"})
-    const testSetsLink = page.locator('a:has-text("Test sets")').first()
-    await expect(testSetsLink).toBeVisible({timeout: 10000})
-    await testSetsLink.click()
+const navigateToTestsets = async (page: any, uiHelpers: any, apiHelpers: any) => {
+    // "Test sets" now lives under the collapsible "Evaluation" sidebar group rather
+    // than as a top-level link, so navigate straight to the project-scoped URL.
+    const basePath = apiHelpers.getProjectScopedBasePath()
+    await page.goto(`${basePath}/testsets`, {waitUntil: "domcontentloaded"})
     await uiHelpers.waitForPath("/testsets")
     await expect(page.getByRole("heading", {name: "Testsets"})).toBeVisible({timeout: 10000})
 }
@@ -62,7 +72,7 @@ const testsetTests = () => {
             })
 
             await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+                await navigateToTestsets(page, uiHelpers, apiHelpers)
             })
 
             await scenarios.when(
@@ -82,9 +92,9 @@ const testsetTests = () => {
                     // Close the drawer so the Commit button is accessible.
                     // The drawer has closeIcon={null} — no X button. Use the footer "Cancel" button.
                     // "Cancel" on an unedited new row just calls onClose() without discarding.
-                    await expect(page.locator(".ant-drawer")).toBeVisible({timeout: 5000})
-                    await page.locator(".ant-drawer").getByRole("button", {name: "Cancel"}).click()
-                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
+                    await expect(testcaseDrawer(page)).toBeVisible({timeout: 5000})
+                    await testcaseDrawer(page).getByRole("button", {name: "Cancel"}).click()
+                    await expect(testcaseDrawer(page)).toBeHidden({timeout: 5000})
 
                     // Commit the new testset
                     await page.getByRole("button", {name: "Commit"}).click()
@@ -120,7 +130,7 @@ const testsetTests = () => {
             })
 
             await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+                await navigateToTestsets(page, uiHelpers, apiHelpers)
             })
 
             await scenarios.when("the user uploads a CSV file as a new testset", async () => {
@@ -178,7 +188,7 @@ const testsetTests = () => {
             })
 
             await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+                await navigateToTestsets(page, uiHelpers, apiHelpers)
             })
 
             await scenarios.and("at least one testset exists", async () => {
@@ -207,7 +217,7 @@ const testsetTests = () => {
                     await cell.click()
 
                     // Wait for the edit drawer to open
-                    const drawerBody = page.locator(".ant-drawer-body")
+                    const drawerBody = testcaseDrawer(page)
                     await expect(drawerBody).toBeVisible({timeout: 10000})
 
                     // Find the contenteditable Lexical editor field in the drawer
@@ -228,12 +238,12 @@ const testsetTests = () => {
                     // Lexical onChange has fired and updated the draft atom (hasSessionDirty=true).
                     // Wait for it to be enabled before clicking — this implicitly confirms the
                     // draft was updated.
-                    const applyButton = page
-                        .locator(".ant-drawer")
-                        .getByRole("button", {name: "Apply and Continue Editing"})
+                    const applyButton = testcaseDrawer(page).getByRole("button", {
+                        name: "Apply and Continue Editing",
+                    })
                     await expect(applyButton).toBeEnabled({timeout: 5000})
                     await applyButton.click()
-                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
+                    await expect(testcaseDrawer(page)).toBeHidden({timeout: 5000})
 
                     // Commit the changes
                     await page.getByRole("button", {name: "Commit"}).click()
@@ -270,7 +280,7 @@ const testsetTests = () => {
             })
 
             await scenarios.and("the user is on the Test Sets page", async () => {
-                await navigateToTestsets(page, uiHelpers)
+                await navigateToTestsets(page, uiHelpers, apiHelpers)
             })
 
             await scenarios.and("at least one testset exists", async () => {
@@ -307,25 +317,23 @@ const testsetTests = () => {
 
                     // The drawer opens for the new row. We must edit the Lexical field in a way
                     // that reliably updates its EditorState before closing the drawer.
-                    await expect(page.locator(".ant-drawer")).toBeVisible({timeout: 5000})
-                    await expect(page.locator(".ant-drawer-body")).not.toContainText(
-                        "No items to display",
-                        {timeout: 5000},
-                    )
-                    const newRowField = page
-                        .locator(".ant-drawer-body")
+                    await expect(testcaseDrawer(page)).toBeVisible({timeout: 5000})
+                    await expect(testcaseDrawer(page)).not.toContainText("No items to display", {
+                        timeout: 5000,
+                    })
+                    const newRowField = testcaseDrawer(page)
                         .locator('[contenteditable="true"], input, textarea')
                         .first()
                     await expect(newRowField).toBeVisible({timeout: 5000})
                     await newRowField.fill("new-row-value")
                     await expect(newRowField).toContainText("new-row-value", {timeout: 5000})
 
-                    const newRowApplyBtn = page
-                        .locator(".ant-drawer")
-                        .getByRole("button", {name: "Apply and Continue Editing"})
+                    const newRowApplyBtn = testcaseDrawer(page).getByRole("button", {
+                        name: "Apply and Continue Editing",
+                    })
                     await expect(newRowApplyBtn).toBeEnabled({timeout: 5000})
                     await newRowApplyBtn.click()
-                    await expect(page.locator(".ant-drawer")).toBeHidden({timeout: 5000})
+                    await expect(testcaseDrawer(page)).toBeHidden({timeout: 5000})
 
                     await expect(
                         page.locator("[data-row-key]").filter({hasText: "new-row-value"}).first(),
@@ -419,7 +427,7 @@ const testsetTests = () => {
         })
 
         await scenarios.and("the user is on the Test Sets page", async () => {
-            await navigateToTestsets(page, uiHelpers)
+            await navigateToTestsets(page, uiHelpers, apiHelpers)
         })
 
         await scenarios.and("at least one testset exists", async () => {

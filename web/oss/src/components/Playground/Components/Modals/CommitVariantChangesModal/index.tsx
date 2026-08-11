@@ -1,13 +1,16 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo} from "react"
 
 import {publishMutationAtom} from "@agenta/entities/runnable"
 import {workflowMolecule, createWorkflowFromEphemeralAtom} from "@agenta/entities/workflow"
 import {EntityCommitModal} from "@agenta/entity-ui"
-import type {CommitSubmitParams, CommitCreateFieldsConfig} from "@agenta/entity-ui"
+import type {
+    CommitSubmitParams,
+    CommitCreateFieldsConfig,
+    CommitDeployOption,
+} from "@agenta/entity-ui"
 import {playgroundController} from "@agenta/playground"
-import {EnvironmentTag, environmentColors} from "@agenta/ui"
+import {environmentColors} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
-import {Checkbox, Select} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -47,26 +50,63 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const createFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
     const {mutateAsync: publish} = useAtomValue(publishMutationAtom)
 
-    const [shouldDeploy, setShouldDeploy] = useState(false)
-    const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null)
-
     const variantName = runnableData?.name || "Variant"
     const variantSlug = runnableData?.slug
 
-    const environmentOptions = useMemo(
-        () =>
-            (Object.keys(environmentColors) as (keyof typeof environmentColors)[]).map((env) => ({
-                value: env,
-                label: <EnvironmentTag environment={env} />,
-            })),
+    // Environments offered in the footer's "Commit & deploy to …" split-button dropdown.
+    const commitDeployOptions = useMemo<CommitDeployOption[]>(
+        () => Object.keys(environmentColors).map((env) => ({key: env, label: env})),
         [],
     )
 
     const handleClose = useCallback(() => {
         onCancel?.({} as never)
-        setShouldDeploy(false)
-        setSelectedEnvironment(null)
     }, [onCancel])
+
+    // Deploy the just-committed revision to each chosen environment. The deploy API is
+    // single-env per call (no batch endpoint), so we fan out and report partial failures.
+    const deployRevision = useCallback(
+        async (
+            newRevisionId: string,
+            label: string,
+            note: string | undefined,
+            deployEnvironments: string[] | undefined,
+            deployMessage?: string,
+        ) => {
+            if (!deployEnvironments || deployEnvironments.length === 0) return
+            const newRevisionData = workflowMolecule.get.data(newRevisionId)
+            const refs = {
+                revisionId: newRevisionId,
+                applicationId:
+                    newRevisionData?.workflow_id || runnableData?.workflow_id || appId || "",
+                workflowVariantId:
+                    newRevisionData?.workflow_variant_id ??
+                    runnableData?.workflow_variant_id ??
+                    undefined,
+                variantSlug:
+                    newRevisionData?.workflow_variant_slug ??
+                    newRevisionData?.variant_slug ??
+                    runnableData?.workflow_variant_slug ??
+                    runnableData?.variant_slug ??
+                    undefined,
+                revisionVersion: newRevisionData?.version ?? undefined,
+                note: deployMessage ?? note,
+            }
+            // Fan out concurrently — the calls are independent, so N environments cost 1× latency.
+            const results = await Promise.allSettled(
+                deployEnvironments.map((environmentSlug) => publish({...refs, environmentSlug})),
+            )
+            const succeeded = deployEnvironments.filter((_, i) => results[i].status === "fulfilled")
+            const failed = deployEnvironments.filter((_, i) => results[i].status === "rejected")
+            if (succeeded.length) {
+                message.success(`Published ${label} to ${succeeded.join(", ")}`)
+            }
+            if (failed.length) {
+                message.error(`Couldn't publish ${label} to ${failed.join(", ")}`)
+            }
+        },
+        [publish, runnableData, appId],
+    )
 
     const handleSubmit = useCallback(
         async ({
@@ -74,6 +114,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             mode,
             entityName: editedName,
             entitySlug: editedSlug,
+            deployEnvironments,
+            deployMessage,
         }: CommitSubmitParams) => {
             // Ephemeral entities: create a new workflow via the entities package reducer
             if (isEphemeral) {
@@ -133,32 +175,13 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                     }
                 }
 
-                if (shouldDeploy && selectedEnvironment) {
-                    // Use the new revision's workflow data for references
-                    const newRevisionData = workflowMolecule.get.data(result.newRevisionId)
-                    await publish({
-                        revisionId: result.newRevisionId,
-                        environmentSlug: selectedEnvironment,
-                        applicationId:
-                            newRevisionData?.workflow_id ||
-                            runnableData?.workflow_id ||
-                            appId ||
-                            "",
-                        workflowVariantId:
-                            newRevisionData?.workflow_variant_id ??
-                            runnableData?.workflow_variant_id ??
-                            undefined,
-                        variantSlug:
-                            newRevisionData?.workflow_variant_slug ??
-                            newRevisionData?.variant_slug ??
-                            runnableData?.workflow_variant_slug ??
-                            runnableData?.variant_slug ??
-                            undefined,
-                        revisionVersion: newRevisionData?.version ?? undefined,
-                        note,
-                    })
-                    message.success(`Published ${variantNameToCreate} to ${selectedEnvironment}`)
-                }
+                await deployRevision(
+                    result.newRevisionId,
+                    variantNameToCreate,
+                    note,
+                    deployEnvironments,
+                    deployMessage,
+                )
 
                 clearRegistryVariantNameCache()
                 clearEvaluatorWorkflowCache()
@@ -181,28 +204,13 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 }
             }
 
-            if (shouldDeploy && selectedEnvironment) {
-                const newRevisionData = workflowMolecule.get.data(result.newRevisionId)
-                await publish({
-                    revisionId: result.newRevisionId,
-                    environmentSlug: selectedEnvironment,
-                    applicationId:
-                        newRevisionData?.workflow_id || runnableData?.workflow_id || appId || "",
-                    workflowVariantId:
-                        newRevisionData?.workflow_variant_id ??
-                        runnableData?.workflow_variant_id ??
-                        undefined,
-                    variantSlug:
-                        newRevisionData?.workflow_variant_slug ??
-                        newRevisionData?.variant_slug ??
-                        runnableData?.workflow_variant_slug ??
-                        runnableData?.variant_slug ??
-                        undefined,
-                    revisionVersion: newRevisionData?.version ?? undefined,
-                    note,
-                })
-                message.success(`Published ${variantName} to ${selectedEnvironment}`)
-            }
+            await deployRevision(
+                result.newRevisionId,
+                variantName,
+                note,
+                deployEnvironments,
+                deployMessage,
+            )
 
             clearRegistryVariantNameCache()
             clearEvaluatorWorkflowCache()
@@ -218,10 +226,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             variantId,
             variantName,
             variantSlug,
-            shouldDeploy,
-            selectedEnvironment,
-            publish,
-            appId,
+            deployRevision,
             onSuccess,
             commitRevision,
         ],
@@ -232,10 +237,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             isEvaluator
                 ? [{id: "version", label: "As a new version"}]
                 : [
-                      {id: "version", label: "As a new version"},
-                      {id: "variant", label: "As a new variant"},
+                      {id: "version", label: `Update ${variantName}`},
+                      {id: "variant", label: "Save as a new variant"},
                   ],
-        [isEvaluator],
+        [isEvaluator, variantName],
     )
 
     // For ephemeral entities, render a simplified "Create" modal with editable name.
@@ -283,34 +288,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }}
             commitModes={commitModes}
             defaultCommitMode="version"
-            renderModeContent={({mode}) => (
-                <div className="flex flex-col gap-3">
-                    {!isEvaluator && (
-                        <>
-                            <Checkbox
-                                checked={shouldDeploy}
-                                onChange={(e) => setShouldDeploy(e.target.checked)}
-                            >
-                                Deploy after commit
-                            </Checkbox>
-
-                            {shouldDeploy && (
-                                <Select
-                                    placeholder="Select environment"
-                                    value={selectedEnvironment ?? undefined}
-                                    onChange={(value) => setSelectedEnvironment(value)}
-                                    options={environmentOptions}
-                                />
-                            )}
-                        </>
-                    )}
-                </div>
-            )}
+            commitDeployOptions={isEvaluator ? undefined : commitDeployOptions}
             canSubmit={({mode, entityName}) => {
                 if (mode === "variant") {
                     if (!entityName?.trim()) return false
                 }
-                if (shouldDeploy && !selectedEnvironment) return false
                 return true
             }}
             createEntityFields={VARIANT_CREATE_FIELDS}

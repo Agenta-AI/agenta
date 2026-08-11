@@ -1,6 +1,5 @@
 import {SmartCellContent} from "@agenta/ui/cell-renderers"
 import {Skeleton} from "antd"
-import {useAtomValue} from "jotai"
 
 import {sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {
@@ -8,9 +7,11 @@ import {
     sessionsLoadingAtom,
 } from "@/oss/state/newObservability/atoms/queries"
 
+import {useSessionAtomValue} from "../../assets/sessionCellStore"
+
 export const LastOutputCell = ({sessionId}: {sessionId: string}) => {
-    const isLoading = useAtomValue(sessionsLoadingAtom)
-    const lastOutput = useAtomValue(sessionLastOutputAtomFamily(sessionId))
+    const isLoading = useSessionAtomValue(sessionsLoadingAtom)
+    const lastOutput = useSessionAtomValue(sessionLastOutputAtomFamily(sessionId))
 
     if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
     if (lastOutput === undefined) return ""

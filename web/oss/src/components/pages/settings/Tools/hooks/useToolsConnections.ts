@@ -1,7 +1,7 @@
 import {useCallback} from "react"
 
 import {
-    createConnection,
+    createToolConnection,
     deleteToolConnection,
     refreshToolConnection,
     type ToolConnectionCreatePayload,
@@ -15,7 +15,6 @@ export interface CreateConnectionInput {
     name?: string
     description?: string
     mode?: "oauth" | "api_key"
-    credentials?: Record<string, string>
 }
 
 export const useToolsConnections = (integrationKey: string) => {
@@ -43,17 +42,11 @@ export const useToolsConnections = (integrationKey: string) => {
                     description: payload.description,
                     provider_key: DEFAULT_PROVIDER,
                     integration_key: integrationKey,
-                    data:
-                        payload.mode || payload.credentials
-                            ? {
-                                  auth_scheme: payload.mode,
-                                  credentials: payload.credentials,
-                              }
-                            : undefined,
+                    data: payload.mode ? {auth_scheme: payload.mode} : undefined,
                 },
             }
 
-            const result = await createConnection(request)
+            const result = await createToolConnection(request)
             invalidate()
             return result
         },

@@ -1,9 +1,11 @@
-from typing import Optional, Dict, Any, Union, List  # noqa: F401
+from typing import Optional, Dict, Any, Literal, Union, List  # noqa: F401
 from uuid import UUID, uuid4  # noqa: F401
 
 from pydantic import (
     BaseModel,
+    ConfigDict,
     Field,
+    model_validator,
 )
 
 from oss.src.core.git.dtos import (
@@ -117,6 +119,7 @@ class WorkflowVariantSlugAlias(AliasConfig):
 
 
 class WorkflowArtifactFlags(BaseModel):
+    # role / intent (user-declared, persisted)
     is_application: bool = False
     is_evaluator: bool = False
     is_snippet: bool = False
@@ -138,6 +141,8 @@ class WorkflowRevisionFlags(WorkflowArtifactFlags):
     is_code: bool = False
     is_match: bool = False
     is_feedback: bool = False
+    is_agent: bool = False
+    is_skill: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -147,6 +152,8 @@ class WorkflowRevisionFlags(WorkflowArtifactFlags):
     has_script: bool = False
     ## function
     has_handler: bool = False
+    # slug-derived
+    is_static: bool = False
 
 
 class WorkflowArtifactQueryFlags(BaseModel):
@@ -171,6 +178,8 @@ class WorkflowRevisionQueryFlags(WorkflowArtifactQueryFlags):
     is_code: Optional[bool] = None
     is_match: Optional[bool] = None
     is_feedback: Optional[bool] = None
+    is_agent: Optional[bool] = None
+    is_skill: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None
@@ -180,6 +189,8 @@ class WorkflowRevisionQueryFlags(WorkflowArtifactQueryFlags):
     has_script: Optional[bool] = None
     ## function
     has_handler: Optional[bool] = None
+    # slug-derived
+    is_static: Optional[bool] = None
 
 
 class WorkflowFlags(WorkflowRevisionFlags):
@@ -190,13 +201,10 @@ class WorkflowQueryFlags(WorkflowRevisionQueryFlags):
     """Legacy full workflow query flag set."""
 
 
-class WorkflowCatalogFlags(BaseModel):
+class WorkflowCatalogFlags(WorkflowArtifactFlags):
     is_archived: bool = False
     is_recommended: bool = False
-    #
-    is_application: bool = False
-    is_evaluator: bool = False
-    is_snippet: bool = False
+    # + is_application, is_evaluator, is_snippet
 
 
 # workflows --------------------------------------------------------------------
@@ -292,6 +300,78 @@ class WorkflowRevisionQuery(RevisionQuery):
     flags: Optional[WorkflowRevisionQueryFlags] = None
 
 
+class WorkflowRevisionOperation(BaseModel):
+    """One ordered operation. The new delta arm (agent-config-editing, contract 3.2).
+
+    ``extra="forbid"`` applies to this NEW model only. The legacy ``set``/``remove`` arm
+    stays permissive on purpose: tightening it would reject payloads that shipped
+    playbooks send today and that the server has always ignored.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    operation: Literal[
+        "set",
+        "merge",
+        "remove",
+        "edit_text",
+        "add_item",
+        "replace_item",
+        "remove_item",
+    ]
+    # A segment is an object field name, or a {list, key} selector standing in place of a
+    # list's name. The engine validates the shape and reports a precise reason code, so the
+    # DTO keeps the loose type rather than duplicating that logic in two places.
+    target: List[Any]
+    value: Optional[Any] = None
+    edits: Optional[List[Dict[str, str]]] = None
+    match_mode: Optional[Literal["auto", "exact"]] = None
+
+
+class WorkflowRevisionDelta(BaseModel):
+    """Delta operations on a workflow revision's data tree.
+
+    Two forms, never mixed (contract 3):
+
+    - **legacy** — ``set``: a partial data tree deep-merged onto the base revision's data
+      (nested dicts merge; scalars and lists replace); ``remove``: dotted key paths to
+      delete (e.g. ``parameters.agent.tools``).
+    - **ordered** — ``operations``: the seven verbs, applied in array order, all or
+      nothing.
+
+    The engine enforces the exclusivity and every operation rule; this model only carries
+    the shapes.
+
+    Unknown keys beside ``set``/``remove``/``operations`` are refused on the ORDERED arm
+    only, so a caller cannot believe it sent an operation modifier the server never saw.
+    A pure-legacy envelope keeps its shipped tolerance: the server has always ignored
+    stray keys there, and playbooks in the field send them. Neither rule reaches the tree
+    inside ``set``, which stays free-form.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    set: Optional[Dict[str, Any]] = None
+    remove: Optional[List[str]] = None
+    operations: Optional[List[WorkflowRevisionOperation]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _refuse_unknown_keys_on_the_ordered_arm(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or data.get("operations") is None:
+            return data
+
+        unknown = sorted(set(data) - set(cls.model_fields))
+
+        if unknown:
+            raise ValueError(
+                f"unknown field(s) in the delta: {', '.join(unknown)}. "
+                "An ordered delta carries only 'operations'."
+            )
+
+        return data
+
+
 class WorkflowRevisionCommit(
     RevisionCommit,
     WorkflowIdAlias,
@@ -300,6 +380,18 @@ class WorkflowRevisionCommit(
     flags: Optional[WorkflowFlags] = None
 
     data: Optional[WorkflowRevisionData] = None
+    delta: Optional[WorkflowRevisionDelta] = None
+    # A precondition on the commit, not a mutation, so it sits beside `delta` and never
+    # inside it. The service enforces it (contract commit-transaction.md section 8).
+    base_revision_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "The revision this change was built on. Omit it to keep today's "
+            "last-write-wins behavior. Send it on a legacy delta and the commit is "
+            "refused with `409` when the variant's head has moved since: sending the "
+            "field is how a caller asks for that check. An ordered delta requires it."
+        ),
+    )
 
     def model_post_init(self, __context) -> None:
         sync_alias("workflow_id", "artifact_id", self)
@@ -442,8 +534,18 @@ class WorkflowCatalogType(WorkflowCatalogMappingMixin, Header):
     json_schema: Schema
 
 
+class WorkflowCatalogHarness(WorkflowCatalogMappingMixin, Header):
+    # One harness record in the `harnesses` catalog, resolved by `x-ag-harness-ref`. `capabilities`
+    # is a field (not the whole record) so a record can grow other harness facts later.
+    key: str
+
+    capabilities: Optional[dict] = None
+
+
 class WorkflowCatalogTemplate(WorkflowCatalogMappingMixin, Header):
     key: str
+
+    slug: Optional[str] = None
 
     categories: Optional[list[str]] = None
 
@@ -458,3 +560,65 @@ class WorkflowCatalogPreset(WorkflowCatalogMappingMixin, Header):
 
     flags: Optional[WorkflowCatalogFlags] = None
     data: Optional[WorkflowRevisionData] = None
+
+
+class WorkflowServiceDetachedResponse(BaseModel):
+    """Result of a detached (fire-and-forget) workflow invoke.
+
+    The run is owned by the runner once accepted; the caller never awaits completion.
+    """
+
+    run_id: str
+    accepted: bool = True
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
+
+
+class CommitWarning(BaseModel):
+    """One thing the caller should know about a commit that still succeeded.
+
+    The codes are the engine's (change-set.md 7.1) plus `no_change`, which the commit
+    wrapper owns. `target` carries contract-shaped segments, so a caller can act on the
+    warning without parsing its prose.
+    """
+
+    code: str
+    message: str
+    target: Optional[List[Any]] = None
+    operation_index: Optional[int] = None
+
+
+class DeltaResolution(BaseModel):
+    """The resolved commit, the head it was built on, and the response's warnings.
+
+    The head travels with the resolution because the no-change comparison runs on the
+    ENRICHED result (contract commit-transaction.md 5.1), which the caller only holds
+    after this returns.
+    """
+
+    commit: WorkflowRevisionCommit
+    head: Optional[WorkflowRevision] = None
+    warnings: List[CommitWarning] = Field(default_factory=list)
+
+
+class ConfigReadOutcome(BaseModel):
+    """One `read_config` answer: the value plus which revision produced it."""
+
+    revision: WorkflowRevision
+    path: List[Any] = Field(default_factory=list)
+    value: Any = None
+    bytes: int = 0
+    is_draft: bool = False
+    warnings: List[CommitWarning] = Field(default_factory=list)
+
+
+class CommitOutcome(BaseModel):
+    """What the commit endpoint answers with.
+
+    ``revision`` is complete on BOTH statuses. On `no_change` it is the current head, so
+    every existing consumer keeps working and a refresh with it is still correct.
+    """
+
+    revision: Optional[WorkflowRevision] = None
+    status: Literal["committed", "no_change"] = "committed"
+    warnings: List[CommitWarning] = Field(default_factory=list)

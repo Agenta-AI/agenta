@@ -15,6 +15,7 @@ import AddToTestsetButton from "@/oss/components/SharedDrawers/AddToTestsetDrawe
 import AnnotateDrawerButton from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/AnnotateDrawerButton"
 import {openTraceInPlaygroundAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/openInPlayground"
 import {closeTraceDrawerAtom} from "@/oss/components/SharedDrawers/TraceDrawer/store/traceDrawerStore"
+import type {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useAppNavigation} from "@/oss/state/appState"
 import {urlAtom} from "@/oss/state/url"
 import {buildPlaygroundUrl} from "@/oss/state/url/playground"
@@ -40,6 +41,10 @@ const DeleteTraceModal = dynamic(() => import("../../../DeleteTraceModal"), {
  * (re-exported by `api/oss/src/core/tracing/dtos.py:25`).
  */
 const INVOCATION_SPAN_TYPES = new Set(["workflow", "task", "agent", "chain"])
+
+/** True when a span tree contains an `agent`-type span (i.e. it's an agent run). */
+const hasAgentSpan = (node: TraceSpanNode): boolean =>
+    node.span_type === "agent" || (node.children ?? []).some((c) => hasAgentSpan(c))
 
 const TraceTypeHeader = ({
     activeTrace,
@@ -88,9 +93,13 @@ const TraceTypeHeader = ({
             }
         }
 
-        const agData = extractAgData(activeTrace)
+        // OSS TraceSpanNode is the same backend span shape as the entities-package type
+        // these helpers expect; align at the boundary, no data is converted.
+        const agData = extractAgData(activeTrace as unknown as Parameters<typeof extractAgData>[0])
         const hasExtractableData = Boolean(agData?.inputs || agData?.parameters)
-        const hasApp = hasAppReference(activeTrace)
+        const hasApp = hasAppReference(
+            activeTrace as unknown as Parameters<typeof hasAppReference>[0],
+        )
         const isInvocation = INVOCATION_SPAN_TYPES.has(spanType)
 
         // Invocation spans (workflow, task, agent, chain) represent the unit
@@ -131,7 +140,16 @@ const TraceTypeHeader = ({
         if (!activeTrace) return
         setIsOpening(true)
         try {
-            const result = await setOpenInPlayground(activeTrace)
+            // For an agent run, only the root invocation span carries the chat shape (messages
+            // + agent config + session_id). Child spans (`invoke_agent`, `turn`, …) carry a bare
+            // `{prompt}` and would open as a non-agent completion. So replay the whole agent run
+            // from its root regardless of which span was clicked.
+            const traceRoot = traces?.find((t) => t.trace_id === activeTrace.trace_id)
+            const spanToOpen =
+                traceRoot && traceRoot.span_id !== activeTrace.span_id && hasAgentSpan(traceRoot)
+                    ? traceRoot
+                    : activeTrace
+            const result = await setOpenInPlayground(spanToOpen)
             // Need at least an entityId (revision or ephemeral) to open.
             if (!result || !result.entityId) return
 
@@ -181,6 +199,7 @@ const TraceTypeHeader = ({
         }
     }, [
         activeTrace,
+        traces,
         setOpenInPlayground,
         url.baseAppURL,
         navigation,

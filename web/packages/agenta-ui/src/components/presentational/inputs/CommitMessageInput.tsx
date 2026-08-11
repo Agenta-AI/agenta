@@ -3,7 +3,8 @@
  *
  * A labeled textarea for commit/deploy/revert messages with character count.
  * Shared across entity commit modals, deploy modals, and other flows
- * that need a note/message textarea.
+ * that need a note/message textarea. The label is owned by the `Field` primitive
+ * (no hand-rolled label markup / raw antd Typography).
  *
  * @example
  * ```tsx
@@ -16,12 +17,9 @@
 
 import {memo} from "react"
 
-import {Input, Typography} from "antd"
-
 import {cn, textColors} from "../../../utils/styles"
-
-const {TextArea} = Input
-const {Text} = Typography
+import {Field} from "../../ui/field"
+import {AutosizeTextarea} from "../../ui/input-composed"
 
 /** Default max length for commit/deploy messages */
 export const COMMIT_MESSAGE_MAX_LENGTH = 500
@@ -49,6 +47,11 @@ export interface CommitMessageInputProps {
     autoFocus?: boolean
     /** Additional class name for the wrapper */
     className?: string
+    /**
+     * When true, the textarea stretches to fill the available height of its (flex) parent
+     * instead of auto-sizing to content. The wrapper must be given a bounded height.
+     */
+    fill?: boolean
 }
 
 export const CommitMessageInput = memo(function CommitMessageInput({
@@ -63,30 +66,40 @@ export const CommitMessageInput = memo(function CommitMessageInput({
     disabled = false,
     autoFocus = false,
     className,
+    fill = false,
 }: CommitMessageInputProps) {
+    const labelNode = (
+        <>
+            {label}
+            {showOptional && (
+                <>
+                    {" "}
+                    <span className={textColors.quaternary}>(optional)</span>
+                </>
+            )}
+        </>
+    )
+
     return (
-        <div className={cn("flex flex-col gap-1", className)}>
-            <Text className="font-medium">
-                {label}
-                {showOptional && (
-                    <>
-                        {" "}
-                        <span className={textColors.quaternary}>(optional)</span>
-                    </>
-                )}
-            </Text>
-            <TextArea
-                placeholder={placeholder}
-                className="w-full"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                autoSize={{minRows, maxRows}}
-                showCount
-                maxLength={maxLength}
-                disabled={disabled}
-                autoFocus={autoFocus}
-            />
-        </div>
+        <Field label={labelNode} className={cn(fill && "min-h-0 flex-1", className)}>
+            <div className={cn("relative flex flex-col", fill && "min-h-0 flex-1")}>
+                <AutosizeTextarea
+                    placeholder={placeholder}
+                    className={cn("w-full", fill && "h-full min-h-0 flex-1 resize-none")}
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    autoSize={fill ? false : {minRows, maxRows}}
+                    maxLength={maxLength}
+                    disabled={disabled}
+                    autoFocus={autoFocus}
+                />
+                {/* Reproduces antd `showCount`'s `.ant-input-data-count`: end-aligned, 12px,
+                    colorTextDescription. It was 10px/quaternary, which the parity gate caught. */}
+                <span className={cn("self-end pt-0.5 text-xs", textColors.description)}>
+                    {value?.length ?? 0} / {maxLength}
+                </span>
+            </div>
+        </Field>
     )
 })
 

@@ -52,13 +52,15 @@ class RawSecretsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def create_secret(self, *, header: Header, secret: SecretDto, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SecretResponseDto]:
+    def create_secret(self, *, header: Header, secret: SecretDto, slug: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SecretResponseDto]:
         """
         Parameters
         ----------
         header : Header
         
         secret : SecretDto
+        
+        slug : typing.Optional[str]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -71,6 +73,7 @@ class RawSecretsClient:
         _response = self._client_wrapper.httpx_client.request(
             "secrets/",method="POST",
             json={
+                "slug": slug,
                 "header": convert_and_respect_annotation_metadata(object_=header, annotation=Header, direction="write"),
                 "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=SecretDto, direction="write"),
             }
@@ -102,11 +105,11 @@ class RawSecretsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    def read_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SecretResponseDto]:
+    def read_secret(self, secret_id_or_slug: str, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[SecretResponseDto]:
         """
         Parameters
         ----------
-        secret_id : str
+        secret_id_or_slug : str
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -117,7 +120,7 @@ class RawSecretsClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"secrets/{jsonable_encoder(secret_id)}",method="GET",
+            f"secrets/{jsonable_encoder(secret_id_or_slug)}",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:
@@ -259,13 +262,15 @@ class AsyncRawSecretsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def create_secret(self, *, header: Header, secret: SecretDto, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SecretResponseDto]:
+    async def create_secret(self, *, header: Header, secret: SecretDto, slug: typing.Optional[str] = OMIT, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SecretResponseDto]:
         """
         Parameters
         ----------
         header : Header
         
         secret : SecretDto
+        
+        slug : typing.Optional[str]
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -278,6 +283,7 @@ class AsyncRawSecretsClient:
         _response = await self._client_wrapper.httpx_client.request(
             "secrets/",method="POST",
             json={
+                "slug": slug,
                 "header": convert_and_respect_annotation_metadata(object_=header, annotation=Header, direction="write"),
                 "secret": convert_and_respect_annotation_metadata(object_=secret, annotation=SecretDto, direction="write"),
             }
@@ -309,11 +315,11 @@ class AsyncRawSecretsClient:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
     
-    async def read_secret(self, secret_id: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SecretResponseDto]:
+    async def read_secret(self, secret_id_or_slug: str, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[SecretResponseDto]:
         """
         Parameters
         ----------
-        secret_id : str
+        secret_id_or_slug : str
         
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -324,7 +330,7 @@ class AsyncRawSecretsClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"secrets/{jsonable_encoder(secret_id)}",method="GET",
+            f"secrets/{jsonable_encoder(secret_id_or_slug)}",method="GET",
             request_options=request_options,)
         try:
             if 200 <= _response.status_code < 300:

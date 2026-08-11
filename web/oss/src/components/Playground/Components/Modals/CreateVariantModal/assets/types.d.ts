@@ -1,10 +1,11 @@
 import {Dispatch, SetStateAction} from "react"
 
-import {type AddButtonProps} from "@agenta/ui/components/presentational"
+import {type ButtonProps} from "@agenta/ui/ui"
 
-export interface NewVariantButtonProps extends AddButtonProps {
+export interface NewVariantButtonProps extends ButtonProps {
     children?: React.ReactNode
     onClick?: () => void
+    label?: string
 }
 
 export interface CreateVariantModalContentProps {
@@ -14,7 +15,7 @@ export interface CreateVariantModalContentProps {
     newVariantName: string
     setNewVariantName: (value: string) => void
     setNameExists: Dispatch<SetStateAction<boolean>>
-    variants: {variantName: string}[]
+    variants: {variantName?: string | null}[]
     nameExists: boolean
     note: string
     setNote: Dispatch<SetStateAction<string>>

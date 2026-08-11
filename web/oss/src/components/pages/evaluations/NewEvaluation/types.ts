@@ -3,8 +3,7 @@ import type {Dispatch, HTMLProps, SetStateAction} from "react"
 import type {EvaluatorCatalogTemplate, Workflow} from "@agenta/entities/workflow"
 import {ModalProps} from "antd"
 
-import {Evaluator, SimpleEvaluator, testset} from "@/oss/lib/Types"
-import {EvaluatorDto} from "@/oss/services/evaluations/api/evaluatorTypes"
+import type {Testset} from "@/oss/state/entities/testset"
 
 export interface NewEvaluationAppOption {
     label: string
@@ -52,9 +51,10 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
     setEvaluationName: Dispatch<SetStateAction<string>>
     isOpen?: boolean
-    testsets: testset[]
-    evaluators: EvaluatorCatalogTemplate[] | Evaluator[] | EvaluatorDto<"response">[]
-    evaluatorConfigs: SimpleEvaluator[]
+    testsets: Testset[]
+    /** Catalog templates in auto mode; workflow-based evaluator lists in preview mode */
+    evaluators: EvaluatorCatalogTemplate[] | Workflow[]
+    evaluatorConfigs: Workflow[]
     advanceSettings: EvaluationConcurrencySettings
     setAdvanceSettings: Dispatch<SetStateAction<EvaluationConcurrencySettings>>
     appOptions: NewEvaluationAppOption[]
@@ -76,7 +76,7 @@ export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
 }
 
 export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
-    testsets?: testset[]
+    testsets?: Testset[]
     selectedTestsetId: string
     selectedTestsetRevisionId?: string
     setSelectedTestsetId: Dispatch<SetStateAction<string>>

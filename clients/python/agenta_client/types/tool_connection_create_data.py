@@ -10,6 +10,11 @@ from .tool_auth_scheme import ToolAuthScheme
 class ToolConnectionCreateData(UniversalBaseModel):
     callback_url: typing.Optional[str] = None
     auth_scheme: typing.Optional[ToolAuthScheme] = None
+    connected_account_id: typing.Optional[str] = None
+    auth_config_id: typing.Optional[str] = None
+    redirect_url: typing.Optional[str] = None
+    project_id: typing.Optional[str] = None
+    no_auth: typing.Optional[bool] = None
     
     if IS_PYDANTIC_V2:
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2

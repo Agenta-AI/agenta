@@ -2,8 +2,22 @@
  * API utilities for Agenta packages.
  */
 
-export {getEnv, getAgentaApiUrl, getAgentaWebUrl, processEnv} from "./env"
-export {axios, createAxiosInstance, configureAxios, resetAxiosConfig} from "./axios"
+export {
+    getEnv,
+    getAgentaApiUrl,
+    getAgentaWebUrl,
+    isSandboxLocalEnabled,
+    isSessionsLastMessageOnlyEnabled,
+    getEnabledSandboxProviders,
+    processEnv,
+} from "./env"
+export {
+    axios,
+    createAxiosInstance,
+    configureAxios,
+    resetAxiosConfig,
+    lowPriorityWhenCached,
+} from "./axios"
 export type {AxiosInterceptorConfig} from "./axios"
 export type {
     AxiosInstance,

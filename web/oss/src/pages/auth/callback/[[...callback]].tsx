@@ -89,7 +89,12 @@ const Callback = () => {
                 }
                 setMessage({message: "Verification successful", type: "success"})
                 const {createdNewRecipeUser, user} = response
-                await handleAuthSuccess({createdNewRecipeUser, user})
+                // Provider id is the last segment of /auth/callback/<providerId>.
+                const providerId = window.location.pathname.split("/").filter(Boolean).pop()
+                await handleAuthSuccess(
+                    {createdNewRecipeUser, user},
+                    providerId ? {authMethod: providerId} : undefined,
+                )
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
                 console.warn("[AUTH-CALLBACK] signInAndUp not allowed", response)
                 setMessage({message: response.reason, type: "error"})

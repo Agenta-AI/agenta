@@ -1,13 +1,6 @@
 import {FC, useEffect, useMemo} from "react"
 
 import {CodeNode, CodeHighlightNode, $createCodeNode} from "@lexical/code"
-import {
-    ShikiTokenizer,
-    registerCodeHighlighting,
-    loadCodeLanguage,
-    loadCodeTheme,
-    normalizeCodeLanguage,
-} from "@lexical/code-shiki"
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {ContentEditable} from "@lexical/react/LexicalContentEditable"
@@ -35,10 +28,36 @@ const LANGUAGE_FALLBACKS: Record<string, string> = {
     code: "python",
 }
 
+// `@lexical/code-shiki` is an ~8.7 MB single-file bundle (every grammar+theme inlined,
+// no tree-shaking). Importing it statically forced it into the first-load graph of
+// every page that renders a code block. Load it lazily and only register Shiki
+// highlighting once it (and the requested theme/language) resolves.
+type CodeShikiModule = typeof import("@lexical/code-shiki")
+let shikiModule: CodeShikiModule | null = null
+let shikiModulePromise: Promise<CodeShikiModule> | null = null
+
+const loadShikiModule = (): Promise<CodeShikiModule> => {
+    if (shikiModule) return Promise.resolve(shikiModule)
+    if (!shikiModulePromise) {
+        shikiModulePromise = import("@lexical/code-shiki")
+            .then((mod) => {
+                shikiModule = mod
+                return mod
+            })
+            .catch((error) => {
+                shikiModulePromise = null
+                throw error
+            })
+    }
+    return shikiModulePromise
+}
+
 const resolveLexicalLanguage = (language: string): string => {
     const normalized = (language || "").toLowerCase()
     const fallback = LANGUAGE_FALLBACKS[normalized] ?? normalized
-    const resolved = normalizeCodeLanguage(fallback)
+    // normalizeCodeLanguage lives in the lazy Shiki module; before it loads, the
+    // lowercased id is a safe approximation and gets re-normalized once Shiki mounts.
+    const resolved = shikiModule?.normalizeCodeLanguage(fallback) ?? fallback
     return resolved || "plaintext"
 }
 
@@ -51,13 +70,15 @@ const ShikiHighlightPlugin: FC<{langs: string[]; themeName: string}> = ({langs, 
 
         ;(async () => {
             try {
+                const mod = await loadShikiModule()
+                if (cancelled) return
                 // Ensure theme and language are loaded into the Shiki tokenizer
-                await loadCodeTheme(themeName, editor)
+                await mod.loadCodeTheme(themeName, editor)
                 for (const l of langs) {
-                    await loadCodeLanguage(l, editor)
+                    await mod.loadCodeLanguage(l, editor)
                 }
                 if (cancelled) return
-                unregister = registerCodeHighlighting(editor, ShikiTokenizer)
+                unregister = mod.registerCodeHighlighting(editor, mod.ShikiTokenizer)
             } catch (e) {
                 console.error("Failed to initialize Shiki highlighter", e)
             }

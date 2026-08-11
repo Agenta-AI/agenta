@@ -1,4 +1,6 @@
+import {catalogPersister} from "@agenta/shared/api/persist"
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
+import type {QueryKey} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -111,6 +113,8 @@ export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
         // parallel with /profile/, so this does not reintroduce the sequential
         // profile-wait that 2ede5faa10 removed to fix the demo-banner cold-load race.
         enabled: get(sessionExistsAtom) && jwtReady && !isAcceptRoute && !!orgId,
+        // Paint from disk + background revalidate; key includes orgId so no cross-org bleed.
+        persister: catalogPersister.persisterFn<ProjectsResponse[], QueryKey>,
     }
 })
 
@@ -119,9 +123,22 @@ const _debugProjectSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true
 logAtom(projectsQueryAtom, "projectsQueryAtom", logProjects)
 
 const EmptyProjects: ProjectsResponse[] = []
+
+/**
+ * Filters demo projects out of the list. Falls back to the full list when
+ * every project is a demo one, so the user is not left with an empty UI.
+ * Exported for unit-test access (projectsDemoFilter.test.ts).
+ */
+export const filterOutDemoProjects = (projects: ProjectsResponse[]): ProjectsResponse[] => {
+    const nonDemoProjects = projects.filter((project) => !project.is_demo)
+    return nonDemoProjects.length ? nonDemoProjects : projects
+}
+
 export const projectsAtom = atom((get) => {
     const res = get(projectsQueryAtom)
-    return (res as any)?.data ?? EmptyProjects
+    const projects = ((res as any)?.data ?? EmptyProjects) as ProjectsResponse[]
+    // Hide demo projects from the UI unless they are the user's only projects
+    return filterOutDemoProjects(projects)
 })
 
 const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
@@ -130,7 +147,10 @@ const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: stri
     return false
 }
 
-const projectMatchesWorkspace = (project: ProjectsResponse, workspaceId: string) => {
+const projectMatchesWorkspace = (
+    project: ProjectsResponse,
+    workspaceId: string | null | undefined,
+) => {
     if (!workspaceId) return false
     if (project.workspace_id && project.workspace_id === workspaceId) return true
     if (project.organization_id && project.organization_id === workspaceId) return true

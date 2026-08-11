@@ -246,7 +246,7 @@ const buildReferenceDescriptor = (
 }
 
 const descriptorKey = (descriptor: ReferenceDescriptor) => {
-    const parts = [descriptor.type]
+    const parts: string[] = [descriptor.type]
     if (descriptor.id) parts.push(`id:${descriptor.id}`)
     if (descriptor.slug) parts.push(`slug:${descriptor.slug}`)
     if ("version" in descriptor && descriptor.version !== undefined) {
@@ -279,7 +279,7 @@ const toVersionKey = (key: string, version: number | string | null | undefined) 
 
 interface QueryRevisionBatchRequest {
     projectId: string
-    runId: string
+    runId: string | null
     reference: EvaluationQueryReference
 }
 
@@ -502,7 +502,7 @@ const evaluationQueryRevisionBatchFetcher = createBatchFetcher<
                             if (descriptor.id) {
                                 if (versionValue) {
                                     const key = toVersionKey(descriptor.id, versionValue)
-                                    matched = (key && byVariantVersionId.get(key)) ?? null
+                                    matched = (key ? byVariantVersionId.get(key) : null) ?? null
                                 }
                                 if (!matched) {
                                     matched = byVariantId.get(descriptor.id) ?? null
@@ -511,7 +511,7 @@ const evaluationQueryRevisionBatchFetcher = createBatchFetcher<
                             if (!matched && descriptor.slug) {
                                 if (versionValue) {
                                     const key = toVersionKey(descriptor.slug, versionValue)
-                                    matched = (key && byVariantVersionSlug.get(key)) ?? null
+                                    matched = (key ? byVariantVersionSlug.get(key) : null) ?? null
                                 }
                                 if (!matched) {
                                     matched = byVariantSlug.get(descriptor.slug) ?? null
@@ -570,7 +570,7 @@ const buildReferenceKey = (reference: EvaluationQueryReference) => [
 ]
 
 export const evaluationQueryRevisionAtomFamily = atomFamily((runId: string | null) =>
-    atomWithQuery<EvaluationQueryConfigurationResult>((get) => {
+    atomWithQuery<EvaluationQueryConfigurationResult | null>((get) => {
         const projectId = get(effectiveProjectIdAtom)
         const reference = runId ? get(evaluationQueryReferenceAtomFamily(runId)) : EMPTY_REFERENCE
         const enabled = Boolean(projectId && runId && hasLookupValue(reference))
@@ -606,7 +606,7 @@ export const evaluationQueryRevisionAtomFamily = atomFamily((runId: string | nul
 
 export const queryReferenceLookupAtomFamily = atomFamily(
     (reference: EvaluationQueryReference | null | undefined) =>
-        atomWithQuery<EvaluationQueryConfigurationResult>((get) => {
+        atomWithQuery<EvaluationQueryConfigurationResult | null>((get) => {
             const projectId = get(effectiveProjectIdAtom)
             const normalized = reference ?? EMPTY_REFERENCE
             const enabled = Boolean(projectId && hasLookupValue(normalized))

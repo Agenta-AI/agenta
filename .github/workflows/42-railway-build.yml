@@ -109,6 +109,7 @@ jobs:
           - agenta-api
           - agenta-web
           - agenta-services
+          - agenta-runner
         arch:
           - amd64
           - arm64
@@ -127,6 +128,9 @@ jobs:
           - image_name: agenta-services
             context: .
             dockerfile: services/oss/docker/Dockerfile.gh
+          - image_name: agenta-runner
+            context: services/runner
+            dockerfile: services/runner/docker/Dockerfile.gh
           # Per-arch config (runner + platform string)
           - arch: amd64
             runner: ubuntu-24.04
@@ -203,6 +207,94 @@ jobs:
         run: |
           echo "- Built \`${{ matrix.image_name }}:${{ needs.prepare.outputs.image_tag }}-${{ matrix.arch }}\`" >> "$GITHUB_STEP_SUMMARY"
 
+  # Prebuilt Railway wrapper images (gateway, redis, seaweedfs) for
+  # clone-based preview environments (issue #5650). Content-addressed tags
+  # only — `compute-tag.sh` hashes the image directory, so unchanged content
+  # reuses the manifest already in GHCR and nothing is rebuilt. Never `latest`:
+  # Railway's environmentPatchCommit no-ops when the patched tag equals the
+  # template's, so tags must stay unique and disjoint. Each run also aliases
+  # the content manifest with the run's image tag (`pr-<n>-<sha>` /
+  # `manual-<sha>`) to match the app-image tagging pattern.
+  wrapper-images:
+    name: wrapper-image
+    needs: prepare
+    # Wrapper pushes need registry write access; fork PRs run with a read-only
+    # GITHUB_TOKEN, so skip them cleanly there.
+    if: >-
+      needs.prepare.outputs.build_images == 'true' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image_name:
+          - gateway
+          - redis
+          - seaweedfs
+    steps:
+      - uses: actions/checkout@v6
+
+      # Drift between the legacy deploy-time wrapper generation
+      # (deploy-from-images.sh / deploy-gateway.sh) and these image sources
+      # fails the build before anything is pushed.
+      - name: Verify wrapper sources match deploy-time generation
+        run: bash hosting/railway/oss/images/verify-wrappers.sh
+
+      - name: Compute content tag
+        id: tag
+        run: |
+          CONTENT_TAG="$(bash hosting/railway/oss/images/compute-tag.sh "hosting/railway/oss/images/${{ matrix.image_name }}")"
+          echo "content_tag=${CONTENT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Check whether the content tag already exists
+        id: existing
+        env:
+          IMAGE: ghcr.io/agenta-ai/agenta-preview-${{ matrix.image_name }}
+          TAG: ${{ steps.tag.outputs.content_tag }}
+        run: |
+          if docker manifest inspect "${IMAGE}:${TAG}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Manifest ${IMAGE}:${TAG} already exists; skipping build"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and push wrapper image
+        if: steps.existing.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: hosting/railway/oss/images/${{ matrix.image_name }}
+          push: true
+          platforms: linux/amd64
+          # Same rationale as the app images: no provenance/SBOM attestations
+          # for preview images.
+          provenance: false
+          sbom: false
+          tags: ghcr.io/agenta-ai/agenta-preview-${{ matrix.image_name }}:${{ steps.tag.outputs.content_tag }}
+
+      - name: Tag per-build alias
+        env:
+          IMAGE: ghcr.io/agenta-ai/agenta-preview-${{ matrix.image_name }}
+          CONTENT_TAG: ${{ steps.tag.outputs.content_tag }}
+          ALIAS_TAG: ${{ needs.prepare.outputs.image_tag }}
+        run: |
+          docker buildx imagetools create -t "${IMAGE}:${ALIAS_TAG}" "${IMAGE}:${CONTENT_TAG}"
+
+      - name: Summary
+        run: |
+          echo "- Wrapper \`agenta-preview-${{ matrix.image_name }}:${{ steps.tag.outputs.content_tag }}\` (alias \`${{ needs.prepare.outputs.image_tag }}\`; already existed: \`${{ steps.existing.outputs.exists }}\`)" >> "$GITHUB_STEP_SUMMARY"
+
   merge-manifests:
     name: merge-manifest
     needs: [prepare, build-and-push]
@@ -215,6 +307,7 @@ jobs:
           - agenta-api
           - agenta-web
           - agenta-services
+          - agenta-runner
     steps:
       - name: Log in to GHCR
         uses: docker/login-action@v3

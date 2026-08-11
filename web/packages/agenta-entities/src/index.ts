@@ -288,6 +288,6 @@ export type {Annotation, AnnotationDraft} from "./annotation"
 //   import { annotationMolecule, encodeAnnotationId } from '@agenta/entities/annotation'
 //   import { evaluationRunMolecule } from '@agenta/entities/evaluationRun'
 //   import {
-//     useCatalogIntegrations,
-//     catalogDrawerOpenAtom,
+//     useToolCatalogIntegrations,
+//     toolCatalogDrawerOpenAtom,
 //   } from '@agenta/entities/gatewayTool'

@@ -75,17 +75,17 @@ const testsetTests = () => {
         await scenarios.and(
             "the user navigates to the Test Sets page via the sidebar",
             async () => {
-                await page.goto("/apps", {waitUntil: "domcontentloaded"})
-
                 const testsetsResponsePromise = page.waitForResponse(
                     (response) =>
                         response.url().includes("/api/testsets/query") &&
                         response.request().method() === "POST",
                 )
 
-                const testSetsLink = page.locator('a:has-text("Test sets")').first()
-                await expect(testSetsLink).toBeVisible({timeout: 10000})
-                await testSetsLink.click()
+                // "Test sets" lives under the collapsible "Evaluation" sidebar group
+                // rather than as a top-level link, so navigate straight to the
+                // project-scoped URL.
+                const basePath = apiHelpers.getProjectScopedBasePath()
+                await page.goto(`${basePath}/testsets`, {waitUntil: "domcontentloaded"})
                 await uiHelpers.waitForPath("/testsets")
 
                 const testsetsResponse = await testsetsResponsePromise

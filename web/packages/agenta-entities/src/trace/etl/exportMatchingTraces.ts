@@ -25,19 +25,23 @@ import {
     type LoopResult,
     type Transform,
 } from "../../etl"
+import type {TraceSpan} from "../core"
 
 /**
  * Minimum shape the pipeline reads from each scanned row. The actual rows
  * passed through to `flushBatch` are whatever `T` the caller chose — the
  * pipeline only ever reads `trace_id`, `span_id`, `parent_id`, `start_time`,
  * and `children` here.
+ *
+ * The span fields are picked from `TraceSpan` rather than redeclared so this
+ * contract cannot drift from the schema that validates the payload — that
+ * drift is what required boundary casts before.
  */
-export interface ScannedExportRow {
-    trace_id?: string
-    span_id?: string
-    parent_id?: string
-    start_time?: string | number
-    children?: readonly ScannedExportRow[]
+export interface ScannedExportRow extends Pick<
+    TraceSpan,
+    "trace_id" | "span_id" | "parent_id" | "start_time"
+> {
+    children?: readonly ScannedExportRow[] | null
 }
 
 /** One page of root traces matching the filter. */
@@ -83,8 +87,8 @@ export interface ExportMatchingTracesOptions<T extends ScannedExportRow> {
     /** Transport that consumes one batch of deduplicated rows. */
     flushBatch: FlushBatch<T>
     /**
-     * Dedup key per row. Defaults to `trace_id:span_id`, falling back to
-     * `trace_id:parent_id:start_time` when one of the ids is missing.
+     * Dedup key per row. Defaults to `trace_id:span_id`; a row missing either
+     * id has no identity and is passed through undeduped.
      */
     selectKey?: (trace: T) => string
     /** Abort signal — cancels the scan and stops further flushes. */
@@ -104,11 +108,22 @@ export const DEFAULT_MAX_ROWS = 20_000
 /** Rows per `flushBatch` call. */
 export const DEFAULT_BATCH_SIZE = 500
 
-const defaultSelectKey = (trace: ScannedExportRow): string => {
-    if (trace.trace_id && trace.span_id) {
-        return `${trace.trace_id}:${trace.span_id}`
-    }
-    return `${trace.trace_id ?? ""}:${trace.parent_id ?? ""}:${trace.start_time ?? ""}`
+/**
+ * Dedup identity is `trace_id:span_id`; the schema makes both required, so
+ * every row the tracing API produces takes that branch.
+ *
+ * A row that still arrives without one is treated as having no identity and is
+ * never deduped: dedup can only drop what it can prove is a repeat, and for an
+ * export emitting a duplicate row beats silently dropping a distinct one. The
+ * counter is per-pipeline-run, and the `\0` prefix cannot collide with a real
+ * key.
+ */
+const makeDefaultSelectKey = <T extends ScannedExportRow>(): ((row: T) => string) => {
+    let unidentified = 0
+    return (row) =>
+        row.trace_id && row.span_id
+            ? `${row.trace_id}:${row.span_id}`
+            : `\0unidentified:${unidentified++}`
 }
 
 const collectDescendants = <T extends ScannedExportRow>(node: T, out: T[]): void => {
@@ -164,7 +179,7 @@ const makeDedupAndCapTransform = <T extends ScannedExportRow>(
 export const exportMatchingTraces = async <T extends ScannedExportRow>({
     fetchPage,
     flushBatch,
-    selectKey = defaultSelectKey as (t: T) => string,
+    selectKey = makeDefaultSelectKey<T>(),
     signal,
     pageDelayMs,
     batchSize = DEFAULT_BATCH_SIZE,

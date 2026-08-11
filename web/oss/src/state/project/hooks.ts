@@ -13,8 +13,9 @@ import {
 } from "./selectors/project"
 
 export const useProjectData = () => {
-    const [{data: projects, isPending: _isPending, isLoading, refetch: _refetch}] =
-        useAtom(projectsQueryAtom)
+    const [{isPending: _isPending, isLoading, refetch: _refetch}] = useAtom(projectsQueryAtom)
+    // Read via projectsAtom (not raw query data) so demo projects stay hidden
+    const projects = useAtomValue(projectsAtom)
     const project = useAtomValue(projectAtom)
     const projectId = useAtomValue(projectIdAtom)
     const isProjectId = !!projectId
@@ -50,7 +51,7 @@ export const useProjectData = () => {
 
     return {
         project: project ?? null,
-        projects: projects ?? [],
+        projects,
         isProjectId,
         projectId,
         // isLoading: isPending,

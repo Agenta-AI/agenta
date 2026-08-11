@@ -7,6 +7,7 @@
 
 # testing
 /coverage
+/test-results
 
 # next.js
 /.next/
@@ -36,5 +37,8 @@ next-env.d.ts
 
 # tests
 tests/datalayer/results
+
+# pdfjs worker copied into public/ at dev+build time (see scripts/copy-pdf-worker.mjs)
+public/pdf.worker.min.mjs
 
 

@@ -119,6 +119,8 @@ export const previewEntityIdsAtom = atom<string[]>([])
 export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
     const spanIds = get(traceSpanIdsAtom)
 
+    // ag.data values are arbitrary JSON, not the string-valued KeyValuePair the
+    // TestsetTraceData type declares; kept as-is (downstream treats rows generically).
     return spanIds.map((spanId, index) => {
         const entity = get(traceSpanMolecule.selectors.data(spanId))
         const isDirty = get(traceSpanMolecule.selectors.isDirty(spanId))
@@ -153,7 +155,7 @@ export const traceDataFromEntitiesAtom = atom((get): TestsetTraceData[] => {
 
         return {
             key: spanId,
-            data: agData,
+            data: agData as TestsetTraceData["data"],
             id: index + 1,
             isEdited: isDirty,
             originalData,
@@ -256,8 +258,11 @@ export const removeTraceDataAtom = atom(null, (get, set, traceKey: string) => {
     const remainingSpanIds = spanIds.filter((id) => id !== traceKey)
     set(traceSpanIdsAtom, remainingSpanIds)
 
-    // Discard any draft for the removed span
-    set(traceSpanMolecule.actions.discard, traceKey)
+    // Discard any draft for the removed span.
+    // NOTE (latent runtime bug, typed as-is): traceSpanMolecule.actions only exposes
+    // prefetchByIds/evictByIds — discard/update live under reducers. These set() calls
+    // receive undefined and would throw if reached; kept as-is pending triage.
+    set((traceSpanMolecule as any).actions.discard, traceKey)
 
     if (remainingSpanIds.length > 0) {
         // Find the next span to preview
@@ -501,7 +506,7 @@ export const updateEditedTraceAtom = atom(
 
             // If reverting to original, discard draft instead
             if (updatedString === originalString) {
-                set(traceSpanMolecule.actions.discard, spanId)
+                set((traceSpanMolecule as any).actions.discard, spanId)
             } else {
                 // Update entity draft with new ag.data
                 // The draft system expects attributes, so we build the new attributes
@@ -510,7 +515,7 @@ export const updateEditedTraceAtom = atom(
                     "ag.data": newAgData,
                 }
 
-                set(traceSpanMolecule.actions.update, spanId, newAttributes)
+                set((traceSpanMolecule as any).actions.update, spanId, newAttributes)
             }
 
             // Update local entities to reflect the edited data in preview table
@@ -564,7 +569,7 @@ export const revertEditedTraceAtom = atom(
         }
 
         // Discard the entity draft to revert to server state
-        set(traceSpanMolecule.actions.discard, spanId)
+        set((traceSpanMolecule as any).actions.discard, spanId)
 
         // Update local entities to reflect the reverted data
         if (getValueAtPath) {

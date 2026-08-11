@@ -8,7 +8,7 @@ import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
 import {appCreationMessagesAtom, appCreationNavigationAtom} from "@/oss/state/appCreation/status"
 import {resetAppCreationAtom} from "@/oss/state/appCreation/status"
-import type {AppCreationStatus} from "@/oss/state/appCreation/status"
+import type {AppCreationMessage, AppCreationStatus} from "@/oss/state/appCreation/status"
 
 import CustomAppCreationLoader from "./CustomAppCreationLoader"
 
@@ -96,10 +96,13 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                     {
                         const lastStatus = Object.keys(draft).pop() ?? ""
                         if (!lastStatus) break
+                        // index signature hides that the key may be absent
+                        const lastMessage = draft[lastStatus] as AppCreationMessage | undefined
                         draft[lastStatus] = {
-                            ...(draft[lastStatus] ?? {
+                            // fallback branch only runs when lastMessage is absent, so message is ""
+                            ...(lastMessage ?? {
                                 type: "error",
-                                message: draft[lastStatus]?.message ?? "",
+                                message: "",
                             }),
                             type: "error",
                             errorMessage: `${getErrorMessage(details)}`,

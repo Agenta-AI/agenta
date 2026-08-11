@@ -197,12 +197,13 @@ class DaytonaRunner(CodeRunner):
         Pass ``force_refresh=True`` to bypass and overwrite the cache when a
         previously cached ID has gone stale (e.g. the snapshot was rotated).
         """
-        name = os.getenv("DAYTONA_SNAPSHOT")
+        # Code-evaluator override first, then the shared snapshot both consumers use.
+        name = os.getenv("DAYTONA_SNAPSHOT_CODE") or os.getenv("DAYTONA_SNAPSHOT")
 
         if not name:
             raise RuntimeError(
                 "No Daytona snapshot configured. "
-                "Set DAYTONA_SNAPSHOT environment variable."
+                "Set DAYTONA_SNAPSHOT (or DAYTONA_SNAPSHOT_CODE) environment variable."
             )
 
         target = os.getenv("DAYTONA_TARGET") or os.getenv("AGENTA_REGION") or "eu"

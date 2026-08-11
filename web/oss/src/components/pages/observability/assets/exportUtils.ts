@@ -1,7 +1,8 @@
+import type {TraceSpan} from "@agenta/entities/trace"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {TraceSpan, TraceSpanNode} from "@/oss/services/tracing/types"
+import type {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     getAgDataInputs,
     getAgDataOutputs,

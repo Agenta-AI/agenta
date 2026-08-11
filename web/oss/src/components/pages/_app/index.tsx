@@ -1,4 +1,7 @@
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {useEffect} from "react"
+
+import {configureAgentaSdk} from "@agenta/sdk/config"
+import {schedulePersistedQueryGc} from "@agenta/shared/api/persist"
 import {default as AppContextComponent} from "@agenta/ui/app-message"
 import {QueryClientProvider} from "@tanstack/react-query"
 import {App as AppComponent} from "antd"
@@ -24,12 +27,13 @@ import AppGlobalWrappers from "../../AppGlobalWrappers"
 
 enableMapSet()
 
-// Pin the workspace Fern-client singleton to the host this deployment
-// actually talks to. Without this the SDK defaults to `https://cloud.agenta.ai`
-// (its built-in fallback) because `AGENTA_HOST` is only set server-side —
-// staging/preview deployments would otherwise issue tools/secrets requests
-// against the production origin.
-getAgentaSdkClient({host: getAgentaApiUrl()})
+// Pin the workspace Fern clients to the host this deployment actually talks to.
+// Without this the SDK defaults to `https://cloud.agenta.ai` (its built-in
+// fallback) because `AGENTA_HOST` is only set server-side — staging/preview
+// deployments would otherwise issue tools/secrets requests against the
+// production origin. Uses the config-only entry so `_app` does not pull the
+// monolithic AgentaApiClient (all 27 resource clients) into the shared bundle.
+configureAgentaSdk({host: getAgentaApiUrl()})
 
 const NoMobilePageWrapper = dynamic(
     () => import("@/oss/components/Placeholders/NoMobilePageWrapper/NoMobilePageWrapper"),
@@ -38,7 +42,11 @@ const NoMobilePageWrapper = dynamic(
     },
 )
 const CustomPosthogProvider = dynamic(() => import("@/oss/lib/helpers/analytics/AgPosthogProvider"))
-const Layout = dynamic(() => import("@/oss/components/Layout/Layout"), {
+const loadLayout = () => import("@/oss/components/Layout/Layout")
+// Warm the Layout chunk during hydration — it otherwise downloads only after the
+// SuperTokens init gate releases, adding a serial round-trip before any chrome paints.
+if (typeof window !== "undefined") void loadLayout()
+const Layout = dynamic(loadLayout, {
     ssr: false,
 })
 
@@ -51,6 +59,11 @@ const PreloadQueries = () => {
     useAtomValue(selectedOrgIdAtom)
     useUser()
     useProjectData()
+
+    // One idle-time sweep of expired/stale-version persisted query entries.
+    useEffect(() => {
+        schedulePersistedQueryGc()
+    }, [])
 
     return null
 }

@@ -10,6 +10,7 @@ import {
     SET_MARKDOWN_VIEW,
     SearchPlugin,
 } from "@agenta/ui"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {
     ArrowDownIcon,
     ArrowUpIcon,
@@ -32,7 +33,6 @@ import {
 } from "@/oss/components/DrillInView/decodedJsonHelpers"
 import {PrettyJsonView} from "@/oss/components/DrillInView/PrettyJsonView"
 import {getDefaultJsonViewMode} from "@/oss/components/DrillInView/viewModes"
-import EnhancedButton from "@/oss/components/EnhancedUIs/Button"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
@@ -265,7 +265,8 @@ const AccordionTreePanel = ({
     ...props
 }: AccordionTreePanelProps) => {
     const {token} = theme.useToken()
-    const classes = useStyles({bgColor, theme: token})
+    // antd's GlobalToken is the runtime superset JSSTheme indexes into; align at the boundary
+    const classes = useStyles({bgColor, theme: token as unknown as JSSTheme})
     const editorRef = useRef<HTMLDivElement>(null)
     const textViewerId = useId().replace(/:/g, "")
 
@@ -589,7 +590,7 @@ const AccordionTreePanel = ({
                                     icon={true}
                                     buttonText={null}
                                     stopPropagation
-                                    size="small"
+                                    size="icon-sm"
                                 />
                             </Space>
                         ),

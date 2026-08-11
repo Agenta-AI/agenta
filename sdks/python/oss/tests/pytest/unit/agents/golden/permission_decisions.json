@@ -1,0 +1,681 @@
+{
+  "cases": [
+    {
+      "name": "mode=allow spec=unset hint=True",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": true
+      },
+      "plan": {
+        "default": "allow"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow spec=unset hint=False",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": false
+      },
+      "plan": {
+        "default": "allow"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow spec=unset hint=None",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "allow"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow spec=allow hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "allow",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "allow"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow spec=ask hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "ask",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "allow"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow spec=deny hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "deny",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "allow"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=ask spec=unset hint=True",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": true
+      },
+      "plan": {
+        "default": "ask"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=ask spec=unset hint=False",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": false
+      },
+      "plan": {
+        "default": "ask"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=ask spec=unset hint=None",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "ask"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=ask spec=allow hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "allow",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "ask"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=ask spec=ask hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "ask",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "ask"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=ask spec=deny hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "deny",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "ask"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=deny spec=unset hint=True",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": true
+      },
+      "plan": {
+        "default": "deny"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=deny spec=unset hint=False",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": false
+      },
+      "plan": {
+        "default": "deny"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=deny spec=unset hint=None",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "deny"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=deny spec=allow hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "allow",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "deny"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=deny spec=ask hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "ask",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "deny"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=deny spec=deny hint=unset (spec overrides mode)",
+      "gate": {
+        "executor": "relay",
+        "specPermission": "deny",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "deny"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=unset hint=True",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": true
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=unset hint=False",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": false
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=unset hint=None",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=allow hint=True",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": true,
+        "specPermission": "allow"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=allow hint=False",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": false,
+        "specPermission": "allow"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=allow hint=None",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": null,
+        "specPermission": "allow"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=ask hint=True",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": true,
+        "specPermission": "ask"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=ask hint=False",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": false,
+        "specPermission": "ask"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=ask hint=None",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": null,
+        "specPermission": "ask"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "pendingApproval"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=deny hint=True",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": true,
+        "specPermission": "deny"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=deny hint=False",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": false,
+        "specPermission": "deny"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "mode=allow_reads spec=deny hint=None",
+      "gate": {
+        "executor": "relay",
+        "readOnlyHint": null,
+        "specPermission": "deny"
+      },
+      "plan": {
+        "default": "allow_reads"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": true
+    },
+    {
+      "name": "rule exact match wins over default",
+      "gate": {
+        "executor": "harness",
+        "toolName": "Bash"
+      },
+      "plan": {
+        "default": "deny",
+        "rules": [
+          {
+            "pattern": "Bash",
+            "permission": "allow"
+          }
+        ]
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": false
+    },
+    {
+      "name": "rule prefix match on first string argument",
+      "gate": {
+        "executor": "harness",
+        "toolName": "Bash",
+        "args": {
+          "command": "npm run test"
+        }
+      },
+      "plan": {
+        "default": "deny",
+        "rules": [
+          {
+            "pattern": "Bash(npm run:*)",
+            "permission": "allow"
+          }
+        ]
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": false
+    },
+    {
+      "name": "prefix rule with non-inspectable args falls back to default",
+      "gate": {
+        "executor": "harness",
+        "toolName": "Bash",
+        "args": {
+          "command": 42
+        }
+      },
+      "plan": {
+        "default": "deny",
+        "rules": [
+          {
+            "pattern": "Bash(npm run:*)",
+            "permission": "allow"
+          }
+        ]
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": false
+    },
+    {
+      "name": "deny beats ask beats allow when multiple rules match",
+      "gate": {
+        "executor": "harness",
+        "toolName": "Bash",
+        "args": {
+          "command": "npm run test"
+        }
+      },
+      "plan": {
+        "default": "allow",
+        "rules": [
+          {
+            "pattern": "Bash",
+            "permission": "allow"
+          },
+          {
+            "pattern": "Bash(npm:*)",
+            "permission": "ask"
+          },
+          {
+            "pattern": "Bash(npm run:*)",
+            "permission": "deny"
+          }
+        ]
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": false
+    },
+    {
+      "name": "serverPermission beats matching rules",
+      "gate": {
+        "executor": "relay",
+        "toolName": "fetch",
+        "serverPermission": "allow"
+      },
+      "plan": {
+        "default": "ask",
+        "rules": [
+          {
+            "pattern": "fetch",
+            "permission": "deny"
+          }
+        ]
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": false
+    },
+    {
+      "name": "specPermission beats serverPermission",
+      "gate": {
+        "executor": "relay",
+        "toolName": "fetch",
+        "specPermission": "deny",
+        "serverPermission": "allow"
+      },
+      "plan": {
+        "default": "ask",
+        "rules": [
+          {
+            "pattern": "fetch",
+            "permission": "allow"
+          }
+        ]
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": false
+    },
+    {
+      "name": "stored allow under ask default resolves to allow",
+      "gate": {
+        "executor": "client",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "ask"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "allow"
+      },
+      "python": false,
+      "stored": "allow"
+    },
+    {
+      "name": "stored deny under ask default resolves to deny",
+      "gate": {
+        "executor": "client",
+        "readOnlyHint": null
+      },
+      "plan": {
+        "default": "ask"
+      },
+      "expected": {
+        "effective": "ask",
+        "verdict": "deny"
+      },
+      "python": false,
+      "stored": "deny"
+    },
+    {
+      "name": "stored allow does not override an effective deny (config beats stale approval)",
+      "gate": {
+        "executor": "client",
+        "specPermission": "deny"
+      },
+      "plan": {
+        "default": "allow"
+      },
+      "expected": {
+        "effective": "deny",
+        "verdict": "deny"
+      },
+      "python": false,
+      "stored": "allow"
+    },
+    {
+      "name": "stored decision is not consulted when effective permission is allow",
+      "gate": {
+        "executor": "client"
+      },
+      "plan": {
+        "default": "allow"
+      },
+      "expected": {
+        "effective": "allow",
+        "verdict": "allow"
+      },
+      "python": false,
+      "stored": "deny"
+    }
+  ]
+}

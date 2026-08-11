@@ -226,7 +226,7 @@ export {generateId} from "./utils"
 export {isBase64, dataUriToObjectUrl, isUrl} from "./utils"
 
 // Value extraction utilities (strip enhanced wrappers / metadata)
-export {stripAgentaMetadataDeep, stripEnhancedWrappers} from "./utils"
+export {stripAgentaMetadataDeep, stripEmptyCollectionsDeep, stripEnhancedWrappers} from "./utils"
 
 // Status inference utilities
 export {

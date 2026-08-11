@@ -101,7 +101,7 @@ const buildAnnotationSegmentVariants = (pathSegments: string[]): string[][] => {
     return variants
 }
 
-const inferBooleanMetric = (column: EvaluationTableColumn): boolean => {
+const inferBooleanMetric = (column: ColumnDescriptorInput): boolean => {
     const metricType = column.metricType?.toLowerCase() ?? ""
     const path = column.path.toLowerCase()
     const valueKey = column.valueKey?.toLowerCase() ?? ""

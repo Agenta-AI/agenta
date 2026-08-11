@@ -7,6 +7,7 @@ import agenta as ag
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.decorators.routing import (
     create_app,
+    apply_invoke_prelude,
     handle_invoke_success,
     handle_invoke_failure,
     handle_inspect_success,
@@ -39,10 +40,10 @@ from oss.src.managed import (
     custom_code_app,
     custom_hook_app,
     custom_mock_app,
-    custom_config_app,
 )
 from oss.src.chat import chat_v0_app
 from oss.src.completion import completion_v0_app
+from oss.src.agent import agent_v0_app
 from entrypoints.legacy import register_legacy_routes
 
 
@@ -82,6 +83,7 @@ services_app = create_app()
 @services_app.post("/invoke")
 async def services_invoke(req: Request, request: WorkflowInvokeRequest):
     credentials = req.state.auth.get("credentials")
+    apply_invoke_prelude(req, request)
     try:
         response = await invoke_workflow(request=request, credentials=credentials)
         return await handle_invoke_success(req, response)
@@ -134,6 +136,7 @@ async def health():
 
 app.mount("/chat/v0", chat_v0_app)
 app.mount("/completion/v0", completion_v0_app)
+app.mount("/agent/v0", agent_v0_app)
 
 register_legacy_routes(
     app=app,
@@ -142,7 +145,6 @@ register_legacy_routes(
     target_version="v0",
 )
 #
-app.mount("/config/v0", custom_config_app)
 app.mount("/code/v0", custom_code_app)
 app.mount("/hook/v0", custom_hook_app)
 app.mount("/mock/v0", custom_mock_app)

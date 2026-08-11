@@ -152,8 +152,19 @@ const selectEvaluatorTemplate = async (page: Page, templateName: string) => {
     return drawer.first()
 }
 
+/**
+ * A success toast. These are no longer antd `message` nodes (`.ant-message`): the
+ * @agenta/ui app-message service renders its own `Notification`, which carries
+ * `role="status"` for ordinary toasts and `role="alert"` for errors.
+ */
+const successToast = (page: Page, text: string) => page.getByRole("status").getByText(text).first()
+
+// Matched by role, not by a component-library class: `EntityCommitModal` renders
+// through `EnhancedModal`, which is a facade over the @agenta/ui (Radix) `Dialog`,
+// so there is no `.ant-modal` in this tree. The name-input filter keeps this
+// pointed at the commit modal specifically.
 const getEvaluatorCommitModal = (page: Page) =>
-    page.locator(".ant-modal").filter({
+    page.getByRole("dialog").filter({
         has: page.locator(`input[placeholder="${EVALUATOR_COMMIT_MODAL_NAME_PLACEHOLDER}"]`),
     })
 
@@ -340,11 +351,12 @@ const createHumanEvaluatorFromDrawer = async (
     await expect(createButton).toBeVisible()
     await createButton.click()
 
-    // Wait for the human evaluator create drawer to open
-    const drawer = page
-        .locator(".ant-drawer")
-        .filter({hasText: HUMAN_EVALUATOR_DRAWER_TITLE})
-        .first()
+    // Wait for the human evaluator create drawer to open. This one is the
+    // `AnnotateDrawer`, which renders through `EnhancedDrawer` — a facade over the
+    // @agenta/ui (Radix) `Sheet` — so it is a `role="dialog"` node, not `.ant-drawer`.
+    // (The evaluator create/view/edit drawers elsewhere in this file are still the antd
+    // `WorkflowRevisionDrawer`; their `.ant-drawer` selectors remain correct.)
+    const drawer = page.getByRole("dialog").filter({hasText: HUMAN_EVALUATOR_DRAWER_TITLE}).first()
     await expect(drawer).toBeVisible({timeout: 10000})
 
     // Fill in the evaluator name
@@ -405,9 +417,9 @@ const createHumanEvaluatorFromDrawer = async (
     await creationPromise
 
     // Verify the success message
-    await expect(
-        page.locator(".ant-message").getByText(HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-    ).toBeVisible({timeout: 10000})
+    await expect(successToast(page, HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+        timeout: 10000,
+    })
 
     // Verify the drawer closes
     await expect(drawer).toHaveCount(0, {timeout: 10000})
@@ -477,12 +489,16 @@ const editEvaluatorAndSaveNewVersion = async (page: Page, evaluatorName: string)
     const commitButton = editDrawer
         .getByRole("button", {name: EVALUATOR_COMMIT_CHANGES_BUTTON_LABEL})
         .first()
-    await expect(commitButton).toBeEnabled({timeout: 10000})
+    // Enables within ~1s locally once the field registers as dirty; 20s gives
+    // CI's slower/shared runners headroom without masking a real hang.
+    await expect(commitButton).toBeEnabled({timeout: 20000})
     await commitButton.click()
 
-    // EntityCommitModal opens — identified by the commit message textarea
+    // EntityCommitModal opens — identified by the commit message textarea. Matched by
+    // role: `EnhancedModal` is a facade over the @agenta/ui (Radix) `Dialog`, so there
+    // is no `.ant-modal` here.
     const commitModal = page
-        .locator(".ant-modal")
+        .getByRole("dialog")
         .filter({
             has: page.locator(`textarea[placeholder="${EVALUATOR_COMMIT_MESSAGE_PLACEHOLDER}"]`),
         })
@@ -496,9 +512,7 @@ const editEvaluatorAndSaveNewVersion = async (page: Page, evaluatorName: string)
     await expect(modalCommitBtn).toBeEnabled({timeout: 5000})
     await modalCommitBtn.click()
 
-    await expect(
-        page.locator(".ant-message").getByText(EVALUATOR_COMMIT_SUCCESS_MESSAGE).first(),
-    ).toBeVisible({timeout: 15000})
+    await expect(successToast(page, EVALUATOR_COMMIT_SUCCESS_MESSAGE)).toBeVisible({timeout: 15000})
 }
 
 /**
@@ -509,17 +523,16 @@ const deleteEvaluator = async (page: Page, evaluatorName: string) => {
     await openEvaluatorRowMenu(page, evaluatorName)
     await page.getByRole("menuitem", {name: EVALUATOR_DELETE_MENU_ITEM}).click()
 
-    // DeleteEvaluatorsModal
+    // DeleteEvaluatorsModal — also an `EnhancedModal`, so match by role rather than
+    // `.ant-modal`.
     const deleteModal = page
-        .locator(".ant-modal")
+        .getByRole("dialog")
         .filter({hasText: EVALUATOR_DELETE_MODAL_TITLE})
         .first()
     await expect(deleteModal).toBeVisible({timeout: 10000})
     await deleteModal.getByRole("button", {name: EVALUATOR_DELETE_MENU_ITEM}).click()
 
-    await expect(
-        page.locator(".ant-message").getByText(EVALUATOR_DELETE_SUCCESS_MESSAGE).first(),
-    ).toBeVisible({timeout: 10000})
+    await expect(successToast(page, EVALUATOR_DELETE_SUCCESS_MESSAGE)).toBeVisible({timeout: 10000})
 
     // Verify the row is gone
     await expect

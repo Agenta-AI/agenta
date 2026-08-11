@@ -169,8 +169,8 @@ const CommitTestsetModal = ({
                         <div className="flex-1 overflow-auto">
                             <DiffView
                                 key={`${displaySummary.originalData?.length}-${displaySummary.modifiedData?.length}`}
-                                original={displaySummary.originalData}
-                                modified={displaySummary.modifiedData}
+                                original={displaySummary.originalData ?? ""}
+                                modified={displaySummary.modifiedData ?? ""}
                                 language="json"
                                 className="h-full"
                                 showErrors

@@ -15,7 +15,15 @@ POSTGRES_REF_NS="${RAILWAY_POSTGRES_REF_NS:-Postgres}"
 REDIS_SERVICE="${RAILWAY_REDIS_SERVICE:-redis}"
 AGENTA_AUTH_KEY="${AGENTA_AUTH_KEY:-replace-me}"
 AGENTA_CRYPT_KEY="${AGENTA_CRYPT_KEY:-replace-me}"
+AGENTA_RUNNER_TOKEN="${AGENTA_RUNNER_TOKEN:-replace-me}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
+AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
+AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-}"
+AGENTA_STORE_BUCKET="${AGENTA_STORE_BUCKET:-agenta-store}"
+AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-}"
+# RSA key the API signs its store web-identity token with; the bundled SeaweedFS verifies it
+# against the API's JWKS.
+AGENTA_STORE_JWT_PRIVATE_KEY="${AGENTA_STORE_JWT_PRIVATE_KEY:-}"
 
 # Populated by resolve_railway_ids() after `railway link`. Used by the GraphQL
 # variableCollectionUpsert path; left empty -> upsert_service_vars falls back
@@ -36,6 +44,44 @@ resolve_postgres_password() {
     else
         POSTGRES_PASSWORD="$(openssl rand -hex 24)"
     fi
+}
+
+_store_variable_from_json() {
+    local variables_json="$1"
+    local key="$2"
+
+    jq -r --arg key "$key" \
+        '.[$key] // empty | select(type == "string" and length > 0)' \
+        <<<"$variables_json"
+}
+
+resolve_store_configuration() {
+    local api_variables
+    api_variables="$(railway_call variable list --json --service api --environment "$ENV_NAME")"
+    if ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$api_variables"; then
+        printf "Unable to read existing mount storage configuration from the Railway API service.\n" >&2
+        return 1
+    fi
+
+    if [ -z "$AGENTA_STORE_ACCESS_KEY" ]; then
+        AGENTA_STORE_ACCESS_KEY="$(_store_variable_from_json "$api_variables" AGENTA_STORE_ACCESS_KEY)"
+    fi
+    if [ -z "$AGENTA_STORE_SECRET_KEY" ]; then
+        AGENTA_STORE_SECRET_KEY="$(_store_variable_from_json "$api_variables" AGENTA_STORE_SECRET_KEY)"
+    fi
+    if [ -z "$AGENTA_STORE_SIGNING_KEY" ]; then
+        AGENTA_STORE_SIGNING_KEY="$(_store_variable_from_json "$api_variables" AGENTA_STORE_SIGNING_KEY)"
+    fi
+    if [ -z "$AGENTA_STORE_JWT_PRIVATE_KEY" ]; then
+        AGENTA_STORE_JWT_PRIVATE_KEY="$(_store_variable_from_json "$api_variables" AGENTA_STORE_JWT_PRIVATE_KEY)"
+    fi
+
+    AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-$(openssl rand -hex 10)}"
+    AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-$(openssl rand -hex 32)}"
+    AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-$(openssl rand -base64 32)}"
+    AGENTA_STORE_JWT_PRIVATE_KEY="${AGENTA_STORE_JWT_PRIVATE_KEY:-$(openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null)}"
+
+    printf "Mount storage credentials are configured for this Railway environment.\n"
 }
 
 require_cmd() {
@@ -79,6 +125,73 @@ _service_id() {
           | .serviceInstances.edges[].node | select(.serviceName==$n) | .serviceId][0] // empty' 2>/dev/null || true
 }
 
+# _refresh_status_json: re-fetch the cached status snapshot; keep the old one
+# if the fetch fails so a transient error cannot blank out working IDs.
+_refresh_status_json() {
+    local fresh
+    fresh="$(railway_call status --json 2>/dev/null || true)"
+    [ -n "$fresh" ] && RAILWAY_STATUS_JSON="$fresh"
+}
+
+# _service_id_with_retry <service-name> -> serviceId (empty when unresolved).
+# A service bootstrap created seconds earlier may not be visible in the status
+# snapshot yet (bootstrap→configure eventual-consistency race), so re-fetch the
+# snapshot and retry a few times before giving up. First-try hits (the normal
+# case) cost zero extra API calls and zero sleeps.
+_service_id_with_retry() {
+    local service="$1" svc_id attempt
+    local attempts="${RAILWAY_SERVICE_RESOLVE_ATTEMPTS:-6}"
+    local delay="${RAILWAY_SERVICE_RESOLVE_DELAY:-5}"
+
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        svc_id="$(_service_id "$service")"
+        if [ -n "$svc_id" ]; then
+            printf '%s' "$svc_id"
+            return 0
+        fi
+        if [ "$attempt" -lt "$attempts" ]; then
+            printf "Service id for '%s' not in status snapshot yet; re-fetching in %ds (attempt %d/%d)\n" \
+                "$service" "$delay" "$attempt" "$attempts" >&2
+            sleep "$delay"
+            _refresh_status_json
+        fi
+    done
+    # Empty output: the caller falls back to the CLI path.
+    return 0
+}
+
+# _cli_set_vars <service> KEY=VALUE ...
+# CLI-path variable set. "Service '<name>' not found" seconds after bootstrap
+# created it is the same eventual-consistency race, so retry that specific
+# failure a couple of times instead of failing the deploy on the first hit.
+# Other failures surface immediately (railway_call already retries transient
+# network errors internally).
+_cli_set_vars() {
+    local service="$1"
+    shift
+    local attempts="${RAILWAY_CLI_SET_ATTEMPTS:-3}"
+    local delay="${RAILWAY_SERVICE_RESOLVE_DELAY:-5}"
+    local try output
+
+    for ((try = 1; try <= attempts; try++)); do
+        if output="$(railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" 2>&1)"; then
+            return 0
+        fi
+        if [ "$try" -lt "$attempts" ] && printf '%s' "$output" | grep -qi "not found"; then
+            printf "railway variable set: service '%s' not visible yet, retrying in %ds (attempt %d/%d)\n" \
+                "$service" "$delay" "$try" "$attempts" >&2
+            sleep "$delay"
+            continue
+        fi
+        [ -n "$output" ] && printf '%s\n' "$output" >&2
+        if printf '%s' "$output" | grep -qi "not found"; then
+            printf "Service '%s' is missing from the Railway environment — bootstrap likely failed to create it.\n" "$service" >&2
+            printf "Fix: use 'Re-run all jobs' (re-running only failed jobs skips the green setup job, so bootstrap never gets a chance to recreate the missing service).\n" >&2
+        fi
+        return 1
+    done
+}
+
 # _vars_to_json KEY=VALUE ... -> {"KEY":"VALUE",...}  (split on the first '=')
 _vars_to_json() {
     local json='{}' kv key val
@@ -103,19 +216,19 @@ upsert_service_vars() {
     [ "$#" -gt 0 ] || return 0
 
     if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
-        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
-        return 0
+        _cli_set_vars "$service" "$@"
+        return $?
     fi
 
     local svc_id
-    svc_id="$(_service_id "$service")"
+    svc_id="$(_service_id_with_retry "$service")"
     if [ -z "$svc_id" ]; then
         # Name didn't match the cached status JSON (e.g. unexpected casing). Don't
         # hard-fail the deploy where the CLI's --service would have worked; fall
         # back to it.
         printf "Could not resolve service id for '%s'; falling back to CLI variable set.\n" "$service" >&2
-        railway_call variable set --service "$service" --environment "$ENV_NAME" --skip-deploys "$@" >/dev/null
-        return 0
+        _cli_set_vars "$service" "$@"
+        return $?
     fi
 
     # replace:false makes the merge intent explicit: configure.sh calls set_vars
@@ -182,8 +295,8 @@ main() {
     require_cmd railway
     require_railway_auth
 
-    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ]; then
-        printf "WARNING: Using default placeholder auth/crypt keys. Set AGENTA_AUTH_KEY and AGENTA_CRYPT_KEY for production deployments.\n" >&2
+    if [ "$AGENTA_AUTH_KEY" = "replace-me" ] || [ "$AGENTA_CRYPT_KEY" = "replace-me" ] || [ "$AGENTA_RUNNER_TOKEN" = "replace-me" ]; then
+        printf "WARNING: Using default placeholder secrets. Set AGENTA_AUTH_KEY, AGENTA_CRYPT_KEY and AGENTA_RUNNER_TOKEN for production deployments.\n" >&2
     fi
 
     railway_call link --project "$PROJECT_NAME" --environment "$ENV_NAME" --json >/dev/null
@@ -191,6 +304,10 @@ main() {
     # Resolve IDs for the GraphQL variableCollectionUpsert path (after link, so
     # the project/environment/services exist and are linked).
     resolve_railway_ids
+
+    # The API service is the canonical durable copy. Explicit operator values win;
+    # otherwise reuse the current values and generate only what a fresh project lacks.
+    resolve_store_configuration
 
     railway_call domain --service gateway --json >/dev/null 2>&1 || true
 
@@ -205,6 +322,21 @@ main() {
     pg_host_ref="\${{${POSTGRES_REF_NS}.RAILWAY_PRIVATE_DOMAIN}}"
     local pg_port_ref
     pg_port_ref="\${{${POSTGRES_REF_NS}.PGPORT}}"
+    local agent_runner_host_ref
+    agent_runner_host_ref='${{runner.RAILWAY_PRIVATE_DOMAIN}}'
+    local agent_runner_url
+    agent_runner_url="http://${agent_runner_host_ref}:8765"
+
+    local seaweedfs_host_ref
+    seaweedfs_host_ref='${{seaweedfs.RAILWAY_PRIVATE_DOMAIN}}'
+    local seaweedfs_endpoint_url
+    seaweedfs_endpoint_url="http://${seaweedfs_host_ref}:8333"
+
+    # The store's OIDC IAM fetches the API's JWKS over the private network to verify the
+    # web-identity token. SCRIPT_NAME=/api prefixes the route, so the issuer carries /api
+    # and the JWKS lands at <issuer>/.well-known/jwks.json (api also publishes the /api/ alias).
+    local store_jwt_issuer
+    store_jwt_issuer="http://api.railway.internal:8000/api"
 
     local pg_async_core
     pg_async_core="postgresql+asyncpg://${pg_user_ref}:${pg_password_ref}@${pg_host_ref}:${pg_port_ref}/agenta_oss_core"
@@ -232,12 +364,29 @@ main() {
         AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
         POSTGRES_URI_CORE="$pg_async_core" \
         POSTGRES_URI_TRACING="$pg_async_tracing" \
-        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
+        AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
+        AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
+        AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
+        AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY" \
+        AGENTA_STORE_JWT_ISSUER="$store_jwt_issuer" \
+        AGENTA_STORE_JWT_PRIVATE_KEY="$AGENTA_STORE_JWT_PRIVATE_KEY"
 
     unset_vars api AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
 
     set_optional_vars api \
-        "COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}"
+        "COMPOSIO_API_KEY=${COMPOSIO_API_KEY:-}" \
+        "AGENTA_STORE_NAMESPACE=${AGENTA_STORE_NAMESPACE:-}"
+
+    # The bundled store's entrypoint reads these to generate s3.json + iam.json. JWT_ISSUER is
+    # the API URL its OIDC IAM fetches the JWKS from (it does NOT hold the private key).
+    set_vars seaweedfs \
+        AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
+        AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
+        AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY" \
+        AGENTA_STORE_JWT_ISSUER="$store_jwt_issuer"
 
     set_vars services \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
@@ -247,14 +396,48 @@ main() {
         AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
         POSTGRES_URI_CORE="$pg_async_core" \
         POSTGRES_URI_TRACING="$pg_async_tracing" \
-        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
+        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \
+        AGENTA_RUNNER_INTERNAL_URL="$agent_runner_url" \
+        AGENTA_RUNNER_TOKEN="$AGENTA_RUNNER_TOKEN" \
+        AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
+        AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
+        AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
+        AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY"
 
     unset_vars services AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_INTERNAL_URL
 
     set_optional_vars services \
         "DAYTONA_API_KEY=${DAYTONA_API_KEY:-}"
 
-    set_vars worker-evaluations \
+    set_vars runner \
+        AGENTA_RUNNER_HOST=0.0.0.0 \
+        AGENTA_RUNNER_PORT=8765 \
+        AGENTA_RUNNER_TOKEN="$AGENTA_RUNNER_TOKEN" \
+        AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS="${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" \
+        AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER="${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}" \
+        AGENTA_STORE_ENDPOINT_URL="$seaweedfs_endpoint_url" \
+        AGENTA_STORE_ACCESS_KEY="$AGENTA_STORE_ACCESS_KEY" \
+        AGENTA_STORE_SECRET_KEY="$AGENTA_STORE_SECRET_KEY" \
+        AGENTA_STORE_BUCKET="$AGENTA_STORE_BUCKET" \
+        AGENTA_STORE_SIGNING_KEY="$AGENTA_STORE_SIGNING_KEY"
+    # Railway does not expose Linux capabilities via the CLI; enable FUSE for geesefs
+    # on the runner service via Settings → Linux Capabilities (SYS_ADMIN, /dev/fuse).
+
+    set_optional_vars runner \
+        "AGENTA_API_URL=${AGENTA_API_URL:-}" \
+        "AGENTA_API_KEY=${AGENTA_API_KEY:-}" \
+        "AGENTA_RUNNER_DAYTONA_API_KEY=${AGENTA_RUNNER_DAYTONA_API_KEY:-}" \
+        "AGENTA_RUNNER_DAYTONA_API_URL=${AGENTA_RUNNER_DAYTONA_API_URL:-}" \
+        "AGENTA_RUNNER_DAYTONA_TARGET=${AGENTA_RUNNER_DAYTONA_TARGET:-}" \
+        "AGENTA_RUNNER_DAYTONA_SNAPSHOT=${AGENTA_RUNNER_DAYTONA_SNAPSHOT:-}" \
+        "AGENTA_RUNNER_DAYTONA_IMAGE=${AGENTA_RUNNER_DAYTONA_IMAGE:-}"
+
+    # Do NOT list the runner's AGENTA_RUNNER_DAYTONA_* vars here: unset_vars always deletes,
+    # which previously wiped a Daytona-configured runner's credentials right after setting them.
+    unset_vars runner AGENTA_LICENSE SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI POSTGRES_URI_CORE POSTGRES_URI_TRACING POSTGRES_URI_SUPERTOKENS
+
+    set_vars worker-streams \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
         AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
@@ -263,9 +446,9 @@ main() {
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
 
-    unset_vars worker-evaluations AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
+    unset_vars worker-streams AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
 
-    set_vars worker-tracing \
+    set_vars worker-queues \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
         AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
         AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
@@ -274,29 +457,7 @@ main() {
         POSTGRES_URI_TRACING="$pg_async_tracing" \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
 
-    unset_vars worker-tracing AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
-
-    set_vars worker-webhooks \
-        AGENTA_WEB_URL="https://${public_domain_ref}" \
-        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
-        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
-        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
-        POSTGRES_URI_CORE="$pg_async_core" \
-        POSTGRES_URI_TRACING="$pg_async_tracing" \
-        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
-
-    unset_vars worker-webhooks AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
-
-    set_vars worker-events \
-        AGENTA_WEB_URL="https://${public_domain_ref}" \
-        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
-        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
-        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
-        POSTGRES_URI_CORE="$pg_async_core" \
-        POSTGRES_URI_TRACING="$pg_async_tracing" \
-        POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens"
-
-    unset_vars worker-events AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
+    unset_vars worker-queues AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_URL AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
 
     set_vars cron \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
@@ -351,6 +512,7 @@ main() {
     set_healthcheck gateway "/"
     set_healthcheck api "/health"
     set_healthcheck services "/health"
+    set_healthcheck runner "/health"
 
     printf "Configuration completed for project '%s' environment '%s'\n" "$PROJECT_NAME" "$ENV_NAME"
 }

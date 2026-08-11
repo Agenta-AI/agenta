@@ -1,14 +1,14 @@
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {getEventsClient as getSdkEventsClient} from "@agenta/sdk/resources"
 
 /**
  * Resource client for the events / audit-log API, taken from the
- * Fern-generated `@agentaai/api-client` via the workspace SDK singleton.
+ * Fern-generated `@agentaai/api-client` via the per-resource SDK accessor.
  *
- * The host app initialises the SDK singleton at boot (host, auth); all
- * entities share the same instance through `getAgentaSdkClient()`.
+ * The host app pins the SDK host at boot (`configureAgentaSdk`); this accessor
+ * lazily constructs a host-pinned singleton for just the events resource.
  */
 export function getEventsClient() {
-    return getAgentaSdkClient().events
+    return getSdkEventsClient()
 }
 
 /**

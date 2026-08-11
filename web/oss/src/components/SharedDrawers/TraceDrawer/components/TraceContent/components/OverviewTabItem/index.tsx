@@ -33,6 +33,7 @@ const OverviewTabItem = ({
     const entityWithDrillIn = traceSpanMolecule as typeof traceSpanMolecule & {
         drillIn: NonNullable<typeof traceSpanMolecule.drillIn>
     }
+    const drillInSpan = activeTrace
     const metaConfig = useAtomValue(spanMetaConfigurationAtomFamily(activeTrace))
     const inputsFromSelectors = useAtomValue(spanDataInputsAtomFamily(activeTrace))
     const outputsFromSelectors = useAtomValue(spanDataOutputsAtomFamily(activeTrace))
@@ -44,19 +45,19 @@ const OverviewTabItem = ({
     const {inputs, outputs, internals, parameters} = useMemo(
         () => ({
             inputs:
-                entityWithDrillIn.drillIn.getValueAtPath(activeTrace, ["ag", "data", "inputs"]) ??
+                entityWithDrillIn.drillIn.getValueAtPath(drillInSpan, ["ag", "data", "inputs"]) ??
                 inputsFromSelectors,
             outputs:
-                entityWithDrillIn.drillIn.getValueAtPath(activeTrace, ["ag", "data", "outputs"]) ??
+                entityWithDrillIn.drillIn.getValueAtPath(drillInSpan, ["ag", "data", "outputs"]) ??
                 outputsFromSelectors,
             internals:
-                entityWithDrillIn.drillIn.getValueAtPath(activeTrace, [
+                entityWithDrillIn.drillIn.getValueAtPath(drillInSpan, [
                     "ag",
                     "data",
                     "internals",
                 ]) ?? internalsFromSelectors,
             parameters:
-                entityWithDrillIn.drillIn.getValueAtPath(activeTrace, [
+                entityWithDrillIn.drillIn.getValueAtPath(drillInSpan, [
                     "ag",
                     "data",
                     "parameters",

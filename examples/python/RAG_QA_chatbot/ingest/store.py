@@ -71,29 +71,40 @@ def setup_collection(
     )
 
 
-def get_embeddings(text: str) -> Dict[str, List[float]]:
+def _active_embedding_models() -> List[str]:
+    """Which named vectors to populate, honoring EMBEDDING_MODEL.
+
+    `openai` (default) / `cohere` pick one; `both` populates both named vectors. The
+    retrieval path (`rag.py`) queries the single `using=EMBEDDING_MODEL` vector, so there
+    is no need to embed the other provider — and embedding both was force-calling Cohere
+    even when EMBEDDING_MODEL=openai, exhausting its trial rate limit.
     """
-    Get embeddings using both OpenAI and Cohere models.
+    model = os.getenv("EMBEDDING_MODEL", "openai").strip().lower()
+    if model == "cohere":
+        return ["cohere"]
+    if model == "both":
+        return ["openai", "cohere"]
+    return ["openai"]
 
-    Args:
-        text: Text to embed
 
-    Returns:
-        Dict with 'openai' and 'cohere' embeddings
+def embed_texts(texts: List[str]) -> Dict[str, List[List[float]]]:
+    """Batch-embed a list of texts for each active provider (one API call per provider).
+
+    Returns provider → list of vectors, aligned with `texts`.
     """
-    # OpenAI embedding
-    openai_response = embedding(model="text-embedding-ada-002", input=[text])
-    openai_embedding = openai_response["data"][0]["embedding"]
-
-    # Cohere embedding
-    cohere_response = embedding(
-        model="cohere/embed-english-v3.0",
-        input=[text],
-        input_type="search_document",
-    )
-    cohere_embedding = cohere_response["data"][0]["embedding"]
-
-    return {"openai": openai_embedding, "cohere": cohere_embedding}
+    out: Dict[str, List[List[float]]] = {}
+    models_ = _active_embedding_models()
+    if "openai" in models_:
+        resp = embedding(model="text-embedding-ada-002", input=texts)
+        out["openai"] = [d["embedding"] for d in resp["data"]]
+    if "cohere" in models_:
+        resp = embedding(
+            model="cohere/embed-english-v3.0",
+            input=texts,
+            input_type="search_document",
+        )
+        out["cohere"] = [d["embedding"] for d in resp["data"]]
+    return out
 
 
 def generate_chunk_id(chunk: Chunk) -> str:
@@ -113,30 +124,27 @@ def upsert_chunks(client: QdrantClient, collection_name: str, chunks: List[Chunk
         collection_name: Name of the collection
         chunks: List of chunks to upsert
     """
-    for chunk in chunks:
-        # Get embeddings
-        embeddings = get_embeddings(chunk.content)
+    if not chunks:
+        return
 
-        # Create payload
-        payload = {
-            "content": chunk.content,
-            "title": chunk.title,
-            "url": chunk.url,
-            "file_path": chunk.file_path,
-            "chunk_index": chunk.chunk_index,
-        }
+    # One embedding call per provider for the whole batch, then one upsert.
+    vectors_by_model = embed_texts([chunk.content for chunk in chunks])
 
-        # Generate unique ID
-        point_id = generate_chunk_id(chunk)
-
-        # Upsert to Qdrant
-        client.upsert(
-            collection_name=collection_name,
-            points=[
-                models.PointStruct(
-                    id=point_id,
-                    payload=payload,
-                    vector=embeddings,
-                )
-            ],
+    points = []
+    for i, chunk in enumerate(chunks):
+        vector = {model: vecs[i] for model, vecs in vectors_by_model.items()}
+        points.append(
+            models.PointStruct(
+                id=generate_chunk_id(chunk),
+                payload={
+                    "content": chunk.content,
+                    "title": chunk.title,
+                    "url": chunk.url,
+                    "file_path": chunk.file_path,
+                    "chunk_index": chunk.chunk_index,
+                },
+                vector=vector,
+            )
         )
+
+    client.upsert(collection_name=collection_name, points=points)

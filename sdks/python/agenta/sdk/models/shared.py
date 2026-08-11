@@ -1,10 +1,26 @@
 from typing import Optional, Dict, List, Union, Literal
 from typing_extensions import TypeAliasType
 from datetime import datetime
-from uuid import UUID
-from re import match
+from uuid import UUID, uuid4
+from re import match, compile as _re_compile
 
 from pydantic import BaseModel, field_validator, field_serializer
+
+# An opaque, project-scoped session id: bounded length, restricted charset.
+_SESSION_ID_RE = _re_compile(r"^[A-Za-z0-9._:-]{1,128}$")
+
+
+def resolve_session_id(session_id: Optional[str]) -> Optional[str]:
+    """Echo a valid id, mint ``uuid4().hex`` when absent, or ``None`` when invalid.
+
+    The shared session-id policy: used by the running normalizer (echo/mint onto
+    the response) and the routing edge (validate -> 400). One charset, one mint.
+    Minted ids are a bare uuid4 hex (no dashes, no prefix).
+    """
+    if session_id is None:
+        return uuid4().hex
+    return session_id if _SESSION_ID_RE.match(session_id) else None
+
 
 BoolJson = TypeAliasType(  # type: ignore
     "BoolJson",
@@ -74,6 +90,13 @@ class TraceID(BaseModel):
 
 class SpanID(BaseModel):
     span_id: Optional[str] = None
+
+
+class SessionID(BaseModel):
+    # The session this turn belongs to (opaque, project-scoped). Sits at the same
+    # level as trace_id / span_id; minted or echoed by the running normalizer via
+    # resolve_session_id. None when no session is in play.
+    session_id: Optional[str] = None
 
 
 class Link(TraceID, SpanID):

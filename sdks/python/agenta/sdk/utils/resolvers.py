@@ -12,6 +12,8 @@ from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
+MAX_RESOLVE_DEPTH = 10
+
 
 # ========= Scheme detection =========
 
@@ -132,3 +134,33 @@ def resolve_json_selector(value: Any, data: Dict[str, Any]) -> Any:
             log.debug("Failed to resolve JSON selector %r: %s", value, exc)
             return None
     return value
+
+
+def resolve_target_fields(
+    template: Any,
+    context: Dict[str, Any],
+    *,
+    _depth: int = 0,
+) -> Any:
+    """Resolve a template into a target by resolving its selector leaves.
+
+    Walks ``template`` (arbitrary JSON); each leaf is passed through
+    ``resolve_json_selector`` against *context* (``$``/``/`` selectors resolved,
+    everything else returned literally). Null-on-miss, depth-capped at
+    ``MAX_RESOLVE_DEPTH``.
+    """
+    if _depth > MAX_RESOLVE_DEPTH:
+        return None
+    if isinstance(template, dict):
+        return {
+            k: resolve_target_fields(v, context, _depth=_depth + 1)
+            for k, v in template.items()
+        }
+    if isinstance(template, list):
+        return [
+            resolve_target_fields(item, context, _depth=_depth + 1) for item in template
+        ]
+    try:
+        return resolve_json_selector(template, context)
+    except Exception:
+        return None

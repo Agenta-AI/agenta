@@ -410,10 +410,14 @@ const items = useMemo(
 ;<AccordionTreePanel items={items} />
 ```
 
-## Tailwind Tokens
+## Theme colors
 
-The frontend uses Ant Design tokens which are transformed for Tailwind. If you modify `web/oss/src/styles/tokens/antd-themeConfig.json`, regenerate the Tailwind token file by running in the web directory and commit the changes:
+All theme-aware colors have a single source of truth: [`src/styles/theme/palette.ts`](src/styles/theme/palette.ts) — semantic roles (surface / text / border / fill / accent / semantic / scales / feature families), each defined as a `{light, dark}` pair. A generator turns it into the `--ag-*` CSS variable layer (`theme-variables.css`), the antd dark overrides consumed by `ThemeContextProvider`, and a `--ag-c-*` compatibility shim for legacy component classes.
+
+To change any color, edit `palette.ts`, then regenerate (from the web directory) and commit the regenerated files. Never hand-edit `theme-variables.css` or `theme/antd-overrides.generated.ts`.
 
 ```bash
 pnpm generate:tailwind-tokens
 ```
+
+Full architecture and how to add/change/debug a color: [`docs/designs/dark-mode.md`](../../docs/designs/dark-mode.md).

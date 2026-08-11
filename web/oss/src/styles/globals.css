@@ -1,4 +1,5 @@
 @import "./theme-variables.css";
+@import "./auth.css";
 @import "./animations.css";
 @import "./editor-theme.css";
 @import "./code-editor-styles.css";
@@ -104,19 +105,358 @@ body {
     transition: none;
 }
 
-/* It aligns the settings icon in the table column  */
+/* Center the gear/settings icon in the fixed-right action column header. */
 .ant-table-cell-fix-right-first svg {
-    display: flex;
-    justify-content: center;
+    display: block;
     margin: 0 auto;
 }
 
+/* Stay under @agenta/ui's Dialog/Sheet/Popover/Tooltip/DropdownMenu z-index scale (z-40/z-50,
+   all portalled to <body>) — antd's own Modal/Drawer used to sit at z-index 1000+, so 100 was
+   safely below them; the migrated Radix overlays sit lower, and 100 would bleed through them. */
 .playground-splitter .ant-splitter-bar,
 .playground-splitter .ant-splitter-trigger,
 .playground-splitter .ant-splitter-bar-dragger,
 .playground-splitter .ant-splitter-bar::before,
 .playground-splitter .ant-splitter-bar::after {
-    z-index: 100;
+    z-index: 5;
+}
+
+/* Any still-antd overlay (Dropdown, Select, Popover, Tooltip, Cascader, DatePicker, Mentions)
+   portals straight to <body>, outside the DOM subtree of any @agenta/ui Dialog/Sheet that
+   might be open (those are Radix, modal by default). Radix's modal mode sets
+   `pointer-events: none` on everything it doesn't recognize as its own to enforce its focus
+   trap, and antd's portal inherits that block — it stays fully visible (this doesn't touch
+   z-index) but every click passes through to whatever's behind it instead. Force these back
+   on unconditionally: an *open* antd overlay is never legitimately non-interactive — when
+   closed, antd hides it via `display: none`/`-hidden` classes, not via pointer-events. */
+.ant-dropdown,
+.ant-select-dropdown,
+.ant-popover,
+.ant-tooltip,
+.ant-picker-dropdown,
+.ant-cascader-dropdown,
+.ant-mentions-dropdown {
+    pointer-events: auto !important;
+}
+
+/* Splitter handle look & feel.
+   antd derives the dragger hover/active fill and the collapse pill from `colorPrimary`,
+   which is a loud yellow (#f2f25c) in dark mode. Retone every interactive surface to
+   neutral `--ag-colorFill*` tokens (they adapt to light/dark) so the handle reads as a
+   quiet grip, not a brand-colored highlight. */
+.playground-splitter .ant-splitter-bar-dragger::before {
+    background: var(--ag-colorFillQuaternary) !important;
+}
+.playground-splitter .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::before {
+    background: var(--ag-colorFillTertiary) !important;
+}
+.playground-splitter .ant-splitter-bar-dragger-active::before {
+    background: var(--ag-colorFillSecondary) !important;
+}
+/* Grip line — a calm neutral border tone instead of the default heavy fill. */
+.playground-splitter .ant-splitter-bar-dragger::after {
+    background: var(--ag-colorBorder) !important;
+}
+/* Collapse (< / >) pill: neutral hover/active, subtle rest border for affordance. */
+.playground-splitter .ant-splitter-bar-collapse-bar {
+    border: 1px solid var(--ag-colorBorderSecondary);
+}
+.playground-splitter
+    .ant-splitter-bar-collapse-bar:hover:not(.ant-splitter-bar-collapse-bar-customize) {
+    background: var(--ag-colorFillSecondary) !important;
+}
+.playground-splitter
+    .ant-splitter-bar-collapse-bar:active:not(.ant-splitter-bar-collapse-bar-customize) {
+    background: var(--ag-colorFill) !important;
+}
+/* Lazy-drag preview ghost: neutral instead of a yellow wash. */
+.playground-splitter .ant-splitter-bar-preview {
+    background: var(--ag-colorFill) !important;
+    opacity: 0.4 !important;
+}
+
+/* Agent playground: the collapse pill is disabled (Build/Chat switch lives in the header), so the
+   drag handle is the ONLY resize affordance and must be discoverable on its own. Render a persistent
+   centered grip on the divider — neutral at rest, then an accent TINT + taller on hover/drag — so it
+   reads as a draggable handle without turning into a loud bar. Geometry is fully specified so it
+   doesn't depend on antd's default pseudo-element placement. */
+.playground-splitter-agent .ant-splitter-bar-dragger::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 50% !important;
+    right: auto !important;
+    width: 2px !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    transform: translateX(-50%) !important;
+    background: var(--ag-colorBorderSecondary) !important;
+}
+.playground-splitter-agent .ant-splitter-bar-dragger::after {
+    content: "" !important;
+    position: absolute !important;
+    top: 50% !important;
+    bottom: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    width: 4px !important;
+    height: 24px !important;
+    border-radius: 9999px !important;
+    transform: translate(-50%, -50%) !important;
+    background: var(--ag-colorTextTertiary) !important;
+    transition:
+        background 150ms ease,
+        opacity 150ms ease,
+        height 150ms ease;
+}
+/* Hover + active: the full-height DIVIDER only strengthens to a neutral border tone — a long line in
+   the accent colour reads as too loud. The small GRIP takes the accent (`colorPrimary`), softened to a
+   TINT via opacity so it stays a clear-but-quiet handle in both themes (the tinted-primary border
+   token blended into the dark divider; the full colour was too strong). `:not(-active)` mirrors the
+   base `.playground-splitter` hover rule's specificity so we win the tie by source order — otherwise
+   that base rule would swap the divider to a faint fill on hover (the fade). */
+.playground-splitter-agent
+    .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::before,
+.playground-splitter-agent .ant-splitter-bar-dragger-active::before {
+    background: var(--ag-colorBorder) !important;
+}
+.playground-splitter-agent
+    .ant-splitter-bar-dragger:hover:not(.ant-splitter-bar-dragger-active)::after,
+.playground-splitter-agent .ant-splitter-bar-dragger-active::after {
+    height: 36px !important;
+    background: var(--ag-colorPrimary) !important;
+    opacity: 0.7 !important;
+}
+/* Agent playground: the divider is the GUTTER between the raised Config panel and the recessed
+   Chat canvas — a real ~12px channel (not a hairline) that says "two workspaces". Widen the bar and
+   tint it the near-black/soft-grey gutter tone; the grip pseudo-elements above still read as the
+   handle. */
+.playground-splitter-agent > .ant-splitter-bar {
+    background: var(--ag-surface-gutter) !important;
+    flex-basis: 9px !important;
+    width: 9px !important;
+}
+
+/* ── Agent Playground surface classes ──────────────────────────────────────────────────────────
+   Semantic surfaces for the panel-contrast treatment. Multi-value shadows + fill + border are set
+   together here (more reliable than Tailwind arbitrary-value shadows) and reference the per-theme
+   ladder in theme-variables.css. Roles invert by theme automatically via the token values. */
+.ag-app-ground {
+    background: var(--ag-surface-app);
+}
+.ag-panel-raised {
+    background: var(--ag-surface-raised);
+    box-shadow: var(--ag-surface-raised-shadow);
+}
+.ag-canvas {
+    background: var(--ag-surface-canvas);
+}
+.ag-surface-card {
+    background: var(--ag-surface-card);
+    border: 1px solid var(--ag-surface-card-border);
+    box-shadow: var(--ag-surface-card-shadow);
+}
+.ag-surface-chat {
+    background: var(--ag-surface-chat);
+    border: 1px solid var(--ag-surface-chat-border);
+    box-shadow: var(--ag-surface-chat-shadow);
+}
+.ag-surface-inset {
+    background: var(--ag-surface-inset);
+    border: 1px solid var(--ag-surface-inset-border);
+}
+/* Right-docked Turn inspector: a raised panel floating above the recessed chat canvas — raised
+   tone + a left seam + a soft left-edge shadow so it reads as sitting on top. */
+.ag-inspector-panel {
+    background: var(--ag-surface-raised);
+    border-left: 1px solid var(--ag-surface-divider);
+    box-shadow: var(--ag-surface-inspector-shadow);
+}
+.ag-surface-chip {
+    background: var(--ag-surface-chip);
+    border: 1px solid var(--ag-surface-chip-border);
+}
+.ag-surface-error-well {
+    background: var(--ag-surface-error-well);
+    border: 1px solid var(--ag-surface-error-well-border);
+}
+/* Status chips — the only semantic colour in the treatment (kept subtle). */
+.ag-status-error {
+    background: var(--ag-status-error-bg);
+    border: 1px solid var(--ag-status-error-border);
+    color: var(--ag-status-error-text);
+}
+.ag-status-success {
+    background: var(--ag-status-success-bg);
+    border: 1px solid var(--ag-status-success-border);
+    color: var(--ag-status-success-text);
+}
+/* List-row hover fill (session rows, etc.). */
+.ag-row-hover:hover {
+    background: var(--ag-surface-row-hover);
+}
+/* Selected list row — a lifted card surface with a simple, muted accent bar on the LEFT edge only.
+   Square (no radius) so the bar reads as a crisp full-height edge and never hooks the corner (the
+   old rounded 2px bar did, and read harsh in dark mode). Pairs with a base `border border-solid`. */
+.ag-surface-selected {
+    background: var(--ag-surface-card);
+    border-color: transparent;
+    border-left: 2px solid color-mix(in srgb, var(--ag-surface-accent) 55%, transparent);
+    border-radius: 0;
+    box-shadow: var(--ag-surface-card-shadow);
+}
+
+/* ── Drawers: top elevation tier (dark mode only) ──────────────────────────────────────────────
+   The agent config/create drawers (Model & harness, AGENTS.md, tool/MCP/skill, schedule,
+   subscription) opt in via `rootClassName="ag-drawer-elevated"`. The sheet steps a shade lighter than the panels
+   and floats on a scrim; form fields become recessed wells with visible borders (the biggest win —
+   antd's dark field borders vanish into black otherwise). Scoped to `.dark` so light drawers, which
+   aren't in scope yet, are untouched. `!important` overrides antd's CSS-in-JS field tokens. */
+.dark .ag-drawer-elevated .ant-drawer-mask {
+    background: var(--ag-drawer-scrim);
+}
+.dark .ag-drawer-elevated .ant-drawer-content-wrapper {
+    box-shadow: var(--ag-drawer-shadow);
+}
+.dark .ag-drawer-elevated .ant-drawer-content,
+.dark .ag-drawer-elevated .ant-drawer-wrapper-body,
+.dark .ag-drawer-elevated .ant-drawer-body,
+.dark .ag-drawer-elevated .ant-drawer-header,
+.dark .ag-drawer-elevated .ant-drawer-footer {
+    /* `!important` mirrors the field rule below — without it antd's own drawer background wins and
+       the sheet stays at the dark default (the "base layer skipped" bug). */
+    background: var(--ag-drawer-sheet) !important;
+}
+.dark .ag-drawer-elevated .ant-drawer-header {
+    border-bottom: 1px solid var(--ag-drawer-divider);
+}
+.dark .ag-drawer-elevated .ant-drawer-footer {
+    border-top: 1px solid var(--ag-drawer-divider);
+}
+.dark .ag-drawer-elevated .ant-input,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper,
+.dark .ag-drawer-elevated .ant-input-number,
+.dark .ag-drawer-elevated .ant-input-number-affix-wrapper,
+.dark .ag-drawer-elevated .ant-select-outlined .ant-select-selector,
+.dark .ag-drawer-elevated .ant-picker {
+    background: var(--ag-drawer-field-bg) !important;
+    border-color: var(--ag-drawer-field-border) !important;
+}
+.dark .ag-drawer-elevated .ant-input:focus,
+.dark .ag-drawer-elevated .ant-input:hover,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper-focused,
+.dark .ag-drawer-elevated .ant-input-affix-wrapper:hover,
+.dark .ag-drawer-elevated .ant-input-number-focused,
+.dark .ag-drawer-elevated .ant-select-focused .ant-select-selector,
+.dark .ag-drawer-elevated .ant-picker-focused {
+    border-color: var(--ag-drawer-field-focus) !important;
+    box-shadow: none !important;
+}
+.dark .ag-drawer-elevated .ant-segmented {
+    background: var(--ag-drawer-seg-track);
+}
+.dark .ag-drawer-elevated .ant-segmented .ant-segmented-item-selected {
+    background: var(--ag-drawer-seg-active);
+}
+.dark .ag-drawer-elevated .ant-switch {
+    background: #3a3d44;
+}
+.dark .ag-drawer-elevated .ant-switch.ant-switch-checked {
+    background: var(--ag-surface-accent);
+}
+/* Two-pane interiors: a recessed rail beside the sheet content, plus card / row / tag surfaces.
+   Applied additively (existing light styling stays; these override only in dark drawers). */
+/* Recessed rail — background only. Each consumer already draws the single pane divider (a
+   border-l on the content or a border-r on the rail); adding another here double-lines it. */
+.dark .ag-drawer-elevated .ag-drawer-rail {
+    background: var(--ag-drawer-rail);
+}
+/* A list that wraps itself in a light "panel" fill (skill Files list) reads as a redundant box on
+   the already-recessed rail in dark — drop the fill so its rows sit directly on the rail. */
+.dark .ag-drawer-elevated .ag-rail-filelist {
+    background: transparent;
+}
+.dark .ag-drawer-elevated .ag-drawer-card {
+    background: var(--ag-drawer-card) !important;
+    border-color: var(--ag-drawer-card-border) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-card:hover {
+    background: var(--ag-drawer-card-hover) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-card-selected {
+    border-color: var(--ag-surface-accent) !important;
+    background: rgba(194, 213, 74, 0.06) !important;
+}
+.dark .ag-drawer-elevated .ag-drawer-row:hover {
+    background: var(--ag-drawer-card);
+}
+.dark .ag-drawer-elevated .ag-drawer-row-selected {
+    background: var(--ag-drawer-card);
+    border-left: 2px solid color-mix(in srgb, var(--ag-surface-accent) 55%, transparent);
+    border-radius: 0;
+}
+.dark .ag-drawer-elevated .ag-drawer-tag {
+    background: var(--ag-drawer-tag-bg);
+    color: var(--ag-drawer-tag-text);
+}
+.dark .ag-drawer-elevated .ag-type-completion {
+    background: var(--ag-type-completion-bg);
+    color: var(--ag-type-completion-text);
+    border-color: transparent;
+}
+.dark .ag-drawer-elevated .ag-type-chat {
+    background: var(--ag-type-chat-bg);
+    color: var(--ag-type-chat-text);
+    border-color: transparent;
+}
+.dark .ag-drawer-elevated .ag-type-agent {
+    background: var(--ag-type-agent-bg);
+    color: var(--ag-type-agent-text);
+    border-color: transparent;
+}
+
+/* Build/Chat mode transitions: ease the panels' flex-basis (config → 0, chat → full) and fade the
+   inert split bar instead of snapping. `-animated` is added by MainLayout only around a toggle (off
+   during drag, so resizing stays 1:1). Gated on `prefers-reduced-motion` for parity with the rail's
+   `motion-safe:` animations. */
+/* Splitters NEST in agent mode (the chat panel hosts its own rail splitter inside MainLayout's),
+   so every state-dependent bar/panel rule below is scoped to DIRECT children — a collapsed outer
+   splitter must not hide the inner one's live drag bar. */
+@media (prefers-reduced-motion: no-preference) {
+    .playground-splitter-animated > .ant-splitter-panel {
+        transition: flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Orchestration rule: only the DRIVEN pane (first — config / session rail) animates its
+       basis; the fill pane must auto-flex so it tracks the container and the animating sibling
+       EXACTLY per frame. antd re-derives every pane's inline flex-basis from a ResizeObserver,
+       so a transitioned basis on the fill pane lags 240ms behind each recompute whenever the
+       CONTAINER itself is animating — in the nested agent splitters (MainLayout pane hosts the
+       chat panel's rail splitter) that read as the conversation holding its old width and only
+       growing after the left side settled. */
+    .playground-splitter-animated > .ant-splitter-panel:last-child {
+        flex: 1 1 auto !important;
+        transition: none !important;
+    }
+
+    .playground-splitter > .ant-splitter-bar {
+        transition:
+            opacity 200ms ease,
+            flex-basis 240ms cubic-bezier(0.4, 0, 0.2, 1),
+            width 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+}
+
+/* Collapsed pane's split bar: hidden AND width 0 — opacity alone leaves an invisible 12px strip of
+   dead space beside the surviving pane. End state stays unguarded so the bar is gone even under
+   reduced motion — only the fades above are motion-gated. */
+.playground-splitter-collapsed > .ant-splitter-bar {
+    opacity: 0;
+    pointer-events: none;
+    flex-basis: 0 !important;
+    width: 0 !important;
 }
 
 /* Ensure onboarding overlay stays above modals */
@@ -379,9 +719,12 @@ body {
     padding-left: 0 !important;
 }
 
+/* org-domains-table and org-providers-table are not yet migrated to SettingsPageShell's
+   table shell (Organization/index.tsx still renders plain antd Tables for them), so their
+   percentage column widths below still need table-layout: fixed to be honoured. Drop this
+   rule once those two tables move onto InfiniteVirtualTableFeatureShell. */
 .org-domains-table .ant-table,
-.org-providers-table .ant-table,
-.automations-table .ant-table {
+.org-providers-table .ant-table {
     table-layout: fixed;
 }
 
@@ -392,21 +735,11 @@ body {
     width: 5%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(1),
-.automations-table .ant-table-tbody > tr > td:nth-child(1) {
-    width: 18%;
-}
-
 .org-domains-table .ant-table-thead > tr > th:nth-child(2),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(2),
 .org-providers-table .ant-table-thead > tr > th:nth-child(2),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(2) {
     width: 20%;
-}
-
-.automations-table .ant-table-thead > tr > th:nth-child(2),
-.automations-table .ant-table-tbody > tr > td:nth-child(2) {
-    width: 12%;
 }
 
 .org-domains-table .ant-table-thead > tr > th:nth-child(3),
@@ -416,31 +749,11 @@ body {
     width: 30%;
 }
 
-.automations-table .ant-table-thead > tr > th:nth-child(3),
-.automations-table .ant-table-tbody > tr > td:nth-child(3) {
-    width: 26%;
-}
-
 .org-domains-table .ant-table-thead > tr > th:nth-child(4),
 .org-domains-table .ant-table-tbody > tr > td:nth-child(4),
 .org-providers-table .ant-table-thead > tr > th:nth-child(4),
 .org-providers-table .ant-table-tbody > tr > td:nth-child(4) {
     width: 20%;
-}
-
-.automations-table .ant-table-thead > tr > th:nth-child(4),
-.automations-table .ant-table-tbody > tr > td:nth-child(4) {
-    width: 20%;
-}
-
-.automations-table .ant-table-thead > tr > th:nth-child(5),
-.automations-table .ant-table-tbody > tr > td:nth-child(5) {
-    width: 12%;
-}
-
-.automations-table .ant-table-thead > tr > th:nth-child(6),
-.automations-table .ant-table-tbody > tr > td:nth-child(6) {
-    width: 12%;
 }
 
 .org-domains-table .org-instructions .ant-descriptions-item-label,
@@ -552,4 +865,81 @@ body {
     color: rgba(255, 255, 255, 0.65);
     background-color: #1f1f1f;
     border-color: #424242;
+}
+
+/* @lexical/code-shiki stamps the shiki theme's PAGE background onto the code node (and tints some
+   tokens) as inline styles. Layered over our own container surface — and because the code element
+   shrink-wraps each line — that reads as per-line grey bands. Strip the injected backgrounds so
+   the code sits flat on the one container surface; token FOREGROUND colours (the actual syntax
+   highlighting) are untouched. */
+.agenta-dynamic-code-block,
+.agenta-dynamic-code-block span {
+    background-color: transparent !important;
+}
+
+/* antd Segmented, icon-only options: the default `.ant-segmented-item-label` centres its content
+   with `line-height`, which drops an inline <svg> to the text baseline (it reads a few px low, and
+   utility classes on the icon can't fix it — the label box, not the icon, owns the height). Force
+   the label box itself to flex-centre so an icon sits dead-centre regardless of its baseline. The
+   doubled `.ant-segmented` keeps this above antd's own runtime-injected rule. */
+.ag-icon-segmented.ant-segmented .ant-segmented-item-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.ag-icon-segmented .ant-segmented-item-label svg {
+    display: block;
+}
+
+/* Quiet scrollbars. The gutter is reserved at the thumb's width whether or not the
+   content overflows, so revealing the thumb never shifts the content, and the thumb
+   only appears while the pointer or focus is inside the scroller. */
+.ag-scroll-quiet {
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.ag-scroll-quiet:hover,
+.ag-scroll-quiet:focus-within {
+    scrollbar-color: var(--ag-scroll-thumb) transparent;
+}
+
+.ag-scroll-quiet::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.ag-scroll-quiet::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ag-scroll-quiet::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    background-clip: content-box;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    transition: background-color 150ms ease;
+}
+
+.ag-scroll-quiet:hover::-webkit-scrollbar-thumb,
+.ag-scroll-quiet:focus-within::-webkit-scrollbar-thumb {
+    background-color: var(--ag-scroll-thumb);
+}
+
+.ag-scroll-quiet::-webkit-scrollbar-thumb:hover {
+    background-color: var(--ag-scroll-thumb-hover);
+}
+
+/* Scrollers whose sticky headers have to reach the panel edge. A reserved gutter would cut
+   every header short by the scrollbar's width, and the content box is the only place the
+   browser will paint, so this panel keeps no scrollbar at all: full-width rows, and no shift
+   when the content grows past the viewport. */
+.ag-scroll-no-bar {
+    scrollbar-width: none;
+}
+
+.ag-scroll-no-bar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }

@@ -94,6 +94,9 @@ class Fields(str, Enum):
     UPDATED_BY_ID = "updated_by_id"
     DELETED_BY_ID = "deleted_by_id"
     CONTENT = "content"
+    SESSION_ID = "session_id"
+    USER_ID = "user_id"
+    AGENT_ID = "agent_id"
 
 
 class LogicalOperator(str, Enum):

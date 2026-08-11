@@ -1,7 +1,7 @@
 import {
-    fetchActions,
-    integrationDetailQueryFamily,
-    queryConnections,
+    fetchToolActions,
+    queryToolConnections,
+    toolIntegrationDetailQueryFamily,
     type ToolCatalogActionsResponse,
     type ToolConnectionsResponse,
 } from "@agenta/entities/gatewayTool"
@@ -14,7 +14,7 @@ const DEFAULT_PROVIDER = "composio"
 export const integrationActionsQueryFamily = atomFamily((integrationKey: string) =>
     atomWithQuery<ToolCatalogActionsResponse>(() => ({
         queryKey: ["tools", "actions", DEFAULT_PROVIDER, integrationKey],
-        queryFn: () => fetchActions(DEFAULT_PROVIDER, integrationKey, {important: true}),
+        queryFn: () => fetchToolActions(DEFAULT_PROVIDER, integrationKey, {important: true}),
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
         enabled: !!integrationKey,
@@ -25,7 +25,7 @@ export const integrationConnectionsQueryFamily = atomFamily((integrationKey: str
     atomWithQuery<ToolConnectionsResponse>(() => ({
         queryKey: ["tools", "integrationConnections", DEFAULT_PROVIDER, integrationKey],
         queryFn: () =>
-            queryConnections({
+            queryToolConnections({
                 provider_key: DEFAULT_PROVIDER,
                 integration_key: integrationKey,
             }),
@@ -36,7 +36,7 @@ export const integrationConnectionsQueryFamily = atomFamily((integrationKey: str
 )
 
 export const useIntegrationDetail = (integrationKey: string) => {
-    const detailQuery = useAtomValue(integrationDetailQueryFamily(integrationKey))
+    const detailQuery = useAtomValue(toolIntegrationDetailQueryFamily(integrationKey))
     const actionsQuery = useAtomValue(integrationActionsQueryFamily(integrationKey))
     const connectionsQuery = useAtomValue(integrationConnectionsQueryFamily(integrationKey))
 

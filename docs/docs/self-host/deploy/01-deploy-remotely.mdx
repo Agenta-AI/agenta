@@ -1,0 +1,255 @@
+---
+title: Deploying Agenta on a Remote Server
+slug: /self-host/guides/deploy-remotely
+sidebar_label: Deploying Remotely
+description: 'Learn how to deploy Agenta on a remote server with Docker. Step-by-step guide covers environment setup, installation, and configuration for cloud or dedicated hosting environments.'
+---
+
+This guide shows you how to deploy Agenta on a remote server, whether that's a cloud instance (like AWS EC2, Google Cloud, or DigitalOcean) or your own dedicated machine. By the end, you'll have Agenta running and accessible from anywhere on the internet.
+
+## What You'll Need
+
+Before starting, make sure your remote server has:
+
+**Server Requirements:**
+- Docker and Docker Compose installed
+- Root access or sudo privileges
+- Git installed
+
+**Network Requirements:**
+- Open ports for web traffic (typically port 80 for HTTP)
+- A domain name pointed to your server (optional but recommended)
+
+## Understanding the Deployment Options
+
+Agenta offers two reverse proxy options for remote deployment:
+
+- **Traefik (Default)**: Modern reverse proxy with automatic service discovery and built-in SSL certificate management
+- **Nginx**: Traditional web server and reverse proxy, useful if you already use Nginx in your infrastructure
+
+Choose Traefik unless you have specific requirements for Nginx.
+
+## Step 1: Get the Agenta Code
+
+Clone the Agenta repository to your server:
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Agenta-AI/agenta
+cd agenta
+git sparse-checkout set hosting/docker-compose api/oss/databases/postgres api/ee/databases/postgres
+```
+
+## Step 2: Configure Your Deployment
+
+### Understanding Environment Variables
+
+Agenta uses environment variables to configure how it runs on your server. The main settings control:
+
+- **Domain/IP**: Where users will access Agenta
+- **Ports**: Which network ports to use
+- **URLs**: How different services communicate with each other
+
+### Edit the Configuration File
+
+First copy the template configuration:
+```bash
+cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+```
+
+Then, open the environment configuration file:
+
+```bash
+nano hosting/docker-compose/oss/.env.oss.gh
+```
+
+Update these key variables based on your setup:
+
+**For Domain-Based Setup:**
+```bash
+# Replace with your actual domain
+TRAEFIK_PORT=80                           # Port for web access
+TRAEFIK_DOMAIN=yourdomain.com             # Your domain without http://
+AGENTA_API_URL=http://yourdomain.com/api      # Full URL with protocol
+AGENTA_WEB_URL=http://yourdomain.com      # Same as API URL in most cases
+AGENTA_SERVICES_URL=http://yourdomain.com:80/services  # URL for internal services
+```
+
+**For IP Address Setup:**
+If you don't have a domain name, you can use your server's IP address:
+
+```bash
+TRAEFIK_PORT=80
+TRAEFIK_DOMAIN=192.168.1.100              # Replace with your server's IP
+AGENTA_API_URL=http://192.168.1.100/api
+AGENTA_WEB_URL=http://192.168.1.100
+AGENTA_SERVICES_URL=http://192.168.1.100:80/services
+```
+
+The web container reads `AGENTA_WEB_URL` and `AGENTA_API_URL` when it starts and writes them into the page it serves. If you change either one on a running deployment, recreate the container so the new values reach the browser. The image does not need rebuilding:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh \
+  --profile with-web --profile with-traefik up -d --force-recreate web
+```
+
+### Additional Configuration Options
+
+For more advanced settings like SSL, authentication, or custom ports, see our [complete configuration guide](/self-host/configuration).
+
+## Step 3: Secure the Deployment
+
+The Compose file publishes PostgreSQL on `0.0.0.0:5432`, and the stack falls back to the credentials `username` / `password` when you do not set your own. On a server with a public IP, that puts your database on the internet with credentials that are in our repository. The two Agenta keys ship as the literal string `replace-me`.
+
+:::warning Change these before the first start
+PostgreSQL applies `POSTGRES_USER` and `POSTGRES_PASSWORD` when it initializes its data volume. Setting them after the first start does not change an existing database.
+:::
+
+Set these in `hosting/docker-compose/oss/.env.oss.gh`:
+
+```bash
+# Publish the database on the loopback interface only. Compose accepts the
+# host_ip:port form here. Containers reach the database over the Compose
+# network as postgres:5432, so nothing inside the stack changes.
+POSTGRES_PORT=127.0.0.1:5432
+
+POSTGRES_USER=agenta
+POSTGRES_PASSWORD=<a password you generate>
+
+AGENTA_AUTH_KEY=<a random string>
+AGENTA_CRYPT_KEY=<a random string>
+```
+
+Generate each key with:
+
+```bash
+openssl rand -hex 32
+```
+
+- `AGENTA_AUTH_KEY` authenticates the admin API and signs the tokens Agenta issues. A caller who knows it is an admin on your deployment.
+- `AGENTA_CRYPT_KEY` encrypts the secrets Agenta stores, such as the model provider keys you add in the web interface. Any non-empty string works: Agenta derives the encryption key from it with SHA-256. Changing it later makes already-stored secrets undecryptable.
+
+The API builds its database URLs from `POSTGRES_USER` and `POSTGRES_PASSWORD`. If you also set `POSTGRES_URI_CORE`, `POSTGRES_URI_TRACING`, or `POSTGRES_URI_SUPERTOKENS` yourself, update the credentials in those URLs too.
+
+## Step 4: Deploy Agenta
+
+### Option 1: Deploy with Traefik (Recommended)
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
+```
+
+**What this command does:**
+- `-f hosting/docker-compose/oss/docker-compose.gh.yml`: Uses the production Docker Compose configuration
+- `--env-file=hosting/docker-compose/oss/.env.oss.gh`: Loads your environment variables
+- `--profile with-web`: Includes the web interface in the deployment
+- `up -d`: Starts all services in the background
+
+### Option 2: Deploy with Nginx
+
+If you prefer Nginx or need to integrate with existing Nginx configurations:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-nginx up -d
+```
+
+## Step 5: Verify Your Deployment
+
+### Check Service Status
+
+Monitor the startup process by checking container status:
+
+```bash
+# View all containers and their status
+docker compose ps
+
+# Watch the startup logs (useful for troubleshooting)
+docker compose logs -f
+```
+
+You should see all services show "Up" status. The initial startup may take a few minutes as Docker downloads images and initializes services.
+
+### Test Web Access
+
+Once all services are running, test access through your web browser:
+
+**With domain name:**
+```
+http://yourdomain.com
+```
+
+**With IP address:**
+```
+http://192.168.1.100
+```
+
+You should see the Agenta login page. If you can access it, your deployment is successful!
+
+## Troubleshooting Common Issues
+
+### Services Won't Start
+
+**Check container logs:**
+```bash
+docker compose logs
+```
+
+**Common solutions:**
+- Ensure environment variables are set correctly
+- Check that ports aren't already in use
+
+### Cannot Reach the Site
+
+**Common solutions:**
+- Verify firewall settings allow traffic on port 80
+- Check that your domain DNS is pointing to the server
+- Ensure AGENTA_WEB_URL matches how you're accessing the site
+
+
+### Redirects Come Back as HTTP Behind a Reverse Proxy
+
+This applies if TLS terminates in front of Agenta, in Cloudflare, a load balancer, or your own proxy, and that proxy forwards plain HTTP to Agenta's Traefik. The symptom is a redirect (`307` or `308`) whose `Location` header carries `http://` instead of `https://`, which the browser then blocks or loops on.
+
+Agenta's API runs under gunicorn, which trusts `X-Forwarded-*` headers only from `127.0.0.1` and `::1` by default. Traefik reaches it from another container address, so the API does not see the original scheme and builds its redirect URLs from the plain-HTTP hop it did see. Traefik also drops the `X-Forwarded-*` headers your proxy sets, because it does not trust them from an unknown client.
+
+Fix both hops. In your env file, tell gunicorn to trust the forwarded headers it receives:
+
+```bash
+FORWARDED_ALLOW_IPS=*
+```
+
+`*` means the API trusts `X-Forwarded-*` from any peer that can reach it. Only use it when the API is reachable through the proxy alone, not directly.
+
+Then let Traefik pass through the headers your proxy sets, by adding this line to the `traefik` service `command` in the Compose file:
+
+```yaml
+traefik:
+  command:
+    - --entrypoints.web.forwardedHeaders.insecure=true
+```
+
+Recreate the API and Traefik containers afterwards.
+
+### Nginx-Specific Issues
+
+If you chose the Nginx deployment option:
+
+**Test Nginx configuration:**
+```bash
+# Check Nginx configuration syntax
+docker compose exec nginx nginx -t
+
+# View Nginx logs
+docker compose logs nginx
+```
+
+
+:::info
+This guide uses HTTP for initial setup. For production environments, configure HTTPS using our [SSL setup guide](/self-host/guides/using-ssl) for automatic certificate management.
+:::
+
+## Getting Help
+
+If you need assistance, you can:
+- [Create a GitHub issue](https://github.com/Agenta-AI/agenta/issues/new/choose)
+- Join our [Slack community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw) for direct support

@@ -16,10 +16,10 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {PreviewPanelRenderProps} from "@agenta/playground-ui/components"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
+import {useRowHeight} from "@agenta/ui/table"
 import {PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Typography} from "antd"
 
-import {useRowHeight} from "@/oss/components/InfiniteVirtualTable"
 import TestcaseEditDrawer from "@/oss/components/SharedDrawers/TestcaseDrawer"
 import {TestcasesTableShell} from "@/oss/components/TestcasesTableNew/components/TestcasesTableShell"
 import {useTestcasesTable} from "@/oss/components/TestcasesTableNew/hooks/useTestcasesTable"
@@ -236,23 +236,15 @@ export function TestsetPreviewPanelWrapper({
                         </Typography.Text>
                     </div>
                 </ModalContent>
-                <ModalFooter>
-                    <Button
-                        onClick={() => {
-                            setIsAddColumnModalOpen(false)
-                            setNewColumnName("")
-                        }}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        type="primary"
-                        onClick={handleConfirmAddColumn}
-                        disabled={!newColumnName.trim()}
-                    >
-                        OK
-                    </Button>
-                </ModalFooter>
+                <ModalFooter
+                    onCancel={() => {
+                        setIsAddColumnModalOpen(false)
+                        setNewColumnName("")
+                    }}
+                    onConfirm={handleConfirmAddColumn}
+                    confirmLabel="OK"
+                    canConfirm={!!newColumnName.trim()}
+                />
             </EnhancedModal>
         </>
     )

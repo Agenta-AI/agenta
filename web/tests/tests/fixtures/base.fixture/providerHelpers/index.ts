@@ -3,6 +3,7 @@ import {existsSync, readFileSync} from "fs"
 import {expect, Locator, Page} from "@playwright/test"
 
 import {getProjectMetadataPath} from "../../../../playwright/config/runtime.ts"
+import {pollLocatorState} from "../../../../utils"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 import type {UIHelpers} from "../uiHelpers/types"
@@ -13,6 +14,12 @@ import type {
     TestProviderMode,
     TestProviderProfileInfo,
 } from "./types"
+
+// Header of the custom-providers ("OpenAI-compatible endpoints") section, and the
+// label of the button that opens its create form. Both are product copy; keep them
+// here so a rename is a one-line fix rather than a hunt through the helpers.
+const CUSTOM_PROVIDERS_SECTION_HEADER = "OpenAI-compatible endpoints"
+const CUSTOM_PROVIDER_ADD_BUTTON_LABEL = "Add endpoint"
 
 const MOCK_PROVIDER_NAME = "mock"
 const MOCK_PROVIDER_KIND = "custom"
@@ -137,7 +144,7 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                 const pathname = new URL(page.url()).pathname
                 const hasScopedSettingsPath = /\/w\/[^/]+\/p\/[^/]+\/settings$/.test(pathname)
                 const headingVisible = await page
-                    .getByRole("heading", {name: "Providers & Models"})
+                    .getByRole("heading", {name: "LLMs"})
                     .isVisible()
                     .catch(() => false)
                 const sectionVisible = await customProvidersSection.isVisible().catch(() => false)
@@ -145,10 +152,18 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                     .locator(".ant-spin-spinning")
                     .isVisible()
                     .catch(() => false)
-                const createButtonEnabled = await customProvidersSection
-                    .getByRole("button", {name: "Create"})
-                    .isEnabled()
-                    .catch(() => false)
+                // `.first()` matters: the section renders this button twice (once in the
+                // header, once in the empty-state row). Without it the locator is strict-mode
+                // ambiguous and `isEnabled()` throws — pollLocatorState lets that throw
+                // through instead of swallowing it, so a future selector regression fails
+                // loudly instead of timing out with a "never reached a stable ready state"
+                // message that names no real cause.
+                const createButtonEnabled = await pollLocatorState(() =>
+                    customProvidersSection
+                        .getByRole("button", {name: CUSTOM_PROVIDER_ADD_BUTTON_LABEL})
+                        .first()
+                        .isEnabled(),
+                )
 
                 return (
                     hasScopedSettingsPath &&
@@ -168,8 +183,8 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
 
 async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void> {
     if (!getProjectScopedBasePath(page)) {
-        await page.goto("/apps", {waitUntil: "domcontentloaded"})
-        await uiHelpers.expectPath("/apps")
+        await page.goto("/prompts", {waitUntil: "domcontentloaded"})
+        await uiHelpers.expectPath("/prompts")
     }
 
     const projectBasePath = getProjectScopedBasePath(page)
@@ -178,10 +193,10 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
         throw new Error(`Could not derive project scoped path from current URL: ${page.url()}`)
     }
 
-    await page.goto(`${projectBasePath}/settings?tab=secrets`, {waitUntil: "domcontentloaded"})
+    await page.goto(`${projectBasePath}/settings?tab=llms`, {waitUntil: "domcontentloaded"})
 
     await uiHelpers.expectPath("/settings")
-    await expect(page.getByRole("heading", {name: "Providers & Models"})).toBeVisible({
+    await expect(page.getByRole("heading", {name: "LLMs"})).toBeVisible({
         timeout: 15000,
     })
     await expect(getCustomProvidersSection(page)).toBeVisible({timeout: 15000})
@@ -189,8 +204,12 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
 }
 
 function getCustomProvidersSection(page: Page): Locator {
+    // Anchored on the section's own header text. This used to key off the
+    // "OpenAI-compatible endpoint" trigger button, but that button is now labelled
+    // "Add endpoint", so the old anchor matched nothing and the section could never
+    // be found. The header reads "OpenAI-compatible endpoints" (plural).
     return page
-        .getByText("Custom providers", {exact: true})
+        .getByText(CUSTOM_PROVIDERS_SECTION_HEADER, {exact: true})
         .locator("xpath=ancestor::section[1]")
         .first()
 }

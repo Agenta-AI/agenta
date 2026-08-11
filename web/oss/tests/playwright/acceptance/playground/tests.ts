@@ -359,14 +359,16 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                     const commitModal = page.getByRole("dialog").last()
                     await expect(commitModal).toBeVisible({timeout: 15000})
 
-                    // 2. Select the type
-                    const saveModeRadio = commitModal
-                        .getByRole("radio", {
-                            name: type === "variant" ? "As a new variant" : "As a new version",
+                    // 2. Select the type. Agent-style commits use a SectionRail of
+                    // plain buttons ("New version" / "New variant"), not a Radio.Group.
+                    const saveModeButton = commitModal
+                        .getByRole("button", {
+                            name: type === "variant" ? "New variant" : "New version",
+                            exact: true,
                         })
                         .first()
-                    await expect(saveModeRadio).toBeVisible({timeout: 15000})
-                    await saveModeRadio.check()
+                    await expect(saveModeButton).toBeVisible({timeout: 15000})
+                    await saveModeButton.click()
 
                     if (type === "variant") {
                         // If variant, enter the variant name

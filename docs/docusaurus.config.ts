@@ -8,7 +8,7 @@ import "dotenv/config";
 
 const config: Config = {
   title: "Docs - Agenta",
-  tagline: "The LLMOps platform.",
+  tagline: "The open-source workspace for your agents.",
   favicon: "images/favicon.ico",
   // Public site lives on the main domain under /docs
   url: "https://agenta.ai",
@@ -51,6 +51,21 @@ const config: Config = {
           editUrl: "https://github.com/Agenta-AI/agenta/tree/main/docs",
           docItemComponent: "@theme/ApiItem",
           breadcrumbs: false,
+          // The current docs (the agent product) are the default and keep the
+          // existing URLs. Version 1.0 is the frozen documentation of the
+          // previous product, served under /1.0/.
+          lastVersion: "current",
+          versions: {
+            current: {
+              label: "v2.0",
+              path: "",
+            },
+            "1.0": {
+              label: "v1.0",
+              path: "1.0",
+              banner: "unmaintained",
+            },
+          },
         },
         blog: {
           routeBasePath: "/changelog",
@@ -101,6 +116,12 @@ const config: Config = {
       hideOnScroll: false,
       items: [
         {
+          type: "docsVersionDropdown",
+          position: "right",
+          dropdownItemsAfter: [],
+          dropdownActiveClassDisabled: true,
+        },
+        {
           type: "doc",
           sidebarId: "docsSidebar",
           docId: "getting-started/introduction",
@@ -112,20 +133,23 @@ const config: Config = {
             },
           },
         },
+        // Hidden during the agent-focused docs rework. The tutorials pages and
+        // their sidebar still exist and stay reachable by direct URL.
+        // {
+        //   type: "docSidebar",
+        //   sidebarId: "guidesSidebar",
+        //   position: "left",
+        //   label: "Tutorials",
+        //   customProps: {
+        //     icon: {
+        //       name: "bookOpen",
+        //     },
+        //   },
+        // },
         {
-          type: "docSidebar",
-          sidebarId: "guidesSidebar",
-          position: "left",
-          label: "Tutorials",
-          customProps: {
-            icon: {
-              name: "bookOpen",
-            },
-          },
-        },
-        {
-          type: "docSidebar",
-          sidebarId: "refrenceSidebar",
+          // Plain link: the REST reference is not versioned, it only exists in
+          // the current version.
+          to: "/reference/api-guide/overview",
           position: "left",
           label: "Reference",
           customProps: {
@@ -134,17 +158,19 @@ const config: Config = {
             },
           },
         },
-        {
-          type: "docSidebar",
-          sidebarId: "integrationsSidebar",
-          position: "left",
-          label: "Integrations",
-          customProps: {
-            icon: {
-              name: "puzzle",
-            },
-          },
-        },
+        // Hidden during the agent-focused docs rework. The integrations pages and
+        // their sidebar still exist and stay reachable by direct URL.
+        // {
+        //   type: "docSidebar",
+        //   sidebarId: "integrationsSidebar",
+        //   position: "left",
+        //   label: "Integrations",
+        //   customProps: {
+        //     icon: {
+        //       name: "puzzle",
+        //     },
+        //   },
+        // },
         {
           to: "/roadmap",
           position: "left",
@@ -166,8 +192,8 @@ const config: Config = {
           },
         },
         {
-          type: "docSidebar",
-          sidebarId: "selfHostSidebar",
+          // Plain link: self-hosting is not versioned.
+          to: "/self-host/overview",
           position: "left",
           label: "Self-host",
           customProps: {
@@ -177,8 +203,8 @@ const config: Config = {
           },
         },
         {
-          type: "docSidebar",
-          sidebarId: "administrationSidebar",
+          // Plain link: the enterprise pages are not versioned.
+          to: "/administration/security/overview",
           position: "left",
           label: "Enterprise",
           customProps: {
@@ -201,12 +227,12 @@ const config: Config = {
         {
           href: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
           position: "right",
-          html: "<button class='nav_secondary_button'>Book A Demo</button>",
+          html: "<button class='nav_secondary_button'>Book a demo</button>",
         },
         {
           href: "https://cloud.agenta.ai/",
           position: "right",
-          html: "<button class='nav_primary_button'>Start for Free</button>",
+          html: "<button class='nav_primary_button'>Get started</button>",
         },
         {
           href: "https://github.com/Agenta-AI/agenta",
@@ -353,7 +379,7 @@ const config: Config = {
           },
           {
             from: "/prompt-management/creating-a-custom-template",
-            to: "/custom-workflows/quick-start",
+            to: "/1.0/custom-workflows/quick-start",
           },
           {
             from: "/self-host/deploy_remotely/host-remotely",
@@ -368,40 +394,56 @@ const config: Config = {
             to: "/self-host/upgrading",
           },
           {
+            from: "/self-host/guides/deploy-the-agent-runner",
+            to: "/self-host/agent-execution/how-agents-run",
+          },
+          {
+            from: "/self-host/guides/custom-agent-runner-images",
+            to: "/self-host/agent-execution/customize-the-agent-runtime",
+          },
+          {
+            from: "/self-host/guides/agent-daytona-sandboxes",
+            to: "/self-host/agent-execution/daytona",
+          },
+          {
+            from: "/self-host/agent-execution/runner-configuration",
+            to: "/self-host/configuration",
+          },
+          {
             from: "/reference/sdk/quick_start",
-            to: "/reference/sdk/configuration-management",
+            to: "/1.0/reference/sdk/configuration-management",
           },
           {
             from: "/prompt-management/overview",
-            to: "/prompt-engineering/concepts",
+            to: "/1.0/prompt-engineering/concepts",
           },
           {
             from: "/prompt-management/quick-start",
-            to: "/prompt-engineering/quick-start",
+            to: "/1.0/prompt-engineering/quick-start",
           },
           {
             from: "/prompt-management/prompt-management-sdk",
-            to: "/prompt-engineering/managing-prompts-programatically/create-and-commit",
+            to: "/1.0/prompt-engineering/managing-prompts-programatically/create-and-commit",
           },
           {
             from: "/prompt-management/adding-custom-providers",
-            to: "/prompt-engineering/playground/custom-providers",
+            to: "/1.0/prompt-engineering/playground/custom-providers",
           },
           {
             from: "/prompt-management/using-the-playground",
-            to: "/prompt-engineering/playground/using-playground",
+            to: "/1.0/prompt-engineering/playground/using-playground",
           },
           {
             from: "/prompt-management/integration/how-to-integrate-with-agenta",
-            to: "/prompt-engineering/integrating-prompts/integrating-with-agenta",
+            to: "/1.0/prompt-engineering/integrating-prompts/integrating-with-agenta",
           },
           {
             from: "/prompt-management/integration/fetch-prompts",
-            to: "/prompt-engineering/integrating-prompts/fetch-prompt-programatically",
+            to: "/1.0/prompt-engineering/integrating-prompts/fetch-prompt-programatically",
           },
           {
             from: "/prompt-management/integration/proxy-calls",
-            to: "/prompt-engineering/integrating-prompts/proxy-calls",
+            to: "/1.0/prompt-engineering/integrating-prompts/proxy-calls",
           },
           {
             from: "/self-host/host-locally",
@@ -441,22 +483,6 @@ const config: Config = {
             to: "/contributing/guides/development-mode",
           },
           {
-            from: "/misc/contributing/file-issue",
-            to: "/contributing/guides/file-issue",
-          },
-          {
-            from: "/misc/contributing/guides/file-issue",
-            to: "/contributing/guides/file-issue",
-          },
-          {
-            from: "/misc/contributing/community-projects",
-            to: "/contributing/guides/community-projects",
-          },
-          {
-            from: "/misc/contributing/guides/community-projects",
-            to: "/contributing/guides/community-projects",
-          },
-          {
             from: "/misc/contributing/guides/testing",
             to: "/contributing/guides/testing",
           },
@@ -472,129 +498,129 @@ const config: Config = {
           // Prompt Engineering restructure redirects
           {
             from: "/prompt-engineering/overview",
-            to: "/prompt-engineering/concepts",
+            to: "/1.0/prompt-engineering/concepts",
           },
           {
             from: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
-            to: "/prompt-engineering/integrating-prompts/integrating-with-agenta",
+            to: "/1.0/prompt-engineering/integrating-prompts/integrating-with-agenta",
           },
           {
             from: "/prompt-engineering/prompt-management/prompt-management-sdk",
-            to: "/prompt-engineering/managing-prompts-programatically/create-and-commit",
+            to: "/1.0/prompt-engineering/managing-prompts-programatically/create-and-commit",
           },
           {
             from: "/prompt-engineering/prompt-management/proxy-calls",
-            to: "/prompt-engineering/integrating-prompts/proxy-calls",
+            to: "/1.0/prompt-engineering/integrating-prompts/proxy-calls",
           },
           {
             from: "/prompt-engineering/playground/using-the-playground",
-            to: "/prompt-engineering/playground/using-playground",
+            to: "/1.0/prompt-engineering/playground/using-playground",
           },
           {
             from: "/prompt-engineering/playground/adding-custom-providers",
-            to: "/prompt-engineering/playground/custom-providers",
+            to: "/1.0/prompt-engineering/playground/custom-providers",
           },
           // Evaluation restructure redirects
           {
             from: "/evaluation/create-test-sets",
-            to: "/evaluation/managing-test-sets/upload-csv",
+            to: "/1.0/evaluation/managing-test-sets/upload-csv",
           },
           {
             from: "/evaluation/no-code-evaluation",
-            to: "/evaluation/evaluation-from-ui/running-evaluations",
+            to: "/1.0/evaluation/evaluation-from-ui/running-evaluations",
           },
           {
             from: "/evaluation/sdk-evaluation",
-            to: "/evaluation/concepts",
+            to: "/1.0/evaluation/concepts",
           },
           {
             from: "/evaluation/configure-evaluators",
-            to: "/evaluation/configure-evaluators/overview",
+            to: "/1.0/evaluation/configure-evaluators/overview",
           },
           {
             from: "/evaluation/human_evaluation",
-            to: "/evaluation/human-evaluation/quick-start",
+            to: "/1.0/evaluation/human-evaluation/quick-start",
           },
           {
             from: "/evaluation/annotate-api",
-            to: "/observability/trace-with-python-sdk/annotate-traces",
+            to: "/1.0/observability/trace-with-python-sdk/annotate-traces",
           },
           {
             from: "/evaluation/evaluators/classification-entiry-extraction",
-            to: "/evaluation/configure-evaluators/classification-entity-extraction",
+            to: "/1.0/evaluation/configure-evaluators/classification-entity-extraction",
           },
           {
             from: "/evaluation/evaluators/pattern-matching",
-            to: "/evaluation/configure-evaluators/regex-evaluator",
+            to: "/1.0/evaluation/configure-evaluators/regex-evaluator",
           },
           {
             from: "/evaluation/configure-evaluators/pattern-matching",
-            to: "/evaluation/configure-evaluators/regex-evaluator",
+            to: "/1.0/evaluation/configure-evaluators/regex-evaluator",
           },
           {
             from: "/evaluation/evaluators/semantic-similarity",
-            to: "/evaluation/configure-evaluators/semantic-similarity",
+            to: "/1.0/evaluation/configure-evaluators/semantic-similarity",
           },
           {
             from: "/evaluation/evaluators/llm-as-a-judge",
-            to: "/evaluation/configure-evaluators/llm-as-a-judge",
+            to: "/1.0/evaluation/configure-evaluators/llm-as-a-judge",
           },
           {
             from: "/evaluation/evaluators/rag-evaluators",
-            to: "/evaluation/configure-evaluators/rag-evaluators",
+            to: "/1.0/evaluation/configure-evaluators/rag-evaluators",
           },
           {
             from: "/evaluation/evaluators/custom-evaluator",
-            to: "/evaluation/configure-evaluators/custom-evaluator",
+            to: "/1.0/evaluation/configure-evaluators/custom-evaluator",
           },
           {
             from: "/evaluation/evaluators/webhook-evaluator",
-            to: "/evaluation/configure-evaluators/webhook-evaluator",
+            to: "/1.0/evaluation/configure-evaluators/webhook-evaluator",
           },
           {
             from: "/evaluation/quick-start-ui",
-            to: "/evaluation/evaluation-from-ui/quick-start",
+            to: "/1.0/evaluation/evaluation-from-ui/quick-start",
           },
           {
             from: "/evaluation/quick-start-sdk",
-            to: "/evaluation/concepts",
+            to: "/1.0/evaluation/concepts",
           },
           {
             from: "/evaluation/overview",
-            to: "/evaluation/concepts",
+            to: "/1.0/evaluation/concepts",
           },
           // Observability restructure redirects
           {
             from: "/observability/observability-sdk",
-            to: "/observability/trace-with-python-sdk/setup-tracing",
+            to: "/1.0/observability/trace-with-python-sdk/setup-tracing",
           },
           {
             from: "/observability/opentelemetry",
-            to: "/observability/trace-with-opentelemetry/distributed-tracing",
+            to: "/1.0/observability/trace-with-opentelemetry/distributed-tracing",
           },
           {
             from: "/observability/otel-semconv",
-            to: "/observability/trace-with-opentelemetry/semantic-conventions",
+            to: "/1.0/observability/trace-with-opentelemetry/semantic-conventions",
           },
           {
             from: "/observability/overview",
-            to: "/observability/concepts",
+            to: "/1.0/observability/concepts",
           },
           {
             from: "/observability/quickstart",
-            to: "/observability/quickstart-python",
+            to: "/1.0/observability/quickstart-python",
           },
           {
             from: "/observability/trace-with-opentelemetry/setup-tracing",
-            to: "/observability/trace-with-opentelemetry/getting-started",
+            to: "/1.0/observability/trace-with-opentelemetry/getting-started",
           },
           {
             from: "/observability/using-the-ui/filtering-traces",
-            to: "/observability/concepts",
+            to: "/1.0/observability/concepts",
           },
           {
             from: "/observability/concepts/semantic-conventions",
-            to: "/observability/trace-with-opentelemetry/semantic-conventions",
+            to: "/1.0/observability/trace-with-opentelemetry/semantic-conventions",
           },
           {
             from: "/reference/api",
@@ -603,54 +629,60 @@ const config: Config = {
           // Observability integrations -> new Integrations section
           {
             from: "/observability/integrations/openai",
-            to: "/integrations/llm-providers/openai/observability",
+            to: "/1.0/integrations/llm-providers/openai/observability",
           },
           {
             from: "/observability/integrations/langchain",
-            to: "/integrations/frameworks/langchain/observability",
+            to: "/1.0/integrations/frameworks/langchain/observability",
           },
           {
             from: "/observability/integrations/instructor",
-            to: "/integrations/libraries/instructor/observability",
+            to: "/1.0/integrations/libraries/instructor/observability",
           },
           {
             from: "/observability/integrations/litellm",
-            to: "/integrations/llm-providers/litellm/observability",
+            to: "/1.0/integrations/llm-providers/litellm/observability",
           },
           {
             from: "/observability/integrations/llamaindex",
-            to: "/integrations/frameworks/llamaindex/observability",
+            to: "/1.0/integrations/frameworks/llamaindex/observability",
           },
           {
             from: "/observability/integrations/langgraph",
-            to: "/integrations/frameworks/langgraph/observability",
+            to: "/1.0/integrations/frameworks/langgraph/observability",
           },
           {
             from: "/observability/integrations/openai-agents",
-            to: "/integrations/frameworks/openai-agents/observability",
+            to: "/1.0/integrations/frameworks/openai-agents/observability",
           },
           {
             from: "/observability/integrations/pydanticai",
-            to: "/integrations/frameworks/pydanticai/observability",
+            to: "/1.0/integrations/frameworks/pydanticai/observability",
           },
           {
             from: "/observability/integrations/dspy",
-            to: "/integrations/frameworks/dspy/observability",
+            to: "/1.0/integrations/frameworks/dspy/observability",
           },
           {
             from: "/observability/integrations/agno",
-            to: "/integrations/frameworks/agno/observability",
+            to: "/1.0/integrations/frameworks/agno/observability",
           },
           {
             from: "/observability/integrations/google-adk",
-            to: "/integrations/frameworks/google-adk/observability",
+            to: "/1.0/integrations/frameworks/google-adk/observability",
           }
         ],
-        createRedirects(existingPath) {
+        createRedirects(existingPath: string) {
           if (existingPath.includes('/reference/sdk/core_functions')) {
             return [
               existingPath.replace('reference/sdk/core_functions', 'reference/sdk/deprecated-v2/core_functions'),
             ];
+          }
+          // Every page of the frozen 1.0 documentation also answers at the URL
+          // it had before versioning, so old links and search results keep
+          // working.
+          if (existingPath.startsWith('/1.0/')) {
+            return [existingPath.replace('/1.0/', '/')];
           }
           return undefined;
         },
@@ -674,7 +706,7 @@ const config: Config = {
       "docusaurus-plugin-llms-txt",
       {
         title: "Agenta Documentation",
-        description: "The LLMOps platform for building and deploying LLM applications.",
+        description: "The open-source workspace for your agents — build them through chat, improve them with feedback, and share them with your team.",
         fullLLMsTxt: true,
       },
     ],

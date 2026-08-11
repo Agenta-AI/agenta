@@ -99,6 +99,7 @@ export {renderEvaluatorPickerLabelNode, buildEvaluatorPickerLabelNode} from "./e
 
 // Enriched adapter hooks with auto-fetching evaluator template data
 export {
+    useEnsureEvaluatorEnrichment,
     useEvaluatorEnrichedData,
     useEnrichedEvaluatorBrowseAdapter,
     useEnrichedEvaluatorOnlyAdapter,

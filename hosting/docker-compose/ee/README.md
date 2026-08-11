@@ -158,10 +158,8 @@ The compose stack runs these services:
 | `api` | `agenta-api-ee` | FastAPI backend (gunicorn + uvicorn) |
 | `web` | `agenta-web-ee` | Next.js frontend |
 | `services` | `agenta-services-ee` | LLM proxy and evaluator execution |
-| `worker-evaluations` | `agenta-api-ee` | Processes evaluation jobs |
-| `worker-tracing` | `agenta-api-ee` | Ingests traces |
-| `worker-webhooks` | `agenta-api-ee` | Delivers webhooks |
-| `worker-events` | `agenta-api-ee` | Processes async events |
+| `worker-streams` | `agenta-api-ee` | Stream consumers: tracing, events, records |
+| `worker-queues` | `agenta-api-ee` | Queue consumers: webhooks, triggers, interactions, evaluations |
 | `cron` | `agenta-api-ee` | Scheduled tasks (cleanup, metering) |
 | `alembic` | `agenta-api-ee` | Runs database migrations on startup |
 | `postgres` | `postgres:18` | PostgreSQL (three databases: core, tracing, supertokens) |

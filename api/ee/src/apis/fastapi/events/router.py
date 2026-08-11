@@ -20,8 +20,8 @@ from oss.src.core.events.service import EventsService
 
 from ee.src.apis.fastapi.events.models import EventQueryRequest, EventsQueryResponse
 from ee.src.core.events.service import EventsRetentionService
-from ee.src.core.access.permissions.types import Permission
-from ee.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.service import check_action_access
 from ee.src.core.access.entitlements.service import (
     check_entitlements,
     NOT_ENTITLED_RESPONSE,

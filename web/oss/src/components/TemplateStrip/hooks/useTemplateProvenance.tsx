@@ -1,0 +1,131 @@
+import {useCallback, useMemo, useRef, useState, type ReactNode} from "react"
+
+import {
+    AGENT_TEMPLATES,
+    templateBuilderMessage,
+    type AgentTemplate,
+} from "@/oss/components/pages/agent-home/assets/templates"
+
+import TemplateChipDock from "../components/TemplateChipDock"
+
+interface ComposerApi {
+    setText: (text: string) => void
+    /** Current composer text, read at USE time to confirm the template seed wasn't edited away. */
+    getText: () => string
+}
+
+/** Composer wrapper classes while a chip is docked (squared top-left corner, active border). */
+const CHIPPED_COMPOSER_CLASS =
+    "!rounded-[0px_14px_14px_14px] !border-[1.5px] !border-[var(--ag-colorPrimary)]"
+/** Strip-era default composer classes (no chip). */
+const DEFAULT_COMPOSER_CLASS =
+    "!rounded-[14px] !border-[1.5px] !border-[var(--ag-strip-input-border)]"
+
+/**
+ * Per-composer provenance state: which template filled the composer. `pick` overwrites the
+ * text; `clear` drops the chip AND the text. Editing the text keeps the chip showing
+ * (provenance, not a lock) — but fully emptying it (via `onComposerTextChange`) drops
+ * provenance too, and `resolveTemplateName` only credits the template at USE time if the text
+ * still matches the seed verbatim. One instance per surface; never shared.
+ */
+export function useTemplateProvenance({composerApi}: {composerApi: ComposerApi}): {
+    selectedTemplate: AgentTemplate | null
+    selectedTemplateKey: string | null
+    pick: (template: AgentTemplate) => void
+    clear: () => void
+    /** Drop the chip without touching composer text — for callers (e.g. a revision swap) that must
+     * reset provenance while preserving the user's in-progress draft. */
+    clearProvenance: () => void
+    /** Wire to the composer's text-change signal (e.g. `RichChatInput`'s `onChange`) so a fully
+     * emptied composer drops the chip too — a template pick must not survive its own erasure. */
+    onComposerTextChange: (text: string) => void
+    /** USE-time name resolution (Create-agent / commit): only returns the template's name when
+     * the composer text still exactly matches what the pick seeded — any edit, partial or full,
+     * means the agent is no longer "from" that template. Pass the current text when the caller
+     * already has it (avoids reading a composer that was cleared earlier in the same handler). */
+    resolveTemplateName: (currentText?: string) => string | undefined
+    chipNode: ReactNode
+    composerClassName: string
+} {
+    const [selectedTemplate, setSelectedTemplate] = useState<AgentTemplate | null>(null)
+
+    // Ref'd so callers can pass an inline object literal without destabilizing `pick`.
+    const apiRef = useRef(composerApi)
+    apiRef.current = composerApi
+
+    // The exact text `pick` seeded (trimmed), so USE-time can tell a verbatim template seed from
+    // an edited one. Null when nothing is seeded (cleared, or never picked).
+    const seededTextRef = useRef<string | null>(null)
+
+    // The last template shown in the chip, retained after a clear so the chip fades OUT with its
+    // real content instead of flipping to the sizing placeholder mid-transition.
+    const lastTemplateRef = useRef<AgentTemplate | null>(null)
+
+    // Drop provenance without touching composer text — used when the text is already empty
+    // (typed/deleted away) so we don't re-set already-empty content.
+    const clearProvenance = useCallback(() => {
+        seededTextRef.current = null
+        setSelectedTemplate(null)
+    }, [])
+
+    const pick = useCallback((template: AgentTemplate) => {
+        const seeded = templateBuilderMessage(template)
+        apiRef.current.setText(seeded)
+        seededTextRef.current = seeded.trim()
+        lastTemplateRef.current = template
+        setSelectedTemplate(template)
+    }, [])
+
+    // The chip's ✕ means "remove the template" — that includes the text it filled in, not just
+    // the chip. Callers that already cleared the composer themselves (e.g. after a send) just
+    // no-op here.
+    const clear = useCallback(() => {
+        apiRef.current.setText("")
+        clearProvenance()
+    }, [clearProvenance])
+
+    // Live signal from the composer: once the user empties it (typing/deleting), the chip is
+    // stale — drop it immediately rather than waiting for a create/submit to notice.
+    const onComposerTextChange = useCallback(
+        (text: string) => {
+            if (!text.trim()) clearProvenance()
+        },
+        [clearProvenance],
+    )
+
+    // USE-time guarantee: empty text, or text that no longer matches the seed verbatim, can never
+    // produce a template-derived name. Strict comparison (not "lightly edited") on purpose — simpler
+    // and consistent across every create path.
+    const resolveTemplateName = useCallback(
+        (currentText?: string): string | undefined => {
+            if (!selectedTemplate || seededTextRef.current === null) return undefined
+            const current = (currentText ?? apiRef.current.getText()).trim()
+            return current && current === seededTextRef.current ? selectedTemplate.name : undefined
+        },
+        [selectedTemplate],
+    )
+
+    // Keep showing the last template during the exit so the chip fades out with real content, not a placeholder.
+    const chipNode = useMemo(() => {
+        const shown = selectedTemplate ?? lastTemplateRef.current ?? AGENT_TEMPLATES[0]
+        return (
+            <TemplateChipDock
+                template={shown}
+                visible={Boolean(selectedTemplate)}
+                onClear={clear}
+            />
+        )
+    }, [selectedTemplate, clear])
+
+    return {
+        selectedTemplate,
+        selectedTemplateKey: selectedTemplate?.key ?? null,
+        pick,
+        clear,
+        clearProvenance,
+        onComposerTextChange,
+        resolveTemplateName,
+        chipNode,
+        composerClassName: selectedTemplate ? CHIPPED_COMPOSER_CLASS : DEFAULT_COMPOSER_CLASS,
+    }
+}

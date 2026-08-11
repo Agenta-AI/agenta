@@ -1,12 +1,17 @@
 import {useCallback} from "react"
 
 import {message} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
 import {appsQueryAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {useAppNavigation} from "@/oss/state/appState"
+
+// Stable empty apps-query read for when the "first app" fallback isn't needed, so
+// this hook doesn't subscribe to the whole apps catalog on mount (it's mounted by
+// the always-present OnboardingWidget).
+const EMPTY_APPS_QUERY_ATOM = atom({data: [] as {app_id?: string}[], isSuccess: false})
 
 interface VariantLike {
     id?: string
@@ -55,13 +60,21 @@ export const usePlaygroundNavigation = () => {
     const appId = useAppId()
     const {push} = useAppNavigation()
     const {baseAppURL} = useURL()
-    const appsQuery = useAtomValue(appsQueryAtom)
     const recentAppId = useAtomValue(recentAppIdAtom)
     const setRecentAppId = useSetAtom(recentAppIdAtom)
+    // The apps list is only needed for the "first app" fallback when there's NO
+    // current and NO recent app (e.g. onboarding from /home). On any normal app
+    // route `appId` is present, so we read a stable empty atom — avoiding a
+    // mount-time subscription to the whole apps catalog on every page.
+    const needsAppFallback = !appId && !recentAppId
+    const appsQuery = useAtomValue(needsAppFallback ? appsQueryAtom : EMPTY_APPS_QUERY_ATOM) as {
+        data?: {app_id?: string}[]
+        isSuccess?: boolean
+    }
 
     const goToPlayground = useCallback(
         (target?: PlaygroundTarget, options?: GoToPlaygroundOptions) => {
-            let resolvedAppId = options?.appId ?? appId ?? recentAppId ?? null
+            let resolvedAppId: string | null = options?.appId ?? appId ?? recentAppId ?? null
             const apps = appsQuery?.data ?? []
 
             if (!resolvedAppId && appsQuery?.isSuccess) {

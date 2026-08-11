@@ -1,10 +1,9 @@
+import {createInfiniteDatasetStore} from "@agenta/ui/table"
+import type {WindowingState} from "@agenta/ui/table"
 import {atom} from "jotai"
 import type {PrimitiveAtom} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithStorage} from "jotai/vanilla/utils"
-
-import {createInfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable"
-import type {WindowingState} from "@/oss/components/InfiniteVirtualTable/types"
 
 import type {
     EvaluationRunApiRow,

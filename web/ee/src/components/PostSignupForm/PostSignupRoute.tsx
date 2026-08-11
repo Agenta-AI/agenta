@@ -3,9 +3,12 @@ import {useEffect, useRef} from "react"
 import {useRouter} from "next/router"
 
 import {useOrgData} from "@/oss/state/org"
+import {
+    buildPostLoginPathResolved,
+    waitForWorkspaceContext,
+} from "@/oss/state/url/postLoginRedirect"
 
 import {usePostSignupReadiness} from "./hooks/usePostSignupReadiness"
-import PostSignupFallback from "./PostSignupFallback"
 import PostSignupForm from "./PostSignupForm"
 import PostSignupSkeleton from "./PostSignupSkeleton"
 
@@ -17,8 +20,8 @@ import PostSignupSkeleton from "./PostSignupSkeleton"
  *
  *   - PostSignupSkeleton  while anything is still loading
  *   - PostSignupForm      when every dependency resolved successfully
- *   - PostSignupFallback  when a transient failure happened (network, CDN, ...)
- *   - (redirects)         when a permanent failure happened (no key, survey gone)
+ *   - (redirects)         on any failure, permanent or transient — the survey
+ *                         is never worth blocking a new user on
  *
  * Downstream components never see "maybe-loaded" data — by the time they
  * render, their props are guaranteed populated. This removes the need for
@@ -27,19 +30,19 @@ import PostSignupSkeleton from "./PostSignupSkeleton"
 const PostSignupRoute = () => {
     const router = useRouter()
     const readiness = usePostSignupReadiness()
-    // We also need orgs for the loading/fallback header. Reading it here keeps
+    // We also need orgs for the loading/skip header. Reading it here keeps
     // those branches presentational while the readiness hook stays focused on
     // gating semantics.
     const {orgs} = useOrgData()
     const skipRedirectFiredRef = useRef(false)
 
-    // Every successful exit from this page (Submit, fallback Continue, or
-    // permanent-skip redirect) lands on /get-started. Prefetch it on mount so
-    // the route swap doesn't show a blank gap while Next.js compiles (dev) or
-    // fetches the chunk (prod). Pages-router prefetch is idempotent and safe
-    // to call on every mount.
+    // Every exit from this page (Submit or skip redirect) lands on the
+    // resolved post-login path (/apps).
+    // Prefetch the workspace root on mount so the route swap doesn't show a
+    // blank gap while Next.js compiles (dev) or fetches the chunk (prod).
+    // Pages-router prefetch is idempotent and safe to call on every mount.
     useEffect(() => {
-        void router.prefetch("/get-started")
+        void router.prefetch("/w")
     }, [router])
 
     useEffect(() => {
@@ -49,15 +52,15 @@ const PostSignupRoute = () => {
         }
         if (skipRedirectFiredRef.current) return
         skipRedirectFiredRef.current = true
-        void router.replace("/get-started")
+        void (async () => {
+            const context = await waitForWorkspaceContext({requireProjectId: false})
+            const nextPath = await buildPostLoginPathResolved(context)
+            await router.replace(nextPath)
+        })()
     }, [readiness, router])
 
     if (readiness.status === "skip") {
         return <PostSignupSkeleton orgs={orgs ?? []} />
-    }
-
-    if (readiness.status === "fallback") {
-        return <PostSignupFallback orgs={orgs ?? []} reason={readiness.reason} />
     }
 
     if (readiness.status === "loading") {

@@ -117,15 +117,12 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
                     textNode.replace(tokenNode)
                     const spaceNode = $createTextNode(" ")
                     tokenNode.insertAfter(spaceNode)
-                    editor.update(() => {
-                        const selection = editor.getEditorState().read(() => {
-                            const state = editor.getEditorState()
-                            return state._selection
-                        })
-                        if ($isRangeSelection(selection)) {
-                            spaceNode.selectEnd()
-                        }
-                    })
+                    // Move the caret synchronously within this transform. A nested
+                    // editor.update() here spawns extra commits that storm the token
+                    // typeahead's update listener into a React update-depth crash.
+                    if ($isRangeSelection($getSelection())) {
+                        navigateCursor({nodeKey: spaceNode.getKey(), offset: 1})
+                    }
                 }
                 return
             }
@@ -215,20 +212,15 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
                 } else if (fullMatch === "{{}}") {
                     navigateCursor({nodeKey: tokenNode.getKey(), offset: 2})
                 } else {
-                    // Manual close, no trailing text — insert a space
-                    // after the token so the user has somewhere to keep
-                    // typing, and move the cursor to it.
+                    // Manual close, no trailing text — insert a space after the
+                    // token so the user can keep typing, and move the cursor to it.
+                    // Set selection synchronously: a nested editor.update() here
+                    // storms the typeahead update listener into an update-depth crash.
                     const spaceNode = $createTextNode(" ")
                     tokenNode.insertAfter(spaceNode)
-                    editor.update(() => {
-                        const selection = editor.getEditorState().read(() => {
-                            const state = editor.getEditorState()
-                            return state._selection
-                        })
-                        if ($isRangeSelection(selection)) {
-                            spaceNode.selectEnd()
-                        }
-                    })
+                    if ($isRangeSelection($getSelection())) {
+                        navigateCursor({nodeKey: spaceNode.getKey(), offset: 1})
+                    }
                 }
 
                 textNode.remove()

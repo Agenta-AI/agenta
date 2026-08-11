@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {getEvaluationsClient} from "@agenta/sdk/resources"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Button, Input, Skeleton, Tag, Typography} from "antd"
@@ -9,7 +9,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {CopyIconButton, middleTruncateId} from "@/oss/components/References/ReferenceTag"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
@@ -104,8 +103,7 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
             setSaving(true)
             // Partial edit: the backend updates only the fields present in the
             // payload (exclude_none), so name/description never clobber the rest.
-            const client = getAgentaSdkClient({host: getAgentaApiUrl()})
-            await client.evaluations.editRun(
+            await getEvaluationsClient().editRun(
                 {
                     run_id: runId,
                     run: {id: runId, name: editName, description: editDescription},

@@ -5,9 +5,7 @@ Replaces the in-memory asyncio.Queue worker from PR #1223 with Redis Streams.
 Keeps the same batching, grouping, and entitlements logic.
 """
 
-import os
 import asyncio
-import time
 from typing import Dict, List, Tuple, Optional
 from uuid import UUID
 from redis.asyncio import Redis
@@ -17,6 +15,7 @@ from oss.src.core.tracing.dtos import OTelFlatSpan
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.core.tracing.streaming import deserialize_span
+from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
 
@@ -28,21 +27,23 @@ if is_ee():
     )
 
 
-class TracingWorker:
+class TracingWorker(StreamConsumer):
     """
     Worker for tracing spans ingestion via Redis Streams.
 
-    Consumes from: streams:tracing
-    Consumer group: worker-tracing
+    Consumes from: streams:spans
+    Consumer group: worker-spans
 
     Flow:
-    1. Read batch from Redis Streams (XREADGROUP)
+    1. Read batch from Redis Streams (XREADGROUP) — StreamConsumer
     2. Deserialize spans from bytes
     3. Group by organization_id → (project_id, user_id)
     4. Check entitlements per org (Layer 2 - authoritative)
     5. Bulk create spans per project/user if allowed
-    6. ACK + DEL messages
+    6. ACK + DEL messages — StreamConsumer
     """
+
+    log_prefix = "[INGEST]"
 
     def __init__(
         self,
@@ -56,137 +57,17 @@ class TracingWorker:
         max_delay_ms: int = 250,  # 250 milliseconds
         max_batch_mb: int = 50,  # 50 MB
     ):
-        """
-        Initialize tracing worker.
-
-        Args:
-            service: TracingService instance for creating spans
-            redis_client: Redis async client
-            stream_name: Name of the stream (e.g., "streams:tracing")
-            consumer_group: Consumer group name (e.g., "worker-tracing")
-            consumer_name: Consumer name (defaults to "worker-{pid}")
-            max_batch_size: Max messages to read per batch (COUNT in XREADGROUP)
-            max_block_ms: Max milliseconds to block waiting for messages
-            max_batch_mb: Max batch size in megabytes (default: 100MB)
-            max_delay_ms: Max milliseconds to wait for batch accumulation when small batches arrive (default: 100ms)
-        """
+        super().__init__(
+            redis_client=redis_client,
+            stream_name=stream_name,
+            consumer_group=consumer_group,
+            consumer_name=consumer_name,
+            max_batch_size=max_batch_size,
+            max_block_ms=max_block_ms,
+            max_delay_ms=max_delay_ms,
+            max_batch_mb=max_batch_mb,
+        )
         self.service = service
-        self.redis = redis_client
-        self.stream_name = stream_name
-        self.consumer_group = consumer_group
-        self.consumer_name = consumer_name or f"worker-{os.getpid()}"
-        self.max_batch_size = max_batch_size
-        self.max_block_ms = max_block_ms
-        self.max_batch_mb = max_batch_mb
-        self.max_delay_ms = max_delay_ms
-
-    async def create_consumer_group(self):
-        """
-        Create consumer group if it doesn't exist.
-
-        Safe to call multiple times (idempotent).
-        """
-        try:
-            await self.redis.xgroup_create(
-                name=self.stream_name,
-                groupname=self.consumer_group,
-                id="0",  # Start from beginning for new group
-                mkstream=True,  # Create stream if it doesn't exist
-            )
-            log.info(
-                "[INGEST] Created consumer group",
-                stream=self.stream_name,
-                group=self.consumer_group,
-            )
-        except Exception as e:
-            # BUSYGROUP means group already exists - this is fine
-            if "BUSYGROUP" not in str(e):
-                log.error(f"[INGEST] Failed to create consumer group: {e}")
-                raise
-
-    async def read_batch(self) -> List[Tuple[bytes, Dict[bytes, bytes]]]:
-        """
-        Read batch from stream using XREADGROUP with time-based accumulation.
-
-        Strategy:
-        1. Read up to max_batch_size messages with max_block_ms timeout
-        2. If batch is smaller than max_batch_size, start accumulation timer and accumulate more messages
-        3. Continuously do blocking reads with remaining time until max_delay_ms elapsed from accumulation start
-        4. Return combined batch once full or time window expires
-
-        Returns:
-            List of (message_id, {field: value}) tuples
-        """
-        try:
-            # 1. Initial blocking read
-            messages = await self.redis.xreadgroup(
-                groupname=self.consumer_group,
-                consumername=self.consumer_name,
-                streams={self.stream_name: ">"},  # Only new messages
-                count=self.max_batch_size,
-                block=self.max_block_ms,
-            )
-
-            if not messages:
-                return []
-
-            # messages format: [(stream_name, [(id, data), (id, data), ...])]
-            batch = messages[0][1]  # [(id, data), ...]
-
-            # 2. If batch is small, accumulate more spans within time window
-            if len(batch) < self.max_batch_size:
-                start_time = time.time()
-
-                while True:
-                    elapsed = (time.time() - start_time) * 1000  # Convert to ms
-                    remaining_ms = self.max_delay_ms - elapsed
-
-                    if remaining_ms <= 0:
-                        break
-
-                    accumulated_messages = await self.redis.xreadgroup(
-                        groupname=self.consumer_group,
-                        consumername=self.consumer_name,
-                        streams={self.stream_name: ">"},
-                        count=self.max_batch_size,
-                        block=max(10, int(remaining_ms)),
-                    )
-
-                    if accumulated_messages:
-                        batch.extend(accumulated_messages[0][1])
-                        if len(batch) >= self.max_batch_size:
-                            break
-
-            return batch
-
-        except Exception as e:
-            log.error(f"[INGEST] Failed to read batch: {e}")
-            return []
-
-    async def ack_and_delete(self, message_ids: List[bytes]):
-        """
-        ACK and DELETE messages after successful processing.
-
-        Args:
-            message_ids: List of message IDs to acknowledge
-        """
-        if not message_ids:
-            return
-
-        try:
-            # ACK messages (mark as processed in consumer group)
-            await self.redis.xack(
-                self.stream_name,
-                self.consumer_group,
-                *message_ids,
-            )
-
-            # DEL messages (remove from stream)
-            await self.redis.xdel(self.stream_name, *message_ids)
-
-        except Exception as e:
-            log.error(f"[INGEST] Failed to ACK/DEL messages: {e}")
-            # Don't raise - messages will remain pending and can be claimed later
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
@@ -311,43 +192,3 @@ class TracingWorker:
 
         # Return count and message IDs for ACK/DEL
         return (processed_count, processed_message_ids)
-
-    async def run(self):
-        """
-        Main worker loop.
-
-        Flow:
-        1. Read batch via XREADGROUP
-        2. Process batch
-        3. ACK + DEL on success
-        4. On error, messages remain pending for retry
-        """
-        log.info(
-            "[INGEST] Starting worker",
-            stream=self.stream_name,
-            consumer_group=self.consumer_group,
-            consumer=self.consumer_name,
-            max_batch_size=self.max_batch_size,
-        )
-
-        while True:
-            try:
-                # 1. Read batch from stream
-                batch = await self.read_batch()
-                if not batch:
-                    continue
-
-                # 2. Process batch (returns count and processed message IDs)
-                processed_count, processed_message_ids = await self.process_batch(batch)
-
-                # 3. ACK and DELETE only the processed messages
-                if processed_message_ids:
-                    await self.ack_and_delete(processed_message_ids)
-
-            except Exception:
-                log.error(
-                    "[INGEST] Error in worker loop",
-                    exc_info=True,
-                )
-                # Sleep before retry to avoid tight error loop
-                await asyncio.sleep(1)

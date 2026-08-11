@@ -35,7 +35,7 @@ const pickInvocationReference = (runQuery: any) => {
         return {stepKey: undefined, refs: undefined}
     }
 
-    const invocationKeys = Array.from(runData.runIndex.invocationKeys ?? [])
+    const invocationKeys = Array.from(runData.runIndex.invocationKeys ?? []) as string[]
     const primaryKey = invocationKeys[0]
     if (!primaryKey) {
         return {stepKey: undefined, refs: undefined}

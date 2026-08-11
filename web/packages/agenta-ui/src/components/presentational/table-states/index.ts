@@ -5,6 +5,5 @@
  * and table UI elements (collapsible headers).
  */
 
-export {TableLoadingState, type TableLoadingStateProps} from "./TableLoadingState"
 export {TableEmptyState, type TableEmptyStateProps} from "./TableEmptyState"
 export {CollapsibleGroupHeader, type CollapsibleGroupHeaderProps} from "./CollapsibleGroupHeader"

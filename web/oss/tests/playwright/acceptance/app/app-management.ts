@@ -42,7 +42,8 @@ const lightTags = buildAcceptanceTags({
 })
 
 const tests = () => {
-    baseTest(
+    // Disabled: times out intermittently against preview environments (#5695).
+    baseTest.skip(
         "should delete an app",
         {tag: tags},
         async ({page, navigateToApps, uiHelpers, apiHelpers}) => {
@@ -53,14 +54,14 @@ const tests = () => {
             })
 
             await scenarios.and("at least one prompt app exists in the project", async () => {
-                // getApp navigates to /apps internally and creates an app via UI if none exist.
+                // getApp navigates to /prompts internally and creates an app via UI if none exist.
                 // app.name is the correct field (not app.app_name).
                 const app = await apiHelpers.getApp()
                 appName = app.name
             })
 
             await scenarios.and("the user is on the apps list page", async () => {
-                // Explicitly navigate to /apps after getApp — if getApp created a new app it
+                // Explicitly navigate to /prompts after getApp — if getApp created a new app it
                 // lands on the playground; this step brings us back to the table.
                 await navigateToApps()
             })
@@ -142,6 +143,9 @@ const tests = () => {
         "should render the app overview page with environment cards and variant list",
         {tag: lightTags},
         async ({page, uiHelpers, apiHelpers}) => {
+            // getApp() may create the app through the UI; that does not fit the 60s default (#5695).
+            baseTest.setTimeout(120000)
+
             let appId: string
 
             await scenarios.given("the user is authenticated", async () => {

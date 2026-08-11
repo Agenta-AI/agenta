@@ -11,8 +11,11 @@ export interface ApplicationRevisionQueryFlags {
     is_code?: (boolean | null) | undefined;
     is_match?: (boolean | null) | undefined;
     is_feedback?: (boolean | null) | undefined;
+    is_agent?: (boolean | null) | undefined;
+    is_skill?: (boolean | null) | undefined;
     is_chat?: (boolean | null) | undefined;
     has_url?: (boolean | null) | undefined;
     has_script?: (boolean | null) | undefined;
     has_handler?: (boolean | null) | undefined;
+    is_static?: (boolean | null) | undefined;
 }

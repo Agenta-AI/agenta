@@ -22,11 +22,8 @@
 
 import type {CSSProperties, PropsWithChildren, ReactNode} from "react"
 
-import {Skeleton, Typography} from "antd"
-
 import {cn} from "../../../utils/styles"
-
-const {Text} = Typography
+import {Skeleton} from "../../ui/skeleton"
 
 // ============================================================================
 // TYPES
@@ -108,7 +105,7 @@ export function SectionCard({children, className, style}: SectionCardProps) {
     return (
         <div
             className={cn(
-                "flex flex-col gap-6 border border-solid border-zinc-2 bg-[var(--ag-c-FFFFFF)] p-4 rounded",
+                "flex flex-col gap-6 border border-solid border-colorBorderSecondary bg-colorBgContainer p-4 rounded",
                 className,
             )}
             style={style}
@@ -140,9 +137,11 @@ export function SectionHeaderRow({left, right, align = "center"}: SectionHeaderR
  */
 export function SectionLabel({children, className}: SectionLabelProps) {
     return (
-        <Text type="secondary" className={cn("uppercase font-semibold text-xs", className)}>
+        <span
+            className={cn("uppercase font-semibold text-xs text-colorTextDescription", className)}
+        >
             {children}
-        </Text>
+        </span>
     )
 }
 
@@ -168,3 +167,12 @@ export function SectionSkeleton({lines = 4}: SectionSkeletonProps) {
         </SectionCard>
     )
 }
+
+export {
+    ConfigAccordionSection,
+    type ConfigAccordionSectionProps,
+    sectionIndicatorColor,
+    type SectionIndicatorTone,
+    useAccordionSectionOpen,
+} from "./ConfigAccordionSection"
+export {useRecentFlag} from "./useRecentFlag"

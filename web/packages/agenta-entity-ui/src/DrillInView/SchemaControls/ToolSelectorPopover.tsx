@@ -22,8 +22,24 @@ import {
 import type {GatewayToolsBridge} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {getProviderIcon} from "@agenta/ui/select-llm-provider"
-import {CaretRight, Check, Code, MagnifyingGlass, Plus, Sparkle} from "@phosphor-icons/react"
-import {Button, Dropdown, Empty, Input, Spin, Typography} from "antd"
+import {
+    Button,
+    EmptyState,
+    InputAffix,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+    Spinner,
+} from "@agenta/ui/ui"
+import {
+    CaretRight,
+    Check,
+    Code,
+    GraphIcon,
+    MagnifyingGlass,
+    Plus,
+    Sparkle,
+} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import {TOOL_PROVIDERS_META, TOOL_SPECS, type ToolObj} from "./toolUtils"
@@ -59,6 +75,12 @@ export interface ToolSelectionMeta {
     toolLabel?: string
     integrationKey?: string
     connectionSlug?: string
+    /**
+     * Open the tool config editor instead of adding immediately (append on Save). Set when a
+     * gateway action's input schema couldn't be resolved, so the user defines the parameters in
+     * the editor rather than getting a silent schema-less tool. Transient — not persisted.
+     */
+    needsConfig?: boolean
 }
 
 export interface ToolSelectorPopoverProps {
@@ -80,6 +102,17 @@ export interface ToolSelectorPopoverProps {
     existingToolCount?: number
     /** Optional gateway tools bridge (typically from DrillInUIContext) */
     gatewayTools?: GatewayToolsBridge
+    /** Custom trigger element. Defaults to an outlined "Tool" button (e.g. a compact icon button
+     * when hosted in a section header). */
+    trigger?: ReactNode
+    /** When provided, the "Reference a workflow" section shows and its `+` calls this (the host opens
+     * a workflow-selector drawer). Without it the section is hidden. */
+    onReferenceWorkflow?: () => void
+    /** Start open (forced-open parity stories / initial-open UX). */
+    defaultOpen?: boolean
+    /** Portal target for the panel; defaults to document.body. Pass an element to render inline
+     * (inside a modal/scroll container, or a forced-open parity story). */
+    container?: HTMLElement | null
 }
 
 // ============================================================================
@@ -190,6 +223,10 @@ function buildInlineFunctionTool(_existingToolCount: number): ToolObj {
     }
 }
 
+export function shouldCloseToolSelectorAfterAdd(meta?: ToolSelectionMeta): boolean {
+    return meta?.source !== "gateway"
+}
+
 const ALL_PROVIDER_TOOLS = buildProviderToolList()
 const BUILTIN_PROVIDER_GROUPS = groupByProvider(ALL_PROVIDER_TOOLS)
 const EMPTY_SET = new Set<string>()
@@ -209,9 +246,9 @@ function SectionHeader({icon, title, right}: {icon: ReactNode; title: string; ri
         <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-zinc-500 flex items-center">{icon}</span>
-                <Typography.Text className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                     {title}
-                </Typography.Text>
+                </span>
             </div>
             {right}
         </div>
@@ -428,17 +465,18 @@ function BuiltinToolsPane({
     return (
         <div className="flex flex-col h-full">
             <div className="px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
-                <Input
-                    variant="borderless"
+                <InputAffix
+                    variant="ghost"
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                     placeholder={`Search ${provider.providerLabel} tools`}
+                    aria-label={`Search ${provider.providerLabel} tools`}
                     value={rightSearch}
-                    onChange={(e) => onRightSearchChange(e.target.value)}
+                    onValueChange={onRightSearchChange}
                     allowClear
                 />
             </div>
 
-            <div className="flex-1 overflow-y-auto p-1">
+            <div className="flex-1 min-h-0 overflow-y-auto p-1">
                 {filteredTools.map((tool) => {
                     const selected = isSelected(tool)
                     return (
@@ -464,8 +502,8 @@ function BuiltinToolsPane({
 
                 {filteredTools.length === 0 && (
                     <div className="py-6">
-                        <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        <EmptyState
+                            image="simple"
                             description={<span className="text-xs">No tools found</span>}
                         />
                     </div>
@@ -618,26 +656,27 @@ function GatewayActionsPane({
             )}
 
             <div className="px-2 py-1 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
-                <Input
-                    variant="borderless"
+                <InputAffix
+                    variant="ghost"
                     prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                     placeholder="Search actions"
+                    aria-label="Search actions"
                     value={rightSearch}
-                    onChange={(e) => onRightSearchChange(e.target.value)}
+                    onValueChange={onRightSearchChange}
                     allowClear
                 />
                 <div className="mt-1 text-[10px] text-zinc-400">{total} actions</div>
             </div>
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-1">
+            <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-1">
                 {isLoading && actions.length === 0 ? (
                     <div className="flex items-center justify-center py-6">
-                        <Spin size="small" />
+                        <Spinner size="small" />
                     </div>
                 ) : actions.length === 0 ? (
                     <div className="py-6">
-                        <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        <EmptyState
+                            image="simple"
                             description={<span className="text-xs">No actions found</span>}
                         />
                     </div>
@@ -682,7 +721,7 @@ function GatewayActionsPane({
                                             </span>
                                         </span>
                                         {isPending ? (
-                                            <Spin size="small" />
+                                            <Spinner size="small" />
                                         ) : selected ? (
                                             <Check size={12} className="text-blue-600 shrink-0" />
                                         ) : null}
@@ -699,7 +738,7 @@ function GatewayActionsPane({
 
                         {isFetchingNextPage && (
                             <div className="flex items-center justify-center py-2">
-                                <Spin size="small" />
+                                <Spinner size="small" />
                             </div>
                         )}
                     </div>
@@ -723,37 +762,22 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     renderProviderIcon,
     existingToolCount = 0,
     gatewayTools: gatewayToolsProp,
+    trigger,
+    onReferenceWorkflow,
+    defaultOpen,
+    container,
 }: ToolSelectorPopoverProps) {
-    const {showMessage, gatewayTools: gatewayToolsFromContext} = useDrillInUI()
+    const {showMessage, gatewayTools: gatewayToolsFromContext, workflowReference} = useDrillInUI()
 
     const effectiveRenderProviderIcon = renderProviderIcon ?? defaultRenderProviderIcon
     const gatewayTools = gatewayToolsProp ?? gatewayToolsFromContext
     const effectiveSelectedToolNames = selectedToolNames ?? EMPTY_SET
     const effectiveSelectedTools = selectedTools ?? []
 
-    const [open, setOpen] = useState(false)
+    const [open, setOpen] = useState(defaultOpen ?? false)
     const [leftSearch, setLeftSearch] = useState("")
     const [rightSearch, setRightSearch] = useState("")
     const [activePane, setActivePane] = useState<ActivePane>(null)
-    const [leftPanelHeight, setLeftPanelHeight] = useState<number | null>(null)
-    const leftPanelRef = useRef<HTMLDivElement>(null)
-
-    useEffect(() => {
-        const el = leftPanelRef.current
-        if (!el) return
-
-        const updateHeight = () => setLeftPanelHeight(el.offsetHeight)
-        updateHeight()
-
-        if (typeof ResizeObserver !== "undefined") {
-            const observer = new ResizeObserver(() => updateHeight())
-            observer.observe(el)
-            return () => observer.disconnect()
-        }
-
-        window.addEventListener("resize", updateHeight)
-        return () => window.removeEventListener("resize", updateHeight)
-    }, [open, leftSearch, gatewayTools?.enabled, gatewayTools?.connections.length])
 
     useEffect(() => {
         setRightSearch("")
@@ -808,10 +832,10 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
         resetAndClose()
     }, [existingToolCount, onAddTool, resetAndClose])
 
-    const handleAddToolAndClose = useCallback(
+    const handleAddToolSelection = useCallback(
         (tool: ToolObj, meta?: ToolSelectionMeta) => {
             onAddTool(tool, meta)
-            resetAndClose()
+            if (shouldCloseToolSelectorAfterAdd(meta)) resetAndClose()
         },
         [onAddTool, resetAndClose],
     )
@@ -821,24 +845,29 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
         gatewayTools?.onOpenCatalog()
     }, [gatewayTools, resetAndClose])
 
+    // The "Reference a workflow" section closes the popover and hands off to the host's
+    // workflow-selector drawer (which lists/searches workflows and adds the reference).
+    const handleOpenReferenceSelector = useCallback(() => {
+        resetAndClose()
+        onReferenceWorkflow?.()
+    }, [resetAndClose, onReferenceWorkflow])
+
     const content = (
-        <div className="flex min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
-            <div
-                ref={leftPanelRef}
-                className="w-[232px] border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]"
-            >
-                <div className="px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
-                    <Input
-                        variant="borderless"
+        <div className="flex h-[360px] min-w-[460px] bg-[var(--ag-c-FFFFFF)] rounded-lg overflow-hidden border border-solid border-[var(--ag-rgba-051729-06)] shadow-sm">
+            <div className="flex w-[232px] flex-col min-h-0 border-0 border-r border-solid border-[var(--ag-rgba-051729-06)]">
+                <div className="shrink-0 px-2 py-2 border-0 border-b border-solid border-[var(--ag-rgba-051729-06)]">
+                    <InputAffix
+                        variant="ghost"
                         value={leftSearch}
-                        onChange={(e) => setLeftSearch(e.target.value)}
+                        onValueChange={setLeftSearch}
                         prefix={<MagnifyingGlass size={14} className="text-zinc-400" />}
                         placeholder="Search integrations"
+                        aria-label="Search integrations"
                         allowClear
                     />
                 </div>
 
-                <div className="max-h-[360px] overflow-y-auto p-1 flex flex-col gap-1">
+                <div className="flex-1 min-h-0 overflow-y-auto p-1 flex flex-col gap-1">
                     <div>
                         <SectionHeader icon={<Sparkle size={12} />} title="Built-in tools" />
                         <div className="flex flex-col gap-0.5">
@@ -886,19 +915,21 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                                 title="Third-party tools"
                                 right={
                                     <Button
-                                        type="text"
-                                        size="small"
-                                        icon={<Plus size={12} />}
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Browse third-party tools"
                                         onClick={handleOpenCatalog}
-                                        className="!h-5 !px-1"
-                                    />
+                                        className="h-5"
+                                    >
+                                        <Plus size={12} />
+                                    </Button>
                                 }
                             />
                             <div className="flex flex-col gap-0.5">
                                 {gatewayTools.connectionsLoading &&
                                 gatewayConnections.length === 0 ? (
                                     <div className="flex items-center justify-center py-3">
-                                        <Spin size="small" />
+                                        <Spinner size="small" />
                                     </div>
                                 ) : gatewayConnections.length === 0 ? (
                                     <div className="px-2 py-2 text-xs text-zinc-400">
@@ -957,32 +988,54 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                             title="Custom tools"
                             right={
                                 <Button
-                                    type="text"
-                                    size="small"
-                                    icon={<Plus size={12} />}
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Create in-line function tool"
                                     onClick={handleCreateInline}
-                                    className="!h-5 !px-1"
-                                />
+                                    className="h-5"
+                                >
+                                    <Plus size={12} />
+                                </Button>
                             }
                         />
                         <div className="px-2 pb-1 text-[11px] text-zinc-400">
                             Create in-line function tool
                         </div>
                     </div>
+
+                    {workflowReference?.enabled && onReferenceWorkflow && (
+                        <div>
+                            <SectionHeader
+                                icon={<GraphIcon size={12} />}
+                                title="Reference a workflow"
+                                right={
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Reference a workflow"
+                                        onClick={handleOpenReferenceSelector}
+                                        className="h-5"
+                                    >
+                                        <Plus size={12} />
+                                    </Button>
+                                }
+                            />
+                            <div className="px-2 pb-1 text-[11px] text-zinc-400">
+                                Run a workflow as a tool
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            <div
-                className="w-[232px] bg-[var(--ag-c-FFFFFF)]"
-                style={leftPanelHeight ? {height: leftPanelHeight} : undefined}
-            >
+            <div className="w-[232px] h-full bg-[var(--ag-c-FFFFFF)]">
                 {activeBuiltinProvider ? (
                     <BuiltinToolsPane
                         provider={activeBuiltinProvider}
                         rightSearch={rightSearch}
                         onRightSearchChange={setRightSearch}
                         selectedTools={effectiveSelectedTools}
-                        onAddTool={handleAddToolAndClose}
+                        onAddTool={handleAddToolSelection}
                         onRemoveBuiltinTool={onRemoveBuiltinTool}
                     />
                 ) : gatewayTools?.enabled && activeGatewayConnection ? (
@@ -992,15 +1045,15 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                         rightSearch={rightSearch}
                         onRightSearchChange={setRightSearch}
                         selectedToolNames={effectiveSelectedToolNames}
-                        onAddTool={handleAddToolAndClose}
+                        onAddTool={handleAddToolSelection}
                         onRemoveTool={onRemoveTool}
                         showMessage={showMessage}
                     />
                 ) : (
                     <div className="h-full flex items-center justify-center px-4 text-center">
-                        <Typography.Text type="secondary" className="text-xs">
+                        <span className="text-xs text-colorTextDescription">
                             Hover a provider or connected integration to browse tools.
-                        </Typography.Text>
+                        </span>
                     </div>
                 )}
             </div>
@@ -1008,7 +1061,7 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
     )
 
     return (
-        <Dropdown
+        <Popover
             open={!disabled && open}
             onOpenChange={(nextOpen) => {
                 if (disabled) return
@@ -1018,22 +1071,28 @@ export const ToolSelectorPopover = memo(function ToolSelectorPopover({
                 }
                 setOpen(true)
             }}
-            trigger={["click"]}
-            placement="bottomLeft"
-            arrow={false}
-            menu={{items: []}}
-            popupRender={() => content}
-            classNames={{root: "[&_.ant-dropdown-menu]:hidden [&_.ant-dropdown]:p-0"}}
         >
-            <Button
-                variant="outlined"
-                color="default"
-                size="small"
-                icon={<Plus size={14} />}
-                disabled={disabled}
+            {/* `disabled` is not forwarded here: `trigger` can be any node, and Radix would
+                merge the attribute onto a non-form element. Opening is gated by `open`. */}
+            <PopoverTrigger asChild>
+                {trigger ?? (
+                    <Button variant="outline" size="sm" disabled={disabled}>
+                        <Plus size={14} />
+                        Tool
+                    </Button>
+                )}
+            </PopoverTrigger>
+            {/* antd's `.ant-dropdown` root carries no chrome (the panel below owns its border,
+                radius and shadow), so the Radix content is stripped back to a bare positioner. */}
+            <PopoverContent
+                container={container}
+                side="bottom"
+                align="start"
+                aria-label="Add a tool"
+                className="w-auto rounded-none border-0 bg-transparent p-0 shadow-none"
             >
-                Tool
-            </Button>
-        </Dropdown>
+                {content}
+            </PopoverContent>
+        </Popover>
     )
 })

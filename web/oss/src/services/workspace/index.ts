@@ -26,12 +26,13 @@ export const fetchWorkspaceMembers = async (workspaceId: string): Promise<Worksp
         })
         return data || []
     } catch (error) {
+        const err = error as Partial<Error> & {status?: number; statusText?: string}
         console.error("❌ Workspace members fetcher failed:", {
-            message: error?.message,
-            status: error?.status,
-            statusText: error?.statusText,
+            message: err?.message,
+            status: err?.status,
+            statusText: err?.statusText,
             url: url.toString(),
-            stack: error?.stack?.split("\n").slice(0, 3).join("\n"),
+            stack: err?.stack?.split("\n").slice(0, 3).join("\n"),
         })
         return []
     }

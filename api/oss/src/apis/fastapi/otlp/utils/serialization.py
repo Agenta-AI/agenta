@@ -15,6 +15,7 @@ NAMESPACE_PREFIX_FEATURE_MAPPING = {
     "ag.exception.": "exception",
     "ag.session.": "session",
     "ag.user.": "user",
+    "ag.agent.": "agent",
 }
 
 

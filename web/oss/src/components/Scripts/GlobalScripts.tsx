@@ -8,15 +8,14 @@ const CloudScripts = dynamic(() => import("@/oss/components/Scripts/assets/Cloud
 })
 
 const GlobalScripts = () => {
-    if (isDemo()) {
-        return <CloudScripts />
-    }
-
     return (
-        <Head>
-            <title>Agenta: The LLMOps platform.</title>
-            <link rel="shortcut icon" href="/assets/favicon.ico" />
-        </Head>
+        <>
+            <Head>
+                <title>Agenta – the open-source workspace for building and running agents</title>
+                <link rel="shortcut icon" href="/assets/favicon.ico" />
+            </Head>
+            {isDemo() ? <CloudScripts /> : null}
+        </>
     )
 }
 

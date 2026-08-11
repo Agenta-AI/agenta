@@ -10,6 +10,7 @@ export interface ListToolIntegrationsRequest {
     provider_key: string;
     search?: string | null;
     sort_by?: string | null;
+    category?: string | null;
     limit?: number | null;
     cursor?: string | null;
     full_details?: boolean;

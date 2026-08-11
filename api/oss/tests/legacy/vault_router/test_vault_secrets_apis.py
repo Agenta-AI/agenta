@@ -275,3 +275,71 @@ class TestVaultSecretsAPI:
         assert response.status_code == 204, (
             "Should always return 204 since the endpoint is idempotent"
         )
+
+
+class TestCustomNamedSecretsAPI:
+    """CRUD + validation for user-named `custom_secret` vault entries."""
+
+    @staticmethod
+    def _payload(name, fmt, content):
+        return {
+            "header": {"name": name, "description": ""},
+            "secret": {
+                "kind": "custom_secret",
+                "data": {"secret": {"format": fmt, "content": content}},
+            },
+        }
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_text_custom_secret_round_trip(self, async_client):
+        payload = self._payload("GITHUB_TOKEN", "text", "ghp_abc123")
+
+        create_response = await async_client.post("secrets", json=payload)
+        assert create_response.status_code == 200, "text custom_secret creation failed"
+        secret_id = create_response.json()["id"]
+
+        get_response = await async_client.get(f"secrets/{secret_id}")
+        assert get_response.status_code == 200
+        data = get_response.json()["secret"]["data"]
+        assert data["secret"]["format"] == "text"
+        assert data["secret"]["content"] == "ghp_abc123"
+
+        delete_response = await async_client.delete(f"secrets/{secret_id}")
+        assert delete_response.status_code == 204
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_json_custom_secret_round_trip(self, async_client):
+        content = {"A": "1", "B": 2, "C": True}
+        payload = self._payload("DB_CONFIG", "json", content)
+
+        create_response = await async_client.post("secrets", json=payload)
+        assert create_response.status_code == 200, "json custom_secret creation failed"
+        secret_id = create_response.json()["id"]
+
+        get_response = await async_client.get(f"secrets/{secret_id}")
+        assert get_response.status_code == 200
+        data = get_response.json()["secret"]["data"]
+        assert data["secret"]["format"] == "json"
+        assert data["secret"]["content"] == content
+
+        await async_client.delete(f"secrets/{secret_id}")
+
+    @pytest.mark.asyncio
+    @pytest.mark.error_handling
+    async def test_json_custom_secret_rejects_nesting(self, async_client):
+        payload = self._payload("BAD", "json", {"A": {"nested": 1}})
+
+        response = await async_client.post("secrets", json=payload)
+        assert response.status_code == 422, "Nested json custom_secret must be rejected"
+
+    @pytest.mark.asyncio
+    @pytest.mark.error_handling
+    async def test_text_custom_secret_rejects_non_string(self, async_client):
+        payload = self._payload("BAD", "text", {"a": 1})
+
+        response = await async_client.post("secrets", json=payload)
+        assert response.status_code == 422, (
+            "Non-string text custom_secret must be rejected"
+        )

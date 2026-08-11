@@ -4,7 +4,7 @@ import {atom} from "jotai"
 // Drawer state
 // ---------------------------------------------------------------------------
 
-export const catalogDrawerOpenAtom = atom(false)
+export const toolCatalogDrawerOpenAtom = atom(false)
 
 export interface ConnectionDrawerState {
     connectionId: string
@@ -20,7 +20,7 @@ export interface ExecutionDrawerState {
     integrationLogo?: string
     actionKey?: string
 }
-export const executionDrawerAtom = atom<ExecutionDrawerState | null>(null)
+export const toolExecutionDrawerAtom = atom<ExecutionDrawerState | null>(null)
 
 // ---------------------------------------------------------------------------
 // Catalog browsing state (drawer-local, reset on close)

@@ -38,6 +38,9 @@ class SpansNodeOutput(UniversalBaseModel):
     end_time: typing.Optional[SpansNodeOutputEndTime] = None
     status_code: typing.Optional[OTelStatusCode] = None
     status_message: typing.Optional[str] = None
+    session_id: typing.Optional[str] = None
+    user_id: typing.Optional[str] = None
+    agent_id: typing.Optional[str] = None
     attributes: typing.Optional[typing.Dict[str, typing.Any]] = None
     references: typing.Optional[typing.List[OTelReferenceOutput]] = None
     links: typing.Optional[typing.List[OTelLinkOutput]] = None

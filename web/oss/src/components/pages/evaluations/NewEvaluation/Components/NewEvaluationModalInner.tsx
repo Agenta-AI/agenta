@@ -217,14 +217,18 @@ const NewEvaluationModalInner = ({
         }),
     )
     const evaluatorRowsByRevisionId = useMemo(() => {
-        const map = new Map<string, {id: string; workflow_id: string; slug: string; name: string}>()
+        const map = new Map<
+            string,
+            {id: string; workflow_id: string; slug?: string; name?: string}
+        >()
         for (const row of evaluatorStoreState.rows) {
             if (!row.__isSkeleton && row.revisionId) {
                 map.set(row.revisionId, {
                     id: row.revisionId,
                     workflow_id: row.workflowId,
-                    slug: row.slug,
-                    name: row.name,
+                    // Latent: store rows carry IDs only (display data lives in molecules), so slug/name are always undefined
+                    slug: row.slug as string | undefined,
+                    name: row.name as string | undefined,
                 })
             }
         }

@@ -13,6 +13,7 @@ class ToolCatalogActionDetails(UniversalBaseModel):
     description: typing.Optional[str] = None
     categories: typing.Optional[typing.List[str]] = None
     logo: typing.Optional[str] = None
+    read_only: typing.Optional[bool] = None
     schemas: typing.Optional[JsonSchemasOutput] = None
     scopes: typing.Optional[typing.List[str]] = None
     

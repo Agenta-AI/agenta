@@ -12,6 +12,7 @@ class WorkflowCatalogTemplate(UniversalBaseModel):
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     key: str
+    slug: typing.Optional[str] = None
     categories: typing.Optional[typing.List[str]] = None
     flags: typing.Optional[WorkflowCatalogFlags] = None
     data: typing.Optional[WorkflowRevisionDataOutput] = None

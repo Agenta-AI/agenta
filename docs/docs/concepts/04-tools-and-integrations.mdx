@@ -1,0 +1,90 @@
+---
+title: "Tools and integrations"
+sidebar_label: "Tools and integrations"
+description: "Learn how AI agent tools connect to built-in integrations, workflows, and MCP servers, and how agents choose and use those tools."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+Tools let an agent act outside the chat. This page covers what a tool is, where tools come from, and how the agent chooses one.
+
+## Tools connect the agent to the work around it
+
+Suppose the marketing launch agent is preparing the Team Workspaces launch. To finish the brief, it may need to:
+
+1. Read campaign results from Google Analytics.
+2. Look up the launch date from Notion.
+3. Create review tasks for the design and legal teams in Jira.
+4. Post the approved brief to Slack.
+
+Each action is a tool. Together, they help the agent turn old or incomplete information into a brief that reflects your team's current work.
+
+## One app can provide several tools
+
+A tool represents one action, not an entire product. A GitHub integration, for example, can provide separate tools for reading an issue, creating an issue, and adding a comment.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/agents/tools-github-actions.png")}
+  alt="A connected app contributes several separate actions, each with its own description"
+  loading="lazy"
+/>
+
+Because each action is separate, the agent can choose the one that fits the task. You can also set different boundaries for reading and writing. For example, the agent can read campaign data on its own but wait for approval before it posts a message or changes a record.
+
+See [Permissions](/concepts/permissions) for how Agenta decides whether a tool runs, asks first, or is refused.
+
+## Tools come from integrations, workflows, and MCP servers
+
+Agenta gives you several ways to add the actions an agent needs.
+
+### Built-in integrations connect common apps
+
+Built-in integrations cover common work apps, including email, chat, calendars, documents, issue trackers, analytics tools, and CRMs. You connect an account, then choose the actions the agent should have.
+
+For the launch agent, you might add one analytics action for research and one project-management action for review tasks. Connecting an app does not give the agent every action it offers.
+
+### Referenced workflows turn existing work into a tool
+
+If your team already has a useful workflow, you can expose it to the agent as a tool. The workflow keeps its own inputs and logic; the agent decides when to call it.
+
+For example, a `prepare-launch-dashboard` workflow could gather data from several sources and return one campaign summary to the launch agent.
+
+### MCP servers connect other systems
+
+The Model Context Protocol (MCP) is an open standard for offering tools to an agent. An MCP server can connect the agent to an internal service, a database, or a product without a built-in integration.
+
+An internal product-catalog server, for example, could give the launch agent a `get-release-details` tool. The agent uses that action in the same way it uses a tool from a built-in integration.
+
+[Add an MCP server](/guides/add-an-mcp-server) shows how to connect a server and configure authentication.
+
+## The agent chooses tools from their descriptions
+
+The agent sees each available tool's name, description, and expected inputs. It uses that information to decide which action fits the task.
+
+A description like "Create a legal review task for a product launch" gives the agent a clear reason to choose the tool. A label like "Project tool" leaves more room for confusion.
+
+The same principle applies to inputs. A tool that asks for a launch name, owner, and due date gives the agent a clear contract for the action it is about to take.
+
+After a tool returns a result, the agent can use it in the next step. It might read the campaign data, notice that one audience performs better, update the brief, and create the review task.
+
+## Give the agent a focused set of tools
+
+Start with the actions the job clearly requires. A focused tool set is easier to understand, review, and secure than a long list of possibilities.
+
+For the launch agent, ask:
+
+- What information must it read to prepare a trustworthy brief?
+- Which follow-up actions save the team meaningful work?
+- Which actions should wait for a person?
+- Does an existing integration or workflow already provide the action?
+
+When a real task exposes a gap, add more tools. The agent's [skills](/concepts/skills) can explain when and how to use them as part of a larger process.
+
+## Related
+
+- [Permissions](/concepts/permissions) decide which tool calls run on their own and which wait for you.
+- [Skills](/concepts/skills) tell the agent how to use the tools it has for a particular kind of task.
+- [Control what an agent can do](/guides/control-what-an-agent-can-do).

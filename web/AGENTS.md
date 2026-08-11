@@ -10,8 +10,11 @@ the detail this file only summarizes.
 ## Before committing
 
 - Run `pnpm lint-fix` within the `web` folder.
-- If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` and commit the
-  generated file.
+- Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
+  roles with `{light, dark}` values). To change any color, edit `palette.ts`, run
+  `pnpm generate:tailwind-tokens`, and commit the regenerated `theme-variables.css` +
+  `oss/src/styles/theme/antd-overrides.generated.ts`. Never hand-edit the generated files.
+  See the "Styling" section below and `docs/designs/dark-mode.md`.
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry
   `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds
   `dist/` automatically, so a fresh checkout works out of the box. If you regenerate the
@@ -29,7 +32,8 @@ client is the single source of truth for request/response shapes. It is regenera
 the backend OpenAPI spec and prevents the FE from drifting from the backend.
 
 References:
-- Workspace SDK wrapper: `web/packages/agenta-sdk/src/index.ts` (`getAgentaSdkClient`)
+- Per-resource accessors (the entry point to use): `web/packages/agenta-sdk/src/resources.ts`
+  (`getWorkflowsClient`, `getSessionsClient`, …; `@agenta/sdk/config` pins the host)
 - Generated client: `web/packages/agenta-api-client/`
 - Existing Fern-using domains: `@agenta/entities/{gatewayTool,secret,event,testset,workflow}`
   (PR #4425 migrated `workflow`)
@@ -42,8 +46,7 @@ new package adopting Fern must add this dep first, otherwise `tsc --noEmit` fail
 ### Pattern
 
 ```typescript
-import {getAgentaSdkClient} from "@agenta/sdk"
-import {getAgentaApiUrl} from "@agenta/shared/api"
+import {getSomeDomainClient} from "@agenta/sdk/resources"
 
 import {safeParseWithLogging} from "../../shared"
 import {someResponseSchema} from "../core"
@@ -51,10 +54,9 @@ import {someResponseSchema} from "../core"
 export async function someApiCall({projectId, refId}: SomeParams): Promise<SomeResponse | null> {
     if (!projectId) return null
 
-    // Single source of truth for the request/response shape, kept in sync with the
-    // backend OpenAPI spec via Fern codegen.
-    const client = getAgentaSdkClient({host: getAgentaApiUrl()})
-    const data = await client.someDomain.someMethod(
+    // Per-resource Fern client (single source of truth for the request/response
+    // shape, kept in sync with the backend OpenAPI spec via Fern codegen).
+    const data = await getSomeDomainClient().someMethod(
         {ref: {id: refId}},
         {queryParams: {project_id: projectId}},
     )
@@ -69,8 +71,12 @@ export async function someApiCall({projectId, refId}: SomeParams): Promise<SomeR
 
 ### Key rules
 
-- Use `getAgentaSdkClient({host: getAgentaApiUrl()})` — it is a lazy singleton, share it
-  across calls.
+- Use the per-resource accessors from `@agenta/sdk/resources` (`getWorkflowsClient()`,
+  `getSessionsClient()`, …) — host-pinned lazy singletons. If the resource has no
+  accessor yet, add one there (three lines, follow the existing pattern). NEVER import
+  from the `@agenta/sdk` root in app/package source: its barrel statically pulls the
+  monolithic client with all 27 resource clients (~300KB parsed) into whatever bundle
+  imports it — this regressed `_app` once already and is now lint-enforced in packages.
 - Pass query params via `{queryParams: {...}}`, NOT axios's `{params: {...}}`.
 - Keep zod validation at the boundary. Fern's types under-declare backend `extra="allow"`
   fields; the local schema is your independent drift check.
@@ -80,14 +86,16 @@ export async function someApiCall({projectId, refId}: SomeParams): Promise<SomeR
 ### Anti-patterns
 
 ```typescript
+// BAD - root barrel import: bundles all 27 resource clients into this chunk
+import {getAgentaSdkClient} from "@agenta/sdk"
 // BAD - raw axios for a new endpoint
 const response = await axios.post(`${getAgentaApiUrl()}/workflows/revisions/retrieve`, body, {
     params: {project_id: projectId},
 })
 // BAD - using axios `params` shape with the Fern client
-await client.workflows.retrieveWorkflowRevision(body, {params: {project_id}})  // expects queryParams
+await getWorkflowsClient().retrieveWorkflowRevision(body, {params: {project_id}})  // expects queryParams
 // BAD - skipping zod validation because "Fern's types are typed"
-return await client.workflows.retrieveWorkflowRevision(body, {queryParams})    // misses shape drift
+return await getWorkflowsClient().retrieveWorkflowRevision(body, {queryParams})    // misses shape drift
 ```
 
 ### Migrating legacy axios calls
@@ -311,6 +319,18 @@ class (evaluators showing "default", SDK-created apps showing "--" or hex slugs)
   above instead.
 
 ## Styling
+
+When adding or changing UI elements, implement appearance and interaction states for both light and dark themes, and verify both before considering the work complete.
+
+**Theme colors.** All theme-aware colors flow from one source of truth,
+`oss/src/styles/theme/palette.ts` — semantic roles (surface / text / border / fill /
+accent / semantic / scales / feature families), each a `{light, dark}` pair. The generator
+(`pnpm generate:tailwind-tokens`) turns it into `theme-variables.css`, the antd dark
+overrides, and the `--ag-c-*` compatibility shim. In components, consume colors as antd
+semantic tokens (Tailwind `bg-colorBgContainer`, `text-colorText`, or `var(--ag-color*)`),
+not raw hex or `--ag-c-*` literals. To change a color, edit `palette.ts` and regenerate —
+never hand-edit `theme-variables.css` or `theme/antd-overrides.generated.ts`. Full model:
+`docs/designs/dark-mode.md`.
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
 

@@ -38,5 +38,5 @@ export const getProjectValues = () => {
 
 export const resetProjectData = () => {
     const store = getDefaultStore()
-    store.set(resetProjectDataAtom, null)
+    store.set(resetProjectDataAtom)
 }

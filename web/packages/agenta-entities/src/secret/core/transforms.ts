@@ -20,6 +20,8 @@ import {
     StandardProviderKind,
     type CreateSecretDto,
     type CustomProviderDto,
+    type CustomSecretDto,
+    type NamedSecretRow,
     type SecretResponseDto,
     type StandardProviderDto,
 } from "./types"
@@ -103,11 +105,28 @@ export const transformSecret = (secrets: SecretResponseDto[]): LlmProvider[] => 
                 accessKeyId: extras.aws_access_key_id || "",
                 accessKey: extras.aws_secret_access_key || "",
                 sessionToken: extras.aws_session_token || "",
+                bearerToken: extras.aws_bearer_token_bedrock || "",
                 models: data.models.map((model) => model.slug),
                 modelKeys: data.model_keys ?? undefined,
                 version: data.provider.version ?? "",
                 created_at: secret.lifecycle?.created_at ?? "",
             })
+        } else if (secret.kind === SecretKind.CustomSecret) {
+            // `secret.data` is the Fern union; kind already discriminates it, but
+            // CustomSecretDto shares no fields with the provider members, so TS
+            // needs the explicit unknown step.
+            const data = secret.data as unknown as CustomSecretDto
+
+            const row: NamedSecretRow = {
+                name: secret.header.name ?? "",
+                slug: secret.slug ?? undefined,
+                format: data.secret.format,
+                content: data.secret.content,
+                id: secret.id ?? undefined,
+                type: secret.kind,
+                created_at: secret.lifecycle?.created_at ?? undefined,
+            }
+            acc.push(row)
         }
         return acc
     }, [] as LlmProvider[])
@@ -128,7 +147,6 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
     return {
         header: {
             name: values.name,
-            description: values.name,
         },
         secret: {
             kind: SecretKind.CustomProvider,
@@ -146,6 +164,7 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
                         aws_access_key_id: values.accessKeyId,
                         aws_secret_access_key: values.accessKey,
                         aws_session_token: values.sessionToken,
+                        aws_bearer_token_bedrock: values.bearerToken,
                     },
                 },
                 models: values.models?.map((slug) => ({slug})) ?? [],
@@ -153,6 +172,30 @@ export const transformCustomProviderPayloadData = (values: LlmProvider): CreateS
         },
     }
 }
+
+/**
+ * Transform a `NamedSecretRow` (Name + Format + Content from the Vault modal)
+ * into a `CreateSecretDto`. The backend validator (`custom_secret` branch) is
+ * the source of truth for shape — text must be a string, json must be a flat
+ * object of primitives — so this only forwards `{format, content}` as-is.
+ */
+export const transformCustomSecretPayloadData = (values: NamedSecretRow): CreateSecretDto => ({
+    // Slug is set on create only; the backend derives it from the name when
+    // omitted, and ignores it on update (slugs are immutable).
+    ...(values.slug ? {slug: values.slug} : {}),
+    header: {
+        name: values.name,
+    },
+    secret: {
+        kind: SecretKind.CustomSecret,
+        data: {
+            secret: {
+                format: values.format,
+                content: values.content,
+            },
+        } as CustomSecretDto,
+    },
+})
 
 /**
  * Map the env-var name (e.g. `OPENAI_API_KEY`) used by `LlmProvider.name`

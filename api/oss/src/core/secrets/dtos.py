@@ -6,12 +6,15 @@ from oss.src.core.secrets.enums import (
     SecretKind,
     StandardProviderKind,
     CustomProviderKind,
+    CustomSecretFormat,
 )
 from oss.src.core.shared.dtos import (
     Identifier,
     Header,
+    Slug,
     LegacyLifecycleDTO,
 )
+from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 
 
 class StandardProviderSettingsDTO(BaseModel):
@@ -65,6 +68,16 @@ class WebhookProviderDTO(BaseModel):
     provider: WebhookProviderSettingsDTO
 
 
+class CustomSecretSettingsDTO(BaseModel):
+    format: CustomSecretFormat
+    content: Union[str, Dict[str, Union[str, int, float, bool, None]]]
+    # text -> content is a str (stored verbatim); json -> a flat {str: primitive} map.
+
+
+class CustomSecretDTO(BaseModel):
+    secret: CustomSecretSettingsDTO
+
+
 class SecretDTO(BaseModel):
     kind: SecretKind
     data: Union[
@@ -72,6 +85,7 @@ class SecretDTO(BaseModel):
         CustomProviderDTO,
         SSOProviderDTO,
         WebhookProviderDTO,
+        CustomSecretDTO,
     ]
 
     @model_validator(mode="before")
@@ -119,6 +133,13 @@ class SecretDTO(BaseModel):
                 raise ValueError(
                     "The provided kind in data is not a valid CustomProviderKind enum"
                 )
+
+            provider_url = (data.get("provider") or {}).get("url")
+            if isinstance(provider_url, str) and provider_url:
+                try:
+                    validate_url_format_and_literal_ip(provider_url)
+                except ValueError as exc:
+                    raise ValueError(f"custom_provider.url is invalid: {exc}") from exc
         elif kind == SecretKind.SSO_PROVIDER.value:
             if not isinstance(data, dict):
                 raise ValueError(
@@ -144,13 +165,42 @@ class SecretDTO(BaseModel):
                 raise ValueError(
                     "The provided request secret dto is missing required fields for WebhookProviderSettingsDTO"
                 )
+        elif kind == SecretKind.CUSTOM_SECRET.value:
+            if not isinstance(data, dict):
+                raise ValueError(
+                    "The provided request secret dto is not a valid type for CustomSecretDTO"
+                )
+            secret = data.get("secret")
+            if (
+                not isinstance(secret, dict)
+                or "format" not in secret
+                or "content" not in secret
+            ):
+                raise ValueError(
+                    "The provided request secret dto requires data.secret.{format, content} for CustomSecretDTO"
+                )
+            fmt, content = secret["format"], secret["content"]
+            if fmt == CustomSecretFormat.TEXT.value:
+                if not isinstance(content, str):
+                    raise ValueError("A text custom_secret requires a string content")
+                # Stored verbatim; do NOT re-serialize a JSON-looking string.
+            elif fmt == CustomSecretFormat.JSON.value:
+                if not isinstance(content, dict):
+                    raise ValueError("A json custom_secret requires an object content")
+                for v in content.values():
+                    if isinstance(v, (dict, list)):
+                        raise ValueError(
+                            "A json custom_secret must be flat: values cannot be objects or arrays"
+                        )
+            else:
+                raise ValueError("A custom_secret format must be 'text' or 'json'")
         else:
             raise ValueError("The provided kind is not a valid SecretKind enum")
 
         return values
 
 
-class CreateSecretDTO(BaseModel):
+class CreateSecretDTO(Slug, BaseModel):
     header: Header
     secret: SecretDTO
 
@@ -203,7 +253,7 @@ class UpdateSecretDTO(BaseModel):
         return values
 
 
-class SecretResponseDTO(Identifier, SecretDTO):
+class SecretResponseDTO(Identifier, Slug, SecretDTO):
     header: Header
     lifecycle: Optional[LegacyLifecycleDTO] = None
 

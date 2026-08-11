@@ -26,6 +26,12 @@ export interface ExtendedColumnProps<RecordType> {
     columnVisibilityLabel?: string
     /** If true, column cannot be hidden */
     columnVisibilityLocked?: boolean
+    /** Hide the column by default (until toggled visible) */
+    defaultHidden?: boolean
+    /** Max width constraint consumed by smart resizable columns */
+    maxWidth?: number
+    /** Include the column in table export */
+    exportEnabled?: boolean
     /** Nested children columns */
     children?: ExtendedColumn<RecordType>[]
 }
@@ -187,7 +193,7 @@ export interface InfiniteVirtualTableRowSelection<RecordType> {
         indeterminate?: boolean
     }
     columnWidth?: number
-    fixed?: boolean
+    fixed?: boolean | "left" | "right"
     /** Custom title for the selection column header (replaces checkbox) */
     columnTitle?: React.ReactNode
     /** Custom render for the selection cell */

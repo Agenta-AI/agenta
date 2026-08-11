@@ -1,10 +1,19 @@
 import {useCallback, useRef, useState} from "react"
 
-import {createConnection, fetchConnection} from "@agenta/entities/gatewayTool"
+import {createToolConnection, fetchToolConnection} from "@agenta/entities/gatewayTool"
 import {getAgentaApiUrl, getAgentaWebUrl, queryClient} from "@agenta/shared/api"
 import {generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
-import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
-import {Divider, Form, Input, message, Select, Tooltip, Typography} from "antd"
+import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
+import {
+    Divider,
+    Field,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@agenta/ui/ui"
 import Image from "next/image"
 
 const DEFAULT_PROVIDER = "composio"
@@ -46,26 +55,32 @@ export default function ConnectDrawer({
     onSuccess,
 }: Props) {
     const [loading, setLoading] = useState(false)
-    const [form] = Form.useForm()
     // Track whether the user has manually edited the slug field.
     // While false, slug auto-tracks the name field.
     const slugTouchedRef = useRef(false)
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
+    const buildDefaultSlug = useCallback((name: string) => {
+        return generateDefaultSlug(name, slugSuffixRef.current)
+    }, [])
+
+    // Explicitly controlled form state (the antd Form was internal-only here).
+    const [name, setName] = useState(integrationName)
+    const [slug, setSlug] = useState(() => buildDefaultSlug(integrationName || ""))
+    const [slugError, setSlugError] = useState<string | null>(null)
+
     const availableModes = resolveAvailableModes(authSchemes)
     const [selectedMode, setSelectedMode] = useState<AuthMode>(availableModes[0] || "oauth")
 
     const handleClose = useCallback(() => {
-        form.resetFields()
         slugTouchedRef.current = false
         slugSuffixRef.current = randomAlphanumeric(3)
+        setName(integrationName)
+        setSlug(buildDefaultSlug(integrationName || ""))
+        setSlugError(null)
         setLoading(false)
         onClose()
-    }, [form, onClose])
-
-    const buildDefaultSlug = useCallback((name: string) => {
-        return generateDefaultSlug(name, slugSuffixRef.current)
-    }, [])
+    }, [onClose, integrationName, buildDefaultSlug])
 
     const invalidateConnections = useCallback(() => {
         queryClient.invalidateQueries({queryKey: ["tools", "connections"]})
@@ -73,14 +88,19 @@ export default function ConnectDrawer({
     }, [])
 
     const handleSubmit = useCallback(async () => {
+        // Was the antd `required` rule on the slug Form.Item — now the direct path.
+        if (!slug.trim()) {
+            setSlugError("Required")
+            return
+        }
+        setSlugError(null)
         try {
-            const values = await form.validateFields()
             setLoading(true)
 
-            const result = await createConnection({
+            const result = await createToolConnection({
                 connection: {
-                    slug: values.slug,
-                    name: values.name || values.slug,
+                    slug,
+                    name: name || slug,
                     provider_key: DEFAULT_PROVIDER,
                     integration_key: integrationKey,
                     data: {auth_scheme: selectedMode},
@@ -111,7 +131,7 @@ export default function ConnectDrawer({
                     window.focus()
                     if (connectionId) {
                         try {
-                            await fetchConnection(connectionId)
+                            await fetchToolConnection(connectionId)
                         } catch {
                             /* best-effort */
                         }
@@ -157,7 +177,7 @@ export default function ConnectDrawer({
         } catch {
             setLoading(false)
         }
-    }, [form, selectedMode, integrationKey, handleClose, onSuccess, invalidateConnections])
+    }, [slug, name, selectedMode, integrationKey, handleClose, onSuccess, invalidateConnections])
 
     return (
         <EnhancedModal
@@ -182,88 +202,74 @@ export default function ConnectDrawer({
                         />
                     )}
                     <div className="flex flex-col min-w-0">
-                        <Typography.Text strong className="leading-snug">
-                            {integrationName}
-                        </Typography.Text>
+                        <span className="font-medium leading-snug">{integrationName}</span>
                         {integrationDescription && (
-                            <Typography.Text type="secondary" className="!text-xs line-clamp-2">
+                            <span className="text-xs text-colorTextDescription line-clamp-2">
                                 {integrationDescription}
-                            </Typography.Text>
+                            </span>
                         )}
                     </div>
                 </div>
 
                 <Divider className="!m-0" />
 
-                {/* Form */}
-                <Form
-                    form={form}
-                    layout="vertical"
-                    className="!mb-0"
-                    initialValues={{
-                        name: integrationName,
-                        slug: buildDefaultSlug(integrationName || ""),
-                    }}
-                    requiredMark={(label, {required}) => (
-                        <>
-                            {label}
-                            {required && <span className="text-red-500 ml-1">*</span>}
-                        </>
-                    )}
-                >
-                    <Form.Item
-                        name="name"
-                        label={
-                            <Tooltip title="Display name for this connection">
-                                <span>Name</span>
-                            </Tooltip>
-                        }
-                        className="!mb-4"
-                    >
+                {/* Form (explicitly controlled — no antd Form) */}
+                <div className="flex flex-col gap-4">
+                    <Field label="Name" tooltip="Display name for this connection">
                         <Input
                             placeholder={`e.g. My ${integrationName} Account`}
+                            value={name}
                             onChange={(e) => {
+                                setName(e.target.value)
+                                // Was in the Input's onChange inside the antd Form —
+                                // slug auto-tracks name until the user edits the slug.
                                 if (!slugTouchedRef.current) {
-                                    form.setFieldValue(
-                                        "slug",
+                                    setSlug(
                                         buildDefaultSlug(e.target.value || integrationName || ""),
                                     )
                                 }
                             }}
                         />
-                    </Form.Item>
+                    </Field>
 
-                    <Form.Item
-                        name="slug"
-                        label={
-                            <Tooltip title="Unique identifier used in tool call slugs — lowercase letters, numbers, and hyphens only">
-                                <span>Slug</span>
-                            </Tooltip>
-                        }
-                        rules={[{required: true, message: "Required"}]}
-                        className={availableModes.length > 1 ? "!mb-4" : "!mb-0"}
+                    <Field
+                        label="Slug"
+                        required
+                        tooltip="Unique identifier used in tool call slugs — lowercase letters, numbers, and hyphens only"
+                        error={slugError}
                     >
                         <Input
                             placeholder={`e.g. my-${integrationKey}`}
-                            onChange={() => {
+                            value={slug}
+                            aria-invalid={slugError ? true : undefined}
+                            onChange={(e) => {
                                 slugTouchedRef.current = true
+                                setSlug(e.target.value)
+                                if (slugError && e.target.value.trim()) setSlugError(null)
                             }}
                         />
-                    </Form.Item>
+                    </Field>
 
                     {availableModes.length > 1 && (
-                        <Form.Item label="Auth Method" className="!mb-0">
+                        <Field label="Auth Method">
                             <Select
                                 value={selectedMode}
-                                onChange={setSelectedMode}
-                                options={availableModes.map((m) => ({
-                                    value: m,
-                                    label: m === "oauth" ? "OAuth" : "API Key",
-                                }))}
-                            />
-                        </Form.Item>
+                                onValueChange={(v) => setSelectedMode(v as AuthMode)}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableModes.map((m) => (
+                                        <SelectItem key={m} value={m}>
+                                            {m === "oauth" ? "OAuth" : "API Key"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
                     )}
-                </Form>
+                </div>
 
                 <Divider className="!m-0" />
 

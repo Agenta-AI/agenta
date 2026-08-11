@@ -19,6 +19,9 @@ import {
     type ReactElement,
 } from "react"
 
+import type {EditorProps} from "../../Editor"
+import type {SharedEditorProps} from "../../SharedEditor"
+
 /**
  * Inline provider option/group types to avoid importing from @agenta/ui.
  * These mirror the canonical types in @agenta/ui/select-llm-provider.
@@ -53,6 +56,8 @@ export interface GatewayToolsBridge {
     enabled: boolean
     connections: GatewayToolConnectionUI[]
     connectionsLoading: boolean
+    /** The connections fetch failed — an empty list then means "unknown", not "none". */
+    connectionsErrored?: boolean
     onOpenCatalog: () => void
     renderIntegrationInfo?: (integrationKey: string) => {name?: string; logo?: string} | null
     useIntegrationInfo?: (integrationKey: string) => {
@@ -85,6 +90,131 @@ export interface GatewayToolsBridge {
     }>
 }
 
+/** Coarse workflow kind for the reference list's badge + filter chips. Derived by the provider from
+ * the workflow's role/capability flags. `evaluator` covers all evaluator workflows (code/match/llm/…)
+ * so they read as evaluators rather than falling through to `custom`. */
+export type WorkflowReferenceType = "agent" | "chat" | "completion" | "custom" | "evaluator"
+
+export interface WorkflowReferenceUI {
+    id: string
+    slug: string
+    name?: string
+    description?: string
+    /** Workflow kind for badge/filter display; omitted when the provider can't classify it. */
+    type?: WorkflowReferenceType
+    /** Finer-grained badge text overriding the generic type label (e.g. an evaluator's kind
+     * "Exact Match" instead of "evaluator"). `type` still drives the badge color + filter chip. */
+    typeLabel?: string
+}
+
+/** A selectable revision of a referenced workflow, for the variant-axis "pin a version" picker. */
+export interface WorkflowRevisionUI {
+    /** The version identifier emitted as `ReferenceToolConfig.version` (e.g. "3"). */
+    version: string
+    /** Optional label (commit message / name) shown next to the version. */
+    label?: string
+}
+
+/** A deployment environment a workflow can be referenced through (the environment axis). */
+export interface WorkflowEnvironmentUI {
+    slug: string
+    name?: string
+}
+
+/**
+ * What the WorkflowReferenceSelector emits when the author confirms a reference. Mirrors the
+ * backend `ReferenceToolConfig`: an axis, the workflow slug, then either a pinned version
+ * (variant axis) or an environment (environment axis).
+ */
+export interface WorkflowReferencePayload {
+    slug: string
+    refBy: "variant" | "environment"
+    /** Selected variant id; variant axis only. Kept so "follow a variant's latest" (no pinned
+     * version) still identifies which variant to follow — without it the reference is ambiguous. */
+    variant?: string
+    /** Pinned workflow revision version; variant axis only, omitted = follow the variant's latest. */
+    version?: string
+    /** Environment slug; environment axis only. */
+    environment?: string
+    /** Tool description the model sees (defaults to the workflow's own description). */
+    description?: string
+}
+
+/** A single role-tagged prompt message (for a `messages`-kind config part). */
+export interface WorkflowConfigMessage {
+    role: string
+    content: string
+}
+
+/** One part of a referenced workflow's configuration, shown in the Configuration section's rail
+ * (e.g. the prompt "Messages", a "Model", a custom workflow's "handler.py", an agent's "Instructions"). */
+export interface WorkflowConfigPart {
+    key: string
+    label: string
+    /** How to render: "code" (read-only editor), "text" (plain), "json" (pretty JSON), "messages"
+     * (role-tagged message list from `messages`). */
+    kind: "code" | "text" | "json" | "messages"
+    content: string
+    /** Highlighting language when `kind` is "code" (e.g. "python", "typescript"). */
+    language?: string
+    /** Role-tagged messages when `kind` is "messages". */
+    messages?: WorkflowConfigMessage[]
+}
+
+/** A referenced workflow's type-specific configuration for the Configuration section. */
+export interface WorkflowConfigPayload {
+    parts: WorkflowConfigPart[]
+}
+
+/**
+ * Bridge for the "reference a workflow as a tool" source in the tool selector (#4860).
+ * OSS supplies the project's workflows plus resolvers for a workflow's input schema, its
+ * revisions (variant axis), and its environments (environment axis); the selector emits a
+ * `type:"reference"` tools[] entry that the backend runs server-side as a callback tool.
+ * Parallels {@link GatewayToolsBridge}.
+ */
+export interface WorkflowReferenceBridge {
+    enabled: boolean
+    workflows: WorkflowReferenceUI[]
+    workflowsLoading: boolean
+    /** Activate the workflow list + evaluator catalog behind this bridge. Lazy: the underlying
+     * project-wide list/catalog queries stay dormant (`workflows` empty) until a consumer that
+     * actually needs them calls this — on reference-picker open or when displaying an existing
+     * reference. One-way; stays warm after the first call. */
+    activate?: () => void
+    /** Resolve the referenced workflow's input JSON-schema to pre-fill the tool's `input_schema`.
+     * Returns null when unavailable; the caller falls back to an empty object schema. */
+    resolveInputSchema: (workflow: WorkflowReferenceUI) => Promise<Record<string, unknown> | null>
+    /** Resolve the workflow's output JSON-schema for the Schema section's Outputs tab.
+     * Optional; when absent or resolving null, the Outputs tab is hidden. */
+    resolveOutputSchema?: (workflow: WorkflowReferenceUI) => Promise<Record<string, unknown> | null>
+    /** Resolve the workflow's type-specific configuration (code / prompt / agent) for the
+     * Configuration section. Optional; when absent or resolving null, the section is hidden. */
+    resolveConfigPayload?: (workflow: WorkflowReferenceUI) => Promise<WorkflowConfigPayload | null>
+    /** List a workflow's revisions for the variant-axis "pin a version" picker. */
+    useWorkflowRevisions: (workflow: WorkflowReferenceUI | null) => {
+        revisions: WorkflowRevisionUI[]
+        isLoading: boolean
+    }
+    /** List a workflow's deployment environments for the environment axis. */
+    useWorkflowEnvironments: (workflow: WorkflowReferenceUI | null) => {
+        environments: WorkflowEnvironmentUI[]
+        isLoading: boolean
+    }
+    /**
+     * Resolve the reference type (agent/chat/completion/custom) for a batch of workflows.
+     * List items carry only role flags — the capability flags that determine type live on the
+     * revision URI — so type can't be derived synchronously from a list item. This reads each
+     * workflow's latest-revision URI (cached) and returns a slug→type map + a loading flag.
+     */
+    useWorkflowTypes: (workflows: WorkflowReferenceUI[]) => {
+        typeBySlug: Record<string, WorkflowReferenceType | undefined>
+        /** Finer-grained badge text per slug (e.g. an evaluator's kind), overriding the type label. */
+        labelBySlug?: Record<string, string | undefined>
+        loading: boolean
+    }
+}
+
 /**
  * Interface for injectable UI components
  */
@@ -93,30 +223,13 @@ export interface DrillInUIComponents {
      * Editor provider component (wraps rich text editor)
      * Used by: TextField, JsonEditorWithLocalState
      */
-    EditorProvider?: ComponentType<{
-        children: ReactNode
-        id?: string
-        initialValue?: string
-        showToolbar?: boolean
-        enableTokens?: boolean
-        codeOnly?: boolean
-        language?: string
-        [key: string]: unknown
-    }>
+    EditorProvider?: ComponentType<EditorProps & {children: ReactNode}>
 
     /**
      * Shared editor component (rich text/JSON editor)
      * Used by: TextField, JsonEditorWithLocalState
      */
-    SharedEditor?: ComponentType<{
-        editorType?: string
-        initialValue?: string
-        onChange?: (value: string) => void
-        onPropertyClick?: (path: string) => void
-        placeholder?: string
-        readOnly?: boolean
-        [key: string]: unknown
-    }>
+    SharedEditor?: ComponentType<SharedEditorProps>
 
     /**
      * Chat message list component
@@ -187,10 +300,35 @@ export interface DrillInUIComponents {
         extraOptionGroups?: LLMProviderGroup[]
         /** Footer content (e.g. "Add provider" button) rendered below the dropdown */
         footerContent?: ReactElement | null
+        /** Opens the host's "Configure provider" drawer for a NEW custom provider, pre-selecting
+         * `kind` (e.g. "azure", "bedrock", "vertex_ai", "custom"). Absent on hosts with no drawer
+         * wired up — callers hide the affordance in that case. */
+        openConfigureProvider?: (kind: string) => void
+    }
+
+    /**
+     * Deployment (host app) facts the package can't determine itself. Today: whether this
+     * deployment is Agenta cloud, which gates the Provider credentials section's self-managed
+     * card badge (design.md D6, docs/design/connect-model-drawer) — the "Use subscription" mode
+     * itself stays clickable regardless. Absent (older hosts) reads as not-cloud, i.e. ungated.
+     */
+    deployment?: {
+        /** Policy: gates the self-managed card's "Not on cloud" badge, NOT the connection mode's
+         * clickability (the toggle is always clickable when capability-allowed). Never changes at
+         * runtime. */
+        isCloud: boolean
+        /** Link target for the self-managed info card's "Read the self-hosting guide" pill. */
+        selfHostingGuideUrl?: string
     }
 
     /** Gateway tools integration for the tool selector */
     gatewayTools?: GatewayToolsBridge
+
+    /** Workflow-as-tool reference integration for the tool selector (#4860) */
+    workflowReference?: WorkflowReferenceBridge
+
+    /** Open a trace in the host application. */
+    openTrace?: (params: {traceId: string; spanId?: string | null}) => void
 
     /**
      * Lexical editor context hook

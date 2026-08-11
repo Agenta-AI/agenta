@@ -16,4 +16,7 @@ export interface WorkflowRevisionCommit {
     data?: (AgentaApi.WorkflowRevisionDataInput | null) | undefined;
     message?: (string | null) | undefined;
     revision_id?: (string | null) | undefined;
+    delta?: (AgentaApi.WorkflowRevisionDelta | null) | undefined;
+    /** The revision this change was built on. Omit it to keep today's last-write-wins behavior. Send it on a legacy delta and the commit is refused with `409` when the variant's head has moved since: sending the field is how a caller asks for that check. An ordered delta requires it. */
+    base_revision_id?: (string | null) | undefined;
 }

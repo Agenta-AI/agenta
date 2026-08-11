@@ -13,6 +13,7 @@ from .secret_response_dto_data import SecretResponseDtoData
 class SecretResponseDto(UniversalBaseModel):
     kind: SecretKind
     data: SecretResponseDtoData
+    slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
     header: Header
     lifecycle: typing.Optional[LegacyLifecycleDto] = None

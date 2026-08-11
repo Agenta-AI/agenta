@@ -5,5 +5,6 @@ export const SecretKind = {
     CustomProvider: "custom_provider",
     SsoProvider: "sso_provider",
     WebhookProvider: "webhook_provider",
+    CustomSecret: "custom_secret",
 } as const;
 export type SecretKind = (typeof SecretKind)[keyof typeof SecretKind];

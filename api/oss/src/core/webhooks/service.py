@@ -68,7 +68,7 @@ class WebhooksService:
     ) -> Optional[str]:
         """Fetch a subscription's signing secret from the vault."""
         try:
-            secret_dto = await self.vault_service.get_secret(
+            secret_dto = await self.vault_service.get_secret_by_id(
                 secret_id=secret_id,
                 project_id=project_id,
             )
@@ -260,6 +260,7 @@ class WebhooksService:
         try:
             response = await send_webhook_request(
                 url=str(subscription.data.url),
+                resolved_ip=prepared.resolved_ip,
                 payload_json=prepared.payload_json,
                 headers=prepared.request_headers,
             )
@@ -449,6 +450,55 @@ class WebhooksService:
             #
             subscription_id=subscription_id,
         )
+
+    async def set_subscription_active(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        subscription_id: UUID,
+        is_active: bool,
+    ) -> Optional[WebhookSubscription]:
+        """Full-PUT toggle of the play/pause switch; touches only is_active."""
+        existing = await self.dao.fetch_subscription(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+
+        if existing is None:
+            return None
+
+        edit = WebhookSubscriptionEdit(
+            id=existing.id,
+            name=existing.name,
+            description=existing.description,
+            tags=existing.tags,
+            meta=existing.meta,
+            data=existing.data,
+            flags=existing.flags.model_copy(update={"is_active": is_active}),
+        )
+
+        result = await self.dao.edit_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription=edit,
+        )
+
+        if result is None:
+            return None
+
+        if result.secret_id:
+            secret_value = await self._resolve_secret(
+                project_id=project_id,
+                secret_id=result.secret_id,
+            )
+            result = self._with_secret(
+                subscription=result,
+                secret=secret_value,
+            )
+
+        return result
 
     # --- deliveries --------------------------------------------------------- #
 

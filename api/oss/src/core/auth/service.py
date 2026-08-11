@@ -8,6 +8,8 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import invalidate_cache
 
+from oss.src.core.auth.dtos import DiscoverResponse
+
 from oss.src.models.db_models import InvitationDB, ProjectDB, OrganizationDB
 from oss.src.services import db_manager
 
@@ -52,7 +54,7 @@ class AuthService:
     # DISCOVERY: Determine available authentication methods
     # ============================================================================
 
-    async def discover(self, email: str) -> Dict[str, Any]:
+    async def discover(self, email: str) -> DiscoverResponse:
         """
         Discover authentication methods available for a given email.
 
@@ -287,11 +289,7 @@ class AuthService:
             # SSO enforcement: only SSO providers, no email or social
             if sso_providers:
                 methods["sso"] = {"providers": sso_providers}
-            response = {
-                "exists": user_exists,
-                "methods": methods,
-            }
-            return response
+            return DiscoverResponse(exists=user_exists, methods=methods)
 
         # Otherwise, include all allowed methods based on policy
         # Email methods - check both specific method and wildcard
@@ -369,12 +367,7 @@ class AuthService:
         if sso_providers:
             methods["sso"] = {"providers": sso_providers}
 
-        response = {
-            "exists": user_exists,
-            "methods": methods,
-        }
-
-        return response
+        return DiscoverResponse(exists=user_exists, methods=methods)
 
     # ============================================================================
     # AUTHENTICATION: Support authentication flows
@@ -558,7 +551,7 @@ class AuthService:
                         user_id=str(user_id),
                     )
             except Exception:
-                log.error("[AUTH] [AUTO-JOIN]", exc_infp=True)
+                log.error("[AUTH] [AUTO-JOIN]", exc_info=True)
 
         # 2. Domains-only enforcement: Check if user has access
         # This is enforced at the organization level via check_organization_access()

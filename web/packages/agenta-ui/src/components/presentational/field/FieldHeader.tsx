@@ -9,7 +9,6 @@
  * <FieldHeader
  *   id="field-123"
  *   value="Some text content"
- *   hideMarkdownToggle={false}
  * />
  * ```
  */
@@ -17,23 +16,17 @@
 import {memo, useCallback, useState} from "react"
 
 import {Check, Copy} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
 
 import {copyToClipboard} from "../../../utils/copyToClipboard"
 import {cn, flexLayouts, gapClasses, justifyClasses} from "../../../utils/styles"
+import {Button} from "../../ui/button"
+import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../../ui/tooltip"
 
 export interface FieldHeaderProps {
     /** Unique identifier for the field. Retained for backwards compatibility. */
     id?: string
     /** The text value to copy when clicking the copy button */
     value?: string
-    /**
-     * Deprecated: markdown switching has moved to the shared viewMode dropdown
-     * (ChatMessageViewModeDropdown / DrillInFieldHeader). The inline button is
-     * no longer rendered regardless of this flag — kept to preserve the
-     * existing prop shape for current callers.
-     */
-    hideMarkdownToggle?: boolean
 }
 
 /**
@@ -58,15 +51,21 @@ const FieldHeader = ({value = ""}: FieldHeaderProps) => {
 
     return (
         <div className={cn(flexLayouts.rowCenter, justifyClasses.end, gapClasses.xs, "w-full")}>
-            <Tooltip title={isCopied ? "Copied" : "Copy"}>
-                <Button
-                    type="text"
-                    size="small"
-                    icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
-                    onClick={onCopyText}
-                    className={cn(flexLayouts.rowCenter, justifyClasses.center)}
-                />
-            </Tooltip>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onCopyText}
+                            className={cn(flexLayouts.rowCenter, justifyClasses.center)}
+                        >
+                            {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">{isCopied ? "Copied" : "Copy"}</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         </div>
     )
 }

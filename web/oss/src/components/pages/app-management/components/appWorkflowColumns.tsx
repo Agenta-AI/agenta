@@ -2,7 +2,7 @@ import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {workflowAppTypeAtomFamily} from "@agenta/entities/workflow"
 import {WorkflowTypeTag} from "@agenta/entity-ui/workflow"
 import {createStandardColumns} from "@agenta/ui/table"
-import {ArrowCounterClockwise, Note, Rocket, Trash} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, Note, PencilSimple, Rocket, Trash} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -44,6 +44,7 @@ export const AppNameCell = ({workflowId, name}: {workflowId: string; name: strin
 export interface AppWorkflowColumnActions {
     onOpen: (record: AppWorkflowRow) => void
     onOpenPlayground: (record: AppWorkflowRow) => void
+    onRename?: (record: AppWorkflowRow) => void
     onDelete: (record: AppWorkflowRow) => void
     onRestore?: (record: AppWorkflowRow) => void
 }
@@ -137,6 +138,16 @@ export function createAppWorkflowColumns(
                           icon: <Rocket size={16} />,
                           onClick: (record) => actions.onOpenPlayground(record),
                       },
+                      ...(actions.onRename
+                          ? [
+                                {
+                                    key: "rename_app",
+                                    label: "Rename",
+                                    icon: <PencilSimple size={16} />,
+                                    onClick: (record: AppWorkflowRow) => actions.onRename?.(record),
+                                },
+                            ]
+                          : []),
                       {type: "divider"},
                       {
                           key: "delete_app",

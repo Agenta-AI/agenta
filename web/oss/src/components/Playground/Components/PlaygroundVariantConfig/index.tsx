@@ -4,21 +4,30 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {testcaseMolecule} from "@agenta/entities/testcase"
 import {parseEvaluatorKeyFromUri, workflowMolecule} from "@agenta/entities/workflow"
-import {evaluatorTemplatesDataAtom, evaluatorPresetsAtomFamily} from "@agenta/entities/workflow"
 import {
+    evaluatorTemplatesDataAtom,
+    evaluatorPresetsAtomFamily,
+    type EvaluatorCatalogTemplate,
+} from "@agenta/entities/workflow"
+import {
+    AgentConfigSkeleton,
+    AgentOperationsSections,
+    AgentOperationsSkeleton,
     PlaygroundConfigSection,
     LoadEvaluatorPresetModal,
     FieldsDetectionProvider,
     type EvaluatorPresetConfig,
     type ConfigViewMode,
 } from "@agenta/entity-ui"
-import {hasPendingHydrationAtomFamily} from "@agenta/playground"
+import {hasPendingHydrationAtomFamily, isAgentModeAtomFamily} from "@agenta/playground"
 import {Select} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {selectAtom} from "jotai/utils"
 import dynamic from "next/dynamic"
 
 import {extractJsonPaths, safeParseJson} from "@/oss/lib/helpers/extractJsonPaths"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import {PlaygroundNodeTokenPathProvider} from "../../PlaygroundTokenPath"
 
@@ -26,6 +35,23 @@ import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeade
 import type {VariantConfigComponentProps} from "./types"
 
 const RefinePromptModal = dynamic(() => import("../Modals/RefinePromptModal"), {ssr: false})
+// Files region body (flat file listing) — lazy: it pulls in the drive drawer.
+const StorageSection = dynamic(() => import("@/oss/components/Drives/StorageSection"), {
+    ssr: false,
+})
+// Files header count + browse entry, slotted into the operational panel's Files header bar.
+const StorageFilesHeader = dynamic(() => import("@/oss/components/Drives/StorageFilesHeader"), {
+    ssr: false,
+})
+
+// Stable empty catalog read for non-evaluator workflows (avoids the templates fetch).
+const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
+
+// Stable element: an inline `<AgentConfigSkeleton />` prop would defeat memo(PlaygroundConfigSection).
+const AGENT_CONFIG_SKELETON = <AgentConfigSkeleton />
+
+// Stable empty detection value for non-evaluator workflows (context value identity).
+const EMPTY_FIELDS_DETECTION = {}
 
 /**
  * PlaygroundVariantConfig manages the configuration interface for a single variant.
@@ -56,23 +82,67 @@ const PlaygroundVariantConfig: React.FC<
     // Prevents flash of unedited content when reloading with draft patches in the URL.
     const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(variantId))
 
+    // The agent config panel is a read-only summary that edits via section drawers, so the
+    // form/JSON/YAML view switch doesn't apply — hide it for agents (kept for prompt/eval variants).
+    const isAgent = useAtomValue(isAgentModeAtomFamily(variantId))
+    // `isAgentModeAtomFamily` is false until the revision's is_agent flag loads, so on load the heavy
+    // prompt chrome (view switcher) would flash for an agent. The persisted early app-id signal is
+    // synchronous, so it decides during the load; a query-pending disjunct would mislabel PROMPT
+    // apps as agent chrome for the whole restore window.
+    const earlyAgentState = useAtomValue(playgroundEarlyAgentStateAtom)
+    const isAgentHeaderMode = isAgent || earlyAgentState === "agent"
+
     // Refine prompt modal state
     const [refineModalOpen, setRefineModalOpen] = useState(false)
     const [refinePromptKey, setRefinePromptKey] = useState<string | null>(null)
 
-    // Get workflow data for evaluator detection
-    const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId))
+    // Narrow reads for evaluator detection — a whole-data subscription re-renders this
+    // component (and its section tree) on every boot-time data resolution.
+    const workflowUri = useAtomValue(
+        useMemo(
+            () =>
+                selectAtom(
+                    workflowMolecule.selectors.data(variantId),
+                    (d) => d?.data?.uri as string | undefined,
+                ),
+            [variantId],
+        ),
+    )
+    const workflowParams = useAtomValue(
+        useMemo(
+            () =>
+                selectAtom(
+                    workflowMolecule.selectors.data(variantId),
+                    (d) => d?.data?.parameters as Record<string, unknown> | undefined,
+                ),
+            [variantId],
+        ),
+    )
+    const isEvaluator = useAtomValue(workflowMolecule.selectors.isEvaluator(variantId))
     const dispatchUpdate = useSetAtom(workflowMolecule.actions.updateConfiguration)
 
-    // Read evaluator template definitions (workflow-based)
-    const evaluatorDefinitions = useAtomValue(evaluatorTemplatesDataAtom)
-
-    // Determine if this is an evaluator workflow
+    // Determine if this is an evaluator workflow.
+    //
+    // Gate on the canonical `is_evaluator` FLAG, not the URI prefix alone:
+    // builtin APPS (chat/completion) also carry an `agenta:builtin:` URI, so a
+    // prefix-only check misclassifies them as evaluators — which then reads
+    // `evaluatorTemplatesDataAtom` below and fetches the entire evaluator catalog
+    // (GET /evaluators/catalog/templates) on a plain app playground load. Mirrors
+    // the workflow molecule's own gate (`molecule.ts` `parametersSchemaAtomFamily`,
+    // which checks `entity.flags.is_evaluator`).
     const evaluatorKey = useMemo(() => {
-        const uri = runnableData?.data?.uri as string | undefined
-        if (!uri || !uri.startsWith("agenta:builtin:")) return null
-        return parseEvaluatorKeyFromUri(uri)
-    }, [runnableData?.data?.uri])
+        if (!isEvaluator) return null
+        if (!workflowUri || !workflowUri.startsWith("agenta:builtin:")) return null
+        return parseEvaluatorKeyFromUri(workflowUri)
+    }, [isEvaluator, workflowUri])
+
+    // Read the evaluator template catalog only for evaluator workflows — apps
+    // never use it, and an unconditional read fetches GET /evaluators/catalog/
+    // templates on every playground load (mirrors the workflow molecule, which
+    // also reads the catalog only once an evaluatorKey is resolved).
+    const evaluatorDefinitions = useAtomValue(
+        evaluatorKey ? evaluatorTemplatesDataAtom : EMPTY_TEMPLATES_DATA_ATOM,
+    )
 
     const evaluatorDef = useMemo(() => {
         if (!evaluatorKey) return null
@@ -130,7 +200,7 @@ const PlaygroundVariantConfig: React.FC<
     // Fields detection callback for JSON Multi-Field Match evaluator.
     // Reads the first testcase row and extracts JSON paths from the correct_answer field.
     const fieldsDetectionValue = useMemo(() => {
-        if (!evaluatorKey) return {}
+        if (!evaluatorKey) return EMPTY_FIELDS_DETECTION
         return {
             hasTestcaseData,
             detectFieldsFromTestcase: (): string[] | null => {
@@ -140,7 +210,7 @@ const PlaygroundVariantConfig: React.FC<
                 if (!firstTestcase?.data) return null
 
                 // Read correct_answer_key from the evaluator config
-                const params = runnableData?.data?.parameters as Record<string, unknown> | undefined
+                const params = workflowParams
                 const correctAnswerKey =
                     (params?.correct_answer_key as string) ??
                     ((params?.advanced_config as Record<string, unknown>)
@@ -159,7 +229,7 @@ const PlaygroundVariantConfig: React.FC<
                 return extractJsonPaths(parsed)
             },
         }
-    }, [evaluatorKey, hasTestcaseData, runnableData?.data?.parameters])
+    }, [evaluatorKey, hasTestcaseData, workflowParams])
 
     // View mode for config section (form/json/yaml)
     // When controlled externally (e.g. from the drawer), use the provided props.
@@ -187,61 +257,98 @@ const PlaygroundVariantConfig: React.FC<
 
     return (
         <div className={clsx("w-full", "relative", "flex flex-col", className)} {...divProps}>
-            <PlaygroundVariantConfigHeader
-                variantId={variantId}
-                embedded={embedded}
-                variantNameOverride={variantNameOverride}
-                revisionOverride={revisionOverride}
-                evaluatorLabel={evaluatorInfo?.label}
-                hasPresets={hasPresets}
-                onLoadPreset={() => setIsPresetModalOpen(true)}
-                extraActions={viewModeSelector}
-            />
-            {hasPendingHydration ? (
-                <div className="p-4 flex flex-col gap-3">
-                    <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
-                    <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
-                    <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
-                </div>
-            ) : (
-                <>
-                    <FieldsDetectionProvider value={fieldsDetectionValue}>
-                        {/*
-                         * Scope the JSONPath typeahead to this node's
-                         * chain position. Surfaces `$.outputs.*` only
-                         * when the node has an upstream in the chain
-                         * DAG — evaluators fed by a variant, etc.
-                         */}
-                        <PlaygroundNodeTokenPathProvider entityId={variantId}>
-                            <PlaygroundConfigSection
+            {/* Section 1: Configuration. Its own wrapper so the sticky header is scoped to THIS
+                section — scrolling past it lets the next section's header (Triggers/Mounts, agent
+                mode) take over the pinned slot instead of Configuration presiding over the whole
+                panel. */}
+            <section className="flex w-full flex-col">
+                <PlaygroundVariantConfigHeader
+                    variantId={variantId}
+                    embedded={embedded}
+                    variantNameOverride={variantNameOverride}
+                    revisionOverride={revisionOverride}
+                    evaluatorLabel={evaluatorInfo?.label ?? undefined}
+                    hasPresets={hasPresets}
+                    onLoadPreset={() => setIsPresetModalOpen(true)}
+                    extraActions={isAgentHeaderMode ? undefined : viewModeSelector}
+                />
+                {hasPendingHydration ? (
+                    isAgentHeaderMode ? (
+                        // Same px-4 pb-3 pt-1 inset the schema-loading gate and the real
+                        // agent_config field wrapper use — without it the skeleton renders flush
+                        // (432px wide, no inset) and its rows jump when the next gate / real content
+                        // lands.
+                        <div className="px-4 pb-3 pt-1">
+                            <AgentConfigSkeleton />
+                        </div>
+                    ) : (
+                        <div className="p-4 flex flex-col gap-3">
+                            <div className="h-9 rounded bg-[var(--ag-rgba-051729-06)] animate-pulse" />
+                            <div className="h-32 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                            <div className="h-24 rounded border border-solid border-[var(--ag-rgba-051729-08)] bg-[var(--ag-rgba-051729-02)] animate-pulse" />
+                        </div>
+                    )
+                ) : (
+                    <>
+                        <FieldsDetectionProvider value={fieldsDetectionValue}>
+                            {/*
+                             * Scope the JSONPath typeahead to this node's
+                             * chain position. Surfaces `$.outputs.*` only
+                             * when the node has an upstream in the chain
+                             * DAG — evaluators fed by a variant, etc.
+                             */}
+                            <PlaygroundNodeTokenPathProvider entityId={variantId}>
+                                <PlaygroundConfigSection
+                                    revisionId={variantId}
+                                    onRefinePrompt={handleRefinePrompt}
+                                    viewMode={viewMode}
+                                    // Embedded (drawer) renders the variant config
+                                    // header non-sticky, so the section headers have
+                                    // nothing to clear — pin them at the scroll top.
+                                    stickyHeaderTop={embedded ? 0 : 48}
+                                    // Agent (known or early-signalled): hold the panel's real
+                                    // section-row shape while the schema loads, instead of the
+                                    // generic prompt-config pulse boxes.
+                                    loadingFallback={
+                                        isAgentHeaderMode ? AGENT_CONFIG_SKELETON : undefined
+                                    }
+                                />
+                            </PlaygroundNodeTokenPathProvider>
+                        </FieldsDetectionProvider>
+                        {refinePromptKey && (
+                            <RefinePromptModal
+                                open={refineModalOpen}
+                                onClose={handleRefineClose}
                                 revisionId={variantId}
-                                onRefinePrompt={handleRefinePrompt}
-                                viewMode={viewMode}
-                                // Embedded (drawer) renders the variant config
-                                // header non-sticky, so the section headers have
-                                // nothing to clear — pin them at the scroll top.
-                                stickyHeaderTop={embedded ? 0 : 48}
+                                promptKey={refinePromptKey}
                             />
-                        </PlaygroundNodeTokenPathProvider>
-                    </FieldsDetectionProvider>
-                    {refinePromptKey && (
-                        <RefinePromptModal
-                            open={refineModalOpen}
-                            onClose={handleRefineClose}
-                            revisionId={variantId}
-                            promptKey={refinePromptKey}
-                        />
-                    )}
-                    {hasPresets && evaluatorInfo && (
-                        <LoadEvaluatorPresetModal
-                            open={isPresetModalOpen}
-                            onCancel={() => setIsPresetModalOpen(false)}
-                            presets={evaluatorInfo.presets}
-                            onLoadPreset={handlePresetSelect}
-                        />
-                    )}
-                </>
-            )}
+                        )}
+                        {hasPresets && evaluatorInfo && (
+                            <LoadEvaluatorPresetModal
+                                open={isPresetModalOpen}
+                                onCancel={() => setIsPresetModalOpen(false)}
+                                presets={evaluatorInfo.presets}
+                                onLoadPreset={handlePresetSelect}
+                            />
+                        )}
+                    </>
+                )}
+            </section>
+            {/* Sections 2 + 3 (agent only): Triggers and Mounts — operational, never part of the
+                committable config, each with its own Configuration-style sticky header. Rendered only
+                when the entity is a known/early-signalled agent (so a maybe-prompt app never fires
+                trigger queries); skeleton keeps the three-section shape while hydration is pending. */}
+            {isAgentHeaderMode &&
+                (hasPendingHydration ? (
+                    <AgentOperationsSkeleton sticky={!embedded} />
+                ) : (
+                    <AgentOperationsSections
+                        revisionId={variantId}
+                        sticky={!embedded}
+                        storage={<StorageSection revisionId={variantId} />}
+                        storageHeader={<StorageFilesHeader revisionId={variantId} />}
+                    />
+                ))}
         </div>
     )
 }

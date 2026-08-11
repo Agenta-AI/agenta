@@ -381,19 +381,6 @@ class SnippetV0Error(ErrorStatus):
         )
 
 
-class ConfigV0Error(ErrorStatus):
-    code: int = 500
-    type: str = f"{ERRORS_BASE_URL}#v0:workflows:config-error"
-
-    def __init__(self, message: str, stacktrace: Optional[str] = None):
-        super().__init__(
-            code=self.code,
-            type=self.type,
-            message=message,
-            stacktrace=stacktrace,
-        )
-
-
 class FeedbackV0Error(ErrorStatus):
     code: int = 500
     type: str = f"{ERRORS_BASE_URL}#v0:workflows:feedback-error"
@@ -457,3 +444,13 @@ class LLMV0Error(ErrorStatus):
             message=message,
             stacktrace=stacktrace,
         )
+
+
+class ForceNotSupportedV0Error(ErrorStatus):
+    """`flags.force=true` before take-over semantics exist (specs.md); maps to HTTP 406."""
+
+    code: int = 406
+    type: str = f"{ERRORS_BASE_URL}#v0:workflows:force-not-supported"
+
+    def __init__(self, message: str = "flags.force is not supported yet"):
+        super().__init__(code=self.code, type=self.type, message=message)

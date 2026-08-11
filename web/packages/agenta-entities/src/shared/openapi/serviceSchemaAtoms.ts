@@ -6,7 +6,9 @@
  * and cached, making schema data available immediately when a revision is selected.
  */
 
+import {catalogPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import type {QueryKey} from "@tanstack/react-query"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -38,6 +40,7 @@ const serviceSchemaQueryAtomFamily = atomFamily((serviceType: AppServiceType) =>
             refetchOnWindowFocus: false,
             refetchOnMount: false,
             enabled: get(sessionAtom) && !!projectId,
+            persister: catalogPersister.persisterFn<RevisionSchemaState | null, QueryKey>,
         }
     }),
 )

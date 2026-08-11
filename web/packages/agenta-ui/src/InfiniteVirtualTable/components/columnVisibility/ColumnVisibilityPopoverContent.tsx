@@ -2,10 +2,12 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {FolderOpenOutlined, FileOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
-import {Button, Input, Tree, Typography} from "antd"
+import {Tree, Typography} from "antd"
 import type {DataNode} from "antd/es/tree"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
+import {Button} from "../../../components/ui/button"
+import {InputAffix} from "../../../components/ui/input-composed"
 import {getColumnWidthsAtom} from "../../atoms/columnWidths"
 import {useColumnVisibilityControls, type ColumnVisibilityState} from "../../InfiniteVirtualTable"
 import type {
@@ -244,11 +246,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
         <div className="flex flex-col gap-3 min-w-[360px] max-w-[420px]">
             {additionalContent}
 
-            <Input
+            <InputAffix
                 allowClear
                 placeholder="Search columns"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onValueChange={setSearch}
             />
 
             <div className="flex flex-col gap-1">
@@ -256,21 +258,21 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                     Visibility
                 </Typography.Text>
                 <div className="flex flex-wrap gap-1.5">
-                    <Button size="small" onClick={handleExpandAll}>
+                    <Button variant="outline" size="sm" onClick={handleExpandAll}>
                         Expand all
                     </Button>
-                    <Button size="small" onClick={handleCollapseAll}>
+                    <Button variant="outline" size="sm" onClick={handleCollapseAll}>
                         Collapse all
                     </Button>
-                    <Button size="small" onClick={handleShowAll}>
+                    <Button variant="outline" size="sm" onClick={handleShowAll}>
                         Show all
                     </Button>
-                    <Button size="small" onClick={handleHideAll}>
+                    <Button variant="outline" size="sm" onClick={handleHideAll}>
                         Hide all
                     </Button>
                 </div>
             </div>
-            <div className="rounded-md border border-zinc-1 bg-[var(--ag-c-FFFFFF)] shadow-inner">
+            <div className="rounded-md border border-solid border-zinc-1 bg-[var(--ag-c-FFFFFF)] shadow-inner">
                 <div className="max-h-[320px] overflow-auto px-1 py-2">
                     <Tree
                         checkable
@@ -299,15 +301,11 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             </div>
 
             <div className="flex justify-between items-center pt-1">
-                <Button
-                    size="small"
-                    type="text"
-                    icon={<ArrowCounterClockwise size={14} weight="bold" />}
-                    onClick={handleResetLayout}
-                >
+                <Button size="sm" variant="ghost" onClick={handleResetLayout}>
+                    {<ArrowCounterClockwise size={14} weight="bold" />}
                     Reset layout
                 </Button>
-                <Button size="small" type="text" onClick={onClose}>
+                <Button size="sm" variant="ghost" onClick={onClose}>
                     Close
                 </Button>
             </div>

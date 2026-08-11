@@ -10,16 +10,44 @@
  * Designed for 2-level hierarchies.
  */
 
-import React, {useCallback, useId} from "react"
+import React, {useCallback, useEffect, useId, useRef} from "react"
 
 import {EntityListItem, SearchInput} from "@agenta/ui/components/selection"
 import {cn} from "@agenta/ui/styles"
-import {Divider, Empty, Popover, Spin, Tooltip, Typography} from "antd"
+import {
+    Divider,
+    EmptyState,
+    Popover,
+    PopoverAnchor,
+    PopoverContent,
+    PopoverTrigger,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 
 import {useListPopoverMode} from "../../../hooks"
 import type {EntitySelectionResult} from "../../../types"
 import {AutoSelectHandler, ChildPopoverContent} from "../shared"
 import type {ListPopoverVariantProps} from "../types"
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/** antd `placement` → Radix `side`/`align`. */
+const PLACEMENT_MAP = {
+    right: {side: "right", align: "center"},
+    rightTop: {side: "right", align: "start"},
+    rightBottom: {side: "right", align: "end"},
+    left: {side: "left", align: "center"},
+    leftTop: {side: "left", align: "start"},
+    leftBottom: {side: "left", align: "end"},
+} as const satisfies Record<string, {side: "left" | "right"; align: "start" | "center" | "end"}>
+
+/** antd Popover's default `mouseLeaveDelay`, so the pointer can cross to the panel. */
+const HOVER_CLOSE_DELAY_MS = 100
 
 // ============================================================================
 // COMPONENT
@@ -120,6 +148,37 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
         [setOpenPopoverId],
     )
 
+    // Radix Popover is click-only, so hover-trigger mode is driven by pointer handlers on the
+    // anchor + panel with antd's leave delay (so the pointer can cross the gap between them).
+    const isHoverTrigger = popoverTrigger === "hover"
+    const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+    const cancelHoverClose = useCallback(() => {
+        if (hoverCloseTimerRef.current) {
+            clearTimeout(hoverCloseTimerRef.current)
+            hoverCloseTimerRef.current = null
+        }
+    }, [])
+
+    useEffect(() => cancelHoverClose, [cancelHoverClose])
+
+    const handleHoverOpen = useCallback(
+        (parentId: string) => {
+            if (!isHoverTrigger) return
+            cancelHoverClose()
+            setOpenPopoverId(parentId)
+        },
+        [isHoverTrigger, cancelHoverClose, setOpenPopoverId],
+    )
+
+    const handleHoverClose = useCallback(() => {
+        if (!isHoverTrigger) return
+        cancelHoverClose()
+        hoverCloseTimerRef.current = setTimeout(() => setOpenPopoverId(null), HOVER_CLOSE_DELAY_MS)
+    }, [isHoverTrigger, cancelHoverClose, setOpenPopoverId])
+
+    const {side: popoverSide, align: popoverAlign} = PLACEMENT_MAP[popoverPlacement]
+
     // Handle parent click (for selectLatestOnParentClick)
     const onParentClickHandler = useCallback(
         (parent: unknown) => {
@@ -134,8 +193,8 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
         return (
             <div className={cn("flex flex-col", className)}>
                 <div className="flex items-center justify-center py-8">
-                    <Spin size="default" />
-                    <span className="ml-2 text-zinc-500">{displayLoadingMessage}</span>
+                    <Spinner size="default" />
+                    <span className="ml-2 text-colorTextSecondary">{displayLoadingMessage}</span>
                 </div>
             </div>
         )
@@ -145,7 +204,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
     if (parentsError) {
         return (
             <div className={cn("flex flex-col", className)}>
-                <div className="flex items-center justify-center py-8 text-red-500">
+                <div className="flex items-center justify-center py-8 text-colorError">
                     Error: {parentsError.message}
                 </div>
             </div>
@@ -169,11 +228,11 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
             {/* Section divider + label (only when sectionLabel is explicitly provided) */}
             {sectionLabel && (
                 <>
-                    <Divider className="!my-1" />
+                    <Divider className="my-1" />
                     <div className="px-1 py-1">
-                        <Typography.Text className="text-xs font-medium text-gray-500">
+                        <span className="text-xs font-medium text-colorTextSecondary">
                             {sectionLabel}
-                        </Typography.Text>
+                        </span>
                     </div>
                 </>
             )}
@@ -181,10 +240,13 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
             {/* Parents list */}
             {parents.length === 0 ? (
                 <div className="py-8">
-                    <Empty description={displayEmptyMessage} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                    <EmptyState description={displayEmptyMessage} image="simple" />
                 </div>
             ) : (
+                // listbox parent for the rows' role=option (axe aria-required-parent).
                 <div
+                    role="listbox"
+                    aria-label={sectionLabel ?? "Options"}
                     className="overflow-auto"
                     style={{maxHeight: typeof maxHeight === "number" ? maxHeight : undefined}}
                 >
@@ -195,28 +257,60 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                         // Disabled parent - show tooltip, not clickable
                         if (isDisabled) {
                             return (
-                                <Tooltip key={parent.id} title={disabledTooltip}>
-                                    <div className="opacity-50 cursor-not-allowed">
-                                        <EntityListItem
-                                            label={parent.label}
-                                            labelNode={parent.labelNode}
-                                            isSelectable={false}
-                                            isSelected={parent.isSelected}
-                                        />
-                                    </div>
+                                <Tooltip key={parent.id}>
+                                    <TooltipTrigger asChild>
+                                        <div className="opacity-50 cursor-not-allowed">
+                                            <EntityListItem
+                                                label={parent.label}
+                                                labelNode={parent.labelNode}
+                                                isSelectable={false}
+                                                isSelected={parent.isSelected}
+                                            />
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{disabledTooltip}</TooltipContent>
                                 </Tooltip>
                             )
                         }
 
-                        // Regular parent with popover
+                        // Regular parent with popover. In hover mode the item is an Anchor (not a
+                        // Trigger) so clicking it selects without also toggling the panel shut.
+                        const Anchor = isHoverTrigger ? PopoverAnchor : PopoverTrigger
+
                         return (
                             <Popover
                                 key={parent.id}
                                 open={parent.isPopoverOpen}
                                 onOpenChange={(open) => handlePopoverOpenChange(parent.id, open)}
-                                placement={popoverPlacement}
-                                trigger={popoverTrigger}
-                                content={
+                            >
+                                <Anchor asChild>
+                                    <div
+                                        onMouseEnter={() => {
+                                            onParentHoverCombined(parent.id)
+                                            handleHoverOpen(parent.id)
+                                        }}
+                                        onMouseLeave={handleHoverClose}
+                                        onClick={() => onParentClickHandler(parent.entity)}
+                                    >
+                                        <EntityListItem
+                                            label={parent.label}
+                                            labelNode={parent.labelNode}
+                                            isSelectable={!disabled}
+                                            isSelected={parent.isSelected}
+                                            isHovered={isHovered}
+                                            hasChildren
+                                        />
+                                    </div>
+                                </Anchor>
+                                <PopoverContent
+                                    side={popoverSide}
+                                    align={popoverAlign}
+                                    onMouseEnter={cancelHoverClose}
+                                    onMouseLeave={handleHoverClose}
+                                    onOpenAutoFocus={
+                                        isHoverTrigger ? (e) => e.preventDefault() : undefined
+                                    }
+                                >
                                     <ChildPopoverContent
                                         parentId={parent.id}
                                         parentLabel={parent.label}
@@ -228,21 +322,7 @@ export function ListPopoverVariant<TSelection = EntitySelectionResult>({
                                             handleChildSelect(parent.id, parent.label, child)
                                         }
                                     />
-                                }
-                            >
-                                <div
-                                    onMouseEnter={() => onParentHoverCombined(parent.id)}
-                                    onClick={() => onParentClickHandler(parent.entity)}
-                                >
-                                    <EntityListItem
-                                        label={parent.label}
-                                        labelNode={parent.labelNode}
-                                        isSelectable={!disabled}
-                                        isSelected={parent.isSelected}
-                                        isHovered={isHovered}
-                                        hasChildren
-                                    />
-                                </div>
+                                </PopoverContent>
                             </Popover>
                         )
                     })}

@@ -133,7 +133,7 @@ def _assert_direct_inspect_uri(services_api, path: str, *, expected_uri: str) ->
     resp = services_api("POST", path, json={})
     assert resp.status_code == 200, resp.text
     payload = resp.json()
-    assert payload["data"]["revision"]["data"]["uri"] == expected_uri
+    assert payload["revision"]["data"]["uri"] == expected_uri
 
 
 # ---------------------------------------------------------------------------

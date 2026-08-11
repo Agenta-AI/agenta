@@ -1,12 +1,11 @@
+import type {SpanCategory} from "@agenta/entities/trace"
 import {Avatar} from "antd"
-
-import {SpanCategory} from "@/oss/services/tracing/types"
 
 import {spanTypeStyles} from "../assets/constants"
 import {AvatarTreeContentProps} from "../assets/types"
 
 export const statusMapper = (span: SpanCategory | null | undefined) => {
-    const {bgColor, color, icon: Icon} = spanTypeStyles[span ?? "undefined"]
+    const {bgColor, color, icon: Icon} = spanTypeStyles[span ?? "unknown"] ?? spanTypeStyles.unknown
     return {
         bgColor,
         color,

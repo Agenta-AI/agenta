@@ -41,5 +41,6 @@ const ColumnVisibilityHeader = forwardRef<HTMLSpanElement, ColumnVisibilityHeade
         )
     },
 )
+ColumnVisibilityHeader.displayName = "ColumnVisibilityHeader"
 
 export default memo(ColumnVisibilityHeader)

@@ -12,6 +12,10 @@
 **/*dont_commit_me*
 web/packages/agenta-api-client/dist/
 web/tsconfig.tsbuildinfo
+# Agent Pi extension bundle, built by `pnpm run build:extension` and in the Docker image.
+services/runner/dist/
+# Agent runner test/coverage artifacts (vitest writes these on `pnpm test` / coverage runs).
+services/runner/coverage/
 
 __pycache__/
 **/__pycache__/
@@ -63,6 +67,7 @@ sdks/python/oss/tests/results/
 sdks/python/ee/tests/results/
 services/oss/tests/results/
 services/ee/tests/results/
+services/runner/tests/results/
 .*
 !**/.gitkeep
 !.github/
@@ -75,10 +80,65 @@ services/ee/tests/results/
 !.env.example
 !web/.prettierignore
 !web/.syncpackrc
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/add-announcement/
+!.agents/skills/add-harness/
+!.agents/skills/agent-release-gate/
+!.agents/skills/agenta-package-practices/
+!.agents/skills/create-changelog-announcement/
+!.agents/skills/implement-feature/
+!.agents/skills/plan-feature/
+!.agents/skills/style-editing/
+!.agents/skills/sync-model-catalog/
+!.agents/skills/update-api-docs/
+!.agents/skills/update-llm-model-list/
+!.agents/skills/write-docs/
+!.agents/skills/write-issue/
+!.agents/skills/write-pr-description/
+!.agents/skills/write-social-announcement/
+!.agents/skills/write-template-playbooks/
+!.agents/skills/mobile-app-structure/
+!.agents/skills/mobile-shadcn-conventions/
+!.agents/skills/mobile-motion-patterns/
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/add-announcement
+!.claude/skills/agent-release-gate
+!.claude/skills/agenta-package-practices
+!.claude/skills/create-changelog-announcement
+!.claude/skills/implement-feature
+!.claude/skills/plan-feature
+!.claude/skills/style-editing
+!.claude/skills/sync-model-catalog
+!.claude/skills/update-api-docs
+!.claude/skills/update-llm-model-list
+!.claude/skills/write-docs
+!.claude/skills/write-issue
+!.claude/skills/write-pr-description
+!.claude/skills/write-social-announcement
+!.claude/skills/write-template-playbooks
+!.claude/skills/scan-codebase
+!.claude/skills/triage-findings
+!.claude/skills/resolve-findings
+!.claude/skills/sync-findings
+!.claude/skills/test-codebase
+!.claude/skills/mobile-app-structure
+!.claude/skills/mobile-shadcn-conventions
+!.claude/skills/mobile-motion-patterns
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
 services/sdks
+
+# Local-only docker-compose overrides auto-included by hosting/docker-compose/run.sh
+# (docker-compose.<stage>.<name>.local.yml, e.g. an operator's harness subscription mounts).
+# The committed gh.local stage files have no <name> segment, so they are NOT matched.
+hosting/docker-compose/*/docker-compose.*.*.local.yml
 
 # Helm chart packages (built artifacts)
 agenta-oss-*.tgz
@@ -91,3 +151,10 @@ hosting/kubernetes/**/values.*.yaml
 # IDE/LSP config (local tooling)
 pyrightconfig.json
 .gstack/
+
+# Agent skills lockfile (npx skills add)
+skills-lock.json
+
+# Storybook config is real source — carve it out of the dotfile ignore above.
+!web/storybook/.storybook/
+!web/storybook/.storybook/**

@@ -14,11 +14,18 @@ export {
     queryWorkflowRevisions,
     // Retrieve (single revision by ref — slug/version/id)
     retrieveWorkflowRevision,
+    // Agent build-kit overlay (reserved static workflow)
+    AGENT_BUILD_KIT_WORKFLOW_SLUG,
+    fetchAgentBuildKitOverlay,
+    type AgentBuildKitOverlay,
     // Fetch (single revision by ID)
     fetchWorkflowRevisionById,
     // Inspect (resolve full schema including inputs)
     inspectWorkflow,
     type InspectWorkflowResponse,
+    // Simple application fetch (carries the playground build-kit overlay)
+    fetchSimpleApplication,
+    type SimpleApplicationFetchResponse,
     // Interface schemas fetch (builtin workflow fallback)
     fetchInterfaceSchemas,
     type InterfaceSchemasResponse,
@@ -49,6 +56,8 @@ export {
     fetchWorkflowRevisionsByIdsBatch,
     // Schema
     fetchAgTypeSchema,
+    // Harness capabilities catalog
+    fetchHarnessCapabilities,
     // Catalog
     fetchWorkflowCatalogTemplates,
     type WorkflowCatalogTemplate,

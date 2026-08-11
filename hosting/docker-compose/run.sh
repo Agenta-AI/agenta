@@ -19,6 +19,12 @@ NO_CACHE=false  # Default to using cache
 PULL_ENABLED=  # Stage-dependent default applied after parsing: gh→true, dev→false
 NUKE=false  # Default to not nuking volumes
 DOWN=false  # Default to up; --down only stops containers
+WITH_TUNNEL=true  # Composio trigger-event tunnel; disable with --no-tunnel
+LOCAL_OVERRIDES=true  # Auto-include docker-compose.<stage>.*.local.yml; disable with --no-local-overrides
+WITH_MOBILE=false  # Start the mobile web app (/m) via the with-web-mobile profile; enable with --with-mobile
+declare -a EXTRA_COMPOSE_FILES=()  # Extra -f files from --compose-file (repeatable)
+declare -a RECREATE_SERVICES=()    # Services to surgically recreate via --recreate (repeatable)
+declare -a REBUILD_SERVICES=()     # Services to surgically rebuild + recreate via --rebuild (repeatable)
 
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -45,10 +51,25 @@ show_usage() {
     echo "  --web-local             Alias for --web-mode local"
     echo "  --web-mode <mode>       Web mode: docker|local|none (default: docker)"
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
+    echo "  --with-mobile           Also start the mobile web app at /m (all stacks, incl. --dev;"
+    echo "                          the extra dev server costs ~0.5-1GB RAM — keep it off otherwise)"
     echo ""
     echo "Environment:"
     echo "  -e, --env <path>        Use explicit env file (otherwise stage default)"
     echo "  --env-file <path>       Alias for --env"
+    echo ""
+    echo "Compose files:"
+    echo "  --no-local-overrides    Do NOT auto-include docker-compose.<stage>.*.local.yml"
+    echo "                          overrides from the edition dir (they are included by default)"
+    echo "  --compose-file <name>   Append an extra compose file (repeatable). Bare name is"
+    echo "                          resolved against the edition dir like -e; or pass an absolute path"
+    echo ""
+    echo "Service lifecycle (surgical; skips the full down/up):"
+    echo "  --recreate <service>    Recreate one service in place with the full compose set"
+    echo "                          (up -d --no-deps --force-recreate). Repeatable."
+    echo "  --rebuild <service>     Build one service (honoring --no-cache) then recreate it."
+    echo "                          Repeatable. A service with no build config uses its .<name>"
+    echo "                          build anchor when one exists."
     echo ""
     echo "Database:"
     echo "  --nuke                  Remove related volumes on shutdown"
@@ -57,6 +78,10 @@ show_usage() {
     echo "Network:"
     echo "  --ssl                   Use SSL proxy stage (requires --image gh)"
     echo "  --nginx                 Use nginx proxy (default: traefik)"
+    echo ""
+    echo "Triggers:"
+    echo "  --no-tunnel             Disable the Composio trigger-event tunnel"
+    echo "                          (use when the host has a public ingress URL)"
     echo ""
     echo "Miscellaneous:"
     echo "  --help                  Show this help message and exit"
@@ -228,6 +253,36 @@ while [[ "$#" -gt 0 ]]; do
         --nuke)
             NUKE=true
             ;;
+        --no-tunnel)
+            WITH_TUNNEL=false
+            ;;
+        --with-mobile)
+            WITH_MOBILE=true
+            ;;
+        --no-local-overrides)
+            LOCAL_OVERRIDES=false
+            ;;
+        --compose-file)
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --compose-file."
+            fi
+            EXTRA_COMPOSE_FILES+=("$2")
+            shift
+            ;;
+        --recreate)
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --recreate."
+            fi
+            RECREATE_SERVICES+=("$2")
+            shift
+            ;;
+        --rebuild)
+            if [[ -z "${2:-}" ]]; then
+                error_exit "Missing value for --rebuild."
+            fi
+            REBUILD_SERVICES+=("$2")
+            shift
+            ;;
         --down)
             DOWN=true
             ;;
@@ -291,13 +346,56 @@ if [[ -z "$AGENTA_WEB_URL" ]]; then
 fi
 
 # Ensure required files exist
-COMPOSE_FILE="./hosting/docker-compose/${LICENSE}/docker-compose.${STAGE}.yml"
+COMPOSE_DIR="./hosting/docker-compose/${LICENSE}"
+COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.${STAGE}.yml"
 if [[ ! -f "$COMPOSE_FILE" ]]; then
     error_exit "Docker Compose file not found: $COMPOSE_FILE"
 fi
 
-# Construct Docker Compose command
-COMPOSE_CMD="docker compose -f $COMPOSE_FILE"
+# Assemble the effective compose file set: base file, then auto-included local overrides,
+# then any explicit --compose-file entries. Each becomes an additional `-f` in dependency
+# order (later files override earlier ones). This is the fix for the "dropped override"
+# footgun: a run.sh invocation and a hand-added override are otherwise mutually unaware, so
+# whichever `up`/recreate ran last silently won. Now run.sh always assembles the same set.
+declare -a COMPOSE_FILES=("$COMPOSE_FILE")
+
+# 1. Auto-include local overrides: docker-compose.<stage>.*.local.yml in the edition dir,
+#    lexicographically sorted (glob expansion is already sorted). These are gitignored and
+#    hold operator-local tweaks (e.g. the runner's harness subscription mounts). Skip with
+#    --no-local-overrides.
+if $LOCAL_OVERRIDES; then
+    shopt -s nullglob
+    for _override in "${COMPOSE_DIR}"/docker-compose."${STAGE}".*.local.yml; do
+        COMPOSE_FILES+=("$_override")
+    done
+    shopt -u nullglob
+fi
+
+# 2. Append explicit --compose-file entries. A bare name resolves against the edition dir
+#    (same convention as -e); a path (absolute or containing a slash) is used as-is.
+for _extra in ${EXTRA_COMPOSE_FILES[@]+"${EXTRA_COMPOSE_FILES[@]}"}; do
+    if [[ "$_extra" = /* || "$_extra" == ./* || "$_extra" == ../* || "$_extra" == */* ]]; then
+        _extra_path="$_extra"
+    else
+        _extra_path="${COMPOSE_DIR}/${_extra}"
+    fi
+    if [[ ! -f "$_extra_path" ]]; then
+        error_exit "Compose file not found: $_extra_path"
+    fi
+    COMPOSE_FILES+=("$_extra_path")
+done
+
+# Print the effective compose file set every run so a dropped/added override is never silent.
+echo "Compose files (${#COMPOSE_FILES[@]}):"
+for _f in "${COMPOSE_FILES[@]}"; do
+    echo "  - $_f"
+done
+
+# Construct Docker Compose command with every -f in order.
+COMPOSE_CMD="docker compose"
+for _f in "${COMPOSE_FILES[@]}"; do
+    COMPOSE_CMD+=" -f $_f"
+done
 
 # If ENV_FILE is not provided, set it explicitly
 # gh.local reuses the gh env file
@@ -315,6 +413,16 @@ else
     ENV_FILE_PATH="./hosting/docker-compose/$LICENSE/$ENV_FILE"
 fi
 
+# F-037 guard: fail loud when the resolved env file is missing instead of letting Compose
+# silently fall back to its `${ENV_FILE:-./.env.<license>.<stage>}` default. The committed
+# default holds port-80 / no-port URLs, so a typo'd or absent env file produces a stack whose
+# web container 404s every `/api` call (same class as F-020) with no obvious cause. Catch it here.
+if [[ ! -f "$ENV_FILE_PATH" ]]; then
+    error_exit "Env file not found: $ENV_FILE_PATH
+Refusing to start: Docker Compose would silently fall back to its built-in default
+(port-80 / no-port URLs), which makes every web '/api' call 404 with no obvious cause.
+Pass an existing --env-file (e.g. --env-file .env.$LICENSE.$STAGE.local) or create the file."
+fi
 
 # Export the ENV_FILE to the environment
 export ENV_FILE="$ENV_FILE"
@@ -330,6 +438,83 @@ if $WITH_NGINX; then
     COMPOSE_CMD+=" --profile with-nginx"
 else
     COMPOSE_CMD+=" --profile with-traefik"
+fi
+
+if $WITH_TUNNEL; then
+    COMPOSE_CMD+=" --profile with-tunnel"
+fi
+
+if $WITH_MOBILE; then
+    COMPOSE_CMD+=" --profile with-web-mobile"
+fi
+
+# --------------------------------------------------------------------------------------------
+# Surgical service lifecycle: --recreate / --rebuild
+#
+# When either is given, operate on the named services in place with the FULL assembled -f set
+# and the same env handling as a full run (exported ENV_FILE + --env-file), instead of the
+# blanket down/up. This is the blessed entry point for single-service restarts: because it
+# reuses the same compose file set assembled above, a targeted recreate can never drop a local
+# override the way a hand-rolled `docker compose ... up -d --no-deps <svc>` does.
+# --------------------------------------------------------------------------------------------
+if [[ ${#RECREATE_SERVICES[@]} -gt 0 || ${#REBUILD_SERVICES[@]} -gt 0 ]]; then
+    if $DOWN; then
+        error_exit "--down cannot be combined with --recreate/--rebuild."
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        error_exit "--recreate/--rebuild require 'jq' (used to validate services and detect build config)."
+    fi
+
+    # Resolve the compose model once, honoring the assembled -f set and active profiles.
+    CONFIG_JSON="$($COMPOSE_CMD config --format json 2>/dev/null)" \
+        || error_exit "Failed to read compose config for the assembled file set."
+    AVAILABLE_SERVICES="$(printf '%s' "$CONFIG_JSON" | jq -r '.services | keys[]' | sort | tr '\n' ' ')"
+
+    service_exists() { printf '%s' "$CONFIG_JSON" | jq -e --arg s "$1" '.services | has($s)' >/dev/null 2>&1; }
+    has_build() { printf '%s' "$CONFIG_JSON" | jq -e --arg s "$1" '.services[$s].build != null' >/dev/null 2>&1; }
+
+    validate_service() {
+        if ! service_exists "$1"; then
+            error_exit "Unknown service '$1'. Available services: ${AVAILABLE_SERVICES}"
+        fi
+    }
+
+    # --rebuild: build (optionally --no-cache) then recreate. A service with no build config of
+    # its own uses its `.<name>` build anchor when one exists (dev images build via `.web`,
+    # `.runner`, etc. behind profiles; the runtime service only references the built image).
+    for _svc in ${REBUILD_SERVICES[@]+"${REBUILD_SERVICES[@]}"}; do
+        validate_service "$_svc"
+        _build_target="$_svc"
+        if ! has_build "$_svc"; then
+            if service_exists ".$_svc" && has_build ".$_svc"; then
+                _build_target=".$_svc"
+                echo "Service '$_svc' has no build config; building its '.$_svc' anchor instead."
+            else
+                error_exit "Service '$_svc' has no build config and no buildable '.$_svc' anchor."
+            fi
+        fi
+        if $NO_CACHE; then
+            echo "Rebuilding '$_build_target' (no cache)..."
+            $COMPOSE_CMD build --no-cache "$_build_target" || error_exit "Build failed for $_build_target"
+        else
+            echo "Rebuilding '$_build_target'..."
+            $COMPOSE_CMD build "$_build_target" || error_exit "Build failed for $_build_target"
+        fi
+        echo "Recreating '$_svc'..."
+        AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --no-deps --force-recreate "$_svc" \
+            || error_exit "Failed to recreate $_svc"
+    done
+
+    # --recreate: force-recreate in place, no build.
+    for _svc in ${RECREATE_SERVICES[@]+"${RECREATE_SERVICES[@]}"}; do
+        validate_service "$_svc"
+        echo "Recreating '$_svc'..."
+        AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --no-deps --force-recreate "$_svc" \
+            || error_exit "Failed to recreate $_svc"
+    done
+
+    echo "✅ Surgical service operation complete."
+    exit 0
 fi
 
 if $NO_CACHE; then
@@ -348,7 +533,7 @@ fi
 echo "Stopping existing Docker containers..."
 
 # Include all profiles to ensure clean shutdown
-SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik down"
+SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web-mobile --profile with-web --profile with-nginx --profile with-traefik --profile with-tunnel down"
 
 if $NUKE; then
     SHUTDOWN_CMD+=" --volumes"
@@ -362,7 +547,7 @@ if $DOWN; then
 fi
 
 echo "Starting Docker containers with domain: $AGENTA_WEB_URL ..."
-AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d || error_exit "Failed to start Docker containers."
+AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --remove-orphans || error_exit "Failed to start Docker containers."
 
 echo "✅ Setup complete!"
 

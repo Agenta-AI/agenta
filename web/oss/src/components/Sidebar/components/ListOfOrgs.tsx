@@ -1,10 +1,9 @@
 import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {InitialsAvatar} from "@agenta/ui"
-import {ArrowsLeftRight, CaretDown, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
+import {ArrowsLeftRight, PencilSimple, Trash, SignOut} from "@phosphor-icons/react"
 import {useMutation} from "@tanstack/react-query"
 import {
-    Button,
     ButtonProps,
     Dropdown,
     DropdownProps,
@@ -25,6 +24,7 @@ import Session from "supertokens-auth-react/recipe/session"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
 import {getUsernameFromEmail} from "@/oss/lib/helpers/utils"
+import type {OrgDetails} from "@/oss/lib/Types"
 import {checkOrganizationAccess} from "@/oss/services/organization/api"
 import {useOrgData} from "@/oss/state/org"
 import {resetOrganizationData} from "@/oss/state/org"
@@ -42,6 +42,7 @@ import {useWorkspaceMembers} from "@/oss/state/workspace"
 
 import AuthUpgradeModal, {AuthUpgradeDetail} from "./AuthUpgradeModal"
 import ListOfProjects from "./ListOfProjects"
+import SidebarSelectionButton from "./SidebarSelectionButton"
 
 interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
     collapsed: boolean
@@ -175,7 +176,8 @@ const ListOfOrgs = ({
                 label: (
                     <div className="flex items-center gap-2 justify-between w-full">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <InitialsAvatar size="small" name={organization.name} />
+                            {/* typed as-is: org list entries always carry a name in practice */}
+                            <InitialsAvatar size="small" name={organization.name as string} />
                             <span className="truncate">{organization.name}</span>
                             {isDemo && <Tag className="bg-[var(--ag-c-0517290F)] m-0">demo</Tag>}
                         </div>
@@ -287,56 +289,7 @@ const ListOfOrgs = ({
     const organizationButtonLabel = organizationDisplayName
     const canOpenOrganizationMenu = interactive
 
-    const sharedButtonProps = useMemo(() => {
-        if (!buttonProps) {
-            return {
-                className: undefined,
-                type: undefined,
-                disabled: undefined,
-                rest: {} as ButtonProps,
-            }
-        }
-
-        const {className, type, disabled, ...rest} = buttonProps
-        return {className, type, disabled, rest: rest as ButtonProps}
-    }, [buttonProps])
-
-    const renderSelectionButton = (
-        label: string,
-        placeholder: string,
-        isOpen: boolean,
-        showCaret: boolean,
-        disabled?: boolean,
-    ) => (
-        <Button
-            type={sharedButtonProps.type ?? "text"}
-            className={clsx(
-                "flex items-center justify-between gap-2 w-full px-1.5 py-3",
-                {"!w-auto": collapsed},
-                sharedButtonProps.className,
-            )}
-            disabled={disabled || sharedButtonProps.disabled}
-            {...sharedButtonProps.rest}
-        >
-            <div className="flex items-center gap-2">
-                <InitialsAvatar size="small" name={label || placeholder} />
-                {!collapsed && (
-                    <span className="max-w-[150px] truncate" title={label || placeholder}>
-                        {label || placeholder}
-                    </span>
-                )}
-            </div>
-            {!collapsed && showCaret && (
-                <CaretDown
-                    size={14}
-                    className={clsx("transition-transform", isOpen ? "rotate-180" : "")}
-                />
-            )}
-        </Button>
-    )
-
-    const isPostSignupPage =
-        router.pathname === "/post-signup" || router.pathname === "/get-started"
+    const isPostSignupPage = router.pathname === "/post-signup"
     const canShow = Boolean(
         (project?.project_id || effectiveSelectedId || selectedOrganization?.id) &&
         user?.id &&
@@ -619,24 +572,27 @@ const ListOfOrgs = ({
                             }}
                         >
                             <div data-org-selector>
-                                {renderSelectionButton(
-                                    organizationButtonLabel,
-                                    organizationLabel,
-                                    organizationDropdownOpen,
-                                    true,
-                                    false,
-                                )}
+                                <SidebarSelectionButton
+                                    collapsed={collapsed}
+                                    label={organizationButtonLabel}
+                                    placeholder={organizationLabel}
+                                    isOpen={organizationDropdownOpen}
+                                    showCaret
+                                    buttonProps={buttonProps}
+                                />
                             </div>
                         </Dropdown>
                     ) : (
                         <div className={clsx({"flex items-center justify-center": collapsed})}>
-                            {renderSelectionButton(
-                                organizationButtonLabel,
-                                organizationLabel,
-                                false,
-                                false,
-                                true,
-                            )}
+                            <SidebarSelectionButton
+                                collapsed={collapsed}
+                                label={organizationButtonLabel}
+                                placeholder={organizationLabel}
+                                isOpen={false}
+                                showCaret={false}
+                                disabled
+                                buttonProps={buttonProps}
+                            />
                         </div>
                     )}
 
@@ -844,7 +800,10 @@ const ListOfOrgs = ({
 
                     await deleteMutation.mutateAsync(orgToDelete)
                     const deletedOrg = organizations.find((org) => org.id === orgToDelete)
-                    const deletedWorkspaceId = deletedOrg?.default_workspace?.id || null
+                    // Latent: GET /organizations list omits default_workspace (details-only field) — typed as-is.
+                    const deletedWorkspaceId =
+                        (deletedOrg as Partial<OrgDetails> | undefined)?.default_workspace?.id ||
+                        null
                     clearWorkspaceOrgCache(deletedWorkspaceId)
                     clearLastUsedProjectId(deletedWorkspaceId)
                     // If we deleted the current org, select another one

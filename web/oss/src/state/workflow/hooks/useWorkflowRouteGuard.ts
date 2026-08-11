@@ -4,7 +4,7 @@ import {message} from "@agenta/ui/app-message"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {appIdentifiersAtom} from "@/oss/state/appState"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
 
 import {
     resolveWorkflowDestination,
@@ -12,6 +12,8 @@ import {
     type WorkflowRouteSegment,
 } from "../destinations"
 import {currentWorkflowContextAtom, type CurrentWorkflowContext} from "../selectors/workflow"
+
+import {shouldRunWorkflowRouteGuard} from "./workflowRouteGuard"
 
 interface UseWorkflowRouteGuardOptions {
     /**
@@ -40,7 +42,7 @@ export const useWorkflowRouteGuard = (
     options: UseWorkflowRouteGuardOptions = {},
 ): CurrentWorkflowContext => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
-    const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
+    const {workspaceId, projectId, routeLayer} = useAtomValue(appStateSnapshotAtom)
     const router = useRouter()
 
     // Track which workflow ID we've already fired a guard redirect for, to
@@ -50,6 +52,10 @@ export const useWorkflowRouteGuard = (
     const redirectedFor = useRef<string | null>(null)
 
     useEffect(() => {
+        // The URL snapshot advances at `beforeHistoryChange`, while the outgoing
+        // workflow page remains mounted until the route commits. Do not let that
+        // outgoing page redirect after navigation has already left app scope.
+        if (!shouldRunWorkflowRouteGuard(routeLayer)) return
         if (ctx.isResolving) return // wait for queries to settle
         if (ctx.isError) return // page renders error fallback; do not redirect on error
         if (ctx.isNotFound) return // <WorkflowNotFound /> renders below
@@ -109,6 +115,7 @@ export const useWorkflowRouteGuard = (
         ctx.workflowKind,
         ctx.workflowId,
         currentRoute,
+        routeLayer,
         workspaceId,
         projectId,
         // `allowed` is intentionally omitted from deps — callers pass an inline

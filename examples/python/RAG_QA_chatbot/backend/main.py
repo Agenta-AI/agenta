@@ -13,6 +13,7 @@ from pydantic import BaseModel, model_validator
 from fastapi.responses import StreamingResponse
 
 from .config import settings
+from .contract_stream import router as contract_router
 from .rag import format_context, generate, retrieve
 
 # Initialize Agenta for observability
@@ -62,6 +63,11 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
 
     model_config = {"extra": "ignore"}  # tolerate id, trigger, etc. from AI SDK v4+
+
+
+# Agent chat slice endpoints (POST /api/agent/chat[-agenta]) — the real agent loop over
+# the v6 UI Message Stream. Requires credentials. See backend/contract_stream.py.
+app.include_router(contract_router)
 
 
 @app.get("/health")

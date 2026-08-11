@@ -117,6 +117,21 @@ AGENTA_LICENSE=oss npx playwright test --grep "@coverage:smoke.*@cost:free"
 
 ---
 
+## Agent release gate (manual QA)
+
+The agent runtime has a portable, wire-level QA harness packaged as the **`agent-release-gate`**
+skill (`.agents/skills/agent-release-gate/`). It drives the same product endpoint the playground
+drives and asserts on the SSE frame stream and real side effects, never on model prose, so it runs
+against any deployment (cloud or self-hosted) from three env vars (`AGENTA_BASE`,
+`AGENTA_PROJECT_ID`, `AGENTA_API_KEY`) that connect the driver to the deployment. Some individual
+cells need more than that — a vault provider key, a custom-provider slug, or a subscription
+sidecar login — documented per cell in `resources/coverage.md`. The continuity journeys (`warm`,
+`cold1`, `cold2`) additionally need a **store-backed** deployment: with no object store the runner
+falls back to an ephemeral working directory, so they SKIP by default and FAIL with
+`--require-store`. Run the gate before an agent-workflows release, or after changing the runner,
+the SDK agent adapters, or the runner images. The skill's `SKILL.md` has the run procedure; `resources/coverage.md` has the cells ×
+journeys matrix.
+
 ## Related In-Tree Documentation
 
 | Location | Description |

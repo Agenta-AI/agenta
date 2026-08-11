@@ -26,260 +26,6 @@ export class WorkspacesClient {
     }
 
     /**
-     * Get all workspace permissions.
-     *
-     * Returns a list of all available workspace permissions.
-     *
-     * Returns:
-     *     List[Permission]: A list of Permission objects representing the available workspace permissions.
-     *
-     * Raises:
-     *     HTTPException: If there is an error retrieving the workspace permissions.
-     *
-     * @param {WorkspacesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @example
-     *     await client.workspaces.getAllWorkspacePermissions()
-     */
-    public getAllWorkspacePermissions(
-        requestOptions?: WorkspacesClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.Permission[]> {
-        return core.HttpResponsePromise.fromPromise(this.__getAllWorkspacePermissions(requestOptions));
-    }
-
-    private async __getAllWorkspacePermissions(
-        requestOptions?: WorkspacesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.Permission[]>> {
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                "workspaces/permissions",
-            ),
-            method: "GET",
-            headers: _headers,
-            queryParameters: requestOptions?.queryParams,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body as AgentaApi.Permission[], rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            throw new errors.AgentaApiError({
-                statusCode: _response.error.statusCode,
-                body: _response.error.body,
-                rawResponse: _response.rawResponse,
-            });
-        }
-
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/workspaces/permissions");
-    }
-
-    /**
-     * Assigns a role to a user in a workspace.
-     *
-     * Args:
-     *     payload (UserRole): The payload containing the organization id, user email, and role to assign.
-     *     workspace_id (str): The ID of the workspace.
-     *     request (Request): The FastAPI request object.
-     *
-     * Returns:
-     *     bool: True if the role was successfully assigned, False otherwise.
-     *
-     * Raises:
-     *     HTTPException: If the user does not have permission to perform this action.
-     *     HTTPException: If there is an error assigning the role to the user.
-     *
-     * @param {AgentaApi.UserRole} request
-     * @param {WorkspacesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.workspaces.assignRoleToUser({
-     *         workspace_id: "workspace_id",
-     *         email: "email",
-     *         organization_id: "organization_id"
-     *     })
-     */
-    public assignRoleToUser(
-        request: AgentaApi.UserRole,
-        requestOptions?: WorkspacesClient.RequestOptions,
-    ): core.HttpResponsePromise<unknown> {
-        return core.HttpResponsePromise.fromPromise(this.__assignRoleToUser(request, requestOptions));
-    }
-
-    private async __assignRoleToUser(
-        request: AgentaApi.UserRole,
-        requestOptions?: WorkspacesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<unknown>> {
-        const { workspace_id: workspaceId, ..._body } = request;
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `workspaces/${core.url.encodePathParam(workspaceId)}/roles`,
-            ),
-            method: "POST",
-            headers: _headers,
-            contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
-            requestType: "json",
-            body: _body,
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "POST",
-            "/workspaces/{workspace_id}/roles",
-        );
-    }
-
-    /**
-     * Delete a role assignment from a user in a workspace.
-     *
-     * Args:
-     *     workspace_id (str): The ID of the workspace.
-     *     email (str): The email of the user to remove the role from.
-     *     organization_id (str): The ID of the organization.
-     *     role (str): The role to remove from the user.
-     *     request (Request): The FastAPI request object.
-     *
-     * Returns:
-     *     bool: True if the role assignment was successfully deleted.
-     *
-     * Raises:
-     *     HTTPException: If there is an error in the request or the user does not have permission to perform the action.
-     *     HTTPException: If there is an error in updating the user's roles.
-     *
-     * @param {AgentaApi.UnassignRoleFromUserRequest} request
-     * @param {WorkspacesClient.RequestOptions} requestOptions - Request-specific configuration.
-     *
-     * @throws {@link AgentaApi.UnprocessableEntityError}
-     *
-     * @example
-     *     await client.workspaces.unassignRoleFromUser({
-     *         workspace_id: "workspace_id",
-     *         email: "email",
-     *         organization_id: "organization_id",
-     *         role: "role"
-     *     })
-     */
-    public unassignRoleFromUser(
-        request: AgentaApi.UnassignRoleFromUserRequest,
-        requestOptions?: WorkspacesClient.RequestOptions,
-    ): core.HttpResponsePromise<unknown> {
-        return core.HttpResponsePromise.fromPromise(this.__unassignRoleFromUser(request, requestOptions));
-    }
-
-    private async __unassignRoleFromUser(
-        request: AgentaApi.UnassignRoleFromUserRequest,
-        requestOptions?: WorkspacesClient.RequestOptions,
-    ): Promise<core.WithRawResponse<unknown>> {
-        const { workspace_id: workspaceId, email, organization_id: organizationId, role } = request;
-        const _queryParams: Record<string, unknown> = {
-            email,
-            organization_id: organizationId,
-            role,
-        };
-        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
-        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
-            _authRequest.headers,
-            this._options?.headers,
-            requestOptions?.headers,
-        );
-        const _response = await core.fetcher({
-            url: core.url.join(
-                (await core.Supplier.get(this._options.baseUrl)) ??
-                    (await core.Supplier.get(this._options.environment)) ??
-                    environments.AgentaApiEnvironment.Default,
-                `workspaces/${core.url.encodePathParam(workspaceId)}/roles`,
-            ),
-            method: "DELETE",
-            headers: _headers,
-            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
-            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
-            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
-            withCredentials: true,
-            abortSignal: requestOptions?.abortSignal,
-            fetchFn: this._options?.fetch,
-            logging: this._options.logging,
-        });
-        if (_response.ok) {
-            return { data: _response.body, rawResponse: _response.rawResponse };
-        }
-
-        if (_response.error.reason === "status-code") {
-            switch (_response.error.statusCode) {
-                case 422:
-                    throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
-                        _response.rawResponse,
-                    );
-                default:
-                    throw new errors.AgentaApiError({
-                        statusCode: _response.error.statusCode,
-                        body: _response.error.body,
-                        rawResponse: _response.rawResponse,
-                    });
-            }
-        }
-
-        return handleNonStatusCodeError(
-            _response.error,
-            _response.rawResponse,
-            "DELETE",
-            "/workspaces/{workspace_id}/roles",
-        );
-    }
-
-    /**
      * Get workspace details.
      *
      * Returns details about the workspace associated with the user's session.
@@ -403,6 +149,236 @@ export class WorkspacesClient {
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/workspaces/roles");
+    }
+
+    /**
+     * Get all available workspace permissions.
+     *
+     * @param {WorkspacesClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.workspaces.getAllWorkspacePermissions()
+     */
+    public getAllWorkspacePermissions(
+        requestOptions?: WorkspacesClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.Permission[]> {
+        return core.HttpResponsePromise.fromPromise(this.__getAllWorkspacePermissions(requestOptions));
+    }
+
+    private async __getAllWorkspacePermissions(
+        requestOptions?: WorkspacesClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.Permission[]>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "workspaces/permissions",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.Permission[], rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/workspaces/permissions");
+    }
+
+    /**
+     * Assign a role to a user in a workspace.
+     *
+     * Args:
+     *     payload (UserRole): The organization id, user email, and role to assign.
+     *     workspace_id (str): The ID of the workspace.
+     *
+     * @param {AgentaApi.UserRole} request
+     * @param {WorkspacesClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.workspaces.assignRoleToUser({
+     *         workspace_id: "workspace_id",
+     *         email: "email",
+     *         organization_id: "organization_id"
+     *     })
+     */
+    public assignRoleToUser(
+        request: AgentaApi.UserRole,
+        requestOptions?: WorkspacesClient.RequestOptions,
+    ): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__assignRoleToUser(request, requestOptions));
+    }
+
+    private async __assignRoleToUser(
+        request: AgentaApi.UserRole,
+        requestOptions?: WorkspacesClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const { workspace_id: workspaceId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `workspaces/${core.url.encodePathParam(workspaceId)}/roles`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/workspaces/{workspace_id}/roles",
+        );
+    }
+
+    /**
+     * Remove a role assignment from a user in a workspace.
+     *
+     * Args:
+     *     email (str): The email of the user.
+     *     organization_id (str): The ID of the organization.
+     *     role (str): The role to remove.
+     *     workspace_id (str): The ID of the workspace.
+     *
+     * @param {AgentaApi.UnassignRoleFromUserRequest} request
+     * @param {WorkspacesClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.workspaces.unassignRoleFromUser({
+     *         workspace_id: "workspace_id",
+     *         email: "email",
+     *         organization_id: "organization_id",
+     *         role: "role"
+     *     })
+     */
+    public unassignRoleFromUser(
+        request: AgentaApi.UnassignRoleFromUserRequest,
+        requestOptions?: WorkspacesClient.RequestOptions,
+    ): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__unassignRoleFromUser(request, requestOptions));
+    }
+
+    private async __unassignRoleFromUser(
+        request: AgentaApi.UnassignRoleFromUserRequest,
+        requestOptions?: WorkspacesClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const { workspace_id: workspaceId, email, organization_id: organizationId, role } = request;
+        const _queryParams: Record<string, unknown> = {
+            email,
+            organization_id: organizationId,
+            role,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `workspaces/${core.url.encodePathParam(workspaceId)}/roles`,
+            ),
+            method: "DELETE",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "DELETE",
+            "/workspaces/{workspace_id}/roles",
+        );
     }
 
     /**

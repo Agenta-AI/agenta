@@ -170,6 +170,36 @@ export const sessionAtomFamily = atomFamily(
         }),
 )
 
+/**
+ * Backend session_id (runner-minted, read back from the first run) for a panel.
+ *
+ * The panel `sessionId` is the playground UI column key ("sess:<runnableId>"); the
+ * returned value is the distinct backend conversation correlator the sessions API keys
+ * off. Null until the first run returns one. Write via {@link setBackendSessionIdAtomFamily}.
+ */
+export const backendSessionIdAtomFamily = atomFamily(
+    ({loadableId, sessionId}: {loadableId: string; sessionId: string}) =>
+        atom((get) => {
+            const state = get(executionStateAtomFamily(loadableId))
+            return state.backendSessionIdBySession[sessionId] ?? null
+        }),
+)
+
+/** Write a panel's runner-minted backend session_id (read-back; first non-empty wins). */
+export const setBackendSessionIdAtomFamily = atomFamily((loadableId: string) =>
+    atom(null, (get, set, payload: {sessionId: string; backendSessionId: string}) => {
+        const state = get(executionStateAtomFamily(loadableId))
+        if (state.backendSessionIdBySession[payload.sessionId] === payload.backendSessionId) return
+        set(executionStateAtomFamily(loadableId), {
+            ...state,
+            backendSessionIdBySession: {
+                ...state.backendSessionIdBySession,
+                [payload.sessionId]: payload.backendSessionId,
+            },
+        })
+    }),
+)
+
 // ============================================================================
 // STEP ATOMS
 // ============================================================================

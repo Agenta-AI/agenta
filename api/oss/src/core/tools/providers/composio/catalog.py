@@ -8,7 +8,7 @@ The ``cursor`` value is Composio's native ``next_cursor`` string, passed through
 as-is between our API and Composio's API.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import httpx
 
@@ -16,7 +16,9 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.tools.dtos import (
     ToolAuthScheme,
     ToolCatalogAction,
+    ToolCatalogActionsPage,
     ToolCatalogIntegration,
+    ToolCatalogIntegrationsPage,
 )
 from oss.src.core.tools.exceptions import AdapterError
 
@@ -118,7 +120,7 @@ class ComposioCatalogClient:
         sort_by: Optional[str] = None,
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[ToolCatalogIntegration], Optional[str], int]:
+    ) -> ToolCatalogIntegrationsPage:
         """Fetch one page of integrations from Composio.
 
         Args:
@@ -126,10 +128,6 @@ class ComposioCatalogClient:
             sort_by: Optional sort — "usage" or "alphabetically"
             limit: Items per page (max 1000)
             cursor: Composio next_cursor from a previous response
-
-        Returns:
-            (items, next_cursor, total_items)
-            next_cursor is None when on the last page
         """
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
@@ -179,7 +177,11 @@ class ComposioCatalogClient:
             next_cursor,
         )
 
-        return items, next_cursor, total_items
+        return ToolCatalogIntegrationsPage(
+            integrations=items,
+            next_cursor=next_cursor,
+            total=total_items,
+        )
 
     # -----------------------------------------------------------------------
     # Action listing
@@ -194,7 +196,7 @@ class ComposioCatalogClient:
         important: Optional[bool] = None,  # reserved; not forwarded to Composio
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
-    ) -> Tuple[List[ToolCatalogAction], Optional[str], int]:
+    ) -> ToolCatalogActionsPage:
         """Fetch one page of actions for an integration from Composio.
 
         Args:
@@ -204,16 +206,18 @@ class ComposioCatalogClient:
             important: Reserved for future filtering; not forwarded upstream
             limit: Items per page (max 1000)
             cursor: Composio next_cursor from a previous response
-
-        Returns:
-            (items, next_cursor, total_items)
-            next_cursor is None when on the last page
         """
         page_limit = min(limit, MAX_PAGE_SIZE) if limit else DEFAULT_PAGE_SIZE
 
+        # Do NOT pin ``toolkit_versions=latest`` here: Composio's "latest" toolkit
+        # version emits SHORT action slugs (e.g. GITHUB_ACCEPT_REPOSITORY_INVITATION)
+        # that its single-tool GET and execute endpoints reject unless the same
+        # version is threaded through — and execute rejects the latest short slugs
+        # outright. The default (pinned) toolkit version emits the canonical LONG
+        # slugs (GITHUB_ACCEPT_A_REPOSITORY_INVITATION) that get_action AND execute
+        # both accept with no version param, so list/get/execute stay consistent.
         params: Dict[str, Any] = {
             "toolkit_slug": integration_key,
-            "toolkit_versions": "latest",
             "include_deprecated": False,
             "limit": page_limit,
         }
@@ -268,7 +272,11 @@ class ComposioCatalogClient:
             next_cursor,
         )
 
-        return items, next_cursor, total_items
+        return ToolCatalogActionsPage(
+            actions=items,
+            next_cursor=next_cursor,
+            total=total_items,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -359,6 +367,22 @@ def _parse_integration_detail(item: Dict[str, Any]) -> ToolCatalogIntegration:
     )
 
 
+def _derive_read_only(raw_tags: Any) -> Optional[bool]:
+    """Distil the MCP behavioral hint tags into a single read-only signal.
+
+    ``readOnlyHint`` with no mutating hint -> read-only; ``destructiveHint`` or
+    ``updateHint`` -> mutating. No hint present -> unknown (``None``); never guessed.
+    """
+    if not isinstance(raw_tags, list):
+        return None
+    tags = {t for t in raw_tags if isinstance(t, str)}
+    if "destructiveHint" in tags or "updateHint" in tags:
+        return False
+    if "readOnlyHint" in tags:
+        return True
+    return None
+
+
 def _parse_action(item: Dict[str, Any], integration_key: str) -> ToolCatalogAction:
     raw_tags = item.get("tags")
     # Tags mix MCP hint flags with semantic categories — strip the known hints
@@ -381,4 +405,5 @@ def _parse_action(item: Dict[str, Any], integration_key: str) -> ToolCatalogActi
         name=item.get("name", ""),
         description=item.get("description"),
         categories=categories,
+        read_only=_derive_read_only(raw_tags),
     )

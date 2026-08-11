@@ -3,6 +3,8 @@ from typing import List
 
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
@@ -22,6 +24,37 @@ from oss.src.core.access.permissions.service import check_action_access
 log = get_module_logger(__name__)
 
 
+class SecretSafeRoute(APIRoute):
+    """A route whose validation errors never echo what the caller sent.
+
+    FastAPI's validation error carries an ``input`` field holding the offending value, so a
+    malformed create put the submitted provider key straight back into the response body,
+    into the caller's terminal, and into anything logging response bodies on this route. A
+    builder hit it live with a real OpenAI key.
+
+    Scoped by construction rather than by matching the request path: every route on this
+    router gets it, and a later path change cannot silently switch it off. Validation
+    behavior is unchanged, only the echo: the caller still learns which field was wrong and
+    why, which is everything it needs, since it already knows what it sent.
+    """
+
+    def get_route_handler(self):
+        original = super().get_route_handler()
+
+        async def handler(request: Request):
+            try:
+                return await original(request)
+            except RequestValidationError as e:
+                raise RequestValidationError(
+                    [
+                        {key: value for key, value in error.items() if key != "input"}
+                        for error in e.errors()
+                    ]
+                ) from None
+
+        return handler
+
+
 class VaultRouter:
     def __init__(
         self,
@@ -29,7 +62,7 @@ class VaultRouter:
     ):
         self.service = vault_service
 
-        self.router = APIRouter()
+        self.router = APIRouter(route_class=SecretSafeRoute)
 
         self.router.add_api_route(
             "/secrets/",
@@ -48,7 +81,7 @@ class VaultRouter:
             response_model=List[SecretResponseDTO],
         )
         self.router.add_api_route(
-            "/secrets/{secret_id}",
+            "/secrets/{secret_id_or_slug}",
             self.read_secret,
             methods=["GET"],
             operation_id="read_secret",
@@ -137,7 +170,7 @@ class VaultRouter:
         return secrets_dtos
 
     @intercept_exceptions()
-    async def read_secret(self, request: Request, secret_id: str):
+    async def read_secret(self, request: Request, secret_id_or_slug: str):
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -151,10 +184,25 @@ class VaultRouter:
                 status_code=403,
             )
 
-        secrets_dto = await self.service.get_secret(
-            project_id=UUID(request.state.project_id),
-            secret_id=UUID(secret_id),
-        )
+        # A valid UUID means it's an id; anything else is a slug.
+        secret_id = None
+        secret_slug = None
+        try:
+            secret_id = UUID(secret_id_or_slug).hex
+        except ValueError:
+            secret_slug = secret_id_or_slug
+
+        if secret_id is not None:
+            secrets_dto = await self.service.get_secret_by_id(
+                project_id=UUID(request.state.project_id),
+                secret_id=UUID(secret_id),
+            )
+        else:
+            secrets_dto = await self.service.get_secret_by_slug(
+                project_id=UUID(request.state.project_id),
+                secret_slug=str(secret_slug),
+            )
+
         if secrets_dto is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"

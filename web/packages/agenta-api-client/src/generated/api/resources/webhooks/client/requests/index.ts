@@ -1,6 +1,8 @@
 export type { DeleteWebhookSubscriptionRequest } from "./DeleteWebhookSubscriptionRequest.js";
 export type { FetchWebhookDeliveryRequest } from "./FetchWebhookDeliveryRequest.js";
 export type { FetchWebhookSubscriptionRequest } from "./FetchWebhookSubscriptionRequest.js";
+export type { StartWebhookSubscriptionRequest } from "./StartWebhookSubscriptionRequest.js";
+export type { StopWebhookSubscriptionRequest } from "./StopWebhookSubscriptionRequest.js";
 export type { WebhookDeliveryCreateRequest } from "./WebhookDeliveryCreateRequest.js";
 export type { WebhookDeliveryQueryRequest } from "./WebhookDeliveryQueryRequest.js";
 export type { WebhookSubscriptionCreateRequest } from "./WebhookSubscriptionCreateRequest.js";

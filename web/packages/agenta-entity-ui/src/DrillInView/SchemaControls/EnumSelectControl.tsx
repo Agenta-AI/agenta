@@ -9,9 +9,9 @@ import {memo, useMemo} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {formatEnumLabel} from "@agenta/shared/utils"
-import {LabeledField, SimpleDropdownSelect} from "@agenta/ui/components/presentational"
+import {SimpleDropdownSelect} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Select} from "antd"
+import {Combobox, Field} from "@agenta/ui/ui"
 
 export interface EnumSelectControlProps {
     /** The schema property defining enum options */
@@ -41,11 +41,38 @@ export interface EnumSelectControlProps {
 }
 
 /**
- * Extract options from schema enum
+ * Extract options from a schema's enum or a `oneOf` of `{const, title}` entries.
+ *
+ * Two shapes are supported. A flat `enum` (the common case) maps each value through
+ * `formatEnumLabel`. A `oneOf` of `{const, title}` entries (used by the agent harness field,
+ * where each option carries a display name and a versioned slug identity alongside its bare
+ * value) keeps the bare `const` as the value and shows the `title` as the label, so the option
+ * value the control writes back is unchanged while the dropdown reads clearly.
  */
-function getEnumOptions(
+export function getEnumOptions(
     schema: SchemaProperty | null | undefined,
 ): {value: string; label: string}[] {
+    const oneOf = (schema as {oneOf?: unknown})?.oneOf
+    if (Array.isArray(oneOf)) {
+        const options = oneOf
+            .filter(
+                (entry): entry is {const: unknown; title?: unknown} =>
+                    !!entry &&
+                    typeof entry === "object" &&
+                    "const" in (entry as Record<string, unknown>),
+            )
+            .map((entry) => ({
+                value: String(entry.const),
+                label:
+                    typeof entry.title === "string" && entry.title
+                        ? entry.title
+                        : formatEnumLabel(entry.const),
+            }))
+        if (options.length > 0) {
+            return options
+        }
+    }
+
     if (!schema?.enum || !Array.isArray(schema.enum)) {
         return []
     }
@@ -108,28 +135,29 @@ export const EnumSelectControl = memo(function EnumSelectControl({
         )
     }
 
-    // Select variant (full select)
+    // Select variant. antd `showSearch` → Combobox; `filterOption` → per-option `searchValue`.
+    const comboboxOptions = useMemo(
+        () => options.map((option) => ({...option, searchValue: option.label})),
+        [options],
+    )
+
     return (
-        <LabeledField
+        <Field
             label={label}
-            description={tooltipText}
-            withTooltip={withTooltip && !!label}
+            tooltip={withTooltip && !!label ? tooltipText : undefined}
             className={cn(className)}
         >
-            <Select
+            <Combobox
                 value={value ?? undefined}
                 onChange={(val) => onChange(val ?? null)}
-                options={options}
+                options={comboboxOptions}
                 disabled={disabled}
                 placeholder={placeholder}
                 allowClear={allowClear}
+                aria-label={label ? undefined : placeholder}
                 className="w-full"
-                size="small"
-                showSearch
-                filterOption={(input, option) =>
-                    (option?.label?.toString() ?? "").toLowerCase().includes(input.toLowerCase())
-                }
+                size="sm"
             />
-        </LabeledField>
+        </Field>
     )
 })

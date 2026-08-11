@@ -24,6 +24,7 @@ from oss.src.core.embeds.exceptions import (
     MaxDepthExceededError,
     MaxEmbedsExceededError,
     MixedEntityTypesError,
+    NonEmbeddableWorkflowReferenceError,
     PathExtractionError,
     EmbedNotFoundError,
 )
@@ -274,6 +275,17 @@ def create_universal_resolver(
         revision_ref: Optional[Reference] = parsed.get("revision")
         artifact_ref: Optional[Reference] = parsed.get("artifact")
 
+        def _reject_non_embeddable_static_workflow(entity: Any) -> None:
+            catalog = getattr(workflows_service, "static_catalog", None)
+            if not catalog or not entity:
+                return
+            slug = getattr(entity, "slug", None) or getattr(
+                entity, "workflow_slug", None
+            )
+            entity_id = getattr(entity, "id", None)
+            if not catalog.is_embeddable(id=entity_id, slug=slug):
+                raise NonEmbeddableWorkflowReferenceError(slug or str(entity_id))
+
         # Route to appropriate service
         if category == "workflow":
             if not workflows_service:
@@ -298,6 +310,7 @@ def create_universal_resolver(
                     raise EmbedNotFoundError(
                         f"Workflow revision not found: {revision_ref}"
                     )
+                _reject_non_embeddable_static_workflow(entity)
                 return entity.model_dump(mode="json")
 
             elif deepest_level == "variant":
@@ -310,6 +323,7 @@ def create_universal_resolver(
                     raise EmbedNotFoundError(
                         f"Workflow revision not found for variant: {variant_ref}"
                     )
+                _reject_non_embeddable_static_workflow(entity)
                 return entity.model_dump(mode="json")
 
             elif deepest_level == "artifact":
@@ -322,6 +336,7 @@ def create_universal_resolver(
                     raise EmbedNotFoundError(
                         f"Workflow revision not found for workflow: {artifact_ref}"
                     )
+                _reject_non_embeddable_static_workflow(entity)
                 return entity.model_dump(mode="json")
 
             else:

@@ -34,18 +34,25 @@ export type {
     CustomModelSettingsDto,
     CustomProviderDto,
     CustomProviderSettingsDto,
+    CustomSecretDto,
+    CustomSecretSettingsDto,
+    CustomSecretContent,
     Header,
     LegacyLifecycleDto,
+    NamedSecretRow,
     SecretDto,
     SecretResponseDto,
     StandardProviderDto,
     StandardProviderSettingsDto,
     UpdateSecretDto,
     VaultMigrationStatus,
+    ProviderFieldAttributes,
+    ProviderFieldConfig,
 } from "./core"
 
 export {
     CustomProviderKind,
+    CustomSecretFormat,
     PROVIDER_KINDS,
     PROVIDER_LABELS,
     STANDARD_PROVIDER_KINDS,
@@ -53,7 +60,11 @@ export {
     StandardProviderKind,
     getEnvNameMap,
     transformCustomProviderPayloadData,
+    transformCustomSecretPayloadData,
     transformSecret,
+    CUSTOM_PROVIDER_KIND_FAMILIES,
+    PROVIDER_AUTH_REQUIREMENTS,
+    PROVIDER_FIELDS,
 } from "./core"
 
 // ============================================================================
@@ -76,7 +87,10 @@ export {
     deleteVaultSecretMutationAtom,
     createStandardSecretAtom,
     createCustomSecretAtom,
+    createCustomNamedSecretAtom,
+    customNamedSecretsAtom,
     deleteSecretAtom,
     migrateVaultKeysAtom,
+    providerKeySetupDoneAtom,
     useVaultSecret,
 } from "./state"

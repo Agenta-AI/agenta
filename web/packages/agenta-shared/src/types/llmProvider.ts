@@ -25,6 +25,7 @@ export interface LlmProvider {
     accessKeyId?: string
     accessKey?: string
     sessionToken?: string
+    bearerToken?: string
     models?: string[]
     modelKeys?: string[]
     id?: string

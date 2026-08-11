@@ -182,7 +182,8 @@ GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     ("tool_response", "ag.meta.tool_response"),
     # System instructions
     ("gen_ai.system_instructions", "ag.meta.system_instructions"),
-    # Agent description
+    # Agent identity/description
+    ("gen_ai.agent.id", "ag.agent.id"),
     ("gen_ai.agent.description", "ag.meta.agent.description"),
     # Provider name
     ("gen_ai.provider.name", "ag.meta.provider.name"),

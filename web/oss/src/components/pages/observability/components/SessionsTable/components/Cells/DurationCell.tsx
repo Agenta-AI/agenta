@@ -1,5 +1,4 @@
 import {Skeleton} from "antd"
-import {useAtomValue} from "jotai"
 
 import {
     sessionDurationAtomFamily,
@@ -7,10 +6,11 @@ import {
 } from "@/oss/state/newObservability/atoms/queries"
 
 import DurationCellDisplay from "../../../DurationCell" // Reusing presentation
+import {useSessionAtomValue} from "../../assets/sessionCellStore"
 
 export const DurationCell = ({sessionId}: {sessionId: string}) => {
-    const isLoading = useAtomValue(sessionsLoadingAtom)
-    const duration = useAtomValue(sessionDurationAtomFamily(sessionId))
+    const isLoading = useSessionAtomValue(sessionsLoadingAtom)
+    const duration = useSessionAtomValue(sessionDurationAtomFamily(sessionId))
 
     if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
 

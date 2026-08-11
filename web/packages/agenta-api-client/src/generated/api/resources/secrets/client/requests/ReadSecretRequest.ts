@@ -3,9 +3,9 @@
 /**
  * @example
  *     {
- *         secret_id: "secret_id"
+ *         secret_id_or_slug: "secret_id_or_slug"
  *     }
  */
 export interface ReadSecretRequest {
-    secret_id: string;
+    secret_id_or_slug: string;
 }

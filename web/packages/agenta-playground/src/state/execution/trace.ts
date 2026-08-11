@@ -84,6 +84,56 @@ export const extractTraceIdFromPayload = (payload: unknown): string | null => {
     return null
 }
 
+const asSessionId = (value: unknown): string | null => {
+    if (typeof value !== "string") return null
+    const trimmed = value.trim()
+    return trimmed.length > 0 ? trimmed : null
+}
+
+export const extractSessionIdFromPayload = (payload: unknown): string | null => {
+    if (!payload) return null
+
+    if (Array.isArray(payload)) {
+        for (let i = payload.length - 1; i >= 0; i -= 1) {
+            const found = extractSessionIdFromPayload(payload[i])
+            if (found) return found
+        }
+        return null
+    }
+
+    if (typeof payload !== "object") return null
+
+    const obj = payload as Record<string, unknown>
+    const status = obj.status as Record<string, unknown> | undefined
+    const detail = obj.detail as Record<string, unknown> | undefined
+
+    const directCandidates = [
+        obj.sessionId,
+        obj.session_id,
+        status?.sessionId,
+        status?.session_id,
+        detail?.sessionId,
+        detail?.session_id,
+        (obj.response as Record<string, unknown> | undefined)?.sessionId,
+        (obj.response as Record<string, unknown> | undefined)?.session_id,
+        (obj.metadata as Record<string, unknown> | undefined)?.sessionId,
+        (obj.metadata as Record<string, unknown> | undefined)?.session_id,
+    ]
+
+    for (const candidate of directCandidates) {
+        const normalized = asSessionId(candidate)
+        if (normalized) return normalized
+    }
+
+    const nestedCandidates = [obj.output, obj.result, obj.response]
+    for (const nested of nestedCandidates) {
+        const found = extractSessionIdFromPayload(nested)
+        if (found) return found
+    }
+
+    return null
+}
+
 export const extractSpanIdFromPayload = (payload: unknown): string | null => {
     if (!payload) return null
 

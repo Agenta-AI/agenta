@@ -21,7 +21,13 @@ export const formatDate24 = (date: dayjs.ConfigType, includeSeconds = false): st
     return dayjs(date).format("DD MMM YY, HH:mm" + (includeSeconds ? ":ss" : ""))
 }
 
-export const parseDate = ({date, inputFormat = "YYYY-MM-DD H:mm:sssAZ"}) => {
+export const parseDate = ({
+    date,
+    inputFormat = "YYYY-MM-DD H:mm:sssAZ",
+}: {
+    date: dayjs.ConfigType
+    inputFormat?: string
+}) => {
     return dayjs(date, inputFormat)
 }
 

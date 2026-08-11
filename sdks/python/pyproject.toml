@@ -1,7 +1,7 @@
 [project]
 name = "agenta"
-version = "0.104.3"
-description = "The SDK for agenta is an open-source LLMOps platform."
+version = "0.111.0"
+description = "Agenta is the open-source workspace for your agents. Build agents through chat, improve them with feedback, and share them with your team."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
@@ -24,9 +24,9 @@ dependencies = [
     "structlog>=26,<27",
     "opentelemetry-api>=1,<2",
     "opentelemetry-sdk>=1,<2",
-    "opentelemetry-instrumentation>=0.63b1,<0.64",
+    "opentelemetry-instrumentation>=0.64b0,<0.65",
     "opentelemetry-exporter-otlp-proto-http>=1,<2",
-    "fastapi>=0.137,<0.138",
+    "fastapi>=0.139,<0.140",
     "pyyaml>=6,<7",
     "litellm>=1,<2",
     "openai>=2,<3",
@@ -34,7 +34,7 @@ dependencies = [
     "mystace>=1,<2",
     "orjson>=3,<4",
     "python-jsonpath>=2,<3",
-    "daytona>=0.187,<0.188",
+    "daytona>=0.197,<0.198",
     "RestrictedPython>=8,<9",
 ]
 
@@ -66,7 +66,6 @@ agenta-client = { path = "../../clients/python", editable = true }
 [tool.uv.build-backend]
 module-name = "agenta"
 module-root = ""
-source-exclude = ["agenta/tests/*"]
 
 [build-system]
 requires = ["uv_build>=0.11,<0.12"]

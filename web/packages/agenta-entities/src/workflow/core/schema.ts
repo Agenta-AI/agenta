@@ -68,12 +68,17 @@ export type JsonSchemas = z.infer<typeof jsonSchemasSchema>
  * - `is_code` — key is "code" (script/code handler)
  * - `is_match` — key is "match" (matcher evaluator)
  * - `is_feedback` — key is "trace" (human annotation workflow)
+ * - `is_agent` — key is "agent" (agent workflow)
+ * - `is_skill` — key is "skill" (non-runnable skill snippet)
  *
  * **Interface-derived** (from revision data presence):
  * - `is_chat` — schema indicates chat/message semantics
  * - `has_url` — revision has a webhook/service URL
  * - `has_script` — revision has embedded script content
  * - `has_handler` — revision has an in-process handler (SDK only)
+ *
+ * **Slug-derived** (server-owned):
+ * - `is_static` — resolved from the static catalog by a reserved slug
  *
  * **User-defined role** (set at create/commit, table-driven defaults from URI):
  * - `is_application` — can be used as an application
@@ -93,11 +98,15 @@ export const workflowFlagsSchema = z
         is_code: z.boolean().optional().default(false),
         is_match: z.boolean().optional().default(false),
         is_feedback: z.boolean().optional().default(false),
+        is_agent: z.boolean().optional().default(false),
+        is_skill: z.boolean().optional().default(false),
         // Interface-derived
         is_chat: z.boolean().optional().default(false),
         has_url: z.boolean().optional().default(false),
         has_script: z.boolean().optional().default(false),
         has_handler: z.boolean().optional().default(false),
+        // Slug-derived (server-owned): resolved from the static catalog.
+        is_static: z.boolean().optional().default(false),
         // User-defined role
         is_application: z.boolean().optional().default(false),
         is_evaluator: z.boolean().optional().default(false),
@@ -137,6 +146,7 @@ export interface WorkflowQueryFlags {
     // User-defined role
     is_application?: boolean
     is_evaluator?: boolean
+    is_agent?: boolean
     is_snippet?: boolean
 }
 
@@ -266,8 +276,16 @@ export const workflowSchema = z
         // Slug
         slug: z.string().nullable().optional(),
 
-        // Version (present on revisions — backend returns as string, coerce to number)
-        version: z.coerce.number().nullable().optional(),
+        // Version (present on revisions). DB revisions carry a numeric version (3 or "3"); the
+        // static catalog serves reserved __ag__* workflows as "vN" (e.g. "v1"). Strip the "v"
+        // prefix, then coerce — degrading a still-non-numeric value to null instead of failing the
+        // whole revision parse (a bad version tag must not blank the config).
+        version: z.preprocess((v) => {
+            if (v === null || v === undefined) return v
+            const raw = typeof v === "string" && /^v\d+$/i.test(v) ? v.slice(1) : v
+            const n = Number(raw)
+            return Number.isFinite(n) ? n : null
+        }, z.number().nullable().optional()),
 
         // Header
         name: z.string().nullable().optional(),
@@ -339,16 +357,20 @@ export const workflowSchemas = createEntitySchemaSet({
             // URI-derived
             is_managed: false,
             is_custom: false,
+            is_agent: false,
             is_llm: false,
             is_hook: false,
             is_code: false,
             is_match: false,
             is_feedback: false,
+            is_skill: false,
             // Interface-derived
             is_chat: false,
             has_url: false,
             has_script: false,
             has_handler: false,
+            // Slug-derived
+            is_static: false,
             // User-defined role
             is_application: false,
             is_evaluator: false,

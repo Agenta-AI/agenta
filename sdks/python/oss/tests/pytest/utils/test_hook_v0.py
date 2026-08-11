@@ -90,6 +90,12 @@ def call_with_url(
         )
 
 
+def call_with_insecure_url(url: str, **kwargs):
+    """call_with_url with insecure mode allowed (http/private hosts)."""
+    with patch("agenta.sdk.workflows.handlers._HOOK_ALLOW_INSECURE", True):
+        return call_with_url(url, **kwargs)
+
+
 def patched_post(response_mock):
     """Patch httpx.AsyncClient so .post() returns response_mock."""
     client_instance = AsyncMock()
@@ -120,7 +126,7 @@ class TestHookV0UrlResolution:
         resp = make_response({"score": 1.0})
         p, client = patched_post(resp)
         with p:
-            result = call_with_url("http://example.com/hook")
+            result = call_with_insecure_url("http://example.com/hook")
         assert result == {"score": 1.0}
         client.post.assert_awaited_once()
 
@@ -132,10 +138,11 @@ class TestHookV0UrlResolution:
 
 class TestHookV0UrlValidation:
     def test_http_url_accepted(self):
+        # http requires insecure mode now that it defaults False.
         resp = make_response({"ok": True})
         p, _ = patched_post(resp)
         with p:
-            result = call_with_url("http://example.com/eval")
+            result = call_with_insecure_url("http://example.com/eval")
         assert result == {"ok": True}
 
     def test_https_url_accepted(self):
@@ -173,7 +180,7 @@ class TestHookV0Payload:
         resp = make_response({"ok": True})
         p, client = patched_post(resp)
         with p:
-            call_with_url(url, **kwargs)
+            call_with_insecure_url(url, **kwargs)
         _, call_kwargs = client.post.call_args
         return (
             call_kwargs.get("json")
@@ -254,14 +261,14 @@ class TestHookV0ResponseParsing:
         resp = make_response({"score": 0.8, "success": True})
         p, _ = patched_post(resp)
         with p:
-            result = call_with_url("http://example.com/hook")
+            result = call_with_insecure_url("http://example.com/hook")
         assert result == {"score": 0.8, "success": True}
 
     def test_json_list_returned_as_list(self):
         resp = make_response([1, 2, 3])
         p, _ = patched_post(resp)
         with p:
-            result = call_with_url("http://example.com/hook")
+            result = call_with_insecure_url("http://example.com/hook")
         assert result == [1, 2, 3]
 
     def test_json_number_returned_as_number(self):
@@ -272,7 +279,7 @@ class TestHookV0ResponseParsing:
         mock.headers = {}
         p, _ = patched_post(mock)
         with p:
-            result = call_with_url("http://example.com/hook")
+            result = call_with_insecure_url("http://example.com/hook")
         assert result == pytest.approx(0.9)
 
     def test_plain_text_returned_as_string(self):
@@ -283,7 +290,7 @@ class TestHookV0ResponseParsing:
         mock.headers = {}
         p, _ = patched_post(mock)
         with p:
-            result = call_with_url("http://example.com/hook")
+            result = call_with_insecure_url("http://example.com/hook")
         assert result == "some text response"
 
 
@@ -298,7 +305,7 @@ class TestHookV0ErrorHandling:
         p, _ = patched_post(resp)
         with p:
             with pytest.raises(WebhookServerV0Error) as exc_info:
-                call_with_url("http://example.com/hook")
+                call_with_insecure_url("http://example.com/hook")
         assert exc_info.value.code == 404
 
     def test_500_status_raises_server_error(self):
@@ -306,7 +313,7 @@ class TestHookV0ErrorHandling:
         p, _ = patched_post(resp)
         with p:
             with pytest.raises(WebhookServerV0Error) as exc_info:
-                call_with_url("http://example.com/hook")
+                call_with_insecure_url("http://example.com/hook")
         assert exc_info.value.code == 500
 
     def test_network_error_raises_client_error(self):
@@ -317,7 +324,7 @@ class TestHookV0ErrorHandling:
 
         with patch("httpx.AsyncClient", return_value=client_instance):
             with pytest.raises(WebhookClientV0Error):
-                call_with_url("http://example.com/hook")
+                call_with_insecure_url("http://example.com/hook")
 
     def test_timeout_error_raises_client_error(self):
         import httpx as _httpx
@@ -331,7 +338,7 @@ class TestHookV0ErrorHandling:
 
         with patch("httpx.AsyncClient", return_value=client_instance):
             with pytest.raises(WebhookClientV0Error):
-                call_with_url("http://example.com/hook")
+                call_with_insecure_url("http://example.com/hook")
 
     def test_oversized_response_raises_client_error(self):
         from agenta.sdk.workflows.handlers import _WEBHOOK_RESPONSE_MAX_BYTES
@@ -344,7 +351,7 @@ class TestHookV0ErrorHandling:
         p, _ = patched_post(mock)
         with p:
             with pytest.raises(WebhookClientV0Error):
-                call_with_url("http://example.com/hook")
+                call_with_insecure_url("http://example.com/hook")
 
     def test_oversized_via_content_length_header_raises(self):
         from agenta.sdk.workflows.handlers import _WEBHOOK_RESPONSE_MAX_BYTES
@@ -357,4 +364,4 @@ class TestHookV0ErrorHandling:
         p, _ = patched_post(mock)
         with p:
             with pytest.raises(WebhookClientV0Error):
-                call_with_url("http://example.com/hook")
+                call_with_insecure_url("http://example.com/hook")

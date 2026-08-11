@@ -8,10 +8,11 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
 from .webhook_subscription_data import WebhookSubscriptionData
+from .webhook_subscription_flags import WebhookSubscriptionFlags
 
 
 class WebhookSubscriptionEdit(UniversalBaseModel):
-    flags: typing.Optional[typing.Dict[str, typing.Any]] = None
+    flags: typing.Optional[WebhookSubscriptionFlags] = None
     tags: typing.Optional[typing.Dict[str, typing.Any]] = None
     meta: typing.Optional[typing.Dict[str, typing.Any]] = None
     name: typing.Optional[str] = None

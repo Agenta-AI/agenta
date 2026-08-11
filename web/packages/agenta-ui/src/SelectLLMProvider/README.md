@@ -116,6 +116,8 @@ Base provider select component.
 | `options` | `ProviderGroup[]` | `[]` | Grouped provider options |
 | `showGroup` | `boolean` | `false` | Show cascading group menu |
 | `showSearch` | `boolean` | `true` | Show search input |
+| `providerDropdownWidth` | `number \| string` | `400` | Total dropdown width for grouped provider/model selection |
+| `modelListWidth` | `number \| string` | half of `providerDropdownWidth` | Width allocated to the model list after hovering a provider |
 | `footerContent` | `ReactNode` | - | Custom footer content |
 | `onSelectValue` | `(value) => void` | - | Additional select handler |
 

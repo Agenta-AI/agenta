@@ -14,6 +14,7 @@ import {
     ResponsiveFrequencyChart,
     ResponsiveMetricChart,
     buildChartData,
+    type ChartDatum,
 } from "@/oss/components/Evaluations/MetricDetailsPopover"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
@@ -423,7 +424,8 @@ const MetricPopoverContent = ({
     const frequencyChartData = hasHistogram
         ? []
         : chartData
-              .map((entry) => {
+              // buildChartData only emits name/value; legacy label/count fallbacks typed as-is
+              .map((entry: ChartDatum & {label?: string | number; count?: number}) => {
                   if (!entry) return null
                   const label = entry.name ?? entry.label ?? ""
                   const rawValue = entry.value ?? entry.count
@@ -436,7 +438,7 @@ const MetricPopoverContent = ({
                       count: Number.isFinite(parsed) ? parsed : 0,
                   }
               })
-              .filter((entry): entry is {label: string | number; count: number} => Boolean(entry))
+              .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
     const hasFrequencyChart = frequencyChartData.length > 0
     const isCategoricalMultiple = (source: unknown): boolean => {
         if (!source || typeof source !== "object") return false

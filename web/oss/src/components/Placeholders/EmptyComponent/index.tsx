@@ -1,7 +1,6 @@
 import {ReactNode} from "react"
 
-import {Button, Empty, Space, Tooltip, Typography} from "antd"
-import {BaseButtonProps} from "antd/es/button/button"
+import {Button, Empty, Space, Tooltip, Typography, type ButtonProps} from "antd"
 
 const emptyClass =
     "[&_.ant-empty-description]:text-base [&_.ant-empty-description]:mb-6 [&_.ant-empty-description]:text-colorTextSecondary [&_.ant-empty-image]:h-auto [&_.ant-empty-image]:mb-6 [&_.ant-empty-image]:text-colorTextSecondary [&_.ant-empty-image_img]:dark:invert"
@@ -11,8 +10,8 @@ interface Cta {
     onClick?: () => void
     icon?: ReactNode
     tooltip?: string
-    type?: BaseButtonProps["type"]
-    size?: BaseButtonProps["size"]
+    type?: ButtonProps["type"]
+    size?: ButtonProps["size"]
 }
 
 interface Props {

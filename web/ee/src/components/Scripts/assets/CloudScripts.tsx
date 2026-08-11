@@ -1,7 +1,6 @@
 import {useEffect} from "react"
 
 import {ChatboxColors, Crisp} from "crisp-sdk-web"
-import Head from "next/head"
 import Script from "next/script"
 
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
@@ -21,7 +20,7 @@ const CloudScripts = () => {
     }, [])
 
     // The Crisp chatbox renders in its own cross-origin iframe, so we can't style
-    // its light/dark theme from our CSS, and crisp-sdk-web exposes no runtime
+    // its light/dark useCrispChat from our CSS, and crisp-sdk-web exposes no runtime
     // light/dark toggle (only the accent color via setColorTheme). Darken the
     // accent in dark mode so the launcher/accent reads less out-of-place; light
     // restores the dashboard's "default" accent.
@@ -43,16 +42,10 @@ const CloudScripts = () => {
     }, [appTheme])
 
     return (
-        <>
-            <Head>
-                <title>Agenta: The LLMOps platform.</title>
-                <link rel="shortcut icon" href="/assets/favicon.ico" />
-            </Head>
-            <Script
-                src="https://app.termly.io/embed.min.js/8e05e2f3-b396-45dd-bb76-4dfa5ce28e10?autoBlock=on"
-                strategy="afterInteractive"
-            />
-        </>
+        <Script
+            src="https://app.termly.io/embed.min.js/8e05e2f3-b396-45dd-bb76-4dfa5ce28e10?autoBlock=on"
+            strategy="afterInteractive"
+        />
     )
 }
 

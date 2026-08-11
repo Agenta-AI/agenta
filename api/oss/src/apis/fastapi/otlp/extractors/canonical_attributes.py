@@ -24,6 +24,7 @@ class SpanFeatures(BaseModel):
     tags: Dict[str, Any] = Field(default_factory=dict)
     session: Dict[str, Any] = Field(default_factory=dict)
     user: Dict[str, Any] = Field(default_factory=dict)
+    agent: Dict[str, Any] = Field(default_factory=dict)
 
 
 class EventData(BaseModel):

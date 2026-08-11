@@ -1,95 +1,179 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useEffect, useState} from "react"
 
-import {invalidateWorkflowsListCache, updateWorkflow} from "@agenta/entities/workflow"
-import {CheckOutlined} from "@ant-design/icons"
+import {workflowAppTypeAtomFamily, workflowArtifactQueryAtomFamily} from "@agenta/entities/workflow"
 import {Input, Modal, Typography} from "antd"
-import clsx from "clsx"
+import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {GenericObject} from "@/oss/lib/Types"
-import {useAppsData} from "@/oss/state/app"
-import {getProjectValues} from "@/oss/state/project"
-
-import {invalidateAppManagementWorkflowQueries} from "../../store"
+import {CopyRow, FieldLabel, TypeBadge} from "@/oss/components/EntityIdentity/fields"
+import {useRenameApp} from "@/oss/components/EntityIdentity/useRenameApp"
+import {getAppTypeIcon} from "@/oss/components/pages/prompts/assets/iconHelpers"
 
 import {closeEditAppModalAtom, editAppModalAtom} from "./store/editAppModalStore"
 
+const APP_TYPE_LABEL: Record<string, string> = {
+    agent: "Agent",
+    chat: "Chat",
+    completion: "Completion",
+    custom: "Custom workflow",
+}
+
+/**
+ * Rename + details modal opened from the home table row menu and the app-overview 3-dot
+ * menu. Leads with the editable name (and description), then surfaces the read-only
+ * context — type, version, created, slug (fixed on rename), workflow id — that a user
+ * would otherwise dig for. The artifact fields are read reactively by id, so the modal
+ * renders the same regardless of which surface opened it.
+ */
 const EditAppModal = () => {
     const {open, appDetails, onRenamed} = useAtomValue(editAppModalAtom)
     const closeModal = useSetAtom(closeEditAppModalAtom)
-    const {apps, isLoading, mutate} = useAppsData()
-    const [appNameInput, setAppNameInput] = useState(appDetails?.name || "")
+    const {renameApp, isDuplicateName} = useRenameApp()
 
+    const workflowId = appDetails?.id ?? ""
+    const artifact = useAtomValue(workflowArtifactQueryAtomFamily(workflowId))
+    const appType = useAtomValue(workflowAppTypeAtomFamily(workflowId))
+    const wf = artifact.data
+
+    const [name, setName] = useState(appDetails?.name ?? "")
+    const [description, setDescription] = useState("")
+    const [descHydrated, setDescHydrated] = useState(false)
+    const [nameError, setNameError] = useState<string | null>(null)
+    const [saving, setSaving] = useState(false)
+
+    // Reset on every open (a new appDetails object) or on close.
     useEffect(() => {
-        setAppNameInput(appDetails?.name)
+        setName(appDetails?.name ?? "")
+        setDescription("")
+        setDescHydrated(false)
+        setNameError(null)
     }, [appDetails])
 
-    const appNameExist = useMemo(
-        () =>
-            apps.some(
-                (app: GenericObject) =>
-                    ((app?.name ?? app?.slug) || "").toLowerCase() ===
-                        appNameInput?.toLowerCase() &&
-                    ((app?.name ?? app?.slug) || "").toLowerCase() !==
-                        appDetails?.name.toLowerCase(),
-            ),
-        [apps, appNameInput, appDetails?.name],
-    )
-
-    const handleEditAppName = useCallback(async () => {
-        try {
-            const {projectId} = getProjectValues()
-            await updateWorkflow(projectId, {
-                id: appDetails?.id,
-                name: appNameInput,
-                flags: {is_application: true},
-            })
-            invalidateWorkflowsListCache()
-            await mutate()
-            await invalidateAppManagementWorkflowQueries()
-            try {
-                await onRenamed?.({id: appDetails?.id, name: appNameInput})
-            } catch (callbackError) {
-                console.error(callbackError)
-            }
-            closeModal()
-        } catch (error) {
-            console.error(error)
+    // Seed the description once the artifact resolves.
+    useEffect(() => {
+        if (!descHydrated && wf) {
+            setDescription(wf.description ?? "")
+            setDescHydrated(true)
         }
-    }, [appDetails, appNameInput, mutate, closeModal, onRenamed])
+    }, [wf, descHydrated])
+
+    const typeLabel = APP_TYPE_LABEL[(appType ?? "").toLowerCase()] ?? "Application"
+
+    const handleSave = async () => {
+        const nextName = name.trim()
+        if (!nextName) {
+            setNameError("Name can't be empty")
+            return
+        }
+        if (isDuplicateName(nextName, workflowId)) {
+            setNameError("An app with this name already exists")
+            return
+        }
+        setSaving(true)
+        const ok = await renameApp({
+            id: workflowId,
+            name: nextName,
+            description: description.trim(),
+        })
+        setSaving(false)
+        if (!ok) return
+        try {
+            await onRenamed?.({id: workflowId, name: nextName})
+        } catch (callbackError) {
+            console.error(callbackError)
+        }
+        closeModal()
+    }
 
     return (
         <Modal
             centered
             destroyOnHidden
-            okButtonProps={{
-                icon: <CheckOutlined />,
-                disabled: !appDetails || appNameExist || appNameInput?.length === 0,
-                loading: isLoading,
-            }}
-            onOk={handleEditAppName}
-            okText={"Confirm"}
-            title={
-                <Typography.Text className="text-base leading-normal font-semibold">
-                    Rename App
-                </Typography.Text>
-            }
+            width={468}
             open={open}
             onCancel={closeModal}
+            okText="Save changes"
+            cancelText="Cancel"
+            okButtonProps={{disabled: !name.trim() || !!nameError, loading: saving}}
+            onOk={handleSave}
+            title={
+                <div className="flex items-center gap-3 pr-8">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-colorFillTertiary">
+                        {getAppTypeIcon(appType ?? undefined)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <Typography.Text className="block truncate text-sm font-semibold leading-tight">
+                            {name || appDetails?.name || "Untitled"}
+                        </Typography.Text>
+                        <Typography.Text className="block text-xs font-normal text-colorTextTertiary">
+                            Edit name, description &amp; view details
+                        </Typography.Text>
+                    </div>
+                    <TypeBadge label={typeLabel} />
+                </div>
+            }
         >
-            <div className="mt-4 mb-6">
-                <Input
-                    value={appNameInput}
-                    onChange={(e) => setAppNameInput(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                            handleEditAppName()
-                        }
-                    }}
-                />
-                {appNameExist && (
-                    <div className={clsx("text-red", "ml-2")}>App name already exists</div>
-                )}
+            <div className="mt-3 mb-1 flex flex-col gap-4">
+                <div>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input
+                        value={name}
+                        status={nameError ? "error" : undefined}
+                        onChange={(e) => {
+                            setName(e.target.value)
+                            if (nameError) setNameError(null)
+                        }}
+                        onPressEnter={handleSave}
+                        onFocus={(e) => e.target.select()}
+                        className="!text-xs"
+                    />
+                    {nameError && <div className="mt-1 text-xs text-colorError">{nameError}</div>}
+                </div>
+
+                <div>
+                    <FieldLabel>Description</FieldLabel>
+                    <Input.TextArea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Add a short description…"
+                        autoSize={{minRows: 2, maxRows: 5}}
+                        className="!text-[13px]"
+                    />
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-0 border-t border-solid border-colorBorderSecondary pt-3.5">
+                    {wf?.version != null && (
+                        <div>
+                            <FieldLabel>Version</FieldLabel>
+                            <div className="text-[13px] text-colorText">v{wf.version}</div>
+                        </div>
+                    )}
+                    {wf?.created_at && (
+                        <div>
+                            <FieldLabel>Created</FieldLabel>
+                            <div className="text-[13px] text-colorText">
+                                {dayjs(wf.created_at).format("MMM D, YYYY")}
+                            </div>
+                        </div>
+                    )}
+                    {wf?.slug && (
+                        <div className="col-span-2">
+                            <FieldLabel>
+                                Slug{" "}
+                                <span className="font-normal text-colorTextTertiary">
+                                    · fixed on rename
+                                </span>
+                            </FieldLabel>
+                            <CopyRow value={wf.slug} label="Copy slug" />
+                        </div>
+                    )}
+                    {workflowId && (
+                        <div className="col-span-2">
+                            <FieldLabel>Workflow ID</FieldLabel>
+                            <CopyRow value={workflowId} label="Copy workflow ID" />
+                        </div>
+                    )}
+                </div>
             </div>
         </Modal>
     )

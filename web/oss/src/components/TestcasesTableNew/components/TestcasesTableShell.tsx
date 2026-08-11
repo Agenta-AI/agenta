@@ -8,6 +8,7 @@ import {
     type TableScopeConfig,
     type TypeChipConfig,
     useTypeChipFeature,
+    type ExtendedColumn,
 } from "@agenta/ui/table"
 import {TypeChip, type ChipVariant} from "@agenta/ui/type-chip"
 import {PlusOutlined} from "@ant-design/icons"
@@ -670,7 +671,7 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
         }
 
         // Custom actions column with Add Column button in header
-        const actionsColumn: ColumnsType<TestcaseTableRow> = [
+        const actionsColumn: ExtendedColumn<TestcaseTableRow>[] = [
             {
                 title: (
                     <div className="flex items-center gap-1 justify-end">
@@ -694,8 +695,8 @@ export function TestcasesTableShell(props: TestcasesTableShellProps) {
                 width: 56,
                 fixed: "right",
                 align: "center",
-                columnVisibilityLocked: true as any,
-                exportEnabled: false as any, // Exclude from client-side CSV export
+                columnVisibilityLocked: true,
+                exportEnabled: false, // Exclude from client-side CSV export
                 onCell: () => ({className: "ag-table-actions-cell"}),
                 render: (_, record) => {
                     if (record.__isSkeleton || isShowingSkeleton) return null

@@ -1,0 +1,3646 @@
+/**
+ * Keep-alive tests across parkable ACP approval pauses.
+ *
+ * Two seams:
+ *  - Dispatch (`runWithKeepalive`) with a fake `KeepaliveEngine` that models a paused turn setting
+ *    `env.parkedApproval`, so the pool/park/resume POLICY is exercised without a live harness.
+ *  - Engine (`acquireEnvironment` / `runTurn`) with a pausable fake harness, so the real park +
+ *    `respondPermission` resume MECHANICS are exercised (the gate is answered on the same live
+ *    session, the held prompt continues, and the post-resume update streams to the new turn).
+ *
+ * Run: pnpm test (or: pnpm exec vitest run tests/unit/session-keepalive-approval.test.ts)
+ */
+import { describe, it, vi } from "vitest";
+import assert from "node:assert/strict";
+
+// What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
+type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
+
+import type {
+  AgentEvent,
+  AgentRunRequest,
+  AgentRunResult,
+  ChatMessage,
+} from "../../src/protocol.ts";
+import {
+  runWithKeepalive,
+  staleInteractionExemptTokens,
+  type KeepaliveContext,
+  type KeepaliveEngine,
+} from "../../src/server.ts";
+import { SessionPool } from "../../src/engines/sandbox_agent/session-pool.ts";
+import {
+  computeCredentialEpoch,
+  configFingerprint,
+  mountExpiryMs,
+  type InstalledMountExpiries,
+  type KeepaliveConfig,
+} from "../../src/engines/sandbox_agent/session-identity.ts";
+import {
+  appliedStateForRequest,
+  AppliedState,
+  type AppliedEnvironmentState,
+} from "../../src/engines/sandbox_agent/applied-state.ts";
+import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts";
+import {
+  acquireEnvironment,
+  runTurn,
+  type ParkedApproval,
+  type SandboxAgentDeps,
+  type SessionEnvironment,
+} from "../../src/engines/sandbox_agent.ts";
+import {
+  APPROVED_EXECUTION_RESULT_UNKNOWN,
+  createSandboxAgentOtel,
+  DEFERRED_NOT_EXECUTED_PREFIX,
+  TOOL_NOT_EXECUTED_PAUSED,
+} from "../../src/tracing/otel.ts";
+import { captureStderr } from "../utils/capture-stderr.ts";
+
+function flush(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
+const auth = {
+  telemetry: {
+    exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+  },
+};
+
+// ---------------------------------------------------------------------------- //
+// Dispatch seam: a fake engine whose runTurn scripts each turn (pause / resume). //
+// ---------------------------------------------------------------------------- //
+
+interface TurnScript {
+  /** The turn pauses on one or more parkable permission gates (records parkedApprovals). */
+  approvalPause?: {
+    permissionId: string;
+    toolCallId: string;
+    toolName?: string;
+    /** Additional parkable gates in the same turn (parallel gated tool calls). */
+    extraGates?: Array<{
+      permissionId: string;
+      toolCallId: string;
+      toolName?: string;
+    }>;
+    /**
+     * Override `approvalGateCount`. Defaults to the number of recorded gates. Set LARGER than the
+     * recorded gates to model a gate that lacked a resumable id (count > map size -> unresumable,
+     * no park).
+     */
+    gates?: number;
+    /** Also flag a non-parkable (client-tool) pause this turn, so the mixed set stays cold. */
+    nonParkable?: boolean;
+    /** The parked gate plane; default the Claude ACP gate. */
+    gateType?: ParkedApproval["gateType"];
+  };
+  /** The turn pauses on a non-Claude gate (Pi relay / client tool): paused, no parkedApproval. */
+  nonClaudePause?: boolean;
+  /** Override the completed result. */
+  result?: AgentRunResult;
+  /** Tool-call ids the turn "emitted" (folded into the park fingerprint). */
+  toolCallIds?: string[];
+  /** Hold the turn pending until released (models an in-flight resume for the double-answer case). */
+  hold?: boolean;
+}
+
+interface DispatchFakeEnv {
+  id: number;
+  /** The environment owns what it applied (lifecycle migration, step 2). The pool reads it. */
+  readonly appliedState: AppliedEnvironmentState;
+  commitApplied: (result: AppliedCommit) => void;
+  destroyed: number;
+  turnsCleared: number;
+  lastTurnToolCallIds: string[];
+  parkedApprovals: Map<string, ParkedApproval>;
+  /** Stamped at acquire from the credentials this env "mounted", as the real helpers do. */
+  installedMountExpiries: InstalledMountExpiries;
+  parkedApproval?: ParkedApproval;
+  approvalGateCount: number;
+  nonParkablePauseCount: number;
+  clearTurn: () => void;
+  destroyImpl: () => Promise<void>;
+  destroy: () => Promise<void>;
+}
+
+function makeApprovalEngine(
+  scripts: TurnScript[] = [],
+  mountOpts: { expiresAt?: string } = {},
+) {
+  const calls = {
+    resolveMount: 0,
+    acquire: 0,
+    cold: 0,
+    turns: [] as Array<{ env: DispatchFakeEnv; opts: any; idx: number }>,
+    resumes: [] as Array<{
+      permissionId: string;
+      reply: string;
+      toolCallId: string;
+    }>,
+    acquiredEnvs: [] as DispatchFakeEnv[],
+    /** One control per approvalPause turn: settle the parked prompt promise from the test. */
+    promptControls: [] as Array<{
+      resolve: (value: unknown) => void;
+      reject: (err: unknown) => void;
+    }>,
+  };
+  const holds = new Map<number, () => void>();
+
+  let nextEnvId = 1;
+  // Seeded from the acquiring request, exactly as `prepareEnvironmentSetup` does. The approval
+  // tests care about this most: a resume must NOT be able to move it.
+  const makeEnv = (request: AgentRunRequest): DispatchFakeEnv => {
+    const applied = appliedStateForRequest(request);
+    const env: DispatchFakeEnv = {
+      id: nextEnvId++,
+      get appliedState() {
+        return applied.appliedState;
+      },
+      commitApplied: (result) => applied.commitApplied(result),
+      destroyed: 0,
+      turnsCleared: 0,
+      lastTurnToolCallIds: [],
+      parkedApprovals: new Map(),
+      installedMountExpiries: {},
+      parkedApproval: undefined,
+      approvalGateCount: 0,
+      nonParkablePauseCount: 0,
+      clearTurn: () => {
+        env.turnsCleared += 1;
+      },
+      destroyImpl: async () => {
+        env.destroyed += 1;
+      },
+      destroy: () => env.destroyImpl(),
+    };
+    return env;
+  };
+
+  const signedMount = (): MountCredentials => ({
+    region: "us-east-1",
+    bucket: "b",
+    prefix: "mounts/proj/mount",
+    accessKey: "AK",
+    secretKey: "SK",
+    expiresAt: mountOpts.expiresAt,
+    projectId: "proj-1",
+  });
+
+  const applyScript = async (
+    env: DispatchFakeEnv,
+    opts: any,
+  ): Promise<AgentRunResult> => {
+    const idx = calls.turns.length;
+    const script = scripts[idx] ?? {};
+    // Mirror the real runTurn per-turn reset and carried-gate reseed.
+    env.parkedApprovals = new Map();
+    env.parkedApproval = undefined;
+    env.approvalGateCount = 0;
+    env.nonParkablePauseCount = 0;
+    for (const gate of opts?.resume?.carriedForward ?? []) {
+      env.parkedApprovals.set(gate.toolCallId, gate);
+      env.parkedApproval ??= gate;
+    }
+    env.approvalGateCount = env.parkedApprovals.size;
+    env.lastTurnToolCallIds = script.toolCallIds ?? [];
+    calls.turns.push({ env, opts, idx });
+    if (opts?.resume) {
+      // The warm resume carries a LIST of decisions (one per parked gate).
+      for (const decision of opts.resume.decisions) {
+        calls.resumes.push({
+          permissionId: decision.permissionId,
+          reply: decision.reply,
+          toolCallId: decision.toolCallId,
+        });
+      }
+    }
+    if (script.hold) {
+      await new Promise<void>((resolve) => holds.set(idx, resolve));
+    }
+    if (script.approvalPause) {
+      const gateType = script.approvalPause.gateType ?? "claude-acp-permission";
+      const parkableGates = [
+        {
+          permissionId: script.approvalPause.permissionId,
+          toolCallId: script.approvalPause.toolCallId,
+          toolName: script.approvalPause.toolName,
+        },
+        ...(script.approvalPause.extraGates ?? []),
+      ];
+      // approvalGateCount defaults to the recorded-gate count; a larger override models a gate
+      // that lacked a resumable id (count > map size -> the dispatch treats the set as unresumable).
+      env.approvalGateCount =
+        script.approvalPause.gates ?? parkableGates.length;
+      env.nonParkablePauseCount = script.approvalPause.nonParkable ? 1 : 0;
+      // The held original prompt: pending until the test settles it (mirrors the real Claude
+      // prompt that never resolves on an unanswered gate). One prompt per turn, shared by every
+      // parked gate. Carries the same swallowing catch runTurn attaches, so a test-driven
+      // rejection is never unhandled.
+      const promptPromise = new Promise((resolve, reject) => {
+        calls.promptControls.push({ resolve, reject });
+      });
+      promptPromise.catch(() => {});
+      for (const gate of parkableGates) {
+        const record: ParkedApproval = {
+          gateType,
+          permissionId: gate.permissionId,
+          toolCallId: gate.toolCallId,
+          toolName: gate.toolName,
+          args: {},
+          interactionToken: gate.toolCallId,
+          promptPromise,
+        };
+        env.parkedApprovals.set(gate.toolCallId, record);
+        env.parkedApproval ??= record;
+      }
+      return { ok: true, stopReason: "paused" };
+    }
+    if (script.nonClaudePause) return { ok: true, stopReason: "paused" };
+    if (opts?.resume?.carriedForward?.length) {
+      return { ok: true, stopReason: "paused" };
+    }
+    return script.result ?? { ok: true, output: "ok", stopReason: "complete" };
+  };
+
+  const engine: KeepaliveEngine = {
+    async resolveKeepaliveMount(_request) {
+      calls.resolveMount += 1;
+      return signedMount();
+    },
+    async acquireEnvironment(request, _signal, _presigned) {
+      calls.acquire += 1;
+      const env = makeEnv(request);
+      const expiry = mountExpiryMs(mountOpts.expiresAt);
+      if (expiry !== undefined) env.installedMountExpiries.cwd = expiry;
+      calls.acquiredEnvs.push(env);
+      return { ok: true, env: env as unknown as SessionEnvironment };
+    },
+    async runTurn(env, _request, _emit, _signal, opts) {
+      return applyScript(env as unknown as DispatchFakeEnv, opts);
+    },
+    async runCold(_request, _emit, _signal, _presigned) {
+      calls.cold += 1;
+      return { ok: true, output: "cold", stopReason: "complete" };
+    },
+  };
+
+  return {
+    engine,
+    calls,
+    releaseHold: (idx: number) => holds.get(idx)?.(),
+  };
+}
+
+function makeCtx(
+  engine: KeepaliveEngine,
+  overrides: Partial<KeepaliveConfig> = {},
+  clientGone?: () => boolean,
+) {
+  const config: KeepaliveConfig = {
+    enabled: true,
+    ttlMs: 60_000,
+    approvalTtlMs: 600_000,
+    poolMax: 8,
+    ...overrides,
+  };
+  const pool = new SessionPool<SessionEnvironment>(
+    { poolMax: config.poolMax },
+    () => {},
+  );
+  return { engine, pool, config, clientGone } satisfies KeepaliveContext;
+}
+
+const POOL_KEY = "proj-1:s1";
+
+/** A turn that pauses on a Claude ACP permission gate for tool-call `tc-gate`. */
+function pauseTurn(sessionId = "s1"): AgentRunRequest {
+  return {
+    harness: "claude",
+    model: "m1",
+    sessionId,
+    ...auth,
+    messages: [{ role: "user", content: "do X" }],
+  };
+}
+
+/** The FE's approval resume: the gated assistant tool_call plus the {approved} envelope. */
+function approveResume(
+  approved = true,
+  overrides: Partial<AgentRunRequest> = {},
+): AgentRunRequest {
+  return {
+    harness: "claude",
+    model: "m1",
+    sessionId: "s1",
+    ...auth,
+    messages: [
+      { role: "user", content: "do X" },
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          { type: "tool_result", toolCallId: "tc-gate", output: { approved } },
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+/** A resume carrying every parked call plus the answer envelopes supplied in this request. */
+function approveResumeMulti(
+  answers: Array<{ toolCallId: string; toolName?: string; approved: boolean }>,
+  parkedCalls: Array<{ toolCallId: string; toolName?: string }> = answers.map(
+    ({ toolCallId, toolName }) => ({ toolCallId, toolName }),
+  ),
+  priorAnswers: Array<{ toolCallId: string; approved: boolean }> = [],
+): AgentRunRequest {
+  return {
+    harness: "claude",
+    model: "m1",
+    sessionId: "s1",
+    ...auth,
+    messages: [
+      { role: "user", content: "do X" },
+      {
+        role: "assistant",
+        content: parkedCalls.map((gate) => ({
+          type: "tool_call",
+          toolCallId: gate.toolCallId,
+          toolName: gate.toolName ?? "commit",
+        })),
+      },
+      ...priorAnswers.map((answer) => ({
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            toolCallId: answer.toolCallId,
+            output: { approved: answer.approved },
+          },
+        ],
+      })),
+      {
+        role: "user",
+        content: answers.map((answer) => ({
+          type: "tool_result",
+          toolCallId: answer.toolCallId,
+          output: { approved: answer.approved },
+        })),
+      },
+    ],
+  };
+}
+describe("runWithKeepalive: approval park + resume", () => {
+  it("parks a paused Claude gate in awaiting_approval, then answers it live on the resume (approve)", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(ctx.pool.size(), 1, "the paused Claude gate parked");
+    assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+    assert.equal(
+      calls.acquiredEnvs[0].destroyed,
+      0,
+      "the parked session is kept alive, not destroyed",
+    );
+
+    const r2 = await runWithKeepalive(
+      approveResume(true),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume did NOT re-acquire");
+    assert.equal(calls.resumes.length, 1, "the gate is answered exactly once");
+    assert.equal(calls.resumes[0].permissionId, "perm-1");
+    assert.equal(
+      calls.resumes[0].reply,
+      "once",
+      "approve -> respondPermission once",
+    );
+    assert.equal(calls.resumes[0].toolCallId, "tc-gate");
+    assert.equal(
+      calls.turns[1].env,
+      calls.turns[0].env,
+      "the resume ran on the SAME live environment",
+    );
+    assert.equal(
+      ctx.pool.get(POOL_KEY)!.state,
+      "idle",
+      "a completing resume re-parks idle",
+    );
+  });
+
+  it("parks and resumes a Pi DIALOG gate exactly like the Claude gate (server guard accepts it)", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+          gateType: "pi-acp-permission",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(
+      ctx.pool.get(POOL_KEY)!.state,
+      "awaiting_approval",
+      "the Pi dialog gate parked (not rejected as an unrecognized gate type)",
+    );
+
+    const r2 = await runWithKeepalive(
+      approveResume(true),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
+    assert.equal(calls.resumes.length, 1, "the Pi gate is answered live once");
+    assert.equal(calls.resumes[0].reply, "once");
+  });
+
+  it("parks and resumes a Codex ACP gate exactly like the Claude gate", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-codex",
+          toolCallId: "tc-gate",
+          toolName: "pnpm test",
+          gateType: "codex-acp-permission",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+
+    const r2 = await runWithKeepalive(
+      approveResume(true),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
+    assert.deepEqual(calls.resumes, [
+      {
+        permissionId: "perm-codex",
+        reply: "once",
+        toolCallId: "tc-gate",
+      },
+    ]);
+  });
+
+  it("answers a denied gate live with reject on the resume", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const r2 = await runWithKeepalive(
+      approveResume(false),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.resumes.length, 1);
+    assert.equal(
+      calls.resumes[0].reply,
+      "reject",
+      "deny -> respondPermission reject",
+    );
+  });
+
+  it("logs park-approval and resume-approve/reject", async () => {
+    const cap = captureStderr();
+    try {
+      const { engine } = makeApprovalEngine([
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+          },
+          toolCallIds: ["tc-gate"],
+        },
+      ]);
+      const ctx = makeCtx(engine);
+      await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+      await runWithKeepalive(approveResume(true), undefined, undefined, ctx);
+      assert.ok(cap.lines.some((l) => l.includes("park-approval")));
+      assert.ok(
+        cap.lines.some((l) => l.includes("resume ") && l.includes("approve=1")),
+      );
+    } finally {
+      cap.restore();
+    }
+  });
+
+  it("parks a two-gate turn and answers BOTH gates live on one resume", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-1",
+          toolName: "read_a",
+          extraGates: [
+            { permissionId: "perm-2", toolCallId: "tc-2", toolName: "read_b" },
+          ],
+        },
+        toolCallIds: ["tc-1", "tc-2"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+
+    const r1 = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(
+      ctx.pool.get(POOL_KEY)!.state,
+      "awaiting_approval",
+      "a two-gate turn parks (no longer forced cold)",
+    );
+
+    const r2 = await runWithKeepalive(
+      approveResumeMulti([
+        { toolCallId: "tc-1", toolName: "read_a", approved: true },
+        { toolCallId: "tc-2", toolName: "read_b", approved: true },
+      ]),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume did NOT re-acquire cold");
+    assert.equal(
+      calls.resumes.length,
+      2,
+      "respondPermission is called once per parked gate",
+    );
+    assert.deepEqual(
+      calls.resumes.map((r) => `${r.toolCallId}:${r.reply}`).sort(),
+      ["tc-1:once", "tc-2:once"],
+    );
+  });
+
+  it("resumes a two-gate turn with deny-one-approve-one, each gate answered on its own id", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-1",
+          toolName: "read_a",
+          extraGates: [
+            { permissionId: "perm-2", toolCallId: "tc-2", toolName: "read_b" },
+          ],
+        },
+        toolCallIds: ["tc-1", "tc-2"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+
+    const r2 = await runWithKeepalive(
+      approveResumeMulti([
+        { toolCallId: "tc-1", toolName: "read_a", approved: false },
+        { toolCallId: "tc-2", toolName: "read_b", approved: true },
+      ]),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.resumes.length, 2);
+    assert.deepEqual(
+      calls.resumes.map((r) => `${r.toolCallId}:${r.reply}`).sort(),
+      ["tc-1:reject", "tc-2:once"],
+      "the denied gate rejects and the approved gate runs, each by its own id",
+    );
+  });
+
+  it("spares every parked token while a partial answer re-parks and then completes live", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-1",
+          toolName: "read_a",
+          extraGates: [
+            { permissionId: "perm-2", toolCallId: "tc-2", toolName: "read_b" },
+          ],
+        },
+        toolCallIds: ["tc-1", "tc-2"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    const parkedCalls = [
+      { toolCallId: "tc-1", toolName: "read_a" },
+      { toolCallId: "tc-2", toolName: "read_b" },
+    ];
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+
+    const partialRequest = approveResumeMulti(
+      [{ toolCallId: "tc-1", toolName: "read_a", approved: true }],
+      parkedCalls,
+    );
+    assert.deepEqual(
+      staleInteractionExemptTokens(
+        partialRequest,
+        calls.acquiredEnvs[0].parkedApprovals,
+      ),
+      ["tc-1", "tc-2"],
+      "the carried gate must survive the turn-start stale sweep",
+    );
+
+    const r2 = await runWithKeepalive(
+      partialRequest,
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r2.stopReason, "paused");
+    assert.equal(
+      calls.acquire,
+      1,
+      "the partial answer stayed on the live environment",
+    );
+    assert.deepEqual(calls.resumes, [
+      { permissionId: "perm-1", reply: "once", toolCallId: "tc-1" },
+    ]);
+    assert.equal(ctx.pool.get(POOL_KEY)?.state, "awaiting_approval");
+    assert.deepEqual(
+      [...calls.acquiredEnvs[0].parkedApprovals.keys()],
+      ["tc-2"],
+      "the untouched gate re-parked with a fresh approval lease",
+    );
+    assert.deepEqual(
+      calls.turns[1].opts.resume.carriedForward.map(
+        (gate: ParkedApproval) => gate.permissionId,
+      ),
+      ["perm-2"],
+    );
+
+    const r3 = await runWithKeepalive(
+      approveResumeMulti(
+        [{ toolCallId: "tc-2", toolName: "read_b", approved: false }],
+        parkedCalls,
+        [{ toolCallId: "tc-1", approved: true }],
+      ),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(r3.stopReason, "complete");
+    assert.equal(
+      calls.acquire,
+      1,
+      "both partial requests matched the live history fingerprint",
+    );
+    assert.deepEqual(calls.resumes, [
+      { permissionId: "perm-1", reply: "once", toolCallId: "tc-1" },
+      { permissionId: "perm-2", reply: "reject", toolCallId: "tc-2" },
+    ]);
+    assert.equal(ctx.pool.get(POOL_KEY)?.state, "idle");
+  });
+
+  it("evicts a two-gate park when the request answers zero gates", async () => {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-1",
+          extraGates: [{ permissionId: "perm-2", toolCallId: "tc-2" }],
+        },
+        toolCallIds: ["tc-1", "tc-2"],
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+
+    const zeroAnswerRequest = approveResumeMulti(
+      [],
+      [{ toolCallId: "tc-1" }, { toolCallId: "tc-2" }],
+    );
+    assert.equal(
+      staleInteractionExemptTokens(
+        zeroAnswerRequest,
+        calls.acquiredEnvs[0].parkedApprovals,
+      ),
+      undefined,
+      "zero answers leave stale cancellation enabled",
+    );
+
+    await runWithKeepalive(zeroAnswerRequest, undefined, undefined, ctx);
+
+    assert.equal(calls.resumes.length, 0);
+    assert.equal(
+      calls.acquire,
+      2,
+      "zero answers kept the existing cold fallback",
+    );
+  });
+});
+
+describe("runWithKeepalive: never-park gate types stay cold", () => {
+  it("a non-parkable gate pause (Pi file relay / client-tool MCP) never parks, tears down cold", async () => {
+    const cap = captureStderr();
+    try {
+      const { engine, calls } = makeApprovalEngine([{ nonClaudePause: true }]);
+      const ctx = makeCtx(engine);
+      const r = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+      assert.equal(r.stopReason, "paused");
+      assert.equal(
+        calls.acquiredEnvs[0].destroyed,
+        1,
+        "no parked approval -> torn down as today",
+      );
+      assert.equal(ctx.pool.size(), 0, "nothing parked");
+      assert.ok(cap.lines.some((l) => l.includes("non-parkable-gate-no-park")));
+    } finally {
+      cap.restore();
+    }
+  });
+
+  it("a turn with an unresumable gate (pending count exceeds recorded gates) stays cold", async () => {
+    const cap = captureStderr();
+    try {
+      // Two gates pended but only one carried a resumable id (map size 1, count 2): the set is not
+      // fully resumable, so the whole turn falls to the cold path.
+      const { engine, calls } = makeApprovalEngine([
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            gates: 2,
+          },
+          toolCallIds: ["tc-gate"],
+        },
+      ]);
+      const ctx = makeCtx(engine);
+      const r = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+      assert.equal(r.stopReason, "paused");
+      assert.equal(
+        calls.acquiredEnvs[0].destroyed,
+        1,
+        "a gate that cannot be resumed live -> cold",
+      );
+      assert.equal(ctx.pool.size(), 0);
+      assert.ok(cap.lines.some((l) => l.includes("unresumable-gate-no-park")));
+    } finally {
+      cap.restore();
+    }
+  });
+
+  it("a mixed set (an approval gate plus a client-tool pause) stays cold", async () => {
+    const cap = captureStderr();
+    try {
+      // One parkable approval gate AND one non-parkable client-tool pause in the same turn: only
+      // the cold path can multiplex the mixed set, so the whole turn stays cold.
+      const { engine, calls } = makeApprovalEngine([
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            nonParkable: true,
+          },
+          toolCallIds: ["tc-gate"],
+        },
+      ]);
+      const ctx = makeCtx(engine);
+      const r = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+      assert.equal(r.stopReason, "paused");
+      assert.equal(calls.acquiredEnvs[0].destroyed, 1, "mixed set -> cold");
+      assert.equal(ctx.pool.size(), 0);
+      assert.ok(cap.lines.some((l) => l.includes("mixed-gate-no-park")));
+    } finally {
+      cap.restore();
+    }
+  });
+});
+
+describe("runWithKeepalive: approval resume validation degrades to cold", () => {
+  async function parkThenResume(
+    resume: AgentRunRequest,
+    mountOpts: { expiresAt?: string } = {},
+  ) {
+    const { engine, calls } = makeApprovalEngine(
+      [
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+          },
+          toolCallIds: ["tc-gate"],
+        },
+        { result: { ok: true, output: "cold", stopReason: "complete" } },
+      ],
+      mountOpts,
+    );
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const env1 = calls.acquiredEnvs[0];
+    await runWithKeepalive(resume, undefined, undefined, ctx);
+    return { calls, env1, ctx };
+  }
+
+  it("an edited history evicts the parked approval and cold-starts", async () => {
+    const edited = approveResume(true, {
+      messages: [
+        { role: "user", content: "do X EDITED" },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    });
+    const { calls, env1 } = await parkThenResume(edited);
+    assert.equal(env1.destroyed, 1, "the parked approval session is destroyed");
+    assert.equal(calls.acquire, 2, "cold-started a fresh env");
+    assert.equal(
+      calls.resumes.length,
+      0,
+      "no live respondPermission on a mismatch",
+    );
+  });
+
+  it("an expired parked mount evicts the approval and cold-starts (hard mount-expiry bound)", async () => {
+    // The parked session's mount credentials are already past expiry: its durable cwd can no longer
+    // be written, so even a matching decision + history must degrade to cold.
+    const { calls, env1 } = await parkThenResume(approveResume(true), {
+      expiresAt: "2000-01-01T00:00:00.000Z",
+    });
+    assert.equal(env1.destroyed, 1, "the expired parked session is destroyed");
+    assert.equal(calls.acquire, 2, "cold-started a fresh env");
+    assert.equal(
+      calls.resumes.length,
+      0,
+      "no live respondPermission on an expired mount",
+    );
+  });
+
+  it("an approval for a different toolCallId (no match) evicts to cold", async () => {
+    const wrongId = approveResume(true, {
+      messages: [
+        { role: "user", content: "do X" },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-OTHER",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    });
+    const { calls, env1 } = await parkThenResume(wrongId);
+    assert.equal(env1.destroyed, 1);
+    assert.equal(calls.acquire, 2);
+    assert.equal(calls.resumes.length, 0);
+  });
+
+  it("an out-of-band answer carrying NO history resumes live instead of evicting", async () => {
+    // What an inbox / webhook / CLI sends: the parked call and its {approved} envelope, built
+    // from the durable interaction row, with no conversation attached. Its prior-history
+    // fingerprint can never equal the parked session's, so comparing it would evict the only
+    // session that could resume — issue #5593's "approval-mismatch (history)".
+    const outOfBand: AgentRunRequest = {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              toolName: "commit",
+              output: { approved: true, interactionToken: "tok-1" },
+            },
+          ],
+        },
+      ],
+    };
+    const { calls, env1 } = await parkThenResume(outOfBand);
+    assert.equal(env1.destroyed, 0, "the parked session was NOT evicted");
+    assert.equal(calls.acquire, 1, "no cold re-acquire");
+    assert.equal(calls.resumes.length, 1, "the gate was answered live");
+    assert.equal(calls.resumes[0].reply, "once");
+    assert.equal(calls.resumes[0].permissionId, "perm-1");
+  });
+
+  it("an out-of-band DENY carrying no history also resumes live", async () => {
+    const outOfBand: AgentRunRequest = {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              toolName: "commit",
+              output: { approved: false, interactionToken: "tok-1" },
+            },
+          ],
+        },
+      ],
+    };
+    const { calls, env1 } = await parkThenResume(outOfBand);
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.acquire, 1);
+    assert.equal(calls.resumes.length, 1);
+    assert.equal(calls.resumes[0].reply, "reject");
+  });
+});
+
+describe("runWithKeepalive: an approval park from a last-message-only turn", () => {
+  // Issue #5638. The playground sends only the new user turn on a normal message, so a gate that
+  // parks on turn 2+ records a fingerprint covering ONE user turn — while the approval resume
+  // carries the WHOLE transcript (the AI SDK rewrites the gated assistant message in place). The
+  // park is compared against the resume's trailing-user-turn slice, which still catches an edit.
+  const ATTACHMENT_A = "019a52c2-14c0-7c14-b874-2f5798f9cd21";
+  const ATTACHMENT_B = "019a52c2-14c0-7c14-b874-2f5798f9cd22";
+
+  /** Turn 2 as the frontend sends it: the fresh user turn alone, no prior conversation. */
+  function turnTwoOnly(content: ChatMessage["content"]): AgentRunRequest {
+    return {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [{ role: "user", content }],
+    };
+  }
+
+  /** The approval resume: turn 1, turn 2, the gated call, and the {approved} envelope. */
+  function fullTranscriptResume(tail: ChatMessage["content"]): AgentRunRequest {
+    return {
+      harness: "claude",
+      model: "m1",
+      sessionId: "s1",
+      ...auth,
+      messages: [
+        { role: "user", content: "do X" },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-turn1", toolName: "read" },
+            {
+              type: "tool_result",
+              toolCallId: "tc-turn1",
+              output: { ok: true },
+            },
+          ],
+        },
+        { role: "user", content: tail },
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tc-gate",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  async function parkThenResume(
+    park: AgentRunRequest,
+    resume: AgentRunRequest,
+  ) {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+      { result: { ok: true, output: "resumed", stopReason: "complete" } },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(park, undefined, undefined, ctx);
+    const env1 = calls.acquiredEnvs[0];
+    await runWithKeepalive(resume, undefined, undefined, ctx);
+    return { calls, env1, ctx };
+  }
+
+  it("resumes WARM when the full transcript's trailing turn matches the parked one", async () => {
+    const { calls, env1 } = await parkThenResume(
+      turnTwoOnly("do Y"),
+      fullTranscriptResume("do Y"),
+    );
+    assert.equal(env1.destroyed, 0, "the parked session was NOT evicted");
+    assert.equal(calls.acquire, 1, "no cold re-acquire");
+    assert.equal(calls.resumes.length, 1, "the gate was answered live");
+    assert.equal(calls.resumes[0].reply, "once");
+  });
+
+  it("evicts when the resume's trailing user text was edited", async () => {
+    const { calls, env1 } = await parkThenResume(
+      turnTwoOnly("do Y"),
+      fullTranscriptResume("do Y EDITED"),
+    );
+    assert.equal(env1.destroyed, 1, "the parked approval session is destroyed");
+    assert.equal(calls.acquire, 2, "cold-started a fresh env");
+    assert.equal(calls.resumes.length, 0, "no live respondPermission");
+  });
+
+  it("evicts when the resume's trailing turn swaps an attachment id", async () => {
+    const { calls, env1 } = await parkThenResume(
+      turnTwoOnly([
+        { type: "text", text: "do Y" },
+        { type: "attachment", attachmentId: ATTACHMENT_A },
+      ]),
+      fullTranscriptResume([
+        { type: "text", text: "do Y" },
+        { type: "attachment", attachmentId: ATTACHMENT_B },
+      ]),
+    );
+    assert.equal(env1.destroyed, 1, "the parked approval session is destroyed");
+    assert.equal(calls.acquire, 2, "cold-started a fresh env");
+    assert.equal(calls.resumes.length, 0, "no live respondPermission");
+  });
+});
+
+describe("runWithKeepalive: approval credential lifecycle", () => {
+  const modelConnection = (
+    value: string,
+  ): NonNullable<AgentRunRequest["modelConnection"]> => ({
+    provider: "openai",
+    deployment: "direct",
+    endpoint: { baseUrl: "https://api.openai.com/v1" },
+    credentialMode: "env",
+    credentials: [
+      {
+        binding: { kind: "environment", name: "OPENAI_API_KEY" },
+        value,
+        usage: "opaque_http",
+      },
+    ],
+  });
+
+  async function parkThenResume(
+    resume: AgentRunRequest,
+    initial: Partial<AgentRunRequest> = {},
+  ) {
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+      { result: { ok: true, output: "resumed", stopReason: "complete" } },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      { ...pauseTurn(), ...initial },
+      undefined,
+      undefined,
+      ctx,
+    );
+    const env1 = calls.acquiredEnvs[0];
+    const r2 = await runWithKeepalive(resume, undefined, undefined, ctx);
+    return { calls, env1, ctx, r2 };
+  }
+
+  it("resumes live when only per-turn callback authorization rotates", async () => {
+    const { calls, env1, r2 } = await parkThenResume(
+      approveResume(true, {
+        toolCallback: {
+          endpoint: "https://gateway/tools/call",
+          authorization: "fresh-per-turn-bearer",
+        },
+      }),
+      {
+        toolCallback: {
+          endpoint: "https://gateway/tools/call",
+          authorization: "original-per-turn-bearer",
+        },
+      },
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(
+      calls.acquire,
+      1,
+      "transient auth does not recreate the sandbox",
+    );
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.resumes.length, 1, "the parked gate is answered live");
+  });
+
+  it("evicts and cold-acquires when a model credential baked into the sandbox rotates", async () => {
+    const { calls, env1, r2 } = await parkThenResume(
+      approveResume(true, { modelConnection: modelConnection("sk-model-b") }),
+      { modelConnection: modelConnection("sk-model-a") },
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(
+      env1.destroyed,
+      1,
+      "the stale credential environment is evicted",
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "the approval request cold-acquires with the new key",
+    );
+    assert.equal(
+      calls.resumes.length,
+      0,
+      "the stale live gate is never answered",
+    );
+  });
+
+  it("a changed model without credential rotation still resumes live", async () => {
+    const { calls, env1, r2 } = await parkThenResume(
+      approveResume(true, { model: "m2" }),
+    );
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1);
+    assert.equal(env1.destroyed, 0);
+    assert.equal(calls.resumes.length, 1);
+  });
+
+  it("the repark after a resume keeps the parked secrets hash AND the installed mount lease", async () => {
+    // Six hours out, so neither the expiry bound nor the expiring-lease bound fires here.
+    const installedExpiresAt = new Date(
+      Date.now() + 6 * 3_600_000,
+    ).toISOString();
+    const { engine, calls } = makeApprovalEngine(
+      [
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+          },
+          toolCallIds: ["tc-gate"],
+        },
+        { result: { ok: true, output: "resumed", stopReason: "complete" } },
+      ],
+      { expiresAt: installedExpiresAt },
+    );
+    const ctx = makeCtx(engine);
+    const paused: AgentRunRequest = {
+      ...pauseTurn(),
+      modelConnection: modelConnection("baked-at-acquire"),
+      toolCallback: {
+        endpoint: "https://gateway/tools/call",
+        authorization: "original-per-turn-bearer",
+      },
+    };
+    await runWithKeepalive(paused, undefined, undefined, ctx);
+    assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+
+    // Same baked model credential (a rotated one would rightly evict), but re-minted per-turn
+    // callback authorization — transient material the epoch hash deliberately excludes.
+    const resume = approveResume(true, {
+      modelConnection: modelConnection("baked-at-acquire"),
+      toolCallback: {
+        endpoint: "https://gateway/tools/call",
+        authorization: "re-minted-on-the-resume",
+      },
+    });
+    const r2 = await runWithKeepalive(resume, undefined, undefined, ctx);
+    assert.equal(r2.ok, true);
+    assert.equal(calls.acquire, 1, "the resume ran on the live environment");
+
+    const parked = ctx.pool.get(POOL_KEY)!;
+    assert.equal(
+      parked.credentialEpoch.secrets.equals(
+        computeCredentialEpoch(paused).secrets,
+      ),
+      true,
+      "the repark keeps the secrets the environment actually baked",
+    );
+    assert.equal(
+      computeCredentialEpoch(resume).secrets.equals(
+        parked.credentialEpoch.secrets,
+      ),
+      true,
+      "the re-minted per-turn bearer never enters the baked-credential material",
+    );
+    assert.equal(
+      parked.credentialEpoch.mountExpiresAtMs,
+      Date.parse(installedExpiresAt),
+      "and the lease still describes the mounted credentials",
+    );
+  });
+});
+
+describe("runWithKeepalive: approval lifecycle edges", () => {
+  it("approval TTL expiry destroys the parked session; the next request runs cold", async () => {
+    vi.useFakeTimers();
+    try {
+      const { engine, calls } = makeApprovalEngine([
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+          },
+          toolCallIds: ["tc-gate"],
+        },
+        { result: { ok: true, output: "recovered", stopReason: "complete" } },
+      ]);
+      const ctx = makeCtx(engine, { approvalTtlMs: 5000 });
+      await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+      assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+
+      await vi.advanceTimersByTimeAsync(5001);
+      assert.equal(
+        calls.acquiredEnvs[0].destroyed,
+        1,
+        "the expired approval park is destroyed",
+      );
+      assert.equal(ctx.pool.size(), 0);
+
+      const r2 = await runWithKeepalive(
+        approveResume(true),
+        undefined,
+        undefined,
+        ctx,
+      );
+      assert.equal(r2.ok, true);
+      assert.equal(
+        calls.acquire,
+        2,
+        "the next request cold-starts (pool missed)",
+      );
+      assert.equal(
+        calls.resumes.length,
+        0,
+        "the cold decision-map path answers it, not respondPermission",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a client disconnect after the pause frame STILL parks the approval (the human is waiting)", async () => {
+    // Slice 1 destroys a disconnected client's session; an approval park is the exception, because
+    // the pause happened before the disconnect and the HUMAN who must click is still on the page.
+    const { engine, calls } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+    ]);
+    const ctx = makeCtx(engine, {}, () => true /* clientGone */);
+    const r = await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    assert.equal(r.stopReason, "paused");
+    assert.equal(
+      calls.acquiredEnvs[0].destroyed,
+      0,
+      "the approval park ignores clientGone",
+    );
+    assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+  });
+
+  it("a second identical approval while the first resume is in flight does not double-respond and does not destroy the in-flight env", async () => {
+    const { engine, calls, releaseHold } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+      {
+        hold: true,
+        result: { ok: true, output: "resumed", stopReason: "complete" },
+      },
+      { result: { ok: true, output: "cold", stopReason: "complete" } },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const env1 = calls.acquiredEnvs[0];
+
+    // First resume: checks the session OUT of the map (the resume turn owns it) and holds.
+    const p1 = runWithKeepalive(approveResume(true), undefined, undefined, ctx);
+    await flush();
+    assert.equal(
+      ctx.pool.get(POOL_KEY),
+      undefined,
+      "the checked-out session left the map; a racing request misses",
+    );
+
+    // A duplicate approval arrives mid-resume: it must NOT answer the parked gate a second
+    // time, and it must NOT destroy the environment the resume is executing the tool on.
+    await runWithKeepalive(approveResume(true), undefined, undefined, ctx);
+    assert.equal(
+      env1.destroyed,
+      0,
+      "the in-flight resume environment stays alive through the racing request",
+    );
+    releaseHold(1);
+    await p1;
+
+    assert.equal(
+      calls.resumes.length,
+      1,
+      "respondPermission-equivalent resume happened exactly once",
+    );
+    assert.equal(
+      calls.turns[2]?.opts?.resume,
+      undefined,
+      "the duplicate ran as a cold turn, not a second live resume",
+    );
+    // The duplicate's cold turn completed and parked a NEWER session into the slot; the resumed
+    // env must not clobber it — it is destroyed only AFTER its turn finished.
+    assert.equal(
+      env1.destroyed,
+      1,
+      "the resumed env is destroyed post-turn (occupied slot), never mid-flight",
+    );
+    assert.equal(
+      ctx.pool.get(POOL_KEY)!.environment,
+      calls.acquiredEnvs[1] as unknown as SessionEnvironment,
+      "the newer session parked by the duplicate keeps the slot",
+    );
+  });
+
+  it("a parked prompt rejection while parked evicts the dead session; the next request runs cold", async () => {
+    const cap = captureStderr();
+    try {
+      const { engine, calls } = makeApprovalEngine([
+        {
+          approvalPause: {
+            permissionId: "perm-1",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+          },
+          toolCallIds: ["tc-gate"],
+        },
+        { result: { ok: true, output: "cold", stopReason: "complete" } },
+      ]);
+      const ctx = makeCtx(engine);
+      await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+      assert.equal(ctx.pool.get(POOL_KEY)!.state, "awaiting_approval");
+
+      // The sandbox dies mid-park: the held prompt rejects while the session is parked.
+      calls.promptControls[0].reject(new Error("sandbox died mid-park"));
+      await flush();
+      assert.equal(
+        calls.acquiredEnvs[0].destroyed,
+        1,
+        "the dead parked session is destroyed promptly, not at the approval TTL",
+      );
+      assert.equal(ctx.pool.size(), 0, "the pool slot is freed");
+      assert.ok(
+        cap.lines.some((l) => l.includes("parked-prompt-rejected")),
+        "the rejection eviction is greppable",
+      );
+
+      const r2 = await runWithKeepalive(
+        approveResume(true),
+        undefined,
+        undefined,
+        ctx,
+      );
+      assert.equal(r2.ok, true);
+      assert.equal(calls.acquire, 2, "the next request cold-starts");
+      assert.equal(calls.resumes.length, 0, "no live resume on a dead park");
+    } finally {
+      cap.restore();
+    }
+  });
+
+  it("a prompt rejection AFTER checkout (resume in flight) does nothing (no double-destroy)", async () => {
+    const { engine, calls, releaseHold } = makeApprovalEngine([
+      {
+        approvalPause: {
+          permissionId: "perm-1",
+          toolCallId: "tc-gate",
+          toolName: "commit",
+        },
+        toolCallIds: ["tc-gate"],
+      },
+      {
+        hold: true,
+        result: { ok: true, output: "resumed", stopReason: "complete" },
+      },
+    ]);
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(pauseTurn(), undefined, undefined, ctx);
+    const env1 = calls.acquiredEnvs[0];
+
+    // The resume checks the session out, then the (already-answered) prompt rejects.
+    const p1 = runWithKeepalive(approveResume(true), undefined, undefined, ctx);
+    await flush();
+    calls.promptControls[0].reject(new Error("late failure"));
+    await flush();
+    assert.equal(
+      env1.destroyed,
+      0,
+      "the rejection watcher does not touch a checked-out session (the resume owns it)",
+    );
+
+    releaseHold(1);
+    await p1;
+    // The slot stayed empty, so the completed resume reparked; nothing was double-destroyed.
+    assert.equal(env1.destroyed, 0);
+    assert.equal(ctx.pool.get(POOL_KEY)!.state, "idle");
+    assert.equal(calls.resumes.length, 1);
+  });
+});
+
+// ---------------------------------------------------------------------------- //
+// Engine seam: the real park + respondPermission resume mechanics.             //
+// ---------------------------------------------------------------------------- //
+
+interface FakeRun {
+  id: number;
+  handled: any[];
+  emitted: AgentEvent[];
+  /** Tool-call ids announced but not yet completed (models the real otel toolSpans map). */
+  open: Set<string>;
+  /** What settleOpenToolCalls settled: the orphaned-sibling record (F-024). */
+  settled: Array<{ id: string; message: string }>;
+  denied: string[];
+  sweeps: Array<{
+    message: string;
+    isExcluded: (id: string) => boolean;
+  }>;
+}
+
+interface PiBatchCall {
+  permissionId: string;
+  toolCallId: string;
+  toolName: string;
+  args: unknown;
+  output: string;
+}
+
+function pausableHarness(
+  opts: { clientTool?: boolean; piBatching?: PiBatchCall[] } = {},
+) {
+  const calls = {
+    permissionReplies: [] as Array<{ id: string; reply: string }>,
+    runs: [] as FakeRun[],
+    sandboxDestroyed: 0,
+    sandboxDisposed: 0,
+    sessionDestroyed: 0,
+    logs: [] as string[],
+    resolvePrompt: undefined as ((value: unknown) => void) | undefined,
+    promptCount: 0,
+    /** Ordered marks for the settle-before-terminal-record invariant (see the test at the end). */
+    journal: [] as string[],
+  };
+  const captured = {
+    onEvent: undefined as ((event: any) => void) | undefined,
+    onPermissionRequest: undefined as ((req: any) => void) | undefined,
+  };
+  const answeredPiBatchPermissions = new Set<string>();
+  const emittedPiBatchPermissions = new Set<string>();
+  const emitPiBatchGate = (call: PiBatchCall): void => {
+    if (emittedPiBatchPermissions.has(call.permissionId)) return;
+    emittedPiBatchPermissions.add(call.permissionId);
+    captured.onEvent?.({
+      payload: {
+        update: {
+          sessionUpdate: "tool_call",
+          toolCallId: call.toolCallId,
+          title: call.toolName,
+          rawInput: call.args,
+        },
+      },
+    });
+    captured.onPermissionRequest?.({
+      id: call.permissionId,
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: call.toolCallId,
+        name: call.toolName,
+        rawInput: call.args,
+      },
+    });
+  };
+  const emitPiBatchResults = (): void => {
+    for (const call of opts.piBatching ?? []) {
+      captured.onEvent?.({
+        payload: {
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: call.toolCallId,
+            status: "completed",
+            content: call.output,
+          },
+        },
+      });
+    }
+    calls.resolvePrompt?.({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+  };
+
+  const session = {
+    id: "session-1",
+    onEvent(handler: (event: any) => void) {
+      captured.onEvent = handler;
+    },
+    onPermissionRequest(handler: (req: any) => void) {
+      captured.onPermissionRequest = handler;
+    },
+    async respondPermission(id: string, reply: string) {
+      calls.permissionReplies.push({ id, reply });
+      const batch = opts.piBatching;
+      if (!batch || reply !== "once") return;
+      const index = batch.findIndex((call) => call.permissionId === id);
+      if (index < 0) return;
+      answeredPiBatchPermissions.add(id);
+      // Pi resolves every approval hook before executing any call in the parallel batch.
+      if (index + 1 < batch.length) {
+        queueMicrotask(() => emitPiBatchGate(batch[index + 1]));
+      } else if (answeredPiBatchPermissions.size === batch.length) {
+        queueMicrotask(emitPiBatchResults);
+      }
+    },
+    prompt(_blocks: any) {
+      calls.promptCount += 1;
+      // Stays pending (Claude never resolves prompt on an unanswered gate) until the test resolves
+      // it — modelling the ORIGINAL prompt continuing after the parked gate is answered.
+      return new Promise((resolve) => {
+        calls.resolvePrompt = resolve;
+        const firstPiBatchCall = opts.piBatching?.[0];
+        if (firstPiBatchCall) {
+          queueMicrotask(() => emitPiBatchGate(firstPiBatchCall));
+        }
+      });
+    },
+  };
+
+  const sandbox = {
+    async createSession(_opts: any) {
+      return session;
+    },
+    async destroySession(_id: string) {
+      calls.sessionDestroyed += 1;
+    },
+    async destroySandbox() {
+      calls.sandboxDestroyed += 1;
+    },
+    async dispose() {
+      calls.sandboxDisposed += 1;
+    },
+  };
+
+  const makeRun = (): FakeRun & Record<string, any> => {
+    const run: FakeRun & Record<string, any> = {
+      id: calls.runs.length + 1,
+      handled: [],
+      emitted: [],
+      open: new Set<string>(),
+      settled: [],
+      sweeps: [],
+      start() {},
+      // Track open tool calls the way the real otel run does, so settleOpenToolCalls is
+      // meaningful: a tool_call opens an id, a completed/failed tool_call_update closes it.
+      handleUpdate(update: any) {
+        run.handled.push(update);
+        const kind = update?.sessionUpdate;
+        if (kind === "tool_call" && typeof update.toolCallId === "string") {
+          run.open.add(update.toolCallId);
+        }
+        if (
+          kind === "tool_call_update" &&
+          (update.status === "completed" || update.status === "failed")
+        ) {
+          run.open.delete(update.toolCallId);
+        }
+      },
+      emitEvent(event: AgentEvent) {
+        run.emitted.push(event);
+      },
+      usage() {
+        return { input: 0, output: 0, total: 0, cost: 0 };
+      },
+      setUsage() {},
+      finish() {
+        // The real otel hands the terminal `done` straight to its sink here.
+        calls.journal.push("done");
+        return "assistant output";
+      },
+      recordError() {},
+      output() {
+        return "assistant output";
+      },
+      async flush() {},
+      events() {
+        return run.emitted;
+      },
+      settleOpenToolCalls(
+        isExcluded: (id: string) => boolean,
+        message: string,
+      ) {
+        run.sweeps.push({ message, isExcluded });
+        for (const id of [...run.open]) {
+          if (isExcluded(id)) continue;
+          run.open.delete(id);
+          run.settled.push({ id, message });
+        }
+      },
+      openToolCallIds() {
+        return [...run.open];
+      },
+      denied: [] as string[],
+      markToolCallDenied(id: string | undefined) {
+        if (id) run.denied.push(id);
+      },
+      traceId() {
+        return "trace-1";
+      },
+    };
+    calls.runs.push(run);
+    return run;
+  };
+
+  const deps: SandboxAgentDeps = {
+    log: (message) => calls.logs.push(message),
+    createLocalCwd: (durable?: string) => durable ?? "/tmp/agenta-fake-cwd",
+    createDaytonaCwd: (durable?: string) =>
+      durable ?? "/home/sandbox/agenta-fake-cwd",
+    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
+    buildDaemonEnv: () => ({}),
+    resolveDaemonBinary: () => "/bin/sandbox-agent",
+    buildSandboxProvider: () => ({ provider: true }) as any,
+    createPersist: () => ({}) as any,
+    startSandboxAgent: (async () => sandbox) as any,
+    prepareWorkspace: (async () => ({ cleanup: async () => {} })) as any,
+    probeCapabilities: async () =>
+      ({
+        source: "probed",
+        capabilities: {
+          mcpTools: true,
+          toolCalls: true,
+          usage: true,
+          streamingDeltas: true,
+        },
+      }) as any,
+    applyModel: async (_session, model) => model ?? "resolved-model",
+    createOtel: (() => makeRun()) as any,
+    startToolRelay: (() => ({ stop: async () => {} })) as any,
+    localRelayHost: (() => "local-relay-host") as any,
+    sandboxRelayHost: (() => "sandbox-relay-host") as any,
+    // A permission gate pends approval (needs a human); a client-tool gate pends via onClientTool.
+    responderFactory: () => ({
+      async onPermission() {
+        return { kind: "pendingApproval" } as const;
+      },
+      async onClientTool() {
+        return opts.clientTool
+          ? ({ kind: "pendingApproval" } as const)
+          : ({ kind: "deny" } as const);
+      },
+    }),
+  };
+
+  return { calls, deps, captured };
+}
+
+const engineReq: AgentRunRequest = {
+  harness: "claude",
+  messages: [{ role: "user", content: "do X" }],
+};
+
+const codexEngineReq: AgentRunRequest = {
+  harness: "codex",
+  harnessMode: "agent",
+  messages: [{ role: "user", content: "do X" }],
+};
+
+function updateEvent(update: Record<string, unknown>) {
+  return { payload: { update } };
+}
+
+describe("runTurn: real approval park + respondPermission resume", () => {
+  it("a user Stop (signal abort) ends the turn cleanly as cancelled, not an error", async () => {
+    const { deps } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+
+    // A turn is in flight; the user hits Stop → the control-plane cancel drops the alive lock →
+    // the heartbeat aborts the run signal (the fake harness prompt stays pending, as a severed
+    // fetch would). The turn must resolve to a CLEAN cancel, not fall through to the error catch.
+    const controller = new AbortController();
+    const p = runTurn(acquired.env, engineReq, undefined, controller.signal, {
+      approvalParkMode: true,
+    });
+    await flush();
+    controller.abort();
+    const r = await p;
+
+    assert.equal(r.ok, true, "a clean cancel is not an error");
+    assert.equal(r.stopReason, "cancelled");
+  });
+
+  it("parks a Claude ACP gate (session alive), then answers it live and streams the continuation", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    // Turn 1: the prompt runs, a Claude ACP permission gate fires, the turn pauses.
+    const p1 = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate",
+        title: "commit",
+        rawInput: { message: "hi" },
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tc-gate",
+        name: "commit",
+        rawInput: { message: "hi" },
+      },
+    });
+    await flush();
+    const r1 = await p1;
+
+    assert.equal(r1.stopReason, "paused");
+    assert.ok(env.parkedApproval, "the parked approval was recorded");
+    assert.equal(env.parkedApproval!.gateType, "claude-acp-permission");
+    assert.equal(env.parkedApproval!.permissionId, "perm-1");
+    assert.equal(env.parkedApproval!.toolCallId, "tc-gate");
+    assert.ok(
+      env.parkedApproval!.promptPromise,
+      "the held prompt promise is captured",
+    );
+    assert.deepEqual(env.lastTurnToolCallIds, ["tc-gate"]);
+    assert.equal(
+      calls.sessionDestroyed,
+      0,
+      "the parked session is NOT destroyed",
+    );
+    assert.equal(calls.sandboxDestroyed, 0);
+
+    // Turn 2 (resume): the dispatch cleared the sink; answer the parked gate live.
+    env.clearTurn();
+    const held = env.parkedApproval!.promptPromise!;
+    const p2 = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-1",
+            reply: "once",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: { message: "hi" },
+            interactionToken: "tc-gate",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    assert.deepEqual(
+      calls.permissionReplies,
+      [{ id: "perm-1", reply: "once" }],
+      "the gate was answered on the live session exactly once",
+    );
+
+    // The resumed tool completes: its update streams to the NEW run (pausedToolCallIds cleared).
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-gate",
+        status: "completed",
+        content: "committed",
+      }),
+    );
+    // The held ORIGINAL prompt now resolves (the tool ran with its original args).
+    calls.resolvePrompt!({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const r2 = await p2;
+
+    assert.equal(r2.ok, true);
+    assert.equal(r2.stopReason, "complete");
+    assert.equal(
+      calls.promptCount,
+      1,
+      "no new prompt was sent; the original continued",
+    );
+    assert.equal(
+      env.parkedApproval,
+      undefined,
+      "the consumed approval was reset",
+    );
+    assert.equal(
+      calls.sessionDestroyed,
+      0,
+      "the live session was reused, never destroyed",
+    );
+
+    const run2 = calls.runs[1];
+    assert.ok(
+      run2.handled.some(
+        (u: any) =>
+          u.sessionUpdate === "tool_call" && u.toolCallId === "tc-gate",
+      ),
+      "the resume seeded the parked tool call into the new run's trace",
+    );
+    assert.ok(
+      run2.handled.some(
+        (u: any) =>
+          u.sessionUpdate === "tool_call_update" && u.toolCallId === "tc-gate",
+      ),
+      "the post-resume tool_call_update streamed (not suppressed) into the new run",
+    );
+
+    assert.deepEqual(
+      run2.emitted.filter((event) => event.type === "interaction_response"),
+      [
+        {
+          type: "interaction_response",
+          id: "tc-gate",
+          kind: "user_approval",
+          payload: { toolCallId: "tc-gate", approved: true },
+        },
+      ],
+    );
+
+    await env.destroy();
+  });
+
+  it("creates and resolves a durable gate row without workflow context", async () => {
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps, captured } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const noWorkflowRequest: AgentRunRequest = {
+        ...engineReq,
+        ...auth,
+        sessionId: "sess-no-workflow",
+        turnId: "turn-no-workflow-start",
+      };
+      const acquired = await acquireEnvironment(noWorkflowRequest, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const firstTurn = runTurn(env, noWorkflowRequest, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      captured.onEvent!(
+        updateEvent({
+          sessionUpdate: "tool_call",
+          toolCallId: "tc-no-workflow",
+          title: "commit",
+          rawInput: { message: "hi" },
+        }),
+      );
+      captured.onPermissionRequest!({
+        id: "perm-no-workflow",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          toolCallId: "tc-no-workflow",
+          name: "commit",
+          rawInput: { message: "hi" },
+        },
+      });
+      const paused = await firstTurn;
+      assert.equal(paused.stopReason, "paused");
+      await flush();
+
+      const createCall = posted.find(({ url }) =>
+        url.endsWith("/sessions/interactions/"),
+      );
+      assert.ok(createCall);
+      assert.equal(createCall.body["session_id"], "sess-no-workflow");
+      assert.equal(createCall.body["turn_id"], "turn-no-workflow-start");
+      const createData = createCall.body["data"] as Record<string, unknown>;
+      assert.equal("references" in createData, false);
+      // The row's `token` is the permission gate's id; `tool_call_id` is the harness's id for the
+      // gated call. An answer built from this row alone needs the latter (issue #5593).
+      assert.equal(createCall.body["token"], "perm-no-workflow");
+      assert.deepEqual(createData["request"], {
+        tool: "commit",
+        args: { message: "hi" },
+        tool_call_id: "tc-no-workflow",
+      });
+
+      const parked = env.parkedApprovals.get("tc-no-workflow");
+      assert.ok(parked);
+      assert.ok(parked.promptPromise);
+      env.clearTurn();
+      const resumedTurn = runTurn(
+        env,
+        approveResume(true, {
+          sessionId: "sess-no-workflow",
+          turnId: "turn-no-workflow-resume",
+        }),
+        undefined,
+        undefined,
+        {
+          approvalParkMode: true,
+          resume: {
+            decisions: [
+              {
+                permissionId: parked.permissionId,
+                reply: "once",
+                toolCallId: parked.toolCallId,
+                toolName: parked.toolName,
+                args: parked.args,
+                interactionToken: parked.interactionToken,
+                promptPromise: parked.promptPromise,
+              },
+            ],
+            carriedForward: [],
+          },
+        },
+      );
+      for (
+        let attempt = 0;
+        attempt < 10 &&
+        !posted.some(({ url }) =>
+          url.endsWith("/sessions/interactions/transition"),
+        );
+        attempt += 1
+      ) {
+        await flush();
+      }
+
+      const resolveCall = posted.find(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.ok(
+        resolveCall,
+        JSON.stringify({ posted, permissionReplies: calls.permissionReplies }),
+      );
+      assert.deepEqual(resolveCall.body, {
+        session_id: "sess-no-workflow",
+        token: parked.interactionToken,
+        status: "resolved",
+        resolution: {
+          verdict: "approved",
+          tool_call_id: "tc-no-workflow",
+        },
+      });
+
+      captured.onEvent!(
+        updateEvent({
+          sessionUpdate: "tool_call_update",
+          toolCallId: "tc-no-workflow",
+          status: "completed",
+          content: "committed",
+        }),
+      );
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const resumed = await resumedTurn;
+      assert.equal(resumed.ok, true);
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("resolves an in-band answer the harness never re-gated (the orphan fix)", async () => {
+    // The live orphan: a mobile resume trips `approval-mismatch (history)`, evicts, and runs
+    // COLD. The transcript already holds the human's answer, so the agent just proceeds and no
+    // permission request is ever raised — nothing calls the reply path. Meanwhile the turn-start
+    // stale sweep EXEMPTED this token on the promise that the resume would resolve it, so the
+    // row is left `pending` forever, actionable in both inboxes. The turn must settle it itself.
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const coldResume: AgentRunRequest = {
+        harness: "claude",
+        model: "m1",
+        sessionId: "sess-orphan",
+        turnId: "turn-cold-replay",
+        ...auth,
+        messages: [
+          { role: "user", content: "do X" },
+          {
+            role: "assistant",
+            content: [
+              { type: "tool_call", toolCallId: "tc-gate", toolName: "commit" },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                output: { approved: true, interactionToken: "tok-orphan" },
+              },
+            ],
+          },
+        ],
+      };
+      const acquired = await acquireEnvironment(coldResume, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      // No `resume` opts and NO permission request: exactly a cold replay whose agent proceeds.
+      const turn = runTurn(env, coldResume, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await turn;
+      assert.equal(result.ok, true);
+      assert.notEqual(result.stopReason, "paused");
+      for (
+        let attempt = 0;
+        attempt < 10 &&
+        !posted.some(({ url }) =>
+          url.endsWith("/sessions/interactions/transition"),
+        );
+        attempt += 1
+      ) {
+        await flush();
+      }
+
+      const settled = posted.filter(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.equal(settled.length, 1, JSON.stringify(posted));
+      // `resolved` with the human's real verdict — NOT `cancelled`, which would record a granted
+      // approval as abandoned.
+      assert.deepEqual(settled[0].body, {
+        session_id: "sess-orphan",
+        token: "tok-orphan",
+        status: "resolved",
+        resolution: { verdict: "approved", tool_call_id: "tc-gate" },
+      });
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("does not double-settle a gate the reply path already resolved", async () => {
+    const posted: Array<{ url: string; body: Record<string, unknown> }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input, init) => {
+        posted.push({
+          url: String(input),
+          body: JSON.parse(init?.body as string) as Record<string, unknown>,
+        });
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      });
+
+    try {
+      const { calls, deps, captured } = pausableHarness();
+      deps.hydrateHarnessSessionFromDurable = async () => {};
+      const coldResume: AgentRunRequest = {
+        harness: "claude",
+        model: "m1",
+        sessionId: "sess-once",
+        turnId: "turn-cold-regate",
+        ...auth,
+        messages: [
+          { role: "user", content: "do X" },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_call",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                input: { message: "hi" },
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: [
+              {
+                type: "tool_result",
+                toolCallId: "tc-gate",
+                toolName: "commit",
+                input: { message: "hi" },
+                output: { approved: true, interactionToken: "tok-once" },
+              },
+            ],
+          },
+        ],
+      };
+      const acquired = await acquireEnvironment(coldResume, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const turn = runTurn(env, coldResume, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      await flush();
+      // The harness DOES re-raise the same call: the stored decision map answers it and the reply
+      // path resolves the row. The turn-end settle must then be a no-op, not a second write.
+      captured.onPermissionRequest!({
+        id: "perm-regate",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          toolCallId: "tc-gate",
+          name: "commit",
+          rawInput: { message: "hi" },
+        },
+      });
+      await flush();
+      calls.resolvePrompt!({
+        stopReason: "complete",
+        usage: { inputTokens: 1, outputTokens: 1 },
+      });
+      const result = await turn;
+      assert.equal(result.ok, true);
+      for (let attempt = 0; attempt < 10; attempt += 1) await flush();
+
+      const settled = posted.filter(({ url }) =>
+        url.endsWith("/sessions/interactions/transition"),
+      );
+      assert.equal(settled.length, 1, JSON.stringify(settled));
+      assert.equal(settled[0].body["token"], "tok-once");
+      await env.destroy();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("preserves a denied call failed frame while a sibling gate is carried", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    for (const [toolCallId, title] of [
+      ["tc-denied", "commit"],
+      ["tc-carried", "deploy"],
+    ]) {
+      captured.onEvent!(
+        updateEvent({ sessionUpdate: "tool_call", toolCallId, title }),
+      );
+    }
+    captured.onPermissionRequest!({
+      id: "perm-denied",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-denied", name: "commit", rawInput: {} },
+    });
+    captured.onPermissionRequest!({
+      id: "perm-carried",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-carried", name: "deploy", rawInput: {} },
+    });
+    await firstTurn;
+
+    const answered = env.parkedApprovals.get("tc-denied")!;
+    const carried = env.parkedApprovals.get("tc-carried")!;
+    env.clearTurn();
+    const resumeTurn = runTurn(
+      env,
+      approveResume(false),
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: answered.permissionId,
+              reply: "reject",
+              toolCallId: answered.toolCallId,
+              toolName: answered.toolName,
+              args: answered.args,
+              interactionToken: answered.interactionToken,
+              promptPromise: answered.promptPromise,
+            },
+          ],
+          carriedForward: [carried],
+        },
+      },
+    );
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-denied",
+        status: "failed",
+        content: "user denied",
+      }),
+    );
+    const result = await resumeTurn;
+
+    assert.equal(result.stopReason, "paused");
+    const run = calls.runs[1];
+    assert.deepEqual(run.denied, ["tc-denied"]);
+    assert.equal(
+      run.handled.some(
+        (update) =>
+          update.toolCallId === "tc-denied" && update.status === "failed",
+      ),
+      true,
+      "the authoritative denial frame must reach the tracer",
+    );
+    assert.equal(
+      run.settled.some(({ id }) => id === "tc-denied"),
+      false,
+      "the deferred sentinel must not replace a denial",
+    );
+
+    await env.destroy();
+  });
+
+  it("carries an unanswered gate through a partial resume without settling it", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    for (const [toolCallId, title] of [
+      ["tc-g1", "commit"],
+      ["tc-g2", "deploy"],
+    ]) {
+      captured.onEvent!(
+        updateEvent({ sessionUpdate: "tool_call", toolCallId, title }),
+      );
+    }
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-g1", name: "commit", rawInput: {} },
+    });
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-g2", name: "deploy", rawInput: {} },
+    });
+    await firstTurn;
+
+    const answered = env.parkedApprovals.get("tc-g1")!;
+    const carried = env.parkedApprovals.get("tc-g2")!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: answered.permissionId,
+            reply: "once",
+            toolCallId: answered.toolCallId,
+            toolName: answered.toolName,
+            args: answered.args,
+            interactionToken: answered.interactionToken,
+            promptPromise: answered.promptPromise,
+          },
+        ],
+        carriedForward: [carried],
+      },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-g2",
+        status: "completed",
+        content: "must stay suppressed",
+      }),
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-g1",
+        status: "completed",
+        content: "answered result",
+      }),
+    );
+    const result = await resumeTurn;
+
+    assert.equal(result.stopReason, "paused");
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "once" },
+    ]);
+    assert.deepEqual([...env.parkedApprovals.keys()], ["tc-g2"]);
+    assert.equal(env.approvalGateCount, 1);
+    const run = calls.runs[1];
+    assert.equal(
+      run.handled.some((update) => update.toolCallId === "tc-g2"),
+      false,
+      "carried gate frames stay suppressed",
+    );
+    assert.equal(
+      run.sweeps.every((sweep) => sweep.isExcluded("tc-g2")),
+      true,
+      "every sentinel sweep spares the carried gate",
+    );
+    assert.equal(
+      run.settled.some((entry) => entry.id === "tc-g2"),
+      false,
+      "the carried gate receives no sentinel",
+    );
+
+    await env.destroy();
+  });
+
+  it("excludes an allowed execution from both pause sweeps", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-approved",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-approved",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-approved", name: "commit" },
+    });
+    await firstTurn;
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-approved",
+            reply: "once",
+            toolCallId: "tc-approved",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-approved",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate-2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate-2", name: "deploy" },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-approved",
+        status: "in_progress",
+      }),
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-approved",
+        status: "completed",
+        content: "real result",
+      }),
+    );
+    await resumeTurn;
+
+    const run = calls.runs[1];
+    const deferredSweeps = run.sweeps.filter(
+      (sweep) => sweep.message === TOOL_NOT_EXECUTED_PAUSED,
+    );
+    assert.ok(deferredSweeps.length >= 2);
+    assert.equal(
+      deferredSweeps.every((sweep) => sweep.isExcluded("tc-approved")),
+      true,
+    );
+    assert.equal(
+      run.settled.some(
+        (entry) =>
+          entry.id === "tc-approved" &&
+          entry.message === TOOL_NOT_EXECUTED_PAUSED,
+      ),
+      false,
+    );
+
+    await env.destroy();
+  });
+
+  it("records an approved completion that arrives after a sibling pause", async () => {
+    const { deps, captured } = pausableHarness();
+    deps.createOtel = createSandboxAgentOtel as any;
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-approved",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-approved",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-approved", name: "commit" },
+    });
+    await firstTurn;
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-approved",
+            reply: "once",
+            toolCallId: "tc-approved",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-approved",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate-2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate-2", name: "deploy" },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tc-approved",
+        status: "completed",
+        content: "approved call completed",
+      }),
+    );
+    const result = await resumeTurn;
+
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    const approvedResults = result.events?.filter(
+      (event) => event.type === "tool_result" && event.id === "tc-approved",
+    );
+    assert.deepEqual(approvedResults, [
+      {
+        type: "tool_result",
+        id: "tc-approved",
+        output: "approved call completed",
+        isError: false,
+      },
+    ]);
+
+    await env.destroy();
+  });
+
+  it("replays the concurrent-approval incident with deferred closure and exactly-once real results", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    deps.createOtel = createSandboxAgentOtel as any;
+    const incidentRequest: AgentRunRequest = {
+      ...engineReq,
+      permissions: { default: "ask" },
+      customTools: [
+        { name: "tool-a", permission: "ask" },
+        { name: "tool-b", permission: "ask" },
+      ],
+      messages: [{ role: "user", content: "run both writes in parallel" }],
+    };
+    const acquired = await acquireEnvironment(incidentRequest, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, incidentRequest, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tool-a",
+        title: "tool-a",
+        rawInput: { target: "a" },
+      }),
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tool-b",
+        title: "tool-b",
+        rawInput: { target: "b" },
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "permission-a",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-a",
+        name: "tool-a",
+        rawInput: { target: "a" },
+      },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-b",
+        status: "completed",
+        content: "tool-b cancellation closure",
+      }),
+    );
+    const firstResult = await firstTurn;
+
+    assert.equal(firstResult.ok, true);
+    assert.equal(firstResult.stopReason, "paused");
+    assert.equal(env.parkedApprovals.size, 1);
+    assert.deepEqual([...env.parkedApprovals.keys()], ["tool-a"]);
+    const gateA = env.parkedApprovals.get("tool-a")!;
+    const firstEvents = firstResult.events ?? [];
+    assert.equal(
+      firstEvents.filter(
+        (event) =>
+          event.type === "interaction_request" &&
+          (event.payload as { toolCallId?: string }).toolCallId === "tool-a",
+      ).length,
+      1,
+    );
+    assert.deepEqual(
+      firstEvents.filter(
+        (event) => event.type === "tool_result" && event.id === "tool-b",
+      ),
+      [
+        {
+          type: "tool_result",
+          id: "tool-b",
+          output: TOOL_NOT_EXECUTED_PAUSED,
+          isError: true,
+        },
+      ],
+    );
+    assert.equal(
+      firstEvents.some(
+        (event) => event.type === "tool_result" && event.isError === false,
+      ),
+      false,
+      "the never-started first-turn states have no success record",
+    );
+
+    env.clearTurn();
+    const secondTurn = runTurn(env, incidentRequest, undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: gateA.permissionId,
+            reply: "once",
+            toolCallId: gateA.toolCallId,
+            toolName: gateA.toolName,
+            args: gateA.args,
+            interactionToken: gateA.interactionToken,
+            promptPromise: gateA.promptPromise,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    for (
+      let i = 0;
+      i < 5 &&
+      !calls.permissionReplies.some((reply) => reply.id === gateA.permissionId);
+      i += 1
+    ) {
+      await Promise.resolve();
+    }
+    assert.equal(
+      calls.permissionReplies.filter((reply) => reply.id === gateA.permissionId)
+        .length,
+      1,
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-a",
+        status: "in_progress",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "permission-b",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-b",
+        name: "tool-b",
+        rawInput: { target: "b" },
+      },
+    });
+    for (let i = 0; i < 5 && !env.currentTurn?.pause.active; i += 1) {
+      await Promise.resolve();
+    }
+    assert.equal(env.currentTurn?.pause.active, true);
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-a",
+        status: "completed",
+        content: "tool-a real output",
+      }),
+    );
+    const secondResult = await secondTurn;
+
+    assert.equal(secondResult.ok, true);
+    assert.equal(secondResult.stopReason, "paused");
+    assert.equal(env.parkedApprovals.size, 1);
+    assert.deepEqual([...env.parkedApprovals.keys()], ["tool-b"]);
+    const gateB = env.parkedApprovals.get("tool-b")!;
+    const secondEvents = secondResult.events ?? [];
+    assert.deepEqual(
+      secondEvents.filter(
+        (event) => event.type === "tool_result" && event.id === "tool-a",
+      ),
+      [
+        {
+          type: "tool_result",
+          id: "tool-a",
+          output: "tool-a real output",
+          isError: false,
+        },
+      ],
+    );
+    assert.equal(
+      secondEvents.filter(
+        (event) =>
+          event.type === "interaction_request" &&
+          (event.payload as { toolCallId?: string }).toolCallId === "tool-b",
+      ).length,
+      1,
+    );
+    assert.deepEqual(
+      secondEvents.filter(
+        (event) =>
+          event.type === "interaction_response" &&
+          (event.payload as { toolCallId?: string }).toolCallId === "tool-a",
+      ),
+      [
+        {
+          type: "interaction_response",
+          id: gateA.interactionToken,
+          kind: "user_approval",
+          payload: { toolCallId: "tool-a", approved: true },
+        },
+      ],
+    );
+
+    env.clearTurn();
+    const thirdTurn = runTurn(env, incidentRequest, undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: gateB.permissionId,
+            reply: "once",
+            toolCallId: gateB.toolCallId,
+            toolName: gateB.toolName,
+            args: gateB.args,
+            interactionToken: gateB.interactionToken,
+            promptPromise: gateB.promptPromise,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    for (
+      let i = 0;
+      i < 5 &&
+      !calls.permissionReplies.some((reply) => reply.id === gateB.permissionId);
+      i += 1
+    ) {
+      await Promise.resolve();
+    }
+    assert.equal(
+      calls.permissionReplies.filter((reply) => reply.id === gateB.permissionId)
+        .length,
+      1,
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-b",
+        status: "completed",
+        content: "tool-b real output",
+      }),
+    );
+    calls.resolvePrompt!({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const thirdResult = await thirdTurn;
+
+    assert.equal(thirdResult.ok, true);
+    assert.equal(thirdResult.stopReason, "complete");
+    const thirdEvents = thirdResult.events ?? [];
+    assert.deepEqual(
+      thirdEvents.filter(
+        (event) => event.type === "tool_result" && event.id === "tool-b",
+      ),
+      [
+        {
+          type: "tool_result",
+          id: "tool-b",
+          output: "tool-b real output",
+          isError: false,
+        },
+      ],
+    );
+    assert.deepEqual(
+      thirdEvents.filter(
+        (event) =>
+          event.type === "interaction_response" &&
+          (event.payload as { toolCallId?: string }).toolCallId === "tool-b",
+      ),
+      [
+        {
+          type: "interaction_response",
+          id: gateB.interactionToken,
+          kind: "user_approval",
+          payload: { toolCallId: "tool-b", approved: true },
+        },
+      ],
+    );
+
+    const allEvents = [...firstEvents, ...secondEvents, ...thirdEvents];
+    const realResults = allEvents.filter(
+      (event): event is Extract<AgentEvent, { type: "tool_result" }> =>
+        event.type === "tool_result" && event.isError === false,
+    );
+    assert.deepEqual(
+      realResults.map((event) => event.id).sort(),
+      ["tool-a", "tool-b"],
+      "each call records exactly one real result",
+    );
+    assert.equal(
+      allEvents.some(
+        (event) =>
+          event.type === "tool_result" &&
+          event.id === "tool-a" &&
+          (event.output === TOOL_NOT_EXECUTED_PAUSED ||
+            event.output === APPROVED_EXECUTION_RESULT_UNKNOWN),
+      ),
+      false,
+      "the approved tool-a result is never replaced by a sentinel",
+    );
+    assert.equal(
+      allEvents.some(
+        (event) =>
+          event.type === "tool_result" &&
+          event.output === "tool-b cancellation closure",
+      ),
+      false,
+      "the cancellation closure is never recorded as success",
+    );
+    const permissionReplyCounts = new Map<string, number>();
+    for (const reply of calls.permissionReplies) {
+      permissionReplyCounts.set(
+        reply.id,
+        (permissionReplyCounts.get(reply.id) ?? 0) + 1,
+      );
+    }
+    assert.deepEqual(
+      permissionReplyCounts,
+      new Map([
+        [gateA.permissionId, 1],
+        [gateB.permissionId, 1],
+      ]),
+    );
+
+    await env.destroy();
+  });
+
+  it("re-parks a Pi batch without a closure wait and records real results after the final approval", async () => {
+    const batch: PiBatchCall[] = [
+      {
+        permissionId: "permission-a",
+        toolCallId: "tool-a",
+        toolName: "tool-a",
+        args: { target: "a" },
+        output: "tool-a real output",
+      },
+      {
+        permissionId: "permission-b",
+        toolCallId: "tool-b",
+        toolName: "tool-b",
+        args: { target: "b" },
+        output: "tool-b real output",
+      },
+    ];
+    const { deps } = pausableHarness({ piBatching: batch });
+    deps.createOtel = createSandboxAgentOtel as any;
+    const closureWaitMs = 314_159;
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000_000,
+      idleMs: 500_000,
+      ttfbMs: 500_000,
+      toolCallMs: closureWaitMs,
+    });
+    deps.createRunLimits = () => ({
+      onTrip() {},
+      noteToolCallStart() {},
+      noteToolCallEnd() {},
+      wrapEmit: (emit: (event: any) => void) => emit,
+      notePaused() {},
+      dispose() {},
+    });
+    const realSetTimeout = globalThis.setTimeout;
+    let closureWaitCount = 0;
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      handler: (...args: any[]) => void,
+      timeout?: number,
+      ...args: any[]
+    ) => {
+      if (timeout === closureWaitMs) {
+        closureWaitCount += 1;
+        return realSetTimeout(handler, 0, ...args);
+      }
+      return realSetTimeout(handler, timeout, ...args);
+    }) as typeof setTimeout);
+    let env: SessionEnvironment | undefined;
+
+    try {
+      const piRequest: AgentRunRequest = {
+        ...engineReq,
+        harness: "pi_agenta",
+        permissions: { default: "ask" },
+        customTools: batch.map((call) => ({
+          name: call.toolName,
+          permission: "ask",
+        })),
+        messages: [{ role: "user", content: "run both writes in parallel" }],
+      };
+      const acquired = await acquireEnvironment(piRequest, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      env = acquired.env;
+
+      const firstResult = await runTurn(env, piRequest, undefined, undefined, {
+        approvalParkMode: true,
+      });
+      assert.equal(firstResult.stopReason, "paused");
+      const gateA = env.parkedApprovals.get("tool-a")!;
+
+      env.clearTurn();
+      const secondResult = await runTurn(env, piRequest, undefined, undefined, {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: gateA.permissionId,
+              reply: "once",
+              toolCallId: gateA.toolCallId,
+              toolName: gateA.toolName,
+              args: gateA.args,
+              interactionToken: gateA.interactionToken,
+              promptPromise: gateA.promptPromise,
+            },
+          ],
+          carriedForward: [],
+        },
+      });
+      assert.equal(secondResult.stopReason, "paused");
+      assert.equal(
+        closureWaitCount,
+        0,
+        "the pending Pi sibling must bypass the bounded closure wait",
+      );
+      assert.deepEqual(
+        (secondResult.events ?? []).filter(
+          (event) => event.type === "tool_result",
+        ),
+        [
+          {
+            type: "tool_result",
+            id: "tool-a",
+            output: APPROVED_EXECUTION_RESULT_UNKNOWN,
+            isError: true,
+          },
+        ],
+      );
+      assert.deepEqual(
+        [...(env.parkedApprovedExecutions?.keys() ?? [])],
+        ["tool-a"],
+      );
+      const gateB = env.parkedApprovals.get("tool-b")!;
+
+      env.clearTurn();
+      const thirdResult = await runTurn(env, piRequest, undefined, undefined, {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: gateB.permissionId,
+              reply: "once",
+              toolCallId: gateB.toolCallId,
+              toolName: gateB.toolName,
+              args: gateB.args,
+              interactionToken: gateB.interactionToken,
+              promptPromise: gateB.promptPromise,
+            },
+          ],
+          carriedForward: [],
+        },
+      });
+      assert.equal(thirdResult.stopReason, "complete");
+
+      const eventLog = [
+        ...(firstResult.events ?? []),
+        ...(secondResult.events ?? []),
+        ...(thirdResult.events ?? []),
+      ];
+      const realResults = eventLog.filter(
+        (event): event is Extract<AgentEvent, { type: "tool_result" }> =>
+          event.type === "tool_result" &&
+          (event.output === "tool-a real output" ||
+            event.output === "tool-b real output"),
+      );
+      assert.deepEqual(
+        realResults.map((event) => event.id).sort(),
+        ["tool-a", "tool-b"],
+        "both batched calls record one real result",
+      );
+      const lastResultByCall = new Map<
+        string,
+        Extract<AgentEvent, { type: "tool_result" }>
+      >();
+      for (const event of eventLog) {
+        if (event.type === "tool_result" && event.id) {
+          lastResultByCall.set(event.id, event);
+        }
+      }
+      assert.equal(
+        lastResultByCall.get("tool-a")?.output,
+        "tool-a real output",
+      );
+      assert.equal(lastResultByCall.get("tool-a")?.isError, false);
+      assert.equal(
+        lastResultByCall.get("tool-b")?.output,
+        "tool-b real output",
+      );
+      assert.equal(lastResultByCall.get("tool-b")?.isError, false);
+      assert.equal(env.parkedApprovedExecutions?.size, 0);
+    } finally {
+      timeoutSpy.mockRestore();
+      if (env) await env.destroy();
+    }
+  });
+
+  it("records the non-retry sentinel when an approved result misses the bound", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    deps.resolveRunLimits = () => ({
+      totalMs: 1_000,
+      idleMs: 500,
+      ttfbMs: 500,
+      toolCallMs: 5,
+    });
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const firstTurn = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-approved",
+        title: "commit",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-approved",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-approved", name: "commit" },
+    });
+    await firstTurn;
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumeTurn = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-approved",
+            reply: "once",
+            toolCallId: "tc-approved",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-approved",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate-2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate-2", name: "deploy" },
+    });
+    const result = await resumeTurn;
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.runs[1].settled.filter((entry) => entry.id === "tc-approved"),
+      [
+        {
+          id: "tc-approved",
+          message: APPROVED_EXECUTION_RESULT_UNKNOWN,
+        },
+      ],
+    );
+    assert.equal(
+      APPROVED_EXECUTION_RESULT_UNKNOWN.startsWith(
+        DEFERRED_NOT_EXECUTED_PREFIX,
+      ),
+      false,
+    );
+
+    await env.destroy();
+  });
+
+  it("parks and resumes a Codex ACP exec gate through respondPermission", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(codexEngineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const p1 = runTurn(env, codexEngineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "exec-codex",
+        title: "pnpm test",
+        kind: "execute",
+        rawInput: { command: "pnpm test", cwd: "/workspace" },
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-codex",
+      availableReplies: ["once", "always", "reject"],
+      toolCall: {
+        kind: "execute",
+        rawInput: { command: "pnpm test", cwd: "/workspace" },
+        status: "pending",
+        toolCallId: "exec-codex",
+      },
+    });
+    await flush();
+    const r1 = await p1;
+
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(env.parkedApproval?.gateType, "codex-acp-permission");
+    assert.equal(env.parkedApproval?.toolName, "pnpm test");
+    assert.deepEqual(env.parkedApproval?.args, {
+      command: "pnpm test",
+      cwd: "/workspace",
+    });
+
+    env.clearTurn();
+    const held = env.parkedApproval!.promptPromise!;
+    const p2 = runTurn(
+      env,
+      approveResume(true, { harness: "codex", harnessMode: "agent" }),
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        resume: {
+          decisions: [
+            {
+              permissionId: "perm-codex",
+              reply: "once",
+              toolCallId: "exec-codex",
+              toolName: "pnpm test",
+              args: { command: "pnpm test", cwd: "/workspace" },
+              interactionToken: "perm-codex",
+              promptPromise: held,
+            },
+          ],
+          carriedForward: [],
+        },
+      },
+    );
+    await flush();
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-codex", reply: "once" },
+    ]);
+
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "exec-codex",
+        status: "completed",
+        content: "passed",
+      }),
+    );
+    calls.resolvePrompt!({
+      stopReason: "complete",
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+    const r2 = await p2;
+
+    assert.equal(r2.ok, true);
+    assert.equal(r2.stopReason, "complete");
+    assert.equal(calls.promptCount, 1);
+
+    await env.destroy();
+  });
+
+  it("forwards a reject on the resume when the decision is deny", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const p1 = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate", name: "commit", rawInput: {} },
+    });
+    await flush();
+    await p1;
+
+    env.clearTurn();
+    const held = env.parkedApproval!.promptPromise!;
+    const p2 = runTurn(env, approveResume(false), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-1",
+            reply: "reject",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-gate",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    calls.resolvePrompt!({ stopReason: "complete" });
+    await p2;
+
+    assert.deepEqual(calls.permissionReplies, [
+      { id: "perm-1", reply: "reject" },
+    ]);
+    assert.deepEqual(
+      calls.runs[1].emitted.filter(
+        (event) => event.type === "interaction_response",
+      ),
+      [
+        {
+          type: "interaction_response",
+          id: "tc-gate",
+          kind: "user_approval",
+          payload: { toolCallId: "tc-gate", approved: false },
+        },
+      ],
+    );
+    await env.destroy();
+  });
+
+  it("a client-tool MCP pause is NOT parkable and tears down cold, even in park mode", async () => {
+    const { calls, deps, captured } = pausableHarness({ clientTool: true });
+    // The client spec is resolved by NAME from the run's customTools (the run plan, built here)
+    // — a real ACP tool-call never carries the spec inline.
+    const clientReq: AgentRunRequest = {
+      ...engineReq,
+      customTools: [{ name: "browser", kind: "client" }],
+    };
+    const acquired = await acquireEnvironment(clientReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const p1 = runTurn(env, clientReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    // A client-executor gate (spec.kind === "client") routes through pauseClientTool, which never
+    // fires onUserApprovalGate, so no parkedApproval is recorded and the pause tears down as today.
+    captured.onPermissionRequest!({
+      id: "perm-c",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-client", name: "browser" },
+    });
+    await flush();
+    const r1 = await p1;
+
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(
+      env.parkedApproval,
+      undefined,
+      "a client-tool pause is not parkable",
+    );
+    assert.equal(
+      calls.sessionDestroyed,
+      1,
+      "the non-parkable pause destroyed the session, exactly as today",
+    );
+
+    await env.destroy();
+  });
+
+  it("the F-024 sibling settle runs on a PARKABLE pause: the sibling settles, the gated call stays open", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const p1 = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    // An announced-but-UNGATED sibling tool call (it never raises a permission request, so it gets
+    // no card): it can never execute once the turn pauses on the gate, so it must be settled with
+    // the deterministic paused result, park or no park.
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-sib",
+        title: "read",
+        rawInput: { path: "a" },
+      }),
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate",
+        title: "commit",
+        rawInput: { message: "hi" },
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tc-gate",
+        name: "commit",
+        rawInput: { message: "hi" },
+      },
+    });
+    await flush();
+    const r1 = await p1;
+
+    assert.equal(r1.stopReason, "paused");
+    assert.ok(env.parkedApproval, "the gate parked (park path)");
+    const run1 = calls.runs[0];
+    assert.deepEqual(
+      run1.settled,
+      [{ id: "tc-sib", message: TOOL_NOT_EXECUTED_PAUSED }],
+      "the orphaned sibling was settled with TOOL_NOT_EXECUTED_PAUSED despite the park",
+    );
+    assert.ok(
+      run1.open.has("tc-gate"),
+      "the gated (paused) call itself stays OPEN for the live resume",
+    );
+    assert.equal(calls.sessionDestroyed, 0, "the park kept the session alive");
+
+    await env.destroy();
+  });
+
+  it("two parallel gates each emit a card and BOTH park (neither is force-settled)", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const p1 = runTurn(env, engineReq, undefined, undefined, {
+      approvalParkMode: true,
+    });
+    await flush();
+    // Two parallel gated tool calls in one turn. With no latch, each raises its own permission
+    // request, emits its own card, and is marked paused — so NEITHER is force-settled, and BOTH
+    // are recorded in parkedApprovals for the live resume.
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-g1",
+        title: "commit",
+      }),
+    );
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-g2",
+        title: "deploy",
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-g1", name: "commit", rawInput: {} },
+    });
+    captured.onPermissionRequest!({
+      id: "perm-2",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-g2", name: "deploy", rawInput: {} },
+    });
+    await flush();
+    const r1 = await p1;
+
+    assert.equal(r1.stopReason, "paused");
+    assert.equal(env.approvalGateCount, 2, "both pending gates were counted");
+    assert.equal(env.parkedApprovals.size, 2, "both gates were parked");
+    assert.deepEqual(
+      [...env.parkedApprovals.keys()].sort(),
+      ["tc-g1", "tc-g2"],
+      "each gate is keyed by its own tool-call id",
+    );
+    assert.equal(
+      env.nonParkablePauseCount,
+      0,
+      "no non-parkable pause -> the dispatch parks the whole set",
+    );
+    const run1 = calls.runs[0];
+    assert.deepEqual(
+      run1.settled,
+      [],
+      "neither gate is force-settled: both got a card and are held for the resume",
+    );
+    assert.ok(run1.open.has("tc-g1"), "the first gate's call stays open");
+    assert.ok(run1.open.has("tc-g2"), "the second gate's call stays open");
+    assert.equal(
+      calls.sessionDestroyed,
+      0,
+      "the multi-gate park keeps the session alive",
+    );
+
+    await env.destroy();
+  });
+});
+
+describe("runTurn: the in-band settle lands before the terminal record", () => {
+  it("resolves the durable row before finish() publishes `done`", async () => {
+    const TOKEN = "tok-inband-order";
+    const TOOL_CALL_ID = "toolu_inband_1";
+    const { calls, deps } = pausableHarness();
+
+    // A cold replay: the transcript already carries the human's yes, so the harness never
+    // re-raises the gate and only the end-of-turn settle can transition the row.
+    const request: AgentRunRequest = {
+      ...engineReq,
+      telemetry: {
+        exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+      },
+      messages: [
+        { role: "user", content: "write out.txt" },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: TOOL_CALL_ID,
+              toolName: "Write",
+              input: { path: "out.txt" },
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: TOOL_CALL_ID,
+              toolName: "Write",
+              output: { approved: true, interactionToken: TOKEN },
+            },
+          ],
+        },
+      ],
+    } as AgentRunRequest;
+
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: any) => {
+      if (String(input).includes("/sessions/interactions/transition")) {
+        calls.journal.push("resolve");
+      }
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const turn = runTurn(acquired.env, request, undefined, undefined, {});
+      await flush();
+      calls.resolvePrompt?.({});
+      await turn;
+      await acquired.env.destroy();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+
+    assert.deepEqual(
+      calls.journal,
+      ["resolve", "done"],
+      "the API cancels a still-pending gate the moment it consumes `done`; settling after that " +
+        "files a decision the human actually made as an abandonment",
+    );
+  });
+});

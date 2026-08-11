@@ -12,7 +12,9 @@
         "lint:fix": "eslint --config ../eslint.config.mjs src/ --max-warnings 0 --fix"
     },
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./config": "./src/config.ts",
+        "./resources": "./src/resources.ts"
     },
     "dependencies": {
         "@agentaai/api-client": "workspace:../agenta-api-client"

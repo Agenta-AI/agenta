@@ -2,20 +2,21 @@ import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import type {RunSchema} from "@agenta/entities/evaluationRun/etl"
 import {message} from "@agenta/ui/app-message"
+import {
+    EXPORT_RESOLVE_SKIP,
+    InfiniteVirtualTableFeatureShell,
+    type ColumnVisibilityMenuRendererContext,
+    type ColumnVisibilityState,
+    type TableExportColumnContext,
+    type TableFeaturePagination,
+    type TableScopeConfig,
+    useInfiniteTablePagination,
+} from "@agenta/ui/table"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
-import {
-    InfiniteVirtualTableFeatureShell,
-    type TableFeaturePagination,
-    type TableScopeConfig,
-    useInfiniteTablePagination,
-} from "@/oss/components/InfiniteVirtualTable"
-import {
-    EXPORT_RESOLVE_SKIP,
-    type TableExportColumnContext,
-} from "@/oss/components/InfiniteVirtualTable/hooks/useTableExport"
+import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 
 import useComparisonPaginations from "../EvalRunDetails2/hooks/useComparisonPaginations"
 import useComparisonSchemas from "../EvalRunDetails2/hooks/useComparisonSchemas"
@@ -71,6 +72,7 @@ const EvalRunDetailsTable = ({
     const runDisplayName = useAtomValue(runDisplayNameAtom)
     const rowHeightMenuItems = useRowHeightMenuItems()
     const store = useStore()
+    const {canExportData} = useProjectPermissions()
 
     const basePagination = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
@@ -1056,9 +1058,9 @@ const EvalRunDetailsTable = ({
                         useSettingsDropdown
                         settingsDropdownMenuItems={rowHeightMenuItems}
                         columnVisibilityMenuRenderer={(
-                            controls,
-                            close,
-                            {scopeId, onExport, isExporting},
+                            controls: ColumnVisibilityState<TableRowData>,
+                            close: () => void,
+                            {scopeId, onExport, isExporting}: ColumnVisibilityMenuRendererContext,
                         ) => (
                             <ScenarioColumnVisibilityPopoverContent
                                 controls={controls}
@@ -1071,6 +1073,7 @@ const EvalRunDetailsTable = ({
                             />
                         )}
                         pagination={paginationForShell}
+                        enableExport={canExportData}
                         exportOptions={exportOptions}
                         tableProps={{
                             rowClassName: (record) =>

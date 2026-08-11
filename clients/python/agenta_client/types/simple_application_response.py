@@ -5,6 +5,7 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
 from .simple_application import SimpleApplication
+from .simple_application_additional_context import SimpleApplicationAdditionalContext
 
 
 class SimpleApplicationResponse(UniversalBaseModel):
@@ -19,6 +20,11 @@ class SimpleApplicationResponse(UniversalBaseModel):
     application: typing.Optional[SimpleApplication] = pydantic.Field(default=None)
     """
     The application with `variant_id`, `revision_id`, and the revision's `data` merged. `data.url` is the invocation URL.
+    """
+    
+    additional_context: typing.Optional[SimpleApplicationAdditionalContext] = pydantic.Field(default=None)
+    """
+    Read-only platform context derived for this response.
     """
     
     

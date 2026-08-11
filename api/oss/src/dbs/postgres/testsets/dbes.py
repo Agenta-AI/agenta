@@ -31,11 +31,6 @@ class TestsetArtifactDBE(Base, ProjectScopeDBA, ArtifactDBA):
             ["projects.id"],
             ondelete="CASCADE",
         ),
-        Index(
-            "ix_testset_artifacts_project_id_slug",
-            "project_id",
-            "slug",
-        ),
     )
 
 
@@ -60,11 +55,6 @@ class TestsetVariantDBE(Base, ProjectScopeDBA, VariantDBA):
             ["project_id", "artifact_id"],
             ["testset_artifacts.project_id", "testset_artifacts.id"],
             ondelete="CASCADE",
-        ),
-        Index(
-            "ix_testset_variants_project_id_slug",
-            "project_id",
-            "slug",
         ),
         Index(
             "ix_testset_variants_project_id_artifact_id",
@@ -108,11 +98,6 @@ class TestsetRevisionDBE(Base, ProjectScopeDBA, RevisionDBA):
             ["project_id", "variant_id"],
             ["testset_variants.project_id", "testset_variants.id"],
             ondelete="CASCADE",
-        ),
-        Index(
-            "ix_testset_revisions_project_id_slug",
-            "project_id",
-            "slug",
         ),
         Index(
             "ix_testset_revisions_project_id_artifact_id",

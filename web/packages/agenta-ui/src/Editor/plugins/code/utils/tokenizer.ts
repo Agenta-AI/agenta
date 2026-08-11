@@ -1,12 +1,5 @@
 import {createLogger} from "@agenta/shared/utils"
 import {$createCodeNode, $isCodeHighlightNode} from "@lexical/code"
-import {
-    ShikiTokenizer,
-    isCodeLanguageLoaded,
-    loadCodeLanguage,
-    loadCodeTheme,
-    normalizeCodeLanguage,
-} from "@lexical/code-shiki"
 import {$createTextNode, $isLineBreakNode, $isTabNode} from "lexical"
 import Prism from "prismjs"
 import "prismjs/components/prism-json"
@@ -17,6 +10,34 @@ import "prismjs/components/prism-typescript"
 import type {Token as PrismToken} from "prismjs"
 
 import type {CodeLanguage} from "../types"
+
+/**
+ * `@lexical/code-shiki`'s published prod build is a single ~8.7 MB file with every
+ * Shiki grammar+theme inlined as data (no separate modules → not tree-shakeable).
+ * A static import drags all of it into the synchronous first-load graph of every
+ * page that mounts an editor. We load it lazily instead: until it resolves, the
+ * Prism fallback below handles tokenization; once resolved we upgrade to Shiki.
+ */
+type CodeShikiModule = typeof import("@lexical/code-shiki")
+let shikiModule: CodeShikiModule | null = null
+let shikiModulePromise: Promise<CodeShikiModule> | null = null
+
+function ensureShikiModule(): CodeShikiModule | null {
+    if (shikiModule) return shikiModule
+    if (!shikiModulePromise) {
+        shikiModulePromise = import("@lexical/code-shiki")
+            .then((mod) => {
+                shikiModule = mod
+                return mod
+            })
+            .catch((error) => {
+                // Reset so a later attempt can retry; Prism fallback stays active.
+                shikiModulePromise = null
+                throw error
+            })
+    }
+    return shikiModule
+}
 
 /**
  * Represents a syntax token with content and type.
@@ -127,7 +148,7 @@ export function $tokenizeCodeLine(line: string, language: CodeLanguage): Token[]
     const shikiLanguage = resolveShikiLanguage(language)
     ensureShikiReady(shikiLanguage)
 
-    if (shikiThemeReady && isCodeLanguageLoaded(shikiLanguage)) {
+    if (shikiThemeReady && shikiModule?.isCodeLanguageLoaded(shikiLanguage)) {
         try {
             const tokens = $tokenizeCodeLineWithShiki(line, shikiLanguage)
             shouldLogTokenization &&
@@ -164,14 +185,28 @@ export const tokenizeCodeLine = $tokenizeCodeLine
 
 function resolveShikiLanguage(language: CodeLanguage): string {
     const mapped = LANGUAGE_GRAMMAR_MAP[language]
-    const normalized = normalizeCodeLanguage(mapped)
+    // normalizeCodeLanguage lives in the lazy module; before it resolves the mapped
+    // id is already a valid Shiki language id, so the fallback is exact here.
+    const normalized = shikiModule?.normalizeCodeLanguage(mapped)
     return normalized || mapped
 }
 
 function ensureShikiReady(language: string) {
+    const mod = ensureShikiModule()
+    if (!mod) {
+        // Module still loading — kick the theme/language load once it resolves so
+        // the next tokenize call can upgrade from Prism to Shiki.
+        shikiModulePromise
+            ?.then(() => ensureShikiReady(language))
+            .catch(() => {
+                // Keep fallback tokenizer active when Shiki init fails.
+            })
+        return
+    }
+
     if (!shikiThemeReady && !shikiThemeLoadPromise) {
         try {
-            shikiThemeLoadPromise = Promise.resolve(loadCodeTheme(SHIKI_THEME))
+            shikiThemeLoadPromise = Promise.resolve(mod.loadCodeTheme(SHIKI_THEME))
                 .then(() => {
                     shikiThemeReady = true
                 })
@@ -186,13 +221,13 @@ function ensureShikiReady(language: string) {
         }
     }
 
-    if (isCodeLanguageLoaded(language) || shikiLanguageLoadPromises.has(language)) {
+    if (mod.isCodeLanguageLoaded(language) || shikiLanguageLoadPromises.has(language)) {
         return
     }
 
     let languageLoad: Promise<void> | undefined
     try {
-        languageLoad = loadCodeLanguage(language)
+        languageLoad = mod.loadCodeLanguage(language)
     } catch {
         return
     }
@@ -208,11 +243,17 @@ function ensureShikiReady(language: string) {
 }
 
 function $tokenizeCodeLineWithShiki(line: string, language: string): Token[] {
+    // Only reached when the gate in $tokenizeCodeLine confirmed shikiModule is loaded.
+    const mod = shikiModule
+    if (!mod) {
+        return [{content: line, type: "plain"}]
+    }
+
     const codeNode = $createCodeNode(language)
     codeNode.setTheme(SHIKI_THEME)
     codeNode.append($createTextNode(line))
 
-    const nodes = ShikiTokenizer.$tokenize(codeNode, language)
+    const nodes = mod.ShikiTokenizer.$tokenize(codeNode, language)
     const tokens: Token[] = []
 
     for (const node of nodes) {

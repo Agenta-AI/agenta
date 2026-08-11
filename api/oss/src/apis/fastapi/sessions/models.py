@@ -1,0 +1,277 @@
+from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from oss.src.core.sessions.dtos import SessionListItem
+from oss.src.core.sessions.streams.dtos import (
+    SessionStream,
+)
+from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.core.sessions.interactions.dtos import (
+    SessionInteraction,
+    SessionInteractionData,
+    SessionInteractionFlags,
+    SessionInteractionKind,
+    SessionInteractionQuery,
+    SessionInteractionStatus,
+)
+from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
+from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
+from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
+
+
+# ---------------------------------------------------------------------------
+# Root session-level request/response models (query/delete/archive/unarchive)
+# ---------------------------------------------------------------------------
+
+
+class SessionQueryRequest(BaseModel):
+    references: Optional[List[Reference]] = None
+    windowing: Optional[Windowing] = None
+    # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
+    include_ended: bool = False
+    # Include archived sessions — off by default (archive hides); on for the archived view.
+    include_archived: bool = False
+    # Case-insensitive substring match over the session title (`session_streams.name`).
+    search: Optional[str] = None
+
+
+class SessionsResponse(BaseModel):
+    count: int = 0
+    # `SessionListItem` = `SessionStream` + the latest turn's `references` (WP0-R3),
+    # absent (excluded by response_model_exclude_none) when the session has no turns yet.
+    sessions: List[SessionListItem] = Field(default_factory=list)
+
+
+class SessionResponse(BaseModel):
+    count: int = 0
+    session: Optional[SessionStream] = None
+
+
+# ---------------------------------------------------------------------------
+# Streams request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionDetachRequest(BaseModel):
+    session_id: str
+    watcher_id: str
+
+
+class SessionStreamQueryRequest(BaseModel):
+    session_id: Optional[str] = None
+    is_alive: Optional[bool] = None
+    is_running: Optional[bool] = None
+
+
+class SessionStreamResponse(BaseModel):
+    stream: Optional[SessionStream] = None
+
+
+class SessionStreamsResponse(BaseModel):
+    count: int
+    streams: List[SessionStream]
+
+
+# ---------------------------------------------------------------------------
+# Records request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionRecordQueryRequest(BaseModel):
+    session_id: str
+
+
+class SessionRecordsQueryResponse(BaseModel):
+    count: int
+    records: List[SessionRecord]
+
+
+class SessionRecordResponse(BaseModel):
+    record: Optional[SessionRecord] = None
+
+
+# ---------------------------------------------------------------------------
+# Interactions request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionInteractionCreateRequest(BaseModel):
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    turn_id: Optional[str] = None
+    token: str
+    kind: SessionInteractionKind
+    data: Optional[SessionInteractionData] = None
+    flags: SessionInteractionFlags = SessionInteractionFlags()
+    tags: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
+
+
+class SessionInteractionResolution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    verdict: Literal["approved", "denied"]
+    tool_call_id: str
+
+
+class SessionInteractionTransitionRequest(BaseModel):
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    token: str
+    status: SessionInteractionStatus
+    resolution: Optional[SessionInteractionResolution] = None
+
+    @model_validator(mode="after")
+    def validate_resolution_status(self) -> "SessionInteractionTransitionRequest":
+        # Resolution is answer data, so it is valid only on the resolved lifecycle edge.
+        if (
+            self.resolution is not None
+            and self.status != SessionInteractionStatus.resolved
+        ):
+            raise ValueError("resolution is only valid when status is resolved")
+        return self
+
+
+class SessionInteractionCancelStaleRequest(BaseModel):
+    # Cancels prior turns' pending gates, sparing this turn's own (`turn_id`) and every prior
+    # gate still owned by a live partial resume (`tokens`, including carried gates).
+    session_id: str
+    turn_id: str
+    tokens: Optional[List[str]] = None
+
+
+class SessionInteractionQueryRequest(BaseModel):
+    query: Optional[SessionInteractionQuery] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionInteractionResponse(BaseModel):
+    count: int = 0
+    interaction: Optional[SessionInteraction] = None
+
+
+class SessionInteractionsResponse(BaseModel):
+    count: int = 0
+    interactions: List[SessionInteraction] = Field(default_factory=list)
+
+
+class SessionInteractionRespondRequest(BaseModel):
+    # For a user_approval interaction the answer is {approved: bool, tool_call_id?: str,
+    # message?: str} — the dispatcher composes the full resume conversation server-side
+    # (interactions_dispatcher.compose_approval_messages). Other kinds pass through as-is.
+    answer: Optional[Dict[str, Any]] = None
+
+
+# ---------------------------------------------------------------------------
+# Mounts request/response models (session-scoped view; from SessionMount DTO)
+# ---------------------------------------------------------------------------
+
+
+class SessionMountQueryRequest(BaseModel):
+    mount: Optional[SessionMountQuery] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionMountResponse(BaseModel):
+    count: int = 0
+    mount: Optional[SessionMount] = None
+
+
+class SessionMountsResponse(BaseModel):
+    count: int = 0
+    mounts: List[SessionMount] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Attachments request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionAttachment(BaseModel):
+    attachment_id: UUID
+    filename: str
+    media_type: str
+    size: int
+    created_at: datetime
+
+
+class SessionAttachmentResponse(BaseModel):
+    count: int = 0
+    attachment: SessionAttachment
+
+
+class SessionAttachmentReferenceRequest(BaseModel):
+    session_id: str
+    attachment_ids: List[UUID] = Field(max_length=100)
+
+
+class SessionAttachmentsResponse(BaseModel):
+    count: int = 0
+    attachments: List[SessionAttachment] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Turns request/response models
+# ---------------------------------------------------------------------------
+
+
+class SessionTurnAppendRequest(BaseModel):
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    turn_id: Optional[UUID] = None
+    stream_id: UUID
+    turn_index: int
+    harness_kind: HarnessKind
+    agent_session_id: Optional[str] = None
+    sandbox_id: Optional[str] = None
+    references: Optional[List[Reference]] = None
+    trace_id: Optional[UUID] = None
+    span_id: Optional[OTelSpanId] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+
+
+class SessionTurnCompleteRequest(BaseModel):
+    session_id: str
+    turn_index: int
+    agent_session_id: Optional[str] = None
+    end_time: datetime
+
+
+class SessionTurnQueryRequest(BaseModel):
+    query: Optional[SessionTurnQuery] = None
+    windowing: Optional[Windowing] = None
+
+
+class SessionTurnResponse(BaseModel):
+    count: int = 0
+    turn: Optional[SessionTurn] = None
+
+
+class SessionTurnsResponse(BaseModel):
+    count: int = 0
+    turns: List[SessionTurn] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Admin record ingest model
+# ---------------------------------------------------------------------------
+
+
+class SessionRecordIngestRequest(BaseModel):
+    # project scope comes from the caller's credential, never the body
+    session_id: str
+    # Optional stable id (uuid5) from the producer; absent when it has no stable key.
+    record_id: Optional[UUID] = None
+    record_index: Optional[int] = None
+    timestamp: Optional[datetime] = None
+    record_type: Optional[str] = None
+    record_source: Optional[str] = None
+    attributes: Optional[Dict[str, Any]] = None
+    # The turn this record belongs to; span_id bridges to observability when available.
+    # Both forward-fill only (tracing-DB rule) — absent on producers that predate this.
+    turn_id: Optional[str] = None
+    span_id: Optional[OTelSpanId] = None

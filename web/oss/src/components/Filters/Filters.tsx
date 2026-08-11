@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {evaluatorsListDataAtom, evaluatorFeedbackSchemasAtom} from "@agenta/entities/workflow"
+import {useEnsureEvaluatorEnrichment} from "@agenta/entity-ui/selection"
 import {
     ArrowClockwiseIcon,
     CaretDownIcon,
@@ -19,6 +20,8 @@ import {
     Space,
     TreeSelect,
     Typography,
+    type PopoverProps,
+    type TreeSelectProps,
 } from "antd"
 import {useAtomValue} from "jotai"
 import isEqual from "lodash/isEqual"
@@ -286,6 +289,11 @@ const Filters: React.FC<Props> = ({
     reconcileFilterRows,
 }) => {
     const evaluatorPreviews = useAtomValue(evaluatorsListDataAtom)
+    // The annotation/feedback filter genuinely needs every evaluator's output
+    // schema to build its options, so activate the shared enrichment gate eagerly
+    // here (the gate keeps the per-evaluator revision fan-out from running on
+    // pages that never read this atom, e.g. the playground).
+    useEnsureEvaluatorEnrichment()
     const evaluatorFeedbackSchemas = useAtomValue(evaluatorFeedbackSchemasAtom)
 
     const annotationEvaluatorOptions = useMemo(
@@ -854,7 +862,11 @@ const Filters: React.FC<Props> = ({
             open={isFilterOpen}
             placement="bottomLeft"
             autoAdjustOverflow
-            styles={{body: {maxHeight: "70vh"}, root: {maxWidth: "100vw"}}}
+            // antd v6 dropped the `body` semantic key (now container/content), so the
+            // `body` styles are ignored at runtime — typed as-is per WP-4e-2a.
+            styles={
+                {body: {maxHeight: "70vh"}, root: {maxWidth: "100vw"}} as PopoverProps["styles"]
+            }
             destroyOnHidden
             content={
                 <section>

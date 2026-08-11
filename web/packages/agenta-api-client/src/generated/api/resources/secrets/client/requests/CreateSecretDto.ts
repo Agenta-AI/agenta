@@ -18,6 +18,7 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface CreateSecretDto {
+    slug?: string | null;
     header: AgentaApi.Header;
     secret: AgentaApi.SecretDto;
 }

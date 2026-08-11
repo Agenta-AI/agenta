@@ -8,6 +8,7 @@ import {
     type TransformVariantInput,
 } from "@agenta/entities/shared/execution"
 import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
+import {markTraceAsFresh} from "@agenta/entities/trace"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {getAgentaApiUrl} from "@agenta/shared/api/env"
 import {generateId} from "@agenta/shared/utils"
@@ -1522,6 +1523,8 @@ export const handleExecutionResultAtom = atom(
 
             // Write execution state on the assistant message
             const traceId = extractTraceIdFromPayload(testResult) ?? undefined
+            // Just-finished run: the trace may still be ingesting — keep retries aggressive.
+            if (traceId) markTraceAsFresh(traceId)
             const errorMessage =
                 lastMessage.role === "Error"
                     ? typeof lastMessage.content === "string"
@@ -1629,6 +1632,7 @@ export const handleExecutionResultAtom = atom(
 
         // Completion mode: register result
         const completionTraceId = extractTraceIdFromPayload(testResult)
+        if (completionTraceId) markTraceAsFresh(completionTraceId)
         set(completeRunAtom, {
             loadableId,
             stepId: rowId,

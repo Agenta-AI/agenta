@@ -17,6 +17,7 @@ import {
     workflowLatestRevisionIdAtomFamily,
     createLocalDraftFromWorkflowRevision,
     workflowVariantsListDataAtomFamily,
+    workflowVariantsCachedListAtomFamily,
 } from "@agenta/entities/workflow"
 import {
     createWorkflowRevisionAdapter,
@@ -27,7 +28,7 @@ import {playgroundController} from "@agenta/playground"
 import {DownOutlined} from "@ant-design/icons"
 import {Plus} from "@phosphor-icons/react"
 import {Button, Popover, Space} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {recordWidgetEventAtom} from "@/oss/lib/onboarding"
 import {selectedAppIdAtom} from "@/oss/state/app"
@@ -35,6 +36,18 @@ import {selectedAppIdAtom} from "@/oss/state/app"
 import RevisionChildTitle from "./components/RevisionChildTitle"
 import VariantGroupTitle from "./components/VariantGroupTitle"
 import {SelectVariantProps} from "./types"
+
+// Stable empty workflow-list state read in non-browse (scoped) mode. The combined
+// `workflowsListQueryStateAtom` fetches EVERY app + evaluator in the project; this
+// picker only needs it to label the trigger in BROWSE mode. On a scoped (app)
+// playground that label is null, so reading the real atom there pulls both full
+// catalogs for nothing — hold this empty instead.
+const EMPTY_WORKFLOWS_LIST_STATE_ATOM = atom({
+    data: [] as {id: string; name?: string | null}[],
+    isPending: false,
+    isError: false,
+    error: null as Error | null,
+})
 
 const SelectVariant = ({
     value,
@@ -44,6 +57,7 @@ const SelectVariant = ({
     mode = "scoped",
     customBrowseAdapter,
     style,
+    borderlessTrigger = false,
     ...props
 }: SelectVariantProps) => {
     const selectedVariants = useAtomValue(playgroundController.selectors.entityIds())
@@ -294,6 +308,18 @@ const SelectVariant = ({
     // so hooks are always called in the same order.
     const [singlePopoverOpen, setSinglePopoverOpen] = useState(false)
 
+    // Sticky latch: the variants-list query mounts only after a picker popover
+    // has been opened once; until then the trigger label peeks the cache passively.
+    const [variantsListActivated, setVariantsListActivated] = useState(false)
+    const handleSinglePopoverOpenChange = useCallback((open: boolean) => {
+        if (open) setVariantsListActivated(true)
+        setSinglePopoverOpen(open)
+    }, [])
+    const handleComparePopoverOpenChange = useCallback((open: boolean) => {
+        if (open) setVariantsListActivated(true)
+        setComparePopoverOpen(open)
+    }, [])
+
     const handleSingleSelect = useCallback(
         (result: WorkflowRevisionSelectionResult) => {
             handleSelect(result)
@@ -324,7 +350,16 @@ const SelectVariant = ({
             } | null
         )?.variant_id ??
         ""
-    const workflowVariants = useAtomValue(workflowVariantsListDataAtomFamily(selectedWorkflowId))
+    // Before first open: passive cache peek only, so this label never fires the fetch.
+    const workflowVariants = useAtomValue(
+        useMemo(
+            () =>
+                variantsListActivated
+                    ? workflowVariantsListDataAtomFamily(selectedWorkflowId)
+                    : workflowVariantsCachedListAtomFamily(selectedWorkflowId),
+            [variantsListActivated, selectedWorkflowId],
+        ),
+    )
     const selectedVariantName = useMemo(() => {
         if (!selectedVariantId) return null
         const variant = workflowVariants.find((item) => item.id === selectedVariantId)
@@ -332,8 +367,31 @@ const SelectVariant = ({
         return name && name.length > 0 ? name : null
     }, [selectedVariantId, workflowVariants])
 
-    // Look up the parent workflow name for browse mode trigger label
-    const workflowsList = useAtomValue(workflowsListQueryStateAtom)
+    // Variant slug carried on the revision body — label fallback when the
+    // variants list isn't cached yet (variant label = name, then slug).
+    const selectedVariantSlug = useMemo(() => {
+        const entity = rawWorkflowEntity as {
+            workflow_variant_slug?: string | null
+            variant_slug?: string | null
+            workflow_slug?: string | null
+            artifact_slug?: string | null
+        } | null
+        const slug = entity?.workflow_variant_slug ?? entity?.variant_slug ?? null
+        if (!slug) return null
+        const parentSlug = entity?.workflow_slug ?? entity?.artifact_slug ?? null
+        // Variant slugs are "<workflow_slug>.<variant>" — strip the prefix for display.
+        return parentSlug && slug.startsWith(`${parentSlug}.`)
+            ? slug.slice(parentSlug.length + 1)
+            : slug
+    }, [rawWorkflowEntity])
+
+    // Look up the parent workflow name for the browse-mode trigger label. Only
+    // BROWSE mode uses this (scoped mode returns null below), so gate the
+    // full-catalog read on `mode` — otherwise an app playground fetches every app
+    // + evaluator just to render this picker's trigger.
+    const workflowsList = useAtomValue(
+        mode === "browse" ? workflowsListQueryStateAtom : EMPTY_WORKFLOWS_LIST_STATE_ATOM,
+    ) as {data: {id: string; name?: string | null}[]}
     const workflowName = useMemo(() => {
         if (mode !== "browse") return null
         if (!selectedWorkflowId) return null
@@ -350,7 +408,11 @@ const SelectVariant = ({
             return selectedVariantName ?? selectedRevisionData?.name ?? "Draft"
         }
         if (selectedRevisionQuery.isPending) return "Loading..."
-        const variantName = selectedVariantName ?? selectedRevisionData?.name ?? selectPlaceholder
+        const variantName =
+            selectedVariantName ??
+            selectedRevisionData?.name ??
+            selectedVariantSlug ??
+            selectPlaceholder
         // In browse mode, keep workflow context available only when the variant
         // label cannot disambiguate on its own.
         if (
@@ -365,6 +427,7 @@ const SelectVariant = ({
     }, [
         singleSelectedValue,
         selectedVariantName,
+        selectedVariantSlug,
         selectedRevisionData,
         selectedRevisionQuery.isPending,
         selectPlaceholder,
@@ -415,7 +478,7 @@ const SelectVariant = ({
                         />
                     }
                     open={comparePopoverOpen}
-                    onOpenChange={setComparePopoverOpen}
+                    onOpenChange={handleComparePopoverOpenChange}
                     trigger="click"
                     placement="bottomRight"
                     arrow={false}
@@ -475,7 +538,7 @@ const SelectVariant = ({
     // Scoped mode (default): Popover + trigger so TreeSelectPopupContent only mounts
     // when the user clicks — prevents fetching all variants on mount.
     return (
-        <div style={style ?? {width: 120}}>
+        <div style={borderlessTrigger ? undefined : (style ?? {width: 120})}>
             <Popover
                 content={
                     <div>
@@ -488,27 +551,45 @@ const SelectVariant = ({
                                 renderParentTitle={renderParentTitle}
                                 renderChildTitle={renderChildTitle}
                                 renderSelectedLabel={renderSelectedLabel}
-                                popupMinWidth={280}
+                                width={280}
                                 maxHeight={400}
                             />
                         )}
                     </div>
                 }
                 open={singlePopoverOpen}
-                onOpenChange={setSinglePopoverOpen}
+                onOpenChange={handleSinglePopoverOpenChange}
                 trigger="click"
                 placement="bottomLeft"
                 arrow={false}
                 destroyOnHidden
                 overlayClassName="[&_.ant-popover-container]:!p-0"
             >
-                <Button
-                    size="small"
-                    className="w-full flex items-center justify-between text-left overflow-hidden"
-                >
-                    <span className="truncate text-xs">{triggerLabel}</span>
-                    <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
-                </Button>
+                {borderlessTrigger ? (
+                    // Identity-first trigger: borderless, content-width, hover-highlighted —
+                    // reads as the revision you're viewing, not a form switch.
+                    <button
+                        type="button"
+                        className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm font-medium leading-none text-[var(--ant-color-text)] hover:bg-[var(--ant-color-fill-tertiary)] border-0 bg-transparent cursor-pointer"
+                    >
+                        <span className="truncate">{triggerLabel}</span>
+                        <DownOutlined
+                            style={{
+                                fontSize: 10,
+                                flexShrink: 0,
+                                color: "var(--ant-color-text-tertiary)",
+                            }}
+                        />
+                    </button>
+                ) : (
+                    <Button
+                        size="small"
+                        className="w-full flex items-center justify-between text-left overflow-hidden"
+                    >
+                        <span className="truncate text-xs">{triggerLabel}</span>
+                        <DownOutlined style={{fontSize: 10, marginLeft: 4, flexShrink: 0}} />
+                    </Button>
+                )}
             </Popover>
         </div>
     )

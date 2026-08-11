@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {SkeletonLine} from "@agenta/ui/table"
 import {getDefaultStore, useAtomValue} from "jotai"
+import type {Atom} from "jotai"
 
 import {
     useRunRowDetails,
@@ -31,7 +32,8 @@ export const PreviewAppCellSkeleton = () => <SkeletonLine width="55%" />
 // scoped Jotai stores (e.g. EvaluationRunsTableStoreProvider) would otherwise
 // read stale defaults from the scoped store's isolated atom graph.
 const defaultStore = getDefaultStore()
-const useDefaultAtomValue: typeof useAtomValue = (atom) => useAtomValue(atom, {store: defaultStore})
+const useDefaultAtomValue = ((atom: Atom<unknown>) =>
+    useAtomValue(atom, {store: defaultStore})) as typeof useAtomValue
 
 const CELL_CLASS =
     "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap overflow-hidden text-ellipsis"

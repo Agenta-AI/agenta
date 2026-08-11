@@ -44,3 +44,8 @@ export function validateUUID(id: string, paramName: string): void {
         throw new Error(`Invalid ${paramName}: must be a valid UUID`)
     }
 }
+
+const URL_SAFE_SLUG = /^[a-zA-Z0-9_-]+$/
+
+/** Slugs go into URLs/identifiers: only letters, numbers, underscore, or dash. */
+export const isSlugInputValid = (input: string) => URL_SAFE_SLUG.test(input)

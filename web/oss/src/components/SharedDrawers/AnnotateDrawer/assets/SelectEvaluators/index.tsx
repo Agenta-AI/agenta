@@ -19,7 +19,9 @@ const SelectEvaluators = ({
 
     const filteredEvals = useMemo(
         () =>
-            evaluators?.filter((value) => value.name.toLowerCase().includes(search.toLowerCase())),
+            evaluators?.filter((value) =>
+                (value.name ?? "").toLowerCase().includes(search.toLowerCase()),
+            ),
         [search, evaluators],
     )
 
@@ -33,8 +35,12 @@ const SelectEvaluators = ({
                     const updated = [...prev, e.target.value]
                     // Sort according to evaluators order
                     return (
-                        evaluators?.map((ev) => ev.slug).filter((slug) => updated.includes(slug)) ||
-                        []
+                        evaluators
+                            ?.map((ev) => ev.slug)
+                            .filter(
+                                (slug): slug is string =>
+                                    typeof slug === "string" && updated.includes(slug),
+                            ) || []
                     )
                 })
             }
@@ -66,10 +72,10 @@ const SelectEvaluators = ({
                             value={evaluator.slug}
                             onChange={handleCheckboxChange}
                             checked={
-                                selectedEvaluators.includes(evaluator.slug) ||
-                                annEvalSlugs.includes(evaluator.slug)
+                                selectedEvaluators.includes(evaluator.slug ?? "") ||
+                                annEvalSlugs.includes(evaluator.slug ?? "")
                             }
-                            disabled={annEvalSlugs.includes(evaluator.slug)}
+                            disabled={annEvalSlugs.includes(evaluator.slug ?? "")}
                             className={clsx(
                                 "flex items-center",
                                 "[&_.ant-checkbox-label]:w-[96%]",

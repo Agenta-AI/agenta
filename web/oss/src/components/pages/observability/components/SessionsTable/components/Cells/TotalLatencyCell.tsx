@@ -1,5 +1,4 @@
 import {Skeleton} from "antd"
-import {useAtomValue} from "jotai"
 
 import {
     sessionLatencyAtomFamily,
@@ -7,10 +6,11 @@ import {
 } from "@/oss/state/newObservability/atoms/queries"
 
 import DurationCellDisplay from "../../../DurationCell"
+import {useSessionAtomValue} from "../../assets/sessionCellStore"
 
 export const TotalLatencyCell = ({sessionId}: {sessionId: string}) => {
-    const isLoading = useAtomValue(sessionsLoadingAtom)
-    const totalLatency = useAtomValue(sessionLatencyAtomFamily(sessionId))
+    const isLoading = useSessionAtomValue(sessionsLoadingAtom)
+    const totalLatency = useSessionAtomValue(sessionLatencyAtomFamily(sessionId))
 
     if (isLoading) return <Skeleton active paragraph={{rows: 0}} />
 

@@ -1,6 +1,7 @@
 from typing import List
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
+from urllib.parse import urlparse, urlunparse
 
 import re
 
@@ -18,6 +19,7 @@ from oss.src.utils.logging import get_module_logger
 
 from oss.src.services import db_manager
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     UpdateSecretDTO,
@@ -556,10 +558,25 @@ class OrganizationProvidersService:
     ) -> bool:
         """Test OIDC provider connection by fetching discovery document."""
         try:
-            discovery_url = f"{issuer_url.rstrip('/')}/.well-known/openid-configuration"
+            # SSRF guard: resolve+range-block issuer_url, then pin to the literal IP (same
+            # pattern as webhooks/handlers) so a DNS-rebind after this check can't reach it.
+            resolved_ip = resolve_validated_webhook_ip(issuer_url)
+            parsed = urlparse(issuer_url)
+            host_literal = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+            pinned_netloc = (
+                f"{host_literal}:{parsed.port}" if parsed.port else host_literal
+            )
+            pinned_issuer_url = urlunparse(parsed._replace(netloc=pinned_netloc))
+            discovery_url = (
+                f"{pinned_issuer_url.rstrip('/')}/.well-known/openid-configuration"
+            )
 
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(discovery_url)
+                response = await client.get(
+                    discovery_url,
+                    headers={"Host": parsed.hostname or ""},
+                    extensions={"sni_hostname": parsed.hostname or ""},
+                )
 
                 if response.status_code != 200:
                     return False
@@ -855,7 +872,7 @@ class OrganizationProvidersService:
     async def _get_provider_settings(
         self, organization_id: str, secret_id: str
     ) -> dict:
-        secret = await self._vault_service().get_secret(
+        secret = await self._vault_service().get_secret_by_id(
             secret_id=UUID(secret_id),
             organization_id=UUID(organization_id),
         )

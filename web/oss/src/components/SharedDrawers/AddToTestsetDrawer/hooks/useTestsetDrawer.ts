@@ -5,7 +5,7 @@ import {message} from "@agenta/ui/app-message"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import yaml from "js-yaml"
 
-import {getYamlOrJson} from "@/oss/lib/helpers/utils"
+import {getYamlOrJson} from "@/oss/lib/helpers/yamlFormat"
 import {currentColumnsAtom} from "@/oss/state/entities/testcase/columnState"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -99,10 +99,10 @@ export interface UseTestsetDrawerResult {
     onSaveEditedTrace: (value?: string) => void
     onRevertEditedTrace: () => void
     customSelectOptions: (divider?: boolean) => any[]
-    renderSelectedRevisionLabel: (labels: string[], selectedOptions?: any[]) => string
+    renderSelectedRevisionLabel: (labels: string[], selectedOptions?: any[]) => React.ReactNode
 
     // Refs
-    elemRef: React.RefObject<HTMLDivElement>
+    elemRef: React.RefObject<HTMLDivElement | null>
 }
 
 export function useTestsetDrawer(): UseTestsetDrawerResult {

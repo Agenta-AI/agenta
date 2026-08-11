@@ -4,6 +4,10 @@ from uuid import UUID
 
 from agenta.sdk.evaluations.runtime.executor import EvaluationTaskRunner
 
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 
 class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
     """API adapter from generic evaluation dispatch to Taskiq tasks."""
@@ -33,7 +37,8 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         if oldest is not None:
             kwargs["oldest"] = oldest
 
-        return await self.worker.process_run_from_source.kiq(**kwargs)
+        result = await self.worker.process_run_from_source.kiq(**kwargs)
+        return result
 
     async def process_run_from_batch(
         self,
@@ -65,7 +70,8 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         if input_step_key is not None:
             kwargs["input_step_key"] = input_step_key
 
-        return await self.worker.process_run_from_batch.kiq(**kwargs)
+        result = await self.worker.process_run_from_batch.kiq(**kwargs)
+        return result
 
     async def process_rerun(
         self,
@@ -101,4 +107,5 @@ class TaskiqEvaluationTaskRunner(EvaluationTaskRunner):
         if overwrite:
             kwargs["overwrite"] = overwrite
 
-        return await self.worker.process_rerun.kiq(**kwargs)
+        result = await self.worker.process_rerun.kiq(**kwargs)
+        return result

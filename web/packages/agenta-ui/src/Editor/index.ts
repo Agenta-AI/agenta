@@ -40,6 +40,14 @@ export {preloadEditorPlugins} from "./plugins"
 // DiffView component
 export {default as DiffView} from "./DiffView"
 
+// Diff utilities (text/JSON line diff engine)
+export {
+    computeDiff,
+    computeTextDiffLines,
+    type DiffLine,
+    type ExtendedDiffLine,
+} from "./utils/diffUtils"
+
 // Types
 export type {EditorProps, EditorPluginsProps, EditorContextType, EditorProviderProps} from "./types"
 
@@ -55,6 +63,7 @@ export {
     ON_CHANGE_LANGUAGE,
     PropertyClickPlugin,
 } from "./plugins/code"
+export type {CodeLanguage} from "./plugins/code/types"
 export {$getEditorCodeAsString, constructJsonFromSchema} from "./plugins/code/utils/editorCodeUtils"
 export {$isCodeBlockNode, $createCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 export {$createCodeLineNode} from "./plugins/code/nodes/CodeLineNode"
@@ -109,3 +118,5 @@ export type {
     TokenPathSuggestionsGetter,
     TokenPathSuggestionsProviderProps,
 } from "./plugins/token/TokenPathSuggestionsContext"
+
+export {MarkdownToolbar, type MarkdownToolbarProps} from "./MarkdownToolbar"

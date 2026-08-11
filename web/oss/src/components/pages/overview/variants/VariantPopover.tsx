@@ -1,11 +1,10 @@
 import type {AppEnvironmentDeployment} from "@agenta/entities/environment"
 import {useUserDisplayName} from "@agenta/entities/shared/user"
 import type {Workflow} from "@agenta/entities/workflow"
-import {VariantNameCell} from "@agenta/entity-ui/variant"
+import {statusMap, VariantNameCell} from "@agenta/entity-ui/variant"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
 
-import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 
@@ -46,7 +45,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                             icon={<ArrowSquareOut size={14} />}
                             className="flex items-center justify-center"
                             onClick={() => {
-                                goToPlayground(env.deployedRevisionId)
+                                goToPlayground(env.deployedRevisionId ?? undefined)
                             }}
                         />
                     </Flex>

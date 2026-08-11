@@ -6,6 +6,12 @@ useDefault = true
 
 [allowlist]
 paths = [
+  # ------------------------------------------------------- QA RUN RECORDS
+  # Gate-run and benchmark result files carry deliberate high-entropy MARKER
+  # strings (QA-CWD-*, QA-APPROVE-*) that the release-gate cells write and read
+  # back to prove storage round trips. They are test artifacts, not credentials.
+  '''^\.agents/skills/agent-release-gate/resources/qa-gate-runs/.*''',
+  '''^benchmarks/agent-config-editing/results/.*''',
   # ---------------------------------------------------------------- PUBLIC DOCS
   '''^website/docs/reference/api/.*\.mdx''',
   '''^core/docs/docs/reference/api/.*\.mdx''',
@@ -18,6 +24,13 @@ paths = [
   '''^.*/\.next/.*''',
   # -------------------------------------------------------------- ALL ENV FILES
   '''^.*\.env.*$''',
+  # -------------------------------------------------- LOCAL-DEV STORE FALLBACK KEY
+  # webidentity.py ships a hardcoded RSA key used ONLY as the local-dev fallback for
+  # signing the object-store's web-identity token (production setups must set
+  # AGENTA_STORE_JWT_PRIVATE_KEY or must not use it).
+  # IT IS NOT A REAL SECRET — it only signs throwaway dev store creds.
+  # See the comment there.
+  '''^api/oss/src/core/store/webidentity\.py$''',
   # ----------------------------------------------------------------------------
 ]
 regexes = [
@@ -26,12 +39,19 @@ regexes = [
   '''is_valid=true''',
   '''YOUR_API_KEY''',
   '''_SECRET_KEY''',
+  # Fake token in the runner's redaction test — the test asserts this marker never
+  # reaches the transcript. Named to be obviously synthetic; not a credential.
+  '''marker-live-secret-42bd''',
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG
   '''phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp''',  # POSTHOG
   '''phc_qH8GezjMAeToR9ygdsnTH0C9c2njhO7CFqf66pTUX7H''',  # POSTHOG
   '''18ab633e81d706cbda7c78d25d0fe763''',                 # ALGOLIA
+  # ------------------------------------------------- LOCAL-DEV STORE SIGNING KEY
+  # Dummy SeaweedFS STS signing key shown (commented) as a format hint in the dev
+  # env examples. Decodes to "this-is-a-signing-key-for-mounts" — not a real secret.
+  '''dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=''',
   # ----------------------------------------------------------------------------
 ]
 

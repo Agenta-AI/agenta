@@ -1,14 +1,19 @@
 import {useCallback, useMemo} from "react"
 
-import {getDefaultStore, useSetAtom} from "jotai"
+import {getDefaultStore, useSetAtom, type Atom} from "jotai"
 import {useRouter} from "next/router"
 import Session, {signOut} from "supertokens-auth-react/recipe/session"
 import {useLocalStorage} from "usehooks-ts"
 
+import {writeLastAuthMethod} from "@/oss/components/pages/auth/assets/lastAuthMethod"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import {filterOrgsByAuthMethod} from "@/oss/lib/helpers/authMethodFilter"
 import {isEE} from "@/oss/lib/helpers/isEE"
-import {isNewUserAtom, onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
+import {
+    isNewUserAtom,
+    navSimplifiedDefaultAtom,
+    onboardingStorageUserIdAtom,
+} from "@/oss/lib/onboarding/atoms"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
 import {fetchAllOrgsList} from "@/oss/services/organization/api"
 import {orgsAtom, useOrgData} from "@/oss/state/org"
@@ -38,6 +43,9 @@ interface AuthUserLike {
 
 interface HandleAuthSuccessOptions {
     isInvitedUser?: boolean
+    // Remembered for the returning ("Welcome back") sign-in state: "email" for
+    // email-based flows, otherwise the OIDC provider id.
+    authMethod?: string
 }
 
 const usePostAuthRedirect = () => {
@@ -50,6 +58,7 @@ const usePostAuthRedirect = () => {
     const authUpgradeOrgKey = "authUpgradeOrgId"
     const lastSsoOrgSlugKey = "lastSsoOrgSlug"
     const setIsNewUser = useSetAtom(isNewUserAtom)
+    const setNavSimplifiedDefault = useSetAtom(navSimplifiedDefaultAtom)
     const setOnboardingStorageUserId = useSetAtom(onboardingStorageUserIdAtom)
 
     const hasInviteFromQuery = useMemo(() => {
@@ -77,6 +86,9 @@ const usePostAuthRedirect = () => {
         async (authResult: AuthUserLike, options?: HandleAuthSuccessOptions) => {
             // Auth completed successfully; resume normal data fetching.
             setAuthFlow("authed")
+            if (options?.authMethod) {
+                writeLastAuthMethod(options.authMethod)
+            }
             const isInvitedUser = options?.isInvitedUser ?? derivedIsInvitedUser
 
             // Read is_new_user from session payload (set by backend overrides)
@@ -121,19 +133,26 @@ const usePostAuthRedirect = () => {
                 if (isInvitedUser) {
                     console.log("[post-auth] redirect invited new user -> /workspaces/accept")
                     await router.push("/workspaces/accept?survey=true")
+                    return
                 } else if (isEE()) {
                     console.log("[post-auth] redirect new EE user -> /post-signup")
                     writePostSignupPending()
                     await resetAuthState()
                     setIsNewUser(true)
+                    setNavSimplifiedDefault(true)
                     await router.push("/post-signup")
+                    return
                 } else {
-                    console.log("[post-auth] redirect new OSS user -> /get-started")
+                    // New OSS users no longer land on the removed /get-started page.
+                    // Fall through to the same resolved-path logic returning users get
+                    // (below), landing them on /apps like everyone else.
+                    console.log(
+                        "[post-auth] new OSS user -> falling through to resolved post-login path",
+                    )
                     await resetAuthState()
                     setIsNewUser(true)
-                    await router.push("/get-started")
+                    setNavSimplifiedDefault(true)
                 }
-                return
             }
 
             if (isInvitedUser) {

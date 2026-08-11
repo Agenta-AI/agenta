@@ -63,14 +63,16 @@ const SessionHeader = () => {
                 </TooltipWithCopyAction>
             </div>
 
-            <Button
-                size="small"
-                type={!isAnnotationVisible ? "primary" : "default"}
-                icon={<SidebarSimple size={14} />}
-                onClick={() => setIsAnnotationVisible(!isAnnotationVisible)}
-            >
-                {!isAnnotationVisible ? "Show" : "Hide"} annotations
-            </Button>
+            <div className="flex items-center gap-2">
+                <Button
+                    size="small"
+                    type={!isAnnotationVisible ? "primary" : "default"}
+                    icon={<SidebarSimple size={14} />}
+                    onClick={() => setIsAnnotationVisible(!isAnnotationVisible)}
+                >
+                    {!isAnnotationVisible ? "Show" : "Hide"} annotations
+                </Button>
+            </div>
         </div>
     )
 }

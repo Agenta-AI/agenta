@@ -4,6 +4,7 @@ import {useNextStep} from "@agentaai/nextstepjs"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {TriggerTourOptions} from "@/oss/lib/onboarding"
+import {ONBOARDING_TOURS_ENABLED} from "@/oss/lib/onboarding"
 import {activeTourIdAtom, isNewUserAtom, seenToursAtom, tourRegistry} from "@/oss/lib/onboarding"
 
 import {useTourReducer} from "./useTourReducer"
@@ -38,7 +39,7 @@ interface UseOnboardingTourReturn {
  * Hook to trigger and manage onboarding tours
  * Refactored to use reducer pattern for better state management
  */
-export function useOnboardingTour({
+function useOnboardingTourEnabled({
     tourId,
     autoStart = false,
     autoStartCondition = true,
@@ -130,5 +131,27 @@ export function useOnboardingTour({
         canAutoStart,
     }
 }
+
+/**
+ * No-op tour hook used when ONBOARDING_TOURS_ENABLED is false. Does not call any
+ * nextstepjs hooks, so it works with no NextStepProvider in the tree.
+ */
+function useOnboardingTourDisabled(_options: UseOnboardingTourOptions): UseOnboardingTourReturn {
+    const startTour = useCallback(() => {}, [])
+
+    return {
+        startTour,
+        isActive: false,
+        hasBeenSeen: false,
+        canAutoStart: false,
+    }
+}
+
+// Selected once at module load based on a constant that never changes at runtime, so
+// this does not violate the rules of hooks (every render of a given component instance
+// calls the same underlying hook).
+export const useOnboardingTour = ONBOARDING_TOURS_ENABLED
+    ? useOnboardingTourEnabled
+    : useOnboardingTourDisabled
 
 export default useOnboardingTour

@@ -75,6 +75,18 @@ export interface ChatTurnAssistantActionsProps {
 }
 
 /**
+ * Props for the AgentGenerationPanel component.
+ *
+ * The agent-chat surface (composer + streamed conversation + tool cards) lives
+ * in `web/oss` and is injected here because `@agenta/playground-ui` cannot import
+ * from the app layer. The package's `ExecutionItems` third arm renders this slot
+ * for agent-type entities; when the slot is absent it renders nothing (no-op).
+ */
+export interface AgentGenerationPanelProps {
+    entityId: string
+}
+
+/**
  * Payload returned when testset data is selected
  */
 export interface LoadTestsetSelectionPayload {
@@ -159,6 +171,12 @@ export interface PlaygroundUIProviders {
 
     /** Optional assistant footer actions for chat turns (e.g. gateway tool execution) */
     ChatTurnAssistantActions?: ComponentType<ChatTurnAssistantActionsProps>
+
+    /**
+     * Agent-chat surface for agent-type entities (the third generation arm).
+     * Supplied by OSS; absent slot renders nothing (no-op fallback).
+     */
+    AgentGenerationPanel?: ComponentType<AgentGenerationPanelProps>
 
     /** CommitVariantChangesButton for saving variants */
     CommitVariantChangesButton: ComponentType<CommitVariantChangesButtonProps>

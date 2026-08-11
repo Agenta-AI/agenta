@@ -13,10 +13,7 @@ import type {
 
 const initialParsedLocation = createInitialParsedLocation()
 
-const initialSnapshot: AppStateSnapshot = {
-    ...initialParsedLocation,
-    timestamp: Date.now(),
-}
+const initialSnapshot: AppStateSnapshot = initialParsedLocation
 
 // Eagerly initialize projectIdAtom and sessionAtom from the URL-parsed initial
 // location. Both entity-package queries and oss queries gate on these atoms,
@@ -49,10 +46,7 @@ if (initialParsedLocation.projectId) {
 export const appStateSnapshotAtom = atom<AppStateSnapshot>(initialSnapshot)
 
 export const setLocationAtom = atom(null, (_get, set, location: ParsedAppLocation) => {
-    set(appStateSnapshotAtom, {
-        ...location,
-        timestamp: Date.now(),
-    })
+    set(appStateSnapshotAtom, location)
     // Sync projectId to shared atom so entity packages can read it
     set(setSharedProjectIdAtom, location.projectId ?? null)
     // Keep sessionAtom in sync only on a true project route (path-param
@@ -75,6 +69,9 @@ export const appIdentifiersAtom = atom<AppIdentifiers>((get) => {
 })
 
 export const routeLayerAtom = atom<RouteLayer>((get) => get(appStateSnapshotAtom).routeLayer)
+
+// String-valued route selector: subscribers re-render only when asPath changes
+export const appAsPathAtom = atom<string>((get) => get(appStateSnapshotAtom).asPath)
 
 export const navigationRequestAtom = atom<NavigationCommand | null>(null)
 

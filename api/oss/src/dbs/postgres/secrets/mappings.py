@@ -20,6 +20,7 @@ def map_secrets_dto_to_dbe(
     secret_dto: CreateSecretDTO,
 ) -> SecretsDBE:
     vault_secret_dbe = SecretsDBE(
+        slug=secret_dto.slug,
         name=secret_dto.header.name if secret_dto.header else None,
         description=(secret_dto.header.description if secret_dto.header else None),
         project_id=project_id,
@@ -58,6 +59,7 @@ def map_secrets_dto_to_dbe_update(
 def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
     vault_secret_dto = SecretResponseDTO(
         id=secrets_dbe.id,  # type: ignore
+        slug=secrets_dbe.slug,
         kind=SecretKind(secrets_dbe.kind).value,
         data=json.loads(secrets_dbe.data),  # type: ignore
         header=Header(name=secrets_dbe.name, description=secrets_dbe.description),

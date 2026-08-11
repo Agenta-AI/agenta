@@ -14,6 +14,10 @@ import {
 import {flushSync} from "react-dom"
 
 import type {Org} from "@/oss/lib/Types"
+import {
+    buildPostLoginPathResolved,
+    waitForWorkspaceContext,
+} from "@/oss/state/url/postLoginRedirect"
 
 import PostSignupHeader from "./PostSignupHeader"
 import PostSignupSubmitting from "./PostSignupSubmitting"
@@ -36,31 +40,37 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 const calculateICP = (
     companySize?: string,
     userRole?: string,
-    userExperience?: string,
+    agentExperience?: string,
 ): boolean => {
-    if (!companySize || !userRole || !userExperience) {
+    if (!companySize || !userRole || !agentExperience) {
         return false
     }
 
     const isTargetCompanySize = ["11-50", "51-200", "201+"].includes(companySize)
-    const isNotHobbyist = userRole !== "Hobbyist"
-    const isNotJustExploring = userExperience !== "Just exploring"
+    const isNotHobbyist = userRole !== "Hobbyist — personal projects"
+    const isNotJustExploring = agentExperience !== "Not yet — just exploring"
 
     return isTargetCompanySize && isNotHobbyist && isNotJustExploring
 }
 
-const convertInterestsToBinaryProperties = (
-    interests?: string | string[],
-): Record<string, boolean> => {
-    const safeInterests = Array.isArray(interests) ? interests : interests ? [interests] : []
+// Exact PostHog choice strings -> $set boolean property names.
+const INTENT_TO_PROPERTY: Record<string, string> = {
+    "Build AI agents": "intent_agents",
+    "Automate workflows for my team": "intent_automation",
+    "Evaluate and test LLM apps or agents": "intent_evaluation",
+    "Manage and version prompts": "intent_prompt_management",
+    "Monitor and trace in production": "intent_observability",
+}
 
-    return {
-        interest_evaluation: safeInterests.includes("Evaluating LLM Applications"),
-        interest_no_code: safeInterests.includes("No-code LLM application building"),
-        interest_prompt_management: safeInterests.includes("Prompt management and versioning"),
-        interest_prompt_engineering: safeInterests.includes("Prompt engineering"),
-        interest_observability: safeInterests.includes("Observability, tracing and monitoring"),
-    }
+const convertIntentsToBinaryProperties = (intents?: string | string[]): Record<string, boolean> => {
+    const safeIntents = Array.isArray(intents) ? intents : intents ? [intents] : []
+
+    return Object.fromEntries(
+        Object.entries(INTENT_TO_PROPERTY).map(([label, property]) => [
+            property,
+            safeIntents.includes(label),
+        ]),
+    )
 }
 
 const QUESTIONS_PER_PAGE = 3
@@ -71,19 +81,48 @@ type AnySurveyQuestion = SurveyQuestion & {
     originalQuestionIndex?: number
 }
 
+// Semantic role a survey question plays, independent of its position or id.
+type QuestionKind = "companySize" | "role" | "experience" | "intent" | "referral" | "email"
+
 interface QuestionMeta {
     question: AnySurveyQuestion
     index: number
-    originalIndex: number
+    kind?: QuestionKind
 }
 
-const isEmailQuestion = (question: AnySurveyQuestion, originalIndex: number): boolean => {
-    if (originalIndex === 5) return true
-    return (
-        question.type === SurveyQuestionType.Open &&
-        question.question.toLowerCase().includes("email")
-    )
+// Known question ids from the "Signup 3 - Agents" PostHog survey. Primary
+// resolution path; survives copy edits to the question text.
+const QUESTION_KIND_BY_ID: Record<string, QuestionKind> = {
+    "3b4ac88c-7530-46f1-b54a-c42bf6aca67a": "companySize",
+    "d71aec24-7e9b-4d89-9cd7-c8f366693367": "role",
+    "789e5248-429f-4ba7-9993-e93ac8ad56a1": "experience",
+    "5f1e7a56-2ceb-41ea-8973-6bbe8050f206": "intent",
+    "e15a61d7-15b2-4ddd-9efd-b2e154005675": "referral",
+    "d6c2d8aa-d624-4736-a71b-25fe0b74d0e9": "email",
 }
+
+// Fallback when the survey is edited/recreated in PostHog and ids shift.
+const QUESTION_KIND_KEYWORD_MATCHERS: {
+    kind: QuestionKind
+    matches: (question: AnySurveyQuestion) => boolean
+}[] = [
+    {kind: "companySize", matches: (q) => /size of your company/i.test(q.question)},
+    {kind: "role", matches: (q) => /best describes you/i.test(q.question)},
+    {
+        kind: "experience",
+        matches: (q) => /built ai agents|automations before/i.test(q.question),
+    },
+    {kind: "intent", matches: (q) => /want to do with agenta/i.test(q.question)},
+    {kind: "referral", matches: (q) => /hear about us/i.test(q.question)},
+    {
+        kind: "email",
+        matches: (q) => q.type === SurveyQuestionType.Open && /email/i.test(q.question),
+    },
+]
+
+const resolveQuestionKind = (question: AnySurveyQuestion): QuestionKind | undefined =>
+    (question.id ? QUESTION_KIND_BY_ID[question.id] : undefined) ??
+    QUESTION_KIND_KEYWORD_MATCHERS.find(({matches}) => matches(question))?.kind
 
 interface PostSignupFormProps {
     survey: Survey
@@ -107,25 +146,18 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
     const allQuestions: QuestionMeta[] = useMemo(() => {
         if (!survey.questions) return []
-        return survey.questions.map(
-            (q: SurveyQuestion & {originalQuestionIndex?: number}, index) => {
-                const originalIndex =
-                    typeof q.originalQuestionIndex === "number" ? q.originalQuestionIndex : index
-
-                return {
-                    question: q as AnySurveyQuestion,
-                    index,
-                    originalIndex,
-                }
-            },
-        )
+        return survey.questions.map((q: SurveyQuestion, index) => {
+            const question = q as AnySurveyQuestion
+            return {
+                question,
+                index,
+                kind: resolveQuestionKind(question),
+            }
+        })
     }, [survey.questions])
 
     const visibleQuestions: QuestionMeta[] = useMemo(
-        () =>
-            allQuestions.filter(
-                ({question, originalIndex}) => !isEmailQuestion(question, originalIndex),
-            ),
+        () => allQuestions.filter(({kind}) => kind !== "email"),
         [allQuestions],
     )
 
@@ -146,7 +178,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
             // one animation frame so the browser actually paints it before
             // we trigger navigation. Without flushSync + rAF, React 18
             // batches this state update with the rest of this task and the
-            // prefetched /get-started route swaps in before the new render
+            // prefetched post-login route swaps in before the new render
             // ever reaches the screen — the user just sees the half-torn-
             // down form right up until the new page replaces it.
             flushSync(() => {
@@ -161,7 +193,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                 const responses: Record<string, unknown> = {}
                 const personProperties: Record<string, any> = {}
 
-                allQuestions.forEach(({question, index, originalIndex}) => {
+                allQuestions.forEach(({question, index, kind}) => {
                     const key = `$survey_response_${question.id}`
                     const fieldName = `question_${index}`
                     let answer = allValues[fieldName]
@@ -182,7 +214,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     // The email question is filtered from the rendered form; we
                     // backfill it from the user's profile on submit so PostHog
                     // still receives a response for that question id.
-                    if (isEmailQuestion(question, originalIndex)) {
+                    if (kind === "email") {
                         responses[key] = user.email
                         return
                     }
@@ -191,24 +223,34 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                         responses[key] = answer
                     }
 
-                    // Map to legacy person properties for ICP calculation
-                    if (originalIndex === 0) {
-                        personProperties.company_size_v1 = Array.isArray(answer)
-                            ? answer[0]
-                            : answer
-                    } else if (originalIndex === 1) {
-                        personProperties.user_role_v1 = answer
-                    } else if (originalIndex === 2) {
-                        personProperties.user_experience_v1 = answer
-                    } else if (originalIndex === 3) {
-                        Object.assign(personProperties, convertInterestsToBinaryProperties(answer))
+                    switch (kind) {
+                        case "companySize":
+                            personProperties.company_size_v2 = Array.isArray(answer)
+                                ? answer[0]
+                                : answer
+                            break
+                        case "role":
+                            personProperties.user_role_v2 = answer
+                            break
+                        case "experience":
+                            personProperties.agent_experience_v2 = answer
+                            break
+                        case "intent":
+                            Object.assign(
+                                personProperties,
+                                convertIntentsToBinaryProperties(answer),
+                            )
+                            break
+                        case "referral":
+                            personProperties.referral_source_v2 = answer
+                            break
                     }
                 })
 
-                personProperties.is_icp_v1 = calculateICP(
-                    personProperties.company_size_v1,
-                    personProperties.user_role_v1,
-                    personProperties.user_experience_v1,
+                personProperties.is_icp_v2 = calculateICP(
+                    personProperties.company_size_v2,
+                    personProperties.user_role_v2,
+                    personProperties.agent_experience_v2,
                 )
 
                 posthog.capture("survey sent", {
@@ -225,9 +267,11 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                 // Awaited so a rejected navigation can't leave the user stuck on
                 // the "Setting up your workspace" view forever. On failure we
                 // drop back to the form so they can try again.
-                await router.push("/get-started")
+                const context = await waitForWorkspaceContext({requireProjectId: false})
+                const nextPath = await buildPostLoginPathResolved(context)
+                await router.push(nextPath)
             } catch (navError) {
-                console.error("Failed to navigate to /get-started:", navError)
+                console.error("Failed to navigate to the post-login path:", navError)
                 setIsSubmitting(false)
             }
         },
@@ -261,7 +305,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
     }, [allQuestions])
 
     const renderQuestion = (meta: QuestionMeta) => {
-        const {question, index, originalIndex} = meta
+        const {question, index, kind} = meta
         const fieldName = `question_${index}`
         const choices = questionChoices[index] || []
         const isMultiple = question.type === SurveyQuestionType.MultipleChoice
@@ -273,7 +317,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
             : currentValue === "Other"
 
         // Special rendering for the "Company Size" question
-        if (originalIndex === 0) {
+        if (kind === "companySize") {
             return (
                 <div key={question.id}>
                     <Form.Item

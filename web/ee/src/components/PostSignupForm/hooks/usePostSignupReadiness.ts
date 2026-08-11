@@ -11,18 +11,13 @@ import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 
 /**
- * Reasons we can never proceed with the survey on this page render.
- * These trigger a redirect to /get-started.
+ * Reasons we cannot proceed with the survey on this page render — permanent
+ * (no key, survey gone) or transient (SDK blocked, fetch error, stall). All of
+ * them trigger the same silent redirect to the resolved post-login path.
  */
 export type PostSignupSkipReason =
     | "tracking-not-configured" // No PostHog API key → survey is not possible at all.
-    | "survey-not-found" // PostHog returned no survey matching "Signup 2" (deleted/renamed/inactive).
-
-/**
- * Reasons we hit a transient failure. The user sees a small error UI with a
- * "Continue" button so the failure is visible (not a silent skip).
- */
-export type PostSignupFallbackReason =
+    | "survey-not-found" // PostHog returned no survey matching "Signup 3 - Agents" (deleted/renamed/inactive).
     | "posthog-load-failed" // The SDK script didn't load or failed to initialize.
     | "survey-fetch-error" // /api/surveys/ timed out or errored.
     | "watchdog-timeout" // Overall readiness budget exceeded — something stalled silently.
@@ -37,37 +32,27 @@ export type PostSignupReadiness =
           posthog: PostHog
       }
     | {status: "skip"; reason: PostSignupSkipReason}
-    | {status: "fallback"; reason: PostSignupFallbackReason}
 
-const SURVEY_NAME = "Signup 2"
+const SURVEY_NAME = "Signup 3 - Agents"
 
-// Hard cap on how long the gate is allowed to stay in `loading`. The internal
-// timeouts in useSurvey already surface posthog/survey failures within 6s each,
-// so this is a backstop for anything outside the survey hook — e.g., a profile
-// query that never resolves, a user that comes back null, or any other state we
-// didn't predict. 10s is long enough that real fetches finish comfortably but
-// short enough that the user isn't staring at a spinner.
-const READINESS_WATCHDOG_MS = 10_000
+// Hard cap on how long the gate is allowed to stay in `loading` before we skip
+// the survey and send the user onward. Deliberately shorter than useSurvey's
+// internal 6s timeouts: a new user should never wait more than ~3s on a
+// questionnaire we can live without.
+const READINESS_WATCHDOG_MS = 3_000
 
-const skipFromSurveyError = (error: SurveyError): PostSignupSkipReason | null => {
+const skipFromSurveyError = (error: SurveyError): PostSignupSkipReason => {
     switch (error.code) {
         case "posthog-not-configured":
             return "tracking-not-configured"
         case "survey-unavailable":
             return "survey-not-found"
-        default:
-            return null
-    }
-}
-
-const fallbackFromSurveyError = (error: SurveyError): PostSignupFallbackReason | null => {
-    switch (error.code) {
         case "posthog-unavailable":
             return "posthog-load-failed"
         case "survey-fetch-error":
             return "survey-fetch-error"
         default:
-            return null
+            return "survey-fetch-error"
     }
 }
 
@@ -81,7 +66,7 @@ const fallbackFromSurveyError = (error: SurveyError): PostSignupFallbackReason |
  * own timeouts, but anything outside it (profile query, org query, anything
  * future we add to the dependency list) is still subject to this single
  * upper-bound. If we ever spend more than READINESS_WATCHDOG_MS in `loading`,
- * we fall through to fallback so the user can keep moving.
+ * we skip the survey so the user can keep moving.
  */
 export const usePostSignupReadiness = (): PostSignupReadiness => {
     const posthog = usePostHogAg()
@@ -122,15 +107,11 @@ export const usePostSignupReadiness = (): PostSignupReadiness => {
     }, [isReady, surveyError, watchdogFired])
 
     if (surveyError) {
-        const skip = skipFromSurveyError(surveyError)
-        if (skip) return {status: "skip", reason: skip}
-        const fallback = fallbackFromSurveyError(surveyError)
-        if (fallback) return {status: "fallback", reason: fallback}
-        return {status: "fallback", reason: "survey-fetch-error"}
+        return {status: "skip", reason: skipFromSurveyError(surveyError)}
     }
 
     if (watchdogFired) {
-        return {status: "fallback", reason: "watchdog-timeout"}
+        return {status: "skip", reason: "watchdog-timeout"}
     }
 
     if (isStillLoading) {
@@ -140,7 +121,7 @@ export const usePostSignupReadiness = (): PostSignupReadiness => {
     // TypeScript narrowing: isStillLoading guarantees these are non-null, but the
     // compiler can't see that across the closure, so reassert.
     if (!posthog || !user || !survey) {
-        return {status: "fallback", reason: "watchdog-timeout"}
+        return {status: "skip", reason: "watchdog-timeout"}
     }
 
     return {

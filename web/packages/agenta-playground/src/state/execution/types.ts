@@ -280,6 +280,8 @@ export interface ExecutionState {
     stepIds: string[]
     /** Results keyed by "${stepId}:${sessionId}" */
     resultsByKey: Record<string, RunResult>
+    /** Backend session_id (runner-minted, read back from the first run) keyed by panel session id. */
+    backendSessionIdBySession: Record<string, string>
 }
 
 /**
@@ -293,6 +295,7 @@ export function createInitialExecutionState(): ExecutionState {
         stepsById: {},
         stepIds: [],
         resultsByKey: {},
+        backendSessionIdBySession: {},
     }
 }
 

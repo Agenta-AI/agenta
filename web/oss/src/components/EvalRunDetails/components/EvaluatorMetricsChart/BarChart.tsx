@@ -7,10 +7,10 @@ import {
     BarChart as RechartsBarChart,
     ResponsiveContainer,
     Tooltip,
-    TooltipProps,
     XAxis,
     YAxis,
 } from "recharts"
+import type {TooltipContentProps} from "recharts"
 
 type ChartDatum = Record<string, string | number | boolean | undefined>
 
@@ -20,7 +20,7 @@ interface BarChartProps {
     yKey: string
     colorKey?: string
     yDomain?: [number | "auto" | "dataMin", number | "auto" | "dataMax"]
-    xAxisProps?: Partial<React.ComponentProps<typeof XAxis>>
+    xAxisProps?: Partial<React.ComponentProps<typeof XAxis>> & {tickWidth?: number}
     yAxisProps?: Partial<React.ComponentProps<typeof YAxis>>
     cartesianGridProps?: Partial<React.ComponentProps<typeof CartesianGrid>>
     chartProps?: Partial<React.ComponentProps<typeof RechartsBarChart>>
@@ -102,8 +102,8 @@ const BarChart = ({
                     interval={xAxisInterval ?? 0}
                     tick={({x, y, payload}) => (
                         <foreignObject
-                            x={x - xAxisTickWidth / 2}
-                            y={y - 2}
+                            x={Number(x) - xAxisTickWidth / 2}
+                            y={Number(y) - 2}
                             width={xAxisTickWidth}
                             height={20}
                         >
@@ -143,7 +143,7 @@ const BarChart = ({
                 {tooltipLabel ? (
                     <Tooltip
                         cursor={false}
-                        content={({active, payload, label}: TooltipProps<number, string>) => {
+                        content={({active, payload, label}: TooltipContentProps) => {
                             if (!active || !payload?.length) return null
                             const rows = payload.filter((p) => p?.value != null)
                             if (!rows.length) return null

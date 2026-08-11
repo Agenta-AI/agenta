@@ -25,6 +25,39 @@ export function stripAgentaMetadataDeep<T = unknown>(value: T): T {
 }
 
 /**
+ * Recursively drop object keys whose value is an empty array or empty plain object, so a
+ * present-but-empty collection compares equal to an absent one.
+ *
+ * Applied symmetrically to both sides of a config diff (dirty-detection, commit diff), this only
+ * removes false-positive differences — e.g. adding then removing a tool/skill/mcp leaves
+ * `skills: []` where the committed baseline had no `skills` key. It can never hide a real change:
+ * a non-empty collection is never stripped, so any side that still holds content stays different
+ * from an empty/absent one. Array *elements* are preserved (only keys are dropped), so list order
+ * and length are untouched.
+ */
+export function stripEmptyCollectionsDeep<T = unknown>(value: T): T {
+    if (Array.isArray(value)) {
+        return value.map(stripEmptyCollectionsDeep) as T
+    }
+    if (value && typeof value === "object") {
+        const out: Record<string, unknown> = {}
+        for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+            const cleaned = stripEmptyCollectionsDeep(val)
+            const isEmptyArray = Array.isArray(cleaned) && cleaned.length === 0
+            const isEmptyObject =
+                !!cleaned &&
+                typeof cleaned === "object" &&
+                !Array.isArray(cleaned) &&
+                Object.keys(cleaned as Record<string, unknown>).length === 0
+            if (isEmptyArray || isEmptyObject) continue
+            out[key] = cleaned
+        }
+        return out as T
+    }
+    return value
+}
+
+/**
  * Recursively strip enhanced value wrappers (__id, __metadata) from objects
  * and unwrap {value: X} patterns where the object is a simple value wrapper.
  *

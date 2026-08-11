@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from oss.src.middlewares.auth import sign_secret_token
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.context import get_auth_context, get_auth_scope
@@ -120,6 +121,7 @@ class AccessRouter:
 
     async def check_permissions(
         self,
+        request: Request,
         action: Optional[str] = Query(None),
         scope_type: Optional[str] = Query(None),
         scope_id: Optional[UUID] = Query(None),
@@ -129,7 +131,19 @@ class AccessRouter:
         ctx = get_auth_context()
         project_id = str(ctx.scope.project_id)
         user_id = str(ctx.scope.user_id)
-        credentials_header = ctx.credentials.header()[1]
+
+        # Always re-mint a fresh ephemeral Secret token (same scope, new expiry) so the
+        # returned credential is uniformly short-lived and renewable — never echoing an
+        # ApiKey/Bearer. Callers (services, the runner) re-check periodically to refresh.
+        secret_token = await sign_secret_token(
+            user_id=user_id,
+            user_email=getattr(request.state, "user_email", None),
+            project_id=project_id,
+            workspace_id=str(ctx.scope.workspace_id),
+            organization_id=str(ctx.scope.organization_id),
+            organization_name=getattr(request.state, "organization_name", None),
+        )
+        credentials_header = f"Secret {secret_token}"
 
         cache_key = {
             "action": action,

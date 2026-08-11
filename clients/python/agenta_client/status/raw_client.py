@@ -45,6 +45,40 @@ class RawStatusClient:
         except JSONDecodeError:
             raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
         raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    def store_jwks(self, *, request_options: typing.Optional[RequestOptions] = None) -> HttpResponse[typing.Any]:
+        """
+        Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        HttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = self._client_wrapper.httpx_client.request(
+            ".well-known/jwks.json",method="GET",
+            request_options=request_options,)
+        try:
+            if _response is None or not _response.text.strip():
+                return HttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return HttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
 class AsyncRawStatusClient:
     def __init__(self, *, client_wrapper: AsyncClientWrapper):
         self._client_wrapper = client_wrapper
@@ -63,6 +97,40 @@ class AsyncRawStatusClient:
         """
         _response = await self._client_wrapper.httpx_client.request(
             "health",method="GET",
+            request_options=request_options,)
+        try:
+            if _response is None or not _response.text.strip():
+                return AsyncHttpResponse(response=_response, data=None)
+            if 200 <= _response.status_code < 300:
+                _data = typing.cast(
+                    typing.Any,
+                    parse_obj_as(
+                        type_ =typing.Any,  # type: ignore
+                        object_ =_response.json()
+                    )
+                )
+                return AsyncHttpResponse(response=_response, data=_data)
+            _response_json = _response.json()
+        except JSONDecodeError:
+            raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response.text)
+        raise ApiError(status_code=_response.status_code, headers=dict(_response.headers), body=_response_json)
+    
+    async def store_jwks(self, *, request_options: typing.Optional[RequestOptions] = None) -> AsyncHttpResponse[typing.Any]:
+        """
+        Public JWKS the object store's OIDC IAM fetches to verify our web-identity tokens.
+        
+        Parameters
+        ----------
+        request_options : typing.Optional[RequestOptions]
+            Request-specific configuration.
+        
+        Returns
+        -------
+        AsyncHttpResponse[typing.Any]
+            Successful Response
+        """
+        _response = await self._client_wrapper.httpx_client.request(
+            ".well-known/jwks.json",method="GET",
             request_options=request_options,)
         try:
             if _response is None or not _response.text.strip():

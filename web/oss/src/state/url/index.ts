@@ -1,5 +1,4 @@
-import {getDefaultStore} from "jotai"
-import {eagerAtom} from "jotai-eager"
+import {atom, getDefaultStore} from "jotai"
 
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {selectedOrgAtom} from "@/oss/state/org/selectors/org"
@@ -20,7 +19,8 @@ export interface URLState {
     appURL: string
 }
 
-export const urlAtom = eagerAtom<URLState>((get) => {
+// Plain atom (not eagerAtom): all deps are synchronous, so the value is never a Promise.
+export const urlAtom = atom<URLState>((get) => {
     const snapshot = get(appStateSnapshotAtom)
     const selectedOrg = get(selectedOrgAtom)
     const recentlyVisitedAppId = get(recentAppIdAtom)

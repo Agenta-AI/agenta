@@ -21,9 +21,17 @@ class SecretsDAOInterface:
     ) -> SecretResponseDTO:
         raise NotImplementedError
 
-    async def get(
+    async def get_by_id(
         self,
         secret_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
+    ) -> Optional[SecretResponseDTO]:
+        raise NotImplementedError
+
+    async def get_by_slug(
+        self,
+        secret_slug: str,
         project_id: Optional[UUID] = None,
         organization_id: Optional[UUID] = None,
     ) -> Optional[SecretResponseDTO]:

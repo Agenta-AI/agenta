@@ -129,7 +129,10 @@ const Billing = () => {
                                     ? "Trial period will end on "
                                     : "Auto renews on "}
                                 <span className="text-[var(--ag-c-1C2C3D)] font-medium">
-                                    {dayjs.unix(subscription?.period_end).format("MMM D, YYYY")}
+                                    {/* Latent: subscription is undefined on fetch error — renders Invalid Date; typed as-is. */}
+                                    {dayjs
+                                        .unix(subscription?.period_end as number)
+                                        .format("MMM D, YYYY")}
                                 </span>
                             </Typography.Text>
                         )}
@@ -167,7 +170,8 @@ const Billing = () => {
                 <Typography.Text className="text-sm font-medium">Limits</Typography.Text>
 
                 <div className="w-full grid grid-cols-3 gap-4">
-                    {Object.entries(usage)
+                    {/* Latent: usage is undefined when the fetch errors — entries() would throw; typed as-is. */}
+                    {Object.entries(usage!)
                         ?.filter(([key]) => key !== "users" && key !== "applications")
                         ?.map(([key, info]) => {
                             if (!info) return null
@@ -197,24 +201,25 @@ const Billing = () => {
                 </div>
 
                 <div className="w-full grid grid-cols-3 gap-4">
+                    {/* Latent: usage.users can be absent (fetch error or plan without a users quota) — renders "undefined"; typed as-is. */}
                     {billingEnabled && (
                         <UsageProgressBar
                             label={"Free"}
-                            used={usage?.users?.value}
+                            used={usage?.users?.value as number}
                             limit={usage?.users?.free as number}
                             strict={usage?.users?.strict}
                             isUnlimited={usage?.users?.limit == null ? true : false}
-                            free={usage?.users?.free}
+                            free={usage?.users?.free as number}
                         />
                     )}
 
                     <UsageProgressBar
                         label={"Total"}
-                        used={usage?.users?.value}
+                        used={usage?.users?.value as number}
                         limit={usage?.users?.limit as number}
                         strict={usage?.users?.strict}
                         isUnlimited={usage?.users?.limit == null ? true : false}
-                        free={usage?.users?.free}
+                        free={usage?.users?.free as number}
                     />
                 </div>
             </section>

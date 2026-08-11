@@ -128,7 +128,7 @@ const AnnotateDrawerTitle = ({
                     updatedMetrics,
                     selectedEvaluators,
                     evaluators: (evaluators || []) as EvaluatorDto[],
-                    traceSpanIds: traceSpanIds as AnnotateDrawerIdsType,
+                    traceSpanIds: traceSpanIds as Required<AnnotateDrawerIdsType>,
                     invocationStepKey: traceSpanIds?.traceId || "",
                 })
 

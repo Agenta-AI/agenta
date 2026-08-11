@@ -1,4 +1,7 @@
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {
+    getToolsClient as getSdkToolsClient,
+    getLowPriorityToolsClient as getSdkLowPriorityToolsClient,
+} from "@agenta/sdk/resources"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
@@ -11,7 +14,13 @@ import {getDefaultStore} from "jotai"
  * `getAgentaSdkClient()`.
  */
 export function getToolsClient() {
-    return getAgentaSdkClient().tools
+    return getSdkToolsClient()
+}
+
+/** Same client with the `priority: "low"` fetch hint — for secondary playground data
+ * (connections/catalog) that must yield to render-critical traffic. */
+export function getLowPriorityToolsClient() {
+    return getSdkLowPriorityToolsClient()
 }
 
 /**

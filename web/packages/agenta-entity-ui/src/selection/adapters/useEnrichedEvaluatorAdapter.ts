@@ -13,19 +13,22 @@
  */
 
 import type React from "react"
-import {useMemo, useRef} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import {
+    activateEvaluatorEnrichmentAtom,
+    evaluatorEnrichmentActivatedAtom,
     evaluatorKeyMapAtom,
     evaluatorTemplatesMapAtom,
     evaluatorTemplatesDataAtom,
+    type EvaluatorCatalogTemplate,
     evaluatorConfigsQueryStateAtom,
     evaluatorWorkflowMetaMapAtom,
     humanEvaluatorsListQueryAtom,
     workflowAppTypeAtomFamily,
     workflowsListDataAtom,
 } from "@agenta/entities/workflow"
-import {atom, getDefaultStore, useAtomValue} from "jotai"
+import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 
 import {
     renderEvaluatorPickerLabelNode,
@@ -43,14 +46,47 @@ import {
 // ============================================================================
 
 /**
+ * Activate the evaluator-enrichment gate (`evaluatorEnrichmentActivatedAtom`).
+ *
+ * The aggregate evaluator atoms (key map, meta map, non-human list, feedback
+ * schemas) stay dormant — and mount no per-evaluator latest-revision fan-out —
+ * until something activates them. Pickers/switchers call this: eagerly (on mount,
+ * the default) or lazily (`enabled` gated on first open) so the batched
+ * `POST /workflows/revisions/query` only runs when the data is actually needed.
+ * Idempotent and one-way.
+ */
+export function useEnsureEvaluatorEnrichment(enabled = true) {
+    const activate = useSetAtom(activateEvaluatorEnrichmentAtom)
+    useEffect(() => {
+        if (enabled) activate()
+    }, [enabled, activate])
+}
+
+// Stable empties read while a lazy adapter is dormant, so the evaluator template
+// catalog (a separate GET /evaluators/catalog/templates fetch) isn't requested
+// until the gate opens.
+const EMPTY_TEMPLATES_MAP_ATOM = atom<Map<string, string>>(new Map())
+const EMPTY_TEMPLATES_DATA_ATOM = atom<EvaluatorCatalogTemplate[]>([])
+
+/**
  * Hook that provides the evaluator key map and template definitions map.
  *
  * Uses package-level atoms (auto-fetching) instead of legacy SWR hooks,
  * so it works on any page without manual data population.
+ *
+ * Activates the enrichment gate on mount unless `lazy` is set — lazy callers
+ * (e.g. the playground header) defer activation to first picker-open so a plain
+ * playground load doesn't trigger the evaluator revision fan-out (and holds the
+ * template catalog read until the gate opens too).
  */
-export function useEvaluatorEnrichedData() {
+export function useEvaluatorEnrichedData(options?: {lazy?: boolean}) {
+    useEnsureEvaluatorEnrichment(!options?.lazy)
+    const activated = useAtomValue(evaluatorEnrichmentActivatedAtom)
+    const wantData = !options?.lazy || activated
     const evaluatorKeyMap = useAtomValue(evaluatorKeyMapAtom)
-    const evaluatorDefsByKey = useAtomValue(evaluatorTemplatesMapAtom)
+    const evaluatorDefsByKey = useAtomValue(
+        wantData ? evaluatorTemplatesMapAtom : EMPTY_TEMPLATES_MAP_ATOM,
+    )
 
     return {evaluatorKeyMap, evaluatorDefsByKey}
 }
@@ -137,10 +173,14 @@ export function useEnrichedEvaluatorBrowseAdapter() {
  */
 export function useEnrichedEvaluatorOnlyAdapter(
     revisionLabelOverride?: (entity: unknown) => React.ReactNode,
-    options?: {showWorkflowMeta?: boolean; splitTypeTag?: boolean},
+    options?: {showWorkflowMeta?: boolean; splitTypeTag?: boolean; lazy?: boolean},
 ) {
-    const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData()
-    const templates = useAtomValue(evaluatorTemplatesDataAtom)
+    const {evaluatorKeyMap, evaluatorDefsByKey} = useEvaluatorEnrichedData({lazy: options?.lazy})
+    const activated = useAtomValue(evaluatorEnrichmentActivatedAtom)
+    const wantData = !options?.lazy || activated
+    const templates = useAtomValue(
+        wantData ? evaluatorTemplatesDataAtom : EMPTY_TEMPLATES_DATA_ATOM,
+    )
     const workflowMetaMap = useAtomValue(evaluatorWorkflowMetaMapAtom)
     const evaluatorKeyMapRef = useRef(evaluatorKeyMap)
     const evaluatorDefsByKeyRef = useRef(evaluatorDefsByKey)
@@ -155,6 +195,13 @@ export function useEnrichedEvaluatorOnlyAdapter(
     const hasRevisionLabelOverride = Boolean(revisionLabelOverride)
     const showWorkflowMeta = Boolean(options?.showWorkflowMeta)
     const splitTypeTag = Boolean(options?.splitTypeTag)
+    // The EntityPicker subscribes to the list atom below on MOUNT (even while
+    // closed), and that list flows through evaluatorConfigsQueryStateAtom →
+    // evaluatorRevisionFlagsMapAtom, which fans out a latest-revision query per
+    // evaluator. For lazy callers we hold that list empty until the shared
+    // enrichment gate opens, so a closed picker mounts no fan-out.
+    const lazyRef = useRef(Boolean(options?.lazy))
+    lazyRef.current = Boolean(options?.lazy)
 
     // Build a stable Map<evaluatorKey, primaryCategory> from template data
     const templateCategoryMap = useMemo(() => {
@@ -174,6 +221,10 @@ export function useEnrichedEvaluatorOnlyAdapter(
     const autoEvaluatorsListAtom = useMemo(
         () =>
             atom((get) => {
+                // Lazy + gate-closed → don't subscribe to the fan-out list yet.
+                if (lazyRef.current && !get(evaluatorEnrichmentActivatedAtom)) {
+                    return {data: [] as unknown[], isPending: true, isError: false, error: null}
+                }
                 const state = get(evaluatorConfigsQueryStateAtom)
                 return {
                     data: state.data as unknown[],

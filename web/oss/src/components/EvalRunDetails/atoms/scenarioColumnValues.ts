@@ -4,6 +4,7 @@ import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {IStepResponse} from "@/oss/lib/evaluations"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import type {PreviewTestCase} from "@/oss/lib/Types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
 import {previewEvalTypeAtom} from "../state/evalType"
@@ -387,7 +388,7 @@ const resolveAnnotationValue = (
     if (!annotation) return undefined
 
     const pathSegments = descriptor.pathSegments ?? column.pathSegments ?? splitPath(column.path)
-    const outputs = annotation?.data?.outputs ?? {}
+    const outputs = (annotation?.data?.outputs ?? {}) as Record<string, any>
     const annotationDescriptor = descriptor.annotation
     const metricCandidates = annotationDescriptor?.metricPathCandidates ?? []
 

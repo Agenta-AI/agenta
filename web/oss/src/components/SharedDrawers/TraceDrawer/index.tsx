@@ -23,7 +23,8 @@ const TraceDrawerButton = ({
 
     const traceId = useMemo(() => {
         const directTraceId =
-            result?.response?.trace_id || result?.metadata?.rawError?.detail?.trace_id
+            (result as any)?.response?.trace_id ||
+            (result as any)?.metadata?.rawError?.detail?.trace_id
         if (directTraceId) return directTraceId
 
         const responseTrace = (result as any)?.response?.trace
@@ -124,7 +125,7 @@ const TraceDrawerButton = ({
             return false
         })()
 
-        return hasNodes || Boolean(result?.response?.trace) || Boolean(result?.error)
+        return hasNodes || Boolean((result as any)?.response?.trace) || Boolean(result?.error)
     }, [result])
 
     const passthroughProps = {

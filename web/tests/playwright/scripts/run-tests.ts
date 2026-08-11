@@ -19,6 +19,13 @@ const TESTS_ROOT = resolve(__dirname, "..", "..")
 // web/ root is the workspace root holding both tests/ and packages/.
 const WEB_ROOT = resolve(TESTS_ROOT, "..")
 
+// On Node 22.15+/24, Playwright prefers `module.registerHooks`, whose synchronous `load()`
+// hardcodes format="commonjs" for anything reached via require() — ignoring the "type":
+// "module" package.json of this tests/ package — which breaks requiring its ESM fixtures
+// from the CJS oss/ee spec files. Forcing the older async loader restores per-file
+// package.json detection.
+process.env.PLAYWRIGHT_FORCE_ASYNC_LOADER ??= "1"
+
 const TEST_LAYERS = ["unit", "integration", "acceptance"] as const
 type TestLayer = (typeof TEST_LAYERS)[number]
 

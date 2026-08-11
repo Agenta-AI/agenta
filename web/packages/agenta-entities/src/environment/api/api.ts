@@ -7,7 +7,7 @@
  * Uses the new SimpleEnvironment API from PR #3627.
  */
 
-import {getAgentaApiUrl, axios} from "@agenta/shared/api"
+import {getAgentaApiUrl, axios, lowPriorityWhenCached} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
 import {
@@ -36,7 +36,8 @@ import type {
 export async function fetchEnvironmentsList({
     projectId,
     includeArchived = false,
-}: EnvironmentListParams): Promise<EnvironmentsResponse> {
+    lowPriority,
+}: EnvironmentListParams & {lowPriority?: boolean}): Promise<EnvironmentsResponse> {
     if (!projectId) {
         return {environments: [], count: 0}
     }
@@ -46,7 +47,7 @@ export async function fetchEnvironmentsList({
         {
             include_archived: includeArchived,
         },
-        {params: {project_id: projectId}},
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(lowPriority)},
     )
 
     const validated = safeParseWithLogging(

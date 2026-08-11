@@ -115,6 +115,30 @@ DELETE {{base_url}}/connections/{{gmail_connection_id}}
 Authorization: {{authorization}}
 
 # =====================================================================
+# TOOL DISCOVERY  (discover_tools)
+# =====================================================================
+
+###
+# @name discover_capabilities
+# One call -> best-match tool per use case + alternatives + input schemas +
+# per-integration connection state (ready / needs_auth / needs_input) + guidance.
+# Project scope (hence the Composio user_id) comes from the auth, not the body.
+POST {{base_url}}/discover
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "use_cases": [
+    "search github issues for a matching report",
+    "create a github issue",
+    "post a reply in a slack thread with a link",
+    "listen for new messages in a slack support channel"
+  ],
+  "provider": "composio",
+  "limit_alternatives": 3
+}
+
+# =====================================================================
 # TOOL CALL  (action execution)
 # =====================================================================
 

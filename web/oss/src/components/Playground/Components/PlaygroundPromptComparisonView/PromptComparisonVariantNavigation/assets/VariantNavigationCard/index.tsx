@@ -9,7 +9,7 @@ import {
 } from "@agenta/playground"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
 import {VersionBadge} from "@agenta/ui"
-import {DraftTag} from "@agenta/ui/components"
+import {Tag as AgentaTag} from "@agenta/ui/components"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
@@ -167,7 +167,7 @@ const VariantNavigationCard = ({
                         {isLocalDraftVariant ? (
                             // Local draft: show Draft tag then source revision info
                             <>
-                                <DraftTag />
+                                <AgentaTag draft />
                                 <Text className="text-gray-500">
                                     from {String(variantName).replace(/\s*\(Draft\)$/, "")}
                                     {variantVersion != null ? ` v${variantVersion}` : ""}
@@ -180,7 +180,7 @@ const VariantNavigationCard = ({
                                 {variantVersion != null && (
                                     <VersionBadge version={variantVersion} variant="chip" />
                                 )}
-                                {isDirty && <DraftTag />}
+                                {isDirty && <AgentaTag draft />}
                             </>
                         )}
                     </div>

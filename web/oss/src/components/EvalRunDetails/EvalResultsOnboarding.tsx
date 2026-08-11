@@ -5,9 +5,12 @@ import {
     registerEvaluationResultsTour,
     EVALUATION_RESULTS_TOUR_ID,
 } from "@/oss/components/Onboarding/tours/evaluationResultsTour"
+import {ONBOARDING_TOURS_ENABLED} from "@/oss/lib/onboarding"
 
 // Register tour on module load
-registerEvaluationResultsTour()
+if (ONBOARDING_TOURS_ENABLED) {
+    registerEvaluationResultsTour()
+}
 
 interface EvalResultsOnboardingProps {
     /** Whether the page data has loaded (tour waits for this) */

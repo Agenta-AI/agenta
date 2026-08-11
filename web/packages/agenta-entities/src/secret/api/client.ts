@@ -1,15 +1,14 @@
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {getSecretsClient as getSdkSecretsClient} from "@agenta/sdk/resources"
 
 /**
  * Resource client for the vault/secrets API endpoints, taken from the
- * Fern-generated `@agentaai/api-client` via the workspace SDK singleton.
+ * Fern-generated `@agentaai/api-client` via the per-resource SDK accessor.
  *
- * The host app is responsible for initialising the SDK singleton at boot
- * (host, auth). All entities share the same instance through
- * `getAgentaSdkClient()`.
+ * The host app pins the SDK host at boot (`configureAgentaSdk`); this accessor
+ * lazily constructs a host-pinned singleton for just the secrets resource.
  */
 export function getSecretsClient() {
-    return getAgentaSdkClient().secrets
+    return getSdkSecretsClient()
 }
 
 /**

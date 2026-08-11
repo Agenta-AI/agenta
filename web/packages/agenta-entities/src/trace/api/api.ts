@@ -36,7 +36,13 @@ import {fernTracesToLegacyTraceMap} from "./adapters"
 // AGE-3788: all trace api functions are migrated to the Fern client
 // (Phases 1-5): sessions, delete, single-trace, flat-span (querySpans) and
 // trace-tree (queryTraces). No raw axios remains in this module.
-import {callFern, getTracesClient, isAbortError, projectScopedRequest} from "./client"
+import {
+    callFern,
+    getLowPriorityTracesClient,
+    getTracesClient,
+    isAbortError,
+    projectScopedRequest,
+} from "./client"
 import {buildSpansQueryRequest, buildTracesQueryRequest} from "./request"
 
 /**
@@ -59,12 +65,14 @@ export interface TraceQueryParams {
  * @param params - Query parameters for filtering
  * @param appId - Application ID (optional)
  * @param projectId - Project ID (required)
+ * @param opts.lowPriority - Send with the `priority: "low"` fetch hint (background hydration)
  * @returns API response with spans (validated)
  */
 export async function fetchAllPreviewTraces(
     params: TraceQueryParams = {},
     appId: string,
     projectId: string,
+    {lowPriority = false}: {lowPriority?: boolean} = {},
 ): Promise<SpansResponse | TracesResponse | null> {
     // AGE-3788 Phases 4-5: flat-span queries (focus !== "trace") go through Fern
     // querySpans (POST /spans/query, flat SpansResponse); trace-tree queries
@@ -78,10 +86,11 @@ export async function fetchAllPreviewTraces(
     // /traces/query accepts undashed ids in `filtering` must be confirmed
     // against a live backend — preserved as-is; covered by integration, not units.
     const opts = projectScopedRequest(projectId, appId)
+    const client = lowPriority ? getLowPriorityTracesClient() : getTracesClient()
     const data = await callFern("[fetchAllPreviewTraces]", () =>
         params.focus !== "trace"
-            ? getTracesClient().querySpans(buildSpansQueryRequest(params), opts)
-            : getTracesClient().queryTraces(buildTracesQueryRequest(params), opts),
+            ? client.querySpans(buildSpansQueryRequest(params), opts)
+            : client.queryTraces(buildTracesQueryRequest(params), opts),
     )
     if (!data) return null
     return parseSpansOrTraces(params.focus, data)

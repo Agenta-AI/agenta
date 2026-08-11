@@ -214,7 +214,7 @@ function TableCellResizer({editor}: {editor: LexicalEditor}) {
 
                     let height = tableRow.getHeight()
                     if (height === undefined) {
-                        const rowCells = tableRow.getChildren<TableCellNode>()
+                        const rowCells = tableRow.getChildren() as TableCellNode[]
                         height = Math.min(
                             ...rowCells.map((cell) => getCellNodeHeight(cell, editor) ?? Infinity),
                         )

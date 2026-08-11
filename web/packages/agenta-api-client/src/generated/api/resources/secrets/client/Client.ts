@@ -166,7 +166,7 @@ export class SecretsClient {
      *
      * @example
      *     await client.secrets.readSecret({
-     *         secret_id: "secret_id"
+     *         secret_id_or_slug: "secret_id_or_slug"
      *     })
      */
     public readSecret(
@@ -180,7 +180,7 @@ export class SecretsClient {
         request: AgentaApi.ReadSecretRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SecretResponseDto>> {
-        const { secret_id: secretId } = request;
+        const { secret_id_or_slug: secretIdOrSlug } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -192,7 +192,7 @@ export class SecretsClient {
                 (await core.Supplier.get(this._options.baseUrl)) ??
                     (await core.Supplier.get(this._options.environment)) ??
                     environments.AgentaApiEnvironment.Default,
-                `secrets/${core.url.encodePathParam(secretId)}`,
+                `secrets/${core.url.encodePathParam(secretIdOrSlug)}`,
             ),
             method: "GET",
             headers: _headers,
@@ -224,7 +224,7 @@ export class SecretsClient {
             }
         }
 
-        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/secrets/{secret_id}");
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/secrets/{secret_id_or_slug}");
     }
 
     /**

@@ -23,6 +23,8 @@ interface FiltersPreviewProps {
     filters?: Filter[]
     className?: string
     compact?: boolean
+    // Accepted by callers but not consumed yet — typed as-is per WP-4e-2a.
+    compactMaxRows?: number
 }
 
 interface NormalizedFilter {
@@ -74,7 +76,7 @@ const buildNormalizedFilters = (
         const fieldLabel = cfg?.label ?? filter.key ?? filter.field ?? "-"
 
         const operator = filter.operator as FilterConditions
-        let operatorLabel = operator || "is"
+        let operatorLabel: string = operator || "is"
         if (cfg?.operatorOptions) {
             const match = cfg.operatorOptions.find((opt) => opt.value === operator)
             if (match?.label) {

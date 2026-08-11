@@ -158,6 +158,50 @@ class TestFindObjectEmbeds:
         assert embeds[1].location == "items.1"
 
 
+class TestReferenceToolIsPlainConfig:
+    """A workflow referenced as a tool is a plain ``type:"reference"`` config entry, not an embed
+    marker. The embed resolver has no special case for it: with no ``@ag.embed`` key, the finders
+    simply ignore it, and an ``@ag.embed`` sibling still resolves normally.
+    """
+
+    def test_object_finder_ignores_reference_tool_node(self):
+        config = {
+            "tools": [
+                {
+                    "type": "reference",
+                    "ref_by": "variant",
+                    "slug": "summarize",
+                    "name": "summarize",
+                }
+            ]
+        }
+        assert find_object_embeds(config) == []
+
+    def test_string_and_snippet_finders_ignore_reference_tool_node(self):
+        config = {
+            "tools": [
+                {"type": "reference", "ref_by": "variant", "slug": "wf"},
+            ]
+        }
+        assert find_string_embeds(config) == []
+        assert find_snippet_embeds(config) == []
+
+    def test_sibling_embed_still_resolves_alongside_reference_tool(self):
+        # An @ag.embed sibling of a type:"reference" tool is still found and resolved; the
+        # reference tool entry carries no embed so it is skipped.
+        config = {
+            "tools": [
+                {"type": "reference", "ref_by": "variant", "slug": "wf"},
+            ],
+            "skills": [
+                {AG_EMBED_KEY: {AG_REFERENCES_KEY: {"workflow": {"slug": "skill"}}}}
+            ],
+        }
+        embeds = find_object_embeds(config)
+        assert len(embeds) == 1
+        assert embeds[0].location == "skills.0"
+
+
 class TestFindStringEmbeds:
     """Tests for finding string embeds in configuration."""
 

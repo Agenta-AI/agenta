@@ -9,11 +9,19 @@
  *
  * Pattern mirrors `secret/api/client.ts` and `workflow/api/api.ts`.
  */
-import {getAgentaSdkClient} from "@agenta/sdk"
+import {
+    getLowPriorityTracesClient as getSdkLowPriorityTracesClient,
+    getTracesClient as getSdkTracesClient,
+} from "@agenta/sdk/resources"
 
 /** The Fern `traces` resource client (spans, traces, sessions, analytics). */
 export function getTracesClient() {
-    return getAgentaSdkClient().traces
+    return getSdkTracesClient()
+}
+
+/** Same client with the `priority: "low"` fetch hint — background hydration only. */
+export function getLowPriorityTracesClient() {
+    return getSdkLowPriorityTracesClient()
 }
 
 /**

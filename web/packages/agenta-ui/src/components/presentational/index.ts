@@ -44,8 +44,6 @@ export {
     type EntityNameWithVersionProps,
     // List item labels for entity selection
     EntityListItemLabel,
-    AppListItemLabel,
-    VariantListItemLabel,
     EntityTypeIcon,
     type EntityListItemLabelProps,
     type EntityTypeIconProps,
@@ -61,11 +59,17 @@ export {
     SectionLabel,
     ConfigBlock,
     SectionSkeleton,
+    ConfigAccordionSection,
+    sectionIndicatorColor,
+    useAccordionSectionOpen,
+    useRecentFlag,
     type SectionCardProps,
     type SectionHeaderRowProps,
     type SectionLabelProps,
     type ConfigBlockProps,
     type SectionSkeletonProps,
+    type ConfigAccordionSectionProps,
+    type SectionIndicatorTone,
 } from "./section"
 
 // ============================================================================
@@ -116,6 +120,7 @@ export {
     type ImageWithFallbackProps,
     PromptImageUpload,
     type PromptImageUploadProps,
+    type PromptUploadFile,
     PromptDocumentUpload,
     type PromptDocumentUploadProps,
 } from "./attachments"
@@ -133,19 +138,22 @@ export {FieldHeader, type FieldHeaderProps} from "./field"
 export {EditableText, type EditableTextProps} from "./editable"
 
 // ============================================================================
+// TAG — the one tag component (generic + domain presets). Absorbs StatusTag.
+// ============================================================================
+
+export {Tag, type TagProps, type SyncState} from "./tag"
+
+// ============================================================================
 // STATUS COMPONENTS
 // ============================================================================
 
 export {
-    StatusTag,
-    getStatusColor,
-    getStatusLabel,
-    EnvironmentTag,
     environmentColors,
-    type StatusTagProps,
+    StatusIndicator,
+    type StatusIndicatorProps,
+    type StatusTone,
     type QueryStatus,
     type ExecutionStatus,
-    type EnvironmentTagProps,
     type EnvironmentName,
 } from "./status"
 
@@ -172,19 +180,19 @@ export {SourceIndicator, type SourceIndicatorProps} from "./source-indicator"
 
 export {
     SliderInput,
-    LabeledField,
     CommitMessageInput,
     COMMIT_MESSAGE_MAX_LENGTH,
+    LabelInput,
     type SliderInputProps,
-    type LabeledFieldProps,
     type CommitMessageInputProps,
+    type LabelInputProps,
 } from "./inputs"
 
 // ============================================================================
 // SKELETON COMPONENTS
 // ============================================================================
 
-export {ListItemSkeleton, type ListItemSkeletonProps} from "./skeleton"
+export {LoadingSkeleton, type LoadingSkeletonProps} from "./skeleton"
 
 // ============================================================================
 // LAYOUT COMPONENTS
@@ -193,12 +201,10 @@ export {ListItemSkeleton, type ListItemSkeletonProps} from "./skeleton"
 export {
     SplitPanelLayout,
     NumberedStep,
-    StepContainer,
     PanelFooter,
     ModalContentLayout,
     type SplitPanelLayoutProps,
     type NumberedStepProps,
-    type StepContainerProps,
     type PanelFooterProps,
     type ModalContentLayoutProps,
 } from "./layout"
@@ -208,10 +214,8 @@ export {
 // ============================================================================
 
 export {
-    TableLoadingState,
     TableEmptyState,
     CollapsibleGroupHeader,
-    type TableLoadingStateProps,
     type TableEmptyStateProps,
     type CollapsibleGroupHeaderProps,
 } from "./table-states"
@@ -222,10 +226,8 @@ export {
 
 export {
     ExecutionMetricsDisplay,
-    MappingStatusTag,
     type ExecutionMetricsDisplayProps,
     type ExecutionMetricsData,
-    type MappingStatusTagProps,
 } from "./metrics"
 
 // ============================================================================
@@ -251,7 +253,6 @@ export {
 // ============================================================================
 
 export {
-    AddButton,
     RunButton,
     CollapseToggleButton,
     useCollapseToggle,
@@ -261,7 +262,6 @@ export {
     getCollapseLabel,
     getCollapseStyle,
     DEFAULT_COLLAPSED_MAX_HEIGHT,
-    type AddButtonProps,
     type RunButtonProps,
     type CollapseToggleButtonProps,
     type UseCollapseToggleOptions,

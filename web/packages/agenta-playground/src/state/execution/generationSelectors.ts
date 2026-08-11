@@ -31,6 +31,7 @@ import {resetExecutionAtom} from "./reducer"
 import {
     derivedLoadableIdAtom,
     isChatModeAtom,
+    isAgentModeAtomFamily,
     executionRowIdsAtom,
     fullResultByRowEntityAtomFamily,
     renderableExecutionItemsAtom,
@@ -602,6 +603,15 @@ export const runAllWithContextAtom = atom(null, (get, set, params?: {entityId?: 
     const isChat = get(isChatModeAtom)
     const isComparisonView = !entityId
 
+    // Agent entities run via their own composer (AgentChatPanel.sendMessage), NOT the
+    // buffered-fetch fan-out — skip them everywhere here. A run-all over a mixed grid
+    // executes the non-agent variants and no-ops the agent columns. (Surfacing that to
+    // the user is the deferred design decision D6 — see TODOS.md.)
+    const isAgent = (id: string) => get(isAgentModeAtomFamily(id))
+
+    // Targeted run on an agent entity is a no-op at this level.
+    if (entityId && isAgent(entityId)) return
+
     if (isChat) {
         if (isComparisonView) {
             const canRun = get(canRunAllChatComparisonAtom)
@@ -612,7 +622,9 @@ export const runAllWithContextAtom = atom(null, (get, set, params?: {entityId?: 
         if (!lastId) return
 
         const entityIds = get(entityIdsAtom)
-        const targets = entityId ? [entityId] : entityIds.length > 0 ? entityIds : []
+        const targets = (entityId ? [entityId] : entityIds.length > 0 ? entityIds : []).filter(
+            (id) => !isAgent(id),
+        )
         for (const rev of targets) {
             set(triggerExecutionAtom, {executionId: rev, step: {id: lastId}})
         }
@@ -624,6 +636,7 @@ export const runAllWithContextAtom = atom(null, (get, set, params?: {entityId?: 
     } else {
         const items = get(renderableExecutionItemsAtom)
         for (const item of items) {
+            if (isAgent(item.executionId)) continue
             set(triggerExecutionAtom, {
                 executionId: item.executionId,
                 step: {id: item.rowId},

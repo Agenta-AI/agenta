@@ -2,6 +2,7 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
+import type {PostHog} from "posthog-js"
 
 import {getEnv} from "../dynamicEnv"
 import {generateOrRetrieveDistinctId, isDemo} from "../utils"
@@ -40,7 +41,8 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                 ui_host: "https://us.posthog.com",
                 // Enable debug mode in development
                 loaded: (posthog) => {
-                    setPosthogClient(posthog)
+                    // the loaded callback narrows to PostHogInterface; the instance is the full client
+                    setPosthogClient(posthog as PostHog)
                     failedAttemptsRef.current = 0
                     if (process.env.NODE_ENV === "development") posthog.debug()
                     if (!initCapturedRef.current) {

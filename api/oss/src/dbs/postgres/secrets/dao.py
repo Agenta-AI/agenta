@@ -59,7 +59,7 @@ class SecretsDAO(SecretsDAOInterface):
         secrets_dto = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
         return secrets_dto
 
-    async def get(
+    async def get_by_id(
         self,
         secret_id: UUID,
         project_id: UUID | None,
@@ -79,6 +79,26 @@ class SecretsDAO(SecretsDAOInterface):
 
             secrets_dto = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
             return secrets_dto
+
+    async def get_by_slug(
+        self,
+        secret_slug: str,
+        project_id: UUID | None,
+        organization_id: UUID | None,
+    ):
+        async with self.engine.session() as session:
+            scope_filter = self._scope_filter(project_id, organization_id)
+            stmt = select(SecretsDBE).filter_by(
+                slug=secret_slug,
+                **scope_filter,
+            )
+            result = await session.execute(stmt)  # type: ignore
+            secrets_dbe = result.scalar()
+
+            if secrets_dbe is None:
+                return None
+
+            return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
 
     async def list(self, project_id: UUID | None, organization_id: UUID | None):
         async with self.engine.session() as session:

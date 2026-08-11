@@ -13,7 +13,7 @@ from opentelemetry.trace import (
     StatusCode,
 )
 from opentelemetry.sdk import trace
-from opentelemetry.sdk.trace import Span, Tracer, TracerProvider
+from opentelemetry.sdk.trace import Span, SpanLimits, Tracer, TracerProvider
 from opentelemetry.sdk.resources import Resource
 
 
@@ -91,8 +91,12 @@ class Tracing(metaclass=Singleton):
             self.headers["Authorization"] = f"ApiKey {api_key}"
 
         # TRACER PROVIDER
+        # 256 doubles the OTel default (128). Attributes are set oldest-first and
+        # BoundedAttributes silently evicts the OLDEST on overflow, so a root span
+        # flooded by a large flattened config evicts its ag.refs.* references.
         self.tracer_provider = TracerProvider(
-            resource=Resource(attributes={"service.name": "agenta-sdk"})
+            resource=Resource(attributes={"service.name": "agenta-sdk"}),
+            span_limits=SpanLimits(max_attributes=256),
         )
 
         # TRACE PROCESSORS -- OTLP
@@ -228,7 +232,12 @@ class Tracing(metaclass=Singleton):
                 span = self.get_current_span()
 
             if session_id:
-                span.set_attribute("id", session_id, namespace="session")
+                # CustomSpan takes a namespace; a raw OTel span (e.g. a
+                # NonRecordingSpan in the agent flow) does not — flatten for it.
+                try:
+                    span.set_attribute("id", session_id, namespace="session")
+                except TypeError:
+                    span.set_attribute("session.id", session_id)
 
     def store_user(
         self,
@@ -248,6 +257,26 @@ class Tracing(metaclass=Singleton):
 
             if user_id:
                 span.set_attribute("id", user_id, namespace="user")
+
+    def store_agent(
+        self,
+        agent_id: Optional[str] = None,
+        span: Optional[Span] = None,
+    ):
+        """Set agent attributes on the current span.
+
+        Args:
+            agent_id: Unique identifier for the running artifact (workflow /
+                application / evaluator id)
+            span: Optional span to set attributes on (defaults to current span)
+        """
+        self._warn_if_not_initialized("store_agent")
+        with suppress():
+            if span is None:
+                span = self.get_current_span()
+
+            if agent_id:
+                span.set_attribute("id", agent_id, namespace="agent")
 
     def extract(
         self,

@@ -136,6 +136,41 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
     const containerRef = useRef<HTMLDivElement>(null)
     const selectedItemRef = useRef<HTMLDivElement>(null)
 
+    // Single coalesced channel for the typeahead anchor/query. Every writer
+    // (update listener, selection, escape, click-outside) routes through
+    // scheduleTypeahead, and the last write before the microtask wins. This (a)
+    // keeps React state out of the synchronous Lexical commit so a burst of
+    // commits can't exceed React's update-depth limit, and (b) makes the
+    // close-then-reopen race resolve by ordering — selectOption runs after the
+    // listener, so its close wins — instead of ad-hoc suppression flags.
+    const pendingAnchorRef = useRef<{element: HTMLElement; key: string} | null>(null)
+    const pendingQueryRef = useRef("")
+    const flushScheduledRef = useRef(false)
+
+    // No mounted-guard needed: a useState setter after unmount is a no-op and
+    // the microtask is one-shot. A mounted ref here would also have to be reset
+    // in effect setup to survive StrictMode's remount.
+    const flushTypeahead = useCallback(() => {
+        flushScheduledRef.current = false
+        const a = pendingAnchorRef.current
+        const q = pendingQueryRef.current
+        setInputQuery((prev) => (prev === q ? prev : q))
+        setAnchor((prev) =>
+            prev && a && prev.key === a.key && prev.element === a.element ? prev : a,
+        )
+    }, [])
+
+    const scheduleTypeahead = useCallback(
+        (nextAnchor: {element: HTMLElement; key: string} | null, nextQuery: string) => {
+            pendingAnchorRef.current = nextAnchor
+            pendingQueryRef.current = nextQuery
+            if (flushScheduledRef.current) return
+            flushScheduledRef.current = true
+            queueMicrotask(flushTypeahead)
+        },
+        [flushTypeahead],
+    )
+
     // Floating UI setup
     const {refs, floatingStyles} = useFloating({
         open: !!anchor,
@@ -336,20 +371,22 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
                 }
             })
 
-            setAnchor(null)
             setSelectedIndex(0)
-            setInputQuery("")
+            scheduleTypeahead(null, "")
         },
-        [anchor, editor],
+        [anchor, editor, scheduleTypeahead],
     )
 
-    // Track token node changes — unchanged from legacy behavior.
+    // Track token node changes to drive the typeahead anchor. The listener runs
+    // synchronously on every commit (it must read the editor state) but never
+    // calls setState directly — it routes through scheduleTypeahead, keeping the
+    // React update out of the commit and coalescing across a burst.
     useEffect(() => {
         return editor.registerUpdateListener(() => {
             editor.getEditorState().read(() => {
                 const selection = $getSelection()
                 if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
-                    setAnchor(null)
+                    scheduleTypeahead(null, "")
                     return
                 }
 
@@ -367,19 +404,17 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
                     // after the caret. Restrict to end-of-token until the
                     // replacement logic becomes caret-aware.
                     if (match && offsetPos === text.length - 2) {
-                        setInputQuery(match[1])
                         const dom = editor.getElementByKey(node.getKey())
                         if (dom) {
-                            setAnchor({element: dom, key: node.getKey()})
+                            scheduleTypeahead({element: dom, key: node.getKey()}, match[1])
                             return
                         }
                     }
                 }
-                setAnchor(null)
-                setInputQuery("")
+                scheduleTypeahead(null, "")
             })
         })
-    }, [editor])
+    }, [editor, scheduleTypeahead])
 
     // Reset highlight when suggestion list changes (e.g. user typed another char).
     useEffect(() => {
@@ -392,7 +427,7 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
 
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-                setAnchor(null)
+                scheduleTypeahead(null, "")
             }
         }
 
@@ -404,7 +439,7 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
             clearTimeout(timer)
             document.removeEventListener("click", handleClickOutside, true)
         }
-    }, [anchor])
+    }, [anchor, scheduleTypeahead])
 
     // Keyboard navigation
     useEffect(() => {
@@ -437,14 +472,14 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
                     }
                     break
                 case "Escape":
-                    setAnchor(null)
+                    scheduleTypeahead(null, "")
                     break
             }
         }
 
         document.addEventListener("keydown", handleKeyDown, true)
         return () => document.removeEventListener("keydown", handleKeyDown, true)
-    }, [anchor, suggestions, selectedIndex, selectOption])
+    }, [anchor, suggestions, selectedIndex, selectOption, scheduleTypeahead])
 
     if (!anchor || !suggestions.length) return null
 

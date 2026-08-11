@@ -106,6 +106,7 @@ export {
     EntityCommitTitle,
     EntityCommitContent,
     EntityCommitFooter,
+    AgentChangesSummary,
     // Hooks
     useEntityCommit,
     useRevisionCommit,
@@ -137,10 +138,12 @@ export type {
     CommitSubmitResult,
     CommitModeOption,
     CommitCreateFieldsConfig,
+    AgentChangesSummaryProps,
     UseEntityCommitReturn,
     UseBoundCommitOptions,
     UseBoundCommitReturn,
 } from "./commit"
+export type {CommitDeployOption} from "./types"
 
 // ============================================================================
 // SAVE MODAL

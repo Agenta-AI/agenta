@@ -40,7 +40,7 @@ export function ensureProjectId(existing?: string): string | undefined {
     try {
         const store = getDefaultStore()
         const pid = store.get(projectIdAtom)
-        return pid
+        return pid ?? undefined
     } catch {
         return undefined
     }

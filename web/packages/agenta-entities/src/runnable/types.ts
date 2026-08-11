@@ -207,6 +207,8 @@ export interface ExecutionResult {
     }
     trace?: TraceInfo
     metrics?: ExecutionMetrics
+    /** Backend session_id minted by the runner, read back from the run response. */
+    sessionId?: string
 }
 
 /**
