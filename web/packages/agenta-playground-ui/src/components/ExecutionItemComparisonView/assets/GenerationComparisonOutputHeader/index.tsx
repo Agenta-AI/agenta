@@ -2,7 +2,7 @@ import {memo, useMemo} from "react"
 
 import {isLocalDraftId, getVersionLabel, formatLocalDraftLabel} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
-import {Tag, Typography} from "antd"
+import {Badge} from "@agenta/ui/ui"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
@@ -32,10 +32,10 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
                 className,
             )}
         >
-            <Typography>{variantLabel ?? data?.name ?? null}</Typography>
-            <Tag color="default" variant="filled" className="bg-[var(--ag-rgba-051729-06)]">
+            <div className="text-colorText">{variantLabel ?? data?.name ?? null}</div>
+            <Badge variant="default" className="bg-[var(--ag-rgba-051729-06)]">
                 {label}
-            </Tag>
+            </Badge>
         </div>
     )
 }

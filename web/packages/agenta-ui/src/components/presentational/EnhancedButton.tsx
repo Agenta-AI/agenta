@@ -138,12 +138,25 @@ function EnhancedButton({
         </>
     )
 
+    // antd `title` may be a render function; call it to get a node.
+    const rawTitle = tooltipProps?.title
+    const titleNode =
+        typeof rawTitle === "function" ? (rawTitle as () => React.ReactNode)() : rawTitle
+
+    // An icon-only button has no text, so a tooltip is its ONLY label — and a Radix tooltip does
+    // not name its trigger. Without this, axe reports critical `button-name` on every
+    // `<EnhancedButton icon={…} tooltipProps={{title}} />`, which is the common shape for row
+    // actions. Borrow a string title as the accessible name; an explicit aria-label still wins.
+    const tooltipLabel = typeof titleNode === "string" ? titleNode : undefined
+    const needsLabel = label == null && children == null && icon != null
+
     const shared = {
         ref,
         variant: toVariant(type, danger),
         size: uiSize,
         type: htmlType,
         className: cn(shapeClass, className),
+        ...(needsLabel && tooltipLabel ? {"aria-label": tooltipLabel} : {}),
         ...rest,
     } as ButtonProps
 
@@ -155,10 +168,6 @@ function EnhancedButton({
         <Button {...shared}>{content}</Button>
     )
 
-    // antd `title` may be a render function; call it to get a node.
-    const rawTitle = tooltipProps?.title
-    const titleNode =
-        typeof rawTitle === "function" ? (rawTitle as () => React.ReactNode)() : rawTitle
     if (titleNode == null || tooltipProps == null) return button
 
     return (

@@ -7,11 +7,9 @@
  */
 
 import {borderColors, statusColors} from "@agenta/ui/styles"
-import {Button, Space, Typography} from "antd"
+import {Button, LoadingButton} from "@agenta/ui/ui"
 
 import type {SelectionSummaryProps} from "../types"
-
-const {Text} = Typography
 
 export function SelectionSummary({
     selectedCount,
@@ -36,12 +34,14 @@ export function SelectionSummary({
                 <div
                     className={`border ${borderColors.default} rounded-md p-3 ${statusColors.warningBg}`}
                 >
-                    <Text type="warning">{disabledMessage}</Text>
+                    <span className="text-colorWarningText">{disabledMessage}</span>
                 </div>
 
                 {/* Footer row with just cancel button */}
                 <div className="flex items-center justify-end">
-                    <Button onClick={onCancel}>Cancel</Button>
+                    <Button variant="outline" onClick={onCancel}>
+                        Cancel
+                    </Button>
                 </div>
             </div>
         )
@@ -52,17 +52,18 @@ export function SelectionSummary({
         return (
             <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-end">
-                    <Space>
-                        <Button onClick={onCancel}>Cancel</Button>
-                        <Button
-                            type="primary"
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={onCancel}>
+                            Cancel
+                        </Button>
+                        <LoadingButton
                             onClick={onConfirm}
                             disabled={createDisabled}
                             loading={createLoading}
                         >
                             Create &amp; Load
-                        </Button>
-                    </Space>
+                        </LoadingButton>
+                    </div>
                 </div>
             </div>
         )
@@ -75,32 +76,37 @@ export function SelectionSummary({
                 <div
                     className={`border ${borderColors.default} rounded-md p-3 ${statusColors.warningBg}`}
                 >
-                    <Text type="warning">{warningMessage}</Text>
+                    <span className="text-colorWarningText">{warningMessage}</span>
                 </div>
             )}
 
             {/* Footer row with count and buttons */}
             <div className="flex items-center justify-between">
-                {/* Selection Count */}
+                {/* Selection count. antd nests Text inside Text, so the counts carry
+                    .ant-typography's own colorText and do NOT inherit the secondary tint.
+                    font-semibold is explicit: preflight is off, so a bare <strong> would take
+                    the UA's 700 rather than antd's fontWeightStrong 600. */}
                 <div>
-                    <Text type="secondary">
-                        <Text strong>{selectedCount}</Text> of <Text strong>{totalCount}</Text>{" "}
+                    <span className="text-colorTextDescription">
+                        <strong className="font-semibold text-colorText">{selectedCount}</strong> of{" "}
+                        <strong className="font-semibold text-colorText">{totalCount}</strong>{" "}
                         testcases selected
-                    </Text>
+                    </span>
                 </div>
 
                 {/* Action Buttons */}
-                <Space>
-                    <Button onClick={onCancel}>Cancel</Button>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={onCancel}>
+                        Cancel
+                    </Button>
                     <Button
-                        type="primary"
-                        danger={hasWarning}
+                        variant={hasWarning ? "destructive" : "default"}
                         onClick={onConfirm}
                         disabled={confirmDisabled}
                     >
                         {confirmText}
                     </Button>
-                </Space>
+                </div>
             </div>
         </div>
     )

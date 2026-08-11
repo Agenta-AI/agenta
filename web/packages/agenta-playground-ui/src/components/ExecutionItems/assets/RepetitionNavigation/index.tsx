@@ -1,5 +1,5 @@
+import {Button} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight} from "@phosphor-icons/react"
-import {Button, Typography} from "antd"
 
 interface RepetitionNavigationProps {
     current: number // 1-based index
@@ -21,24 +21,28 @@ const RepetitionNavigation = ({
     return (
         <div className="flex items-center gap-1">
             <Button
-                icon={<CaretLeft size={12} />}
-                size="small"
-                type="text"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Previous repetition"
                 onClick={onPrev}
                 disabled={disabled || current <= 1}
-                className="!w-5 !h-5"
-            />
-            <Typography.Text type="secondary" className="text-[10px] text-nowrap">
+                className="w-5 h-5"
+            >
+                <CaretLeft size={12} />
+            </Button>
+            <span className="text-[10px] text-nowrap text-colorTextDescription">
                 {current} / {total}
-            </Typography.Text>
+            </span>
             <Button
-                icon={<CaretRight size={12} />}
-                size="small"
-                type="text"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Next repetition"
                 onClick={onNext}
                 disabled={disabled || current >= total}
-                className="!w-5 !h-5"
-            />
+                className="w-5 h-5"
+            >
+                <CaretRight size={12} />
+            </Button>
         </div>
     )
 }

@@ -1,7 +1,7 @@
 import {ReactNode} from "react"
 
 import {spacingClasses} from "@agenta/ui/styles"
-import {Input} from "antd"
+import {SearchInput} from "@agenta/ui/ui"
 
 export interface TestsetSelectionPreviewProps {
     /** The search term for filtering testcases */
@@ -26,10 +26,10 @@ export function TestsetSelectionPreview({
             style={{minWidth: 0, minHeight: 0}}
         >
             {showSearch && (
-                <Input.Search
+                <SearchInput
                     placeholder="Search testcases..."
                     value={searchTerm}
-                    onChange={(e) => onSearchChange(e.target.value)}
+                    onValueChange={onSearchChange}
                     className="mb-3 flex-shrink-0"
                 />
             )}

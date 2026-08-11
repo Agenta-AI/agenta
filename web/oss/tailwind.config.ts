@@ -116,6 +116,9 @@ const themeAwareColors = {
     colorWarning: v("colorWarning"),
     colorWarningBorder: v("colorWarningBorder"),
     colorWarningText: v("colorWarningText"),
+    // Unbridged before: `statusColors.warningBg` fell back to `bg-gold-1` and rendered a light
+    // banner in dark mode (antd-inventory/wave-3/findings.md F13).
+    colorWarningBg: v("colorWarningBg"),
     colorErrorText: v("colorErrorText"),
     colorError: v("colorError"),
     colorErrorBorder: v("colorErrorBorder"),

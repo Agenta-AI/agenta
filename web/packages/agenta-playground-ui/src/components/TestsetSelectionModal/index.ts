@@ -27,4 +27,11 @@ export type {TestcaseTableProps} from "@agenta/entity-ui"
 export {useTestsetSelection} from "./hooks"
 
 // Export sub-components for potential reuse
-export {CreateTestsetCard, SelectionSummary, TestcaseTable} from "./components"
+export {
+    CreateTestsetCard,
+    LoadModeContent,
+    SelectionSummary,
+    TestcaseTable,
+    TestsetSelectionPreview,
+} from "./components"
+export type {LoadModeContentProps} from "./components"

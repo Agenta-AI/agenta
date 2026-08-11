@@ -1,8 +1,8 @@
 import {useCallback, useRef} from "react"
 
 import {executionItemController} from "@agenta/playground"
+import {Button, InputNumber, Popover, PopoverContent, PopoverTrigger, Slider} from "@agenta/ui/ui"
 import {CaretDown} from "@phosphor-icons/react"
-import {Button, InputNumber, Popover, Slider, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 interface RunOptionsPopoverProps {
@@ -38,7 +38,7 @@ const RunOptionsPopover = ({isRunning, onRepeatCountChange}: RunOptionsPopoverPr
         <div className="flex flex-col gap-4 w-[300px]">
             <div className="flex flex-col gap-2">
                 <div className="flex justify-between items-center">
-                    <Typography.Text strong>Repeats</Typography.Text>
+                    <span className="font-semibold text-colorText">Repeats</span>
                     <InputNumber
                         min={1}
                         max={10}
@@ -49,41 +49,38 @@ const RunOptionsPopover = ({isRunning, onRepeatCountChange}: RunOptionsPopoverPr
                         disabled={isRunning}
                     />
                 </div>
-                <Typography.Text type="secondary" className="text-xs">
+                <span className="text-xs text-colorTextDescription">
                     Run the same prompt multiple times to reduce variability in results.{" "}
-                </Typography.Text>
+                </span>
                 <Slider
                     min={1}
                     max={10}
-                    value={repetitionCount}
-                    onChange={(val) => setRepetitionCount(val)}
+                    value={[repetitionCount]}
+                    onValueChange={([val]) => setRepetitionCount(val)}
                     disabled={isRunning}
+                    aria-label="Repeats"
                 />
             </div>
         </div>
     )
 
     return (
-        <Popover
-            content={content}
-            trigger="click"
-            placement="bottomRight"
-            arrow={false}
-            styles={{container: {padding: "16px"}}}
-            onOpenChange={handleOpenChange}
-        >
-            <Button
-                type="primary"
-                icon={<CaretDown size={14} />}
-                size="small"
-                disabled={isRunning}
-                style={{
-                    borderRadius: "0 6px 6px 0",
-                    borderLeft: "1px solid rgba(255, 255, 255, 0.4)",
-                    width: "32px",
-                    padding: 0,
-                }}
-            />
+        <Popover onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <Button
+                    size="sm"
+                    disabled={isRunning}
+                    aria-label="Run options"
+                    // Split-button divider, tracking the button's own foreground: primary is navy
+                    // with white content in light, brand yellow with near-black content in dark.
+                    className="w-8 p-0 rounded-l-none border-l border-l-white/40 dark:border-l-black/40"
+                >
+                    <CaretDown size={14} />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="bottom" className="p-4 w-auto">
+                {content}
+            </PopoverContent>
         </Popover>
     )
 }

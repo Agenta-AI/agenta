@@ -17,8 +17,8 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {Button, Input, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {ArrowsIn, ArrowsOut, CaretDown, CaretUp, Info, X} from "@phosphor-icons/react"
-import {Button, Input, Popover, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useDrawerProviders} from "./DrawerContext"
@@ -32,8 +32,6 @@ import {
     workflowRevisionDrawerExpandedAtom,
     workflowRevisionDrawerNavigationIdsAtom,
 } from "./store"
-
-const {Text} = Typography
 
 // ================================================================
 // NAV CONTROLS
@@ -62,24 +60,28 @@ const NavControls = memo(({entityId}: {entityId: string}) => {
     return (
         <div className="flex items-center gap-0.5">
             <Button
-                icon={<CaretUp size={14} />}
-                size="small"
-                type="text"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Previous revision"
                 disabled={isPrevDisabled}
                 onClick={() => {
                     if (currentIndex > 0) handleNavigate(navigationIds[currentIndex - 1])
                 }}
-            />
+            >
+                <CaretUp size={14} />
+            </Button>
             <Button
-                icon={<CaretDown size={14} />}
-                size="small"
-                type="text"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Next revision"
                 disabled={isNextDisabled}
                 onClick={() => {
                     if (currentIndex < navigationIds.length - 1)
                         handleNavigate(navigationIds[currentIndex + 1])
                 }}
-            />
+            >
+                <CaretDown size={14} />
+            </Button>
         </div>
     )
 })
@@ -109,17 +111,15 @@ const MetadataPopover = memo(({entityId}: {entityId: string}) => {
     if (isCreateContext(context)) return null
 
     return (
-        <Popover
-            trigger="click"
-            placement="bottomRight"
-            styles={{container: {padding: 0}}}
-            content={
-                <div className="w-[240px]">
-                    <MetadataSidebar revisionId={entityId} context={context} isCompact={true} />
-                </div>
-            }
-        >
-            <Button type="text" size="small" icon={<Info size={14} />} />
+        <Popover>
+            <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Revision details">
+                    <Info size={14} />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="bottom" className="w-[240px] p-0">
+                <MetadataSidebar revisionId={entityId} context={context} isCompact={true} />
+            </PopoverContent>
         </Popover>
     )
 })
@@ -186,11 +186,11 @@ const AppCreateNameInput = memo(({entityId}: {entityId: string}) => {
             onChange={handleChange}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            size="small"
+            size="sm"
             placeholder="Untitled App"
-            className="!w-[260px] !text-sm !font-medium"
+            className="w-[260px] text-sm font-medium"
             data-testid="app-create-name-input"
-            variant="borderless"
+            variant="ghost"
         />
     )
 })
@@ -225,18 +225,20 @@ const DrawerHeader = () => {
             {/* Left: close + title + nav */}
             <div className="flex items-center gap-2">
                 <Button
-                    type="text"
-                    size="small"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Close drawer"
                     onClick={handleClose}
-                    icon={<X size={14} />}
                     data-testid="workflow-revision-drawer-close"
-                />
+                >
+                    <X size={14} />
+                </Button>
 
                 <div className="flex items-center gap-3">
                     {isAppCreate && entityId ? (
                         <AppCreateNameInput entityId={entityId} />
                     ) : (
-                        <Text className="text-sm font-medium">{title}</Text>
+                        <span className="text-sm font-medium text-colorText">{title}</span>
                     )}
                     {entityId && !isCreate && <NavControls entityId={entityId} />}
                 </div>
@@ -251,12 +253,8 @@ const DrawerHeader = () => {
                       : isEvaluator
                         ? null
                         : entityId && <VariantActionButtons entityId={entityId} />}
-                <Button
-                    onClick={handleToggleExpand}
-                    size="small"
-                    type="text"
-                    icon={isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
-                >
+                <Button onClick={handleToggleExpand} size="sm" variant="ghost">
+                    {isExpanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
                     {isEvaluator ? "Test Evaluator" : "Test App"}
                 </Button>
             </div>

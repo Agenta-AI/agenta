@@ -9,9 +9,9 @@
  *
  * Covered: open · onClose · title · footer · extra · placement→side · width/height · closable ·
  * maskClosable · keyboard(Esc) · afterOpenChange · styles(body/header/footer) · className/rootClassName ·
- * zIndex · getContainer · destroyOnClose/Hidden (lazy) · closeOnLayoutClick (Radix outside-click).
- * Deferred (rare / unused): `mask={false}` (Radix always renders the overlay), custom `closeIcon`,
- * `push`, `loading`. Add if a call-site needs them.
+ * zIndex · getContainer · destroyOnClose/Hidden (lazy) · closeOnLayoutClick (Radix outside-click) ·
+ * mask (true / false / `{enabled, blur}`).
+ * Deferred (rare / unused): custom `closeIcon`, `push`, `loading`. Add if a call-site needs them.
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -33,6 +33,25 @@ type DrawerClosable = boolean | object
 
 /** antd `mask` — a boolean or the antd v6 `MaskConfig` object (`{enabled, blur, closable}`). */
 type DrawerMask = boolean | object
+
+/**
+ * antd `mask={false}` / `mask={{enabled:false}}` — no mask element at all.
+ *
+ * A transparent overlay is NOT an equivalent substitute: it still spans the viewport and becomes
+ * the target of every click behind the drawer. See finding WAVE3-F29.
+ */
+function isMaskless(mask: DrawerMask | undefined): boolean {
+    if (mask === false) return true
+    if (mask == null || mask === true) return false
+    return (mask as {enabled?: boolean}).enabled === false
+}
+
+function maskClasses(mask: DrawerMask | undefined): string | undefined {
+    if (mask === undefined || mask === true) return undefined
+    if (mask === false) return undefined
+    const cfg = mask as {enabled?: boolean; blur?: boolean}
+    return cn(cfg.blur && "backdrop-blur-sm")
+}
 
 /** antd `Drawer.styles` semantic-DOM style slots (index sig accepts any antd semantic key). */
 interface DrawerSemanticStyles {
@@ -108,6 +127,12 @@ export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
     /** antd `Drawer` had this; Radix already closes on outside-click, so it's effectively a no-op. */
     closeOnLayoutClick?: boolean
+    /**
+     * Accessible name used when the drawer renders no visible `title` (i.e. `closable={false}`
+     * with no title or extra). Radix's dialog needs a name; without one axe reports
+     * `aria-dialog-name`. Falls back to "Drawer" — pass something specific.
+     */
+    ariaLabel?: string
 }
 
 interface DrawerStyles {
@@ -131,6 +156,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         height,
         size,
         closable = true,
+        mask,
         maskClosable = true,
         keyboard = true,
         zIndex,
@@ -139,6 +165,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         className,
         rootClassName,
         afterOpenChange,
+        ariaLabel,
     } = props
 
     const [shouldRender, setShouldRender] = useState(!!open)
@@ -203,21 +230,31 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
           ? {height: effHeight, maxHeight: "100%"}
           : {}
 
+    // antd's maskless drawer is NON-MODAL: no mask element, clicks reach the page behind it.
+    // `modal={false}` is what stops Radix pinning `pointer-events: none` on <body>; outside-click
+    // still closes because DismissableLayer listens on document, not on the overlay.
+    const maskless = isMaskless(mask)
+
     return (
-        <Sheet open={open} onOpenChange={handleOpenChange}>
+        <Sheet open={open} onOpenChange={handleOpenChange} modal={!maskless}>
             <SheetContent
                 side={side}
                 container={container}
+                maskless={maskless}
+                overlayClassName={maskClasses(mask)}
                 className={cn(rootClassName, className)}
                 style={{...sizeStyle, ...(zIndex != null ? {zIndex} : {}), ...styles?.content}}
                 onEscapeKeyDown={(e) => {
                     if (!keyboard) e.preventDefault()
                 }}
+                // `maskClosable` means "clicking the MASK closes". With no mask there is nothing
+                // to click, so antd never auto-closed either — the caller's own outside-click
+                // logic owns it (and can now see the real click target again).
                 onPointerDownOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!maskClosable || maskless) e.preventDefault()
                 }}
                 onInteractOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!maskClosable || maskless) e.preventDefault()
                 }}
             >
                 {title != null || extra != null || closable !== false ? (
@@ -229,7 +266,14 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                         )}
                         {extra != null ? <div data-slot="drawer-extra">{extra}</div> : null}
                     </SheetHeader>
-                ) : null}
+                ) : (
+                    // No header at all (`closable={false}` with no title/extra — the workflow
+                    // revision drawer's shape). Radix renders role="dialog", which axe requires
+                    // to have an accessible name, so emit a screen-reader-only title rather than
+                    // leaving the dialog unnamed. antd's Drawer had no such requirement, which
+                    // is why this only surfaced after the Sheet migration.
+                    <SheetTitle className="sr-only">{ariaLabel ?? "Drawer"}</SheetTitle>
+                )}
                 {/* antd `.ant-drawer-body`: 24px padding, scrolls internally. */}
                 <div
                     data-slot="drawer-body"

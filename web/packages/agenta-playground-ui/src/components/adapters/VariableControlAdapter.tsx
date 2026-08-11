@@ -13,8 +13,8 @@ import type {EditorProps} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 import {TypeChip} from "@agenta/ui/type-chip"
 import type {ChipVariant} from "@agenta/ui/type-chip"
+import {InputNumber, Switch, Tooltip, TooltipContent, TooltipTrigger} from "@agenta/ui/ui"
 import {Info} from "@phosphor-icons/react"
-import {InputNumber, Switch, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -59,17 +59,22 @@ const VariableHeader: React.FC<{
 }> = ({name, headerActions, helpText, typeChip}) => (
     <div className="w-full flex items-start justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
-            <Typography className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[var(--ag-c-1677FF)] font-mono truncate">
+            <div className="playground-property-control-label font-[500] text-[12px] leading-[20px] text-[var(--ag-c-1677FF)] font-mono truncate">
                 {name}
-            </Typography>
+            </div>
             {typeChip}
             {helpText ? (
-                <Tooltip title={helpText} placement="topLeft" overlayStyle={{maxWidth: 360}}>
-                    <Info
-                        size={12}
-                        className="text-gray-400 hover:text-gray-600 shrink-0 cursor-help"
-                        aria-label={`About ${name ?? "this variable"}`}
-                    />
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Info
+                            size={12}
+                            className="text-colorTextDescription hover:text-colorText shrink-0 cursor-help"
+                            aria-label={`About ${name ?? "this variable"}`}
+                        />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" align="start" className="max-w-[360px]">
+                        {helpText}
+                    </TooltipContent>
                 </Tooltip>
             ) : null}
         </div>
@@ -444,10 +449,14 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                         />
                     )}
                     <Switch
+                        // The header carries the visible name, and `hideLabel` drops even that —
+                        // so without this the switch is an unnamed control (critical
+                        // `button-name`). Same fix already applied to VariableCard's boolean branch.
+                        aria-label={name}
                         checked={value === "true"}
-                        onChange={(checked) => handleChange(String(checked))}
+                        onCheckedChange={(checked) => handleChange(String(checked))}
                         disabled={isEffectivelyDisabled}
-                        size="small"
+                        size="sm"
                         className="w-fit"
                     />
                 </div>
@@ -492,12 +501,9 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 }
                 footer={
                     showShapeHint ? (
-                        <Typography.Text
-                            type="secondary"
-                            className="block mt-1 px-1 text-[11px] font-mono"
-                        >
+                        <span className="block mt-1 px-1 text-[11px] font-mono text-colorTextDescription">
                             Expected shape: <code>{shapeHint}</code>
-                        </Typography.Text>
+                        </span>
                     ) : null
                 }
                 containerRef={containerRef}
@@ -565,9 +571,9 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 />
             </EditorProvider>
             {showShapeHint && (
-                <Typography.Text type="secondary" className="block mt-1 px-1 text-[11px] font-mono">
+                <span className="block mt-1 px-1 text-[11px] font-mono text-colorTextDescription">
                     Expected shape: <code>{shapeHint}</code>
-                </Typography.Text>
+                </span>
             )}
         </div>
     )

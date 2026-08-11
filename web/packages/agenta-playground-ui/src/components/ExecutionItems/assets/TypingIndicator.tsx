@@ -1,7 +1,6 @@
 import {type FC} from "react"
 
-import {LoadingOutlined} from "@ant-design/icons"
-import {Spin} from "antd"
+import {Spinner} from "@agenta/ui/ui"
 import clsx from "clsx"
 
 const TypingIndicator: FC<{label?: string; className?: string; size?: "small" | "default"}> = ({
@@ -16,17 +15,9 @@ const TypingIndicator: FC<{label?: string; className?: string; size?: "small" | 
                 className,
             )}
         >
-            <Spin
-                indicator={
-                    <LoadingOutlined
-                        style={{
-                            fontSize: size === "small" ? 12 : 14,
-                            color: "rgba(102,112,133,0.75)",
-                        }}
-                        spin
-                    />
-                }
+            <Spinner
                 size={size === "small" ? "small" : "default"}
+                className="align-middle text-[rgba(102,112,133,0.75)]"
             />
             <span className="ml-2 align-middle">{label}</span>
         </div>
