@@ -28,7 +28,7 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 const asPermission = (v: unknown): ToolPermission | undefined =>
     v === "allow" || v === "ask" || v === "deny" ? v : undefined
 
-interface TemplateLocation {
+export interface TemplateLocation {
     template: Record<string, unknown>
     /** Rebuild the full `parameters` object from an updated template. */
     wrap: (nextTemplate: Record<string, unknown>) => Record<string, unknown>
@@ -39,7 +39,7 @@ interface TemplateLocation {
  * template). Mirror `buildAgentRequest`'s `withAgentRunDefaults` so a write lands exactly where the
  * run reads from.
  */
-function locateTemplate(parameters: Record<string, unknown>): TemplateLocation {
+export function locateTemplate(parameters: Record<string, unknown>): TemplateLocation {
     if (isRecord(parameters.agent)) {
         const agent = parameters.agent
         return {template: agent, wrap: (next) => ({...parameters, agent: next})}
@@ -101,7 +101,7 @@ export interface GrantableTool {
 // rule editor also offers.
 
 /** Platform ops (overlay-injected). These must ALWAYS gate — never auto-allowable from the card. */
-const PLATFORM_OPS = new Set([
+export const PLATFORM_OPS = new Set([
     "discover_tools",
     "query_workflows",
     "query_spans",
