@@ -1720,6 +1720,8 @@ class WorkflowsService:
         workflow_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
+        #
+        include_archived: Optional[bool] = True,
     ) -> tuple[
         Optional[WorkflowRevision],
         Optional[ResolutionInfo],
@@ -1784,6 +1786,8 @@ class WorkflowsService:
                 workflow_ref=workflow_ref,
                 workflow_variant_ref=workflow_variant_ref,
                 workflow_revision_ref=workflow_revision_ref,
+                #
+                include_archived=include_archived,
             )
             workflow_revision, resolution_info = result if result else (None, None)
         else:
@@ -1793,6 +1797,8 @@ class WorkflowsService:
                 workflow_ref=workflow_ref,
                 workflow_variant_ref=workflow_variant_ref,
                 workflow_revision_ref=workflow_revision_ref,
+                #
+                include_archived=include_archived,
             )
             resolution_info = None
 
