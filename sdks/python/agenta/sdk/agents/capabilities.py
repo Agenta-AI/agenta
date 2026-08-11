@@ -268,6 +268,17 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
             user_servers=UserMCPServerCapabilities(),
         ),
     ),
+    # Mock makes no network call and reaches no real provider; "mock" is a placeholder provider
+    # family so an author-declared model/connection still clears capability gating instead of
+    # being rejected as an unknown harness.
+    "mock": HarnessConnectionCapabilities(
+        providers=["mock"],
+        deployments=["direct"],
+        connection_modes=list(_ALL_MODES),
+        model_selection="provider/id",
+        models={"mock": ["mock-1"]},
+        model_catalog=_model_catalog("mock"),
+    ),
 }
 
 
