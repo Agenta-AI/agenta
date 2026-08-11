@@ -8,6 +8,7 @@
  * const events = await querySessionRecords({sessionId, projectId})
  * ```
  */
+import type {AgentaApi} from "@agentaai/api-client"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
