@@ -1111,14 +1111,18 @@ class ChannelsService:
             )
             return None
 
-        if resolved_token is not None:
-            resolved_event = await self.channels_dao.resolve_inbox_event_as_action(
-                project_id=project_id,
-                event_id=event.id,
-                content=[{"type": "text", "text": resolved_token}],
+        # the label, not the token: the agent gets back its own words, never
+        # the internal id it never issued and the user never saw
+        resolved_choice = None
+        if resolved_token is not None and pending_choice is not None:
+            resolved_choice = next(
+                (
+                    choice.label
+                    for choice in pending_choice.choices
+                    if choice.token == resolved_token
+                ),
+                None,
             )
-            if resolved_event is not None:
-                event = resolved_event
 
         if thread is None or not thread.flags.is_active:
             thread = await self.channels_dao.create_thread(
@@ -1140,6 +1144,7 @@ class ChannelsService:
             agent=agent,
             thread=thread,
             policy=policy,
+            resolved_choice=resolved_choice,
         )
 
     async def _addressed_agent(
@@ -1212,7 +1217,12 @@ class ChannelsService:
 
         content: List[dict] = []
         for stored in events:
-            content.extend(stored.data.processed.content)
+            if stored.id == event_id and resolution.resolved_choice is not None:
+                # the resolved label stands in for the raw arrival here only
+                # -- the logged row itself was never rewritten
+                content.append({"type": "text", "text": resolution.resolved_choice})
+            else:
+                content.extend(stored.data.processed.content)
 
         return ChannelTurnInput(
             content=content,

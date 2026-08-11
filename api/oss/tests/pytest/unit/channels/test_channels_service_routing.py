@@ -467,10 +467,11 @@ def _pending_choice(*pairs):
 
 class TestActionResolution:
     """`resolve()`'s wiring of `resolve_pending_choice` -- a click and a
-    numbered reply converging on the identical rewrite, and an unresolved
-    action being ignored rather than refused."""
+    numbered reply converging on the identical resolution, and an unresolved
+    action being ignored rather than refused. Neither path ever rewrites the
+    event each one already logged."""
 
-    async def test_click_and_numbered_reply_produce_the_same_write(self):
+    async def test_click_and_numbered_reply_resolve_to_the_same_choice(self):
         adapter = WellBehavedFakeAdapter()
         capabilities = await adapter.fetch_capabilities()
         space = _make_space(capabilities=capabilities)
@@ -486,12 +487,6 @@ class TestActionResolution:
             flags=ChannelThreadFlags(),
         )
 
-        written = []
-
-        async def _record(*, project_id, event_id, content):
-            written.append(content)
-            return None
-
         for kind, text in (
             (ChannelEventKind.ACTION, "approve"),
             (ChannelEventKind.MESSAGE, "1"),
@@ -501,7 +496,6 @@ class TestActionResolution:
             dao.fetch_default_agent = AsyncMock(return_value=agent)
             dao.fetch_current_thread = AsyncMock(return_value=thread)
             dao.count_grants = AsyncMock(return_value=0)
-            dao.resolve_inbox_event_as_action = AsyncMock(side_effect=_record)
 
             service = _make_service(dao=dao, adapter=adapter)
             event = _make_event(text=text)
@@ -512,12 +506,54 @@ class TestActionResolution:
             )
 
             assert result is not None
+            # both arrivals converge on the same choice -- its label, which
+            # is the agent's own words, not the internal token
+            assert result.resolved_choice == "Approve"
             dao.create_thread.assert_not_called()
 
-        assert written == [
-            [{"type": "text", "text": "approve"}],
-            [{"type": "text", "text": "approve"}],
-        ]
+    async def test_resolving_a_pending_choice_never_mutates_the_logged_event(self):
+        """The point of this package: the row stays exactly what arrived.
+        A click keeps its own kind and token content; a numbered reply keeps
+        `MESSAGE` and the literal `"1"` it was sent as."""
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        agent = _make_agent(slug="triage")
+        pending = _pending_choice(("Approve", "approve"), ("Deny", "deny"))
+        thread = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=uuid4(),
+            session_id="sess-1",
+            data=ChannelThreadData(pending_choice=pending),
+            flags=ChannelThreadFlags(),
+        )
+
+        for kind, text in (
+            (ChannelEventKind.ACTION, "approve"),
+            (ChannelEventKind.MESSAGE, "1"),
+        ):
+            dao = _make_fake_dao()
+            dao.fetch_space_by_key = AsyncMock(return_value=space)
+            dao.fetch_default_agent = AsyncMock(return_value=agent)
+            dao.fetch_current_thread = AsyncMock(return_value=thread)
+            dao.count_grants = AsyncMock(return_value=0)
+
+            service = _make_service(dao=dao, adapter=adapter)
+            event = _make_event(text=text)
+            event.kind = kind
+            before = event.model_dump(mode="json")
+
+            result = await service.resolve(
+                project_id=uuid4(), connection_id=uuid4(), event=event
+            )
+
+            assert result is not None
+            assert event.model_dump(mode="json") == before
+            assert event.kind == kind
+            assert event.data.processed.content == [{"type": "text", "text": text}]
 
     async def test_unknown_action_token_is_ignored_not_refused(self):
         adapter = WellBehavedFakeAdapter()
@@ -540,7 +576,6 @@ class TestActionResolution:
         dao.fetch_default_agent = AsyncMock(return_value=agent)
         dao.fetch_current_thread = AsyncMock(return_value=thread)
         dao.count_grants = AsyncMock(return_value=0)
-        dao.resolve_inbox_event_as_action = AsyncMock()
 
         service = _make_service(dao=dao, adapter=adapter)
         event = _make_event(text="tok_bogus")
@@ -551,7 +586,6 @@ class TestActionResolution:
         )
 
         assert result is None
-        dao.resolve_inbox_event_as_action.assert_not_called()
         dao.create_thread.assert_not_called()
 
     async def test_a_token_from_a_superseded_choice_is_ignored(self):
@@ -579,7 +613,6 @@ class TestActionResolution:
         dao.fetch_default_agent = AsyncMock(return_value=agent)
         dao.fetch_current_thread = AsyncMock(return_value=thread)
         dao.count_grants = AsyncMock(return_value=0)
-        dao.resolve_inbox_event_as_action = AsyncMock()
 
         service = _make_service(dao=dao, adapter=adapter)
         # "approve" answered the OLD (now-superseded) choice
@@ -591,7 +624,6 @@ class TestActionResolution:
         )
 
         assert result is None
-        dao.resolve_inbox_event_as_action.assert_not_called()
 
     async def test_a_message_that_fails_to_match_stays_an_ordinary_message(self):
         """kind stays MESSAGE when there is nothing to resolve against --
@@ -618,7 +650,6 @@ class TestActionResolution:
         dao.fetch_default_agent = AsyncMock(return_value=agent)
         dao.fetch_current_thread = AsyncMock(return_value=thread)
         dao.count_grants = AsyncMock(return_value=0)
-        dao.resolve_inbox_event_as_action = AsyncMock()
 
         service = _make_service(dao=dao, adapter=adapter)
         event = _make_event(text="what time is the meeting")
@@ -628,11 +659,13 @@ class TestActionResolution:
         )
 
         assert result is not None
-        dao.resolve_inbox_event_as_action.assert_not_called()
+        assert result.resolved_choice is None
 
 
 class TestComposeInput:
-    async def _make_resolution(self, *, forwardfill, dao, capabilities):
+    async def _make_resolution(
+        self, *, forwardfill, dao, capabilities, resolved_choice=None
+    ):
         space = _make_space(capabilities=capabilities)
         agent = _make_agent()
         thread = ChannelThread(
@@ -664,7 +697,13 @@ class TestComposeInput:
         )
         from oss.src.core.channels.dtos import ChannelResolution
 
-        return ChannelResolution(space=space, agent=agent, thread=thread, policy=policy)
+        return ChannelResolution(
+            space=space,
+            agent=agent,
+            thread=thread,
+            policy=policy,
+            resolved_choice=resolved_choice,
+        )
 
     async def test_no_trigger_yet_reads_whole_log(self):
         """No trigger row yet reads as "from the beginning" — after_event_id
@@ -751,6 +790,64 @@ class TestComposeInput:
         )
 
         assert turn_input.content == addressing_event.data.processed.content
+
+    async def test_resolved_choice_reaches_the_agent_without_touching_the_log(self):
+        """The seam this package moved: `resolve()` no longer rewrites the
+        addressing event, so `compose_input` substitutes the resolved label
+        into the turn -- but only for the addressing event. A forwardfilled
+        neighbour still carries its own, untouched content."""
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        dao = _make_fake_dao()
+        service = _make_service(dao=dao, adapter=adapter)
+
+        resolution = await self._make_resolution(
+            forwardfill=True,
+            dao=dao,
+            capabilities=capabilities,
+            resolved_choice="Approve",
+        )
+        neighbour_event = _make_event(text="hey")
+        addressing_event = _make_event(text="1")
+
+        stored_addressing_content = list(addressing_event.data.processed.content)
+
+        dao.query_events_since = AsyncMock(
+            return_value=[
+                ChannelInboxEvent(
+                    id=neighbour_event.id,
+                    connection_id=neighbour_event.connection_id,
+                    external_id="evt-neighbour",
+                    kind=ChannelEventKind.MESSAGE,
+                    origin=ChannelEventOrigin.PUSHED,
+                    space_id=resolution.space.id,
+                    data=neighbour_event.data,
+                ),
+                ChannelInboxEvent(
+                    id=addressing_event.id,
+                    connection_id=addressing_event.connection_id,
+                    external_id="evt-addr",
+                    kind=ChannelEventKind.MESSAGE,
+                    origin=ChannelEventOrigin.PUSHED,
+                    space_id=resolution.space.id,
+                    data=addressing_event.data,
+                ),
+            ]
+        )
+
+        turn_input = await service.compose_input(
+            project_id=uuid4(),
+            resolution=resolution,
+            event_id=addressing_event.id,
+        )
+
+        assert turn_input.content == [
+            {"type": "text", "text": "hey"},
+            {"type": "text", "text": "Approve"},
+        ]
+        # the logged row itself, as returned by the DAO, was never rewritten
+        assert addressing_event.data.processed.content == stored_addressing_content
 
 
 class TestOpenTurnAndSettleTurn:

@@ -265,9 +265,6 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def record_inbox_event(self, **kwargs):
         raise NotImplementedError
 
-    async def resolve_inbox_event_as_action(self, **kwargs):
-        raise NotImplementedError
-
     async def record_inbox_events(self, **kwargs):
         raise NotImplementedError
 

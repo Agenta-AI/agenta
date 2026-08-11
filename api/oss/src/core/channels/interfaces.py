@@ -564,25 +564,6 @@ class ChannelsDAOInterface(ABC):
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelInboxEvent]: ...
 
-    @abstractmethod
-    async def resolve_inbox_event_as_action(
-        self,
-        *,
-        project_id: UUID,
-        #
-        event_id: UUID,
-        content: List[dict],
-    ) -> Optional[ChannelInboxEvent]:
-        """Rewrite an already-logged row's `kind` to ACTION and its
-        `processed.content` to the resolved value, in place, by id.
-
-        Only the numbered-reply path needs this — a click already arrives
-        shaped as ACTION with the token as its content. Both paths end at
-        this same call with the same resolved content, which is the "one
-        write" a click and a numbered reply converge on.
-        """
-        ...
-
     # --- inbox: the offsets ------------------------------------------------- #
 
     @abstractmethod

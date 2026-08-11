@@ -15,7 +15,6 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionEdit,
     ChannelConnectionQuery,
     ChannelDeliveryState,
-    ChannelEventKind,
     ChannelGrant,
     ChannelGrantCreate,
     ChannelGrantEdit,
@@ -1385,41 +1384,6 @@ class ChannelsDAO(ChannelsDAOInterface):
                 map_inbox_event_dbe_to_dto(event_dbe=dbe)
                 for dbe in result.scalars().all()
             ]
-
-    async def resolve_inbox_event_as_action(
-        self,
-        *,
-        project_id: UUID,
-        #
-        event_id: UUID,
-        content: List[dict],
-    ) -> Optional[ChannelInboxEvent]:
-        async with self.engine.session() as session:
-            stmt = select(ChannelInboxEventDBE).where(
-                ChannelInboxEventDBE.project_id == project_id,
-                ChannelInboxEventDBE.id == event_id,
-            )
-
-            result = await session.execute(stmt)
-            event_dbe = result.scalar_one_or_none()
-
-            if not event_dbe:
-                return None
-
-            data = dict(event_dbe.data or {})
-            processed = dict(data.get("processed") or {})
-            processed["content"] = content
-            data["processed"] = processed
-
-            event_dbe.data = data
-            event_dbe.kind = ChannelEventKind.ACTION.value
-            event_dbe.updated_at = datetime.now(timezone.utc)
-
-            await session.commit()
-
-            await session.refresh(event_dbe)
-
-            return map_inbox_event_dbe_to_dto(event_dbe=event_dbe)
 
     # --- inbox: the offsets ------------------------------------------------ #
 

@@ -781,6 +781,9 @@ class ChannelResolution(BaseModel):
     agent: ChannelAgent
     thread: ChannelThread
     policy: ChannelEffectivePolicy
+    # set when the addressing event answered a pending choice; compose_input
+    # substitutes this for the event's own content, so the log is never rewritten
+    resolved_choice: Optional[str] = None
 
 
 class ChannelTurnInput(BaseModel):
