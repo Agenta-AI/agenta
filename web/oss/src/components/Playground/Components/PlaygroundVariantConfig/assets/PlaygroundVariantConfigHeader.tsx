@@ -296,8 +296,10 @@ const PlaygroundVariantConfigHeader = ({
                     </>
                 ) : (
                     <>
-                        {/* Agent playgrounds don't deploy — Commit is the only publish action there. */}
-                        {!embedded && !isEvaluatorEntity && !isAgentEffective && (
+                        {/* Agent playgrounds don't deploy — Commit is the only publish action
+                            there. showAgentHeader also covers the loading window, so Deploy
+                            can't flash before agent-ness resolves. */}
+                        {!embedded && !isEvaluatorEntity && !showAgentHeader && (
                             <DeployVariantButton revisionId={variantId} />
                         )}
 
