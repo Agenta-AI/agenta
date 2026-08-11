@@ -5,7 +5,11 @@ import {type UIMessage} from "ai"
 import {Button} from "antd"
 import {Virtuoso} from "react-virtuoso"
 
-import {BOTTOM_FADE_OVERLAY_STYLE, EDGE_FADE_MASK} from "../assets/conversationLayout"
+import {
+    BOTTOM_FADE_HOVER_HIDE,
+    BOTTOM_FADE_OVERLAY_STYLE,
+    EDGE_FADE_MASK,
+} from "../assets/conversationLayout"
 import {type ScrollIntent} from "../hooks/useScrollIntent"
 import {type useTranscriptScroll} from "../hooks/useTranscriptScroll"
 import {type VirtCtx, type useVirtuosoTranscript} from "../hooks/useVirtuosoTranscript"
@@ -140,12 +144,12 @@ const AgentTranscript = ({
                 </div>
             )}
 
-            {/* Bottom-edge fade, painted as a sibling OUTSIDE the scroll container's masked
-            subtree (see EDGE_FADE_MASK's comment) so a hovering message's stats chip — z-10,
-            deep inside that subtree — can render above it instead of being masked out. */}
+            {/* Bottom-edge fade. It paints over the scroll container's whole stacking context —
+            including a hovered turn's toolbar — so it steps aside while a turn is hovered or
+            focused, which is the only time a toolbar is on screen. See BOTTOM_FADE_OVERLAY_STYLE. */}
             <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 bottom-0 z-[5]"
+                className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] ${BOTTOM_FADE_HOVER_HIDE}`}
                 style={BOTTOM_FADE_OVERLAY_STYLE}
             />
 
