@@ -980,6 +980,18 @@ class TriggersService:
             subscription_id=subscription_id,
         )
 
+    async def fetch_subscription_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> Optional[TriggerSubscription]:
+        return await self.dao.fetch_subscription_including_deleted(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+
     async def query_subscriptions(
         self,
         *,
@@ -1068,13 +1080,21 @@ class TriggersService:
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         subscription_id: UUID,
     ) -> bool:
-        """Delete the local row and the provider ``ti_*``.
+        """Soft-delete the local row first, then best-effort delete the provider ``ti_*``.
+
+        Local state must land before the provider call: a degraded provider (a
+        rotated key, a timeout, a 5xx) must never leave a user unable to delete a
+        firing automation (P0-2) — mirrors `delete_connection`'s existing
+        tolerance in the connections domain. A provider failure is logged and
+        recorded as a `needs_provider_cleanup` marker for reconciliation instead
+        of raised.
 
         Deleting a subscription must NOT revoke the shared connection (C7): the
-        adapter call below targets only the trigger instance, never the ``ca_*``.
+        provider call targets only the trigger instance, never the ``ca_*``.
         """
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
@@ -1083,25 +1103,82 @@ class TriggersService:
         if existing is None:
             return False
 
-        trigger_id = existing.trigger_id
-        if trigger_id is not None:
-            connection = await self.connections_service.get_connection(
-                project_id=project_id,
-                connection_id=existing.connection_id,
-            )
-            if connection is not None:
-                adapter = self.adapter_registry.get(connection.provider_key.value)
-                try:
-                    await adapter.delete_subscription(trigger_id=trigger_id)
-                except AdapterError:
-                    # Provider-side trigger may already be gone; local delete is
-                    # the source of truth. Unexpected errors are left to surface.
-                    log.warning(
-                        "Failed to delete provider trigger %s; proceeding with local delete",
-                        trigger_id,
-                    )
+        deleted = await self.dao.delete_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription_id=subscription_id,
+        )
 
-        return await self.dao.delete_subscription(
+        try:
+            await self._delete_provider_subscription(
+                project_id=project_id,
+                subscription=existing,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "Failed to delete provider trigger for subscription %s, "
+                "local delete already applied: %s",
+                subscription_id,
+                e,
+            )
+            await self.dao.mark_subscription_needs_provider_cleanup(
+                project_id=project_id,
+                subscription_id=subscription_id,
+            )
+
+        return deleted
+
+    async def _delete_provider_subscription(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+    ) -> None:
+        trigger_id = subscription.trigger_id
+        if trigger_id is None:
+            return
+        # The provider delete needs only `trigger_id` — look up the connection just
+        # for its provider_key, and fall back to the default provider when the
+        # connection row is already gone (P2-5: a soft-deleted subscription whose
+        # connection was deleted must still attempt cleanup, or the upstream
+        # `ti_*` fires into a 200-ACK void forever).
+        connection = await self.connections_service.get_connection(
+            project_id=project_id,
+            connection_id=subscription.connection_id,
+        )
+        provider_key = (
+            connection.provider_key.value
+            if connection is not None
+            else TriggerProviderKind.COMPOSIO.value
+        )
+        adapter = self.adapter_registry.get(provider_key)
+        await adapter.delete_subscription(trigger_id=trigger_id)
+
+    async def cleanup_test_subscription(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+    ) -> bool:
+        """Remove a temporary provider trigger and physically purge its local history."""
+        existing = await self.dao.fetch_subscription(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+        if existing is None:
+            return False
+
+        if not existing.flags.is_test:
+            # This is a physical, unrecoverable purge — refuse anything that
+            # isn't a short-lived test subscription so a wrong subscription_id
+            # can't destroy real automation history.
+            raise ValueError("cleanup_test_subscription only purges test subscriptions")
+
+        await self._delete_provider_subscription(
+            project_id=project_id,
+            subscription=existing,
+        )
+        return await self.dao.purge_subscription(
             project_id=project_id,
             subscription_id=subscription_id,
         )
@@ -1155,6 +1232,12 @@ class TriggersService:
         """Full-PUT play/pause toggle; touches only local is_active (never is_valid).
 
         Distinct from /revoke, which drives the provider ti_* / is_valid axis.
+
+        Stopping (``is_active=False``) writes local state first, then attempts the
+        provider sync best-effort: a degraded provider must never block a user
+        from stopping a firing automation (P0-2), mirroring `delete_subscription`.
+        Starting keeps the provider-first order — the enable call must actually
+        succeed before the subscription can be trusted to run again.
         """
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
@@ -1162,13 +1245,6 @@ class TriggersService:
         )
         if existing is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
-
-        await self._sync_provider_enabled(
-            project_id=project_id,
-            subscription=existing,
-            is_active=is_active,
-            is_valid=existing.flags.is_valid,
-        )
 
         edit = TriggerSubscriptionEdit(
             id=existing.id,
@@ -1181,13 +1257,45 @@ class TriggersService:
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )
 
-        updated = await self.dao.edit_subscription(
-            project_id=project_id,
-            user_id=user_id,
-            subscription=edit,
-        )
-
-        return updated or existing
+        if is_active:
+            await self._sync_provider_enabled(
+                project_id=project_id,
+                subscription=existing,
+                is_active=is_active,
+                is_valid=existing.flags.is_valid,
+            )
+            updated = await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=edit,
+            )
+        else:
+            updated = await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=edit,
+            )
+            try:
+                await self._sync_provider_enabled(
+                    project_id=project_id,
+                    subscription=existing,
+                    is_active=is_active,
+                    is_valid=existing.flags.is_valid,
+                )
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                log.warning(
+                    "Failed to sync provider disable for subscription %s, "
+                    "local stop already applied: %s",
+                    subscription_id,
+                    e,
+                )
+                await self.dao.mark_subscription_needs_provider_cleanup(
+                    project_id=project_id,
+                    subscription_id=subscription_id,
+                )
+        if updated is None:
+            raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
+        return updated
 
     async def test_subscription(
         self,
@@ -1252,10 +1360,20 @@ class TriggersService:
             )
         finally:
             if owns_created:
-                await self.delete_subscription(
-                    project_id=project_id,
-                    subscription_id=created.id,
-                )
+                # A transient provider failure during teardown must not mask a
+                # captured result (or a real error from the `try` block) with an
+                # unrelated AdapterError raised from `finally`.
+                try:
+                    await self.cleanup_test_subscription(
+                        project_id=project_id,
+                        subscription_id=created.id,
+                    )
+                except AdapterError as e:
+                    log.warning(
+                        "Failed to clean up test subscription %s: %s",
+                        created.id,
+                        e,
+                    )
 
     async def _set_valid(
         self,
@@ -1295,8 +1413,9 @@ class TriggersService:
             user_id=user_id,
             subscription=edit,
         )
-
-        return updated or existing
+        if updated is None:
+            raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
+        return updated
 
     # -----------------------------------------------------------------------
     # Schedules
@@ -1374,6 +1493,18 @@ class TriggersService:
             schedule_id=schedule_id,
         )
 
+    async def fetch_schedule_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        return await self.dao.fetch_schedule_including_deleted(
+            project_id=project_id,
+            schedule_id=schedule_id,
+        )
+
     async def query_schedules(
         self,
         *,
@@ -1423,11 +1554,13 @@ class TriggersService:
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         schedule_id: UUID,
     ) -> bool:
         return await self.dao.delete_schedule(
             project_id=project_id,
+            user_id=user_id,
             schedule_id=schedule_id,
         )
 
@@ -1471,8 +1604,9 @@ class TriggersService:
             user_id=user_id,
             schedule=edit,
         )
-
-        return updated or existing
+        if updated is None:
+            raise ScheduleNotFoundError(schedule_id=str(schedule_id))
+        return updated
 
     async def refresh_schedules(
         self,
@@ -1555,7 +1689,7 @@ class TriggersService:
                         project_id=str(project_id),
                         event_id=event_id,
                         event=event,
-                        schedule=schedule.model_dump(mode="json"),
+                        schedule_id=str(schedule.id),
                     ),
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )
@@ -1615,7 +1749,21 @@ class TriggersService:
         user_id: Optional[UUID] = None,
         #
         delivery: TriggerDeliveryCreate,
-    ) -> TriggerDelivery:
+    ) -> Optional[TriggerDelivery]:
+        """Write a delivery row.
+
+        A subscription-scoped delivery routes through the liveness-gated DAO path
+        (`write_subscription_delivery_if_live`) — this public service method must
+        not reopen the hole that one was added to close (P3-6). No production
+        caller today; a schedule-scoped delivery has no equivalent gate to bypass,
+        so it still goes straight to `write_delivery`.
+        """
+        if delivery.subscription_id is not None and delivery.schedule_id is None:
+            return await self.dao.write_subscription_delivery_if_live(
+                project_id=project_id,
+                user_id=user_id,
+                delivery=delivery,
+            )
         return await self.dao.write_delivery(
             project_id=project_id,
             user_id=user_id,

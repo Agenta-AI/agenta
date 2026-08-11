@@ -1,11 +1,12 @@
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.records.dtos import (
+    SESSION_MESSAGE_PREVIEW_TEXT_LIMIT,
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
@@ -143,11 +144,17 @@ class RecordsDAO(RecordsDAOInterface):
             return {}
 
         async with self.engine.session() as session:
+            # Select the truncated text expression, not the whole `attributes` JSONB —
+            # a 5 MB last message otherwise rides along for every row on every page
+            # (P2-1). `left(...)` truncates before the value ever leaves Postgres.
+            preview_text = func.left(
+                RecordDBE.attributes["text"].astext, SESSION_MESSAGE_PREVIEW_TEXT_LIMIT
+            ).label("text")
             stmt = (
                 select(
                     RecordDBE.session_id,
                     RecordDBE.record_source,
-                    RecordDBE.attributes,
+                    preview_text,
                     RecordDBE.timestamp,
                     RecordDBE.created_at,
                 )
@@ -170,12 +177,11 @@ class RecordsDAO(RecordsDAOInterface):
 
         previews: Dict[str, SessionMessagePreview] = {}
         for row in rows:
-            text = (row.attributes or {}).get("text")
+            text = row.text
             # A message whose payload carries no text (attachment-only) has nothing to preview.
             if not isinstance(text, str) or not text.strip():
                 continue
             previews[row.session_id] = SessionMessagePreview(
-                session_id=row.session_id,
                 text=text.strip(),
                 source=row.record_source,
                 timestamp=row.timestamp or row.created_at,

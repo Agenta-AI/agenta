@@ -133,6 +133,9 @@ class TestRefreshSchedules:
         ok = await service.refresh_schedules(timestamp=_TICK, interval=1)
         assert ok is True
         service.schedule_dispatch_task.kiq.assert_awaited_once()
+        payload = service.schedule_dispatch_task.kiq.await_args.kwargs
+        assert payload["schedule_id"] == str(sched.id)
+        assert "schedule" not in payload
 
     async def test_non_matching_schedule_is_skipped(self):
         # Fires only at minute 30; the tick is at minute 0.

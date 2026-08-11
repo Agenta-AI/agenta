@@ -1,10 +1,14 @@
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from oss.src.core.sessions.dtos import SessionListItem
+from oss.src.core.sessions.dtos import (
+    SessionExpansion,
+    SessionListItem,
+    SessionOrigin,
+)
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamQueryFlags,
@@ -21,6 +25,7 @@ from oss.src.core.sessions.interactions.dtos import (
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
 from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
+from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
 
 # ---------------------------------------------------------------------------
@@ -28,28 +33,70 @@ from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
 # ---------------------------------------------------------------------------
 
 
+SessionId = Annotated[
+    str,
+    Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_\-]+$"),
+]
+
+
+class SessionPredicatesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    search: Optional[str] = None
+    liveness: Optional[SessionStreamQueryFlags] = None
+    origins: Optional[List[SessionOrigin]] = None
+
+
+class SessionExcludeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    origins: Optional[List[SessionOrigin]] = None
+    session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+
+
 class SessionQueryRequest(BaseModel):
-    references: Optional[List[Reference]] = None
-    windowing: Optional[Windowing] = None
+    model_config = ConfigDict(extra="forbid")
+
+    session: Optional[SessionPredicatesRequest] = None
+    # Canonical explicit set selection. It intersects with turn_references.
+    session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    exclude: Optional[SessionExcludeRequest] = None
+    turn_references: Optional[List[Reference]] = None
     # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
     include_ended: bool = False
     # Include archived sessions — off by default (archive hides); on for the archived view.
     include_archived: bool = False
+    # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
+    include_total: bool = False
+    expand: List[SessionExpansion] = Field(default_factory=list)
+    windowing: Optional[Windowing] = None
+
+    # Compatibility inputs for the currently released flat predicates.
+    references: Optional[List[Reference]] = None
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
     # Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags.
     flags: Optional[SessionStreamQueryFlags] = None
-    # Restrict to / exclude an explicit id set — the pushdown for predicates that live outside
-    # the stream row (client-held pins, sessions named by a pending-interaction lookup), so the
-    # server still owns the intersection, the ordering and the windowing.
-    session_ids: Optional[List[str]] = None
-    exclude_session_ids: Optional[List[str]] = None
-    # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
-    include_total: bool = False
-    # Who started the session: "manual", "trigger", … Absent means every origin.
-    origin: Optional[str] = None
+    # Released flat exclusion alias for exclude.session_ids.
+    exclude_session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    # Who started the session. Absent means every origin.
+    origin: Optional[SessionOrigin] = None
     # Its negation — hides one origin while still showing sessions with no stamp at all.
-    exclude_origin: Optional[str] = None
+    exclude_origin: Optional[SessionOrigin] = None
+
+    @field_validator("windowing")
+    @classmethod
+    def _bound_windowing_limit(cls, value: Optional[Windowing]) -> Optional[Windowing]:
+        # `Windowing` is the shared SDK model (also used by tracing/otel), so its
+        # `limit` carries no bound of its own. `limit: 0` compiled to no SQL LIMIT
+        # at all — an authenticated caller could dump the whole project in one
+        # request (P0-1). Bound it here, at the request model.
+        if value is not None and value.limit is not None:
+            if not (1 <= value.limit <= MAX_SESSION_QUERY_LIMIT):
+                raise ValueError(
+                    f"windowing.limit must be between 1 and {MAX_SESSION_QUERY_LIMIT}."
+                )
+        return value
 
 
 class SessionsResponse(BaseModel):
@@ -60,6 +107,7 @@ class SessionsResponse(BaseModel):
     # `SessionListItem` = `SessionStream` + the latest turn's `references` (WP0-R3),
     # absent (excluded by response_model_exclude_none) when the session has no turns yet.
     sessions: List[SessionListItem] = Field(default_factory=list)
+    windowing: Optional[Windowing] = None
 
 
 class SessionResponse(BaseModel):

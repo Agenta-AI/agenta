@@ -269,8 +269,14 @@ class TestTriggerSubscriptionsLifecycle:
             )
             assert delete.status_code == 204
 
+            # The shared route now returns the soft-deleted subscription for exact-ID
+            # historical display (deleted automations remain readable), not a 404 —
+            # list/query routes still omit it.
             fetch = triggers_api("GET", f"/triggers/subscriptions/{subscription_id}")
-            assert fetch.status_code == 404
+            assert fetch.status_code == 200, fetch.text
+            historical = fetch.json()["subscription"]
+            assert historical["id"] == subscription_id
+            assert historical["deleted_at"] is not None
 
             # C7: deleting the subscription must NOT delete/revoke the connection.
             conn = triggers_api("GET", f"/tools/connections/{connection_id}")

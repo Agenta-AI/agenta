@@ -50,7 +50,6 @@ from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsS
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
-from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import SimpleTestsetsService, TestsetsService
 from oss.src.core.tracing.service import TracingService
@@ -72,7 +71,6 @@ from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDA
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
-from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
     get_transactions_engine,
@@ -159,7 +157,9 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         approximate=True,
     )
 
-    triggers_dao = TriggersDAO()
+    transactions_engine = get_transactions_engine()
+    triggers_dao = TriggersDAO(engine=transactions_engine)
+    session_streams_dao = SessionStreamsDAO(engine=transactions_engine)
     workflows_dao = GitDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
@@ -183,19 +183,10 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     workflows_service.embeds_service = embeds_service
     environments_service.embeds_service = embeds_service
 
-    # Triggers dispatched through the queue must be stamped as automation-started too —
-    # without this composition they'd reach the sessions list indistinguishable from a
-    # person's own work, which is the whole point of the origin tag.
-    streams_service = SessionStreamsService(
-        streams_dao=SessionStreamsDAO(engine=get_transactions_engine()),
-        lock_engine=get_lock_engine(),
-        watch_publisher=SessionsWatchPublisher(),
-    )
-
     triggers_dispatcher = TriggersDispatcher(
         triggers_dao=triggers_dao,
+        session_claims_dao=session_streams_dao,
         workflows_service=workflows_service,
-        streams_service=streams_service,
     )
     TriggersWorker(
         broker=broker, dispatcher=triggers_dispatcher, triggers_dao=triggers_dao

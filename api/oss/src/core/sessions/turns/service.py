@@ -8,7 +8,7 @@ turn_index DESC LIMIT 1).
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
@@ -81,6 +81,19 @@ class SessionTurnsService:
             project_id=project_id,
             query=query,
             windowing=windowing,
+        )
+
+    async def query_session_ids_by_references(
+        self,
+        *,
+        project_id: UUID,
+        references: List[Reference],
+        limit: int,
+    ) -> List[str]:
+        return await self._dao.query_session_ids_by_references(
+            project_id=project_id,
+            references=references,
+            limit=limit,
         )
 
     async def latest_turn(
