@@ -57,9 +57,15 @@ def _bridge_url(connection: ChannelConnection) -> str:
     return url
 
 
-def _installation_id(connection: ChannelConnection) -> str:
+def _declared_source(connection: ChannelConnection) -> str:
+    """The bare `source` this connection was registered under -- the one field
+    the bridge declares as its identity, read from the recorded locator."""
+
     data = connection.data if isinstance(connection.data, dict) else {}
-    return data.get("installation_id") or ""
+    locator = data.get("connection_locator")
+    if not isinstance(locator, dict):
+        return ""
+    return str(locator.get("source") or "")
 
 
 class BridgeAdapter(ChannelAdapterInterface):
@@ -113,7 +119,7 @@ class BridgeAdapter(ChannelAdapterInterface):
             channel=self.channel,
         )
 
-        installation_id = _installation_id(connection)
+        declared_source = _declared_source(connection)
 
         # The credential resolves identity; `source` is a required
         # cross-check on the self-asserted claim in the signed body. A
@@ -123,11 +129,11 @@ class BridgeAdapter(ChannelAdapterInterface):
         payload = _parse_json(request.body)
         claimed_source = payload.get("source")
         if claimed_source is None or not _source_matches(
-            claimed_source, installation_id
+            claimed_source, declared_source
         ):
             raise ChannelSignatureInvalid(channel=self.channel)
 
-        return installation_id
+        return declared_source
 
     async def parse_event(
         self, *, body: bytes, connection: Optional[ChannelConnection] = None
@@ -233,5 +239,5 @@ def _bare_source(claimed_source: str) -> str:
     return claimed_source.split("/", 1)[1] if "/" in claimed_source else claimed_source
 
 
-def _source_matches(claimed_source: str, installation_id: str) -> bool:
-    return _bare_source(claimed_source) == installation_id
+def _source_matches(claimed_source: str, declared_source: str) -> bool:
+    return _bare_source(claimed_source) == declared_source

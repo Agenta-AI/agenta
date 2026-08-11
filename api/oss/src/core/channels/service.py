@@ -120,6 +120,13 @@ class ChannelsService:
         )
 
         locator_input = {**(connection.data or {}), **discovered}
+        # a channel whose identity includes the project takes it from the scope
+        # this call is already in, never from the caller: the credential proves
+        # the project, so restating it would be a claim rather than a fact
+        if "project" in (
+            capabilities.identity.keys.get(ChannelKeyGrain.CONNECTION) or []
+        ):
+            locator_input["project"] = str(project_id)
         connection.external_key = compose_external_key(
             capabilities, ChannelKeyGrain.CONNECTION, locator_input
         )
@@ -1436,10 +1443,19 @@ def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
 
 
 def _channel_defaults(capabilities: ChannelCapabilities):
-    from oss.src.core.channels.dtos import ChannelPolicy
+    from oss.src.core.channels.dtos import ChannelPolicy, ChannelSessionScope
+
+    # `conversation.default` is a grain (connection|space|thread); session scope
+    # is thread|message. Only THREAD carries over; every other grain means the
+    # platform has no threads, and MESSAGE is always available.
+    session_scope = (
+        ChannelSessionScope.THREAD
+        if capabilities.conversation.default is ChannelKeyGrain.THREAD
+        else ChannelSessionScope.MESSAGE
+    )
 
     return ChannelPolicy(
-        session_scope=capabilities.conversation.default,
+        session_scope=session_scope,
         backfill=capabilities.fill.backfill.supported,
         forwardfill=capabilities.fill.forwardfill.supported,
     )

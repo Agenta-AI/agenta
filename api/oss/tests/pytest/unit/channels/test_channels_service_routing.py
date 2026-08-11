@@ -15,6 +15,8 @@ import pytest
 
 from oss.src.core.channels.dtos import (
     ChannelAgent,
+    ChannelCapabilities,
+    ChannelConversation,
     ChannelAgentCreate,
     ChannelAgentData,
     ChannelAgentFlags,
@@ -43,7 +45,7 @@ from oss.src.core.channels.dtos import (
     ChannelThreadFlags,
     ChannelTriggerState,
 )
-from oss.src.core.channels.service import ChannelsService
+from oss.src.core.channels.service import ChannelsService, _channel_defaults
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.types import ChannelConnectionNotFound
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
@@ -1068,3 +1070,32 @@ class TestConnectionReadsStayOnChannelConnections:
         dao.fetch_connection.assert_awaited_once()
         _, kwargs = dao.fetch_connection.call_args
         assert kwargs["connection_id"] == connection_id
+
+
+class TestChannelDefaultsGrainToScope:
+    """A platform with no threads must not be handed a grain the scope
+    vocabulary has no member for."""
+
+    @staticmethod
+    def _capabilities(default_grain):
+        return ChannelCapabilities(
+            channel="fake",
+            conversation=ChannelConversation(
+                units=[default_grain], default=default_grain
+            ),
+        )
+
+    def test_a_thread_grain_becomes_the_thread_scope(self):
+        defaults = _channel_defaults(self._capabilities(ChannelKeyGrain.THREAD))
+
+        assert defaults.session_scope is ChannelSessionScope.THREAD
+
+    def test_a_space_grain_degrades_to_the_message_scope(self):
+        defaults = _channel_defaults(self._capabilities(ChannelKeyGrain.SPACE))
+
+        assert defaults.session_scope is ChannelSessionScope.MESSAGE
+
+    def test_a_connection_grain_degrades_to_the_message_scope(self):
+        defaults = _channel_defaults(self._capabilities(ChannelKeyGrain.CONNECTION))
+
+        assert defaults.session_scope is ChannelSessionScope.MESSAGE

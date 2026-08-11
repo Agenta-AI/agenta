@@ -68,7 +68,7 @@ def _connection() -> ChannelConnection:
         data={
             "secret": SECRET,
             "delivery_url": "https://bridge.example/deliver",
-            "installation_id": "acme-wecom",
+            "connection_locator": {"source": "acme-wecom"},
             "capabilities": capabilities,
         },
     )

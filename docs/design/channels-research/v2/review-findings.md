@@ -471,6 +471,44 @@
 - Notes: the gap predates the archive route; the archive route is what makes it
   matter.
 
+### F58. The connection create model demands a field the service overwrites
+
+- ID: `F58`
+- Origin: `wave-5 CU-C`
+- Severity: `P2`
+- Confidence: `high`
+- Status: `fixed`
+- Category: `Correctness`
+- Summary: `ChannelConnectionCreate.external_key` was required, directly under a
+  comment reading *"derived, never taken from the caller"*. A caller could not know
+  the value, and whatever it sent was overwritten, so every create answered 422
+  until a meaningless value was invented to satisfy the model.
+- Fix: optional on the create shape; the service still always derives it.
+- Notes: found by the first acceptance run. No unit test caught it, because the
+  unit tests construct the DTO in Python rather than over the wire.
+
+### F59. The acceptance check for the exit condition never configures an agent
+
+- ID: `F59`
+- Origin: `wave-5 CU-C`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Completeness`
+- Summary: The end-to-end check creates a connection and posts a message, then
+  waits for an answer. It never creates an agent, and never grants one. `resolve`
+  therefore has nothing to route to, so no turn opens and no answer is ever posted.
+  The test cannot pass as written, and its failure says "no reply within the
+  timeout" — which reads like a broken pipeline rather than missing setup.
+- Files: `api/oss/tests/pytest/acceptance/channels/test_agenta_channel_live.py`
+- Suggested Fix: the setup needs a bound workflow revision, an agent referencing
+  it and marked default, and one `ALLOW` grant by kind. That is real work: the
+  agent must actually invoke, so the check also needs a runtime that can answer.
+- Notes: **this is why the exit condition is not yet demonstrated.** Everything
+  before the invoke is verified against the real stack — the write path, the public
+  ingress at 202, and a space created on first contact with no pre-created row. The
+  part from invoke to answer has still never run.
+
 ### F56. The rendering vocabulary in the design was never built, and the built one is undesigned
 
 - ID: `F56`

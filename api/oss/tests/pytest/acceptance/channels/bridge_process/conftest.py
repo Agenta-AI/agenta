@@ -114,7 +114,7 @@ async def bridge_scope():
         data = {
             "secret": secret,
             "delivery_url": delivery_url,
-            "installation_id": integration_key,
+            "connection_locator": {"source": integration_key},
         }
         if capabilities is not None:
             data["capabilities"] = capabilities

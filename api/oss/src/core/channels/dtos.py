@@ -440,8 +440,9 @@ class ChannelConnection(Identifier, Slug, Lifecycle, Header, Metadata):
 class ChannelConnectionCreate(Slug, Header, Metadata):
     channel: str
     # derived, never taken from the caller — the service composes it from the
-    # locator once verification discovers what it must
-    external_key: UUID
+    # locator once verification discovers what it must, so a caller cannot
+    # know it and anything sent here is overwritten
+    external_key: Optional[UUID] = None
     #
     data: Optional[Dict[str, Any]] = None
     # raw field values for the declared setup fields; verified, written to a

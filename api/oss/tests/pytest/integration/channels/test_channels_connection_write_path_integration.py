@@ -94,7 +94,7 @@ async def _secret_count(engine, project_id) -> int:
         result = await session.execute(
             text(
                 "SELECT count(*) FROM secrets "
-                "WHERE project_id = :project_id AND kind = 'channel_secret'"
+                "WHERE project_id = :project_id AND kind = 'CHANNEL_SECRET'"
             ),
             {"project_id": project_id},
         )

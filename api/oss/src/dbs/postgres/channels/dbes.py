@@ -108,14 +108,25 @@ class ChannelGrantDBE(Base, ChannelGrantDBA):
             unique=True,
             postgresql_where=text("kind IS NOT NULL"),
         ),
-        # at most one default agent per space, or per kind
+        # at most one default agent per space, or per kind — split for the same
+        # reason as the pair above, since either column may be null
         Index(
-            "uq_channel_grants_default",
+            "uq_channel_grants_default_by_space",
             "project_id",
             "space_id",
+            unique=True,
+            postgresql_where=text(
+                "space_id IS NOT NULL AND (flags->>'is_default')::boolean"
+            ),
+        ),
+        Index(
+            "uq_channel_grants_default_by_kind",
+            "project_id",
             "kind",
             unique=True,
-            postgresql_where=text("(flags->>'is_default')::boolean"),
+            postgresql_where=text(
+                "kind IS NOT NULL AND (flags->>'is_default')::boolean"
+            ),
         ),
     )
 

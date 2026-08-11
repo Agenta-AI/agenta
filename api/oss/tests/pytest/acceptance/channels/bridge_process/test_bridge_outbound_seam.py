@@ -60,7 +60,7 @@ def _connection(
         data={
             "secret": secret,
             "delivery_url": delivery_url,
-            "installation_id": integration_key,
+            "connection_locator": {"source": integration_key},
         },
     )
 

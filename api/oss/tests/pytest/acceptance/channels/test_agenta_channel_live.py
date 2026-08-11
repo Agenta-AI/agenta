@@ -27,7 +27,7 @@ class TestAgentaChannelLive:
                 "connection": {
                     "channel": "agenta",
                     "slug": bot_slug,
-                    "fields": {"bot": bot_slug},
+                    "data": {"bot": bot_slug},
                 }
             },
         )

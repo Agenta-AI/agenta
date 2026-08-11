@@ -68,8 +68,8 @@ async def test_connection_roundtrip(channels_scope):
     assert edited.external_key == external_key
 
     rows = await dao.query_connections(project_id=project_id)
-    assert len(rows) == 1
-    assert rows[0].id == created.id
+    # the fixture provisions a connection of its own in this project
+    assert {row.id for row in rows} == {channels_scope["connection_id"], created.id}
 
     deleted = await dao.delete_connection(
         project_id=project_id, connection_id=created.id

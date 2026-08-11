@@ -42,7 +42,7 @@ def _connection(
     data = {
         "secret": SECRET,
         "delivery_url": "https://bridge.example/deliver",
-        "installation_id": integration_key,
+        "connection_locator": {"source": integration_key},
     }
     if capabilities is not None:
         data["capabilities"] = capabilities

@@ -208,12 +208,25 @@ def upgrade() -> None:
         unique=True,
         postgresql_where=sa.text("kind IS NOT NULL"),
     )
+    # the default is split for the same reason: either column may be null, and
+    # a null never collides with a null
     op.create_index(
-        "uq_channel_grants_default",
+        "uq_channel_grants_default_by_space",
         "channel_grants",
-        ["project_id", "space_id", "kind"],
+        ["project_id", "space_id"],
         unique=True,
-        postgresql_where=sa.text("(flags->>'is_default')::boolean"),
+        postgresql_where=sa.text(
+            "space_id IS NOT NULL AND (flags->>'is_default')::boolean"
+        ),
+    )
+    op.create_index(
+        "uq_channel_grants_default_by_kind",
+        "channel_grants",
+        ["project_id", "kind"],
+        unique=True,
+        postgresql_where=sa.text(
+            "kind IS NOT NULL AND (flags->>'is_default')::boolean"
+        ),
     )
 
     op.create_table(
@@ -440,7 +453,11 @@ def downgrade() -> None:
     op.drop_table("channel_threads")
 
     op.drop_index(
-        "uq_channel_grants_default",
+        "uq_channel_grants_default_by_kind",
+        table_name="channel_grants",
+    )
+    op.drop_index(
+        "uq_channel_grants_default_by_space",
         table_name="channel_grants",
     )
     op.drop_index(
