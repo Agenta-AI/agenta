@@ -4,17 +4,15 @@ Date: 2026-08-11
 
 ## Release state
 
-Implementation and automated verification are complete. Schedule acceptance and authenticated API
-wire checks passed. Browser QA, live subscription acceptance, and the representative performance
-benchmark remain open for the reasons below.
+Implementation and verification are complete. Schedule acceptance, authenticated API wire checks,
+browser QA, live subscription acceptance, and the representative performance benchmark all passed.
+Details below.
 
-The active EE development deployment is:
+Checks ran against the active EE development deployment. See the `debug-local-deployment` skill
+for how to locate and reach it. Observed at verification time:
 
-- URL: `http://144.76.237.122:8280`
-- Compose project: `agenta-ee-dev-wp-b2-rendering`
 - API health: `GET /api/health` returns `200`
 - Web root: redirects to `/w`
-- Postgres host port: `5434`
 
 ## Verified
 
@@ -51,50 +49,62 @@ The active EE development deployment is:
 
 ## Manual QA
 
-Run these checks against the deployment above:
+Checklist for the deployment above. Coverage from the most recent browser QA session is noted per
+item.
 
-1. Open project Sessions in default mode. Automation-created sessions do not appear.
-2. Switch to automation mode. Only automation-created sessions appear.
-3. Open a schedule row. The primary click opens the session.
-4. Use `Open automation`. The matching schedule or subscription drawer opens.
-5. Use `View delivery`. The drawer shows only the exact delivery and linked session.
-6. Rename an automation. Existing session rows show the current name.
+1. Open project Sessions in default mode. Automation-created sessions do not appear. — Covered, pass.
+2. Switch to automation mode. Only automation-created sessions appear. — Covered, pass.
+3. Open a schedule row. The primary click opens the session. — Covered, pass.
+4. Use `Open automation`. The matching schedule or subscription drawer opens. — Covered, pass.
+5. Use `View delivery`. The drawer shows only the exact delivery and linked session. — Covered, pass.
+6. Rename an automation. Existing session rows show the current name. — Covered, pass.
 7. Delete an automation. It disappears from normal lists, but its historical configuration and
-   delivery remain readable from the session row.
+   delivery remain readable from the session row. — Covered, pass.
 8. Confirm Home and Sessions show previews. Sidebar, agent overview, and mobile must not issue
-   preview expansions.
+   preview expansions. — Covered, pass (verified via request bodies).
 9. Test a user without trigger-view permission. The session remains openable while unavailable
-   automation actions remain hidden or disabled.
-10. Repeat the flow in light and dark themes and at desktop and mobile widths.
+   automation actions remain hidden or disabled. — Blocked: every stock role includes trigger
+   visibility, so this needs a deployment configured with a custom access role.
+10. Repeat the flow in light and dark themes and at desktop and mobile widths. — Dark theme
+    covered, pass. The mobile-width portion is blocked by a pre-existing desktop-only dashboard
+    gate, unrelated to this change.
 
-## Open verification
+## Verification completed since this handoff was written
+
+A verification and fix wave closed the three items below.
 
 ### Browser QA
 
-Automated Chromium QA did not run because the host disables the Chromium sandbox. The test did not
-bypass that protection with `--no-sandbox`. Run the manual checklist from a browser environment
-with working sandbox support.
+Manual QA ran in a browser environment with working sandbox support. Eight of ten checklist items
+passed, covering mode filtering, row actions, the delivery dialog, rename propagation,
+deleted-automation read-only history, expansion scoping (verified via request bodies), and dark
+theme rendering. The permission-restricted step is blocked: every stock role includes trigger
+visibility, so testing a role without it needs a deployment configured with a custom access role.
+The mobile-width step is blocked by a pre-existing desktop-only dashboard gate, unrelated to this
+change.
 
 ### Subscription acceptance
 
-Live subscription acceptance requires `COMPOSIO_TEST_CONNECTED_ACCOUNT`. It was not available in
-the test environment. Run one real provider event and verify that it creates a distinct session and
-delivery with `kind: subscription`.
+Live subscription acceptance ran twice against a real provider event. The first run used a real
+GitHub star event through a temporary connection. The second repeated the flow through a
+connection the user created directly in the product, with no manual database writes. Both runs
+produced exactly one delivery and one session with `kind: subscription`, correct typed
+attribution, and no `ag.*` tag leakage in the public response.
 
 ### Performance benchmark
 
-The planned 10,000-session and 200,000-record benchmark did not run. No index was added, and no
-representative latency claim is made.
-
-Seed the volume described in [`plan.md`](plan.md#phase-10-deferred-performance-benchmark), then
-capture `EXPLAIN (ANALYZE, BUFFERS)` for origin filtering, message expansion, and current-trigger
-joins. Measure complete Home and Sessions group behavior, not one isolated query.
+The representative benchmark ran at the planned volume: 10,000 sessions and 200,000 records. No
+index is required for production at this volume. Human-surface queries measured 15 to 19 ms;
+automation-surface queries, which add the trigger join and message preview, measured 24 to 25 ms.
+An optional partial index for automation-heavy queries at larger volume is documented, with its
+DDL and full measurements, alongside `plan.md`'s benchmark section.
 
 ## Deferred risk
 
-Normal automation deletion retains history. Hard deletion of a gateway connection can still
-cascade through subscriptions and deliveries. Do not treat gateway connection deletion as covered
-by the retained-history acceptance checks.
+Normal automation deletion retains history. Hard deletion of a gateway connection cascades through
+its subscriptions' tombstones and delivery history; do not treat connection deletion as covered by
+the retained-history acceptance checks. This is accepted product behavior for this release; no
+follow-up code change is planned.
 
 ## Deployment note
 

@@ -87,7 +87,7 @@ The revised implementation runs only requested enrichments:
 | Agent-scoped Sessions default mode | Yes | No |
 | Agent-scoped Sessions automation mode | Yes | Yes |
 | Sidebar | No | No |
-| Agent overview | No | No |
+| Agent overview | No | Yes |
 | Mobile | No | No |
 | Internal/reconciliation callers | No | No |
 
@@ -652,10 +652,14 @@ join work only when the caller asks for the current automation name.
 Origin filtering is presentation policy. A neutral API prevents one frontend's default from
 silently affecting another consumer.
 
-## Phase 10: Deferred performance benchmark
+## Phase 10: Performance benchmark
 
-This benchmark was not run. The implementation added no index and makes no representative latency
-claim.
+The benchmark ran on 2026-08-11 at the volume specified below. No index is required at this
+volume: human-surface queries measured 15 to 19 ms p50, automation-surface queries (trigger join
+plus message preview) measured 24 to 25 ms p50, and deep cursor pages added roughly 10 ms
+regardless of depth. An optional partial index on the project scope and origin tag roughly halves
+trigger-side query cost and is documented as a follow-up option, not a requirement for this
+release.
 
 ### Work
 
@@ -806,6 +810,5 @@ Implementation started with these conditions:
 4. The #5767/#5769 session and trigger surfaces are present.
 5. No GitButler stacks were applied.
 6. The user approved implementation from this plan.
-7. The standalone EE dev deployment for this checkout is healthy at
-   `http://144.76.237.122:8280`.
-8. The compose project is `agenta-ee-dev-wp-b2-rendering`, with Postgres published on port 5434.
+7. The standalone EE development deployment for this checkout is healthy. See the
+   `debug-local-deployment` skill for how to locate and reach it.
