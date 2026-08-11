@@ -23,7 +23,7 @@
     },
     "peerDependencies": {
         "@tanstack/react-query": ">=5.0.0",
-        "jotai": ">=2.0.0",
+        "jotai": ">=2.9.0",
         "jotai-family": ">=0.1.0",
         "react": ">=18.0.0"
     },
