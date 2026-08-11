@@ -33,6 +33,46 @@ _requires_connected_account = pytest.mark.skipif(
 )
 
 
+def _create_workflow(authed_api):
+    """Build a workflow + variant + committed revision; return its slug."""
+    slug = f"sub-wf-{uuid4().hex[:8]}"
+
+    wf = authed_api(
+        "POST", "/workflows/", json={"workflow": {"slug": slug, "name": slug}}
+    )
+    assert wf.status_code == 200, wf.text
+    workflow_id = wf.json()["workflow"]["id"]
+
+    variant = authed_api(
+        "POST",
+        "/workflows/variants/",
+        json={
+            "workflow_variant": {
+                "slug": f"{slug}-v",
+                "name": "Default",
+                "workflow_id": workflow_id,
+            }
+        },
+    )
+    assert variant.status_code == 200, variant.text
+    variant_id = variant.json()["workflow_variant"]["id"]
+
+    commit = authed_api(
+        "POST",
+        "/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": f"{slug}-v1",
+                "workflow_id": workflow_id,
+                "workflow_variant_id": variant_id,
+                "message": "initial",
+            }
+        },
+    )
+    assert commit.status_code == 200, commit.text
+    return slug
+
+
 # ---------------------------------------------------------------------------
 # DB-only: reads, queries, 404s (no Composio needed)
 # ---------------------------------------------------------------------------
