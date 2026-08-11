@@ -14,6 +14,8 @@ turning the neutral :class:`SessionConfig` into the harness's own config, especi
   Skills ride the neutral config as resolved inline packages. Pi and Agenta install them
   through Pi skill dirs; Claude carries them so the runner can write project-local
   `.claude/skills` packages. Seeding platform default skills is a separate workstream.
+- **mock** drives no real coding agent: it carries a named behavior (plus free-form kwargs)
+  through to a `.agenta/mock.json` file, for the runner's in-process mock to resolve.
 
 The backend below stays pure plumbing; this layer owns the harness knowledge.
 """
@@ -27,6 +29,7 @@ from ..dtos import (
     ClaudeAgentTemplate,
     CodexAgentTemplate,
     HarnessKind,
+    MockAgentTemplate,
     PiAgentTemplate,
     SessionConfig,
 )
@@ -169,11 +172,37 @@ class AgentaHarness(Harness):
         )
 
 
+class MockHarness(Harness):
+    """No real coding agent; a named behavior for the runner's in-process mock to resolve."""
+
+    harness_type = HarnessKind.MOCK
+
+    def _to_harness_config(self, config: SessionConfig) -> MockAgentTemplate:
+        # The behavior name + kwargs ride the harness `extras` bag, like Pi's `system` /
+        # `append_system`; neither is validated here, the runner resolves the name.
+        extras = config.agent.harness_extras
+        behavior_kwargs = extras.get("kwargs")
+        return MockAgentTemplate(
+            agents_md=config.agent.instructions,
+            model=config.agent.model,
+            model_ref=config.agent.model_ref,
+            resolved_connection=config.resolved_connection,
+            sandbox_permission=config.agent.sandbox_permission,
+            permission_default=config.permission_default,
+            harness_permissions=config.agent.harness_permissions,
+            behavior=_opt_str(extras.get("behavior")),
+            behavior_kwargs=behavior_kwargs
+            if isinstance(behavior_kwargs, dict)
+            else {},
+        )
+
+
 _HARNESSES: Dict[HarnessKind, Type[Harness]] = {
     HarnessKind.PI: PiHarness,
     HarnessKind.CLAUDE: ClaudeHarness,
     HarnessKind.CODEX: CodexHarness,
     HarnessKind.AGENTA: AgentaHarness,
+    HarnessKind.MOCK: MockHarness,
 }
 
 

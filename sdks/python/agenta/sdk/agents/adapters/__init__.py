@@ -2,8 +2,8 @@
 
 - Backend adapters: ``SandboxAgentBackend`` (sandbox-agent over ACP),
   ``LocalBackend`` (standalone SDK runs; not yet implemented).
-- Harness adapters: ``PiHarness``, ``ClaudeHarness``, ``CodexHarness``, ``AgentaHarness``
-  (+ ``make_harness``).
+- Harness adapters: ``PiHarness``, ``ClaudeHarness``, ``CodexHarness``, ``AgentaHarness``,
+  ``MockHarness`` (+ ``make_harness``).
 - HTTP/browser protocol adapters live in subpackages, e.g. ``adapters.vercel``.
 
 Shared plumbing for the runner-backed adapters lives in ``agents/utils``.
@@ -13,6 +13,7 @@ from .harnesses import (
     AgentaHarness,
     ClaudeHarness,
     CodexHarness,
+    MockHarness,
     PiHarness,
     make_harness,
 )
@@ -26,5 +27,6 @@ __all__ = [
     "ClaudeHarness",
     "CodexHarness",
     "AgentaHarness",
+    "MockHarness",
     "make_harness",
 ]
