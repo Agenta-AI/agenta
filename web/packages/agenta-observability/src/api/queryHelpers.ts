@@ -7,22 +7,49 @@ import {
     type PreviewTracesRateLimit,
 } from "@agenta/entities/trace"
 
-import {
-    normalizeReferenceValue,
-    parseReferenceKey,
-} from "@/oss/components/pages/observability/assets/filters/referenceUtils"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {getProjectValues} from "@/oss/state/project"
+import type {TraceSpanNode} from "../core/traceSpan"
+import type {Filter, SortResult} from "../core/types"
+import {normalizeReferenceValue, parseReferenceKey} from "../filters/referenceUtils"
+
+interface LinkCarrier {
+    links?: unknown
+    spans?: unknown
+}
+
+interface SpanLink {
+    trace_id?: string
+    span_id?: string
+}
+
+const toLinks = (links: unknown): SpanLink[] =>
+    Array.isArray(links)
+        ? (links as SpanLink[])
+        : links && typeof links === "object"
+          ? Object.values(links as Record<string, SpanLink>)
+          : []
+
+interface TimestampCarrier {
+    start_time?: string | number | null
+    startTime?: string | number | null
+    timestamp?: string | number | null
+    ts?: string | number | null
+    created_at?: string | number | null
+}
 
 export interface Condition {
     field: string
     operator: string
-    value?: any
+    value?: unknown
     key?: string
 }
 
-export const buildAnnotationConditions = (value: any, operator: string): Condition[] => {
-    const v = Array.isArray(value) ? value[0] : value || {}
+interface AnnotationFilterValue {
+    evaluator?: string
+    feedback?: {field: string; operator: string; value: unknown}
+}
+
+export const buildAnnotationConditions = (value: unknown, operator: string): Condition[] => {
+    const v = (Array.isArray(value) ? value[0] : value || {}) as AnnotationFilterValue
     const out: Condition[] = []
 
     const evaluatorSlug = v.evaluator
@@ -75,11 +102,11 @@ export const mergeConditions = (baseFilterJSON: string | undefined, extra: Condi
 }
 
 export const buildFiltersForHasAnnotation = (
-    windowParams: Record<string, any>,
+    windowParams: Record<string, unknown>,
     annotationConditions: Condition[],
     operator?: string,
 ) => {
-    const originalConditions = parseFilterJSON(windowParams.filter)
+    const originalConditions = parseFilterJSON(windowParams.filter as string | undefined)
 
     const annotationConditionsForStep1 =
         operator === "not_in"
@@ -97,12 +124,12 @@ export const buildFiltersForHasAnnotation = (
 }
 
 export const buildTraceQueryParams = (
-    filters: any[],
-    sort: any,
+    filters: Filter[],
+    sort: SortResult | undefined,
     traceTabs: string,
     limit?: number,
 ) => {
-    const params: Record<string, any> = {
+    const params: Record<string, unknown> = {
         focus: traceTabs === "chat" ? "span" : traceTabs,
     }
 
@@ -174,20 +201,22 @@ export const buildTraceQueryParams = (
     return {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected}
 }
 
-export const extractLinkedIds = (data: any) => {
+export const extractLinkedIds = (data: unknown) => {
     const traceIds = new Set<string>()
     const spanIds = new Set<string>()
 
+    const payload = (data ?? {}) as {traces?: unknown; spans?: unknown}
+
     // shape 1: { traces: { [id]: { spans: { [id]: { links }}}}}
-    if (data?.traces && typeof data.traces === "object") {
-        for (const trace of Object.values<any>(data.traces)) {
+    if (payload.traces && typeof payload.traces === "object") {
+        for (const trace of Object.values<LinkCarrier>(
+            payload.traces as Record<string, LinkCarrier>,
+        )) {
             if (!trace?.spans) continue
-            for (const span of Object.values<any>(trace.spans)) {
-                const links = Array.isArray(span?.links)
-                    ? span.links
-                    : span?.links && typeof span.links === "object"
-                      ? Object.values(span.links)
-                      : []
+            for (const span of Object.values<LinkCarrier>(
+                trace.spans as Record<string, LinkCarrier>,
+            )) {
+                const links = toLinks(span?.links)
                 for (const l of links) {
                     if (l?.trace_id) traceIds.add(String(l.trace_id))
                     if (l?.span_id) spanIds.add(String(l.span_id))
@@ -197,18 +226,14 @@ export const extractLinkedIds = (data: any) => {
     }
 
     // shape 2: { spans: { [id]: {...} } } or { spans: Span[] }
-    const spansContainer = data?.spans
-    const spansIterable = Array.isArray(spansContainer)
-        ? spansContainer
+    const spansContainer = payload.spans
+    const spansIterable: LinkCarrier[] = Array.isArray(spansContainer)
+        ? (spansContainer as LinkCarrier[])
         : spansContainer && typeof spansContainer === "object"
-          ? Object.values(spansContainer)
+          ? Object.values(spansContainer as Record<string, LinkCarrier>)
           : []
     for (const span of spansIterable) {
-        const links = Array.isArray(span?.links)
-            ? span.links
-            : span?.links && typeof span.links === "object"
-              ? Object.values(span.links)
-              : []
+        const links = toLinks(span?.links)
         for (const l of links) {
             if (l?.trace_id) traceIds.add(String(l.trace_id))
             if (l?.span_id) spanIds.add(String(l.span_id))
@@ -218,15 +243,15 @@ export const extractLinkedIds = (data: any) => {
     return {traceIds: [...traceIds], spanIds: [...spanIds]}
 }
 
-export const extractEarliestTimestamp = (data: any): string | undefined => {
-    const getTs = (n: any) =>
+export const extractEarliestTimestamp = (data: unknown): string | undefined => {
+    const getTs = (n: TimestampCarrier) =>
         n?.start_time ?? n?.startTime ?? n?.timestamp ?? n?.ts ?? n?.created_at ?? null
 
-    const spans = data?.spans
-    const list = Array.isArray(spans)
-        ? spans
+    const spans = (data as {spans?: unknown} | null)?.spans
+    const list: TimestampCarrier[] = Array.isArray(spans)
+        ? (spans as TimestampCarrier[])
         : spans && typeof spans === "object"
-          ? Object.values(spans)
+          ? Object.values(spans as Record<string, TimestampCarrier>)
           : []
 
     const times = list
@@ -244,21 +269,23 @@ export const executeTraceQuery = async ({
     params,
     pageParam,
     appId,
+    projectId,
     isHasAnnotationSelected,
     hasAnnotationConditions,
     hasAnnotationOperator,
     signal,
 }: {
-    params: Record<string, any>
+    params: Record<string, unknown>
     pageParam?: {newest?: string}
     appId: string
+    projectId: string
     isHasAnnotationSelected: number
     hasAnnotationConditions: Condition[]
     hasAnnotationOperator?: string
     signal?: AbortSignal
 }) => {
     const windowParams = {...params}
-    let data: any = []
+    let data: unknown = []
     let annotationPageSize: number | undefined
     let nextCursorFromStep1: string | undefined
     // Latest server-side rate-limit headers — propagated to the caller so the
@@ -266,8 +293,7 @@ export const executeTraceQuery = async ({
     // even a long-running scan sees fresh bucket state on every page.
     let lastRateLimit: PreviewTracesRateLimit = {remaining: null, limit: null}
 
-    const {projectId} = getProjectValues()
-    const fetchPage = async (pageParams: Record<string, any>) => {
+    const fetchPage = async (pageParams: Record<string, unknown>) => {
         const result = await fetchAllPreviewTracesWithMeta(
             pageParams,
             appId,
@@ -300,8 +326,9 @@ export const executeTraceQuery = async ({
             if (typeof container === "object") return Object.keys(container).length
             return 0
         }
-        const spansPageSize = countEntries((data1 as any)?.spans)
-        const tracesPageSize = countEntries((data1 as any)?.traces)
+        const page1 = data1 as {spans?: unknown; traces?: unknown} | null
+        const spansPageSize = countEntries(page1?.spans)
+        const tracesPageSize = countEntries(page1?.traces)
         annotationPageSize = spansPageSize || tracesPageSize
 
         // cursor from step 1 only
@@ -346,7 +373,7 @@ export const executeTraceQuery = async ({
                       {field: "span_id", operator: "in", value: spanIds},
                   ]
 
-            const secondParams: Record<string, any> = {...params}
+            const secondParams: Record<string, unknown> = {...params}
             delete secondParams.newest
             delete secondParams.oldest
             if (!shouldExcludeAnnotations) {
@@ -379,7 +406,7 @@ export const executeTraceQuery = async ({
     // cursor
     let nextCursor: string | undefined = nextCursorFromStep1
     if (isHasAnnotationSelected === -1) {
-        const getTs = (n: any) =>
+        const getTs = (n: TimestampCarrier) =>
             n?.start_time ?? n?.startTime ?? n?.timestamp ?? n?.ts ?? n?.created_at ?? null
         const times = transformed
             .map(getTs)
@@ -415,7 +442,7 @@ export const executeTraceQuery = async ({
 
     return {
         traces: transformed,
-        traceCount: (data as any)?.count ?? 0,
+        traceCount: (data as {count?: number} | null)?.count ?? 0,
         nextCursor,
         annotationPageSize,
         rateLimit: lastRateLimit,

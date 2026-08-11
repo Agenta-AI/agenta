@@ -10,13 +10,12 @@ import {
     sortAtom,
     selectedTraceIdAtom,
     selectedRowKeysAtom,
-    testsetDrawerDataAtom,
     isAnnotationsSectionOpenAtom,
     selectedNodeAtom,
     DEFAULT_SORT,
     limitAtom,
     autoRefreshAtom,
-} from "../atoms/controls"
+} from "../state/controls"
 import {
     tracesQueryAtom,
     traceCountAtom,
@@ -26,7 +25,7 @@ import {
     activeTraceIndexAtom,
     activeTraceAtom,
     selectedItemAtom,
-} from "../atoms/queries"
+} from "../state/queries"
 
 export const useObservability = () => {
     const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
@@ -35,7 +34,6 @@ export const useObservability = () => {
     const [sort, setSort] = useAtom(sortAtom)
     const [selectedTraceId, setSelectedTraceId] = useAtom(selectedTraceIdAtom)
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(selectedRowKeysAtom)
-    const [testsetDrawerData, setTestsetDrawerData] = useAtom(testsetDrawerDataAtom)
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(
         isAnnotationsSectionOpenAtom,
     )
@@ -153,8 +151,6 @@ export const useObservability = () => {
         limit,
         selectedRowKeys,
         setSelectedRowKeys,
-        testsetDrawerData,
-        setTestsetDrawerData,
         isAnnotationsSectionOpen,
         setIsAnnotationsSectionOpen,
         selectedNode,

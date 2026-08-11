@@ -23,8 +23,8 @@
 
 import {computeAdaptivePageDelayMs} from "@agenta/entities/trace/etl"
 
-import type {TraceSpanNode} from "@/oss/services/tracing/types"
-import {executeTraceQuery, type Condition} from "@/oss/state/newObservability/atoms/queryHelpers"
+import {executeTraceQuery, type Condition} from "../api/queryHelpers"
+import type {TraceSpanNode} from "../core/traceSpan"
 
 import {adaptiveSleep} from "./adaptiveExportPacing"
 import {withRateLimitRetry} from "./withRateLimitRetry"
@@ -34,8 +34,9 @@ export const DEFAULT_TRACE_PAGE_SIZE = 500
 
 export interface AdaptiveTracePageFetcherConfig {
     /** Trace-query params already shaped by `buildTraceQueryParams`. */
-    params: Record<string, any>
+    params: Record<string, unknown>
     appId: string
+    projectId: string
     isHasAnnotationSelected: number
     hasAnnotationConditions: Condition[]
     hasAnnotationOperator?: string
@@ -70,6 +71,7 @@ export type AdaptiveTracePageFetcher = (
 export const createAdaptiveTracePageFetcher = ({
     params,
     appId,
+    projectId,
     isHasAnnotationSelected,
     hasAnnotationConditions,
     hasAnnotationOperator,
@@ -77,7 +79,7 @@ export const createAdaptiveTracePageFetcher = ({
     pageSize = DEFAULT_TRACE_PAGE_SIZE,
     onRateLimitPause,
 }: AdaptiveTracePageFetcherConfig): AdaptiveTracePageFetcher => {
-    const scanParams: Record<string, any> = {...params, size: pageSize}
+    const scanParams: Record<string, unknown> = {...params, size: pageSize}
     if (!scanParams.newest) {
         scanParams.newest = new Date().toISOString()
     }
@@ -104,6 +106,7 @@ export const createAdaptiveTracePageFetcher = ({
                     params: scanParams,
                     pageParam: cursor ? {newest: cursor} : undefined,
                     appId,
+                    projectId,
                     isHasAnnotationSelected,
                     hasAnnotationConditions,
                     hasAnnotationOperator,

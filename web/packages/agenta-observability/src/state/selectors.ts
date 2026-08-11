@@ -1,10 +1,10 @@
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
+import {getStringOrJson} from "@agenta/shared/utils"
 import dayjs from "dayjs"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {TraceSpanNode} from "@/oss/services/tracing/types/index"
+import type {TraceSpanNode} from "../core/traceSpan"
 
 // Minimal runtime shape of `attributes.ag` (backend extra="allow" data).
 interface AgMetricBuckets {
