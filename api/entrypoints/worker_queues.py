@@ -68,6 +68,8 @@ from oss.src.dbs.postgres.queries.dbes import (
     QueryRevisionDBE,
     QueryVariantDBE,
 )
+from oss.src.core.secrets.services import VaultService
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
@@ -200,9 +202,11 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
 def _build_channels_service() -> ChannelsService:
     transactions_engine = get_transactions_engine()
 
+    # Backfill needs the connection's credential decrypted, hence a vault.
     return ChannelsService(
         channels_dao=ChannelsDAO(engine=transactions_engine),
         adapter_registry=build_channel_adapter_registry(),
+        vault_service=VaultService(secrets_dao=SecretsDAO()),
     )
 
 

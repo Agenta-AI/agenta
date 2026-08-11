@@ -135,9 +135,11 @@ async def _build_events_worker(redis_client: Redis) -> StreamConsumer:
 async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
     transactions_engine = get_transactions_engine()
 
+    # Outbox posts/edits need the connection's credential decrypted, hence a vault.
     channels_service = ChannelsService(
         channels_dao=ChannelsDAO(engine=transactions_engine),
         adapter_registry=build_channel_adapter_registry(),
+        vault_service=VaultService(secrets_dao=SecretsDAO()),
     )
 
     outbox = ChannelsOutboxWorker(

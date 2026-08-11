@@ -155,11 +155,60 @@ class ChannelsService:
         #
         connection_id: UUID,
     ) -> Optional[ChannelConnection]:
-        return await self.channels_dao.fetch_connection(
+        """The only connection read every adapter-facing caller must use --
+        `data` comes back with the credential reference resolved into the
+        flat fields adapters already read (`bot_token`, `signing_secret`,
+        ...). Never call `channels_dao.fetch_connection` directly from a path
+        that hands the result to an adapter."""
+
+        connection = await self.channels_dao.fetch_connection(
             project_id=project_id,
             #
             connection_id=connection_id,
         )
+        return await self._hydrate_connection(
+            project_id=project_id, connection=connection
+        )
+
+    async def _hydrate_connection(
+        self,
+        *,
+        project_id: UUID,
+        connection: Optional[ChannelConnection],
+    ) -> Optional[ChannelConnection]:
+        """Resolves `data["credential_secret_id"]` into the adapter-shaped
+        fields the vault secret carries. A no-op when there is nothing to
+        resolve -- no reference at all (agenta, mock, most fixtures) is the
+        common case, not an error.
+
+        This is a runtime value, never a persisted one: nothing downstream of
+        this call may serialise the returned connection into a response body.
+        """
+
+        if connection is None:
+            return None
+
+        data = connection.data if isinstance(connection.data, dict) else None
+        secret_id = data.get("credential_secret_id") if data else None
+        if not secret_id:
+            return connection
+
+        if self.vault_service is None:
+            raise ChannelsError(
+                "ChannelsService needs a vault_service to resolve channel credentials"
+            )
+
+        secret = await self.vault_service.get_secret_by_id(
+            secret_id=UUID(secret_id),
+            project_id=project_id,
+        )
+        if secret is None or not isinstance(secret.data, ChannelSecretDTO):
+            # the reference is stale (deleted secret) or the wrong kind --
+            # degrade to the unhydrated connection rather than fail routing
+            return connection
+
+        credential_fields = secret.data.channel.model_dump(exclude_none=True)
+        return connection.model_copy(update={"data": {**data, **credential_fields}})
 
     async def edit_connection(
         self,
@@ -303,7 +352,7 @@ class ChannelsService:
         `fields` come straight off the capability declaration; `document` is
         rebuilt every call since it is request-url-dependent."""
 
-        connection = await self.channels_dao.fetch_connection(
+        connection = await self.fetch_connection(
             project_id=project_id,
             connection_id=connection_id,
         )
