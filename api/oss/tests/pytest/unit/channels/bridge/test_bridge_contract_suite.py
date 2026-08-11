@@ -49,10 +49,6 @@ _HELLO = {
         "identity": {
             "scope": "tenant",
             "stable": True,
-            # field names match the suite's own THREAD_LOCATOR_A/B/INCOMPLETE
-            # fixtures (contract/fakes.py), not this bridge's real locator
-            # shape -- the identity assertions compose keys from whatever the
-            # suite's hardcoded locators carry.
             "keys": {
                 "space": ["team", "channel"],
                 "thread": ["team", "channel", "thread_ts"],

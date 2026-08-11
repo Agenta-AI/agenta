@@ -14,13 +14,17 @@ conversations — worse than a wrong key, so distinctness is asserted, never
 assumed.
 """
 
-from typing import List
+from typing import Any, Dict, List
 from uuid import uuid4
 
 import pytest
 
 from oss.src.core.channels.adapters.interface import ChannelAdapterInterface
-from oss.src.core.channels.dtos import ChannelKeyGrain, ChannelRequestContext
+from oss.src.core.channels.dtos import (
+    ChannelCapabilities,
+    ChannelKeyGrain,
+    ChannelRequestContext,
+)
 from oss.src.core.channels.types import ChannelLocatorIncomplete
 from oss.src.core.channels.utils import compose_external_key
 
@@ -29,9 +33,7 @@ from .fakes import (
     LyingButtonsAdapter,
     LyingEditAdapter,
     LyingIdentityKeysAdapter,
-    THREAD_LOCATOR_A,
-    THREAD_LOCATOR_B,
-    THREAD_LOCATOR_INCOMPLETE,
+    UnusualNamesFakeAdapter,
     VALID_SIGNATURE_HEADER,
     VALID_SIGNATURE_VALUE,
     WellBehavedFakeAdapter,
@@ -182,19 +184,45 @@ async def _assert_parse_event_addressed_is_bool(
     )
 
 
-def _thread_fixtures(adapter: ChannelAdapterInterface):
-    """The adapter's own two thread fixture locators, plus the incomplete
-    one. Every fake in this package shares the same three constants; a real
-    adapter parameterising this suite would override this lookup, but the
-    fakes here are the only adapters this package ships."""
+def _thread_fixtures(capabilities: ChannelCapabilities):
+    """Two THREAD-grain locators plus one incomplete locator, built from this
+    adapter's own declared field names -- never a hardcoded platform's shape.
 
-    return THREAD_LOCATOR_A, THREAD_LOCATOR_B, THREAD_LOCATOR_INCOMPLETE
+    Fields the THREAD declaration shares with the SPACE declaration are held
+    constant across the two locators; fields unique to THREAD are what
+    distinguishes them (mirrors "same channel, different thread_ts" without
+    assuming those field names). If THREAD adds nothing over SPACE, the two
+    locators come out identical -- the too-small declared field set collapses
+    two threads onto one key, exactly the failure this fixture must catch.
+    """
+
+    thread_fields = capabilities.identity.keys.get(ChannelKeyGrain.THREAD) or []
+    space_fields = set(capabilities.identity.keys.get(ChannelKeyGrain.SPACE) or [])
+
+    shared = [field for field in thread_fields if field in space_fields]
+    distinguishing = [field for field in thread_fields if field not in space_fields]
+
+    def _locator(tag: str) -> Dict[str, Any]:
+        locator = {field: f"{field}-shared" for field in shared}
+        locator.update({field: f"{field}-{tag}" for field in distinguishing})
+        return locator
+
+    locator_a = _locator("a")
+    locator_b = _locator("b")
+    incomplete = (
+        {k: v for k, v in locator_a.items() if k != thread_fields[-1]}
+        if thread_fields
+        else {}
+    )
+
+    return locator_a, locator_b, incomplete
 
 
-def _assert_identity_distinctness(
-    capabilities, adapter: ChannelAdapterInterface
-) -> None:
-    locator_a, locator_b, _ = _thread_fixtures(adapter)
+def _assert_identity_distinctness(capabilities: ChannelCapabilities) -> None:
+    if not capabilities.identity.keys.get(ChannelKeyGrain.THREAD):
+        return  # no declared thread fields -- the no-threads case, asserted below
+
+    locator_a, locator_b, _ = _thread_fixtures(capabilities)
 
     key_a = compose_external_key(capabilities, ChannelKeyGrain.THREAD, locator_a)
     key_b = compose_external_key(capabilities, ChannelKeyGrain.THREAD, locator_b)
@@ -207,10 +235,11 @@ def _assert_identity_distinctness(
     )
 
 
-def _assert_identity_canonicalisation(
-    capabilities, adapter: ChannelAdapterInterface
-) -> None:
-    locator_a, _, _ = _thread_fixtures(adapter)
+def _assert_identity_canonicalisation(capabilities: ChannelCapabilities) -> None:
+    if not capabilities.identity.keys.get(ChannelKeyGrain.THREAD):
+        return
+
+    locator_a, _, _ = _thread_fixtures(capabilities)
     shuffled = dict(reversed(list(locator_a.items())))
 
     key_ordered = compose_external_key(capabilities, ChannelKeyGrain.THREAD, locator_a)
@@ -223,20 +252,21 @@ def _assert_identity_canonicalisation(
     )
 
 
-def _assert_identity_incompleteness(
-    capabilities, adapter: ChannelAdapterInterface
-) -> None:
-    _, _, incomplete = _thread_fixtures(adapter)
+def _assert_identity_incompleteness(capabilities: ChannelCapabilities) -> None:
+    if not capabilities.identity.keys.get(ChannelKeyGrain.THREAD):
+        return
+
+    _, _, incomplete = _thread_fixtures(capabilities)
 
     with pytest.raises(ChannelLocatorIncomplete):
         compose_external_key(capabilities, ChannelKeyGrain.THREAD, incomplete)
 
 
-def _assert_identity_no_threads(capabilities, adapter: ChannelAdapterInterface) -> None:
+def _assert_identity_no_threads(capabilities: ChannelCapabilities) -> None:
     if capabilities.identity.keys.get(ChannelKeyGrain.THREAD) != []:
         return
 
-    locator_a, _, _ = _thread_fixtures(adapter)
+    locator_a, _, _ = _thread_fixtures(capabilities)
     result = compose_external_key(capabilities, ChannelKeyGrain.THREAD, locator_a)
     assert result is None, (
         "identity.keys['thread'] == [] declares 'this platform has no "
@@ -269,10 +299,10 @@ async def run_contract_suite(
     await _assert_verify_signature_accepts_good_signature(adapter, connection)
     await _assert_parse_event_addressed_is_bool(adapter)
 
-    _assert_identity_distinctness(capabilities, adapter)
-    _assert_identity_canonicalisation(capabilities, adapter)
-    _assert_identity_incompleteness(capabilities, adapter)
-    _assert_identity_no_threads(capabilities, adapter)
+    _assert_identity_distinctness(capabilities)
+    _assert_identity_canonicalisation(capabilities)
+    _assert_identity_incompleteness(capabilities)
+    _assert_identity_no_threads(capabilities)
 
 
 # --------------------------------------------------------------------------- #
@@ -382,3 +412,12 @@ async def test_verify_signature_returns_installation_id_not_bool():
     )
     assert installation_id == INSTALLATION_ID
     assert isinstance(installation_id, str)
+
+
+@pytest.mark.asyncio
+async def test_suite_passes_against_adapter_with_unusual_identity_field_names():
+    """The suite must hold on identity.keys field names it has never seen
+    before -- proof the identity assertions read the declaration rather than
+    matching against team/channel/thread_ts."""
+
+    await run_contract_suite(UnusualNamesFakeAdapter())

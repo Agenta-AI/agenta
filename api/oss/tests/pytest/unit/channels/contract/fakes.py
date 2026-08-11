@@ -26,11 +26,12 @@ VALID_SIGNATURE_HEADER = "x-fake-signature"
 VALID_SIGNATURE_VALUE = "valid"
 INSTALLATION_ID = "fake-installation"
 
-# Two thread locators sharing team/channel but differing in thread_ts — the
-# fixtures the identity contract-suite assertions compose keys from.
+# WellBehavedFakeAdapter's own fixed inbound-event locator, and the fixture a
+# few adapters' direct (non-generic) tests check their own declared fields
+# against. The shared contract suite derives its own locators from each
+# adapter's declaration instead of these -- see contract/test_channel_adapter_contract.py.
 THREAD_LOCATOR_A = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
 THREAD_LOCATOR_B = {"team": "T1", "channel": "C1", "thread_ts": "2000.2"}
-# Missing the declared thread_ts field entirely.
 THREAD_LOCATOR_INCOMPLETE = {"team": "T1", "channel": "C1"}
 
 _BASE_CAPABILITIES: Dict[str, Any] = {
@@ -230,10 +231,10 @@ class LyingButtonsAdapter(WellBehavedFakeAdapter):
 
 
 class LyingIdentityKeysAdapter(WellBehavedFakeAdapter):
-    """Declares `identity.keys["thread"] = ["team", "channel"]`, omitting
-    `thread_ts` — the too-small declared field set. Against fixture locators
-    that vary only in `thread_ts`, this collapses two distinct threads onto
-    one key."""
+    """Declares `identity.keys["thread"] == identity.keys["space"]` — the
+    too-small declared field set, adding nothing over the space grain. Two
+    threads in the same space then have nothing left to distinguish them and
+    collapse onto one key."""
 
     def __init__(self):
         super().__init__(
@@ -244,6 +245,27 @@ class LyingIdentityKeysAdapter(WellBehavedFakeAdapter):
                     "keys": {
                         "space": ["team", "channel"],
                         "thread": ["team", "channel"],
+                    },
+                }
+            }
+        )
+
+
+class UnusualNamesFakeAdapter(WellBehavedFakeAdapter):
+    """Declares identity fields that resemble no shipped channel's names —
+    proof the shared suite's identity assertions read the declaration rather
+    than any one platform's vocabulary."""
+
+    def __init__(self):
+        super().__init__(
+            capabilities_override={
+                "identity": {
+                    "scope": "workspace",
+                    "stable": True,
+                    "keys": {
+                        "connection": ["realm_fingerprint"],
+                        "space": ["locale_code", "venue_slug"],
+                        "thread": ["locale_code", "venue_slug", "conversation_nonce"],
                     },
                 }
             }
