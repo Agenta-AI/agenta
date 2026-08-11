@@ -11,8 +11,15 @@
  * local `addToolOutput` settle is still waiting for `sendAutomaticallyWhen` to fire — the adopted
  * transcript predates the settle and silently discards it.
  */
+import type {
+    SessionInteractionRowState,
+    SessionInteractionRowStates,
+} from "@agenta/entities/session"
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
+
+import {goldenSession} from "../assets/__fixtures__/goldenSessions"
+import {transcriptToMessages} from "../assets/transcriptToMessages"
 
 import {shouldAdoptTranscript, shouldSkipRecordsRefresh} from "./useSessionHydration"
 
@@ -285,5 +292,151 @@ describe("shouldAdoptTranscript: waiting cards", () => {
                 [settledCard("call-1"), textMessage("server-tail")],
             ),
         ).toBe(true)
+    })
+})
+
+/**
+ * The blind spot the "unrecognized ⇒ settled" shortcut left open, asserted against real records.
+ *
+ * A card's `interaction_request` record — the one that re-stamps the harness-wrapped tool name and
+ * emits the `data-render` sibling — lands in the log AFTER its `tool_call`, but the server publishes
+ * the `interaction` event the instant the ROW is created. So the transcript the relay fetches in
+ * that window replays the card as `tool-mcp.agenta-tools.request_input` with no render sibling: the
+ * client-tool predicate cannot see it, and the old guard read "not a waiting card" as "settled" and
+ * adopted straight over the user's half-typed form.
+ *
+ * The fixture is the real `arabicPoetrySession` log cut at exactly that boundary, so the shape under
+ * test is the one production produces, not one this file asserts into existence.
+ */
+describe("shouldAdoptTranscript: harness-wrapped waiting card", () => {
+    const PARKED_CALL_ID = "exec-bf533142-0e4b-4e97-a3a7-20622ace0d0a"
+    const golden = goldenSession("arabicPoetrySession")
+    /** Records up to (not including) the parked card's `interaction_request`. */
+    const CUT = golden.records.findIndex((r) => r.session_update === "interaction_request")
+
+    /** The server copy in the race window: the card replayed from its harness-wrapped `tool_call`. */
+    const parkedServerMessages = transcriptToMessages(golden.records.slice(0, CUT))!
+    /** The same records once the card's terminal row settles it (`output-available`). */
+    const settledServerMessages = transcriptToMessages(golden.records.slice(0, CUT), {
+        interactionRowStates: golden.rows,
+    })!
+
+    const row = (
+        status: SessionInteractionRowState["status"],
+        resolution?: Record<string, unknown>,
+    ): SessionInteractionRowStates =>
+        new Map([
+            [
+                "row-token",
+                {
+                    token: "row-token",
+                    kind: "client_tool" as const,
+                    status,
+                    toolCallId: PARKED_CALL_ID,
+                    ...(resolution ? {resolution} : {}),
+                },
+            ],
+        ])
+
+    /** What the browser renders while the user types: the live-shaped, recognized card. */
+    const localWaiting = [
+        toolMessage({
+            id: "local-card",
+            toolCallId: PARKED_CALL_ID,
+            state: "input-available",
+            type: "dynamic-tool",
+        }),
+    ]
+
+    const at = ({
+        serverMessages,
+        interactionRows,
+        serverRecordCount = CUT,
+        watermark = 10,
+    }: {
+        serverMessages: UIMessage[]
+        interactionRows?: SessionInteractionRowStates
+        serverRecordCount?: number
+        watermark?: number
+    }) =>
+        shouldAdoptTranscript({
+            serverRecordCount,
+            serverMessages,
+            localMessages: localWaiting,
+            interactionRows,
+            watermark,
+            busy: false,
+            pendingResume: false,
+        })
+
+    it("replays the parked card unrecognizably — the premise of the bug", () => {
+        const part = parkedServerMessages
+            .flatMap((m) => m.parts ?? [])
+            .find((p) => (p as {toolCallId?: string}).toolCallId === PARKED_CALL_ID)
+        expect(part).toMatchObject({
+            type: "tool-mcp.agenta-tools.request_input",
+            state: "input-available",
+        })
+        // No `data-render` sibling anywhere in the replayed transcript for this call.
+        expect(
+            parkedServerMessages
+                .flatMap((m) => m.parts ?? [])
+                .some(
+                    (p) =>
+                        p.type === "data-render" &&
+                        (p as {data?: {toolCallId?: string}}).data?.toolCallId === PARKED_CALL_ID,
+                ),
+        ).toBe(false)
+    })
+
+    it("REFUSES the unrecognized card while its interaction row is still pending", () => {
+        // The regression: the log has grown (the card's own `tool_call` is new), so the growth path
+        // fires — the waiting-card guard is the only thing standing between the relay and the form.
+        expect(at({serverMessages: parkedServerMessages, interactionRows: row("pending")})).toBe(
+            false,
+        )
+    })
+
+    it("REFUSES it with no interaction rows at all — unrecognized is not evidence", () => {
+        expect(at({serverMessages: parkedServerMessages})).toBe(false)
+    })
+
+    it("adopts once the row is terminal, even before replay restamps the part", () => {
+        expect(
+            at({
+                serverMessages: parkedServerMessages,
+                interactionRows: row("responded", {outcome: "success", output: {when: "08:00"}}),
+            }),
+        ).toBe(true)
+    })
+
+    it("adopts on the part's own terminal state, with no rows to consult", () => {
+        expect(at({serverMessages: settledServerMessages})).toBe(true)
+    })
+
+    it("adopts the zombie card: no record growth, row terminal, stale local copy still live", () => {
+        // The dead-session case the no-growth path exists for — the log will never grow again, and
+        // only the terminal row can retire the phantom form.
+        expect(
+            at({
+                serverMessages: settledServerMessages,
+                interactionRows: row("cancelled"),
+                serverRecordCount: CUT,
+                watermark: CUT,
+            }),
+        ).toBe(true)
+    })
+
+    it("refuses the no-growth path when the row says the card is still waiting", () => {
+        // Belt and braces: even a server part that reads terminal must not retire a card whose row
+        // is `pending` on an unchanged log.
+        expect(
+            at({
+                serverMessages: settledServerMessages,
+                interactionRows: row("pending"),
+                serverRecordCount: CUT,
+                watermark: CUT,
+            }),
+        ).toBe(false)
     })
 })

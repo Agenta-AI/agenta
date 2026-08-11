@@ -4,6 +4,8 @@ import {
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
     shouldAdoptServerTranscript,
+    type SessionInteractionRowState,
+    type SessionInteractionRowStates,
 } from "@agenta/entities/session"
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {type UIMessage} from "ai"
@@ -69,26 +71,61 @@ const pendingClientToolCallIds = (messages: UIMessage[]): Set<string> => {
     return pending
 }
 
-/** Locally-waiting cards the server copy shows as settled. A card the server does not carry at all
- * is NOT settled — the server has not caught up. */
+/** A tool part that has demonstrably terminated — the states replay writes when it settles a card
+ * from a terminal row (`settleClientToolPart`/`settleApprovalPart`). */
+const TERMINAL_PART_STATES = new Set(["output-available", "output-error", "output-denied"])
+
+/** A row whose lifecycle has ended. `pending` — a card still awaiting the user — is the only other
+ * value the API returns. */
+const isTerminalRow = (row: SessionInteractionRowState): boolean =>
+    row.status === "responded" || row.status === "resolved" || row.status === "cancelled"
+
+/** Interaction rows keyed the way replay joins them: the runner-stamped tool-call id when present,
+ * else the row token (legacy rows, and approval gates whose token IS the id). */
+const interactionRowsByCallId = (
+    rows: SessionInteractionRowStates | undefined,
+): Map<string, SessionInteractionRowState> => {
+    const byCallId = new Map<string, SessionInteractionRowState>()
+    for (const row of rows?.values() ?? []) byCallId.set(row.toolCallId ?? row.token, row)
+    return byCallId
+}
+
+/**
+ * Locally-waiting cards the server copy shows as settled, plus the ones its interaction row still
+ * shows waiting.
+ *
+ * Settled requires POSITIVE evidence of termination — a terminal part state, or a terminal
+ * interaction row for the same call. "Not recognized as a waiting card" is not evidence: a card
+ * replayed from the durable log carries its harness-wrapped tool name
+ * (`mcp.agenta-tools.request_input`) with no `data-render` sibling, so the client-tool predicate
+ * cannot see it and every freshly-parked card read as settled — adopting over the user's half-typed
+ * form. A card the server does not carry at all is NOT settled either: the server has not caught up.
+ */
 const settledLocallyWaitingIds = (
     localMessages: UIMessage[],
     serverMessages: UIMessage[],
-): {pending: Set<string>; settled: Set<string>} => {
+    interactionRows: SessionInteractionRowStates | undefined,
+): {pending: Set<string>; settled: Set<string>; rowStillWaiting: Set<string>} => {
     const pending = pendingClientToolCallIds(localMessages)
     const settled = new Set<string>()
-    if (pending.size === 0) return {pending, settled}
+    const rowStillWaiting = new Set<string>()
+    if (pending.size === 0) return {pending, settled, rowStillWaiting}
+    const rows = interactionRowsByCallId(interactionRows)
+    for (const id of pending) {
+        const row = rows.get(id)
+        if (row && !isTerminalRow(row)) rowStillWaiting.add(id)
+    }
     for (const message of serverMessages) {
         if (message.role !== "assistant") continue
-        const parts = message.parts ?? []
-        const renderMap = buildRenderMap(parts)
-        for (const part of parts) {
-            const {toolCallId} = part as {toolCallId?: unknown}
+        for (const part of message.parts ?? []) {
+            const {toolCallId, state} = part as {toolCallId?: unknown; state?: unknown}
             if (typeof toolCallId !== "string" || !pending.has(toolCallId)) continue
-            if (!isPendingClientToolInteraction(part, renderMap)) settled.add(toolCallId)
+            const row = rows.get(toolCallId)
+            if (TERMINAL_PART_STATES.has(String(state)) || (row && isTerminalRow(row)))
+                settled.add(toolCallId)
         }
     }
-    return {pending, settled}
+    return {pending, settled, rowStillWaiting}
 }
 
 /**
@@ -103,11 +140,16 @@ const settledLocallyWaitingIds = (
  * card, same terminal row, minus the newest turn) replace the screen AND localStorage, regress the
  * watermark, and release the composer against a truncated history. The zombie case clears both
  * floors with equality, so requiring them costs nothing.
+ *
+ * That no-growth path also needs the interaction row itself to be terminal. A zombie's row is
+ * `cancelled`/`responded`, so it still fires; a card that just parked has a `pending` row, and
+ * without that check an equal record count would let the relay adopt over a live form.
  */
 export const shouldAdoptTranscript = ({
     serverRecordCount,
     serverMessages,
     localMessages,
+    interactionRows,
     watermark,
     busy,
     pendingResume,
@@ -115,12 +157,18 @@ export const shouldAdoptTranscript = ({
     serverRecordCount: number
     serverMessages: UIMessage[]
     localMessages: UIMessage[]
+    /** Rows joined into the server transcript; empty when the fetch failed or the session has none. */
+    interactionRows?: SessionInteractionRowStates
     watermark: number | undefined
     busy: boolean
     /** A client-tool answer is recorded but its resume has not dispatched — see `pendingResumeRef`. */
     pendingResume: boolean
 }): boolean => {
-    const {pending, settled} = settledLocallyWaitingIds(localMessages, serverMessages)
+    const {pending, settled, rowStillWaiting} = settledLocallyWaitingIds(
+        localMessages,
+        serverMessages,
+        interactionRows,
+    )
     // A waiting card the server copy does not settle must never be overwritten: the user may be
     // mid-answer, and adopting would discard it.
     if (pending.size > 0 && settled.size !== pending.size) return false
@@ -138,6 +186,9 @@ export const shouldAdoptTranscript = ({
 
     return (
         pending.size > 0 &&
+        // A row that exists and still reads `pending` blocks. No row at all (row-less sessions
+        // exist) just means this extra check has nothing to say; part evidence still decides.
+        rowStillWaiting.size === 0 &&
         !busy &&
         !pendingResume &&
         serverRecordCount >= (watermark ?? 0) &&
@@ -211,12 +262,13 @@ export const useSessionHydration = ({
     const adoptServerTranscript = useCallback(
         (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
             if (!transcript) return false
-            const {messages: serverMsgs, recordCount} = transcript
+            const {messages: serverMsgs, recordCount, interactionRows} = transcript
             if (
                 !shouldAdoptTranscript({
                     serverRecordCount: recordCount,
                     serverMessages: serverMsgs,
                     localMessages: messagesRef.current,
+                    interactionRows,
                     watermark: recordWatermarkRef.current,
                     busy: busyRef.current,
                     pendingResume: !!pendingResumeRef.current,
