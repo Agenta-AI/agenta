@@ -41,6 +41,19 @@ papered over by widening a type:
 WP1's own tests pass in its worktree because it holds the pre-fix seed. Rerun
 them against the merged base before believing them.
 
+**Reproduced, not predicted.** Against WP1's tree, a bridge declaring
+`units: ["space"]` — `contract.md` §4's own example — raises
+`ValueError: 'space' is not in list` from `resolve_policy`. It fires on the
+pre-fix tree as well: the string coerced, then broke at the ordering lookup.
+So this is WP1's bug, surfaced by WP2's correction rather than caused by it.
+
+The fix belongs in `resolve_policy`: the capability ceiling constrains the
+`THREAD` scope only. Read `units` as a grain set and ask whether it contains
+`THREAD`; if it does not, no thread scope is offerable and the effective scope
+falls to `MESSAGE`. `MESSAGE` needs no declaration — `capabilities.md` §3 says
+it is always available because it requires nothing of the platform, which is
+exactly why it never appears in `units` and must not be looked up there.
+
 ## Collision-file edits, to apply serially
 
 `api/entrypoints/routers.py` is owned by no package. WP3 wrote its intended
