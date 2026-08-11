@@ -11,7 +11,7 @@ vi.mock("@agenta/sdk/resources", () => ({
 
 import {sessionListPolicies} from "@/oss/lib/sessionListPolicies"
 
-import {sidebarSessionFilters, sidebarSessionOptions} from "./sessionOptions"
+import {SIDEBAR_SESSION_LIMIT, sidebarSessionFilters, sidebarSessionOptions} from "./sessionOptions"
 
 beforeEach(() => {
     fernQuerySessions.mockReset()
@@ -29,7 +29,7 @@ describe("sidebarSessionFilters", () => {
             includeArchived: false,
             sessionIds: undefined,
             excludeSessionIds: pinnedIds,
-            limit: 20,
+            limit: SIDEBAR_SESSION_LIMIT,
             lowPriority: true,
             origins: undefined,
             excludeOrigins: ["trigger"],
@@ -37,10 +37,12 @@ describe("sidebarSessionFilters", () => {
         })
     })
 
-    it("requests all 100 pinned rows in the explicit id group", () => {
-        const pinnedIds = Array.from({length: 100}, (_, index) => `pin-${index}`)
+    // Count must exceed the sidebar window, else the default limit alone would satisfy this.
+    it("widens the explicit id group to cover every pinned row", () => {
+        const pinCount = SIDEBAR_SESSION_LIMIT + 50
+        const pinnedIds = Array.from({length: pinCount}, (_, index) => `pin-${index}`)
         expect(sidebarSessionFilters({projectId: "project-1", sessionIds: pinnedIds}).limit).toBe(
-            100,
+            pinCount,
         )
     })
 
@@ -61,7 +63,7 @@ describe("sidebarSessionFilters", () => {
             includeArchived: false,
             sessionIds: pinnedIds,
             excludeSessionIds: undefined,
-            limit: 20,
+            limit: SIDEBAR_SESSION_LIMIT,
             lowPriority: true,
             origins: undefined,
             excludeOrigins: undefined,
@@ -88,7 +90,7 @@ describe("sidebarSessionFilters", () => {
             include_total: false,
             expand: [],
             windowing: {
-                limit: 20,
+                limit: SIDEBAR_SESSION_LIMIT,
                 next: undefined,
                 newest: undefined,
                 oldest: undefined,
