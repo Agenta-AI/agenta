@@ -92,6 +92,7 @@ export {
     withHarnessKind,
     withRunnerPermission,
     readModelId,
+    readModelConnectionSlug,
     readHarnessKind,
     readRunnerPermission,
     readAgentItems,
@@ -117,7 +118,7 @@ export {
     vaultModelGroups,
     vaultPickedProviderFamily,
 } from "./connectionUtils"
-export type {ModelOptionGroup} from "./connectionUtils"
+export type {ModelOptionGroup, VaultModelSource} from "./connectionUtils"
 // Row presentation for config items (name/description/tags), shared with the `/` palette.
 export {
     describeMcp,

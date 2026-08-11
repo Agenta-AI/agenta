@@ -10,7 +10,7 @@ import {
 /**
  * Keyboard navigation for a `/` palette panel's option list.
  *
- * Every panel the palette drills into must be operable without a mouse — see `AGENTS.md` beside
+ * Every panel the palette drills into must be operable without a mouse — see `README.md` beside
  * this file. Rather than roving `tabIndex`, focus stays on the panel container and
  * `aria-activedescendant` names the active row: one focus target, so Enter/Escape are handled in
  * one place and the rows stay plain divs that mouse and keyboard drive through the same index.

@@ -91,6 +91,16 @@ export function readRunnerPermission(parameters: unknown): PermissionPolicy | nu
     return isPermissionPolicy(stored) ? stored : null
 }
 
+/**
+ * The stored connection slug, or null. Needed alongside the model id wherever a model's
+ * availability is judged: a vault-hosted model is only reachable THROUGH its named connection, so
+ * `harnessAllowsModel` returns a false negative when the slug is withheld.
+ */
+export function readModelConnectionSlug(parameters: unknown): string | null {
+    if (!isRecord(parameters)) return null
+    return connectionFromConfig(locateTemplate(parameters).template.llm).slug || null
+}
+
 /** The stored model id, or null. Reads the ModelRef the same way the picker does. */
 export function readModelId(parameters: unknown): string | null {
     if (!isRecord(parameters)) return null

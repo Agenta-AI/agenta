@@ -215,12 +215,18 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
         [normalizedGroups, value],
     )
 
-    const closeDropdown = useCallback(() => {
-        setOpen(false)
+    const closeDropdown = useCallback(() => setOpen(false), [setOpen])
+
+    // Reset on EVERY close, not just the ones routed through `closeDropdown`. A controlled parent
+    // can drop `open` on its own — the composer's `←` step-back and "Open config →" do — and that
+    // fires no `onOpenChange`, so the panel would reopen holding a stale search term and an
+    // expanded provider column.
+    useEffect(() => {
+        if (open) return
         setSearchTerm("")
         setHoveredProvider(null)
         setActiveModelIndex(null)
-    }, [setOpen])
+    }, [open])
 
     const handleSelect = useCallback(
         (optionValue: string, metadata?: Record<string, unknown>) => {

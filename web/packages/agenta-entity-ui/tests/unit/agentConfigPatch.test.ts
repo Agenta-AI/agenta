@@ -10,6 +10,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     readHarnessKind,
+    readModelConnectionSlug,
     readModelId,
     readRunnerPermission,
     withHarnessKind,
@@ -231,6 +232,21 @@ describe("readers", () => {
         expect(readModelId(template())).toBe("gpt-4o")
         expect(readHarnessKind(nested())).toBe("pi_core")
         expect(readHarnessKind(template())).toBe("pi_core")
+    })
+
+    // The slug has to travel with the model id: `harnessAllowsModel` reports a vault-hosted model
+    // as unavailable without it, which is the false "model not available" badge.
+    it("reads the stored connection slug, and null when there is none", () => {
+        const withConnection = nested({
+            llm: {
+                model: "custom-bedrock-model-id-123",
+                provider: "anthropic",
+                connection: {mode: "self_managed", slug: "my-bedrock"},
+            },
+        })
+        expect(readModelConnectionSlug(withConnection)).toBe("my-bedrock")
+        expect(readModelConnectionSlug(template())).toBeNull()
+        expect(readModelConnectionSlug(null)).toBeNull()
     })
 
     it("reads a legacy bare-string model", () => {

@@ -21,6 +21,7 @@ import {
     readAgentItems,
     readHarnessKind,
     readModelId,
+    readModelConnectionSlug,
     readRunnerPermission,
     selectableHarnesses,
     staticEmbedSlug,
@@ -108,6 +109,9 @@ export function useChatSlashCommands({
     )
 
     const currentModel = readModelId(config)
+    // A vault-hosted model is only reachable THROUGH its named connection, so every
+    // availability check needs the slug and the secrets, exactly as the drawer passes them.
+    const currentConnectionSlug = readModelConnectionSlug(config)
     const currentHarness = readHarnessKind(config)
     const currentPermission = readRunnerPermission(config)
     const currentPermissionLabel =
@@ -215,7 +219,13 @@ export function useChatSlashCommands({
     const applyHarness = useCallback(
         (kind: string) => {
             const meta = harnessMetaFor(kind)
-            const keepsModel = harnessAllowsModel(capabilities, kind, currentModel)
+            const keepsModel = harnessAllowsModel(
+                capabilities,
+                kind,
+                currentModel,
+                customSecrets,
+                currentConnectionSlug,
+            )
             const fallback = keepsModel ? null : fallbackModelFor(kind)
             const switched = withHarnessKind(config, kind)
             const next =
@@ -234,7 +244,15 @@ export function useChatSlashCommands({
             )
             setPicker(null)
         },
-        [capabilities, config, currentModel, fallbackModelFor, write],
+        [
+            capabilities,
+            config,
+            currentConnectionSlug,
+            currentModel,
+            customSecrets,
+            fallbackModelFor,
+            write,
+        ],
     )
 
     const applyPermission = useCallback(
@@ -421,6 +439,8 @@ export function useChatSlashCommands({
         closePicker: useCallback(() => setPicker(null), []),
         modelGroups,
         currentModel,
+        currentConnectionSlug,
+        customSecrets,
         currentHarness,
         currentPermission,
         permissionOptions,

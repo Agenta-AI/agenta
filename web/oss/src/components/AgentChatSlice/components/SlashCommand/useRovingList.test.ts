@@ -2,7 +2,7 @@
  * Index logic behind the `/` palette panels' keyboard navigation.
  *
  * The panels are the only way to change a model, harness, or permission policy from the chat, and
- * `AGENTS.md` beside this file makes keyboard operation a contract rather than a nice-to-have —
+ * `README.md` beside this file makes keyboard operation a contract rather than a nice-to-have —
  * so the stepping, wrapping, and "open on the row already in effect" rules are pinned here.
  */
 import {describe, expect, it} from "vitest"

@@ -340,6 +340,10 @@ export const SlashCommands: Story = {
                                     capabilities={MOCK_CAPABILITIES}
                                     currentHarness={harness}
                                     currentModel={model}
+                                    // A vault-hosted model is only reachable through its named
+                                    // connection; this fixture has neither, so both are empty.
+                                    customSecrets={null}
+                                    currentConnectionSlug={null}
                                     onApply={(kind) => {
                                         setHarness(kind)
                                         setApplied(`harness → ${kind}`)

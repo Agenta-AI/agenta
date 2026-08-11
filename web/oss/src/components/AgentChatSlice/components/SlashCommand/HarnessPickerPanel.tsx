@@ -9,6 +9,7 @@ import {
     harnessMetaFor,
     modelLabel,
     type HarnessMeta,
+    type VaultModelSource,
 } from "@agenta/entity-ui/drill-in"
 import {Cube} from "@phosphor-icons/react"
 import {Button} from "antd"
@@ -28,6 +29,8 @@ const HarnessPickerPanel = ({
     capabilities,
     currentHarness,
     currentModel,
+    customSecrets,
+    currentConnectionSlug,
     onApply,
     onDismiss,
     onBackToCommands,
@@ -37,6 +40,13 @@ const HarnessPickerPanel = ({
     capabilities: HarnessCapabilitiesMap | null
     currentHarness: string | null
     currentModel: string | null
+    /**
+     * The vault's custom-provider secrets and the stored connection slug. Both are required to
+     * judge a VAULT-hosted model: without them the lookup falls through to the published catalog
+     * and reports a false "model not available".
+     */
+    customSecrets: VaultModelSource[] | null
+    currentConnectionSlug: string | null
     onApply: (kind: string) => void
     /** Drop the picker. The reason decides whether focus goes back to the composer. */
     onDismiss: (reason: "escape" | "outside") => void
@@ -87,7 +97,13 @@ const HarnessPickerPanel = ({
               0,
           )
         : 0
-    const keepsModel = harnessAllowsModel(capabilities, selected, currentModel)
+    const keepsModel = harnessAllowsModel(
+        capabilities,
+        selected,
+        currentModel,
+        customSecrets,
+        currentConnectionSlug,
+    )
     const fallback = keepsModel
         ? null
         : (buildModelOptionGroups(capabilities, selected)[0]?.options[0] ?? null)
