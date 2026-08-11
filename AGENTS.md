@@ -26,6 +26,21 @@ bottom.
 - Docs writing: the Diátaxis framework digest at `.agents/docs/diataxis/`, and the
   `write-docs` skill for Agenta style, voice, and structure.
 
+## Language in responses
+
+Write responses in ASD-STE100 (Simplified Technical English). Keep every technical
+term the work needs: file names, symbol names, commands, error text, and the words
+of the domain. Simplify the language around them, not the terms themselves.
+
+- Write short sentences. Put one idea in each sentence.
+- Use the active voice. Name who or what does the action.
+- Use simple words. Do not use idioms, metaphors, or slang.
+- Use one word for one thing. Do not change the word to add variety.
+- Write an instruction as a command.
+
+This rule is for responses. Code, comments, commit messages and committed documents
+keep the conventions in their own sections.
+
 ## Branching and PRs with GitButler
 
 This repo may be in GitButler workspace mode (current branch `gitbutler/workspace`).
