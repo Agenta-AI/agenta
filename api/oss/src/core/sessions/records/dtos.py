@@ -48,7 +48,6 @@ class SessionMessagePreview(BaseModel):
     reached for rather than what it concluded.
     """
 
-    session_id: str
     text: str
     # "user" or "agent" — the row prefixes your own messages so a preview isn't mistaken for a reply.
     source: Optional[str] = None

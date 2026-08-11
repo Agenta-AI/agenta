@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
+from oss.src.core.sessions.types import SessionDelivery, SessionOrigin, SessionTrigger
 
 
 class SessionStreamFlags(BaseModel):
@@ -37,6 +38,18 @@ class SessionStream(Identifier, Header, Lifecycle):
     turn_id: Optional[str] = None
     # Set = archived (hidden but restorable); distinct from `deleted_at` (killed, still listed).
     archived_at: Optional[datetime] = None
+    origin: Optional[SessionOrigin] = None
+    trigger: Optional[SessionTrigger] = None
+    delivery: Optional[SessionDelivery] = None
+
+
+class SessionStreamReadOptions(BaseModel):
+    include_trigger_details: bool = False
+
+
+class SessionStreamQueryResult(BaseModel):
+    stream: SessionStream
+    trigger_name: Optional[str] = None
 
 
 class SessionStreamCreate(Header):
@@ -93,6 +106,8 @@ class SessionStreamQuery(BaseModel):
     tags: Optional[Dict[str, Any]] = None
     # Its negation. A row with NULL tags PASSES: absence of a stamp is not a match.
     exclude_tags: Optional[Dict[str, Any]] = None
+    origins: Optional[list[SessionOrigin]] = None
+    exclude_origins: Optional[list[SessionOrigin]] = None
 
 
 class CommandMode(str, Enum):

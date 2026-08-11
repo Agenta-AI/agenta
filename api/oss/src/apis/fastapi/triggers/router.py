@@ -1091,7 +1091,7 @@ class TriggersRouter:
     ) -> TriggerSubscriptionResponse:
         await self._check(request, Permission.VIEW_TRIGGERS)
 
-        subscription = await self.triggers_service.fetch_subscription(
+        subscription = await self.triggers_service.fetch_subscription_including_deleted(
             project_id=UUID(request.state.project_id),
             #
             subscription_id=subscription_id,
@@ -1156,6 +1156,7 @@ class TriggersRouter:
 
         deleted = await self.triggers_service.delete_subscription(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
             #
             subscription_id=subscription_id,
         )
@@ -1343,7 +1344,7 @@ class TriggersRouter:
     ) -> TriggerScheduleResponse:
         await self._check(request, Permission.VIEW_TRIGGERS)
 
-        schedule = await self.triggers_service.fetch_schedule(
+        schedule = await self.triggers_service.fetch_schedule_including_deleted(
             project_id=UUID(request.state.project_id),
             #
             schedule_id=schedule_id,
@@ -1409,6 +1410,7 @@ class TriggersRouter:
 
         deleted = await self.triggers_service.delete_schedule(
             project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
             #
             schedule_id=schedule_id,
         )

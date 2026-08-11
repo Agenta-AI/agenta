@@ -1,138 +1,144 @@
-"""Unit tests for the automation stamp on a session row.
-
-An automation run is a session nobody named, so its row could say what the run did but never
-what fired it: `ag.origin` recorded only THAT something automated started it. The trigger's
-identity is stamped by the same writer as the origin — `set_origin` replaces tags wholesale, so
-a second writer would need a merge it does not have.
-
-The name is a snapshot, not a live join; see `SessionTriggerRef`.
-"""
-
-from typing import Any, Dict, Optional
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
+from sqlalchemy.dialects import postgresql
 
 from oss.src.core.sessions.dtos import (
-    SESSION_ORIGIN_MANUAL,
-    SESSION_ORIGIN_TAG,
-    SESSION_ORIGIN_TRIGGER,
-    SESSION_TRIGGER_ID_TAG,
-    SESSION_TRIGGER_KIND_SCHEDULE,
-    SESSION_TRIGGER_KIND_TAG,
-    SESSION_TRIGGER_NAME_TAG,
-    SessionTriggerRef,
+    SessionOrigin,
+    SessionTriggerAttribution,
+    SessionTriggerKind,
 )
-from oss.src.core.sessions.streams.dtos import SessionStream
-from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 
 
-class _RecordingDAO:
-    """Captures what `set_origin` writes. `update` returning a row is the common path — the
-    stream usually does not exist yet, but either branch writes the same tags."""
+class _Result:
+    def scalar_one_or_none(self):
+        return uuid4()
 
-    def __init__(self, *, row_exists: bool = True) -> None:
-        self.row_exists = row_exists
-        self.updated_tags: Optional[Dict[str, Any]] = None
-        self.created_tags: Optional[Dict[str, Any]] = None
 
-    async def update(self, *, project_id, user_id, session_id, stream):
-        self.updated_tags = stream.tags
-        if not self.row_exists:
-            return None
-        return SessionStream(
-            id=uuid4(),
-            project_id=project_id,
-            session_id=session_id,
-            tags=stream.tags,
+class _Session:
+    def __init__(self):
+        self.statement = None
+        self.commits = 0
+        self.rollbacks = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return False
+
+    async def execute(self, statement):
+        self.statement = statement
+        statement.compile(dialect=postgresql.dialect())
+        return _Result()
+
+    async def commit(self):
+        self.commits += 1
+
+    async def rollback(self):
+        self.rollbacks += 1
+
+
+class _Engine:
+    def __init__(self):
+        self.db_session = _Session()
+
+    def session(self):
+        return self.db_session
+
+
+def test_trigger_attribution_contains_only_durable_identifiers():
+    configuration_id = uuid4()
+    delivery_id = uuid4()
+
+    attribution = SessionTriggerAttribution(
+        configuration_id=configuration_id,
+        kind=SessionTriggerKind.schedule,
+        delivery_id=delivery_id,
+    )
+
+    assert attribution.model_dump() == {
+        "configuration_id": configuration_id,
+        "kind": SessionTriggerKind.schedule,
+        "delivery_id": delivery_id,
+    }
+    assert "name" not in SessionTriggerAttribution.model_fields
+    assert "meta" not in SessionTriggerAttribution.model_fields
+
+
+@pytest.mark.parametrize("kind", ["schedule", "subscription"])
+def test_trigger_kind_is_typed(kind):
+    attribution = SessionTriggerAttribution(
+        configuration_id=uuid4(),
+        kind=kind,
+        delivery_id=uuid4(),
+    )
+    assert attribution.kind == SessionTriggerKind(kind)
+
+
+def test_unknown_trigger_kind_is_rejected():
+    with pytest.raises(ValidationError):
+        SessionTriggerAttribution(
+            configuration_id=uuid4(),
+            kind="webhook",
+            delivery_id=uuid4(),
         )
 
-    async def create(self, *, project_id, user_id, stream):
-        self.created_tags = stream.tags
-        return SessionStream(
-            id=uuid4(),
-            project_id=project_id,
-            session_id=stream.session_id,
-            tags=stream.tags,
-        )
+
+def test_session_origin_is_typed():
+    assert {origin.value for origin in SessionOrigin} == {"manual", "trigger"}
 
 
-def _service(dao) -> SessionStreamsService:
-    return SessionStreamsService(streams_dao=dao, lock_engine=None)
+async def test_claim_compiles_as_one_postgres_statement():
+    engine = _Engine()
+    dao = SessionStreamsDAO(engine=engine)
+    session_id = uuid4().hex
+    configuration_id = uuid4()
+    delivery_id = uuid4()
 
-
-SESSION_ID = "0" * 32
-PROJECT_ID = UUID(int=1)
-
-
-@pytest.mark.asyncio
-async def test_manual_origin_stamps_no_trigger():
-    dao = _RecordingDAO()
-    await _service(dao).set_origin(
-        project_id=PROJECT_ID,
-        user_id=None,
-        session_id=SESSION_ID,
-        origin=SESSION_ORIGIN_MANUAL,
-    )
-    assert dao.updated_tags == {SESSION_ORIGIN_TAG: SESSION_ORIGIN_MANUAL}
-
-
-@pytest.mark.asyncio
-async def test_trigger_identity_rides_the_origin_write():
-    # One write, not two: the tags column is replaced wholesale.
-    dao = _RecordingDAO()
-    trigger_id = str(uuid4())
-    await _service(dao).set_origin(
-        project_id=PROJECT_ID,
-        user_id=None,
-        session_id=SESSION_ID,
-        origin=SESSION_ORIGIN_TRIGGER,
-        trigger=SessionTriggerRef(
-            id=trigger_id,
-            name="Nightly digest",
-            kind=SESSION_TRIGGER_KIND_SCHEDULE,
+    claimed = await dao.claim_trigger_delivery(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        event_id="event-1",
+        session_id=session_id,
+        attribution=SessionTriggerAttribution(
+            configuration_id=configuration_id,
+            kind=SessionTriggerKind.subscription,
+            delivery_id=delivery_id,
         ),
     )
-    assert dao.updated_tags == {
-        SESSION_ORIGIN_TAG: SESSION_ORIGIN_TRIGGER,
-        SESSION_TRIGGER_ID_TAG: trigger_id,
-        SESSION_TRIGGER_NAME_TAG: "Nightly digest",
-        SESSION_TRIGGER_KIND_TAG: SESSION_TRIGGER_KIND_SCHEDULE,
-    }
-    assert dao.created_tags is None
 
-
-@pytest.mark.asyncio
-async def test_unnamed_trigger_omits_the_name_rather_than_stamping_empty():
-    # A blank name would render as a blank row title; absence lets the row fall back.
-    dao = _RecordingDAO()
-    trigger_id = str(uuid4())
-    await _service(dao).set_origin(
-        project_id=PROJECT_ID,
-        user_id=None,
-        session_id=SESSION_ID,
-        origin=SESSION_ORIGIN_TRIGGER,
-        trigger=SessionTriggerRef(id=trigger_id, name=None, kind=None),
+    compiled = engine.db_session.statement.compile(
+        dialect=postgresql.dialect(), compile_kwargs={"literal_binds": False}
     )
-    assert dao.updated_tags == {
-        SESSION_ORIGIN_TAG: SESSION_ORIGIN_TRIGGER,
-        SESSION_TRIGGER_ID_TAG: trigger_id,
-    }
-
-
-@pytest.mark.asyncio
-async def test_create_branch_stamps_the_same_tags():
-    # The row usually does NOT exist yet — the stamp happens before the run creates it.
-    dao = _RecordingDAO(row_exists=False)
-    trigger_id = str(uuid4())
-    await _service(dao).set_origin(
-        project_id=PROJECT_ID,
-        user_id=None,
-        session_id=SESSION_ID,
-        origin=SESSION_ORIGIN_TRIGGER,
-        trigger=SessionTriggerRef(
-            id=trigger_id, name="On PR opened", kind="subscription"
-        ),
+    sql = str(compiled)
+    assert claimed is True
+    assert sql.startswith("WITH live_trigger_configuration AS")
+    assert "trigger_subscriptions.deleted_at IS NULL" in sql
+    assert "trigger_subscriptions.flags @>" in sql
+    assert "FOR UPDATE" in sql
+    assert "claimed_trigger_delivery AS" in sql
+    assert "INSERT INTO trigger_deliveries" in sql
+    assert "INSERT INTO session_streams" in sql
+    assert "ON CONFLICT (project_id, session_id) DO UPDATE" in sql
+    assert "coalesce(session_streams.tags" in sql
+    assert " || excluded.tags" in sql
+    object_parameters = [
+        value for value in compiled.params.values() if isinstance(value, dict)
+    ]
+    assert {"session_id": session_id} in object_parameters
+    claim_status = next(
+        value for value in object_parameters if value.get("message") == "claimed"
     )
-    assert dao.created_tags == dao.updated_tags
-    assert dao.created_tags[SESSION_TRIGGER_NAME_TAG] == "On PR opened"
+    assert claim_status["code"] == "102"
+    assert claim_status["timestamp"]
+    assert {
+        "ag.origin": "trigger",
+        "ag.trigger.id": str(configuration_id),
+        "ag.trigger.kind": "subscription",
+        "ag.trigger.delivery_id": str(delivery_id),
+    } in object_parameters
+    assert engine.db_session.commits == 1
+    assert engine.db_session.rollbacks == 0

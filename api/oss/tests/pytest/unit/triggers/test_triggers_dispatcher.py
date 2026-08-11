@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from oss.src.core.shared.dtos import Reference
+from oss.src.core.sessions.dtos import SessionTriggerKind
 from oss.src.core.triggers.dtos import (
-    TriggerDelivery,
     TriggerSchedule,
     TriggerScheduleData,
     TriggerScheduleFlags,
@@ -66,26 +66,13 @@ def _make_schedule(*, is_active=True, references=None, inputs_fields=None):
 
 
 def _make_dao(*, seen=False, claim_lost=False):
-    """`claim_lost=True` simulates a concurrent caller having already won the
-    atomic claim on `_run`'s delivery row (claim_delivery returns None) — the
-    scenario the dedup pre-check alone cannot catch (P1-3)."""
     dao = MagicMock()
     dao.dedup_seen = AsyncMock(return_value=seen)
     dao.dedup_seen_schedule = AsyncMock(return_value=seen)
     dao.write_delivery = AsyncMock()
+    dao.write_subscription_delivery_if_live = AsyncMock()
 
-    def _claim(*, project_id, user_id, delivery):
-        if claim_lost:
-            return None
-        return TriggerDelivery(
-            id=delivery.id,
-            subscription_id=delivery.subscription_id,
-            schedule_id=delivery.schedule_id,
-            event_id=delivery.event_id,
-            status=delivery.status,
-        )
-
-    dao.claim_delivery = AsyncMock(side_effect=_claim)
+    dao.claim_trigger_delivery = AsyncMock(return_value=not claim_lost)
     dao.update_delivery = AsyncMock()
     return dao
 
@@ -108,7 +95,9 @@ def test_build_context_normalizes_provider_envelope():
     project_id = uuid4()
     subscription = _make_subscription()
     dispatcher = TriggersDispatcher(
-        triggers_dao=MagicMock(), workflows_service=MagicMock()
+        triggers_dao=MagicMock(),
+        session_claims_dao=MagicMock(),
+        workflows_service=MagicMock(),
     )
 
     context = dispatcher._build_context(
@@ -130,7 +119,9 @@ def test_build_context_normalizes_provider_envelope():
 
 def test_build_context_tolerates_missing_metadata_and_payload():
     dispatcher = TriggersDispatcher(
-        triggers_dao=MagicMock(), workflows_service=MagicMock()
+        triggers_dao=MagicMock(),
+        session_claims_dao=MagicMock(),
+        workflows_service=MagicMock(),
     )
 
     context = dispatcher._build_context(
@@ -149,7 +140,9 @@ async def test_inactive_entity_is_skipped():
     project_id = uuid4()
     subscription = _make_subscription(is_active=False)
     dao = _make_dao()
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=MagicMock())
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=MagicMock()
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
@@ -174,7 +167,9 @@ async def test_invalid_subscription_is_not_silently_skipped():
             span_id="sp-1",
         )
     )
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
@@ -184,8 +179,8 @@ async def test_invalid_subscription_is_not_silently_skipped():
     # The workflow must NOT run for an invalid subscription, and a failed
     # delivery must be recorded so the user can see why.
     workflows.invoke_workflow.assert_not_awaited()
-    dao.write_delivery.assert_awaited_once()
-    delivery = dao.write_delivery.await_args.kwargs["delivery"]
+    dao.write_subscription_delivery_if_live.assert_awaited_once()
+    delivery = dao.write_subscription_delivery_if_live.await_args.kwargs["delivery"]
     assert delivery.status.code == "409"
     assert "invalid" in delivery.data.error.lower()
 
@@ -194,7 +189,9 @@ async def test_duplicate_event_is_skipped():
     project_id = uuid4()
     subscription = _make_subscription(references={"workflow": Reference(slug="wf-1")})
     dao = _make_dao(seen=True)
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=MagicMock())
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=MagicMock()
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
@@ -210,7 +207,9 @@ async def test_missing_reference_writes_failed_delivery():
     dao = _make_dao()
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
@@ -218,12 +217,49 @@ async def test_missing_reference_writes_failed_delivery():
 
     workflows.invoke_workflow.assert_not_awaited()
     # _run claims the row FIRST (even though it will fail before ever invoking).
-    dao.claim_delivery.assert_awaited_once()
+    dao.claim_trigger_delivery.assert_awaited_once()
     dao.update_delivery.assert_awaited_once()
+    claim = dao.claim_trigger_delivery.await_args.kwargs
     update_kwargs = dao.update_delivery.await_args.kwargs
     assert update_kwargs["status"].code == "400"
     assert "no bound workflow" in update_kwargs["data"].error.lower()
+    assert update_kwargs["delivery_id"] == claim["attribution"].delivery_id
+    assert update_kwargs["data"].session_id == claim["session_id"]
     dao.write_delivery.assert_not_awaited()
+
+
+async def test_mapping_failure_keeps_claimed_session_and_skips_invoke(monkeypatch):
+    project_id = uuid4()
+    subscription = _make_subscription(
+        references={"workflow": Reference(slug="wf-1")},
+        inputs_fields={"number": "$.missing"},
+    )
+    dao = _make_dao()
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock()
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
+
+    def _fail_mapping(*args, **kwargs):
+        raise ValueError("invalid input mapping")
+
+    monkeypatch.setattr(
+        "oss.src.tasks.asyncio.triggers.dispatcher.resolve_target_fields",
+        _fail_mapping,
+    )
+
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
+    )
+
+    claim = dao.claim_trigger_delivery.await_args.kwargs
+    completion = dao.update_delivery.await_args.kwargs
+    assert completion["status"].code == "400"
+    assert completion["data"].error == "invalid input mapping"
+    assert completion["data"].session_id == claim["session_id"]
+    assert completion["delivery_id"] == claim["attribution"].delivery_id
+    workflows.invoke_workflow.assert_not_awaited()
 
 
 async def test_happy_path_invokes_workflow_and_writes_success():
@@ -243,7 +279,9 @@ async def test_happy_path_invokes_workflow_and_writes_success():
     )
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock(return_value=response)
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
@@ -256,17 +294,25 @@ async def test_happy_path_invokes_workflow_and_writes_success():
 
     # The claim happens BEFORE invoke, and the terminal write is an UPDATE of the
     # SAME claimed row (never a fresh write_delivery insert) — the P1-3 contract.
-    dao.claim_delivery.assert_awaited_once()
-    claimed = dao.claim_delivery.await_args.kwargs["delivery"]
-    assert claimed.status.code == "102"
-    assert claimed.subscription_id == subscription.id
-    assert claimed.schedule_id is None
-    assert claimed.event_id == "e1"
+    dao.claim_trigger_delivery.assert_awaited_once()
+    claim = dao.claim_trigger_delivery.await_args.kwargs
+    attribution = claim["attribution"]
+    assert claim["event_id"] == "e1"
+    assert attribution.configuration_id == subscription.id
+    assert attribution.kind == SessionTriggerKind.subscription
+    assert set(attribution.model_dump()) == {
+        "configuration_id",
+        "kind",
+        "delivery_id",
+    }
 
     dao.update_delivery.assert_awaited_once()
     update_kwargs = dao.update_delivery.await_args.kwargs
-    assert update_kwargs["delivery_id"] == claimed.id
+    request = invoke_kwargs["request"]
+    assert claim["session_id"] == request.session_id
+    assert update_kwargs["delivery_id"] == attribution.delivery_id
     assert update_kwargs["status"].code == "200"
+    assert update_kwargs["data"].session_id == request.session_id
     assert update_kwargs["data"].inputs == {"number": 7}
     dao.write_delivery.assert_not_awaited()
 
@@ -278,7 +324,9 @@ async def test_test_subscription_captures_event_and_skips_workflow():
     dao = _make_dao()
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
@@ -286,8 +334,8 @@ async def test_test_subscription_captures_event_and_skips_workflow():
 
     dao.dedup_seen.assert_awaited_once()
     workflows.invoke_workflow.assert_not_awaited()
-    dao.write_delivery.assert_awaited_once()
-    delivery = dao.write_delivery.await_args.kwargs["delivery"]
+    dao.write_subscription_delivery_if_live.assert_awaited_once()
+    delivery = dao.write_subscription_delivery_if_live.await_args.kwargs["delivery"]
     assert delivery.status.code == "200"
     assert delivery.data.is_test is True
     # Default inputs_fields ("$") captures the whole resolved event context.
@@ -301,7 +349,9 @@ async def test_test_subscription_dedups():
     dao = _make_dao(seen=True)
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
@@ -325,13 +375,15 @@ async def test_workflow_non_200_writes_failed_delivery():
     )
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock(return_value=response)
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
-    dao.claim_delivery.assert_awaited_once()
+    dao.claim_trigger_delivery.assert_awaited_once()
     dao.update_delivery.assert_awaited_once()
     update_kwargs = dao.update_delivery.await_args.kwargs
     assert update_kwargs["status"].code == "500"
@@ -352,7 +404,10 @@ async def test_detached_dispatch_writes_dispatched_delivery():
     run_id = "run-abc-123"
     dispatch_fn = AsyncMock(return_value=run_id)
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, workflows_service=workflows, dispatch_fn=dispatch_fn
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
+        dispatch_fn=dispatch_fn,
     )
 
     await dispatcher.dispatch_subscription(
@@ -363,12 +418,51 @@ async def test_detached_dispatch_writes_dispatched_delivery():
     dispatch_fn.assert_awaited_once()
     workflows.invoke_workflow.assert_not_awaited()
 
-    dao.claim_delivery.assert_awaited_once()
+    dao.claim_trigger_delivery.assert_awaited_once()
     dao.update_delivery.assert_awaited_once()
+    claim = dao.claim_trigger_delivery.await_args.kwargs
+    request = dispatch_fn.await_args.kwargs["request"]
     update_kwargs = dao.update_delivery.await_args.kwargs
     assert update_kwargs["status"].code == "202"
+    assert update_kwargs["status"].message == "dispatched"
     assert update_kwargs["data"].result == {"run_id": run_id}
+    assert request.session_id == claim["session_id"]
+    assert update_kwargs["data"].session_id == claim["session_id"]
+    assert update_kwargs["delivery_id"] == claim["attribution"].delivery_id
     dao.write_delivery.assert_not_awaited()
+
+
+async def test_detached_dispatch_failure_before_acceptance_marks_delivery_failed():
+    project_id = uuid4()
+    subscription = _make_subscription(references={"workflow": Reference(slug="wf-1")})
+    dao = _make_dao()
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock()
+    dispatch_fn = AsyncMock(side_effect=RuntimeError("runner unavailable"))
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
+        dispatch_fn=dispatch_fn,
+    )
+
+    with pytest.raises(RuntimeError, match="runner unavailable"):
+        await dispatcher.dispatch_subscription(
+            project_id=project_id,
+            subscription=subscription,
+            event_id="e1",
+            event=_EVENT,
+        )
+
+    claim = dao.claim_trigger_delivery.await_args.kwargs
+    request = dispatch_fn.await_args.kwargs["request"]
+    completion = dao.update_delivery.await_args.kwargs
+    assert completion["status"].code == "500"
+    assert completion["data"].error == "runner unavailable"
+    assert request.session_id == claim["session_id"]
+    assert completion["data"].session_id == claim["session_id"]
+    assert completion["delivery_id"] == claim["attribution"].delivery_id
+    workflows.invoke_workflow.assert_not_awaited()
 
 
 # --- SCHEDULES ---------------------------------------------------------------- #
@@ -385,7 +479,9 @@ _SCHEDULE_EVENT = {
 async def test_inactive_schedule_is_skipped():
     schedule = _make_schedule(is_active=False)
     dao = _make_dao()
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=MagicMock())
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=MagicMock()
+    )
 
     await dispatcher.dispatch_schedule(
         project_id=uuid4(),
@@ -405,7 +501,9 @@ async def test_duplicate_schedule_event_is_skipped():
     dao = _make_dao(seen=True)
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_schedule(
         project_id=project_id,
@@ -439,7 +537,9 @@ async def test_first_schedule_event_invokes_workflow():
             span_id="sp-1",
         )
     )
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_schedule(
         project_id=project_id,
@@ -451,15 +551,16 @@ async def test_first_schedule_event_invokes_workflow():
     dao.dedup_seen_schedule.assert_awaited_once()
     workflows.invoke_workflow.assert_awaited_once()
 
-    dao.claim_delivery.assert_awaited_once()
-    claimed = dao.claim_delivery.await_args.kwargs["delivery"]
-    assert claimed.schedule_id == schedule.id
-    assert claimed.subscription_id is None
-    assert claimed.event_id == "e1"
+    dao.claim_trigger_delivery.assert_awaited_once()
+    claim = dao.claim_trigger_delivery.await_args.kwargs
+    attribution = claim["attribution"]
+    assert claim["event_id"] == "e1"
+    assert attribution.configuration_id == schedule.id
+    assert attribution.kind == SessionTriggerKind.schedule
 
     dao.update_delivery.assert_awaited_once()
     update_kwargs = dao.update_delivery.await_args.kwargs
-    assert update_kwargs["delivery_id"] == claimed.id
+    assert update_kwargs["delivery_id"] == attribution.delivery_id
     assert update_kwargs["status"].code == "200"
     dao.write_delivery.assert_not_awaited()
 
@@ -474,7 +575,9 @@ async def test_failed_schedule_invoke_records_the_row_the_retry_dedups_on():
 
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock(side_effect=RuntimeError("boom"))
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     with pytest.raises(RuntimeError):
         await dispatcher.dispatch_schedule(
@@ -486,8 +589,8 @@ async def test_failed_schedule_invoke_records_the_row_the_retry_dedups_on():
 
     # The row was claimed BEFORE invoke and completed to "500" via an UPDATE — a
     # retry's dedup_seen_schedule check will see it, and even if that read raced,
-    # the retry's own claim_delivery would still lose against this claimed row.
-    dao.claim_delivery.assert_awaited_once()
+    # the retry's own atomic claim would still lose against this claimed row.
+    dao.claim_trigger_delivery.assert_awaited_once()
     dao.update_delivery.assert_awaited_once()
     update_kwargs = dao.update_delivery.await_args.kwargs
     assert update_kwargs["status"].code == "500"
@@ -496,7 +599,7 @@ async def test_failed_schedule_invoke_records_the_row_the_retry_dedups_on():
 
 async def test_claim_lost_skips_invoke_even_when_dedup_precheck_missed_it():
     """P1-3: the dedup pre-check is a fast path, not the authority. If a
-    concurrent caller already won the atomic claim (claim_delivery -> None),
+    concurrent caller already won the atomic claim,
     _run must not invoke the workflow — even though dedup_seen reported unseen
     (the exact TOCTOU window between the pre-check read and the claim)."""
     project_id = uuid4()
@@ -504,13 +607,15 @@ async def test_claim_lost_skips_invoke_even_when_dedup_precheck_missed_it():
     dao = _make_dao(seen=False, claim_lost=True)
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_subscription(
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
-    dao.claim_delivery.assert_awaited_once()
+    dao.claim_trigger_delivery.assert_awaited_once()
     workflows.invoke_workflow.assert_not_awaited()
     dao.update_delivery.assert_not_awaited()
     dao.write_delivery.assert_not_awaited()
@@ -522,7 +627,9 @@ async def test_claim_lost_skips_invoke_for_schedule_too():
     dao = _make_dao(seen=False, claim_lost=True)
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     await dispatcher.dispatch_schedule(
         project_id=project_id,
@@ -531,16 +638,61 @@ async def test_claim_lost_skips_invoke_for_schedule_too():
         event=_SCHEDULE_EVENT,
     )
 
-    dao.claim_delivery.assert_awaited_once()
+    dao.claim_trigger_delivery.assert_awaited_once()
     workflows.invoke_workflow.assert_not_awaited()
     dao.update_delivery.assert_not_awaited()
+
+
+async def test_claim_failure_allows_retry_with_fresh_ids():
+    project_id = uuid4()
+    subscription = _make_subscription(references={"workflow": Reference(slug="wf-1")})
+    dao = _make_dao(seen=False)
+    dao.claim_trigger_delivery = AsyncMock(
+        side_effect=[RuntimeError("attribution failed"), True]
+    )
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock(
+        return_value=SimpleNamespace(
+            status=SimpleNamespace(code=200, message="success"),
+            outputs={"ok": True},
+            trace_id="tr-1",
+            span_id="sp-1",
+        )
+    )
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
+
+    with pytest.raises(RuntimeError, match="attribution failed"):
+        await dispatcher.dispatch_subscription(
+            project_id=project_id,
+            subscription=subscription,
+            event_id="e1",
+            event=_EVENT,
+        )
+
+    workflows.invoke_workflow.assert_not_awaited()
+    dao.update_delivery.assert_not_awaited()
+
+    await dispatcher.dispatch_subscription(
+        project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
+    )
+
+    first_claim, retry_claim = dao.claim_trigger_delivery.await_args_list
+    assert first_claim.kwargs["session_id"] != retry_claim.kwargs["session_id"]
+    assert (
+        first_claim.kwargs["attribution"].delivery_id
+        != retry_claim.kwargs["attribution"].delivery_id
+    )
+    request = workflows.invoke_workflow.await_args.kwargs["request"]
+    assert request.session_id == retry_claim.kwargs["session_id"]
 
 
 async def test_post_invoke_write_failure_does_not_permit_a_reinvoke_on_retry():
     """P1-3's core scenario: the workflow succeeds, but the terminal delivery
     UPDATE fails (e.g. a transient DB error). Because the row was already
-    claimed via an atomic INSERT before invoke, a retry's claim_delivery call
-    on the same event finds the row already there and returns None — the retry
+    claimed via an atomic INSERT before invoke, a retry's claim call
+    on the same event finds the row already there and loses, so the retry
     must NOT re-invoke, regardless of whether the terminal write ever landed."""
     project_id = uuid4()
     subscription = _make_subscription(references={"workflow": Reference(slug="wf-1")})
@@ -558,7 +710,9 @@ async def test_post_invoke_write_failure_does_not_permit_a_reinvoke_on_retry():
     # write fails (simulating a transient DB error after a successful invoke).
     dao = _make_dao(seen=False)
     dao.update_delivery = AsyncMock(side_effect=RuntimeError("db write failed"))
-    dispatcher = TriggersDispatcher(triggers_dao=dao, workflows_service=workflows)
+    dispatcher = TriggersDispatcher(
+        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+    )
 
     with pytest.raises(RuntimeError, match="db write failed"):
         await dispatcher.dispatch_subscription(
@@ -569,14 +723,16 @@ async def test_post_invoke_write_failure_does_not_permit_a_reinvoke_on_retry():
         )
 
     workflows.invoke_workflow.assert_awaited_once()
-    dao.claim_delivery.assert_awaited_once()
+    dao.claim_trigger_delivery.assert_awaited_once()
 
     # Retry: the row _run claimed on attempt 1 is now a permanent (committed)
-    # row in the DB regardless of the UPDATE failure — claim_delivery must lose
+    # row in the DB regardless of the UPDATE failure, so the next claim must lose
     # this time (simulated here via claim_lost), so the retry does NOT invoke.
     dao_retry = _make_dao(seen=False, claim_lost=True)
     dispatcher_retry = TriggersDispatcher(
-        triggers_dao=dao_retry, workflows_service=workflows
+        triggers_dao=dao_retry,
+        session_claims_dao=dao_retry,
+        workflows_service=workflows,
     )
     workflows.invoke_workflow.reset_mock()
 

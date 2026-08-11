@@ -1,10 +1,14 @@
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from oss.src.core.sessions.dtos import SessionListItem
+from oss.src.core.sessions.dtos import (
+    SessionExpansion,
+    SessionListItem,
+    SessionOrigin,
+)
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamQueryFlags,
@@ -28,28 +32,56 @@ from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
 # ---------------------------------------------------------------------------
 
 
+SessionId = Annotated[
+    str,
+    Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_\-]+$"),
+]
+
+
+class SessionPredicatesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    search: Optional[str] = None
+    liveness: Optional[SessionStreamQueryFlags] = None
+    origins: Optional[List[SessionOrigin]] = None
+
+
+class SessionExcludeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    origins: Optional[List[SessionOrigin]] = None
+    session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+
+
 class SessionQueryRequest(BaseModel):
-    references: Optional[List[Reference]] = None
-    windowing: Optional[Windowing] = None
+    model_config = ConfigDict(extra="forbid")
+
+    session: Optional[SessionPredicatesRequest] = None
+    # Canonical explicit set selection. It intersects with turn_references.
+    session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    exclude: Optional[SessionExcludeRequest] = None
+    turn_references: Optional[List[Reference]] = None
     # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
     include_ended: bool = False
     # Include archived sessions — off by default (archive hides); on for the archived view.
     include_archived: bool = False
+    # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
+    include_total: bool = False
+    expand: List[SessionExpansion] = Field(default_factory=list)
+    windowing: Optional[Windowing] = None
+
+    # Compatibility inputs for the currently released flat predicates.
+    references: Optional[List[Reference]] = None
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
     # Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags.
     flags: Optional[SessionStreamQueryFlags] = None
-    # Restrict to / exclude an explicit id set — the pushdown for predicates that live outside
-    # the stream row (client-held pins, sessions named by a pending-interaction lookup), so the
-    # server still owns the intersection, the ordering and the windowing.
-    session_ids: Optional[List[str]] = None
-    exclude_session_ids: Optional[List[str]] = None
-    # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
-    include_total: bool = False
-    # Who started the session: "manual", "trigger", … Absent means every origin.
-    origin: Optional[str] = None
+    # Released flat exclusion alias for exclude.session_ids.
+    exclude_session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    # Who started the session. Absent means every origin.
+    origin: Optional[SessionOrigin] = None
     # Its negation — hides one origin while still showing sessions with no stamp at all.
-    exclude_origin: Optional[str] = None
+    exclude_origin: Optional[SessionOrigin] = None
 
 
 class SessionsResponse(BaseModel):
@@ -60,6 +92,7 @@ class SessionsResponse(BaseModel):
     # `SessionListItem` = `SessionStream` + the latest turn's `references` (WP0-R3),
     # absent (excluded by response_model_exclude_none) when the session has no turns yet.
     sessions: List[SessionListItem] = Field(default_factory=list)
+    windowing: Optional[Windowing] = None
 
 
 class SessionResponse(BaseModel):

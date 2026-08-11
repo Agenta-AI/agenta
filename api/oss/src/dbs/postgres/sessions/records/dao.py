@@ -175,7 +175,6 @@ class RecordsDAO(RecordsDAOInterface):
             if not isinstance(text, str) or not text.strip():
                 continue
             previews[row.session_id] = SessionMessagePreview(
-                session_id=row.session_id,
                 text=text.strip(),
                 source=row.record_source,
                 timestamp=row.timestamp or row.created_at,

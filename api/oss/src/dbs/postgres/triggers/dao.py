@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import cast, delete, func, literal, select, update
+from sqlalchemy.dialects.postgresql import JSON, JSONB, insert
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.shared.dtos import Status, Windowing
@@ -125,6 +125,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerSubscriptionDBE).where(
                 TriggerSubscriptionDBE.project_id == project_id,
                 TriggerSubscriptionDBE.id == subscription_id,
+                TriggerSubscriptionDBE.deleted_at.is_(None),
             )
 
             result = await session.execute(stmt)
@@ -138,6 +139,23 @@ class TriggersDAO(TriggersDAOInterface):
                 subscription_dbe=subscription_dbe,
             )
 
+    async def fetch_subscription_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> Optional[TriggerSubscription]:
+        async with self.engine.session() as session:
+            stmt = select(TriggerSubscriptionDBE).where(
+                TriggerSubscriptionDBE.project_id == project_id,
+                TriggerSubscriptionDBE.id == subscription_id,
+            )
+            subscription_dbe = (await session.execute(stmt)).scalar_one_or_none()
+            if subscription_dbe is None:
+                return None
+            return map_subscription_dbe_to_dto(subscription_dbe=subscription_dbe)
+
     async def edit_subscription(
         self,
         *,
@@ -147,9 +165,14 @@ class TriggersDAO(TriggersDAOInterface):
         subscription: TriggerSubscriptionEdit,
     ) -> Optional[TriggerSubscription]:
         async with self.engine.session() as session:
-            stmt = select(TriggerSubscriptionDBE).where(
-                TriggerSubscriptionDBE.id == subscription.id,
-                TriggerSubscriptionDBE.project_id == project_id,
+            stmt = (
+                select(TriggerSubscriptionDBE)
+                .where(
+                    TriggerSubscriptionDBE.id == subscription.id,
+                    TriggerSubscriptionDBE.project_id == project_id,
+                    TriggerSubscriptionDBE.deleted_at.is_(None),
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)
@@ -179,27 +202,46 @@ class TriggersDAO(TriggersDAOInterface):
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         subscription_id: UUID,
     ) -> bool:
         async with self.engine.session() as session:
-            stmt = select(TriggerSubscriptionDBE).where(
+            now = datetime.now(timezone.utc)
+            stmt = (
+                update(TriggerSubscriptionDBE)
+                .where(
+                    TriggerSubscriptionDBE.project_id == project_id,
+                    TriggerSubscriptionDBE.id == subscription_id,
+                    TriggerSubscriptionDBE.deleted_at.is_(None),
+                )
+                .values(
+                    deleted_at=now,
+                    deleted_by_id=user_id,
+                    updated_at=now,
+                    updated_by_id=user_id,
+                )
+                .returning(TriggerSubscriptionDBE.id)
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.scalar_one_or_none() is not None
+
+    async def purge_subscription(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            stmt = delete(TriggerSubscriptionDBE).where(
                 TriggerSubscriptionDBE.project_id == project_id,
                 TriggerSubscriptionDBE.id == subscription_id,
             )
-
             result = await session.execute(stmt)
-
-            subscription_dbe = result.scalar_one_or_none()
-
-            if not subscription_dbe:
-                return False
-
-            await session.delete(subscription_dbe)
-
             await session.commit()
-
-            return True
+            return bool(result.rowcount)
 
     async def query_subscriptions(
         self,
@@ -213,6 +255,7 @@ class TriggersDAO(TriggersDAOInterface):
         async with self.engine.session() as session:
             stmt = select(TriggerSubscriptionDBE).filter(
                 TriggerSubscriptionDBE.project_id == project_id,
+                TriggerSubscriptionDBE.deleted_at.is_(None),
             )
 
             if subscription:
@@ -282,7 +325,7 @@ class TriggersDAO(TriggersDAOInterface):
     ) -> Optional[Tuple[UUID, TriggerSubscription]]:
         # Deliberately unscoped: inbound Composio events carry only the provider
         # trigger_id (ti_*) and no tenant scope, so this recovers project_id from
-        # it. The one sanctioned cross-project read (trigger_id is partial-unique).
+        # it. Duplicate live ids across projects are ambiguous and fail closed.
         async with self.engine.session() as session:
             stmt = (
                 select(TriggerSubscriptionDBE)
@@ -290,15 +333,14 @@ class TriggersDAO(TriggersDAOInterface):
                     TriggerSubscriptionDBE.trigger_id == trigger_id,
                     TriggerSubscriptionDBE.deleted_at.is_(None),
                 )
-                .limit(1)
+                .limit(2)
             )
 
             result = await session.execute(stmt)
-
-            subscription_dbe = result.scalars().first()
-
-            if not subscription_dbe:
+            subscription_dbes = result.scalars().all()
+            if len(subscription_dbes) != 1:
                 return None
+            subscription_dbe = subscription_dbes[0]
 
             return (
                 subscription_dbe.project_id,
@@ -372,7 +414,7 @@ class TriggersDAO(TriggersDAOInterface):
             delivery_dbe=delivery_dbe,
         )
 
-    async def claim_delivery(
+    async def write_subscription_delivery_if_live(
         self,
         *,
         project_id: UUID,
@@ -380,58 +422,65 @@ class TriggersDAO(TriggersDAOInterface):
         #
         delivery: TriggerDeliveryCreate,
     ) -> Optional[TriggerDelivery]:
+        if delivery.subscription_id is None or delivery.schedule_id is not None:
+            return None
+
         delivery_dbe = map_delivery_dto_to_dbe_create(
             project_id=project_id,
             user_id=user_id,
-            #
             delivery=delivery,
         )
-
-        by_schedule = delivery.subscription_id is None
-
-        index_elements = (
-            ["project_id", "schedule_id", "event_id"]
-            if by_schedule
-            else ["project_id", "subscription_id", "event_id"]
+        values = {
+            column.name: getattr(delivery_dbe, column.name)
+            for column in TriggerDeliveryDBE.__table__.columns
+            if not (
+                column.name in ("id", "created_at", "updated_at", "deleted_at")
+                and getattr(delivery_dbe, column.name) is None
+            )
+        }
+        live_subscription = (
+            select(TriggerSubscriptionDBE.id)
+            .where(
+                TriggerSubscriptionDBE.project_id == project_id,
+                TriggerSubscriptionDBE.id == delivery.subscription_id,
+                TriggerSubscriptionDBE.deleted_at.is_(None),
+                TriggerSubscriptionDBE.flags.contains({"is_active": True}),
+            )
+            .with_for_update()
+            .cte("live_trigger_subscription")
         )
-        index_where = (
-            TriggerDeliveryDBE.schedule_id.isnot(None)
-            if by_schedule
-            else TriggerDeliveryDBE.subscription_id.isnot(None)
+        columns = list(values)
+        stmt = insert(TriggerDeliveryDBE).from_select(
+            columns,
+            select(
+                *(
+                    literal(
+                        values[column],
+                        type_=TriggerDeliveryDBE.__table__.c[column].type,
+                    )
+                    for column in columns
+                )
+            ).select_from(live_subscription),
         )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["project_id", "subscription_id", "event_id"],
+            index_where=TriggerDeliveryDBE.subscription_id.isnot(None),
+            set_={
+                "status": stmt.excluded.status,
+                "data": stmt.excluded.data,
+                "updated_at": datetime.now(timezone.utc),
+                "updated_by_id": stmt.excluded.created_by_id,
+            },
+        ).returning(TriggerDeliveryDBE)
 
         async with self.engine.session() as session:
-            values = {
-                c.name: getattr(delivery_dbe, c.name)
-                for c in TriggerDeliveryDBE.__table__.columns
-                if not (
-                    c.name in ("id", "created_at", "updated_at", "deleted_at")
-                    and getattr(delivery_dbe, c.name) is None
-                )
-            }
-
-            # The atomic claim: only the caller whose INSERT actually lands wins the row and may
-            # invoke the workflow. ON CONFLICT DO NOTHING (not DO UPDATE) means a second
-            # concurrent claim for the same event affects zero rows and RETURNING yields nothing.
-            stmt = (
-                insert(TriggerDeliveryDBE)
-                .values(**values)
-                .on_conflict_do_nothing(
-                    index_elements=index_elements,
-                    index_where=index_where,
-                )
-                .returning(TriggerDeliveryDBE)
-            )
             result = await session.execute(stmt)
             delivery_dbe = result.scalar_one_or_none()
             await session.commit()
 
-            if delivery_dbe is None:
-                return None
-
-        return map_delivery_dbe_to_dto(
-            delivery_dbe=delivery_dbe,
-        )
+        if delivery_dbe is None:
+            return None
+        return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
 
     async def update_delivery(
         self,
@@ -448,7 +497,15 @@ class TriggersDAO(TriggersDAOInterface):
                 "updated_at": datetime.now(timezone.utc),
             }
             if data is not None:
-                values["data"] = data.model_dump(mode="json", exclude_none=True)
+                update_data = cast(
+                    data.model_dump(mode="json", exclude_none=True), JSONB
+                )
+                values["data"] = cast(
+                    func.coalesce(
+                        cast(TriggerDeliveryDBE.data, JSONB), cast({}, JSONB)
+                    ).op("||")(update_data),
+                    JSON,
+                )
 
             stmt = (
                 update(TriggerDeliveryDBE)
@@ -662,6 +719,7 @@ class TriggersDAO(TriggersDAOInterface):
             stmt = select(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
+                TriggerScheduleDBE.deleted_at.is_(None),
             )
 
             result = await session.execute(stmt)
@@ -675,6 +733,23 @@ class TriggersDAO(TriggersDAOInterface):
                 schedule_dbe=schedule_dbe,
             )
 
+    async def fetch_schedule_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        async with self.engine.session() as session:
+            stmt = select(TriggerScheduleDBE).where(
+                TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.id == schedule_id,
+            )
+            schedule_dbe = (await session.execute(stmt)).scalar_one_or_none()
+            if schedule_dbe is None:
+                return None
+            return map_schedule_dbe_to_dto(schedule_dbe=schedule_dbe)
+
     async def edit_schedule(
         self,
         *,
@@ -684,9 +759,14 @@ class TriggersDAO(TriggersDAOInterface):
         schedule: TriggerScheduleEdit,
     ) -> Optional[TriggerSchedule]:
         async with self.engine.session() as session:
-            stmt = select(TriggerScheduleDBE).where(
-                TriggerScheduleDBE.id == schedule.id,
-                TriggerScheduleDBE.project_id == project_id,
+            stmt = (
+                select(TriggerScheduleDBE)
+                .where(
+                    TriggerScheduleDBE.id == schedule.id,
+                    TriggerScheduleDBE.project_id == project_id,
+                    TriggerScheduleDBE.deleted_at.is_(None),
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)
@@ -716,27 +796,46 @@ class TriggersDAO(TriggersDAOInterface):
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         schedule_id: UUID,
     ) -> bool:
         async with self.engine.session() as session:
-            stmt = select(TriggerScheduleDBE).where(
+            now = datetime.now(timezone.utc)
+            stmt = (
+                update(TriggerScheduleDBE)
+                .where(
+                    TriggerScheduleDBE.project_id == project_id,
+                    TriggerScheduleDBE.id == schedule_id,
+                    TriggerScheduleDBE.deleted_at.is_(None),
+                )
+                .values(
+                    deleted_at=now,
+                    deleted_by_id=user_id,
+                    updated_at=now,
+                    updated_by_id=user_id,
+                )
+                .returning(TriggerScheduleDBE.id)
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.scalar_one_or_none() is not None
+
+    async def purge_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            stmt = delete(TriggerScheduleDBE).where(
                 TriggerScheduleDBE.project_id == project_id,
                 TriggerScheduleDBE.id == schedule_id,
             )
-
             result = await session.execute(stmt)
-
-            schedule_dbe = result.scalar_one_or_none()
-
-            if not schedule_dbe:
-                return False
-
-            await session.delete(schedule_dbe)
-
             await session.commit()
-
-            return True
+            return bool(result.rowcount)
 
     async def query_schedules(
         self,
@@ -750,6 +849,7 @@ class TriggersDAO(TriggersDAOInterface):
         async with self.engine.session() as session:
             stmt = select(TriggerScheduleDBE).filter(
                 TriggerScheduleDBE.project_id == project_id,
+                TriggerScheduleDBE.deleted_at.is_(None),
             )
 
             if schedule:

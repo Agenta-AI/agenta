@@ -2,19 +2,30 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import delete as sa_delete, func, not_, or_, select
+import uuid_utils.compat as uuid
+from sqlalchemy import case, cast, delete as sa_delete, func, literal, not_, or_, select
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID, insert
 from sqlalchemy.exc import IntegrityError
 
+from oss.src.core.sessions.dtos import (
+    SessionTriggerAttribution,
+    SessionTriggerKind,
+)
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamHeaderEdit,
     SessionStreamQuery,
+    SessionStreamQueryResult,
+    SessionStreamReadOptions,
 )
-from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sessions.streams.interfaces import (
+    SessionStreamsDAOInterface,
+    TriggerSessionClaimsDAOInterface,
+)
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Status, Windowing
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -23,14 +34,30 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
+    SESSION_ORIGIN_TAG_KEY,
+    SESSION_TRIGGER_ID_TAG_KEY,
+    SESSION_TRIGGER_KIND_TAG_KEY,
+    trigger_attribution_tags,
     map_stream_dbe_to_dto,
+    map_stream_query_result,
     map_stream_dto_to_dbe_create,
     map_stream_dto_to_dbe_edit,
     map_stream_dto_to_dbe_header_edit,
 )
+from oss.src.dbs.postgres.triggers.dbes import (
+    TriggerDeliveryDBE,
+    TriggerScheduleDBE,
+    TriggerSubscriptionDBE,
+)
 
 
-class SessionStreamsDAO(SessionStreamsDAOInterface):
+_UUID_PATTERN = (
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+    r"[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+
+
+class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
         if engine is None:
             engine = get_transactions_engine()
@@ -59,6 +86,107 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                 raise SessionStreamAlreadyExists(session_id=stream.session_id) from e
             raise
         return map_stream_dbe_to_dto(stream_dbe=dbe)
+
+    async def claim_trigger_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        event_id: str,
+        session_id: str,
+        attribution: SessionTriggerAttribution,
+    ) -> bool:
+        by_schedule = attribution.kind == SessionTriggerKind.schedule
+        claim_status = Status(code="102", message="claimed")
+        delivery_values = {
+            "id": attribution.delivery_id,
+            "project_id": project_id,
+            "created_by_id": user_id,
+            "subscription_id": None if by_schedule else attribution.configuration_id,
+            "schedule_id": attribution.configuration_id if by_schedule else None,
+            "event_id": event_id,
+            "status": claim_status.model_dump(mode="json", exclude_none=True),
+            "data": {"session_id": session_id},
+        }
+        index_elements = (
+            ["project_id", "schedule_id", "event_id"]
+            if by_schedule
+            else ["project_id", "subscription_id", "event_id"]
+        )
+        index_where = (
+            TriggerDeliveryDBE.schedule_id.isnot(None)
+            if by_schedule
+            else TriggerDeliveryDBE.subscription_id.isnot(None)
+        )
+        parent_dbe = TriggerScheduleDBE if by_schedule else TriggerSubscriptionDBE
+        active_flags = (
+            {"is_active": True}
+            if by_schedule
+            else {"is_active": True, "is_valid": True}
+        )
+        live_parent = (
+            select(parent_dbe.id)
+            .where(
+                parent_dbe.project_id == project_id,
+                parent_dbe.id == attribution.configuration_id,
+                parent_dbe.deleted_at.is_(None),
+                parent_dbe.flags.contains(active_flags),
+            )
+            .with_for_update()
+            .cte("live_trigger_configuration")
+        )
+        delivery_columns = list(delivery_values)
+        claimed_delivery = (
+            insert(TriggerDeliveryDBE)
+            .from_select(
+                delivery_columns,
+                select(
+                    *(
+                        literal(
+                            delivery_values[column],
+                            type_=TriggerDeliveryDBE.__table__.c[column].type,
+                        )
+                        for column in delivery_columns
+                    )
+                ).select_from(live_parent),
+            )
+            .on_conflict_do_nothing(
+                index_elements=index_elements,
+                index_where=index_where,
+            )
+            .returning(TriggerDeliveryDBE.id)
+            .cte("claimed_trigger_delivery")
+        )
+
+        tags = trigger_attribution_tags(attribution)
+        stream_insert = insert(SessionStreamDBE).from_select(
+            ["id", "project_id", "created_by_id", "session_id", "tags"],
+            select(
+                literal(uuid.uuid7()),
+                literal(project_id),
+                literal(user_id),
+                literal(session_id),
+                cast(tags, JSONB),
+            ).select_from(claimed_delivery),
+        )
+        merged_tags = func.coalesce(SessionStreamDBE.tags, cast({}, JSONB)).op("||")(
+            stream_insert.excluded.tags
+        )
+        statement = stream_insert.on_conflict_do_update(
+            index_elements=["project_id", "session_id"],
+            set_={"tags": merged_tags},
+        ).returning(SessionStreamDBE.id)
+
+        async with self.engine.session() as session:
+            try:
+                result = await session.execute(statement)
+                claimed = result.scalar_one_or_none() is not None
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+        return claimed
 
     async def get_by_session_id(
         self,
@@ -155,6 +283,16 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                     not_(SessionStreamDBE.tags.contains(filter.exclude_tags)),
                 )
             )
+        origin = SessionStreamDBE.tags[SESSION_ORIGIN_TAG_KEY].astext
+        if filter.origins is not None:
+            stmt = stmt.where(origin.in_([value.value for value in filter.origins]))
+        if filter.exclude_origins:
+            stmt = stmt.where(
+                or_(
+                    origin.is_(None),
+                    origin.not_in([value.value for value in filter.exclude_origins]),
+                )
+            )
         term = filter.search.strip() if filter.search else ""
         if term:
             # Escape LIKE metacharacters so a literal `%`/`_` in the search term
@@ -193,10 +331,13 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
-    ) -> List[SessionStream]:
+        read_options: Optional[SessionStreamReadOptions] = None,
+    ) -> List[SessionStreamQueryResult]:
+        read_options = read_options or SessionStreamReadOptions()
         async with self.engine.session() as session:
+            stmt = self._query_select(read_options=read_options)
             stmt = self._apply_filters(
-                select(SessionStreamDBE),
+                stmt,
                 project_id=project_id,
                 filter=filter,
                 session_ids=session_ids,
@@ -229,8 +370,58 @@ class SessionStreamsDAO(SessionStreamsDAOInterface):
                     SessionStreamDBE.id.desc(),
                 )
             result = await session.execute(stmt)
+            if read_options.include_trigger_details:
+                rows = result.all()
+                return [
+                    map_stream_query_result(
+                        stream_dbe=row[0], trigger_name=row.trigger_name
+                    )
+                    for row in rows
+                ]
             dbes = result.scalars().all()
-        return [map_stream_dbe_to_dto(stream_dbe=dbe) for dbe in dbes]
+            return [map_stream_query_result(stream_dbe=dbe) for dbe in dbes]
+
+    @staticmethod
+    def _query_select(*, read_options: SessionStreamReadOptions):
+        if not read_options.include_trigger_details:
+            return select(SessionStreamDBE)
+
+        trigger_id_text = SessionStreamDBE.tags[SESSION_TRIGGER_ID_TAG_KEY].astext
+        trigger_kind = SessionStreamDBE.tags[SESSION_TRIGGER_KIND_TAG_KEY].astext
+        trigger_id = case(
+            (
+                trigger_id_text.op("~*")(_UUID_PATTERN),
+                cast(trigger_id_text, PG_UUID(as_uuid=True)),
+            ),
+            else_=None,
+        )
+        trigger_name = case(
+            (
+                trigger_kind == SessionTriggerKind.schedule.value,
+                TriggerScheduleDBE.name,
+            ),
+            (
+                trigger_kind == SessionTriggerKind.subscription.value,
+                TriggerSubscriptionDBE.name,
+            ),
+            else_=None,
+        ).label("trigger_name")
+
+        return (
+            select(SessionStreamDBE, trigger_name)
+            .outerjoin(
+                TriggerScheduleDBE,
+                (TriggerScheduleDBE.project_id == SessionStreamDBE.project_id)
+                & (trigger_kind == SessionTriggerKind.schedule.value)
+                & (TriggerScheduleDBE.id == trigger_id),
+            )
+            .outerjoin(
+                TriggerSubscriptionDBE,
+                (TriggerSubscriptionDBE.project_id == SessionStreamDBE.project_id)
+                & (trigger_kind == SessionTriggerKind.subscription.value)
+                & (TriggerSubscriptionDBE.id == trigger_id),
+            )
+        )
 
     async def update(
         self,

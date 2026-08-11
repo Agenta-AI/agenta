@@ -17,7 +17,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from oss.src.core.sessions.dtos import SessionQuery
+from oss.src.core.sessions.dtos import SessionQuery, SessionQueryLifecycle
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
@@ -257,7 +257,9 @@ async def test_references_and_session_ids_intersect():
 
     await service.query_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[{"id": str(uuid4())}], session_ids=["s2", "s3"]),
+        query=SessionQuery(
+            turn_references=[{"id": str(uuid4())}], session_ids=["s2", "s3"]
+        ),
     )
 
     assert streams.captured["session_ids"] == ["s2"]
@@ -270,7 +272,7 @@ async def test_disjoint_reference_and_id_filters_short_circuit_to_empty():
 
     result = await service.query_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[{"id": str(uuid4())}], session_ids=["s9"]),
+        query=SessionQuery(turn_references=[{"id": str(uuid4())}], session_ids=["s9"]),
     )
 
     assert result == []
@@ -297,13 +299,15 @@ async def test_count_uses_the_same_predicate_as_the_list():
     service = _service(streams, _FakeTurnsService([]))
     query = SessionQuery(
         search="refund",
-        include_ended=True,
         flags=SessionStreamQueryFlags(is_alive=True),
         exclude_session_ids=["pinned-1"],
     )
 
-    await service.query_sessions(project_id=_PROJECT, query=query)
-    total = await service.count_sessions(project_id=_PROJECT, query=query)
+    lifecycle = SessionQueryLifecycle(include_ended=True)
+    await service.query_sessions(project_id=_PROJECT, query=query, lifecycle=lifecycle)
+    total = await service.count_sessions(
+        project_id=_PROJECT, query=query, lifecycle=lifecycle
+    )
 
     assert total == 42
     assert streams.count_captured["filter"] == streams.captured["filter"]
@@ -320,7 +324,7 @@ async def test_count_short_circuits_on_an_empty_intersection():
 
     total = await service.count_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[{"id": str(uuid4())}], session_ids=["s9"]),
+        query=SessionQuery(turn_references=[{"id": str(uuid4())}], session_ids=["s9"]),
     )
 
     assert total == 0

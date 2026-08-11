@@ -117,6 +117,17 @@ class TriggersDAOInterface(ABC):
     ) -> Optional[TriggerSubscription]: ...
 
     @abstractmethod
+    async def fetch_subscription_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> Optional[TriggerSubscription]:
+        """Retrieve an exact subscription for authenticated historical display."""
+        ...
+
+    @abstractmethod
     async def edit_subscription(
         self,
         *,
@@ -131,9 +142,21 @@ class TriggersDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         subscription_id: UUID,
     ) -> bool: ...
+
+    @abstractmethod
+    async def purge_subscription(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> bool:
+        """Physically remove a subscription and its deliveries."""
+        ...
 
     @abstractmethod
     async def query_subscriptions(
@@ -166,8 +189,10 @@ class TriggersDAOInterface(ABC):
 
         Deliberately cross-project: an inbound Composio event carries only the
         provider ``ti_*`` and no tenant scope, so this lookup *recovers* the
-        project from the (partial-unique) ``trigger_id`` column. The only sanctioned
-        unscoped DAO read — every other read/write takes ``project_id``.
+        project from the project-scoped partial-unique ``trigger_id`` column. Returns
+        no match when multiple live projects share the id, rather than selecting a
+        tenant. The only sanctioned unscoped DAO read — every other read/write takes
+        ``project_id``.
         """
         ...
 
@@ -186,7 +211,7 @@ class TriggersDAOInterface(ABC):
         ...
 
     @abstractmethod
-    async def claim_delivery(
+    async def write_subscription_delivery_if_live(
         self,
         *,
         project_id: UUID,
@@ -194,14 +219,7 @@ class TriggersDAOInterface(ABC):
         #
         delivery: TriggerDeliveryCreate,
     ) -> Optional[TriggerDelivery]:
-        """Atomically reserve the delivery row for (subscription|schedule, event_id).
-
-        Backed by the same partial-unique index ``write_delivery`` upserts on:
-        ``INSERT ... ON CONFLICT DO NOTHING ... RETURNING``. Returns the newly
-        inserted (reserved) row, or ``None`` if a row for this event already
-        exists — meaning another caller already claimed (or completed) it and
-        this caller must NOT invoke the bound workflow.
-        """
+        """Upsert only while the subscription parent remains live and active."""
         ...
 
     @abstractmethod
@@ -216,8 +234,8 @@ class TriggersDAOInterface(ABC):
     ) -> Optional[TriggerDelivery]:
         """Complete a previously claimed delivery row to its terminal status.
 
-        Updates the row IN PLACE by id (never inserts) so a post-invoke write
-        failure cannot manifest as "no row exists" on retry.
+        Updates the row in place by id and merges data so claim-time correlation
+        fields survive terminal result or error writes.
         """
         ...
 
@@ -298,6 +316,17 @@ class TriggersDAOInterface(ABC):
     ) -> Optional[TriggerSchedule]: ...
 
     @abstractmethod
+    async def fetch_schedule_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        """Retrieve an exact schedule for authenticated historical display."""
+        ...
+
+    @abstractmethod
     async def edit_schedule(
         self,
         *,
@@ -312,9 +341,21 @@ class TriggersDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         schedule_id: UUID,
     ) -> bool: ...
+
+    @abstractmethod
+    async def purge_schedule(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> bool:
+        """Physically remove a schedule and its deliveries."""
+        ...
 
     @abstractmethod
     async def query_schedules(

@@ -348,7 +348,7 @@ async def test_query_sessions_filters_by_references_via_turns_join():
 
     result = await svc.query_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[target_ref]),
+        query=SessionQuery(turn_references=[target_ref]),
     )
 
     assert len(result) == 1
@@ -365,7 +365,7 @@ async def test_query_sessions_no_matching_reference_short_circuits_empty():
 
     result = await svc.query_sessions(
         project_id=_PROJECT,
-        query=SessionQuery(references=[unmatched_ref]),
+        query=SessionQuery(turn_references=[unmatched_ref]),
     )
 
     assert result == []

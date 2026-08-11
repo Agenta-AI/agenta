@@ -1,14 +1,67 @@
-from typing import Optional
+from typing import Any, Dict, Optional
 from uuid import UUID
 
+from pydantic import ValidationError
+
+from oss.src.core.sessions.types import (
+    SessionDelivery,
+    SessionOrigin,
+    SessionTrigger,
+    SessionTriggerAttribution,
+)
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamCreate,
     SessionStreamEdit,
     SessionStreamFlags,
     SessionStreamHeaderEdit,
+    SessionStreamQueryResult,
 )
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
+
+
+SESSION_ORIGIN_TAG_KEY = "ag.origin"
+SESSION_TRIGGER_ID_TAG_KEY = "ag.trigger.id"
+SESSION_TRIGGER_KIND_TAG_KEY = "ag.trigger.kind"
+SESSION_TRIGGER_DELIVERY_ID_TAG_KEY = "ag.trigger.delivery_id"
+
+
+def trigger_attribution_tags(
+    attribution: SessionTriggerAttribution,
+) -> Dict[str, str]:
+    return {
+        SESSION_ORIGIN_TAG_KEY: SessionOrigin.trigger.value,
+        SESSION_TRIGGER_ID_TAG_KEY: str(attribution.configuration_id),
+        SESSION_TRIGGER_KIND_TAG_KEY: attribution.kind.value,
+        SESSION_TRIGGER_DELIVERY_ID_TAG_KEY: str(attribution.delivery_id),
+    }
+
+
+def decode_session_attribution(
+    tags: Optional[Dict[str, Any]],
+) -> tuple[
+    Optional[SessionOrigin], Optional[SessionTrigger], Optional[SessionDelivery]
+]:
+    tags = tags or {}
+    try:
+        origin = SessionOrigin(tags.get(SESSION_ORIGIN_TAG_KEY))
+    except (TypeError, ValueError):
+        origin = None
+
+    try:
+        trigger = SessionTrigger(
+            id=tags.get(SESSION_TRIGGER_ID_TAG_KEY),
+            kind=tags.get(SESSION_TRIGGER_KIND_TAG_KEY),
+        )
+    except ValidationError:
+        trigger = None
+
+    try:
+        delivery = SessionDelivery(id=tags.get(SESSION_TRIGGER_DELIVERY_ID_TAG_KEY))
+    except ValidationError:
+        delivery = None
+
+    return origin, trigger, delivery
 
 
 def map_stream_dto_to_dbe_create(
@@ -34,6 +87,7 @@ def map_stream_dbe_to_dto(
     *,
     stream_dbe: SessionStreamDBE,
 ) -> SessionStream:
+    origin, trigger, delivery = decode_session_attribution(stream_dbe.tags)
     return SessionStream(
         id=stream_dbe.id,
         created_at=stream_dbe.created_at,
@@ -53,6 +107,20 @@ def map_stream_dbe_to_dto(
         else SessionStreamFlags(),
         tags=stream_dbe.tags,
         meta=stream_dbe.meta,
+        origin=origin,
+        trigger=trigger,
+        delivery=delivery,
+    )
+
+
+def map_stream_query_result(
+    *,
+    stream_dbe: SessionStreamDBE,
+    trigger_name: Optional[str] = None,
+) -> SessionStreamQueryResult:
+    return SessionStreamQueryResult(
+        stream=map_stream_dbe_to_dto(stream_dbe=stream_dbe),
+        trigger_name=trigger_name,
     )
 
 

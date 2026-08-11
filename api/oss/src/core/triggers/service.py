@@ -980,6 +980,18 @@ class TriggersService:
             subscription_id=subscription_id,
         )
 
+    async def fetch_subscription_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> Optional[TriggerSubscription]:
+        return await self.dao.fetch_subscription_including_deleted(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+
     async def query_subscriptions(
         self,
         *,
@@ -1068,10 +1080,11 @@ class TriggersService:
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         subscription_id: UUID,
     ) -> bool:
-        """Delete the local row and the provider ``ti_*``.
+        """Delete the provider ``ti_*``, then soft-delete the local row.
 
         Deleting a subscription must NOT revoke the shared connection (C7): the
         adapter call below targets only the trigger instance, never the ``ca_*``.
@@ -1083,25 +1096,52 @@ class TriggersService:
         if existing is None:
             return False
 
-        trigger_id = existing.trigger_id
+        await self._delete_provider_subscription(
+            project_id=project_id,
+            subscription=existing,
+        )
+
+        return await self.dao.delete_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription_id=subscription_id,
+        )
+
+    async def _delete_provider_subscription(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+    ) -> None:
+        trigger_id = subscription.trigger_id
         if trigger_id is not None:
             connection = await self.connections_service.get_connection(
                 project_id=project_id,
-                connection_id=existing.connection_id,
+                connection_id=subscription.connection_id,
             )
             if connection is not None:
                 adapter = self.adapter_registry.get(connection.provider_key.value)
-                try:
-                    await adapter.delete_subscription(trigger_id=trigger_id)
-                except AdapterError:
-                    # Provider-side trigger may already be gone; local delete is
-                    # the source of truth. Unexpected errors are left to surface.
-                    log.warning(
-                        "Failed to delete provider trigger %s; proceeding with local delete",
-                        trigger_id,
-                    )
+                await adapter.delete_subscription(trigger_id=trigger_id)
 
-        return await self.dao.delete_subscription(
+    async def cleanup_test_subscription(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+    ) -> bool:
+        """Remove a temporary provider trigger and physically purge its local history."""
+        existing = await self.dao.fetch_subscription(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+        if existing is None:
+            return False
+
+        await self._delete_provider_subscription(
+            project_id=project_id,
+            subscription=existing,
+        )
+        return await self.dao.purge_subscription(
             project_id=project_id,
             subscription_id=subscription_id,
         )
@@ -1186,8 +1226,9 @@ class TriggersService:
             user_id=user_id,
             subscription=edit,
         )
-
-        return updated or existing
+        if updated is None:
+            raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
+        return updated
 
     async def test_subscription(
         self,
@@ -1252,7 +1293,7 @@ class TriggersService:
             )
         finally:
             if owns_created:
-                await self.delete_subscription(
+                await self.cleanup_test_subscription(
                     project_id=project_id,
                     subscription_id=created.id,
                 )
@@ -1295,8 +1336,9 @@ class TriggersService:
             user_id=user_id,
             subscription=edit,
         )
-
-        return updated or existing
+        if updated is None:
+            raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
+        return updated
 
     # -----------------------------------------------------------------------
     # Schedules
@@ -1374,6 +1416,18 @@ class TriggersService:
             schedule_id=schedule_id,
         )
 
+    async def fetch_schedule_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        return await self.dao.fetch_schedule_including_deleted(
+            project_id=project_id,
+            schedule_id=schedule_id,
+        )
+
     async def query_schedules(
         self,
         *,
@@ -1423,11 +1477,13 @@ class TriggersService:
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         schedule_id: UUID,
     ) -> bool:
         return await self.dao.delete_schedule(
             project_id=project_id,
+            user_id=user_id,
             schedule_id=schedule_id,
         )
 
@@ -1471,8 +1527,9 @@ class TriggersService:
             user_id=user_id,
             schedule=edit,
         )
-
-        return updated or existing
+        if updated is None:
+            raise ScheduleNotFoundError(schedule_id=str(schedule_id))
+        return updated
 
     async def refresh_schedules(
         self,
@@ -1555,7 +1612,7 @@ class TriggersService:
                         project_id=str(project_id),
                         event_id=event_id,
                         event=event,
-                        schedule=schedule.model_dump(mode="json"),
+                        schedule_id=str(schedule.id),
                     ),
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )

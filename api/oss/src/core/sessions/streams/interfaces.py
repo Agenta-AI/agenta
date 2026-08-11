@@ -8,7 +8,10 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamEdit,
     SessionStreamHeaderEdit,
     SessionStreamQuery,
+    SessionStreamQueryResult,
+    SessionStreamReadOptions,
 )
+from oss.src.core.sessions.types import SessionTriggerAttribution
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -55,7 +58,8 @@ class SessionStreamsDAOInterface(ABC):
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
-    ) -> List[SessionStream]: ...
+        read_options: Optional[SessionStreamReadOptions] = None,
+    ) -> List[SessionStreamQueryResult]: ...
 
     @abstractmethod
     async def count(
@@ -136,3 +140,18 @@ class SessionStreamsDAOInterface(ABC):
         *,
         project_id: Optional[UUID] = None,
     ) -> int: ...
+
+
+class TriggerSessionClaimsDAOInterface(ABC):
+    @abstractmethod
+    async def claim_trigger_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        event_id: str,
+        session_id: str,
+        attribution: SessionTriggerAttribution,
+    ) -> bool:
+        """Atomically claim one trigger delivery and attribute its session."""
+        ...

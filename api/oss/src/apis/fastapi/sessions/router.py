@@ -95,7 +95,6 @@ from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.turns.types import SessionTurnNotFound
-from oss.src.core.sessions.dtos import SessionQuery
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
@@ -153,6 +152,11 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionQueryRequest,
     SessionResponse,
     SessionsResponse,
+)
+from oss.src.apis.fastapi.sessions.utils import (
+    compute_session_response_windowing,
+    normalize_session_query_request,
+    sanitize_session_stream,
 )
 
 log = get_module_logger(__name__)
@@ -405,7 +409,7 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
-        return SessionStreamResponse(stream=stream)
+        return SessionStreamResponse(stream=sanitize_session_stream(stream))
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -481,9 +485,12 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        return await self._service.heartbeat(
+        heartbeat = await self._service.heartbeat(
             project_id=project_id,
             request=payload,
+        )
+        return heartbeat.model_copy(
+            update={"stream": sanitize_session_stream(heartbeat.stream)}
         )
 
     @intercept_exceptions()
@@ -514,7 +521,10 @@ class SessionStreamsRouter:
                 ),
             ),
         )
-        return SessionStreamsResponse(count=len(streams), streams=streams)
+        return SessionStreamsResponse(
+            count=len(streams),
+            streams=[sanitize_session_stream(stream) for stream in streams],
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -540,7 +550,7 @@ class SessionStreamsRouter:
             session_id=session_id,
             header=header,
         )
-        return SessionStreamResponse(stream=stream)
+        return SessionStreamResponse(stream=sanitize_session_stream(stream))
 
     @intercept_exceptions()
     @_handle_session_exceptions()
@@ -1699,32 +1709,25 @@ class SessionsRootRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        query = SessionQuery(
-            references=body.references,
-            include_ended=body.include_ended,
-            include_archived=body.include_archived,
-            search=body.search,
-            flags=body.flags,
-            session_ids=body.session_ids,
-            exclude_session_ids=body.exclude_session_ids,
-            include_total=body.include_total,
-            origin=body.origin,
-            exclude_origin=body.exclude_origin,
-        )
-        sessions = await self.sessions_service.query_sessions(
+        normalized = normalize_session_query_request(body)
+        page = await self.sessions_service.query_sessions_page(
             project_id=UUID(str(project_id)),
-            query=query,
-            windowing=body.windowing,
+            query=normalized.predicates,
+            lifecycle=normalized.lifecycle,
+            options=normalized.options,
+            windowing=normalized.windowing,
         )
-        total = (
-            await self.sessions_service.count_sessions(
-                project_id=UUID(str(project_id)),
-                query=query,
-            )
-            if body.include_total
-            else None
+        response_windowing = compute_session_response_windowing(
+            sessions=page.sessions,
+            requested=normalized.windowing,
         )
-        return SessionsResponse(count=len(sessions), total=total, sessions=sessions)
+        sessions = [sanitize_session_stream(session) for session in page.sessions]
+        return SessionsResponse(
+            count=len(page.sessions),
+            total=page.total,
+            sessions=sessions,
+            windowing=response_windowing,
+        )
 
     @intercept_exceptions()
     async def delete_session(
@@ -1772,7 +1775,10 @@ class SessionsRootRouter:
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
-        return SessionResponse(count=1 if session else 0, session=session)
+        return SessionResponse(
+            count=1 if session else 0,
+            session=sanitize_session_stream(session),
+        )
 
     @intercept_exceptions()
     async def unarchive_session(
@@ -1796,7 +1802,10 @@ class SessionsRootRouter:
             user_id=UUID(str(user_id)),
             session_id=session_id,
         )
-        return SessionResponse(count=1 if session else 0, session=session)
+        return SessionResponse(
+            count=1 if session else 0,
+            session=sanitize_session_stream(session),
+        )
 
 
 # ---------------------------------------------------------------------------

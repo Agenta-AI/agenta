@@ -190,13 +190,57 @@ class TestTriggerSubscriptionsLifecycle:
         revoke = authed_api("POST", f"/triggers/subscriptions/{subscription_id}/revoke")
         assert revoke.status_code == 200, revoke.text
         assert revoke.json()["subscription"]["flags"]["is_active"] is False
+        revoked = revoke.json()["subscription"]
 
         # DELETE
         delete = authed_api("DELETE", f"/triggers/subscriptions/{subscription_id}")
         assert delete.status_code == 204
 
         fetch = authed_api("GET", f"/triggers/subscriptions/{subscription_id}")
-        assert fetch.status_code == 404
+        assert fetch.status_code == 200, fetch.text
+        fetched = fetch.json()
+        assert fetched["count"] == 1
+        historical = fetched["subscription"]
+        assert historical["id"] == subscription_id
+        assert historical["connection_id"] == revoked["connection_id"]
+        assert historical["name"] == revoked["name"]
+        assert historical["data"] == revoked["data"]
+        assert historical["flags"] == revoked["flags"]
+        assert historical["deleted_at"] is not None
+        assert historical["deleted_by_id"] is not None
+
+        list_response = authed_api("GET", "/triggers/subscriptions/")
+        assert list_response.status_code == 200, list_response.text
+        listing = list_response.json()
+        assert all(item["id"] != subscription_id for item in listing["subscriptions"])
+        query_response = authed_api(
+            "POST",
+            "/triggers/subscriptions/query",
+            json={"subscription": {"name": historical["name"]}},
+        )
+        assert query_response.status_code == 200, query_response.text
+        query = query_response.json()
+        assert all(item["id"] != subscription_id for item in query["subscriptions"])
+
+        rejected_edit = authed_api(
+            "PUT",
+            f"/triggers/subscriptions/{subscription_id}",
+            json={
+                "subscription": {
+                    "id": subscription_id,
+                    "connection_id": historical["connection_id"],
+                    "name": historical["name"],
+                    "description": historical.get("description"),
+                    "data": historical["data"],
+                    "flags": historical["flags"],
+                }
+            },
+        )
+        assert rejected_edit.status_code == 404, rejected_edit.text
+        rejected_start = authed_api(
+            "POST", f"/triggers/subscriptions/{subscription_id}/start"
+        )
+        assert rejected_start.status_code == 404, rejected_start.text
 
         # C7: deleting the subscription must NOT delete/revoke the connection.
         conn = authed_api("GET", f"/tools/connections/{connection_id}")

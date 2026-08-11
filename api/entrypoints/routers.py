@@ -885,9 +885,9 @@ _triggers_broker = ProducerOnlyRedisStreamBroker(
 
 _triggers_dispatcher = TriggersDispatcher(
     triggers_dao=triggers_dao,
+    session_claims_dao=session_streams_dao,
     workflows_service=workflows_service,
     dispatch_fn=_dispatch_detached_run,
-    streams_service=session_streams_service,
 )
 
 _triggers_worker = TriggersWorker(
