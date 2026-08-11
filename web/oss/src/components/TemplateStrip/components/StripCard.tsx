@@ -40,7 +40,11 @@ const StripCard = ({
         } ${disabled ? "opacity-60" : ""} ${
             selected
                 ? "border-[var(--ag-colorPrimary)] bg-[var(--ag-strip-selected-bg)]"
-                : `border-[var(--ag-strip-card-border)] bg-[var(--ag-strip-card-bg)] ${
+                : // The warm tinted surface the Home and overview rails carry, so a template card
+                  // reads as an object on the page rather than a white cutout. Light only: dark
+                  // restores this strip's own card token (rgba(255,255,255,.04)), since the tint's
+                  // dark step is a different surface and dark cards aren't part of this change.
+                  `border-[var(--ag-strip-card-border)] bg-[var(--ag-surface-paper)] dark:bg-[var(--ag-strip-card-bg)] ${
                       loading || disabled
                           ? ""
                           : "hover:border-[var(--ag-strip-card-border-hover)] hover:shadow-[var(--ag-strip-card-hover-shadow)]"
