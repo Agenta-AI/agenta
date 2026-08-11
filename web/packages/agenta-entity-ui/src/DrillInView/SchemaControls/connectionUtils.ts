@@ -364,29 +364,57 @@ export function providerForModel(
 
 /**
  * Whether a model id is reachable under the harness (present in any of its published model
- * groups). A harness with no published models is permissive (returns true) so the schema-catalog
- * fallback path is not over-cleared. Use to clear an unreachable model on harness switch.
+ * groups or a reachable custom_provider vault connection). A harness with no published models is
+ * permissive (returns true) so the schema-catalog fallback path is not over-cleared. Use to clear
+ * an unreachable model on harness switch.
  */
 export function harnessAllowsModel(
     capabilities: HarnessCapabilitiesMap | null | undefined,
     harness: string | null | undefined,
     modelId: string | null | undefined,
+    customSecrets?: VaultModelSource[] | null | undefined,
+    slug?: string | null | undefined,
 ): boolean {
     if (!modelId) return true
+    if (slug) {
+        if (customSecrets?.length) {
+            for (const secret of customSecrets) {
+                const secretSlug = secret.name?.trim()
+                const kind = secret.provider?.toLowerCase() || null
+                const secretModels = (secret.models ?? []).filter(Boolean)
+                if (!secretModels.includes(modelId)) continue
+                if (secretSlug !== slug) continue
+                if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind))
+                    return true
+            }
+        }
+        return false
+    }
+
     const caps = capsFor(capabilities, harness)
     const catalog = caps?.model_catalog
     const models = caps?.models
     const hasCatalog = Boolean(catalog && catalog.length)
     const hasModels = Boolean(models && Object.keys(models).length > 0)
-    // A harness with no published models at all is permissive (don't over-clear the schema-catalog
-    // fallback path).
-    if (!hasCatalog && !hasModels) return true
     if (hasCatalog && catalog!.some((e) => e.id === modelId)) return true
     if (
         hasModels &&
         Object.values(models!).some((ids) => Array.isArray(ids) && ids.includes(modelId))
     )
         return true
+
+    if (customSecrets?.length) {
+        for (const secret of customSecrets) {
+            const kind = secret.provider?.toLowerCase() || null
+            const secretModels = (secret.models ?? []).filter(Boolean)
+            if (!secretModels.includes(modelId)) continue
+            if (!kind || harnessReachesCustomProviderKind(capabilities, harness, kind)) return true
+        }
+    }
+
+    // A harness with no published models at all is permissive (don't over-clear the schema-catalog
+    // fallback path).
+    if (!hasCatalog && !hasModels) return true
     return false
 }
 

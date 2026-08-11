@@ -1,11 +1,16 @@
 import {useMemo} from "react"
 
+import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {queryTriggerDeliveries} from "../api"
-import type {TriggerDelivery, TriggerDeliveriesResponse} from "../core/types"
+import {fetchTriggerDelivery, queryTriggerDeliveries} from "../api"
+import type {
+    TriggerDelivery,
+    TriggerDeliveriesResponse,
+    TriggerDeliveryResponse,
+} from "../core/types"
 
 // A delivery belongs to a subscription OR a schedule (XOR, DB-enforced). The
 // deliveries view is reused for both; the family is keyed on the owner kind+id
@@ -46,6 +51,31 @@ export const useTriggerDeliveries = (owner?: DeliveriesOwner) => {
         deliveries,
         count: query.data?.count ?? 0,
         isLoading: owner?.id ? query.isPending : false,
+        error: query.error,
+        refetch: query.refetch,
+    }
+}
+
+export const triggerDeliveryQueryAtomFamily = atomFamily((deliveryId: string) =>
+    atomWithQuery<TriggerDeliveryResponse>((get) => {
+        const projectId = get(projectIdAtom)
+        return {
+            queryKey: ["triggers", "delivery", projectId, deliveryId],
+            queryFn: () => fetchTriggerDelivery({projectId: projectId ?? "", deliveryId}),
+            staleTime: 0,
+            retry: false,
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            enabled: Boolean(projectId && deliveryId),
+        }
+    }),
+)
+
+export const useTriggerDelivery = (deliveryId: string) => {
+    const query = useAtomValue(triggerDeliveryQueryAtomFamily(deliveryId))
+    return {
+        delivery: query.data?.delivery ?? null,
+        isLoading: deliveryId ? query.isPending : false,
         error: query.error,
         refetch: query.refetch,
     }

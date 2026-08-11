@@ -1,6 +1,11 @@
 import {type MutableRefObject, useCallback, useEffect, useRef, useState} from "react"
 
-import {revalidateSessionRecordsAtom, shouldAdoptServerTranscript} from "@agenta/entities/session"
+import {
+    revalidateSessionInteractionsAtom,
+    revalidateSessionRecordsAtom,
+    shouldAdoptServerTranscript,
+} from "@agenta/entities/session"
+import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
 import {type UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -44,6 +49,101 @@ export const shouldSkipRecordsRefresh = ({
     busy: boolean
     pendingResume: boolean
 }): boolean => busy || pendingResume
+
+/** Waiting CLIENT-TOOL cards anywhere in the chat — the same whole-chat scan the tab status uses.
+ * Narrow to client tools on purpose: an interrupted turn can leave an ordinary server tool part at
+ * `input-available` forever, and that must not freeze adoption. */
+const pendingClientToolCallIds = (messages: UIMessage[]): Set<string> => {
+    const pending = new Set<string>()
+    for (const message of messages) {
+        if (message.role !== "assistant") continue
+        const parts = message.parts ?? []
+        // Message-scoped: the render hint rides a sibling part in the SAME message.
+        const renderMap = buildRenderMap(parts)
+        for (const part of parts) {
+            if (!isPendingClientToolInteraction(part, renderMap)) continue
+            const {toolCallId} = part as {toolCallId?: unknown}
+            if (typeof toolCallId === "string") pending.add(toolCallId)
+        }
+    }
+    return pending
+}
+
+/** Locally-waiting cards the server copy shows as settled. A card the server does not carry at all
+ * is NOT settled — the server has not caught up. */
+const settledLocallyWaitingIds = (
+    localMessages: UIMessage[],
+    serverMessages: UIMessage[],
+): {pending: Set<string>; settled: Set<string>} => {
+    const pending = pendingClientToolCallIds(localMessages)
+    const settled = new Set<string>()
+    if (pending.size === 0) return {pending, settled}
+    for (const message of serverMessages) {
+        if (message.role !== "assistant") continue
+        const parts = message.parts ?? []
+        const renderMap = buildRenderMap(parts)
+        for (const part of parts) {
+            const {toolCallId} = part as {toolCallId?: unknown}
+            if (typeof toolCallId !== "string" || !pending.has(toolCallId)) continue
+            if (!isPendingClientToolInteraction(part, renderMap)) settled.add(toolCallId)
+        }
+    }
+    return {pending, settled}
+}
+
+/**
+ * The whole adoption decision: the shared growth test, the waiting-card guards, and the floors the
+ * settled-card path must still respect.
+ *
+ * That last part is the subtle one. `shouldAdoptServerTranscript` carries THREE refusals, and the
+ * settled-card path is meant to bypass exactly one of them — the growth test, which a dead session
+ * can never satisfy — a session cached before the interaction-lifecycle fix renders its abandoned
+ * card live and its watermark already equals the server's record count, so nothing else can ever
+ * trigger. Bypassing the anti-truncation floor as well would let a lagging snapshot (same
+ * card, same terminal row, minus the newest turn) replace the screen AND localStorage, regress the
+ * watermark, and release the composer against a truncated history. The zombie case clears both
+ * floors with equality, so requiring them costs nothing.
+ */
+export const shouldAdoptTranscript = ({
+    serverRecordCount,
+    serverMessages,
+    localMessages,
+    watermark,
+    busy,
+    pendingResume,
+}: {
+    serverRecordCount: number
+    serverMessages: UIMessage[]
+    localMessages: UIMessage[]
+    watermark: number | undefined
+    busy: boolean
+    /** A client-tool answer is recorded but its resume has not dispatched — see `pendingResumeRef`. */
+    pendingResume: boolean
+}): boolean => {
+    const {pending, settled} = settledLocallyWaitingIds(localMessages, serverMessages)
+    // A waiting card the server copy does not settle must never be overwritten: the user may be
+    // mid-answer, and adopting would discard it.
+    if (pending.size > 0 && settled.size !== pending.size) return false
+
+    if (
+        shouldAdoptServerTranscript({
+            serverRecordCount,
+            serverMessageCount: serverMessages.length,
+            localMessageCount: localMessages.length,
+            watermark,
+            busy,
+        })
+    )
+        return true
+
+    return (
+        pending.size > 0 &&
+        !busy &&
+        !pendingResume &&
+        serverRecordCount >= (watermark ?? 0) &&
+        serverMessages.length >= localMessages.length
+    )
+}
 
 /**
  * Hybrid history for one session tab. localStorage holds only the session INDEX; the durable
@@ -112,14 +212,17 @@ export const useSessionHydration = ({
         (transcript: SessionTranscript | null, {armJump = true} = {}): boolean => {
             if (!transcript) return false
             const {messages: serverMsgs, recordCount} = transcript
-            const adopt = shouldAdoptServerTranscript({
-                serverRecordCount: recordCount,
-                serverMessageCount: serverMsgs.length,
-                localMessageCount: messagesRef.current.length,
-                watermark: recordWatermarkRef.current,
-                busy: busyRef.current,
-            })
-            if (!adopt) return false
+            if (
+                !shouldAdoptTranscript({
+                    serverRecordCount: recordCount,
+                    serverMessages: serverMsgs,
+                    localMessages: messagesRef.current,
+                    watermark: recordWatermarkRef.current,
+                    busy: busyRef.current,
+                    pendingResume: !!pendingResumeRef.current,
+                })
+            )
+                return false
             // Restored history renders settled (no live fade-in) and pinned to the bottom.
             serverMsgs.forEach((m) => {
                 seenIdsRef.current.add(m.id)
@@ -147,6 +250,7 @@ export const useSessionHydration = ({
             sessionId,
             messagesRef,
             busyRef,
+            pendingResumeRef,
             seenIdsRef,
             restoredIdsRef,
             recordWatermarkRef,
@@ -289,6 +393,7 @@ export const useSessionHydration = ({
     const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
     const refreshFromRecords = useCallback(() => {
         // Entry check: skip while THIS tab streams (already the live truth, `onFinish`
         // revalidates) OR a client-tool settle is already waiting on its resume dispatch — see
@@ -320,11 +425,16 @@ export const useSessionHydration = ({
             adoptServerTranscriptRef.current(transcript, {armJump: false})
         })
     }, [sessionId, busyRef, pendingResumeRef, revalidateSessionRecords])
+    const refreshFromInteractions = useCallback(() => {
+        revalidateSessionInteractions(sessionId)
+        refreshFromRecords()
+    }, [sessionId, revalidateSessionInteractions, refreshFromRecords])
     useSessionRecordsWatch({
         sessionId,
         projectId,
         enabled: activeSessionId === sessionId,
         onRecordsChanged: refreshFromRecords,
+        onInteractionChanged: refreshFromInteractions,
     })
 
     return {isHydrating, hydratedEmpty, runningElsewhere}

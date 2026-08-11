@@ -85,6 +85,9 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2,<3" },
 ]
 
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8,<9" }]
+
 [[package]]
 name = "aiofile"
 version = "3.11.1"

@@ -117,7 +117,11 @@ def apply_windowing(
         )
         stmt = stmt.order_by(windowing_order, id_tiebreak)
 
-    if windowing.limit:
-        stmt = stmt.limit(windowing.limit)
+    if windowing.limit is not None:
+        # `if windowing.limit:` was falsy for `0`, which skipped the `.limit(...)`
+        # call entirely and returned every row; a negative value reached Postgres
+        # as a literal `LIMIT -1` and 500'd. Clamp to at least 1 instead — the safe
+        # direction is "too few rows", never "unbounded" or "malformed SQL".
+        stmt = stmt.limit(max(windowing.limit, 1))
 
     return stmt

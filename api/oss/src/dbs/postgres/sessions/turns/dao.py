@@ -13,7 +13,7 @@ from oss.src.core.sessions.turns.dtos import (
     SessionTurnQuery,
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE
 from oss.src.dbs.postgres.sessions.turns.mappings import (
@@ -128,6 +128,29 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         if dbe is None:
             return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)
+
+    async def query_session_ids_by_references(
+        self,
+        *,
+        project_id: UUID,
+        references: List[Reference],
+        limit: int,
+    ) -> List[str]:
+        turn_references = query_turn_references(SessionTurnQuery(references=references))
+        if turn_references is None:
+            return []
+        async with self.engine.session() as session:
+            stmt = (
+                select(SessionTurnDBE.session_id)
+                .where(
+                    SessionTurnDBE.project_id == project_id,
+                    SessionTurnDBE.references.contains(turn_references),
+                )
+                .distinct()
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            return [row[0] for row in result.all()]
 
     async def query_turns(
         self,

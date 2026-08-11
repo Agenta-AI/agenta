@@ -83,7 +83,6 @@ export {
     findGrantableHarnessTool,
     withHarnessToolAllow,
     PLATFORM_OPS,
-    CLIENT_TOOLS,
 } from "./toolPermission"
 export type {GrantableTool, ToolPermission, GrantableHarnessTool} from "./toolPermission"
 

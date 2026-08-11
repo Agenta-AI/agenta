@@ -6,7 +6,13 @@ import type {SessionPending} from "../state/useSessionList"
 import {sessionPreviewText} from "./sessionPreview"
 import {pendingGateLabel, sessionRowStatus, type SessionRowStatusMeta} from "./sessionRowStatus"
 import {sessionRowTitle} from "./sessionRowTitle"
-import {isAutomationSession, sessionTriggerName} from "./sessionTrigger"
+import {
+    isAutomationSession,
+    sessionAutomation,
+    sessionAutomationTitle,
+    sessionDeliveryId,
+    type SessionAutomationVm,
+} from "./sessionTrigger"
 
 /**
  * A session row with nothing left to decide: every precedence rule (title, status, preview,
@@ -28,6 +34,8 @@ export interface SessionRowVm {
     /** ISO timestamp of last activity. Formatting relative time is the UI's job. */
     activityAt: string | null
     isAutomation: boolean
+    automation: SessionAutomationVm | null
+    deliveryId: string | null
     isPinned: boolean
     /** The wire row, for actions that need fields the view-model doesn't carry. */
     stream: SessionStream
@@ -37,10 +45,11 @@ export function sessionRowVm(
     row: SessionStream,
     {pinned, pending}: {pinned: boolean; pending: SessionPending | undefined},
 ): SessionRowVm {
+    const automation = sessionAutomation(row)
     const {title, subtitle} = sessionRowTitle(
         row.name,
         sessionPreviewText(row),
-        sessionTriggerName(row),
+        automation ? sessionAutomationTitle(automation) : null,
     )
     const status = sessionRowStatus(row, pending?.count)
     return {
@@ -56,6 +65,8 @@ export function sessionRowVm(
         agentId: row.references?.find((ref) => ref.id && isValidUUID(ref.id))?.id ?? null,
         activityAt: row.updated_at ?? row.created_at ?? null,
         isAutomation: isAutomationSession(row),
+        automation,
+        deliveryId: sessionDeliveryId(row),
         isPinned: pinned,
         stream: row,
     }

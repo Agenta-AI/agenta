@@ -226,6 +226,9 @@ export const useAgentConversation = ({
             revalidateSessionRecords(sessionId)
         },
         onError: (err) => {
+            // A failed stream never dispatches the pending resume, so drop the marker: leaving it
+            // set freezes records adoption for this mount and can resume a stale gate much later.
+            liveGateInteractionRef.current = null
             // The error is stamped in-chat (effect below); swallow it here so an aborted/errored
             // stream doesn't bubble unhandled to a dev overlay (F-033).
             console.warn("[useAgentConversation] useChat error (rendered in-chat):", err)
@@ -480,6 +483,9 @@ export const useAgentConversation = ({
     const handleStop = useCallback(() => {
         const last = messagesRef.current[messagesRef.current.length - 1]
         if (last && last.role === "assistant") setStopped(true)
+        // A stop voids the pending gate (same rule the queue applies), so the marker must go too —
+        // otherwise it outlives the abandoned resume and blocks this mount's records adoption.
+        liveGateInteractionRef.current = null
         stop()
     }, [stop])
 

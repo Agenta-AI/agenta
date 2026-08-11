@@ -1,0 +1,1212 @@
+[
+  {
+    "id": "7cec46da-1175-41e7-ab2a-558ff3dd917a",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 0,
+    "sender": "user",
+    "session_update": "message",
+    "payload": {
+      "text": "I want to create an agent that sends me a telegram message everymorning with arabic poetry",
+      "type": "message",
+      "attachments": []
+    },
+    "created_at": "2026-08-10T14:57:27.428142+00:00"
+  },
+  {
+    "id": "144497c1-ac2d-4d81-8c24-dc71ed742804",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Configuring the agent**\n\nI need to configure the agent and start by reading th… <295 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T14:57:38.556601+00:00"
+  },
+  {
+    "id": "5f0fd731-30b7-55a1-8372-2889ce706f92",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_lBRmuwVnEUCMwsfW3Z5T83M9|fc_06ee41bfe9bafc80016a79e6e1d02081a28d8a6af70d6bb829",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-5bc2c9060a67/agents/skills/7fbe65435054f77ee392d890f704c382d76f27d6e9f638893a19479487201174/build-an-agent/SKILL.md"
+      }
+    },
+    "created_at": "2026-08-10T14:57:38.944693+00:00"
+  },
+  {
+    "id": "894a6bbf-df00-5f54-a61f-727f9da4c0b6",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_lBRmuwVnEUCMwsfW3Z5T83M9|fc_06ee41bfe9bafc80016a79e6e1d02081a28d8a6af70d6bb829",
+      "type": "tool_result",
+      "output": "---\nname: \"build-an-agent\"\ndescription: \"Build or configure an Agenta agent end … <12740 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:57:38.944693+00:00"
+  },
+  {
+    "id": "5d951f8a-5457-59cd-86d5-977f811e4662",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 4,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_vBZWFzFej71NAy58wAwtjGDc|fc_06ee41bfe9bafc80016a79e6e457b481a28c5c35cf9c95d4f3",
+      "name": "ls",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-5bc2c9060a67/agents/skills/7fbe65435054f77ee392d890f704c382d76f27d6e9f638893a19479487201174/build-an-agent"
+      }
+    },
+    "created_at": "2026-08-10T14:57:41.459997+00:00"
+  },
+  {
+    "id": "143bed53-eed5-56fd-93f8-ce45328da508",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 5,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_vBZWFzFej71NAy58wAwtjGDc|fc_06ee41bfe9bafc80016a79e6e457b481a28c5c35cf9c95d4f3",
+      "type": "tool_result",
+      "output": "references/\nSKILL.md",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:57:41.459997+00:00"
+  },
+  {
+    "id": "22f4fce6-b612-5d90-bf3f-d84be5e7cb05",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 6,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_rDpew8MsXztp6br8VvIBIsaH|fc_06ee41bfe9bafc80016a79e6e6629c81a2a8e60d1aa92d943a",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <139 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:57:43.55635+00:00"
+  },
+  {
+    "id": "7ff26c46-88f5-513e-9eb9-a23cb554e4db",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 7,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_rDpew8MsXztp6br8VvIBIsaH|fc_06ee41bfe9bafc80016a79e6e6629c81a2a8e60d1aa92d943a",
+      "type": "tool_result",
+      "output": "ENOENT: no such file or directory, access '/tmp/agenta/mounts/019fe1f4-c599-7c82… <183 chars elided>",
+      "isError": true
+    },
+    "created_at": "2026-08-10T14:57:43.55635+00:00"
+  },
+  {
+    "id": "0296cbbe-35c6-5059-be1c-8c1643fd7a30",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 8,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_wgHuIh11ZTgze2uRoRudUadp|fc_06ee41bfe9bafc80016a79e6e8aefc81a292791c5e07b24a03",
+      "name": "ls",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-5bc2c9060a67/agents/skills/7fbe65435054f77ee392d890f704c382d76f27d6e9f638893a19479487201174/build-an-agent/references"
+      }
+    },
+    "created_at": "2026-08-10T14:57:45.666859+00:00"
+  },
+  {
+    "id": "8e7eec13-35b4-5ab6-a52d-b12db1f53396",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 9,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_wgHuIh11ZTgze2uRoRudUadp|fc_06ee41bfe9bafc80016a79e6e8aefc81a292791c5e07b24a03",
+      "type": "tool_result",
+      "output": "agent-templates/\nconfig-schema.md\ntrigger-inputs.md",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:57:45.666859+00:00"
+  },
+  {
+    "id": "da39f602-cefd-5d91-8e59-6d2b1319a898",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 10,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_xleFrGiGjCTaEYQAvWfSrwHp|fc_06ee41bfe9bafc80016a79e6ebb7b481a2b795d9514db67742",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <142 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T14:57:49.076566+00:00"
+  },
+  {
+    "id": "c73a515c-ce9a-5fea-adf5-200dce45a2b7",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 11,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_xleFrGiGjCTaEYQAvWfSrwHp|fc_06ee41bfe9bafc80016a79e6ebb7b481a2b795d9514db67742",
+      "type": "tool_result",
+      "output": "# Agent template playbooks\n\nMatch the user's ask to a row, then read the named p… <4452 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:57:49.076566+00:00"
+  },
+  {
+    "id": "89778a3a-ce6b-4868-bc3e-dc98b6e411bd",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 12,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Clarifying telegram details**\n\nI need to clarify the missing timezone and the … <385 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T14:57:53.185972+00:00"
+  },
+  {
+    "id": "37f72c17-16df-49a2-814d-32b896a0cbe1",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 13,
+    "sender": "agent",
+    "session_update": "message",
+    "payload": {
+      "text": "Hello! I can set this up as a daily Telegram poetry agent. I’ll first check the available Telegram sending action, then I’ll need your preferred morning time/time zone and Telegram chat destination.",
+      "type": "message"
+    },
+    "created_at": "2026-08-10T14:57:53.485821+00:00"
+  },
+  {
+    "id": "6395c1c4-9192-5d3a-a22a-47834650bbb5",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 14,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_4Glz6VcncRObF0lMKi28Opja|fc_06ee41bfe9bafc80016a79e6f09a0081a2b6d78ac43c77d7e4",
+      "name": "discover_tools",
+      "type": "tool_call",
+      "input": {
+        "provider": "composio",
+        "use_cases": [
+          "send a Telegram message"
+        ],
+        "limit_alternatives": 5
+      }
+    },
+    "created_at": "2026-08-10T14:57:56.488094+00:00"
+  },
+  {
+    "id": "a2f11304-3a7c-5459-9670-0ec263c090d6",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 15,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_4Glz6VcncRObF0lMKi28Opja|fc_06ee41bfe9bafc80016a79e6f09a0081a2b6d78ac43c77d7e4",
+      "type": "tool_result",
+      "output": "{\"capabilities\":[{\"use_case\":\"send a Telegram message\",\"integration\":\"telegram\",… <6750 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T14:57:56.488094+00:00"
+  },
+  {
+    "id": "3c3c286a-9ae6-4a19-be4d-c1df046bda9e",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 16,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Requesting connection first**\n\nI need to request a connection right now, but I… <323 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T14:57:59.707136+00:00"
+  },
+  {
+    "id": "fc27d0dd-7540-5f9d-b677-ec40887cef08",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 17,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab",
+      "name": "request_connection",
+      "type": "tool_call",
+      "input": {
+        "mode": "api_key",
+        "slug": "telegram-main",
+        "integration": "telegram"
+      }
+    },
+    "created_at": "2026-08-10T14:58:00.107869+00:00"
+  },
+  {
+    "id": "76ea9a55-c998-5a8e-a3f0-8fee3498984b",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 18,
+    "sender": "agent",
+    "session_update": "interaction_request",
+    "payload": {
+      "id": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab",
+      "kind": "client_tool",
+      "type": "interaction_request",
+      "payload": {
+        "input": {
+          "mode": "api_key",
+          "slug": "telegram-main",
+          "integration": "telegram"
+        },
+        "render": {
+          "kind": "connect"
+        },
+        "toolCall": {
+          "id": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab",
+          "kind": "client",
+          "name": "request_connection",
+          "input": {
+            "mode": "api_key",
+            "slug": "telegram-main",
+            "integration": "telegram"
+          },
+          "rawInput": {
+            "mode": "api_key",
+            "slug": "telegram-main",
+            "integration": "telegram"
+          },
+          "toolCallId": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab"
+        },
+        "toolName": "request_connection",
+        "toolCallId": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab"
+      }
+    },
+    "created_at": "2026-08-10T14:58:00.107869+00:00"
+  },
+  {
+    "id": "7f606197-ebc5-4d5d-81a2-35d49c14832b",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 19,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "f03e7e8e2cc55d0e6e126b66d24559a3",
+      "stopReason": "paused"
+    },
+    "created_at": "2026-08-10T14:58:00.107869+00:00"
+  },
+  {
+    "id": "3635fc95-8e12-5d97-8439-b30ba993c549",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 0,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb",
+      "name": "request_input",
+      "type": "tool_call",
+      "input": {
+        "message": "The Telegram connection attempt timed out, but we can continue configuring the a… <182 chars elided>",
+        "requestedSchema": {
+          "type": "object",
+          "required": [
+            "morning_time",
+            "timezone",
+            "chat_id"
+          ],
+          "properties": {
+            "chat_id": {
+              "type": "string",
+              "title": "Telegram chat ID",
+              "default": "",
+              "description": "Numeric chat ID or @channel username. For a private chat, message the bot first."
+            },
+            "timezone": {
+              "type": "string",
+              "title": "Time zone",
+              "default": "Asia/Riyadh",
+              "description": "IANA time zone used to convert your preferred local morning time, such as Europe/Paris or Asia/Riyadh."
+            },
+            "morning_time": {
+              "type": "string",
+              "title": "Daily schedule",
+              "format": "cron",
+              "default": "0 7 * * *",
+              "description": "Five-field UTC cron expression for the delivery time. Example: 0 7 * * * means 07:00 UTC every day."
+            }
+          },
+          "x-ag-stepper": true
+        }
+      }
+    },
+    "created_at": "2026-08-10T15:01:14.295467+00:00"
+  },
+  {
+    "id": "801a1dd8-3675-5f12-a6fc-ed074650f791",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "interaction_request",
+    "payload": {
+      "id": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb",
+      "kind": "client_tool",
+      "type": "interaction_request",
+      "payload": {
+        "input": {
+          "message": "The Telegram connection attempt timed out, but we can continue configuring the a… <182 chars elided>",
+          "requestedSchema": {
+            "type": "object",
+            "required": [
+              "morning_time",
+              "timezone",
+              "chat_id"
+            ],
+            "properties": {
+              "chat_id": {
+                "type": "string",
+                "title": "Telegram chat ID",
+                "default": "",
+                "description": "Numeric chat ID or @channel username. For a private chat, message the bot first."
+              },
+              "timezone": {
+                "type": "string",
+                "title": "Time zone",
+                "default": "Asia/Riyadh",
+                "description": "IANA time zone used to convert your preferred local morning time, such as Europe/Paris or Asia/Riyadh."
+              },
+              "morning_time": {
+                "type": "string",
+                "title": "Daily schedule",
+                "format": "cron",
+                "default": "0 7 * * *",
+                "description": "Five-field UTC cron expression for the delivery time. Example: 0 7 * * * means 07:00 UTC every day."
+              }
+            },
+            "x-ag-stepper": true
+          }
+        },
+        "render": {
+          "kind": "elicitation"
+        },
+        "toolCall": {
+          "id": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb",
+          "kind": "client",
+          "name": "request_input",
+          "input": {
+            "message": "The Telegram connection attempt timed out, but we can continue configuring the a… <182 chars elided>",
+            "requestedSchema": {
+              "type": "object",
+              "required": [
+                "morning_time",
+                "timezone",
+                "chat_id"
+              ],
+              "properties": {
+                "chat_id": {
+                  "type": "string",
+                  "title": "Telegram chat ID",
+                  "default": "",
+                  "description": "Numeric chat ID or @channel username. For a private chat, message the bot first."
+                },
+                "timezone": {
+                  "type": "string",
+                  "title": "Time zone",
+                  "default": "Asia/Riyadh",
+                  "description": "IANA time zone used to convert your preferred local morning time, such as Europe/Paris or Asia/Riyadh."
+                },
+                "morning_time": {
+                  "type": "string",
+                  "title": "Daily schedule",
+                  "format": "cron",
+                  "default": "0 7 * * *",
+                  "description": "Five-field UTC cron expression for the delivery time. Example: 0 7 * * * means 07:00 UTC every day."
+                }
+              },
+              "x-ag-stepper": true
+            }
+          },
+          "rawInput": {
+            "message": "The Telegram connection attempt timed out, but we can continue configuring the a… <182 chars elided>",
+            "requestedSchema": {
+              "type": "object",
+              "required": [
+                "morning_time",
+                "timezone",
+                "chat_id"
+              ],
+              "properties": {
+                "chat_id": {
+                  "type": "string",
+                  "title": "Telegram chat ID",
+                  "default": "",
+                  "description": "Numeric chat ID or @channel username. For a private chat, message the bot first."
+                },
+                "timezone": {
+                  "type": "string",
+                  "title": "Time zone",
+                  "default": "Asia/Riyadh",
+                  "description": "IANA time zone used to convert your preferred local morning time, such as Europe/Paris or Asia/Riyadh."
+                },
+                "morning_time": {
+                  "type": "string",
+                  "title": "Daily schedule",
+                  "format": "cron",
+                  "default": "0 7 * * *",
+                  "description": "Five-field UTC cron expression for the delivery time. Example: 0 7 * * * means 07:00 UTC every day."
+                }
+              },
+              "x-ag-stepper": true
+            }
+          },
+          "toolCallId": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb"
+        },
+        "toolName": "request_input",
+        "toolCallId": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb"
+      }
+    },
+    "created_at": "2026-08-10T15:01:14.295467+00:00"
+  },
+  {
+    "id": "a39296c2-204d-4065-a5c1-61356f22107f",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "296649b252a567806cc4c37147301e4a",
+      "stopReason": "paused"
+    },
+    "created_at": "2026-08-10T15:01:14.295467+00:00"
+  },
+  {
+    "id": "f2882d4c-2e1d-57ae-995c-73dbbb1b4ce2",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 0,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_sZkmXv4b22ZLXSfLe00ljAyX|fc_0efd0b0daec5dc77016a7a3479eee4819ebe68006ecacc4851",
+      "name": "rename_session",
+      "type": "tool_call",
+      "input": {
+        "name": "Daily Arabic Poetry",
+        "description": "Setting up a Telegram agent to send Arabic poetry each morning; delivery time, time zone, chat destination, and Telegram connection are still needed."
+      }
+    },
+    "created_at": "2026-08-10T20:28:43.862838+00:00"
+  },
+  {
+    "id": "8723dfda-6aa0-5334-b74c-3a345f9effcf",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_sZkmXv4b22ZLXSfLe00ljAyX|fc_0efd0b0daec5dc77016a7a3479eee4819ebe68006ecacc4851",
+      "type": "tool_result",
+      "output": "{\"stream\":{\"created_at\":\"2026-08-10T14:57:26.954046Z\",\"updated_at\":\"2026-08-10T2… <666 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T20:28:43.862838+00:00"
+  },
+  {
+    "id": "b4caa975-2091-43b4-b015-ed0b83f0bc04",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "usage",
+    "payload": {
+      "cost": 0.027517150000000004,
+      "type": "usage",
+      "input": 6,
+      "total": 38774,
+      "output": 204
+    },
+    "created_at": "2026-08-10T20:28:45.87144+00:00"
+  },
+  {
+    "id": "57414f72-4e3e-485a-abf6-c1a74ea73224",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "message",
+    "payload": {
+      "text": "No problem. The setup is paused; when you’re ready, provide your preferred morni… <130 chars elided>",
+      "type": "message"
+    },
+    "created_at": "2026-08-10T20:28:45.87144+00:00"
+  },
+  {
+    "id": "cd920e95-de56-4773-9f3d-1098f2a75ec1",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 4,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "2ad9766cba43e0f34a5fc4f92a34552a"
+    },
+    "created_at": "2026-08-10T20:28:45.87144+00:00"
+  },
+  {
+    "id": "ffe22e5e-128c-4887-a96c-b64f26176ba7",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 0,
+    "sender": "user",
+    "session_update": "message",
+    "payload": {
+      "text": "@mmabrouk1987",
+      "type": "message",
+      "attachments": []
+    },
+    "created_at": "2026-08-10T20:28:52.992748+00:00"
+  },
+  {
+    "id": "8897b14b-eb6b-43d7-8fd1-71cf115d596b",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "message",
+    "payload": {
+      "text": "Thanks — I’ll use `@mmabrouk1987` as the Telegram destination. What morning time and time zone should I use?",
+      "type": "message"
+    },
+    "created_at": "2026-08-10T20:28:56.403303+00:00"
+  },
+  {
+    "id": "8e65b172-6f69-5ddc-92cb-af45eb2313b2",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064",
+      "name": "request_input",
+      "type": "tool_call",
+      "input": {
+        "message": "Choose the daily local delivery time and time zone for your Arabic poetry message.",
+        "requestedSchema": {
+          "type": "object",
+          "required": [
+            "morning_time",
+            "timezone"
+          ],
+          "properties": {
+            "timezone": {
+              "type": "string",
+              "title": "Time zone",
+              "default": "Asia/Riyadh",
+              "description": "IANA time zone, such as Asia/Riyadh, Europe/Paris, or America/New_York."
+            },
+            "morning_time": {
+              "type": "string",
+              "title": "Morning delivery time",
+              "format": "cron",
+              "default": "0 7 * * *",
+              "description": "Five-field cron expression in UTC; the schedule builder can help set the local time."
+            }
+          },
+          "x-ag-stepper": true
+        }
+      }
+    },
+    "created_at": "2026-08-10T20:28:57.578517+00:00"
+  },
+  {
+    "id": "64e9683c-28c5-505e-ad55-ac27d49c6b07",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "interaction_request",
+    "payload": {
+      "id": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064",
+      "kind": "client_tool",
+      "type": "interaction_request",
+      "payload": {
+        "input": {
+          "message": "Choose the daily local delivery time and time zone for your Arabic poetry message.",
+          "requestedSchema": {
+            "type": "object",
+            "required": [
+              "morning_time",
+              "timezone"
+            ],
+            "properties": {
+              "timezone": {
+                "type": "string",
+                "title": "Time zone",
+                "default": "Asia/Riyadh",
+                "description": "IANA time zone, such as Asia/Riyadh, Europe/Paris, or America/New_York."
+              },
+              "morning_time": {
+                "type": "string",
+                "title": "Morning delivery time",
+                "format": "cron",
+                "default": "0 7 * * *",
+                "description": "Five-field cron expression in UTC; the schedule builder can help set the local time."
+              }
+            },
+            "x-ag-stepper": true
+          }
+        },
+        "render": {
+          "kind": "elicitation"
+        },
+        "toolCall": {
+          "id": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064",
+          "kind": "client",
+          "name": "request_input",
+          "input": {
+            "message": "Choose the daily local delivery time and time zone for your Arabic poetry message.",
+            "requestedSchema": {
+              "type": "object",
+              "required": [
+                "morning_time",
+                "timezone"
+              ],
+              "properties": {
+                "timezone": {
+                  "type": "string",
+                  "title": "Time zone",
+                  "default": "Asia/Riyadh",
+                  "description": "IANA time zone, such as Asia/Riyadh, Europe/Paris, or America/New_York."
+                },
+                "morning_time": {
+                  "type": "string",
+                  "title": "Morning delivery time",
+                  "format": "cron",
+                  "default": "0 7 * * *",
+                  "description": "Five-field cron expression in UTC; the schedule builder can help set the local time."
+                }
+              },
+              "x-ag-stepper": true
+            }
+          },
+          "rawInput": {
+            "message": "Choose the daily local delivery time and time zone for your Arabic poetry message.",
+            "requestedSchema": {
+              "type": "object",
+              "required": [
+                "morning_time",
+                "timezone"
+              ],
+              "properties": {
+                "timezone": {
+                  "type": "string",
+                  "title": "Time zone",
+                  "default": "Asia/Riyadh",
+                  "description": "IANA time zone, such as Asia/Riyadh, Europe/Paris, or America/New_York."
+                },
+                "morning_time": {
+                  "type": "string",
+                  "title": "Morning delivery time",
+                  "format": "cron",
+                  "default": "0 7 * * *",
+                  "description": "Five-field cron expression in UTC; the schedule builder can help set the local time."
+                }
+              },
+              "x-ag-stepper": true
+            }
+          },
+          "toolCallId": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064"
+        },
+        "toolName": "request_input",
+        "toolCallId": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064"
+      }
+    },
+    "created_at": "2026-08-10T20:28:57.578517+00:00"
+  },
+  {
+    "id": "52753f52-76ff-47f4-858c-9af0c3f15e4d",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 4,
+    "sender": "agent",
+    "session_update": "usage",
+    "payload": {
+      "cost": 0.027517150000000004,
+      "type": "usage",
+      "input": 6,
+      "total": 38774,
+      "output": 204
+    },
+    "created_at": "2026-08-10T20:28:57.578517+00:00"
+  },
+  {
+    "id": "b632fe9c-24e7-41a0-ac45-88eec0e6386a",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 5,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "af9d734b4b4cdc1215cb34bfc5d9d5ac",
+      "stopReason": "paused"
+    },
+    "created_at": "2026-08-10T20:28:57.929468+00:00"
+  },
+  {
+    "id": "17c99bea-453d-421c-bc12-0cf5d1989d90",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 0,
+    "sender": "agent",
+    "session_update": "message",
+    "payload": {
+      "text": "I received `berlun` as the time zone, which doesn’t match an IANA time-zone name… <124 chars elided>",
+      "type": "message"
+    },
+    "created_at": "2026-08-10T20:29:16.86967+00:00"
+  },
+  {
+    "id": "cfebf2ad-a197-5b43-8beb-40393c9bbadf",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df",
+      "name": "request_input",
+      "type": "tool_call",
+      "input": {
+        "message": "Please confirm the time zone for the daily Telegram delivery.",
+        "requestedSchema": {
+          "type": "object",
+          "required": [
+            "timezone"
+          ],
+          "properties": {
+            "timezone": {
+              "type": "string",
+              "title": "Time zone",
+              "default": "Europe/Berlin",
+              "description": "IANA time-zone name, for example Europe/Berlin or Asia/Riyadh."
+            }
+          }
+        }
+      }
+    },
+    "created_at": "2026-08-10T20:29:18.126652+00:00"
+  },
+  {
+    "id": "f2d95f66-affd-5f64-bd03-5ff92f1cd70d",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "interaction_request",
+    "payload": {
+      "id": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df",
+      "kind": "client_tool",
+      "type": "interaction_request",
+      "payload": {
+        "input": {
+          "message": "Please confirm the time zone for the daily Telegram delivery.",
+          "requestedSchema": {
+            "type": "object",
+            "required": [
+              "timezone"
+            ],
+            "properties": {
+              "timezone": {
+                "type": "string",
+                "title": "Time zone",
+                "default": "Europe/Berlin",
+                "description": "IANA time-zone name, for example Europe/Berlin or Asia/Riyadh."
+              }
+            }
+          }
+        },
+        "render": {
+          "kind": "elicitation"
+        },
+        "toolCall": {
+          "id": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df",
+          "kind": "client",
+          "name": "request_input",
+          "input": {
+            "message": "Please confirm the time zone for the daily Telegram delivery.",
+            "requestedSchema": {
+              "type": "object",
+              "required": [
+                "timezone"
+              ],
+              "properties": {
+                "timezone": {
+                  "type": "string",
+                  "title": "Time zone",
+                  "default": "Europe/Berlin",
+                  "description": "IANA time-zone name, for example Europe/Berlin or Asia/Riyadh."
+                }
+              }
+            }
+          },
+          "rawInput": {
+            "message": "Please confirm the time zone for the daily Telegram delivery.",
+            "requestedSchema": {
+              "type": "object",
+              "required": [
+                "timezone"
+              ],
+              "properties": {
+                "timezone": {
+                  "type": "string",
+                  "title": "Time zone",
+                  "default": "Europe/Berlin",
+                  "description": "IANA time-zone name, for example Europe/Berlin or Asia/Riyadh."
+                }
+              }
+            }
+          },
+          "toolCallId": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df"
+        },
+        "toolName": "request_input",
+        "toolCallId": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df"
+      }
+    },
+    "created_at": "2026-08-10T20:29:18.126652+00:00"
+  },
+  {
+    "id": "d8bc5b3f-2fa3-4ddd-b903-6c0f787fc1d5",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "17ca7cad69f4e5511638692450765780",
+      "stopReason": "paused"
+    },
+    "created_at": "2026-08-10T20:29:18.126652+00:00"
+  },
+  {
+    "id": "746a84be-88b8-4962-a686-2d758bfb2169",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 0,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Configuring time zones**\n\nOkay, I need to clarify that there’s an issue with t… <373 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T20:29:31.611053+00:00"
+  },
+  {
+    "id": "a5ec2243-c2b0-5b0a-ab6b-b41a29a21278",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_Kb9sHoiYpWYSLt9TlfgQgJOn|fc_003fa00ff68094b6016a7a34ab2d88819eb5114fe6b34bee42",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <134 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T20:29:31.611053+00:00"
+  },
+  {
+    "id": "9f22edc4-2a8a-5263-b698-35815289df0d",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_UNiPSa9Yve89KPw88Osv2uil|fc_003fa00ff68094b6016a7a34ab2d9c819eb0f16812dc03456b",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <135 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T20:29:31.611053+00:00"
+  },
+  {
+    "id": "523777d7-180f-5b84-a3fe-9491ab91f338",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_ALQN5hGLZnULtlcMELhNTwtV|fc_003fa00ff68094b6016a7a34ab2da4819ea0066314829b7c7b",
+      "name": "read",
+      "type": "tool_call",
+      "input": {
+        "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <142 chars elided>"
+      }
+    },
+    "created_at": "2026-08-10T20:29:31.611053+00:00"
+  },
+  {
+    "id": "e1dc10db-d5fc-5540-949b-17dc5c757cb0",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 4,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_ALQN5hGLZnULtlcMELhNTwtV|fc_003fa00ff68094b6016a7a34ab2da4819ea0066314829b7c7b",
+      "type": "tool_result",
+      "output": "# Agent template playbooks\n\nMatch the user's ask to a row, then read the named p… <4452 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T20:29:31.611053+00:00"
+  },
+  {
+    "id": "67be11e0-c4fb-5c21-bcc3-840e2b0e6103",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 5,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_Kb9sHoiYpWYSLt9TlfgQgJOn|fc_003fa00ff68094b6016a7a34ab2d88819eb5114fe6b34bee42",
+      "type": "tool_result",
+      "output": "# The agent config, field by field\n\nRead this before your first `commit_revision… <17740 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T20:29:31.611053+00:00"
+  },
+  {
+    "id": "885b0380-592e-5032-a329-9c4b43830b59",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 6,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_UNiPSa9Yve89KPw88Osv2uil|fc_003fa00ff68094b6016a7a34ab2d9c819eb0f16812dc03456b",
+      "type": "tool_result",
+      "output": "# What a schedule or subscription passes to the run\n\nRead this when you create a… <4692 chars elided>",
+      "isError": false
+    },
+    "created_at": "2026-08-10T20:29:31.611053+00:00"
+  },
+  {
+    "id": "c700296c-82f2-5dff-b3d3-cf78e976ff31",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 7,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b",
+      "name": "request_connection",
+      "type": "tool_call",
+      "input": {
+        "mode": "api_key",
+        "slug": "telegram-main",
+        "integration": "telegram"
+      }
+    },
+    "created_at": "2026-08-10T20:29:35.521589+00:00"
+  },
+  {
+    "id": "9f315b21-6297-5191-a403-d52abb8290a9",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 8,
+    "sender": "agent",
+    "session_update": "interaction_request",
+    "payload": {
+      "id": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b",
+      "kind": "client_tool",
+      "type": "interaction_request",
+      "payload": {
+        "input": {
+          "mode": "api_key",
+          "slug": "telegram-main",
+          "integration": "telegram"
+        },
+        "render": {
+          "kind": "connect"
+        },
+        "toolCall": {
+          "id": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b",
+          "kind": "client",
+          "name": "request_connection",
+          "input": {
+            "mode": "api_key",
+            "slug": "telegram-main",
+            "integration": "telegram"
+          },
+          "rawInput": {
+            "mode": "api_key",
+            "slug": "telegram-main",
+            "integration": "telegram"
+          },
+          "toolCallId": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b"
+        },
+        "toolName": "request_connection",
+        "toolCallId": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b"
+      }
+    },
+    "created_at": "2026-08-10T20:29:35.521589+00:00"
+  },
+  {
+    "id": "6ce86457-eaed-4735-95db-b921882d33f7",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 9,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "25c002d243fae0df7814995d18f63d9a",
+      "stopReason": "paused"
+    },
+    "created_at": "2026-08-10T20:29:35.521589+00:00"
+  },
+  {
+    "id": "6456ee67-d61a-43b0-a888-e4a80650cdef",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 0,
+    "sender": "agent",
+    "session_update": "thought",
+    "payload": {
+      "text": "**Requesting connection again**\n\nI'm considering if I can commit to a tool with … <300 chars elided>",
+      "type": "thought"
+    },
+    "created_at": "2026-08-10T20:29:51.866077+00:00"
+  },
+  {
+    "id": "4f8d9088-9601-5063-9551-515d6fb68a98",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 1,
+    "sender": "agent",
+    "session_update": "tool_call",
+    "payload": {
+      "id": "call_pqSSnHadzjhDWjoxKBYrAbMe|fc_0363efaf4edf4457016a7a34bf6244819fa11049629969decf",
+      "name": "request_connection",
+      "type": "tool_call",
+      "input": {
+        "mode": "api_key",
+        "slug": "telegram-main",
+        "integration": "telegram"
+      }
+    },
+    "created_at": "2026-08-10T20:29:52.48712+00:00"
+  },
+  {
+    "id": "d03d9656-70e0-51f3-95b4-f902df05e29a",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 2,
+    "sender": "agent",
+    "session_update": "tool_result",
+    "payload": {
+      "id": "call_pqSSnHadzjhDWjoxKBYrAbMe|fc_0363efaf4edf4457016a7a34bf6244819fa11049629969decf",
+      "type": "tool_result",
+      "output": "{\"connected\":false,\"integration\":\"telegram\",\"slug\":\"telegram-main\",\"reason\":\"Connection failed. Please try again.\"}",
+      "isError": false
+    },
+    "created_at": "2026-08-10T20:29:52.48712+00:00"
+  },
+  {
+    "id": "0cbf6728-1ecb-497d-ae16-a927f33e1a87",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 3,
+    "sender": "agent",
+    "session_update": "usage",
+    "payload": {
+      "cost": 0.0347918,
+      "type": "usage",
+      "input": 6,
+      "total": 47077,
+      "output": 532
+    },
+    "created_at": "2026-08-10T20:29:56.796123+00:00"
+  },
+  {
+    "id": "e09b9157-8c98-4f64-bf24-45fae58bc9b4",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 4,
+    "sender": "agent",
+    "session_update": "message",
+    "payload": {
+      "text": "The Telegram connection failed again, so I couldn’t finish creating the agent or… <208 chars elided>",
+      "type": "message"
+    },
+    "created_at": "2026-08-10T20:29:56.796123+00:00"
+  },
+  {
+    "id": "e852864a-10a5-4c1b-8319-68725719be84",
+    "session_id": "cfee6813-a5ee-49b4-81ee-56dd1676afa6",
+    "project_id": "019fe1f4-c599-7c82-9350-c1f0ed5d660c",
+    "event_index": 5,
+    "sender": "agent",
+    "session_update": "done",
+    "payload": {
+      "type": "done",
+      "traceId": "2b23f11dcba8e2fbdc59aaee7a8f37c0"
+    },
+    "created_at": "2026-08-10T20:29:56.796123+00:00"
+  }
+]

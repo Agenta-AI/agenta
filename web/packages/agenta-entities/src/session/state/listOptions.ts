@@ -1,12 +1,19 @@
-import {querySessions} from "../api/api"
-import type {SessionStream} from "../core/schema"
+import {querySessionsPage} from "../api/api"
+import type {
+    SessionExpansion,
+    SessionOrigin,
+    SessionStream,
+    SessionsQueryResponse,
+} from "../core/schema"
 
 export const SESSIONS_PAGE_SIZE = 30
 
 /** Cursor pair for the activity-ordered window: the last row's id + its activity timestamp. */
 export interface SessionListCursor {
     next: string
-    newest: string
+    newest?: string
+    oldest?: string
+    order?: "ascending" | "descending"
 }
 
 export interface SessionListFilters {
@@ -23,12 +30,22 @@ export interface SessionListFilters {
     sessionIds?: string[]
     /** Its complement, so a separately-rendered group (pins) is not listed twice. */
     excludeSessionIds?: string[]
-    /** Who started the session. The sessions list hides automation runs unless asked. */
-    origin?: string
-    /** Hide one origin. Sessions with no stamp still show — absence is not a match. */
-    excludeOrigin?: string
+    /** Origins to include. Omission keeps the entity request neutral. */
+    origins?: SessionOrigin[]
+    /** Hide these origins. Sessions with no stamp still show. */
+    excludeOrigins?: SessionOrigin[]
+    expand?: SessionExpansion[]
+    includeTotal?: boolean
+    lowPriority?: boolean
+    order?: "ascending" | "descending"
     limit?: number
 }
+
+const stableValues = <T extends string>(values: T[] | undefined): T[] | undefined =>
+    values ? [...new Set(values)].sort() : undefined
+
+const stableIds = (values: string[] | undefined): string[] | undefined =>
+    values ? [...new Set(values)].sort() : undefined
 
 /**
  * Query key and fetcher for one page of the project's session list.
@@ -50,24 +67,44 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
         flags,
         sessionIds,
         excludeSessionIds,
-        origin,
-        excludeOrigin,
+        origins,
+        excludeOrigins,
+        expand,
+        includeTotal = false,
+        lowPriority = false,
+        order = "descending",
         limit = SESSIONS_PAGE_SIZE,
     } = filters
+    const normalizedSearch = search.trim()
+    const normalizedOrigins = stableValues(origins)
+    const normalizedExcludeOrigins = stableValues(excludeOrigins)
+    const normalizedExpand = stableValues(expand)
+    const normalizedSessionIds = stableIds(sessionIds)
+    const normalizedExcludeSessionIds = stableIds(excludeSessionIds)
+    const normalizedFlags = flags
+        ? {
+              is_alive: flags.is_alive,
+              is_running: flags.is_running,
+              is_attached: flags.is_attached,
+          }
+        : undefined
 
     return {
         queryKey: [
             "session-list",
             projectId,
-            search,
+            normalizedSearch,
             agentId,
             includeArchived,
             includeEnded,
-            flags ?? null,
-            sessionIds ?? null,
-            excludeSessionIds ?? null,
-            origin ?? null,
-            excludeOrigin ?? null,
+            normalizedFlags ?? null,
+            normalizedSessionIds ?? null,
+            normalizedExcludeSessionIds ?? null,
+            normalizedOrigins ?? null,
+            normalizedExcludeOrigins ?? null,
+            normalizedExpand ?? null,
+            includeTotal,
+            order,
             limit,
         ] as const,
         queryFn: ({
@@ -77,38 +114,72 @@ export const sessionListQueryOptions = (filters: SessionListFilters) => {
             pageParam?: SessionListCursor | null
             signal?: AbortSignal
         }) =>
-            querySessions({
+            querySessionsPage({
                 projectId,
-                search: search.trim() || undefined,
-                references: agentId ? [{id: agentId}] : undefined,
+                session: {
+                    search: normalizedSearch || undefined,
+                    liveness: normalizedFlags,
+                    origins: normalizedOrigins,
+                },
+                turnReferences: agentId ? [{id: agentId}] : undefined,
                 includeArchived,
                 includeEnded,
-                flags,
-                sessionIds,
-                excludeSessionIds: excludeSessionIds?.length ? excludeSessionIds : undefined,
-                origin,
-                excludeOrigin,
-                limit,
-                next: pageParam?.next,
-                newest: pageParam?.newest,
+                includeTotal,
+                expand: normalizedExpand,
+                sessionIds: normalizedSessionIds,
+                exclude:
+                    normalizedExcludeSessionIds?.length || normalizedExcludeOrigins?.length
+                        ? {
+                              sessionIds: normalizedExcludeSessionIds,
+                              origins: normalizedExcludeOrigins,
+                          }
+                        : undefined,
+                windowing: {
+                    limit,
+                    next: pageParam?.next,
+                    newest: pageParam?.newest,
+                    oldest: pageParam?.oldest,
+                    order,
+                },
                 abortSignal: signal,
+                ...(lowPriority ? {lowPriority: true} : {}),
             }),
         limit,
+        order,
     }
 }
 
 /** The cursor for the page after `page`, or `undefined` when it was the last one. */
 export const nextSessionCursor = (
-    page: SessionStream[] | null,
+    page: SessionsQueryResponse | null,
     limit = SESSIONS_PAGE_SIZE,
+    order: "ascending" | "descending" = "descending",
 ): SessionListCursor | undefined => {
-    if (!page || page.length < limit) return undefined
-    const last = page[page.length - 1]
-    const newest = last.updated_at ?? last.created_at
-    return last.id && newest ? {next: last.id, newest} : undefined
+    if (!page) return undefined
+    if (page.windowing !== undefined) {
+        if (!page.windowing) return undefined
+        const effectiveOrder = page.windowing.order ?? order
+        const boundary =
+            effectiveOrder === "ascending" ? page.windowing.oldest : page.windowing.newest
+        if (!page.windowing.next || !boundary) return undefined
+        return {
+            next: page.windowing.next,
+            newest: page.windowing.newest ?? undefined,
+            oldest: page.windowing.oldest ?? undefined,
+            order: effectiveOrder,
+        }
+    }
+
+    if (page.sessions.length < limit) return undefined
+    const last = page.sessions[page.sessions.length - 1]
+    const activity = last.updated_at ?? last.created_at
+    if (!last.id || !activity) return undefined
+    return order === "ascending"
+        ? {next: last.id, oldest: activity, order}
+        : {next: last.id, newest: activity, order}
 }
 
-/** Flatten loaded pages, dropping failed ones — `querySessions` resolves null on failure. */
+/** Flatten loaded pages, dropping failed ones. */
 export const sessionRowsFromPages = (
-    pages: (SessionStream[] | null)[] | undefined,
-): SessionStream[] => (pages ?? []).filter(Boolean).flat() as SessionStream[]
+    pages: (SessionsQueryResponse | null)[] | undefined,
+): SessionStream[] => (pages ?? []).flatMap((page) => page?.sessions ?? [])

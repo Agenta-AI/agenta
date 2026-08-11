@@ -923,6 +923,47 @@ function acpToolContentText(content: any): string {
   return "";
 }
 
+/** JSON of a value, treating "no information" serializations as absent. */
+function jsonText(value: unknown): string {
+  try {
+    const text = JSON.stringify(value);
+    if (!text || text === "{}" || text === "[]" || text === "null") return "";
+    return text;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Text of an OBJECT `rawOutput`. codex-acp never sends a `content` array on the update that
+ * completes a tool call — it sends a plain object whose shape depends on the tool: shell/exec
+ * `{formatted_output, exit_code}`, an MCP call `{result, error}` (result being an MCP
+ * CallToolResult carrying `content[]`), the unified exec path `{output}`. `acpToolContentText`
+ * reads none of those and returns "", which is why every codex tool result — successes and
+ * failures alike — stored and streamed empty.
+ *
+ * Candidates are tried in that order and an empty one falls through to the next, so a failed MCP
+ * call (`{result: null, error: "..."}`) carries its real error message; an object with no known
+ * key serializes whole, so a completed call is never silently empty.
+ */
+function acpRawOutputText(raw: any): string {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  for (const key of ["formatted_output", "result", "output", "error"]) {
+    const value = raw[key];
+    if (typeof value === "string") {
+      if (value) return value;
+      continue;
+    }
+    if (value && typeof value === "object") {
+      const text = acpToolContentText(value.content) || acpToolContentText(value);
+      if (text) return text;
+      const json = jsonText(value);
+      if (json) return json;
+    }
+  }
+  return jsonText(raw);
+}
+
 /**
  * Is this line part of the pi-acp startup banner that some setups emit as the first agent
  * message chunk, ahead of the real answer? pi-acp's `buildStartupInfo` produces, in order:
@@ -1470,7 +1511,8 @@ export function createSandboxAgentOtel(
     if (status !== "completed" && status !== "failed") return;
     const out =
       acpToolContentText(update.content) ||
-      acpToolContentText(update.rawOutput);
+      acpToolContentText(update.rawOutput) ||
+      acpRawOutputText(update.rawOutput);
     if (entry.span) {
       setOutput(entry.span, out, capture);
       if (status === "failed")

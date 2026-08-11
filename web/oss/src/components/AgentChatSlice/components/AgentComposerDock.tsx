@@ -28,7 +28,6 @@ import {chatPanelMaximizedAtom} from "../state/panelLayout"
 
 import {ComposerSkeleton} from "./AgentChatSkeleton"
 import ApprovalDock, {type getPendingApprovals} from "./ApprovalDock"
-import type {ClientToolOutputHandler} from "./clientTools"
 import ComposerAttachments from "./ComposerAttachments"
 import ConnectModelBanner from "./ConnectModelBanner"
 import ContextBudgetIndicator from "./ContextBudgetIndicator"
@@ -72,7 +71,6 @@ const AgentComposerDock = ({
     onApprovalResponse,
     onViewTrace,
     pendingInteraction,
-    onClientToolOutput,
     onSubmit,
     onStop,
     richInputRef,
@@ -105,7 +103,6 @@ const AgentComposerDock = ({
     onApprovalResponse: (args: {id: string; approved: boolean; message?: string}) => void
     onViewTrace?: () => void
     pendingInteraction: ReturnType<typeof getPendingConnectInteraction>
-    onClientToolOutput: ClientToolOutputHandler
     onSubmit: (text: string) => void | Promise<void>
     onStop: () => void
     richInputRef: RefObject<RichChatInputHandle | null>
@@ -290,14 +287,8 @@ const AgentComposerDock = ({
                     onViewTrace={onViewTrace}
                     entityId={entityId}
                 />
-                {/* Parked client-tool interactions (connect): same placement contract as the
-                    approval dock — the paused gate can't scroll out of reach, and "Not now"
-                    is the escape hatch that resumes the run without connecting. */}
-                <InteractionDock
-                    className={CHAT_COLUMN}
-                    pending={pendingInteraction}
-                    onOutput={onClientToolOutput}
-                />
+                {/* The connect dock is a shortcut to the actionable transcript card. */}
+                <InteractionDock className={CHAT_COLUMN} pending={pendingInteraction} />
                 {/* Owner call: a template pick must not shift the composer, so no chip renders here
                     (unlike the home surface) — the strip card's own selected state is the
                     "which template" indicator; the composer text is the only other feedback. */}

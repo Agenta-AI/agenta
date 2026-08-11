@@ -6,7 +6,7 @@ import {
     modalitiesForModel,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground"
+import {messageHasPendingHitl} from "@agenta/playground"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {UploadSimple} from "@phosphor-icons/react"
@@ -344,12 +344,10 @@ const AgentConversation = ({
     // opens the paused turn's own trace drawer.
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
-    // Parked connect interaction on the paused turn → the InteractionDock owns its actions (the
-    // inline row is a passive marker). Gated off while busy (`input-streaming` isn't parked yet)
-    // and after a user stop (the run is dead, nothing to settle — matches the queue's stop void).
+    // The connect dock stays visible for the newest parked card unless the run was stopped.
     const pendingInteraction = useMemo(
-        () => (busy || stopped ? null : getPendingConnectInteraction(messages)),
-        [messages, busy, stopped],
+        () => (stopped ? null : getPendingConnectInteraction(messages)),
+        [messages, stopped],
     )
     const openPausedTurnTrace = useMemo(() => {
         const last = messages[messages.length - 1]
@@ -361,32 +359,20 @@ const AgentConversation = ({
     // AND the Session inspector's live-watcher signal, which derives "streaming" from `running`).
     // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a closed
     // tab keeps no stale dot and stops claiming it's the live watcher.
-    // `hitlPending` reads only the LAST assistant message, so the moment a new turn starts
-    // streaming (or hydration reshapes the transcript) a still-pending interaction in an
-    // EARLIER message stops counting — status collapses to idle, the settle stamp lands, and
-    // the running-elsewhere strip flickers in the very tab that owns the parked widget
-    // (Mahmoud's session e627d80a). Scan the whole transcript: any pending interaction this
-    // tab renders means this tab owns the run.
-    const anyPendingInteraction = useMemo(
-        () =>
-            messages.some((message) => {
-                if (message.role !== "assistant") return false
-                const parts = message.parts ?? []
-                const renderMap = buildRenderMap(parts)
-                return parts.some((part) => isPendingClientToolInteraction(part, renderMap))
-            }),
-        [messages],
-    )
+    // A still-pending interaction in an EARLIER message must keep the status at `awaiting`, or the
+    // status collapses to idle, the settle stamp lands, and the running-elsewhere strip flickers in
+    // the very tab that owns the parked widget (Mahmoud's session e627d80a). `hitlPending` scans
+    // the whole transcript for exactly that, approvals included.
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
-            : hitlPending || anyPendingInteraction
+            : hitlPending
               ? "awaiting"
               : busy
                 ? "running"
                 : "idle"
         setSessionStatus({id: sessionId, status})
-    }, [error, hitlPending, anyPendingInteraction, busy, sessionId, setSessionStatus])
+    }, [error, hitlPending, busy, sessionId, setSessionStatus])
     useEffect(
         () => () => setSessionStatus({id: sessionId, status: "idle"}),
         [sessionId, setSessionStatus],
@@ -584,9 +570,9 @@ const AgentConversation = ({
                 showWorking={
                     isLast && busy && (!isAssistantTurn || message.parts.some(isVisiblePart))
                 }
-                // Paused on the user (never concurrently with showWorking — hitlPending implies not
-                // busy): keeps the turn from reading as finished while the queue holds sends.
-                showWaiting={isLast && isAssistantTurn && !busy && hitlPending}
+                // Paused on the user: painted on the turn that actually HOLDS the gate, not the
+                // newest one, so a card parked several turns up marks its own turn.
+                showWaiting={isAssistantTurn && !busy && !stopped && messageHasPendingHitl(message)}
                 showStopped={stopped && isLast && isAssistantTurn}
                 resendDisabled={busy}
                 onResend={handleResend}
@@ -713,7 +699,6 @@ const AgentConversation = ({
                                 onApprovalResponse={handleApprovalResponse}
                                 onViewTrace={openPausedTurnTrace}
                                 pendingInteraction={pendingInteraction}
-                                onClientToolOutput={handleClientToolOutput}
                                 onSubmit={handleSubmit}
                                 onStop={handleStop}
                                 richInputRef={richInputRef}

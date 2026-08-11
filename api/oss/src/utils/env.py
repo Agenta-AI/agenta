@@ -517,9 +517,10 @@ class SessionsRecordsConfig(BaseModel):
 
     # When a record body exceeds the cap, preserve its structure + partial content (trim only
     # the large field values) instead of replacing the whole body with {"_truncated": True}.
-    # Off = legacy whole-body drop. On makes reconstruction from records higher-fidelity.
+    # Off = legacy whole-body drop, which loses the record's type and id and leaves the
+    # replayed tool card unable to settle. Default ON since 2026-08-11.
     smart_truncation: bool = (
-        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "false"
+        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "true"
     ).lower() in _TRUTHY
 
     model_config = ConfigDict(extra="ignore")

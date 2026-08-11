@@ -14,6 +14,7 @@
  * `tools__{provider}__{integration}__{action}__{connection}` (see `parseGatewayToolName`), and a
  * custom function tool arrives as its bare `function.name`.
  */
+import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {parseGatewayToolSlug} from "@agenta/shared/utils"
 
 import {PI_BUILTIN_RULE_NAMES} from "./piPermissions"
@@ -123,9 +124,6 @@ export const PLATFORM_OPS = new Set([
     "resume_subscription",
 ])
 
-/** Browser-fulfilled client tools — they carry their own widget/decline UI; never auto-allowable. */
-export const CLIENT_TOOLS = new Set(["request_connection", "request_input"])
-
 /** The seven built-ins by lower-cased name, so a gate can be written under its canonical name. */
 const PI_BUILTIN_CANONICAL_NAMES = new Map<string, string>(
     PI_BUILTIN_RULE_NAMES.map((name) => [name.toLowerCase(), name]),
@@ -139,7 +137,7 @@ const PI_BUILTIN_CANONICAL_NAMES = new Map<string, string>(
  */
 export function gateRulePattern(toolName: string): string | null {
     if (!toolName) return null
-    if (PLATFORM_OPS.has(toolName) || CLIENT_TOOLS.has(toolName)) return null
+    if (PLATFORM_OPS.has(toolName) || CLIENT_TOOL_NAMES.has(toolName)) return null
     if (toolName.startsWith("mcp__")) return null
     // A built-in reaches the card lower-cased (the run frame's part is `tool-bash`); the rule list
     // reads one way only if both writers use the canonical name.

@@ -14,7 +14,6 @@ import {
     permissionPolicyOptionsForSchema,
     permissionPolicySchema,
     DEFAULT_PERMISSION_POLICY,
-    CLIENT_TOOLS,
     PLATFORM_OPS,
     providerForModel,
     vaultModelGroups,
@@ -33,6 +32,7 @@ import {
     type PermissionPolicy,
 } from "@agenta/entity-ui/drill-in"
 import {parseGatewayTool} from "@agenta/entity-ui/tool-utils"
+import {CLIENT_TOOL_NAMES} from "@agenta/shared/clientTools"
 import {draftConfigChangeSignalAtom} from "@agenta/shared/state"
 import type {SlashCommandSection} from "@agenta/ui/rich-chat-input"
 // Same icons the config panel gives these sections (AgentTemplateControl / itemKinds).
@@ -385,7 +385,7 @@ export function useChatSlashCommands({
         const isPlumbing = (tool: unknown, token: string | undefined) => {
             const type = (tool as Record<string, unknown> | null)?.type
             if (type === "platform") return true
-            return !!token && (PLATFORM_OPS.has(token) || CLIENT_TOOLS.has(token))
+            return !!token && (PLATFORM_OPS.has(token) || CLIENT_TOOL_NAMES.has(token))
         }
 
         const toolItems = compact([

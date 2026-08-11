@@ -1,6 +1,12 @@
-import type {SessionRecord} from "@agenta/entities/session"
+import type {
+    SessionInteractionRowState,
+    SessionInteractionRowStates,
+    SessionRecord,
+} from "@agenta/entities/session"
+import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import {describe, expect, it} from "vitest"
 
+import abandonedFormSession from "./__fixtures__/abandonedFormSession.json"
 import {APPROVED_EXECUTION_RESULT_UNKNOWN, transcriptToMessages} from "./transcriptToMessages"
 
 const record = (id: string, payload: Record<string, unknown>, sender = "agent"): SessionRecord => ({
@@ -734,16 +740,7 @@ describe("transcriptToMessages parked client tool", () => {
     })
 })
 
-/**
- * Regression: a `session_interactions` row that reached a TERMINAL status (cancelled — e.g. the
- * stale-interaction sweep) server-side, with no corresponding `tool_result` ever landing in the
- * transcript, previously replayed as still fully pending — an interactive, answerable form
- * stacked above the real live interaction (live evidence, session
- * 3975e362-f64c-4e2d-8f4f-4f36c584bd91 on the 8180 dev stack). `cancelledClientToolTokens` (keyed
- * by `session_interactions.token`, which equals the record's `toolCallId`) is the join that fixes
- * it — each client-tool kind renders inert exactly like its own live cancel.
- */
-describe("transcriptToMessages cancelled client-tool interactions", () => {
+describe("transcriptToMessages interaction-row precedence", () => {
     const elicitationToolCallId = "call_4ySJBKMeiDq4u3hUNGJidwkX|fc_05786f8fb9f28034"
     const elicitationInput = {
         message: "To configure the PR reviewer, tell me which repository to monitor.",
@@ -781,94 +778,465 @@ describe("transcriptToMessages cancelled client-tool interactions", () => {
             },
         })
 
-    it("cancelled: an elicitation replays inert (output-available, action:cancel), not as a form", () => {
-        const messages = transcriptToMessages([elicitationRequest()], {
-            cancelledClientToolTokens: new Set([elicitationToolCallId]),
-        })
-        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
-
-        expect(parts[0]).toMatchObject({
-            type: "tool-request_input",
-            toolCallId: elicitationToolCallId,
-            state: "output-available",
-            output: {action: "cancel"},
-            // The original request payload is untouched — the widget still needs it to render
-            // its (now inert) chip, e.g. for a submitted-answers style summary.
-            input: elicitationInput,
-        })
+    const rowState = (
+        token: string,
+        overrides: Partial<SessionInteractionRowState> = {},
+    ): SessionInteractionRowState => ({
+        token,
+        status: "cancelled",
+        kind: "client_tool",
+        ...overrides,
     })
+    const rowStates = (...rows: SessionInteractionRowState[]): SessionInteractionRowStates =>
+        new Map(rows.map((row) => [row.token, row]))
+    const toolParts = (
+        records: SessionRecord[],
+        interactionRowStates?: SessionInteractionRowStates,
+    ): Record<string, unknown>[] =>
+        (
+            (transcriptToMessages(records, {interactionRowStates})?.[0].parts ??
+                []) as unknown as Record<string, unknown>[]
+        ).filter((part) => typeof part.toolCallId === "string")
 
-    it("cancelled: a connect request replays inert (connected:false, reason:cancelled)", () => {
-        const messages = transcriptToMessages([connectRequest()], {
-            cancelledClientToolTokens: new Set([connectToolCallId]),
-        })
-        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
-
-        expect(parts[0]).toMatchObject({
-            type: "tool-request_connection",
-            toolCallId: connectToolCallId,
-            state: "output-available",
-            output: {connected: false, reason: "cancelled"},
-        })
-    })
-
-    it("pending: a token NOT in the cancelled set still replays fully interactive (existing behavior)", () => {
-        const messages = transcriptToMessages([elicitationRequest()], {
-            cancelledClientToolTokens: new Set(["some-other-token"]),
-        })
-        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
-
-        expect(parts[0]).toMatchObject({
-            type: "tool-request_input",
-            toolCallId: elicitationToolCallId,
-            state: "input-available",
-        })
-    })
-
-    it("pending: omitting the option entirely is a no-op (callers with no interaction join unaffected)", () => {
-        const messages = transcriptToMessages([elicitationRequest()])
-        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
-
-        expect(parts[0]).toMatchObject({state: "input-available"})
-    })
-
-    it("settled: a real tool_result still wins over a stale cancelled-token entry", () => {
-        // Belt-and-suspenders: even if the interactions join is stale (says cancelled) but the
-        // transcript itself shows a later real settle, the real settle must not be downgraded.
-        const messages = transcriptToMessages(
+    it("keeps a recorded tool result ahead of row state", () => {
+        const output = {action: "accept", content: {repository: "octocat/Hello-World"}}
+        const parts = toolParts(
             [
                 elicitationRequest(),
                 record("record-result", {
                     type: "tool_result",
                     id: elicitationToolCallId,
-                    output: {action: "accept", content: {repository: "octocat/Hello-World"}},
+                    output,
                 }),
             ],
-            {cancelledClientToolTokens: new Set([elicitationToolCallId])},
+            rowStates(
+                rowState(elicitationToolCallId, {
+                    status: "responded",
+                    resolution: {outcome: "error", error: "stale error"},
+                }),
+            ),
         )
-        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
+
+        expect(parts[0]).toMatchObject({state: "output-available", output})
+    })
+
+    it("renders a completed saved resolution", () => {
+        const output = {action: "accept", content: {repository: "octocat/Hello-World"}}
+        const parts = toolParts(
+            [elicitationRequest()],
+            rowStates(
+                rowState(elicitationToolCallId, {
+                    status: "responded",
+                    resolution: {
+                        tool_call_id: elicitationToolCallId,
+                        tool_name: "request_input",
+                        outcome: "completed",
+                        output,
+                    },
+                }),
+            ),
+        )
+
+        expect(parts[0]).toMatchObject({state: "output-available", output})
+    })
+
+    it("uses neutral output when a completed resolution has no object output", () => {
+        const parts = toolParts(
+            [elicitationRequest()],
+            rowStates(
+                rowState(elicitationToolCallId, {
+                    status: "responded",
+                    resolution: {outcome: "completed", output: "invalid"},
+                }),
+            ),
+        )
 
         expect(parts[0]).toMatchObject({
             state: "output-available",
-            output: {action: "accept", content: {repository: "octocat/Hello-World"}},
+            output: CLIENT_TOOL_INTERACTION_ENDED_OUTPUT,
         })
     })
 
-    it("cancelled: an unregistered client-tool kind still settles (empty output, no crash)", () => {
-        const toolCallId = "call_unknownKind"
-        const messages = transcriptToMessages(
-            [
-                record("record-interaction", {
-                    type: "interaction_request",
-                    id: toolCallId,
-                    kind: "client_tool",
-                    payload: {toolCallId, toolName: "some_future_client_tool", input: {}},
+    it("renders an error saved resolution", () => {
+        const parts = toolParts(
+            [connectRequest()],
+            rowStates(
+                rowState(connectToolCallId, {
+                    status: "responded",
+                    resolution: {
+                        tool_call_id: connectToolCallId,
+                        tool_name: "request_connection",
+                        outcome: "error",
+                        error: "OAuth popup failed",
+                    },
                 }),
-            ],
-            {cancelledClientToolTokens: new Set([toolCallId])},
+            ),
         )
-        const parts = (messages?.[0].parts ?? []) as unknown as Record<string, unknown>[]
 
-        expect(parts[0]).toMatchObject({state: "output-available", output: {}})
+        expect(parts[0]).toMatchObject({state: "output-error", errorText: "OAuth popup failed"})
+    })
+
+    it("renders neutral output for terminal rows without saved answers", () => {
+        const parts = toolParts(
+            [elicitationRequest(), connectRequest()],
+            rowStates(rowState(elicitationToolCallId), rowState(connectToolCallId)),
+        )
+        const elicitation = parts.find((part) => part.toolCallId === elicitationToolCallId)
+        const connect = parts.find((part) => part.toolCallId === connectToolCallId)
+
+        expect(elicitation).toMatchObject({
+            state: "output-available",
+            output: CLIENT_TOOL_INTERACTION_ENDED_OUTPUT,
+        })
+        expect(connect).toMatchObject({
+            state: "output-available",
+            output: CLIENT_TOOL_INTERACTION_ENDED_OUTPUT,
+        })
+        expect(elicitation?.output).not.toEqual({action: "cancel"})
+        expect(connect?.output).not.toEqual({connected: false, reason: "cancelled"})
+    })
+
+    it("leaves a pending row live", () => {
+        const parts = toolParts(
+            [elicitationRequest()],
+            rowStates(rowState(elicitationToolCallId, {status: "pending"})),
+        )
+
+        expect(parts[0]).toMatchObject({state: "input-available"})
+    })
+
+    it("joins through a stamped tool-call id before the row token", () => {
+        const output = {connected: true, integration: "telegram"}
+        const parts = toolParts(
+            [connectRequest()],
+            rowStates(
+                rowState("interaction-token", {
+                    status: "responded",
+                    toolCallId: connectToolCallId,
+                    resolution: {outcome: "completed", output},
+                }),
+            ),
+        )
+
+        expect(parts[0]).toMatchObject({state: "output-available", output})
+    })
+
+    it("joins legacy rows through token equality", () => {
+        const parts = toolParts(
+            [elicitationRequest()],
+            rowStates(rowState(elicitationToolCallId, {kind: "user_input", status: "resolved"})),
+        )
+
+        expect(parts[0]).toMatchObject({
+            state: "output-available",
+            output: CLIENT_TOOL_INTERACTION_ENDED_OUTPUT,
+        })
+    })
+
+    it("never settles a client-tool part from a user-approval row", () => {
+        const parts = toolParts(
+            [connectRequest()],
+            rowStates(rowState(connectToolCallId, {kind: "user_approval", status: "cancelled"})),
+        )
+
+        expect(parts[0]).toMatchObject({state: "input-available"})
+    })
+
+    // The gate is on a turn that never resumed, so no other pass settles it. Left
+    // `approval-requested`, the whole-chat queue scan holds every typed message behind a gate
+    // whose turn is long dead (review round 1, finding 2).
+    const abandonedApprovalRecords = (): SessionRecord[] => [
+        record("r-user-1", {type: "message", text: "delete the file"}, "user"),
+        record("r-call", {
+            type: "tool_call",
+            id: "tool-1",
+            name: "bash",
+            input: {command: "rm notes.md"},
+        }),
+        record("r-req", {
+            type: "interaction_request",
+            id: "approval-1",
+            kind: "user_approval",
+            payload: {toolCallId: "tool-1"},
+        }),
+        record("r-done-paused", {type: "done", stopReason: "paused"}),
+        record("r-user-2", {type: "message", text: "never mind, just say hi"}, "user"),
+        record("r-msg", {type: "message", text: "hi"}),
+        record("r-done", {type: "done"}),
+    ]
+    const allParts = (
+        records: SessionRecord[],
+        interactionRowStates?: SessionInteractionRowStates,
+    ): Record<string, unknown>[] =>
+        (transcriptToMessages(records, {interactionRowStates}) ?? []).flatMap(
+            (message) => message.parts as unknown as Record<string, unknown>[],
+        )
+
+    it("leaves an abandoned approval gate pending when no row says otherwise", () => {
+        const parts = allParts(abandonedApprovalRecords())
+
+        expect(parts.some((part) => part.state === "approval-requested")).toBe(true)
+    })
+
+    it("settles an abandoned approval gate from its swept row", () => {
+        const parts = allParts(
+            abandonedApprovalRecords(),
+            rowStates(rowState("approval-1", {kind: "user_approval", status: "cancelled"})),
+        )
+
+        expect(parts.some((part) => part.state === "approval-requested")).toBe(false)
+        // Denied, not approved: the sweep proves only that the gate died unanswered, and the
+        // gated tool never ran.
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "output-denied",
+        })
+    })
+
+    it("replays an answered approval row with its verdict", () => {
+        const parts = allParts(
+            abandonedApprovalRecords(),
+            rowStates(
+                rowState("approval-1", {
+                    kind: "user_approval",
+                    status: "resolved",
+                    resolution: {verdict: "denied", tool_call_id: "tool-1"},
+                }),
+            ),
+        )
+
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+            approval: {id: "approval-1", approved: false},
+        })
+    })
+
+    it("keeps an answered approval row's approved verdict", () => {
+        const parts = allParts(
+            abandonedApprovalRecords(),
+            rowStates(
+                rowState("approval-1", {
+                    kind: "user_approval",
+                    status: "resolved",
+                    resolution: {verdict: "approved", tool_call_id: "tool-1"},
+                }),
+            ),
+        )
+
+        expect(parts.find((part) => part.toolCallId === "tool-1")).toMatchObject({
+            state: "approval-responded",
+            approval: {id: "approval-1", approved: true},
+        })
+    })
+
+    it("preserves record-only replay when row states are omitted", () => {
+        expect(toolParts([elicitationRequest()])[0]).toMatchObject({state: "input-available"})
+    })
+})
+
+/**
+ * Golden replay of a REAL pre-fix session (live QA, 2026-08-10): dev stack session
+ * `0b6a8c44-a975-4431-90e7-adbcab87c8e8`, whose single interaction row is
+ * `client_tool` / `request_input` / `cancelled` with no resolution and no
+ * `data.request.tool_call_id`. Its 44 records are the fixture, structurally untouched — only long
+ * unrelated `read`/`ls` payloads are elided, never the form's own records.
+ *
+ * The shape that makes it interesting: the form's turn ends `done{stopReason:"paused"}` and the
+ * NEXT turn starts with no user message between, so the two fold into one `resumed` draft. The
+ * resumed-draft pass settles approval gates only, so nothing but the row can settle this card.
+ */
+describe("golden: an abandoned form card from a real pre-fix session", () => {
+    const FORM_TOOL_CALL_ID =
+        "call_Dd5g7Xd92RxD0l0TV55ul07V|fc_0b9b71f5a8fc3f56016a79dcd4ea7081a09d6aedfee011e1a6"
+    const goldenRecords = abandonedFormSession as unknown as SessionRecord[]
+    const formPart = (interactionRowStates?: SessionInteractionRowStates) =>
+        (transcriptToMessages(goldenRecords, {interactionRowStates}) ?? [])
+            .flatMap((message) => message.parts as unknown as Record<string, unknown>[])
+            .find((part) => part.toolCallId === FORM_TOOL_CALL_ID)
+
+    it("replays the form live when no row state is available", () => {
+        expect(formPart()).toMatchObject({type: "tool-request_input", state: "input-available"})
+    })
+
+    it("settles the form to the neutral ended state from its cancelled row", () => {
+        const part = formPart(
+            new Map([
+                [
+                    FORM_TOOL_CALL_ID,
+                    {token: FORM_TOOL_CALL_ID, status: "cancelled", kind: "client_tool"},
+                ],
+            ]) as SessionInteractionRowStates,
+        )
+
+        expect(part).toMatchObject({
+            state: "output-available",
+            output: CLIENT_TOOL_INTERACTION_ENDED_OUTPUT,
+        })
+        // Never the pre-fix guesses that made an answered form read as dismissed.
+        expect(part?.output).not.toEqual({action: "cancel"})
+    })
+})
+
+/**
+ * codex-acp reports an MCP call's rawInput as the `{tool, server, arguments}` wrapper, and the
+ * DURABLE record keeps it — while the live stream hands the FE the bare ACP `rawInput`. Replaying
+ * the wrapper verbatim made card bodies (which read `input.workflow_revision`) and
+ * `extractCallDescription` (which reads `input.description`) miss their fields, so a replayed call
+ * dropped to raw JSON where the live one rendered a card. Shape taken from session 3d99d178; the
+ * guard mirrors `unwrapCodexMcpArgs` in services/runner/src/permission-plan.ts.
+ */
+describe("transcriptToMessages MCP argument wrapper", () => {
+    const bareArgs = {
+        description: "تكوين الوكيل",
+        workflow_revision: {base_revision_id: "rev-1"},
+    }
+    const wrapped = {tool: "commit_revision", server: "agenta-tools", arguments: bareArgs}
+    const mcpCall = (input: unknown): SessionRecord =>
+        record("record-call", {
+            type: "tool_call",
+            id: "exec-1",
+            name: "mcp.agenta-tools.commit_revision",
+            input,
+        })
+
+    it("unwraps the wrapper so a replayed call carries the same input as the live part", () => {
+        expect(firstPart([mcpCall(wrapped)]).input).toEqual(bareArgs)
+    })
+
+    it("unwraps on the resume re-emit of an already-seen tool call", () => {
+        const part = firstPart([
+            mcpCall({tool: "commit_revision", server: "agenta-tools", arguments: {stale: true}}),
+            mcpCall(wrapped),
+        ])
+        expect(part.input).toEqual(bareArgs)
+    })
+
+    it("unwraps the part synthesized by an approval gate", () => {
+        const part = firstPart([
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {
+                    toolCallId: "exec-1",
+                    toolCall: {name: "commit_revision", rawInput: wrapped},
+                },
+            }),
+        ])
+        expect(part.input).toEqual(bareArgs)
+    })
+
+    it("leaves a real input that merely HAS an arguments field untouched", () => {
+        const real = {arguments: {a: 1}, timeout: 30}
+        expect(firstPart([mcpCall(real)]).input).toEqual(real)
+    })
+
+    it("leaves a lookalike whose envelope key is not a string untouched", () => {
+        const real = {tool: "x", server: 42, arguments: {a: 1}}
+        expect(firstPart([mcpCall(real)]).input).toEqual(real)
+    })
+
+    it("leaves a bare input (no arguments field) untouched", () => {
+        expect(firstPart([mcpCall({command: "ls"})]).input).toEqual({command: "ls"})
+    })
+})
+
+/**
+ * The durable `tool_call` record wraps the model's arguments in an MCP envelope
+ * (`{tool, server, arguments}`), while the live stream emits the bare ACP `rawInput`. Replay has to
+ * hand the cards that same bare shape or a call that rendered a friendly card live comes back as
+ * raw JSON on reload. Payload trimmed from real session `3d99d178-b76b-4eb7-a9e9-ad43295ee2b8`.
+ */
+describe("transcriptToMessages tool input unwrapping", () => {
+    const bareArguments = {
+        description: "تكوين الوكيل لإرسال قصيدة عربية يومية عبر تيليغرام.",
+        workflow_revision: {
+            delta: {
+                operations: [
+                    {
+                        value: {
+                            name: "telegram_send_message",
+                            type: "gateway",
+                            action: "SEND_MESSAGE",
+                            provider: "composio",
+                            connection: "telegram-main",
+                            integration: "telegram",
+                        },
+                        target: ["parameters", "agent", "tools"],
+                        operation: "add_item",
+                    },
+                ],
+            },
+            base_revision_id: "019fefed-a8a0-7720-bbe6-85b60d5b2ace",
+        },
+    }
+    const wrappedInput = {tool: "commit_revision", server: "agenta-tools", arguments: bareArguments}
+
+    const toolPart = (records: SessionRecord[]): Record<string, unknown> => {
+        const messages = transcriptToMessages(records)
+        expect(messages).not.toBeNull()
+        return (messages?.[0].parts ?? [])[0] as unknown as Record<string, unknown>
+    }
+
+    const toolCall = (id: string, input: unknown): SessionRecord =>
+        record(id, {
+            type: "tool_call",
+            id: "tool-1",
+            name: "mcp.agenta-tools.commit_revision",
+            input,
+        })
+
+    it("unwraps the envelope so the card reads `workflow_revision` at the top level", () => {
+        const part = toolPart([toolCall("record-call", wrappedInput)])
+
+        expect(part.input).toEqual(bareArguments)
+        expect(part.input).toHaveProperty("workflow_revision")
+        expect(part.input).not.toHaveProperty("arguments")
+    })
+
+    it("unwraps a resume's re-emitted call, which updates the kept part in place", () => {
+        const part = toolPart([
+            toolCall("record-call", wrappedInput),
+            toolCall("record-resume-call", wrappedInput),
+        ])
+
+        expect(part.input).toEqual(bareArguments)
+    })
+
+    it("unwraps the envelope on a part built from an interaction_request", () => {
+        const part = toolPart([
+            record("record-request", {
+                type: "interaction_request",
+                id: "approval-1",
+                kind: "user_approval",
+                payload: {
+                    toolCallId: "tool-1",
+                    toolCall: {
+                        kind: "execute",
+                        toolCallId: "tool-1",
+                        resolvedName: "commit_revision",
+                        rawInput: wrappedInput,
+                    },
+                },
+            }),
+        ])
+
+        expect(part.state).toBe("approval-requested")
+        expect(part.input).toEqual(bareArguments)
+    })
+
+    it("passes an already-bare input through unchanged", () => {
+        expect(toolPart([toolCall("record-call", bareArguments)]).input).toEqual(bareArguments)
+    })
+
+    it("leaves a real `arguments` field alone when a sibling is not an envelope key", () => {
+        const realInput = {arguments: {"--json": true}, workflow_revision: {message: "keep me"}}
+
+        expect(toolPart([toolCall("record-call", realInput)]).input).toEqual(realInput)
+    })
+
+    it("leaves a lone `arguments` field alone — nothing proves it is an envelope", () => {
+        const realInput = {arguments: {"--json": true}}
+
+        expect(toolPart([toolCall("record-call", realInput)]).input).toEqual(realInput)
     })
 })

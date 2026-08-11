@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {type SessionStream} from "@agenta/entities/session"
+import {type SessionExpansion, type SessionStream} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -17,12 +17,34 @@ import {
     sessionStatusFilterAtom,
 } from "./filters"
 import {isSessionPinnedAtom, pinnedSessionIdsAtom, toggleSessionPinAtom} from "./pins"
+import {selectedSessionListPolicy, type SessionListRequestPolicy} from "./sessionListPolicy"
 import {
     pendingBySessionId,
     rowsFromPages,
     useActionableInteractions,
     useSessionList,
+    type SessionListOptions,
 } from "./useSessionList"
+
+/**
+ * A pin is an explicit user request and overrides the surface's origin filter — a pinned
+ * automation session must still show in human (exclude-trigger) mode (P2-8). It also needs the
+ * `trigger` expansion regardless of the surface's own policy: a human-mode surface never
+ * requests it, so a pinned automation row's name would otherwise never resolve and fall back to
+ * "Missing schedule".
+ */
+export function pinnedSessionListArgs(
+    shared: SessionListOptions,
+    pinnedIds: string[],
+): SessionListOptions {
+    return {
+        ...shared,
+        originPolicy: "all",
+        expansions: Array.from(new Set<SessionExpansion>([...shared.expansions, "trigger"])),
+        sessionIds: pinnedIds,
+        enabled: pinnedIds.length > 0,
+    }
+}
 
 export interface SessionGroup {
     key: "pinned" | "recent"
@@ -36,6 +58,8 @@ export interface SessionGroup {
 }
 
 export interface UseSessionsListArgs {
+    defaultPolicy: SessionListRequestPolicy
+    automationPolicy: SessionListRequestPolicy
     /**
      * Route-supplied agent scope (`/apps/[app_id]/sessions`). Overrides the agent filter rather
      * than writing to it, so the project page's filter is never left holding a value the user
@@ -56,7 +80,11 @@ export interface UseSessionsListArgs {
  * Mixing both in one recency-ordered feed meant a busy schedule buried your own sessions, and
  * grouping them client-side made paging back-fill a group above another.
  */
-export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = {}) => {
+export const useSessionsList = ({
+    agentId: scopedAgentId,
+    defaultPolicy,
+    automationPolicy,
+}: UseSessionsListArgs) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const search = useAtomValue(sessionSearchAtom)
     const agentFilter = useAtomValue(sessionAgentFilterAtom)
@@ -80,27 +108,19 @@ export const useSessionsList = ({agentId: scopedAgentId}: UseSessionsListArgs = 
         [pendingBySession],
     )
 
+    const policy = selectedSessionListPolicy(showTriggered, defaultPolicy, automationPolicy)
     const shared = {
+        originPolicy: policy.origin,
+        expansions: policy.expansions,
         search,
         agentId,
         status,
         includeArchived,
-        showTriggered,
         waitingSessionIds: waitingIds,
     }
-    const pinnedQuery = useSessionList({
-        ...shared,
-        sessionIds: pinnedIds,
-        // Default mode is lenient about pins: without this, its `excludeOrigin` filter would drop
-        // a pinned automation run from its own group. The automations mode still narrows, though —
-        // a Pinned group heading a list of automation runs must not hold your own conversations.
-        showTriggered: true,
-        origin: showTriggered ? "trigger" : undefined,
-        enabled: pinnedIds.length > 0,
-    })
+    const pinnedQuery = useSessionList(pinnedSessionListArgs(shared, pinnedIds))
     const listQuery = useSessionList({
         ...shared,
-        origin: showTriggered ? "trigger" : undefined,
         excludeSessionIds: pinnedIds,
     })
 

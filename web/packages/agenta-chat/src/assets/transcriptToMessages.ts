@@ -9,8 +9,13 @@
 //
 // `attachmentContentUrl` is the package's own copy of the original's `attachmentMedia.ts`
 // builder, on `@agenta/shared/api` rather than the OSS app layer.
-import type {SessionRecord} from "@agenta/entities/session"
+import type {
+    SessionInteractionRowState,
+    SessionInteractionRowStates,
+    SessionRecord,
+} from "@agenta/entities/session"
 import {getAgentaApiUrl} from "@agenta/shared/api"
+import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
 import type {UIMessage} from "ai"
 
 /**
@@ -113,6 +118,65 @@ const newDraft = (id: string, role: "user" | "assistant"): DraftMessage => ({
 
 const toolPartType = (name?: string | null): string => (name ? `tool-${name}` : "dynamic-tool")
 
+/** Envelope keys an MCP-style `tool_call` record wraps its real arguments in. */
+const TOOL_ARGUMENT_ENVELOPE_KEYS = new Set([
+    "tool",
+    "server",
+    "name",
+    "toolName",
+    "serverName",
+    "tool_name",
+    "server_name",
+])
+
+/**
+ * Unwrap a `{tool, server, arguments}` record wrapper to the bare arguments. Card bodies read their
+ * fields at the top level (`input.workflow_revision`), and the live stream hands them the ACP
+ * `rawInput`, which is already bare — only the durable record carries the wrapper, so without this
+ * a replayed call drops to the raw-JSON fallback the same call renders a card for live.
+ * Unwraps only when every sibling of `arguments` is a string-valued envelope key, so a tool whose
+ * real input carries its own `arguments` field passes through untouched.
+ */
+function unwrapToolArguments(input: unknown): unknown {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return input
+    const wrapper = input as Record<string, unknown>
+    const args = wrapper.arguments
+    if (!args || typeof args !== "object" || Array.isArray(args)) return input
+    const siblings = Object.keys(wrapper).filter((key) => key !== "arguments")
+    if (siblings.length === 0) return input
+    const isEnvelope = siblings.every(
+        (key) => TOOL_ARGUMENT_ENVELOPE_KEYS.has(key) && typeof wrapper[key] === "string",
+    )
+    return isEnvelope ? args : input
+}
+
+/** Keys an ACP tool call can carry its resolved agenta tool spec under (`_tool_spec_of`). */
+const TOOL_SPEC_KEYS = ["spec", "toolSpec", "resolvedTool", "tool"] as const
+
+/**
+ * The gated tool's name, in the live egress's order (`_approval_tool_name`, stream.py:817-833):
+ * the STABLE `resolvedName` the runner stamps on the gate first — it is the runner's own
+ * `gate.toolName` (acp-interactions.ts:243), the name the permission gate matches on — then the
+ * resolved spec's canonical `name`, and only then the ACP display fields, which drift.
+ * The durable `tool_call` row carries the harness-wrapped name instead
+ * (`mcp.agenta-tools.commit_revision`), so reading it here labelled a replayed gate
+ * "Mcp.agenta tools.commit revision" and keyed its "always allow" grant off that string.
+ */
+function approvalToolName(toolCall: Record<string, unknown>): string | undefined {
+    const spec = TOOL_SPEC_KEYS.map((key) => toolCall[key]).find(
+        (value): value is Record<string, unknown> =>
+            Boolean(value) && typeof value === "object" && !Array.isArray(value),
+    )
+    const candidates = [
+        toolCall.resolvedName,
+        spec?.name,
+        toolCall.name,
+        toolCall.title,
+        toolCall.kind,
+    ]
+    return candidates.find((value): value is string => typeof value === "string" && value !== "")
+}
+
 const isRunnerSentinelError = (part: Part): boolean => {
     const errorText = typeof part.errorText === "string" ? part.errorText : ""
     return (
@@ -125,41 +189,71 @@ const isRunnerSentinelError = (part: Part): boolean => {
     )
 }
 
-/** Tool name from a replayed part's `type`/`toolName` — mirrors clientTools/meta.ts's
- * `clientToolName`, kept local since this file has no dependency on the app's client-tool layer. */
-const partToolName = (part: Part): string => {
-    if (part.type === "dynamic-tool") return typeof part.toolName === "string" ? part.toolName : ""
-    return typeof part.type === "string" ? part.type.replace(/^tool-/, "") : ""
+function settleClientToolPart(part: Part, row: SessionInteractionRowState): void {
+    if (part.state !== "input-available") return
+
+    if (row.resolution) {
+        if (row.resolution.outcome === "error") {
+            const error = row.resolution.error
+            part.state = "output-error"
+            part.errorText =
+                typeof error === "string" && error ? error : "The request ended without a result."
+        } else {
+            const output = row.resolution.output
+            part.state = "output-available"
+            part.output =
+                typeof output === "object" && output !== null && !Array.isArray(output)
+                    ? output
+                    : {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+        }
+        return
+    }
+
+    if (row.status === "cancelled" || row.status === "responded" || row.status === "resolved") {
+        part.state = "output-available"
+        part.output = {...CLIENT_TOOL_INTERACTION_ENDED_OUTPUT}
+    }
 }
 
 /**
- * The settled output to synthesize for a client-tool interaction the backend already cancelled
- * (`session_interactions.status === "cancelled"`) whose transcript never got a settling
- * `tool_result` — see `fetchCancelledClientToolTokensAtom`'s doc for why the record log alone
- * can't tell. Mirrors each widget's OWN cancelled-terminal shape (`ConnectOutput.reason` /
- * `ElicitationResult.action`) so a resurrected part renders exactly like a live cancel — an inert
- * chip, never an interactive, answerable form. Keyed by the same tool name the client-tool
- * registry dispatches on; an unregistered kind falls back to a bare empty output, which still
- * settles (out of `input-available`) even with no dedicated chip.
+ * An approval gate whose row is terminal. Approval rows always recorded their outcome correctly,
+ * so they are trustworthy here. A verdict replays the real answer. A swept row proves only that
+ * the gate died unanswered — and that the gated tool never ran — so it settles denied rather than
+ * claiming an approval nobody gave. Either way the gate stops reading as still awaiting the user:
+ * a dead gate left `approval-requested` holds the message queue forever once the scans that read
+ * it cover the whole transcript.
  */
-const CANCELLED_CLIENT_TOOL_OUTPUT: Record<string, Part> = {
-    request_connection: {connected: false, reason: "cancelled"},
-    request_input: {action: "cancel"},
+function settleApprovalPart(part: Part, row: SessionInteractionRowState): void {
+    if (part.state !== "approval-requested") return
+
+    const verdict = row.resolution?.verdict
+    if (verdict === "approved" || verdict === "denied") {
+        part.state = "approval-responded"
+        part.approval = {id: row.token, approved: verdict === "approved"}
+        return
+    }
+    if (row.status === "cancelled") {
+        part.state = "output-denied"
+        return
+    }
+    if (row.status === "responded" || row.status === "resolved") part.state = "approval-responded"
 }
 
-/** Apply the cancelled-interaction override to every still-`input-available` client-tool part
- * whose token the interactions join marked cancelled. Runs once, after the full record sweep, so
- * a LATER `tool_result` for the same toolCallId (a real settle) always wins over this fallback. */
-function applyCancelledInteractions(
+function applyInteractionRowStates(
     index: TranscriptIndex,
-    cancelledClientToolTokens: ReadonlySet<string> | undefined,
+    interactionRowStates: SessionInteractionRowStates | undefined,
 ): void {
-    if (!cancelledClientToolTokens || cancelledClientToolTokens.size === 0) return
-    for (const [toolCallId, part] of index.tools) {
-        if (part.state !== "input-available") continue
-        if (!cancelledClientToolTokens.has(toolCallId)) continue
-        part.state = "output-available"
-        part.output = CANCELLED_CLIENT_TOOL_OUTPUT[partToolName(part)] ?? {}
+    if (!interactionRowStates || interactionRowStates.size === 0) return
+    for (const row of interactionRowStates.values()) {
+        // Token equality supports rows written before the runner stamped the tool-call id; an
+        // approval gate is also indexed under its interaction id, which IS the row token.
+        const toolCallId = row.toolCallId ?? row.token
+        const part = index.tools.get(toolCallId) ?? index.approvals.get(row.token)
+        if (!part) continue
+
+        if (row.kind === "user_approval") settleApprovalPart(part, row)
+        else if (row.kind === "client_tool" || row.kind === "user_input")
+            settleClientToolPart(part, row)
     }
 }
 
@@ -183,7 +277,7 @@ function replayClientTool(
     )
     if (!toolCallId) return
     const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
-    const input = reqPayload.input ?? toolCall.rawInput ?? toolCall.input
+    const input = unwrapToolArguments(reqPayload.input ?? toolCall.rawInput ?? toolCall.input)
     let part = index.tools.get(toolCallId)
     if (!part) {
         // The runner parked without first surfacing the tool call — synthesize one.
@@ -275,14 +369,14 @@ function applyEvent(
                 // A resume re-emits the approved call with the same toolCallId. Update the existing
                 // part (kept across the pause boundary) in place instead of rendering a duplicate;
                 // its tool_result then settles that one part to a single ✓.
-                if (payload.input !== undefined) existing.input = payload.input
+                if (payload.input !== undefined) existing.input = unwrapToolArguments(payload.input)
                 return
             }
             const part: Part = {
                 type: toolPartType(payload.name as string),
                 toolCallId,
                 state: "input-available",
-                input: payload.input,
+                input: unwrapToolArguments(payload.input),
             }
             draft.parts.push(part)
             index.tools.set(toolCallId, part)
@@ -315,21 +409,25 @@ function applyEvent(
             const toolCallId = str(
                 reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
             )
+            const toolName = approvalToolName(toolCall)
             let part = index.tools.get(toolCallId)
             if (!part) {
                 // The runner parked without first surfacing the tool call — synthesize one.
                 part = {
-                    type: toolPartType(
-                        (toolCall.name as string) ||
-                            (toolCall.title as string) ||
-                            (toolCall.kind as string),
-                    ),
+                    type: toolPartType(toolName),
                     toolCallId,
                     state: "input-available",
-                    input: toolCall.rawInput ?? toolCall.input,
+                    input: unwrapToolArguments(toolCall.rawInput ?? toolCall.input),
                 }
                 draft.parts.push(part)
                 index.tools.set(toolCallId, part)
+            } else if (toolName) {
+                // Live re-stamps an already-surfaced call with the gate's resolved name
+                // (stream.py:711-726), so the card never shows the durable row's harness-wrapped
+                // name. Rename here too, or the same gate replays under a different name than it
+                // streamed — and `useAlwaysAllowTool` keys the grant off that name verbatim.
+                if (part.type === "dynamic-tool") part.toolName = toolName
+                else part.type = toolPartType(toolName)
             }
             index.approvals.set(str(payload.id), part)
             const canRequestApproval =
@@ -412,11 +510,8 @@ function applyEvent(
 }
 
 export interface TranscriptToMessagesOptions {
-    /** Tokens (== toolCallId) of this session's CANCELLED `client_tool` interactions — see
-     * `fetchCancelledClientToolTokensAtom`. A resurrected part for one of these replays inert
-     * instead of as a live, answerable form. Omit when the caller has no interaction-status join
-     * available; every part then replays exactly as before (unaffected, not a regression). */
-    cancelledClientToolTokens?: ReadonlySet<string>
+    /** Row lifecycle settles replayed interactions; omit it to preserve record-only replay. */
+    interactionRowStates?: SessionInteractionRowStates
 }
 
 /**
@@ -484,11 +579,8 @@ export function transcriptToMessages(
         }
     }
 
-    // Same "settle whatever the record log alone left parked" idea as the resumed-approval pass
-    // above, for client tools: a token the caller's interaction-status join says is CANCELLED
-    // never got its own `tool_result` (a real settle would have), so it replays parked forever
-    // without this.
-    applyCancelledInteractions(index, options?.cancelledClientToolTokens)
+    // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
+    applyInteractionRowStates(index, options?.interactionRowStates)
 
     const messages = drafts
         .filter((d) => d.parts.length > 0)

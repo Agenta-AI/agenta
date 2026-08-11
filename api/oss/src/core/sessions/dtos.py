@@ -1,10 +1,18 @@
+from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.sessions.records.dtos import SessionMessagePreview
 from oss.src.core.sessions.streams.dtos import SessionStream, SessionStreamQueryFlags
 from oss.src.core.shared.dtos import Reference
+from oss.src.core.sessions.types import SessionDelivery as SessionDelivery
+from oss.src.core.sessions.types import SessionOrigin as SessionOrigin
+from oss.src.core.sessions.types import SessionTrigger as SessionTrigger
+from oss.src.core.sessions.types import (
+    SessionTriggerAttribution as SessionTriggerAttribution,
+)
+from oss.src.core.sessions.types import SessionTriggerKind as SessionTriggerKind
 
 
 class SessionListItem(SessionStream):
@@ -23,37 +31,9 @@ class SessionListItem(SessionStream):
     last_message: Optional[SessionMessagePreview] = None
 
 
-# Reserved tag naming WHO started a session. Lives in `tags` rather than a column: the sessions
-# list must be able to hide automation runs by default, and a jsonb tag with a GIN index filters
-# as well as a column would without a migration.
-SESSION_ORIGIN_TAG = "ag.origin"
-
-SESSION_ORIGIN_MANUAL = "manual"
-SESSION_ORIGIN_TRIGGER = "trigger"
-
-# WHICH automation started the session. Written by the same single writer as the origin tag
-# (`SessionStreamsService.set_origin`), so the tags stay one write and never need a merge.
-SESSION_TRIGGER_ID_TAG = "ag.trigger.id"
-SESSION_TRIGGER_NAME_TAG = "ag.trigger.name"
-SESSION_TRIGGER_KIND_TAG = "ag.trigger.kind"
-
-SESSION_TRIGGER_KIND_SCHEDULE = "schedule"
-SESSION_TRIGGER_KIND_SUBSCRIPTION = "subscription"
-
-
-class SessionTriggerRef(BaseModel):
-    """The automation that started a session.
-
-    The name is a SNAPSHOT taken at dispatch, not a live join: a row is history, and resolving
-    names at read time would make the session list depend on the triggers domain. Renaming an
-    automation therefore does not retitle its past runs — the id is stamped alongside so a
-    read-time resolve can supersede the snapshot later without a migration.
-    """
-
-    id: str
-    name: Optional[str] = None
-    # "schedule" (a cron fired) or "subscription" (an event arrived).
-    kind: Optional[str] = None
+class SessionExpansion(str, Enum):
+    last_message = "last_message"
+    trigger = "trigger"
 
 
 class SessionQuery(BaseModel):
@@ -63,12 +43,9 @@ class SessionQuery(BaseModel):
     Every predicate a list view offers must live here. A client that filters a windowed
     page filters the window, not the set — wrong counts, wrong empty states."""
 
-    references: Optional[List[Reference]] = None
-    # Include ended (killed) sessions so the durable list keeps resumable history — absence then
-    # means genuinely hard-deleted, which the frontend uses to prune a locally-cached session.
-    include_ended: bool = False
-    # Include archived sessions — off by default (archive hides); on for the archived view.
-    include_archived: bool = False
+    model_config = ConfigDict(extra="forbid")
+
+    turn_references: Optional[List[Reference]] = None
     # Case-insensitive substring match over the session title (`session_streams.name`).
     search: Optional[str] = None
     # Liveness (alive ⊇ running ⊇ attached), matched against the row's mirrored `flags`.
@@ -80,12 +57,26 @@ class SessionQuery(BaseModel):
     # Its complement: drop known ids from the list, so a group rendered separately (pins) does
     # not appear twice.
     exclude_session_ids: Optional[List[str]] = None
-    # Also return the total matching rows, ignoring windowing. Off by default: a filter chip
-    # wants it, a scroll page does not, and it costs a second query.
+    origins: Optional[List[SessionOrigin]] = None
+    exclude_origins: Optional[List[SessionOrigin]] = None
+
+
+class SessionQueryLifecycle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    include_ended: bool = False
+    include_archived: bool = False
+
+
+class SessionQueryOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     include_total: bool = False
-    # Who started the session (`SESSION_ORIGIN_*`). A triggered run is a session like any other,
-    # so without this filter an automation's work is indistinguishable from your own in the list.
-    origin: Optional[str] = None
-    # The negation, which containment cannot express: hide automation runs while still showing
-    # every session written before origins were stamped (their tags are NULL, not "manual").
-    exclude_origin: Optional[str] = None
+    expand: List[SessionExpansion] = Field(default_factory=list)
+
+
+class SessionQueryPage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sessions: List[SessionListItem] = Field(default_factory=list)
+    total: Optional[int] = None

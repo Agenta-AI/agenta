@@ -15,6 +15,7 @@ import {useRouter} from "next/router"
 import NewAgentButton from "@/oss/components/NewAgentButton"
 import NextTriggersSection from "@/oss/components/NextTriggers"
 import {agentsWorkflowsAtom, agentsWorkflowsLoadingAtom} from "@/oss/components/pages/agents/store"
+import SessionAutomationDrawers from "@/oss/components/pages/sessions/components/SessionAutomationDrawers"
 import TemplateStrip from "@/oss/components/TemplateStrip"
 import StripComposer from "@/oss/components/TemplateStrip/components/StripComposer"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
@@ -296,6 +297,7 @@ const StripHome: React.FC = () => {
                     </div>
                 ) : null}
             </div>
+            <SessionAutomationDrawers />
         </PageLayout>
     )
 }

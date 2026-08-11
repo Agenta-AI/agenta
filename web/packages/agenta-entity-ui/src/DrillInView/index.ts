@@ -276,7 +276,6 @@ export {
     findGrantableHarnessTool,
     withHarnessToolAllow,
     PLATFORM_OPS,
-    CLIENT_TOOLS,
     // Model / harness write-through + row presentation, shared with the chat composer's `/` palette.
     withModel,
     withHarnessKind,
