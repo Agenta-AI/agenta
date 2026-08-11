@@ -77,7 +77,10 @@ export {
     builderToCron,
     cronToBuilder,
     defaultBuilderState,
-    describeBuilder,
+    describeCadence,
+    formatNextRun,
+    suggestScheduleName,
+    summarizeSchedule,
     timesFormCleanGrid,
     DEFAULT_TIME,
 } from "./core/scheduleBuilder"

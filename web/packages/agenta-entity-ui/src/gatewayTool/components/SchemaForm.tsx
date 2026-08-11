@@ -8,7 +8,7 @@ import {
     useState,
 } from "react"
 
-import {cronToBuilder, describeBuilder} from "@agenta/entities/gatewayTrigger"
+import {cronToBuilder, summarizeSchedule} from "@agenta/entities/gatewayTrigger"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {
@@ -20,6 +20,7 @@ import {
     Input,
     InputNumber,
     Textarea,
+    TimePicker,
 } from "@agenta/ui/ui"
 import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
 // DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
@@ -941,7 +942,7 @@ export function formatReviewValue(field: FormFieldDescriptor, value: unknown): s
     if (value === undefined || value === null || value === "") return "—"
     if (field.format === "cron" && typeof value === "string") {
         try {
-            return describeBuilder(cronToBuilder(value).state)
+            return summarizeSchedule(cronToBuilder(value).state)
         } catch {
             return value
         }
@@ -1145,6 +1146,18 @@ function SchemaFormField({
                         initialValue={cronInitialValue(field.default)}
                     >
                         <CronField />
+                    </Form.Item>
+                )
+            }
+            if (field.format === "time") {
+                return (
+                    <Form.Item
+                        name={field.name.split(".")}
+                        label={label}
+                        rules={rules}
+                        initialValue={field.default}
+                    >
+                        <TimePicker disabled={disabled} />
                     </Form.Item>
                 )
             }
