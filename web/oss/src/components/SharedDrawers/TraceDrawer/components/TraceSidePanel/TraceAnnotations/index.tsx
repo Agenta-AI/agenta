@@ -1,5 +1,7 @@
 import {useMemo, useState} from "react"
 
+import {groupAnnotationsByReferenceId} from "@agenta/entities/annotation/dto"
+import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {evaluatorsListDataAtom, type Workflow} from "@agenta/entities/workflow"
 import {CloseOutlined} from "@ant-design/icons"
@@ -11,8 +13,6 @@ import CustomAntdTag from "@/oss/components/CustomUIs/CustomAntdTag"
 import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
 import {booleanValueColorClass} from "@/oss/lib/helpers/colors"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
 import NoTraceAnnotations from "./components/NoTraceAnnotations"
 

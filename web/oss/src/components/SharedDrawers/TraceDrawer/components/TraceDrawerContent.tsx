@@ -7,7 +7,7 @@ import dynamic from "next/dynamic"
 
 import useTraceDrawer from "@/oss/components/SharedDrawers/TraceDrawer/hooks/useTraceDrawer"
 import {useQueryParamState} from "@/oss/state/appState"
-import {useObservability} from "@/oss/state/newObservability"
+import {useObservability} from "@/oss/state/observability"
 
 import {setTraceDrawerActiveSpanAtom, setTraceDrawerTraceAtom} from "../store/traceDrawerStore"
 

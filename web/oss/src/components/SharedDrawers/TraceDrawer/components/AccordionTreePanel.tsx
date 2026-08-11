@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState} from "react"
 
+import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {
     CopyButton,
     Editor as EditorWrapper,
@@ -34,7 +35,7 @@ import {
 import {PrettyJsonView} from "@/oss/components/DrillInView/PrettyJsonView"
 import {getDefaultJsonViewMode} from "@/oss/components/DrillInView/viewModes"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
+import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
 const ImagePreview = dynamic(
     () =>

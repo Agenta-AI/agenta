@@ -76,6 +76,7 @@
     "dependencies": {
         "@agenta/shared": "workspace:../agenta-shared",
         "@ant-design/icons": "^6.1.0",
+        "@cloudflare/stream-react": "^1.9.3",
         "@lexical/code": "^0.46.0",
         "@lexical/code-shiki": "^0.46.0",
         "@lexical/hashtag": "^0.46.0",

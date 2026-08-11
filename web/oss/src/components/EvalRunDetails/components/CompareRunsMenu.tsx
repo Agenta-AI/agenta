@@ -2,12 +2,12 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
 import {dayjs} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
+import {EmptyPlaceholder as EmptyComponent} from "@agenta/ui/components/presentational"
 import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Image from "next/image"
 
-import EmptyComponent from "@/oss/components/Placeholders/EmptyComponent"
 import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {projectIdAtom} from "@/oss/state/project"

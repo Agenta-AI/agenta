@@ -1,4 +1,4 @@
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {AnnotationDto} from "@agenta/entities/annotation/dto"
 
 export interface _AgentaRootsResponse extends AgentaNodeDTO {
     children: _AgentaRootsResponse[]

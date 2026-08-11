@@ -1,3 +1,7 @@
+import {attachAnnotationsToTraces} from "@agenta/entities/annotation/dto"
+import {transformApiData} from "@agenta/entities/annotation/dto"
+import {AnnotationDto} from "@agenta/entities/annotation/dto"
+import {getNodeById} from "@agenta/entities/trace"
 import {
     fetchAllPreviewTraces,
     fetchPreviewTrace,
@@ -13,10 +17,7 @@ import {atomWithStorage} from "jotai/utils"
 import {atomWithImmer} from "jotai-immer"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
-import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {getNodeById, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
+import {observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"
 import type {TraceSpanNode} from "@/oss/services/tracing/types"

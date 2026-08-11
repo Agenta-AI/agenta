@@ -34,6 +34,7 @@
         "@agenta/navigation": "workspace:../packages/agenta-navigation",
         "@agenta/navigation-ui": "workspace:../packages/agenta-navigation-ui",
         "@agenta/observability": "workspace:../packages/agenta-observability",
+        "@agenta/observability-ui": "workspace:../packages/agenta-observability-ui",
         "@agenta/playground": "workspace:../packages/agenta-playground",
         "@agenta/playground-ui": "workspace:../packages/agenta-playground-ui",
         "@agenta/sdk": "workspace:../packages/agenta-sdk",

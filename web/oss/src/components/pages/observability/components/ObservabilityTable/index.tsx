@@ -1,5 +1,6 @@
 import {type Key, type ReactNode, useCallback, useEffect, useMemo, useState} from "react"
 
+import {annotationEvaluatorSlugsAtom} from "@agenta/observability"
 import {InfiniteVirtualTableFeatureShell} from "@agenta/ui/table"
 import type {TableFeaturePagination, TableScopeConfig} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
@@ -10,8 +11,8 @@ import {isNewUserAtom} from "@/oss/lib/onboarding"
 import {onboardingStorageUserIdAtom} from "@/oss/lib/onboarding/atoms"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
-import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
-import {hasReceivedTracesAtom} from "@/oss/state/newObservability/atoms/controls"
+import {useObservability} from "@/oss/state/observability"
+import {hasReceivedTracesAtom} from "@/oss/state/observability"
 
 import {
     getDefaultHiddenObservabilityColumnKeys,

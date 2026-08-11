@@ -11,6 +11,7 @@ import {
 } from "react"
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
+import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
 import {
     CopyButton,
     Editor as EditorWrapper,
@@ -38,7 +39,7 @@ import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
+import {getStringOrJson} from "@/oss/lib/helpers/utils"
 
 import {
     buildDecodedJsonOutput,

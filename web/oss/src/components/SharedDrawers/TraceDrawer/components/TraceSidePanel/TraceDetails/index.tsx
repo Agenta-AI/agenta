@@ -1,11 +1,3 @@
-import {Flex, Space, Typography} from "antd"
-import {useAtomValue} from "jotai"
-import {PlusCircle, Timer} from "lucide-react"
-
-import {statusMapper} from "@/oss/components/pages/observability/components/AvatarTreeContent"
-import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
-import ResultTag from "@/oss/components/ResultTag/ResultTag"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {
     formattedSpanCompletionTokensAtomFamily,
     formattedSpanCostAtomFamily,
@@ -14,7 +6,14 @@ import {
     formattedSpanTokensAtomFamily,
     spanEndTimeAtomFamily,
     spanStartTimeAtomFamily,
-} from "@/oss/state/newObservability"
+} from "@agenta/observability"
+import {spanTypeStatusMapper as statusMapper, StatusRenderer} from "@agenta/observability-ui"
+import {Flex, Space, Typography} from "antd"
+import {useAtomValue} from "jotai"
+import {PlusCircle, Timer} from "lucide-react"
+
+import ResultTag from "@/oss/components/ResultTag/ResultTag"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 const titleClass = "text-sm leading-[1.5714285714285714] font-medium"
 const resultTagClass = "flex items-center font-mono gap-1"
@@ -57,7 +56,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <StatusRenderer
                     status={activeTrace?.status_code}
                     message={activeTrace?.status_message}
-                    tagProps={{bordered: false}}
+                    bordered={false}
                 />
             </Space>
 

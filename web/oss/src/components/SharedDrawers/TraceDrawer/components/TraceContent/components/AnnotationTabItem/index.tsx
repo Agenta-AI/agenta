@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {evaluatorsListDataAtom, resolveOutputSchemaProperties} from "@agenta/entities/workflow"
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {ChatText} from "@phosphor-icons/react"
@@ -14,7 +15,6 @@ import {
     USEABLE_METRIC_TYPES,
 } from "@/oss/components/SharedDrawers/AnnotateDrawer/assets/constants"
 import EvaluatorDetailsPopover from "@/oss/components/SharedDrawers/TraceDrawer/components/EvaluatorDetailsPopover"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {JSSTheme} from "@/oss/lib/Types"
 
 import NoTraceAnnotations from "../../../TraceSidePanel/TraceAnnotations/components/NoTraceAnnotations"
