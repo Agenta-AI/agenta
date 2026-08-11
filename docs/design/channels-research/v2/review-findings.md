@@ -505,7 +505,7 @@
 - Origin: `wave-5 CU-C`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Completeness`
 - Summary: The end-to-end check creates a connection and posts a message, then
   waits for an answer. It never creates an agent, and never grants one. `resolve`
@@ -520,6 +520,22 @@
   before the invoke is verified against the real stack — the write path, the public
   ingress at 202, and a space created on first contact with no pre-created row. The
   part from invoke to answer has still never run.
+- Resolution: fixed, and the whole path now runs against a live stack. The check
+  binds an agent on a mock harness, so a real turn opens with a deterministic
+  answer and no model call. No grant is created: an agent with zero grants
+  anywhere is unrestricted, which makes a default agent the smallest routing
+  configuration. The poll was also wrong — it returned on the first outbound row,
+  and a turn posts a working indicator before editing it into the result, so it
+  raced the very turn it existed to observe.
+- What the first real run found, none of which any suite could have caught: the
+  invoke imported a symbol that does not exist (`WorkflowRequestData`), from
+  inside a function body, so nothing failed until a turn actually reached it; and
+  the request carried the turn text under `inputs["content"]`, a key the agent
+  handler never reads, so the agent received no user message at all. Both are the
+  same shape as every other finding in this wave — code that had never once been
+  executed. The function-local import is now at module level, where a missing name
+  fails at import rather than on a live turn. See F61 for what the run surfaced
+  next.
 
 ### F56. The rendering vocabulary in the design was never built, and the built one is undesigned
 
@@ -602,6 +618,35 @@
   command grammar, since a slash command and a `!command` are the same intent
   arriving two ways — the same convergence the choice mechanism already uses.
 - Notes: predates this wave. Not a regression.
+
+### F61. The answer repeats the user's own message back to them
+
+- ID: `F61`
+- Origin: `wave-5 CU-D`
+- Severity: `P1`
+- Confidence: `high` — observed on a real turn
+- Status: `open`
+- Category: `Correctness`
+- Summary: A turn's records store the inbound user message and the agent's answer
+  under the same `record_type` of `message`. Nothing on the record says who spoke.
+  `fold` labels every `message` event `role: "assistant"`, so both come back as
+  the agent, and the outbox posts both. Every reply is the user's own text
+  followed by the answer.
+- Evidence: the first real turn ever run end to end. The stored records were
+  `message: "hello from the acceptance check"` and `message: "the mock harness
+  answered"`; the delivered outbox row carried both, joined by a newline. Only the
+  inbound record carries an `attachments` key, and that is incidental, not a role.
+- Files: `sdks/python/agenta/sdk/agents/fold.py`,
+  `api/oss/src/core/sessions/records/utils.py`,
+  `api/oss/src/tasks/asyncio/channels/outbox.py`
+- Suggested Fix: decide where the role belongs. The record normaliser already
+  knows a second vocabulary — it rewrites chunk streams to `agent_message` — so
+  `message` versus `agent_message` is a distinction that half exists. Settle it
+  in one place rather than filtering by shape at the fold.
+- Notes: the end-to-end check passes anyway, because it asserts the answer is
+  present rather than that it is the whole reply. A looser assertion than the
+  defect is exactly how this reaches a user. Worth tightening once the role is
+  settled, not before — a test that fails for a known reason teaches nothing.
 
 ### F60. The bridge declares no setup fields, so its credential has no way in
 

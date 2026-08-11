@@ -28,6 +28,10 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
     ChannelTurnInput,
 )
+from oss.src.core.workflows.dtos import (
+    WorkflowServiceRequest,
+    WorkflowServiceRequestData,
+)
 from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import (
@@ -480,11 +484,6 @@ class InboxDispatcher:
                 "InboxDispatcher has no workflows_service and no invoke_fn override"
             )
 
-        from oss.src.core.workflows.dtos import (
-            WorkflowRequestData,
-            WorkflowServiceRequest,
-        )
-
         references = {
             key: ref.model_dump(mode="json", exclude_none=True)
             for key, ref in resolution.agent.data.references.items()
@@ -493,7 +492,11 @@ class InboxDispatcher:
         request = WorkflowServiceRequest(
             references=references,
             session_id=resolution.thread.session_id,
-            data=WorkflowRequestData(inputs={"content": turn_input.content}),
+            data=WorkflowServiceRequestData(
+                inputs={
+                    "messages": [{"role": "user", "content": turn_input.content}],
+                }
+            ),
         )
 
         try:

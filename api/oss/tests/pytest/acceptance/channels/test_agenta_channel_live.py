@@ -86,7 +86,15 @@ def _create_mock_agent_application(authed_api) -> str:
                                     "kwargs": {"text": _ANSWER},
                                 },
                             },
-                            "sandbox": "local",
+                            "sandbox": {"kind": "local"},
+                            # the schema default seeds a real provider model, and
+                            # the mock never calls one -- self_managed keeps the
+                            # run out of the vault entirely
+                            "llm": {
+                                "provider": "mock",
+                                "model": "mock-1",
+                                "connection": {"mode": "self_managed"},
+                            },
                         }
                     },
                 },
