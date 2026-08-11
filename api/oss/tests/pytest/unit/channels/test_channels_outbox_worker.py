@@ -340,7 +340,17 @@ class FakeRecordsDAO(RecordsDAOInterface):
     def __init__(self):
         self.records: List[SessionRecord] = []
 
-    def seed(self, *, session_id: str, turn_id: str, record_type: str, attributes):
+    def seed(
+        self,
+        *,
+        session_id: str,
+        turn_id: str,
+        record_type: str,
+        attributes,
+        record_source: str = "agent",
+    ):
+        # every persisted record carries its author; the inbound user turn lands
+        # in this same log, so a sourceless record is not a shape that exists
         self.records.append(
             SessionRecord(
                 record_id=uuid4(),
@@ -349,6 +359,7 @@ class FakeRecordsDAO(RecordsDAOInterface):
                 record_type=record_type,
                 attributes=attributes,
                 turn_id=turn_id,
+                record_source=record_source,
             )
         )
 
@@ -450,6 +461,47 @@ async def test_turn_ended_edits_the_same_row_created_at_turn_started(
     assert len(channels_dao.outbox) == 1  # edited in place, not a second row
     ended_row = next(iter(channels_dao.outbox.values()))
     assert ended_row.id == started_id
+
+
+@pytest.mark.asyncio
+async def test_the_answer_excludes_the_inbound_user_message(
+    worker, channels_dao, records_dao
+):
+    """The user's turn is persisted into the same record log the answer folds
+    from, and fold() labels every message record `assistant`. Only the agent's
+    own records may reach the reply, or the bot repeats the user back."""
+
+    session_id = "sess-echo"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-echo",
+        record_type="message",
+        attributes={"text": "what the user asked"},
+        record_source="user",
+    )
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-echo",
+        record_type="message",
+        attributes={"text": "what the agent answered"},
+    )
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-echo",
+        session_id=session_id,
+    )
+
+    posted = " ".join(
+        part.get("text") or ""
+        for row in channels_dao.outbox.values()
+        for part in (row.data.processed or {}).get("content", [])
+    )
+    assert "what the agent answered" in posted
+    assert "what the user asked" not in posted
 
 
 @pytest.mark.asyncio
