@@ -39,6 +39,7 @@ import type { ResolvedToolSpec } from "../protocol.ts";
 import { EMPTY_OBJECT_SCHEMA, MAX_BODY_BYTES } from "./callback.ts";
 import { runResolvedTool } from "./dispatch.ts";
 import type { ClientToolRelay } from "./client-tool-relay.ts";
+import type { ExecutableToolGate } from "./executable-tool-gate.ts";
 import { assertRequiredArguments, specInputSchema } from "./spec-schema.ts";
 import { toolSpecsByName } from "./public-spec.ts";
 
@@ -49,19 +50,17 @@ const DEFAULT_PROTOCOL = "2025-06-18";
 const HOST = "127.0.0.1";
 
 /**
- * A paused client tool. The handler returns this sentinel INSTEAD of a JSON-RPC response so the
- * request listener emits NO body and deterministically aborts the in-flight HTTP request: a
- * normal MCP result would let the harness (Claude) settle the call and clobber the pending
- * connect widget before the paused turn is observed. The seam already emitted the `client_tool`
- * interaction (`onClientTool`) and the handler then ends the turn (`onPause` -> the engine's
- * pause controller), so the turn ends `paused`.
+ * A paused loopback tool call. The handler returns this sentinel instead of a JSON-RPC response
+ * so the harness cannot settle the call before the pending interaction is observed.
  */
 const MCP_PAUSED = Symbol("mcp-paused");
 
-/** Options for the internal MCP server: the client-tool relay and an engine abort signal. */
+/** Options for the internal MCP server's tool seams and engine abort signal. */
 export interface InternalToolMcpServerOptions {
   /** When set, a `client` tool call is paused through this relay instead of relayed/executed. */
   clientToolRelay?: ClientToolRelay;
+  /** When set, executable tool calls must pass this gate before dispatch. */
+  executableToolGate?: ExecutableToolGate;
   /** Fired by the engine on pause/teardown; destroys any in-flight request SOCKET so no
    *  response settles late. It does NOT cancel the execution: a `runResolvedTool` dispatch
    *  already running keeps running server-side to completion (its result is just never
@@ -98,7 +97,7 @@ function mcpToolError(id: unknown, err: unknown): unknown {
 
 /**
  * Handle one MCP JSON-RPC message. Returns the JSON-RPC response object, `undefined` for a
- * notification (no `id`), or the `MCP_PAUSED` sentinel for a paused client tool (the listener
+ * notification (no `id`), or the `MCP_PAUSED` sentinel for a paused tool call (the listener
  * then aborts the request with no body). Takes the specs and relay dir in-process rather than
  * from env, and dispatches a non-`client` `tools/call` to `runResolvedTool`.
  */
@@ -108,6 +107,7 @@ async function handle(
   specs: ResolvedToolSpec[],
   relayDir: string,
   clientToolRelay: ClientToolRelay | undefined,
+  executableToolGate: ExecutableToolGate | undefined,
   log: Log,
 ): Promise<unknown | undefined | typeof MCP_PAUSED> {
   const { id, method, params } = message ?? {};
@@ -213,12 +213,36 @@ async function handle(
       };
     }
 
+    let callId: string | undefined;
+    if (executableToolGate) {
+      try {
+        assertRequiredArguments(spec, params?.arguments);
+      } catch (err) {
+        return mcpToolError(id, err);
+      }
+      callId = randomUUID();
+      const verdict = await executableToolGate.onExecutableTool({
+        id: callId,
+        toolCallId: callId,
+        toolName: spec.name,
+        input: params?.arguments,
+        spec,
+      });
+      if (verdict.kind === "deny") {
+        return mcpToolError(id, new Error(verdict.reason));
+      }
+      if (verdict.kind === "pendingApproval") {
+        executableToolGate.onPause?.();
+        return MCP_PAUSED;
+      }
+    }
+
     try {
       // The channel holds only public metadata; execution relays to the runner via the relay
       // dir, where the private spec + callback auth are applied server-side. A unique id per
       // call keeps parallel calls from colliding.
       const text = await runResolvedTool(spec, params?.arguments, {
-        toolCallId: randomUUID(),
+        toolCallId: callId ?? randomUUID(),
         relayDir,
       });
       return {
@@ -295,20 +319,24 @@ function hasValidAuthorization(
 /**
  * Start the internal gateway-tool MCP server on loopback. Returns the URL to advertise and a
  * `close()`. The caller decides whether to start it; this function does not filter — it serves
- * whatever specs it is given. A `client` spec is paused through `options.clientToolRelay`;
- * `options.signal` (the engine's pause/teardown abort) destroys any in-flight request so a
- * paused call never settles late.
+ * whatever specs it is given. Tool seams run before dispatch; `options.signal` destroys any
+ * in-flight request so a paused call never settles late.
  */
 export function startInternalToolMcpServer(
   specs: ResolvedToolSpec[],
   relayDir: string,
   options: InternalToolMcpServerOptions = {},
 ): Promise<InternalToolMcpServer> {
-  const { clientToolRelay, signal, log = () => {} } = options;
+  const {
+    clientToolRelay,
+    executableToolGate,
+    signal,
+    log = () => {},
+  } = options;
   const authorizationToken = randomBytes(32).toString("base64url");
   const specByName = toolSpecsByName(specs);
   // Track in-flight responses so the engine abort signal can destroy them deterministically (a
-  // paused client tool destroys its OWN response below; the signal is the backstop for any other
+  // paused tool destroys its OWN response below; the signal is the backstop for any other
   // request still open when the turn ends).
   const active = new Set<ServerResponse>();
 
@@ -384,10 +412,18 @@ export function startInternalToolMcpServer(
           }
           const responses = await Promise.all(
             parsed.map((m) =>
-              handle(m, specByName, specs, relayDir, clientToolRelay, log),
+              handle(
+                m,
+                specByName,
+                specs,
+                relayDir,
+                clientToolRelay,
+                executableToolGate,
+                log,
+              ),
             ),
           );
-          // A paused client tool in the batch aborts the whole request (no result for any).
+          // A paused tool in the batch aborts the whole request (no result for any).
           if (responses.some((r) => r === MCP_PAUSED)) {
             abortPaused(res);
             return;
@@ -409,10 +445,11 @@ export function startInternalToolMcpServer(
           specs,
           relayDir,
           clientToolRelay,
+          executableToolGate,
           log,
         );
         if (response === MCP_PAUSED) {
-          // Paused client tool: emit NO JSON-RPC result, abort the in-flight request.
+          // A paused tool emits no JSON-RPC result and aborts the in-flight request.
           abortPaused(res);
           return;
         }

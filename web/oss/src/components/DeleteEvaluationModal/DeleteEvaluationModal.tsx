@@ -1,7 +1,7 @@
 import {useCallback, useRef, useState} from "react"
 import type {MouseEvent} from "react"
 
-import EnhancedModal from "@agenta/oss/src/components/EnhancedUIs/Modal"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {DeleteOutlined} from "@ant-design/icons"
 
 import DeleteEvaluationModalContent from "./DeleteEvaluationModalContent"

@@ -14,8 +14,8 @@ The provider lists are the REAL harness facts, derived from
 
 - **Pi** reaches eight Agenta-vault-mapped providers directly (the ones whose ``provider_key``
   secret drives a Pi provider via its env-key map), plus ``openai-codex`` (OpenAI's ChatGPT/Codex
-  subscription), which Pi reaches through its own OAuth login rather than a vault key — usable
-  under ``self_managed`` (and the ``agenta`` default's ``runtime_provided`` fallback). Pi also
+  subscription), which Pi reaches through its own OAuth login rather than a vault key, usable
+  under ``self_managed``. Pi also
   reaches ~24 more providers that have no Agenta vault kind; those are out of scope unless a
   ``custom_provider`` secret is made for them, so they are not enumerated here. Pi consumes the
   ``direct`` deployment for all of them, plus the ``custom`` (OpenAI-compatible) deployment for
@@ -28,6 +28,7 @@ The provider lists are the REAL harness facts, derived from
 - **Claude** reaches anthropic only, direct, via a custom gateway, or through Anthropic on
   Bedrock/Vertex. The runner passes the selected model id through to Claude Code and lets the
   configured backend fail loudly if it rejects it.
+- **Codex** reaches openai only, direct, through managed keys or subscription OAuth.
 - **pi_agenta** is Pi under the hood (Pi with Agenta's forced opinion), so it shares
   ``pi_core``'s reach.
 
@@ -63,9 +64,8 @@ PI_VAULT_PROVIDERS: List[str] = [
 # ``/login``), NOT an Agenta vault ``provider_key`` (no vault secret kind maps to it). ``self_managed``
 # is broader than this one provider: it covers any way a harness signs itself in without an
 # Agenta-stored key, including machine credentials such as environment variables. This provider's
-# on-ramp under ``self_managed`` happens to be the subscription OAuth. It is also reachable under
-# the ``agenta`` default's ``runtime_provided`` fallback, so it belongs in Pi's reachable providers
-# even though it carries no vault key. Its model ids are carried explicitly below because they are
+# on-ramp under ``self_managed`` happens to be the subscription OAuth. Its model ids are carried
+# explicitly below because they are
 # not in the litellm-derived ``supported_llm_models`` catalog. See
 # ``docs/design/agent-workflows/projects/provider-model-auth/harness-provider-matrix.md`` and the
 # subscription-sidecar recipe.
@@ -102,6 +102,18 @@ CLAUDE_MODEL_ALIASES: List[str] = [
     "haiku",
     "opus[1m]",
     "claude-fable-5",
+]
+
+# The curated Codex model set the harness advertises under the ``openai`` family. The
+# ``gpt-5.1-codex`` family is API-listed but backend-deprecated, so it is excluded. Keep this in
+# sync with ``data/codex_models.curated.json`` and the ``sync-model-catalog`` skill. See decision
+# D-006.
+CODEX_MODELS: List[str] = [
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5",
+    "gpt-5.2",
 ]
 
 # Both modes every harness supports today. (No ``default`` mode: the project default is just
@@ -239,6 +251,19 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         model_selection="alias",
         models={"anthropic": list(CLAUDE_MODEL_ALIASES)},
         model_catalog=_model_catalog("claude"),
+        mcp=HarnessMCPCapabilities(
+            user_servers=UserMCPServerCapabilities(),
+        ),
+    ),
+    # Codex reaches OpenAI through managed direct connections and self_managed subscription OAuth
+    # via the mounted CODEX_HOME login. It accepts user HTTP MCP servers like Claude.
+    "codex": HarnessConnectionCapabilities(
+        providers=["openai"],
+        deployments=["direct"],
+        connection_modes=list(_ALL_MODES),
+        model_selection="provider/id",
+        models={"openai": list(CODEX_MODELS)},
+        model_catalog=_model_catalog("codex"),
         mcp=HarnessMCPCapabilities(
             user_servers=UserMCPServerCapabilities(),
         ),

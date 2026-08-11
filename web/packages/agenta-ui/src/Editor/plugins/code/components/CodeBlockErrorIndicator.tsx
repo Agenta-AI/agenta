@@ -19,7 +19,7 @@ export function CodeBlockErrorIndicator({errors}: {errors: string[]}) {
         >
             ⚠️
             {hovering && (
-                <div className="absolute top-6 right-0 bg-red-50 border border-red-300 text-red-700 text-[0.625rem] leading-[0.75rem] px-3 py-2 rounded shadow-lg max-w-xs z-50">
+                <div className="absolute top-6 right-0 bg-red-50 border border-solid border-red-300 text-red-700 text-[0.625rem] leading-[0.75rem] px-3 py-2 rounded shadow-lg max-w-xs z-50">
                     <div className="space-y-1">
                         {errors.map((err, i) => (
                             <div className="whitespace-nowrap" key={i}>

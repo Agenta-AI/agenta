@@ -15,6 +15,12 @@ import {expect} from "@agenta/web-tests/utils"
 import type {Page} from "@playwright/test"
 import {strToU8, zipSync} from "fflate"
 
+import {
+    AGENT_APPS_UNAVAILABLE_REASON,
+    archiveWorkflow,
+    queryWorkflowAgentState,
+    resolveApiBase,
+} from "../utils/agentApps"
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
 import {buildAcceptanceTags} from "../utils/tags"
@@ -143,8 +149,13 @@ test(
                 {timeout: 90000},
             )
             await uiHelpers.clickButton("Create", appCreateDrawer)
+            // Match the dialog by role, not by a component-library class:
+            // `EntityCommitModal` renders through `EnhancedModal`, now a facade over
+            // the @agenta/ui (Radix) `Dialog`, so no `.ant-modal-wrap` exists here.
+            // Radix `aria-hidden`s the launching antd drawer while the modal is open,
+            // so exactly one dialog resolves.
             const confirmModal = page
-                .locator(".ant-modal-wrap")
+                .getByRole("dialog")
                 .filter({has: page.getByRole("button", {name: "Create", exact: true})})
                 .last()
             await expect(confirmModal).toBeVisible({timeout: 15000})
@@ -154,6 +165,20 @@ test(
             expect(createResponse.ok()).toBe(true)
             const created = (await createResponse.json()) as {workflow: {id: string}}
             registerAgentAppForCleanup(created.workflow.id)
+
+            // Environments without the agent platform (e.g. OSS previews with the feature
+            // flags off) silently create a prompt-type app here, so the Skills UI under test
+            // can never render. Skip only on that definitive signal — and archive the app
+            // first so the misclassified leftover cannot pollute other specs' app lists.
+            const projectId = basePath.match(/\/p\/([^/]+)/)?.[1] ?? ""
+            const apiBase = resolveApiBase(page)
+            const agentState = projectId
+                ? await queryWorkflowAgentState(page, apiBase, projectId, created.workflow.id)
+                : "unknown"
+            if (agentState === "not-agent") {
+                await archiveWorkflow(page, apiBase, projectId, created.workflow.id)
+            }
+            test.skip(agentState === "not-agent", AGENT_APPS_UNAVAILABLE_REASON)
 
             await page.goto(
                 `${getProjectScopedBasePath(page)}/apps/${created.workflow.id}/playground`,

@@ -58,7 +58,7 @@ const TraceTreeSettings = ({
                             role="menuitemradio"
                             aria-checked={visibility === option.value}
                             tabIndex={0}
-                            className="flex items-center justify-between gap-3 px-3 py-1.5 cursor-pointer rounded-sm hover:bg-colorBgTextHover"
+                            className="flex items-center justify-between gap-3 px-3 py-1.5 cursor-pointer rounded-sm hover:bg-colorFillSecondary"
                             onClick={() => setVisibility(option.value)}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === " ") {

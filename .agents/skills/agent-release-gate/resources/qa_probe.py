@@ -79,6 +79,8 @@ def agent_template(harness: str, sandbox: str, model: str, provider: str) -> dic
             "connection": {"mode": "agenta", "slug": None},
             "extras": {},
         },
+        # Built-in tools are always active on Pi and are never configured here; this matches
+        # the shipped default agent template.
         "tools": [],
         "mcps": [],
         "skills": [],

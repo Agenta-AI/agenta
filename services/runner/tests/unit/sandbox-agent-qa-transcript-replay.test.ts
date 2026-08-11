@@ -26,6 +26,7 @@ import {
   runSandboxAgent,
   type SandboxAgentDeps,
 } from "../../src/engines/sandbox_agent.ts";
+import { buildRunPlan } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 import {
   agentRunRequestFromTranscript,
@@ -155,15 +156,15 @@ describe("runSandboxAgent replays real captured QA transcripts", () => {
     // The plan is where F-001 actually broke (`pi-assets.ts` never received the override): assert
     // directly on it, not on a downstream side effect that a fake session cannot reproduce.
     assert.equal(
-      calls.workspacePlan.appendSystemPrompt,
+      calls.workspacePlan.prompt.appendSystemPrompt,
       request.appendSystemPrompt,
       "buildRunPlan must carry the recorded append_system override through to the plan",
     );
-    assert.equal(calls.workspacePlan.hasSystemPrompt, true);
+    assert.equal(calls.workspacePlan.prompt.hasSystemPrompt, true);
     // The session receives the plan's turnText (the orchestration's framing of the request),
     // not necessarily just the last message -- assert against it so multi-message captures hold.
     assert.deepEqual(calls.promptBlocks, [
-      { type: "text", text: calls.workspacePlan.turnText },
+      { type: "text", text: calls.workspacePlan.prompt.turnText },
     ]);
   });
 
@@ -185,14 +186,19 @@ describe("runSandboxAgent replays real captured QA transcripts", () => {
       // `pi_agenta` drive the same "pi" ACP agent (see `run-plan.ts`'s `acpAgent` derivation).
       assert.equal(calls.createSessionOptions.agent, "pi");
       assert.deepEqual(calls.promptBlocks, [
-        { type: "text", text: calls.workspacePlan.turnText },
+        { type: "text", text: calls.workspacePlan.prompt.turnText },
       ]);
-      // The declared builtin tool (e.g. "bash") must reach the plan's forced-tool grant set --
-      // asserted generically so this holds whether or not a given green cell declares tools.
-      for (const tool of request.tools ?? []) {
-        assert.ok(
-          calls.workspacePlan.builtinGrants.includes(tool),
-          `expected builtin tool '${tool}' to reach the plan's builtinGrants`,
+      // The recorded request's deprecated `tools` field is accepted and ignored: built-ins are
+      // activated unconditionally, so replanning without it must reach the same gating decision.
+      const withoutTools = buildRunPlan(
+        { ...request, tools: undefined },
+        { createLocalCwd: () => "/tmp/replay-cwd" },
+      );
+      assert.equal(withoutTools.ok, true);
+      if (withoutTools.ok) {
+        assert.equal(
+          withoutTools.plan.tools.builtinGatingActive,
+          calls.workspacePlan.tools.builtinGatingActive,
         );
       }
     },

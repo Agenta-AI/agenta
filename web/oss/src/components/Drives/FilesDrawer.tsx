@@ -9,7 +9,7 @@
  * The heavy body is `next/dynamic`-imported so the tree/renderer/pdfjs graph loads only when the
  * drawer opens (`destroyOnClose` unmounts it again).
  */
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {type MountFile} from "@agenta/entities/session"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -17,6 +17,7 @@ import dynamic from "next/dynamic"
 
 import {type DriveId, type DriveScope} from "./DriveExplorer"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
+import {type DroppedFile} from "./dropEntries"
 import {type SessionDriveData} from "./useSessionDrive"
 
 // Normal vs. expanded drawer width — the header's expand toggle flips between them, mirroring the
@@ -30,6 +31,29 @@ const DriveExplorer = dynamic(() => import("./DriveExplorer").then((m) => m.Driv
     ssr: false,
     loading: () => <DriveExplorerSkeleton />,
 })
+
+/**
+ * A key that changes ONLY when one real drive is replaced by a DIFFERENT real drive — the config
+ * host resolves its session from the active-session atoms, so the mount under an open drawer can
+ * swap (active tab closed → falls back to the first). Everything below `DriveExplorer` is
+ * mount-scoped (selection, expanded set, pane, and the lazy tree's accumulated per-directory file
+ * map, which is keyed by presented path and so collides across drives), so remount instead of
+ * teaching each hook to reset — clearing that map in place empties `files` and flashes the drawer
+ * back to skeleton.
+ *
+ * Deliberately blind to the other two transitions: the initial null→drive resolution is adopted in
+ * place by `useDriveSelection` (remounting there would wipe a search typed against the skeleton),
+ * and drive→null is just a host tearing down on close.
+ */
+const useDriveGeneration = (mountId: string | null | undefined): string => {
+    const seen = useRef<string | null>(null)
+    const generation = useRef(0)
+    if (mountId && seen.current !== mountId) {
+        if (seen.current !== null) generation.current += 1
+        seen.current = mountId
+    }
+    return `drive-${generation.current}`
+}
 
 export interface FilesDrawerProps {
     open: boolean
@@ -45,8 +69,8 @@ export interface FilesDrawerProps {
     /** Preselect this path on open — and, while open, re-select when it changes (a chat link/tile). */
     initialPath?: string | null
     /** Files staged by a drop on a recents peek, awaiting a destination — the host owns the list. */
-    stagedFiles?: File[]
-    onStagedChange?: (files: File[]) => void
+    stagedFiles?: DroppedFile[]
+    onStagedChange?: (files: DroppedFile[]) => void
 }
 
 export function FilesDrawer({
@@ -66,6 +90,7 @@ export function FilesDrawer({
     useEffect(() => {
         if (!open) setExpanded(false)
     }, [open])
+    const driveGeneration = useDriveGeneration(drive.mount?.id)
 
     return (
         <EnhancedDrawer
@@ -85,6 +110,7 @@ export function FilesDrawer({
             }}
         >
             <DriveExplorer
+                key={driveGeneration}
                 drive={drive}
                 explicitFiles={explicitFiles}
                 scope={scope}

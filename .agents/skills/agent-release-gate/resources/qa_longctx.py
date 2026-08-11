@@ -67,7 +67,6 @@ _READ_ONLY_VERBS = (
     "COUNT",
     "FIND",
 )
-BASH = {"type": "builtin", "name": "bash"}
 
 
 def discover_tools() -> list:
@@ -143,7 +142,7 @@ def params(sandbox: str, tools: list) -> dict:
 def probe_gmail(sandbox: str) -> dict:
     """Do the Gmail tools resolve AND execute?"""
     s = str(uuid.uuid4())
-    p = params(sandbox, GATEWAY_TOOLS + [BASH])
+    p = params(sandbox, GATEWAY_TOOLS)
     t = qa.invoke(
         s,
         [
@@ -178,7 +177,7 @@ def probe_memory(sandbox: str, turns: int) -> dict:
     """Plant a token, flood the context, then ask for it back."""
     s = str(uuid.uuid4())
     token = f"QA-MEM-{uuid.uuid4().hex[:12].upper()}"
-    p = params(sandbox, GATEWAY_TOOLS + [BASH])
+    p = params(sandbox, GATEWAY_TOOLS)
 
     msgs = [
         qa.user_msg(
@@ -236,7 +235,7 @@ def probe_concurrent(sandbox: str, n: int = 3) -> dict:
 
     def one(i: int) -> dict:
         s = str(uuid.uuid4())
-        p = params(sandbox, GATEWAY_TOOLS + [BASH])
+        p = params(sandbox, GATEWAY_TOOLS)
         tok = tokens[i]
         msgs = [qa.user_msg(f"Remember this token: {tok}. Reply only: OK")]
         t = qa.invoke(s, msgs, p, timeout=420.0)

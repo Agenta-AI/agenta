@@ -1331,6 +1331,12 @@ export function createSandboxAgentOtel(
     llmSpan.setAttribute("gen_ai.operation.name", "chat");
     if (provider) llmSpan.setAttribute("gen_ai.system", provider);
     if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
+    if (init.harness === "codex" && modelId) {
+      // Codex-only: codex-acp reports no response model and its ACP usage carries no cost, so stamp the
+      // resolved model as the response model too; the platform cost calculator reads ag.meta.response.model.
+      // Scoped to codex so other harnesses' cost source is unchanged.
+      llmSpan.setAttribute("gen_ai.response.model", modelId);
+    }
     const inputMessages =
       input.messages && input.messages.length
         ? input.messages

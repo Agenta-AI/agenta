@@ -184,6 +184,10 @@ _cli_set_vars() {
             continue
         fi
         [ -n "$output" ] && printf '%s\n' "$output" >&2
+        if printf '%s' "$output" | grep -qi "not found"; then
+            printf "Service '%s' is missing from the Railway environment — bootstrap likely failed to create it.\n" "$service" >&2
+            printf "Fix: use 'Re-run all jobs' (re-running only failed jobs skips the green setup job, so bootstrap never gets a chance to recreate the missing service).\n" >&2
+        fi
         return 1
     done
 }
@@ -213,7 +217,7 @@ upsert_service_vars() {
 
     if [ -z "${RAILWAY_API_TOKEN:-}" ] || [ -z "$RAILWAY_PROJECT_ID" ]; then
         _cli_set_vars "$service" "$@"
-        return 0
+        return $?
     fi
 
     local svc_id
@@ -224,7 +228,7 @@ upsert_service_vars() {
         # back to it.
         printf "Could not resolve service id for '%s'; falling back to CLI variable set.\n" "$service" >&2
         _cli_set_vars "$service" "$@"
-        return 0
+        return $?
     fi
 
     # replace:false makes the merge intent explicit: configure.sh calls set_vars

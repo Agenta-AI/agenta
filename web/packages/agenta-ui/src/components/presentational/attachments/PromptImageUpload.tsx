@@ -4,6 +4,9 @@
  * Drag-and-drop image upload with URL input support.
  * Supports file upload (JPEG, PNG, WebP, GIF up to 5MB) and pasting image URLs.
  *
+ * File-handling (validation, `FileReader`, drop-zone) lives in `usePromptFileUpload`;
+ * this component owns the image-specific URL-preview state + rendering.
+ *
  * @example
  * ```tsx
  * import { PromptImageUpload } from '@agenta/ui/components/presentational'
@@ -19,31 +22,51 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
 import {generateId} from "@agenta/shared/utils"
-import {LoadingOutlined, MinusCircleOutlined} from "@ant-design/icons"
-import {Image as ImageIcon} from "@phosphor-icons/react"
-import {Button, Input, Progress, Spin, Typography, Upload} from "antd"
-import type {UploadFile} from "antd"
+import {Image as ImageIcon, MinusCircle} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import {Button} from "../../ui/button"
+import {InputAffix} from "../../ui/input-composed"
+import {Progress} from "../../ui/progress"
+import {Spinner} from "../../ui/spinner"
+
 import ImagePreview from "./ImagePreview"
+import {usePromptFileUpload} from "./usePromptFileUpload"
 import {resolveSafeImagePreviewSrc} from "./utils"
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
+/**
+ * Local, antd-free stand-in for antd `UploadFile` (only the fields this flow uses).
+ * The index signature keeps it permissive so antd `UploadFile` stays structurally
+ * assignable in both directions.
+ */
+export interface PromptUploadFile {
+    uid: string
+    name: string
+    status?: "error" | "success" | "done" | "uploading" | "removed"
+    url?: string
+    thumbUrl?: string
+    percent?: number
+    size?: number
+    type?: string
+    originFileObj?: File | Blob
+    base64?: string | ArrayBuffer | null
+    [key: string]: unknown
+}
+
 export interface PromptImageUploadProps {
     disabled?: boolean
-    handleUploadFileChange: (file: UploadFile | null) => void
+    handleUploadFileChange: (file: PromptUploadFile | null) => void
     handleRemoveUploadFile: () => void
-    imageFile?: UploadFile
+    imageFile?: PromptUploadFile
 }
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-
-const {Dragger} = Upload
 
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
@@ -72,15 +95,49 @@ const PromptImageUpload = ({
     handleUploadFileChange,
     imageFile,
 }: PromptImageUploadProps) => {
-    const uploadRef = useRef<HTMLInputElement>(null)
     const fileUploadRef = useRef(false)
 
     const [draftValue, setDraftValue] = useState<string | null>(null)
-    const [error, setError] = useState("")
     const [isValidPreview, setIsValidPreview] = useState(false)
+
+    const {
+        uploadRef,
+        error,
+        setError,
+        triggerUpload,
+        handleFileInputChange,
+        dropzoneProps,
+        isDragging,
+    } = usePromptFileUpload({
+        maxSize: MAX_SIZE,
+        sizeError: "Image size must be less than 5MB.",
+        isTypeAllowed: (file) => ALLOWED_TYPES.includes(file.type),
+        typeError: "Unsupported image format. Use JPEG, PNG, WebP, or GIF.",
+        disabled,
+        onAccepted: (file, dataUrl) => {
+            const previewUrl = URL.createObjectURL(file)
+
+            handleUploadFileChange({
+                uid: generateId(),
+                name: file.name,
+                status: "done",
+                originFileObj: file,
+                base64: dataUrl,
+                thumbUrl: previewUrl,
+                type: file.type,
+                size: file.size,
+            })
+
+            // Show the preview but skip the URL-validation effect below —
+            // handleUploadFileChange already fired.
+            fileUploadRef.current = true
+            setDraftValue(dataUrl)
+        },
+    })
+
     const status = error ? "error" : imageFile?.status || ""
 
-    const imageBase64 = (imageFile as UploadFile & {base64?: string})?.base64
+    const imageBase64 = imageFile?.base64
 
     const resolvedRawValue = useMemo(() => {
         if (draftValue !== null) return draftValue
@@ -92,11 +149,6 @@ const PromptImageUpload = ({
         if (!resolvedRawValue) return ""
         return resolveSafeImagePreviewSrc(resolvedRawValue) ?? resolvedRawValue
     }, [resolvedRawValue])
-
-    const triggerUpload = (e: React.MouseEvent) => {
-        e.stopPropagation()
-        uploadRef.current?.click()
-    }
 
     const validateUrlInput = (val: string) => {
         if (!val) {
@@ -153,59 +205,15 @@ const PromptImageUpload = ({
         if (!hasPreview) setError("")
     }, [draftValue, imageFile?.thumbUrl, imageFile?.url])
 
-    const handleFile = (file: File) => {
-        if (!ALLOWED_TYPES.includes(file.type)) {
-            setError("Unsupported image format. Use JPEG, PNG, WebP, or GIF.")
-            return
-        }
-
-        if (file.size > MAX_SIZE) {
-            setError("Image size must be less than 5MB.")
-            return
-        }
-
-        const reader = new FileReader()
-        reader.onload = () => {
-            const previewUrl = URL.createObjectURL(file)
-
-            handleUploadFileChange({
-                uid: generateId(),
-                name: file.name,
-                status: "done",
-                originFileObj: file as unknown as UploadFile["originFileObj"],
-                base64: reader.result,
-                thumbUrl: previewUrl,
-                type: file.type,
-                size: file.size,
-            } as UploadFile & {base64: string | ArrayBuffer | null})
-
-            // Set draftValue for preview display but skip the useEffect
-            // validation path — handleUploadFileChange was already called above.
-            fileUploadRef.current = true
-            setDraftValue(reader.result as string)
-            setError("")
-        }
-        reader.onerror = () => setError("Failed to read file.")
-        reader.readAsDataURL(file)
-    }
-
-    const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (file) handleFile(file)
-    }
-
-    const handleBeforeUpload = (file: File) => {
-        handleFile(file)
-        return false
-    }
-
     const renderUnified = () => {
         const isUploading = status === "uploading"
 
         return (
             <div className="flex items-center gap-4 w-full">
                 {isUploading ? (
-                    <Spin indicator={<LoadingOutlined style={{fontSize: 48}} spin />} />
+                    <div className="flex size-12 items-center justify-center">
+                        <Spinner size="large" />
+                    </div>
                 ) : isValidPreview ? (
                     <ImagePreview
                         src={displayValue}
@@ -216,26 +224,24 @@ const PromptImageUpload = ({
                 ) : (
                     <ImageIcon
                         size={48}
-                        className={clsx(
-                            error ? "text-[var(--ag-c-D61010)]" : "text-[var(--ag-c-758391)]",
-                        )}
+                        className={clsx(error ? "text-colorError" : "text-colorTextTertiary")}
                     />
                 )}
 
                 <div className="flex flex-col w-full items-start">
-                    <Typography.Text>
+                    <span className="text-xs">
                         Drag an image here or{" "}
-                        <Button type="link" className="p-0 underline" onClick={triggerUpload}>
+                        <Button variant="link" className="p-0 underline" onClick={triggerUpload}>
                             upload a file
                         </Button>
-                    </Typography.Text>
+                    </span>
 
                     {!isUploading && (
-                        <Input
+                        <InputAffix
                             placeholder="(Optionally) Enter a valid URL"
                             value={displayValue}
-                            onChange={(e) => {
-                                setDraftValue(e.target.value)
+                            onValueChange={(next) => {
+                                setDraftValue(next)
                                 setError("")
                             }}
                             type="url"
@@ -247,11 +253,7 @@ const PromptImageUpload = ({
                         <Progress size="small" percent={imageFile?.percent} showInfo={false} />
                     )}
 
-                    {error && (
-                        <Typography.Text className="text-[var(--ag-c-D61010)] mt-1">
-                            {error}
-                        </Typography.Text>
-                    )}
+                    {error && <span className="mt-1 text-xs text-colorError">{error}</span>}
                 </div>
             </div>
         )
@@ -267,30 +269,31 @@ const PromptImageUpload = ({
                 onChange={handleFileInputChange}
             />
 
-            <Dragger
-                accept="image/*"
-                showUploadList={false}
-                openFileDialogOnClick={false}
-                beforeUpload={handleBeforeUpload}
-                disabled={disabled}
+            {/* Native drop-zone (replaces antd Upload.Dragger — only drag-and-drop was
+                used; click-to-open runs through the hidden input above). */}
+            <div
+                {...dropzoneProps}
                 className={clsx(
-                    "w-full flex items-center gap-4 py-2 pr-1 pl-2 rounded-md",
-                    "[&_.ant-upload-drag]:bg-transparent [&_.ant-upload-drag]:border-none",
-                    "[&_.ant-upload-btn]:!p-0",
-                    "border border-solid border-[var(--ag-c-BDC7D1)]",
+                    // `box-border` is load-bearing: preflight is off, so without it the padding
+                    // and border add to `w-full` and the row overflows its container by 14px
+                    // (antd's own reset gave the Dragger border-box for free).
+                    "w-full box-border flex items-center gap-4 py-2 pr-1 pl-2 rounded-md border border-solid",
+                    error ? "border-colorError" : "border-colorBorder",
+                    isDragging && !disabled && "border-colorPrimary",
                     disabled ? "cursor-not-allowed" : "cursor-pointer",
-                    {
-                        "!border-[var(--ag-c-D61010)]": error,
-                        "!border-solid": status === "done" && !error,
-                    },
                 )}
             >
-                <div className="flex items-center gap-1">
+                {/* `w-full`: antd's `.ant-upload-drag-container` was `display:table;width:100%`,
+                    so this row stretched for free. Without it the URL input ends ~9px short. */}
+                <div className="flex w-full items-center gap-1">
                     {renderUnified()}
+                    {/* `size="icon"` reproduces antd's implicit `.ant-btn-icon-only` sizing —
+                        without it the default horizontal padding pushes this row past its
+                        container and squeezes the URL input. */}
                     <Button
                         disabled={disabled}
-                        icon={<MinusCircleOutlined />}
-                        type="text"
+                        variant="ghost"
+                        size="icon"
                         onClick={(e) => {
                             e.stopPropagation()
                             handleRemoveUploadFile()
@@ -298,9 +301,11 @@ const PromptImageUpload = ({
                             setError("")
                             setIsValidPreview(false)
                         }}
-                    />
+                    >
+                        <MinusCircle size={16} />
+                    </Button>
                 </div>
-            </Dragger>
+            </div>
         </>
     )
 }

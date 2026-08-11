@@ -21,6 +21,7 @@ const touched = [
   "SANDBOX_AGENT_PI_COMMAND",
   "PI_CODING_AGENT_DIR",
   "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME",
   "COMPOSIO_API_KEY",
   "DAYTONA_API_KEY",
   "AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS",
@@ -97,6 +98,17 @@ describe("buildDaemonEnv", () => {
     assert.equal(env.HOME, "/home/runner");
   });
 
+  it("inherits CODEX_HOME as a config-dir path on every run", () => {
+    process.env.CODEX_HOME = "/mnt/codex-home";
+
+    const inherited = buildDaemonEnv("codex");
+    assert.equal(inherited.CODEX_HOME, "/mnt/codex-home");
+
+    const managed = buildDaemonEnv("codex", { clearProviderEnv: true });
+    assert.equal(managed.CODEX_HOME, "/mnt/codex-home");
+    // A managed Codex run later overrides this per run with `<cwd>/.codex` in environment-setup, but buildDaemonEnv itself always passes the inherited path through.
+  });
+
   it("copies only known provider/auth variables, not unrelated secret-bearing env (non-managed run)", () => {
     process.env.OPENAI_API_KEY = "openai";
     process.env.ANTHROPIC_API_KEY = "anthropic";
@@ -104,7 +116,7 @@ describe("buildDaemonEnv", () => {
     process.env.COMPOSIO_API_KEY = "composio";
     process.env.DAYTONA_API_KEY = "daytona";
 
-    // Default (clearProviderEnv: false) = a runtime_provided / un-migrated run: keep the
+    // Default (clearProviderEnv: false) = a runtime_provided / no-modelConnection run: keep the
     // sidecar's own provider/auth keys so the harness login still works.
     const env = buildDaemonEnv("claude");
 

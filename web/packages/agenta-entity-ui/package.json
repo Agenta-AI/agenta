@@ -25,6 +25,7 @@
         "./selection": "./src/selection/index.ts",
         "./template-format": "./src/template-format/index.ts",
         "./testcase": "./src/testcase/index.ts",
+        "./tool-utils": "./src/DrillInView/SchemaControls/toolUtils.ts",
         "./variant": "./src/variant/index.ts",
         "./view-types": "./src/view-types/index.ts",
         "./workflow": "./src/workflow/index.ts"

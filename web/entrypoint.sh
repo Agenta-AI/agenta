@@ -221,4 +221,13 @@ EOF
 
 cat "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js" >&2
 
+# Mirror the runtime config into the mobile app's public dir (served at
+# /m/__env.js — the mobile app is built with basePath /m). The mobile app is
+# edition-agnostic: one file, same content for oss and ee. Guarded so images
+# without the mobile app (current gh images) are unaffected.
+if [ -d "${ENTRYPOINT_DIR}/mobile" ]; then
+  mkdir -p "${ENTRYPOINT_DIR}/mobile/public"
+  cp "${ENTRYPOINT_DIR}/${AGENTA_LICENSE}/public/__env.js" "${ENTRYPOINT_DIR}/mobile/public/__env.js"
+fi
+
 exec "$@"

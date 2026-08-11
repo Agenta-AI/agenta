@@ -119,6 +119,52 @@ describe("startAliveWatchdog", () => {
     );
   });
 
+  it("sends no further heartbeats after release() — the zombie-beat source", async () => {
+    // A turn that ended or parked must stop beating. A beat that outlives its turn is what
+    // the API's supersession tombstone exists to refuse (approvals plan §6): it would
+    // otherwise find the parked holder's `alive` with no `running` and take the whole nest,
+    // making the user's approval resume look superseded. Stopping the interval BEFORE the
+    // final beat is the runner's half of that contract.
+    vi.useFakeTimers();
+    try {
+      const watchdog = await startAliveWatchdog(
+        "sess-parked",
+        "turn-parked",
+        "proj-1",
+      );
+      await watchdog.release();
+      const afterRelease = fetchCalls.filter((c) =>
+        c.url.includes("heartbeat"),
+      ).length;
+
+      await vi.advanceTimersByTimeAsync(5 * 30_000);
+
+      assert.equal(
+        fetchCalls.filter((c) => c.url.includes("heartbeat")).length,
+        afterRelease,
+        "a released turn kept heartbeating: every one of those beats is a zombie",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("release()'s final beat is the turn-end signal: is_running=false under this turn's id", async () => {
+    // The API keys the whole nest handover on this pair. If the id drifted, the turn-end
+    // beat would clear a DIFFERENT turn's `running`.
+    const watchdog = await startAliveWatchdog("sess-end", "turn-end", "proj-1");
+    fetchCalls.length = 0;
+
+    await watchdog.release();
+
+    const beats = fetchCalls.filter((c) => c.url.includes("heartbeat"));
+    assert.equal(beats.length, 1, "exactly one turn-end beat");
+    const body = beats[0].body as Record<string, unknown>;
+    assert.equal(body["is_running"], false);
+    assert.equal(body["turn_id"], "turn-end");
+    assert.equal(body["session_id"], "sess-end");
+  });
+
   it("swallows heartbeat failures — never throws", async () => {
     fetchShouldFail = true;
     const watchdog = await startAliveWatchdog("sess-3", "run-fail", "proj-3");

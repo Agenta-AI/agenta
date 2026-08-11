@@ -23,6 +23,11 @@ const inter = Inter({
     variable: "--font-inter",
 })
 
+const getPopupContainer = (triggerNode?: HTMLElement) =>
+    (triggerNode?.closest(
+        '[data-slot="sheet-content"], [data-slot="dialog-content"]',
+    ) as HTMLElement | null) ?? document.body
+
 export enum ThemeMode {
     Light = "light",
     Dark = "dark",
@@ -169,7 +174,9 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
 
     return (
         <ThemeContext.Provider value={contextValue}>
-            <ConfigProvider theme={themeConfig}>{children}</ConfigProvider>
+            <ConfigProvider theme={themeConfig} getPopupContainer={getPopupContainer}>
+                {children}
+            </ConfigProvider>
         </ThemeContext.Provider>
     )
 }

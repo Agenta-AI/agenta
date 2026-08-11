@@ -59,7 +59,18 @@ def test_server_name_must_be_a_runtime_safe_identifier(name):
         server(name=name)
 
 
-async def test_resolves_public_and_secret_headers():
+def test_public_and_secret_header_names_must_be_unique():
+    # One header name cannot be both a public value and a secret credential.
+    with pytest.raises(ValidationError, match="must be unique"):
+        MCPConnection(
+            type="http",
+            url=PUBLIC_MCP_URL,
+            headers={"Authorization": "public"},
+            credentials=MCPHeaderSecretRefs(headers={"authorization": "token_ref"}),
+        )
+
+
+async def test_resolves_public_headers_and_typed_secret_credentials():
     resolved = await MCPResolver(
         secret_provider=DictSecretProvider({"memory_token": "secret-value"})
     ).resolve(
@@ -76,17 +87,30 @@ async def test_resolves_public_and_secret_headers():
             )
         ]
     )
+    # Public headers and secret credentials stay separate by protocol role: the resolved
+    # secret rides a typed header binding, never a merged header value.
     assert resolved[0].to_wire()["connection"] == {
         "type": "http",
         "url": PUBLIC_MCP_URL,
-        "headers": {
-            "X-Workspace": "demo",
-            "Authorization": "secret-value",
-        },
+        "headers": {"X-Workspace": "demo"},
+        "credentials": [
+            {
+                "binding": {"kind": "header", "name": "Authorization"},
+                "value": "secret-value",
+                "usage": "opaque_http",
+            }
+        ],
     }
+    assert "secret-value" not in repr(resolved[0])
+    # Structural dump guard (F-SDK-DUMP), mirroring ResolvedCredential: a model_dump can never
+    # carry the credential value — only to_wire/attribute access hands it to the runner wire.
+    assert "secret-value" not in str(resolved[0].model_dump())
+    assert "secret-value" not in resolved[0].model_dump_json()
+    dumped = resolved[0].model_dump()
+    assert dumped["credentials"][0]["value"] == "**********"
 
 
-async def test_missing_mcp_secret_is_explicit():
+async def test_missing_http_mcp_secret_is_explicit():
     with pytest.raises(MissingMCPSecretError):
         await MCPResolver(secret_provider=DictSecretProvider({})).resolve(
             [
@@ -96,6 +120,23 @@ async def test_missing_mcp_secret_is_explicit():
                         url=PUBLIC_MCP_URL,
                         credentials=MCPHeaderSecretRefs(
                             headers={"Authorization": "missing"}
+                        ),
+                    )
+                )
+            ]
+        )
+
+
+async def test_empty_secret_value_is_treated_as_missing():
+    with pytest.raises(MissingMCPSecretError):
+        await MCPResolver(secret_provider=DictSecretProvider({"token": ""})).resolve(
+            [
+                server(
+                    connection=MCPConnection(
+                        type="http",
+                        url=PUBLIC_MCP_URL,
+                        credentials=MCPHeaderSecretRefs(
+                            headers={"Authorization": "token"}
                         ),
                     )
                 )
@@ -167,3 +208,4 @@ async def test_omit_missing_secret_keeps_public_headers_only():
         ]
     )
     assert resolved[0].to_wire()["connection"]["headers"] == {"X-Workspace": "demo"}
+    assert "credentials" not in resolved[0].to_wire()["connection"]

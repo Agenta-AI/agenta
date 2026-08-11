@@ -10,6 +10,7 @@ export {
     queryInteractions,
     fetchInteraction,
     respondInteraction,
+    isInteractionConflict,
     querySessionStreams,
     querySessions,
     setSessionHeader,
@@ -67,7 +68,9 @@ export {
     type SessionStreamNest,
     type SandboxLiveness,
 } from "./core/liveness"
+export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/transcriptAdoption"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
+export {pickCwdMount} from "./core/mountSelection"
 export {
     sessionRecordsQueryFamily,
     sessionRecordFileRecencyAtomFamily,

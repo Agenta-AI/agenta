@@ -3,10 +3,20 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-orchestration.test.ts)
  */
-import { beforeEach, describe, it } from "vitest";
+import { afterEach, beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
+
+import { declinedByUserText } from "../../src/tools/denial-text.ts";
 import { tmpdir } from "node:os";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readlinkSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
@@ -18,6 +28,8 @@ import { PendingApprovalPauseController } from "../../src/engines/sandbox_agent/
 import { shouldSuppressPausedToolCallUpdate } from "../../src/engines/sandbox_agent/runtime-policy.ts";
 import { mountStorage } from "../../src/engines/sandbox_agent/mount.ts";
 import { buildPiGateEnvelope } from "../../src/engines/sandbox_agent/pi-gate-envelope.ts";
+import { appendPlatformGuidance } from "../../src/engines/sandbox_agent/system-prompt-appendix.ts";
+import { platformGuidanceAppendix } from "../../src/engines/sandbox_agent/platform-guidance.ts";
 import type { PermissionDecision } from "../../src/responder.ts";
 import {
   runSandboxAgent,
@@ -31,6 +43,10 @@ beforeEach(() => {
   process.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS = "local,daytona";
   process.env.AGENTA_RUNNER_DAYTONA_API_KEY = "test-key";
   resetRunnerConfigCache();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 function flushPromises(): Promise<void> {
@@ -97,8 +113,10 @@ function fakeHarness(options: FakeOptions = {}) {
     runFinished: 0,
     runFlushed: 0,
     recordedErrors: [] as Array<{ message: string; provider?: string }>,
+    handledUpdates: [] as unknown[],
   };
   const events: AgentEvent[] = [];
+  const logs: string[] = [];
   let eventHandler: ((event: any) => void) | undefined;
   let permissionHandler: ((request: any) => void) | undefined;
   // The in-flight prompt resolver, so a `destroySession` (the managed cancel) can resolve a
@@ -188,7 +206,9 @@ function fakeHarness(options: FakeOptions = {}) {
     start(input: any) {
       calls.runStart = input;
     },
-    handleUpdate(_update: any) {},
+    handleUpdate(update: any) {
+      calls.handledUpdates.push(update);
+    },
     emitEvent(event: AgentEvent) {
       events.push(event);
     },
@@ -229,7 +249,7 @@ function fakeHarness(options: FakeOptions = {}) {
   };
 
   const deps: SandboxAgentDeps = {
-    log: () => {},
+    log: (message) => logs.push(message),
     createLocalCwd: (durable?: string) =>
       durable ?? options.cwd ?? "/tmp/agenta-fake-cwd",
     createDaytonaCwd: (durable?: string) =>
@@ -303,7 +323,7 @@ function fakeHarness(options: FakeOptions = {}) {
     }),
   };
 
-  return { calls, deps, events };
+  return { calls, deps, events, logs };
 }
 
 describe("PendingApprovalPauseController", () => {
@@ -339,6 +359,11 @@ describe("PendingApprovalPauseController", () => {
 });
 
 describe("runSandboxAgent orchestration", () => {
+  // NOTE: in-band redaction of the LIVE event stream / result / trace-start input was a
+  // daytona-secret-materialization concept that was not adopted. Redaction happens at the
+  // durable/exported sinks (persisted transcript + exported spans; see redaction-sinks.test.ts),
+  // seeded per run from the typed model and MCP credentials.
+
   it("returns a successful one-shot result and cleans up acquired resources", async () => {
     const { calls, deps } = fakeHarness();
 
@@ -382,6 +407,285 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
     assert.equal(calls.workspaceCleanup, 1);
+  });
+
+  it("delivers the current legacy inline image before one text block", async () => {
+    const { calls, deps } = fakeHarness({ capabilities: { images: true } });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "image", data: "AQID", mimeType: "image/png" },
+      { type: "text", text: "inspect this" },
+    ]);
+  });
+
+  it("delivers a legacy image-only turn as a non-empty image-only prompt", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      capabilities: { images: true },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "image", uri: "data:image/png;base64,AQID" }],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.promptBlocks,
+      [{ type: "image", data: "AQID", mimeType: "image/png" }],
+    );
+    assert.ok(calls.promptBlocks.length > 0);
+    assert.deepEqual(
+      logs.filter((message) => message.includes("legacy inline image")),
+      [
+        "[attachments] legacy inline image delivery=native reason=native_supported",
+      ],
+    );
+  });
+
+  it("keeps a degraded legacy image-only prompt non-empty", async () => {
+    const { calls, deps } = fakeHarness({
+      capabilities: { images: false },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "image", uri: "data:image/png;base64,AQID" }],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      {
+        type: "text",
+        text: "[inline image could not be delivered to this harness]",
+      },
+    ]);
+  });
+  it.each([
+    { mimeType: "image/png", capabilities: { images: false } },
+    { mimeType: "image/svg+xml", capabilities: { images: true } },
+  ])(
+    "a legacy inline $mimeType image degrades rather than throws",
+    async (testCase) => {
+      const { calls, deps, events, logs } = fakeHarness({
+        capabilities: testCase.capabilities,
+      });
+      const result = await runSandboxAgent(
+        {
+          harness: "pi_core",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  uri: `data:${testCase.mimeType};base64,AQID`,
+                },
+                { type: "text", text: "inspect this" },
+              ],
+            },
+          ],
+        },
+        undefined,
+        undefined,
+        deps,
+      );
+
+      assert.equal(result.ok, true, testCase.mimeType);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: "inspect this" },
+      ]);
+      assert.equal(
+        events.some((event) => event.type === "attachment_delivery"),
+        false,
+      );
+      assert.match(
+        logs.find((message) => message.includes("legacy inline image")) ?? "",
+        /delivery=degraded reason=[a-z_]+$/,
+      );
+    },
+  );
+
+  it("degrades a legacy inline image when the caller's model declares no image input", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      capabilities: { images: true },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        modelCapabilities: { inputModalities: ["text"] },
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "text", text: "inspect this" },
+    ]);
+    assert.equal(
+      logs.find((message) => message.includes("legacy inline image")),
+      "[attachments] legacy inline image delivery=degraded reason=model_modality_unknown",
+    );
+  });
+
+  it("delivers a legacy inline image natively when the caller declares no capabilities", async () => {
+    const { calls, deps, logs } = fakeHarness({
+      capabilities: { images: true },
+    });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", uri: "data:image/png;base64,AQID" },
+              { type: "text", text: "inspect this" },
+            ],
+          },
+        ],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls.promptBlocks, [
+      { type: "image", data: "AQID", mimeType: "image/png" },
+      { type: "text", text: "inspect this" },
+    ]);
+    assert.equal(
+      logs.find((message) => message.includes("legacy inline image")),
+      "[attachments] legacy inline image delivery=native reason=native_supported",
+    );
+  });
+
+  it("a failed historical restore is survivable through a full cold turn", async () => {
+    const deadId = "11111111-1111-4111-8111-111111111111";
+    const healthyId = "22222222-2222-4222-8222-222222222222";
+    vi.stubGlobal("fetch", async (input: Parameters<typeof fetch>[0]) => {
+      if (String(input).includes(deadId)) {
+        return new Response("gone", { status: 404 });
+      }
+      if (String(input).includes(healthyId)) {
+        return new Response(new Uint8Array([7, 8]), {
+          status: 200,
+          headers: {
+            "content-type": "text/plain",
+            "content-disposition": "attachment; filename=healthy.txt",
+          },
+        });
+      }
+      throw new Error(`unexpected URL ${String(input)}`);
+    });
+    const cwd = join(
+      tmpdir(),
+      "agenta-attachment-restore-" + process.pid + "-" + Date.now(),
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+
+    try {
+      const result = await runSandboxAgent(
+        {
+          harness: "pi_core",
+          sessionId: "session-1",
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "attachment",
+                  attachmentId: deadId,
+                  filename: "report.pdf",
+                },
+                {
+                  type: "attachment",
+                  attachmentId: healthyId,
+                  filename: "healthy.txt",
+                },
+                { type: "text", text: "old request" },
+              ],
+            },
+            { role: "assistant", content: "ready" },
+            { role: "user", content: "continue" },
+          ],
+        },
+        undefined,
+        undefined,
+        deps,
+      );
+
+      assert.equal(result.ok, true);
+      assert.equal(
+        existsSync(join(cwd, "attachments", healthyId, "healthy.txt")),
+        true,
+      );
+      const promptText = calls.promptBlocks.at(-1)?.text ?? "";
+      assert.match(
+        promptText,
+        /\[attached file: report\.pdf - no longer available\]/,
+      );
+      assert.match(
+        promptText,
+        new RegExp(`attachments/${healthyId}/healthy\\.txt`),
+      );
+      assert.match(promptText, /The user now says:\ncontinue$/);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("points local Pi and pi-acp at the conversation workspace transcript directory", async () => {
@@ -451,6 +755,8 @@ describe("runSandboxAgent orchestration", () => {
     // endpoint. The runner must pass the exact `<connection-slug>/<model-id>` so it always wins.
     const { calls, deps } = fakeHarness();
     deps.prepareDaytonaPiAssets = (async () => true) as any;
+    // The opaque vault key on a Daytona run requires the process-local Secret gate.
+    process.env.AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS = "process_local";
 
     const result = await runSandboxAgent(
       {
@@ -458,12 +764,20 @@ describe("runSandboxAgent orchestration", () => {
         sandbox: "daytona",
         messages: [{ role: "user", content: "hello" }],
         model: "gpt-4o",
-        provider: "openai",
-        deployment: "custom",
         connection: { mode: "agenta", slug: "my-conn" },
-        endpoint: { baseUrl: "https://proxy.test/v1" },
-        credentialMode: "env",
-        secrets: { OPENAI_API_KEY: "sk-vault-xyz" },
+        modelConnection: {
+          provider: "openai",
+          deployment: "custom",
+          endpoint: { baseUrl: "https://proxy.test/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "sk-vault-xyz",
+              usage: "opaque_http",
+            },
+          ],
+        },
       },
       undefined,
       undefined,
@@ -534,7 +848,7 @@ describe("runSandboxAgent orchestration", () => {
     });
     let agentDirSkillCount = -1;
     deps.prepareDaytonaPiAssets = (async ({ plan }: any) => {
-      agentDirSkillCount = plan.skillDirs.length;
+      agentDirSkillCount = plan.workspace.skillDirs.length;
       return true;
     }) as any;
 
@@ -638,8 +952,147 @@ describe("runSandboxAgent orchestration", () => {
       (calls.providerArgs[1] as Record<string, string>).AGENTA_AGENT_MOUNT_DIR,
       undefined,
     );
-    assert.equal(calls.workspacePlan.appendSystemPrompt, undefined);
+    assert.equal(calls.workspacePlan.prompt.appendSystemPrompt, undefined);
     assert.equal(existsSync(`${cwd}-agent`), false);
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  // ============================================================================================
+  // PLATFORM GUIDANCE IN THE INSTRUCTIONS FILE
+  // ============================================================================================
+  //
+  // The fourth guidance channel, and the only one Codex has. These assert the WIRING: that the
+  // text reaches the file the harness reads, with the mount state that was actually settled by
+  // the time the workspace is written. `platform-guidance.test.ts` owns which contributors apply.
+
+  it("renders the platform guidance into the instructions file, after the author's text", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "codex",
+      customTools: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission: "ask",
+          readOnly: false,
+        },
+      ] as never,
+        agentsMd: "Be terse.",
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const guidance = platformGuidanceAppendix({
+      acpAgent: "codex",
+      isPi: false,
+      agentMountedPath: undefined,
+      agentMountSkipped: false,
+      toolNames: ["commit_revision"],
+    });
+    assert.ok(guidance);
+    assert.equal(
+      calls.workspacePlan.prompt.agentsMd,
+      appendPlatformGuidance("Be terse.", guidance),
+      "the file is the author's text, one blank line, then the fenced block",
+    );
+  });
+
+  it("writes the guidance even when the author left the instructions empty", async () => {
+    // The agent most likely to guess wrong about where a skill goes is the one with no
+    // instructions at all. Before this, an empty configuration produced no file and no guidance.
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "codex",
+      customTools: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission: "ask",
+          readOnly: false,
+        },
+      ] as never,
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.match(
+      calls.workspacePlan.prompt.agentsMd,
+      /^<!-- agenta:platform-guidance:start -->\n/,
+    );
+    assert.ok(
+      calls.workspacePlan.prompt.agentsMd.includes("parameters.agent.skills"),
+    );
+  });
+
+  it("does not repeat the mount paragraph to Pi, which already has it", async () => {
+    // The no-double-delivery property, asserted end to end rather than only on the selector: Pi
+    // takes the mount paragraph through its append prompt, so the same text in the instructions
+    // file would be the second copy. A live mount is set up here precisely so the paragraph is
+    // available to be duplicated.
+    const cwd = join(
+      tmpdir(),
+      `agenta-guidance-pi-${process.pid}-${Date.now()}`,
+    );
+    mkdirSync(cwd, { recursive: true });
+    const { calls, deps } = fakeHarness({ cwd });
+    deps.signAgentMountCredentials = (async () => ({
+      endpoint: "http://seaweedfs:8333",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/agent-1",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    })) as any;
+    deps.mountStorage = (async () => true) as any;
+    deps.unmountStorage = (async () => true) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+      customTools: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission: "ask",
+          readOnly: false,
+        },
+      ] as never,
+        agentsMd: "Be terse.",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const file: string = calls.workspacePlan.prompt.agentsMd;
+    // The append prompt DID get it, which is what makes the file's silence meaningful.
+    assert.match(calls.workspacePlan.prompt.appendSystemPrompt, /agent-files\//);
+    assert.ok(file.includes("parameters.agent.skills"), "the skill sentence still lands");
+    assert.ok(
+      !file.includes("agent-files/"),
+      "the mount paragraph must not appear in the file as well",
+    );
     rmSync(cwd, { recursive: true, force: true });
   });
 
@@ -875,6 +1328,144 @@ describe("runSandboxAgent orchestration", () => {
       1,
       "cleanup waits for runtime remount before unmount",
     );
+  });
+
+  it("re-materializes the codex subscription auth link on a mid-session durable cwd remount (#5692)", async () => {
+    // The durable cwd is object storage: it has no symlinks, so every remount can hand the link
+    // back as a 0-byte file. The link must therefore belong to the mount lifecycle, not only to
+    // first acquire — otherwise the rest of the session authenticates from an empty token file.
+    const cwd = "/tmp/agenta/mounts/proj-1/mount-1";
+    const codexMount = mkdtempSync(join(tmpdir(), "codex-operator-home-"));
+    const savedCodexHome = process.env.CODEX_HOME;
+    writeFileSync(join(codexMount, "auth.json"), '{"tokens":{"id_token":"t"}}');
+    process.env.CODEX_HOME = codexMount;
+    const authLink = join(cwd, ".codex", "auth.json");
+
+    try {
+      const { deps } = fakeHarness({
+        promptEvents: [
+          {
+            payload: {
+              update: {
+                kind: "tool_result",
+                content: `realpath '${cwd}/README.md': Transport endpoint is not connected`,
+              },
+            },
+          },
+        ],
+      });
+      let signCalls = 0;
+      let mountCalls = 0;
+      deps.signSessionMountCredentials = (async () => {
+        signCalls += 1;
+        return {
+          endpoint: "http://seaweedfs:8333",
+          region: "us-east-1",
+          bucket: "agenta-store",
+          prefix: "mounts/proj-1/mount-1",
+          accessKey: `AK-${signCalls}`,
+          secretKey: `SK-${signCalls}`,
+          sessionToken: `TOK-${signCalls}`,
+        };
+      }) as any;
+      deps.mountStorage = (async () => {
+        mountCalls += 1;
+        if (mountCalls > 1) {
+          // What geesefs actually serves after a remount: the symlink degraded to an empty object.
+          rmSync(authLink, { force: true });
+          mkdirSync(join(cwd, ".codex"), { recursive: true });
+          writeFileSync(authLink, "");
+        }
+        return true;
+      }) as any;
+      deps.unmountStorage = (async () => true) as any;
+
+      const result = await runSandboxAgent(
+        {
+          harness: "codex",
+          modelConnection: {
+            provider: "openai",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
+          sessionId: "sess-1",
+          telemetry: {
+            exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+
+      assert.equal(result.ok, true);
+      assert.equal(
+        mountCalls,
+        2,
+        "initial mount + runtime remount after ENOTCONN",
+      );
+      assert.equal(
+        lstatSync(authLink).isSymbolicLink(),
+        true,
+        "the remount must restore the symlink, not leave the degraded file",
+      );
+      assert.equal(readlinkSync(authLink), join(codexMount, "auth.json"));
+    } finally {
+      if (savedCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = savedCodexHome;
+      rmSync(codexMount, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("blames the empty mounted login, not a missing vault key, when a subscription codex run fails auth (#5692)", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "codex-sub-cwd-"));
+    const codexMount = mkdtempSync(join(tmpdir(), "codex-operator-home-"));
+    const savedCodexHome = process.env.CODEX_HOME;
+    // The login the operator mounted is present but empty — the state a geesefs round trip or a
+    // half-written login leaves behind. The old message sent them looking for an OpenAI key.
+    writeFileSync(join(codexMount, "auth.json"), "");
+    process.env.CODEX_HOME = codexMount;
+
+    try {
+      const { deps } = fakeHarness({
+        cwd,
+        promptError: new Error("401 unauthorized"),
+      });
+
+      const result = await runSandboxAgent(
+        {
+          harness: "codex",
+          modelConnection: {
+            provider: "openai",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
+          telemetry: {
+            exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+          },
+          messages: [{ role: "user", content: "hello" }],
+        } as AgentRunRequest,
+        undefined,
+        undefined,
+        deps,
+      );
+
+      assert.equal(result.ok, false);
+      assert.match(
+        result.error ?? "",
+        /mounted ChatGPT login is empty or unreadable/,
+      );
+      assert.equal(/vault/.test(result.error ?? ""), false);
+    } finally {
+      if (savedCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = savedCodexHome;
+      rmSync(codexMount, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("re-signs and remounts the agent mount when an ACP event reports ENOTCONN", async () => {
@@ -1191,7 +1782,7 @@ describe("runSandboxAgent orchestration", () => {
       {
         allow: false,
         reason:
-          "Tool 'server_tool' was not approved via the permission dialog.",
+          declinedByUserText("server_tool"),
       },
       "Pi ask without a grant fails closed",
     );
@@ -1444,9 +2035,19 @@ describe("runSandboxAgent orchestration", () => {
       {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
-        credentialMode: "env",
-        secrets: { ANTHROPIC_API_KEY: "resolved" },
-        endpoint: { baseUrl: "https://claude-gw.example/v1" },
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "custom",
+          endpoint: { baseUrl: "https://claude-gw.example/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "resolved",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1523,10 +2124,22 @@ describe("runSandboxAgent orchestration", () => {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
         model: "anthropic.claude-x",
-        deployment: "bedrock",
-        credentialMode: "env",
-        secrets: { AWS_ACCESS_KEY_ID: "AKIA" },
-        endpoint: { region: "us-east-1" },
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "bedrock",
+          endpoint: {
+            baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+          },
+          credentialMode: "env",
+          environment: { AWS_REGION: "us-east-1" },
+          credentials: [
+            {
+              binding: { kind: "environment", name: "AWS_ACCESS_KEY_ID" },
+              value: "AKIA",
+              usage: "local_use",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1554,11 +2167,28 @@ describe("runSandboxAgent orchestration", () => {
         harness: "claude",
         messages: [{ role: "user", content: "hello" }],
         model: "claude-sonnet-4",
-        deployment: "vertex_ai",
-        credentialMode: "env",
-        secrets: {
-          GOOGLE_CLOUD_PROJECT: "proj",
-          GOOGLE_CLOUD_LOCATION: "us-central1",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "vertex_ai",
+          endpoint: {
+            baseUrl: "https://us-central1-aiplatform.googleapis.com",
+            region: "us-central1",
+          },
+          credentialMode: "env",
+          environment: {
+            GOOGLE_CLOUD_PROJECT: "proj",
+            GOOGLE_CLOUD_LOCATION: "us-central1",
+          },
+          credentials: [
+            {
+              binding: {
+                kind: "environment",
+                name: "GOOGLE_APPLICATION_CREDENTIALS",
+              },
+              value: "/tmp/adc.json",
+              usage: "local_use",
+            },
+          ],
         },
       } as AgentRunRequest,
       undefined,
@@ -1586,7 +2216,12 @@ describe("runSandboxAgent orchestration", () => {
         {
           harness: "claude",
           messages: [{ role: "user", content: "hello" }],
-          credentialMode: "runtime_provided",
+          modelConnection: {
+            provider: "anthropic",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
         } as AgentRunRequest,
         undefined,
         undefined,
@@ -1618,9 +2253,12 @@ describe("runSandboxAgent orchestration", () => {
         {
           harness: "claude",
           messages: [{ role: "user", content: "hello" }],
-          credentialMode: "runtime_provided",
-          provider: "anthropic",
-          deployment: "bedrock",
+          modelConnection: {
+            provider: "anthropic",
+            deployment: "bedrock",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
         } as AgentRunRequest,
         undefined,
         undefined,
@@ -1635,6 +2273,29 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     assert.equal(calls.daemonOptions?.provider, "anthropic");
     assert.equal(calls.daemonOptions?.deployment, "bedrock");
+  });
+
+  it("clears inherited provider env when the resolved credential mode is none", async () => {
+    const { calls, deps } = fakeHarness();
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "none",
+          credentials: [],
+        },
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+    assert.equal(result.ok, true);
+    // "none" means the run declared it uses NO ambient credential: the daemon must not inherit
+    // the sidecar's own provider keys either (only runtime_provided keeps them).
+    assert.equal(calls.daemonOptions?.clearProviderEnv, true);
   });
 });
 
@@ -1902,7 +2563,10 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
               sessionUpdate: "tool_call",
               toolCallId: "tool-late",
               title: "request_connection",
-              rawInput: { integration: "slack" },
+              rawInput: {
+                integration: "slack",
+                token: "marker-late-secret-9a21",
+              },
             },
           },
         },
@@ -1917,6 +2581,19 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         harness: "claude",
         permissions: { default: "ask" },
         messages: [{ role: "user", content: "commit and connect" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "marker-late-secret-9a21",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       undefined,
       undefined,
@@ -1957,21 +2634,23 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
             },
           },
         },
+      ],
+      emitPermission: true,
+      permissionToolCallId: "tool-a",
+      permissionToolName: "commit_revision",
+      permissionRawInput: { revision: "r1" },
+      postPermissionEvents: [
         {
           payload: {
             update: {
               sessionUpdate: "tool_call",
               toolCallId: "tool-b",
               title: "create_subscription",
-              rawInput: { plan: "pro" },
+              rawInput: { plan: "pro", token: "marker-live-secret-42bd" },
             },
           },
         },
       ],
-      emitPermission: true,
-      permissionToolCallId: "tool-a",
-      permissionToolName: "commit_revision",
-      permissionRawInput: { revision: "r1" },
       hangPrompt: true,
     });
     delete deps.responderFactory;
@@ -1982,6 +2661,19 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
         harness: "claude",
         permissions: { default: "ask" },
         messages: [{ role: "user", content: "commit and subscribe" }],
+        modelConnection: {
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          credentialMode: "env",
+          credentials: [
+            {
+              binding: { kind: "environment", name: "OPENAI_API_KEY" },
+              value: "marker-live-secret-42bd",
+              usage: "opaque_http",
+            },
+          ],
+        },
       } as AgentRunRequest,
       (event) => emitted.push(event),
       undefined,
@@ -1993,21 +2685,48 @@ describe("runSandboxAgent default ApprovalResponder wiring", () => {
     const interactionIndex = emitted.findIndex(
       (event) => event.type === "interaction_request",
     );
+    const siblingCallIndex = emitted.findIndex(
+      (event) => event.type === "tool_call" && (event as any).id === "tool-b",
+    );
     const siblingResultIndex = emitted.findIndex(
       (event) => event.type === "tool_result" && (event as any).id === "tool-b",
     );
     const doneIndex = emitted.findIndex((event) => event.type === "done");
 
     assert.notEqual(interactionIndex, -1, "approval request is emitted");
+    assert.notEqual(siblingCallIndex, -1, "late sibling call is emitted");
     assert.notEqual(siblingResultIndex, -1, "sibling result is emitted");
     assert.notEqual(doneIndex, -1, "done is emitted");
     assert.ok(
-      interactionIndex < siblingResultIndex,
-      "approval request is emitted before the teardown sweep runs",
+      interactionIndex < siblingCallIndex &&
+        siblingCallIndex < siblingResultIndex,
+      "the queued late call is emitted and settled after the approval request",
     );
     assert.ok(
       siblingResultIndex < doneIndex,
       "sibling result reaches the live sink before turn finish",
+    );
+    assert.equal(
+      emitted.filter(
+        (event) =>
+          event.type === "tool_result" && (event as any).id === "tool-b",
+      ).length,
+      1,
+      "the late sibling is settled exactly once",
+    );
+    assert.equal(
+      emitted.some(
+        (event) =>
+          event.type === "tool_result" && (event as any).id === "tool-a",
+      ),
+      false,
+      "the gated call remains open for human approval",
+    );
+    await flushPromises();
+    assert.equal(
+      emitted.at(-1)?.type,
+      "done",
+      "done remains terminal after another event-loop turn",
     );
   });
 

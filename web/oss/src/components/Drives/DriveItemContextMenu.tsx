@@ -17,7 +17,7 @@ import {useAtomValue} from "jotai"
 
 import {projectIdAtom} from "@/oss/state/project"
 
-import {downloadMountArchive, downloadMountFile} from "./driveMedia"
+import {downloadMountArchive, useDriveFileDownload} from "./driveMedia"
 import {type SessionDriveData} from "./useSessionDrive"
 
 /** A `copy(text, successMessage?)` bound to the themed message toast (App.useApp so it renders
@@ -52,6 +52,7 @@ export function useDriveItemDownload(
 ): (path: string, isFolder: boolean) => void {
     const {message} = App.useApp()
     const projectId = useAtomValue(projectIdAtom)
+    const downloadFile = useDriveFileDownload()
     return useCallback(
         (path: string, isFolder: boolean) => {
             const resolved = drive.resolveMount(path)
@@ -60,17 +61,7 @@ export function useDriveItemDownload(
             const key = `drive-download:${path}`
             void (async () => {
                 if (!isFolder) {
-                    message.open({type: "loading", key, content: "Downloading…", duration: 0})
-                    const ok = await downloadMountFile({
-                        mount: resolved.mount,
-                        path: resolved.path,
-                        projectId,
-                    })
-                    message.open(
-                        ok
-                            ? {type: "success", key, content: "Downloaded"}
-                            : {type: "error", key, content: "Download failed"},
-                    )
+                    await downloadFile(resolved.mount, resolved.path)
                     return
                 }
                 message.open({type: "loading", key, content: "Preparing download…", duration: 0})
@@ -88,7 +79,7 @@ export function useDriveItemDownload(
                     )
             })()
         },
-        [drive, projectId, message],
+        [drive, projectId, message, downloadFile],
     )
 }
 

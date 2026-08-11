@@ -64,11 +64,9 @@ def session_config_from_transcript(transcript: Dict[str, Any]) -> SessionConfig:
     Translates the QA capture's older field names to today's ``AgentTemplate`` shape (see the
     module docstring): ``harness_options.<harness>.append_system`` -> ``harness.extras``, and the
     flat ``agents_md``/``model`` -> the nested ``instructions``/``llm`` shape
-    :meth:`AgentTemplate.from_params` reads. Builtin tool declarations
-    (``{"type": "builtin", "name": ...}``) are unchanged across generations and pass straight
-    through both to ``AgentTemplate.tools`` and to the resolved ``SessionConfig.builtin_names``
-    (a real run would resolve the latter server-side from the former; a replay test supplies it
-    directly, same as the sibling transport-roundtrip tests do).
+    :meth:`AgentTemplate.from_params` reads. A capture's legacy builtin tool declarations
+    (``{"type": "builtin", "name": ...}``) still pass through to ``AgentTemplate.tools``, where
+    the resolver ignores them: built-in tools are activated by the runner, not configured.
     """
     agent = transcript["request"]["data"]["parameters"]["agent"]
     captured_harness = agent.get("harness", "pi")
@@ -86,13 +84,7 @@ def session_config_from_transcript(transcript: Dict[str, Any]) -> SessionConfig:
     }
     template = AgentTemplate.from_params(params)
 
-    builtin_names = [
-        tool["name"]
-        for tool in agent.get("tools") or []
-        if isinstance(tool, dict) and tool.get("type") == "builtin"
-    ]
-
-    return SessionConfig(agent=template, builtin_names=builtin_names)
+    return SessionConfig(agent=template)
 
 
 def transcript_reply(transcript: Dict[str, Any]) -> str:

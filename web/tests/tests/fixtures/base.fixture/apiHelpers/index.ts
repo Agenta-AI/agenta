@@ -208,11 +208,13 @@ const waitForMatchingResponses = async (
 }
 
 const confirmCreateEntityModal = async (page: Page) => {
-    // The commit-confirmation modal no longer wraps its buttons in a
-    // `.ant-modal-footer` div (migrated off the raw antd Modal footer), so
-    // filter by the "Create" button itself rather than the footer wrapper.
+    // Match the dialog by role, not by a component-library class. `EnhancedModal` —
+    // which `EntityCommitModal` renders through — is now a facade over the @agenta/ui
+    // (Radix) `Dialog`, so no `.ant-modal-wrap` exists in this tree any more. Radix
+    // `aria-hidden`s the rest of the document while the modal is open (including the
+    // antd drawer that launched it), so exactly one dialog resolves here.
     const confirmModal = page
-        .locator(".ant-modal-wrap")
+        .getByRole("dialog")
         .filter({
             has: page.getByRole("button", {name: "Create", exact: true}),
         })

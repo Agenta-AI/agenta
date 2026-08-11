@@ -1,9 +1,17 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
 
-import { type AgentRunRequest, type HarnessCapabilities } from "../../protocol.ts";
+import {
+  type AgentRunRequest,
+  type HarnessCapabilities,
+} from "../../protocol.ts";
 import { type Responder } from "../../responder.ts";
 import type { ClientToolRelay } from "../../tools/client-tool-relay.ts";
-import { localRelayHost, sandboxRelayHost, startToolRelay } from "../../tools/relay.ts";
+import type { ExecutableToolGate } from "../../tools/executable-tool-gate.ts";
+import {
+  localRelayHost,
+  sandboxRelayHost,
+  startToolRelay,
+} from "../../tools/relay.ts";
 import { createSandboxAgentOtel } from "../../tracing/otel.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
@@ -12,16 +20,30 @@ import { probeCapabilities } from "./capabilities.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
+import { applyCodexMode } from "./codex-mode.ts";
 import { applyModel } from "./model.ts";
-import { discoverTunnelEndpoint, mountHarnessSessionDirs, mountStorage, mountStorageRemote, signSessionMountCredentials, unmountStorage, type MountCredentials } from "./mount.ts";
+import {
+  discoverTunnelEndpoint,
+  mountHarnessSessionDirs,
+  mountStorage,
+  mountStorageRemote,
+  signSessionMountCredentials,
+  unmountStorage,
+  type MountCredentials,
+} from "./mount.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
 import { buildSandboxProvider } from "./provider.ts";
 import { createRunLimits, resolveRunLimits } from "./run-limits.ts";
 import { type BuildRunPlanDeps, type RunPlan } from "./run-plan.ts";
 import { readStoredSandboxPointer } from "./sandbox-reconnect.ts";
-import { appendSessionTurn, hydrateHarnessSessionFromDurable } from "./session-continuity-durable.ts";
+import {
+  appendSessionTurn,
+  hydrateHarnessSessionFromDurable,
+} from "./session-continuity-durable.ts";
 import { type SessionContinuityStore } from "./session-continuity.ts";
 import { type InstalledMountExpiries } from "./session-identity.ts";
+import type { AppliedEnvironmentState } from "./applied-state.ts";
+import type { FacetDigests } from "../../lifecycle/desired-state.ts";
 import { type TeardownReason } from "./teardown.ts";
 import { uploadToolMcpAssets } from "./tool-mcp-assets.ts";
 import { prepareWorkspace } from "./workspace.ts";
@@ -42,6 +64,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
   applyModel?: typeof applyModel;
+  applyCodexMode?: typeof applyCodexMode;
   startToolRelay?: typeof startToolRelay;
   localRelayHost?: typeof localRelayHost;
   sandboxRelayHost?: typeof sandboxRelayHost;
@@ -104,11 +127,11 @@ export interface CurrentTurn {
 
 /**
  * A permission gate that paused the turn and can be answered later on the SAME live session.
- * Recorded for a Claude ACP permission gate (keep-alive slice 2) or a Pi ACP permission gate
- * (Pi approval parking: the gate rides the extension's `ctx.ui.confirm` onto the same ACP
- * permission plane). NOT recorded for a client-tool MCP pause — that cannot be answered across
- * a turn boundary and stays on the cold path. Existence of this record is what makes the
- * dispatch park a paused session in `awaiting_approval` instead of tearing it down.
+ * Recorded for Claude and Codex ACP permission gates, or a Pi ACP permission gate (Pi approval
+ * parking: the gate rides the extension's `ctx.ui.confirm` onto the same ACP permission plane).
+ * NOT recorded for a client-tool MCP pause, which cannot be answered across a turn boundary and
+ * stays on the cold path. Existence of this record is what makes the dispatch park a paused
+ * session in `awaiting_approval` instead of tearing it down.
  */
 export interface ParkedApproval {
   /** Which gate paused; the dispatch resumes only a recognized type and treats others as cold. */
@@ -127,7 +150,7 @@ export interface ParkedApproval {
   promptPromise?: Promise<unknown>;
 }
 
-/** Answer a parked Claude ACP permission gate on the live session (the keep-alive resume input). */
+/** Answer a parked ACP permission gate on the live session (the keep-alive resume input). */
 export interface ResumeApprovalInput {
   permissionId: string;
   reply: "once" | "reject";
@@ -151,6 +174,8 @@ export interface ParkedApprovedExecution {
 
 /** Per-turn options for `runTurn`. Absent (flag off / cold) means today's byte-identical path. */
 export interface RunTurnOptions {
+  /** Latest session credential accessor; long turns may refresh the value between API calls. */
+  credential?: () => string;
   /** A live continuation: send only the new user text instead of the full cold transcript. */
   continuation?: boolean;
   /**
@@ -162,7 +187,7 @@ export interface RunTurnOptions {
    */
   loaded?: boolean;
   /**
-   * Keep-alive approval park mode: on a Claude ACP permission gate the pause keeps the session
+   * Keep-alive approval park mode: on a parkable ACP permission gate the pause keeps the session
    * alive (no settle/abort/destroy) so a later resume can answer it. A non-parkable pause (Pi
    * relay, client tool) still tears down exactly as today, so this is safe to set on any eligible
    * keep-alive turn.
@@ -194,6 +219,53 @@ export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
  * call. Per-turn state rides `currentTurn`, swapped in by `runTurn`.
  */
 export interface SessionEnvironment {
+  /**
+   * What this environment ACTUALLY has installed.
+   *
+   * LIFECYCLE MIGRATION, STEP 2. The pool reads this instead of a fingerprint its caller supplies,
+   * so a request can no longer stamp a configuration the environment never applied. Only
+   * `commitApplied` advances it, and only after a lifecycle action succeeds. See
+   * `applied-state.ts`.
+   */
+  readonly appliedState: AppliedEnvironmentState;
+  /**
+   * What the workspace write left behind, so a later in-place refresh knows what to DELETE.
+   *
+   * Undefined until a workspace is materialized. A refresh with no inventory refuses rather than
+   * writing without deleting: a stale skill left readable is the failure that route exists to
+   * prevent. See `environment/workspace-manager.ts`.
+   */
+  workspaceInventory?: import("../../environment/workspace-manager.ts").WorkspaceInventory;
+  /**
+   * Close and reopen this environment's harness session on the SAME sandbox.
+   *
+   * A CLOSURE built at acquire, exactly like `destroy`, because a reopen needs the persist
+   * driver, the session-init payload and the local session key — all of which live in the acquire
+   * scope and none of which belong on this interface individually.
+   *
+   * Undefined when the environment never opened a session. The caller then rebuilds.
+   */
+  reopenSession?: (opts: {
+    transcriptReplayable: boolean;
+  }) => Promise<
+    import("../../environment/harness-session-lifecycle.ts").ReopenResult
+  >;
+  /**
+   * How a rotated credential reaches this environment WITHOUT rebuilding it, or undefined.
+   *
+   * LIFECYCLE MIGRATION, STEP 8. This is the single source of truth for what a rotation costs on
+   * this environment, and it is a property of the ENVIRONMENT rather than of the provider name on
+   * the request. The difference is load-bearing: a Daytona run with credential hiding switched off
+   * puts the values in the daemon environment as plain variables, so it holds no reference to
+   * rotate and must rebuild — a table keyed by "daytona" would claim a live rotation it cannot
+   * perform. Undefined means "no live credential route here", which is always a sound answer.
+   */
+  credentialDelivery?: import("../../providers/credential-delivery-port.ts").CredentialDeliveryPort;
+  /** Record a lifecycle action that already succeeded. The only writer of `appliedState`. */
+  commitApplied: (result: {
+    configFingerprint: string;
+    facets: FacetDigests;
+  }) => void;
   plan: RunPlan;
   logger: Log;
   deps: SandboxAgentDeps;
@@ -206,9 +278,18 @@ export interface SessionEnvironment {
   toolCallIndex: ReturnType<typeof createToolCallCorrelationIndex>;
   /** The current turn's client-tool relay, read by the deferred ref baked into the MCP server. */
   clientToolRelayRef: { current?: ClientToolRelay };
+  /** The current turn's executable-tool gate, read by the loopback MCP server. */
+  executableToolGateRef: { current?: ExecutableToolGate };
   mcpAbort: AbortController;
   runAgentDir: string | undefined;
   otlpAuthFilePath: string | undefined;
+  /**
+   * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
+   * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
+   * disposable because native resume rides the `sessions/` rollout files on CODEX_HOME, not the
+   * SQLite. Undefined when not a local managed Codex run.
+   */
+  codexSqliteHome: string | undefined;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
@@ -256,6 +337,14 @@ export interface SessionEnvironment {
    * `permissionId` on the live session. Empty when no parkable gate paused the turn.
    */
   parkedApprovals: Map<string, ParkedApproval>;
+  /**
+   * Frozen approval bytes and single-use authorization records for commits that reference
+   * workspace files (`@ag.file`). Session-scoped so a parked approval survives to its live
+   * resume and commits the exact bytes the human saw; the turn drops it whenever it did not
+   * park, and a cold resume gets a new environment and therefore an empty store, which is what
+   * forces a fresh gate rather than executing bytes nobody approved.
+   */
+  commitAuthorization?: import("./approved-content.ts").CommitAuthorizationState;
   /**
    * The FIRST parked gate this turn, a convenience for per-turn-uniform reads (logging, the
    * gate-type check, the shared history/credential validation). Undefined when the map is empty.

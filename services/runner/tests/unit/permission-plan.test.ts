@@ -213,6 +213,92 @@ describe("effectivePermission rule matching", () => {
     );
   });
 
+  it("matches a built-in whatever case the rule was written in", () => {
+    for (const pattern of ["bash", "Bash", "BASH"]) {
+      assert.equal(
+        effectivePermission(
+          { executor: "harness", toolName: "Bash" },
+          { default: "deny", rules: [{ pattern, permission: "allow" }] },
+        ),
+        "allow",
+        `pattern ${pattern} should govern the Bash built-in`,
+      );
+    }
+  });
+
+  it("matches a case-insensitive built-in prefix rule", () => {
+    assert.equal(
+      effectivePermission(
+        {
+          executor: "harness",
+          toolName: "Bash",
+          args: { command: "npm run build" },
+        },
+        {
+          default: "deny",
+          rules: [{ pattern: "BASH(npm run:*)", permission: "allow" }],
+        },
+      ),
+      "allow",
+    );
+  });
+
+  it("keeps the prefix body case-significant", () => {
+    assert.equal(
+      effectivePermission(
+        {
+          executor: "harness",
+          toolName: "Bash",
+          args: { command: "npm run build" },
+        },
+        {
+          default: "deny",
+          rules: [{ pattern: "Bash(NPM:*)", permission: "allow" }],
+        },
+      ),
+      "deny",
+    );
+  });
+
+  it("keeps custom tool names case-significant", () => {
+    assert.equal(
+      effectivePermission(
+        { executor: "relay", toolName: "MyTool" },
+        { default: "deny", rules: [{ pattern: "mytool", permission: "allow" }] },
+      ),
+      "deny",
+    );
+  });
+
+  it("folds a custom tool named like a built-in into the built-in identity", () => {
+    // A user who names a custom tool `read` should expect a `Read` rule to catch it: names
+    // inside the seven fold, every other name stays case-significant.
+    assert.equal(
+      effectivePermission(
+        { executor: "relay", toolName: "read" },
+        { default: "deny", rules: [{ pattern: "Read", permission: "allow" }] },
+      ),
+      "allow",
+    );
+  });
+
+  it("keeps deny over ask over allow across mixed-case rules", () => {
+    assert.equal(
+      effectivePermission(
+        { executor: "harness", toolName: "Bash" },
+        {
+          default: "allow",
+          rules: [
+            { pattern: "bash", permission: "allow" },
+            { pattern: "BASH", permission: "ask" },
+            { pattern: "Bash", permission: "deny" },
+          ],
+        },
+      ),
+      "deny",
+    );
+  });
+
   it("lets specPermission beat serverPermission", () => {
     assert.equal(
       effectivePermission(

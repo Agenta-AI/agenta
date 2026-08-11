@@ -350,7 +350,7 @@ is dated and ignorable.
    every change lands in exactly one lane, and never run `but` while a fresh lock is held.
 
 ## BUT-LOCK
-FREE
+HELD by multimodality-release session f9397bd3 since 2026-08-01 17:49 (workspace retarget to release/v0.107.0 + train rebase; re-stamped during long op)
 
 ## Lanes / PRs (date each row; rows older than 2 days are stale → ignore/clean)
 | date | agent | lane | PR | status |

@@ -1,0 +1,31 @@
+[
+    {"id": "u1", "role": "user", "parts": [{"type": "text", "text": "delete the file and send a mail"}]},
+    {
+        "id": "a1",
+        "role": "assistant",
+        "parts": [
+            {
+                "type": "tool-delete_file",
+                "toolCallId": "call_1",
+                "state": "approval-requested",
+                "input": {"path": "notes.txt"},
+                "approval": {"id": "appr_1"}
+            },
+            {
+                "type": "tool-read_file",
+                "toolCallId": "call_2",
+                "state": "output-available",
+                "input": {"path": "readme.md"},
+                "output": {"content": "hello"}
+            },
+            {
+                "type": "dynamic-tool",
+                "toolCallId": "call_3",
+                "toolName": "send_mail",
+                "state": "approval-requested",
+                "input": {"to": "a@b.com"},
+                "approval": {"id": "appr_2"}
+            }
+        ]
+    }
+]

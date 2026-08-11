@@ -1,0 +1,4025 @@
+{
+  "run": {
+    "started_at": "2026-08-06T22:28:03Z",
+    "tier": "wire",
+    "trials_per_cell_scenario": 3,
+    "threshold": 0.95,
+    "base": "http://144.76.237.122:8580",
+    "project_id": "019fd878-4f4a-7320-be9d-2b69f7b47ea4",
+    "api_key_fingerprint": "86d6d7622f56",
+    "stamps": {
+      "tool_descriptions": {
+        "path": "sdks/python/agenta/sdk/agents/platform/op_catalog.py",
+        "exists": true,
+        "sha256": "a85076d4c3065298",
+        "bytes": 73098,
+        "dirty": true,
+        "commit": "352e204c3a5e",
+        "committed_at": "2026-08-07T00:07:02+02:00"
+      },
+      "platform_guidance": {
+        "path": "services/runner/src/engines/sandbox_agent/platform-guidance.ts",
+        "exists": true,
+        "sha256": "cda38f6ff5d31334",
+        "bytes": 13546,
+        "dirty": true,
+        "commit": "7f4ff960b6fb",
+        "committed_at": "2026-08-06T23:21:12+02:00"
+      },
+      "guidance_composer": {
+        "path": "services/runner/src/engines/sandbox_agent/system-prompt-appendix.ts",
+        "exists": true,
+        "sha256": "d8bd15d551087139",
+        "bytes": 7165,
+        "dirty": true,
+        "commit": "5a27eb85072f",
+        "committed_at": "2026-08-06T22:03:38+02:00"
+      },
+      "mount_guidance": {
+        "path": "services/runner/src/engines/sandbox_agent/agent-mount-guidance.ts",
+        "exists": true,
+        "sha256": "9839eee8a8499710",
+        "bytes": 6446,
+        "dirty": true,
+        "commit": "c725a9780c4c",
+        "committed_at": "2026-08-06T22:03:38+02:00"
+      },
+      "engine_errors": {
+        "path": "api/oss/src/core/workflows/change_set.py",
+        "exists": true,
+        "sha256": "da0577034a1f06ef",
+        "bytes": 78329,
+        "dirty": true,
+        "commit": "5fa2537536ee",
+        "committed_at": "2026-08-06T23:42:30+02:00"
+      },
+      "guidance_skill": {
+        "path": ".agents/skills/build-agent/SKILL.md",
+        "exists": true,
+        "sha256": "6c3bcbcbcf2e93f0",
+        "bytes": 18096,
+        "dirty": false,
+        "commit": "",
+        "committed_at": ""
+      },
+      "_head": {
+        "commit": "360fbbd323fb",
+        "branch": "gitbutler/workspace"
+      }
+    },
+    "preflight": {
+      "ok": true,
+      "checks": [
+        {
+          "check": "create+seed a workflow",
+          "ok": true
+        },
+        {
+          "check": "read_config (full)",
+          "ok": true,
+          "status": 200,
+          "detail": ""
+        },
+        {
+          "check": "read_config (scoped path)",
+          "ok": true,
+          "status": 200,
+          "detail": ""
+        },
+        {
+          "check": "commit_revision (scoped route reachable)",
+          "ok": true,
+          "status": 200,
+          "detail": ""
+        }
+      ]
+    }
+  },
+  "scenarios": [
+    "skill-01-add-inline",
+    "skill-02-edit-body",
+    "skill-03-remove",
+    "skill-04-rename",
+    "list-03-nested-file-entry",
+    "import-01-skill-from-folder",
+    "fm-03-harness-skills-folder"
+  ],
+  "scenario_defs": {
+    "skill-01-add-inline": {
+      "id": "skill-01-add-inline",
+      "title": "add a skill described in the message itself",
+      "turns": [
+        {
+          "prompt": "can you add an incident-review skill? it should say to collect the timeline first, then name the root cause, then file a follow-up issue."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 4
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "incident-review"
+            }
+          ]
+        },
+        {
+          "check": "stored_matches",
+          "path": [
+            {
+              "list": "skills",
+              "key": "incident-review"
+            },
+            "body"
+          ],
+          "pattern": "(?i)root cause"
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            }
+          ]
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        },
+        {
+          "check": "no_stored_marker"
+        }
+      ],
+      "class": "skills",
+      "source_file": "03-skills.json",
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      }
+    },
+    "skill-02-edit-body": {
+      "id": "skill-02-edit-body",
+      "title": "change one line inside a skill body",
+      "turns": [
+        {
+          "prompt": "the smoke marker got renamed. my release qa skill should run `pytest -m release` now, not `pytest -m smoke`. just that line."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_not_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "pytest -m smoke"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "pytest -m release"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "Escalate to the on-call engineer"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "1. Pull the release branch."
+        },
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 3
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        },
+        {
+          "check": "no_stored_marker"
+        }
+      ],
+      "class": "skills",
+      "source_file": "03-skills.json",
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      }
+    },
+    "skill-03-remove": {
+      "id": "skill-03-remove",
+      "title": "remove one skill",
+      "turns": [
+        {
+          "prompt": "i don't need the triage skill any more, get rid of it please."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 2
+        },
+        {
+          "check": "stored_absent",
+          "path": [
+            {
+              "list": "skills",
+              "key": "triage"
+            }
+          ]
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            }
+          ]
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "changelog-writer"
+            }
+          ]
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "class": "skills",
+      "source_file": "03-skills.json",
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      }
+    },
+    "skill-04-rename": {
+      "id": "skill-04-rename",
+      "title": "rename a skill, keeping its content",
+      "prompt_note": "A rename is a refusal by design. One-shot means the model sends remove_item + add_item in one delta rather than learning it from a rejected commit.",
+      "turns": [
+        {
+          "prompt": "rename my triage skill to issue-triage. keep what it says exactly as it is."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 3
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "issue-triage"
+            }
+          ]
+        },
+        {
+          "check": "stored_absent",
+          "path": [
+            {
+              "list": "skills",
+              "key": "triage"
+            }
+          ]
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "issue-triage"
+            },
+            "body"
+          ],
+          "text": "Label the issue. Assign a priority."
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "class": "skills",
+      "source_file": "03-skills.json",
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      }
+    },
+    "list-03-nested-file-entry": {
+      "id": "list-03-nested-file-entry",
+      "title": "edit a file bundled inside a skill",
+      "prompt_note": "The two-selector target. The user says none of that; they say 'the checklist in my release qa skill'.",
+      "turns": [
+        {
+          "prompt": "the checklist in my release qa skill is missing a line \u2014 add a checkbox for the release notes. keep the two that are there."
+        }
+      ],
+      "checks": [
+        {
+          "check": "stored_matches",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            {
+              "list": "files",
+              "key": "checklist.md"
+            },
+            "content"
+          ],
+          "pattern": "(?i)release notes"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            {
+              "list": "files",
+              "key": "checklist.md"
+            },
+            "content"
+          ],
+          "text": "smoke suite"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            {
+              "list": "files",
+              "key": "checklist.md"
+            },
+            "content"
+          ],
+          "text": "deploy logs"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "release-qa"
+            },
+            "body"
+          ],
+          "text": "pytest -m smoke"
+        },
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 3
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "class": "list_entries",
+      "source_file": "04-list-entries.json",
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      }
+    },
+    "import-01-skill-from-folder": {
+      "id": "import-01-skill-from-folder",
+      "title": "add a skill from a file the user saved",
+      "seed_workspace": {
+        "incident-review/SKILL.md": "---\nname: incident-review\ndescription: Run a blameless incident review.\n---\n\n# Incident review\n\nRun this after every incident, within {{TOKEN}} hours.\n\n1. Collect the timeline from the alert channel.\n2. Name the root cause without naming a person.\n3. File a follow-up issue and link the incident.\n"
+      },
+      "turns": [
+        {
+          "prompt": "i wrote up an incident-review skill and saved it in your folder \u2014 can you add it to your skills?"
+        }
+      ],
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      },
+      "checks": [
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 4
+        },
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "incident-review"
+            }
+          ]
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "incident-review"
+            },
+            "body"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "incident-review"
+            },
+            "body"
+          ],
+          "text": "without naming a person"
+        },
+        {
+          "check": "no_stored_marker"
+        },
+        {
+          "check": "stored_unchanged_except",
+          "allowed": [
+            "skills"
+          ]
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "class": "import",
+      "source_file": "05-import.json"
+    },
+    "fm-03-harness-skills-folder": {
+      "id": "fm-03-harness-skills-folder",
+      "title": "a skill saved into the harness's own folder instead of the configuration",
+      "prompt_note": "Mahmoud's words, verbatim, from session b59cb549. Before the platform guidance existed this failed 3 times out of 3: the model copied the file into .codex/skills or .claude/skills and reported success, and nothing was saved.",
+      "seed_workspace": {
+        "gstack-autoplan/SKILL.md": "---\nname: gstack-autoplan\ndescription: Auto-review pipeline that runs the CEO, design, engineering, and DX reviews sequentially with automatic decisions.\n---\n\n# Autoplan\n\nRun the four review passes in order and decide automatically using the six decision\nprinciples. Reference code {{TOKEN}}.\n\n1. CEO review - is this worth building at all?\n2. Design review - does the shape fit the product?\n3. Engineering review - is the implementation sound?\n4. DX review - can a developer actually use it?\n"
+      },
+      "turns": [
+        {
+          "prompt": "can you add gstack-autoplan skill to your skills (i saved it in your folder)"
+        }
+      ],
+      "budget": {
+        "max_tool_errors": 0,
+        "max_commit_calls": 1,
+        "max_rounds": 8
+      },
+      "checks": [
+        {
+          "check": "stored_present",
+          "path": [
+            {
+              "list": "skills",
+              "key": "gstack-autoplan"
+            }
+          ]
+        },
+        {
+          "check": "stored_contains",
+          "path": [
+            {
+              "list": "skills",
+              "key": "gstack-autoplan"
+            },
+            "body"
+          ],
+          "text": "{{TOKEN}}"
+        },
+        {
+          "check": "stored_len",
+          "path": [
+            "skills"
+          ],
+          "value": 4
+        },
+        {
+          "check": "turn_reply_not_contains",
+          "any_of": [
+            ".codex/skills",
+            ".claude/skills",
+            ".agents/skills"
+          ]
+        },
+        {
+          "check": "no_stored_marker"
+        },
+        {
+          "check": "revision_created"
+        }
+      ],
+      "baseline": {
+        "note": "Recorded from the release gate's discovery cell (.agents/skills/agent-release-gate/resources/matrix_g1_guidance_discovery.py), which drives this same verbatim prompt. External measurement, not produced by this benchmark \u2014 kept here so a wording change has a before-number to beat on the two harnesses this benchmark could not measure itself.",
+        "measured": "2026-08-06, gate reruns with the live OpenAI key",
+        "legs": [
+          {
+            "cell": "pi_core + claude-haiku-4-5",
+            "score": "2/3",
+            "shape": "attempt_refused",
+            "session": "7b4a1f01",
+            "detail": "Copied the whole skill DIRECTORY into .agenta-imports/ and then referenced a file path that did not match. The fail-closed deny correctly stopped it. Mechanical: it used the surface and got the details wrong."
+          },
+          {
+            "cell": "codex + gpt-5.6-luna",
+            "score": "2/3",
+            "shape": "described_no_action",
+            "session": "4fa17164",
+            "detail": "Correctly described the mechanism (\"skills must be enabled through the agent configuration\") and then made ZERO tool calls. Behavioral: it knew the surface and never reached for it."
+          }
+        ],
+        "candidate_change": "qa proposes making the guidance directive: \"always attempt the tool calls; do not only describe the mechanism\". UNVERIFIED by design \u2014 it targets the codex leg's shape and would plausibly do nothing for the pi_core leg's, which is exactly the prediction the outcome labels exist to test."
+      },
+      "class": "failure_mode",
+      "source_file": "08-failure-modes.json"
+    }
+  },
+  "cells": {
+    "codex-luna-local": {
+      "config": {
+        "harness": "codex",
+        "model": "gpt-5.6-luna",
+        "provider": "openai",
+        "sandbox": "local",
+        "connection": {
+          "mode": "agenta",
+          "slug": null
+        },
+        "note": "Codex has NO system-prompt channel; the instructions file is the only way platform guidance reaches it. The cell where guidance wording matters most."
+      },
+      "scenarios": {
+        "skill-01-add-inline": {
+          "class": "skills",
+          "trials": [
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-01-add-inline",
+              "class": "skills",
+              "trial": 1,
+              "token": "QA-D1P00G07",
+              "started_at": "2026-08-06T22:28:03Z",
+              "workflow_id": "019fd930-d1b1-7c21-864a-e01da272a1e1",
+              "session_id": "82c0ba28-9b45-4e8b-bbf3-488b6995cac5",
+              "outcome": "wrong_surface",
+              "blocked_only_by_harness": true,
+              "one_shot": false,
+              "eventual": false,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": "skills has 3 entries ['release-qa', 'changelog-writer', 'triage'], expected 4"
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      }
+                    ]
+                  },
+                  "failure": "skills[incident-review] is absent"
+                },
+                {
+                  "check": "stored_matches",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "pattern": "(?i)root cause"
+                  },
+                  "failure": "skills[incident-review]/body is not a string (Missing)"
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": "no new revision was stored (version 0 vs baseline 0)"
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [
+                {
+                  "check": "stored_len",
+                  "why": "skills has 3 entries ['release-qa', 'changelog-writer', 'triage'], expected 4"
+                },
+                {
+                  "check": "stored_present",
+                  "why": "skills[incident-review] is absent"
+                },
+                {
+                  "check": "stored_matches",
+                  "why": "skills[incident-review]/body is not a string (Missing)"
+                },
+                {
+                  "check": "revision_created",
+                  "why": "no new revision was stored (version 0 vs baseline 0)"
+                }
+              ],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "pwd && rg --files -g 'CHANGELOG*' -g 'SKILL.md' -g 'skills/**' | head -80 && sed -n '1,240p' .codex/skills/.system/skill-creator/SKILL.md",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "\"rg --files -g 'CHANGELOG*' -g '\"'!agent-files/**'\"' | head -20; rg --files -g 'skills/**' -g '.codex-plugin/**' -g 'package.json' | head -80; ls -la\"",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "rg -n \"init_skill|quick_validate\" .codex/skills/.system/skill-creator/SKILL.md | head -20; find .codex/skills/.system/skill-creator -maxdepth 2 -type f -print",
+                    "outcome": "error"
+                  },
+                  {
+                    "name": "List files in 'skill-creator'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "python3 .codex/skills/.system/skill-creator/scripts/init_skill.py incident-review --path .codex/skills --interface 'display_name=Incident Review' --interface 'short_description=Review incidents from timeline to follow-up' --interface 'default_prompt=Run an incident review: collect the timeline, name the root cause, and file a follow-up issue.'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3/.codex/skills/incident-review/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Editing files",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "python3 .codex/skills/.system/skill-creator/scripts/quick_validate.py .codex/skills/incident-review && sed -n '1,120p' .codex/skills/incident-review/agents/openai.yaml && sed -n '1,120p' .codex/skills/incident-review/SKILL.md",
+                    "outcome": "error"
+                  },
+                  {
+                    "name": "\"sed -n '1,120p' .codex/skills/incident-review/agents/openai.yaml; sed -n '1,120p' .codex/skills/incident-review/SKILL.md\"",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [
+                  {
+                    "toolName": "rg -n \"init_skill|quick_validate\" .codex/skills/.system/skill-creator/SKILL.md | head -20; find .codex/skills/.system/skill-creator -maxdepth 2 -type f -print",
+                    "code": null,
+                    "errorText": ""
+                  },
+                  {
+                    "toolName": "python3 .codex/skills/.system/skill-creator/scripts/quick_validate.py .codex/skills/incident-review && sed -n '1,120p' .codex/skills/incident-review/agents/openai.yaml && sed -n '1,120p' .codex/skills/incident-review/SKILL.md",
+                    "code": null,
+                    "errorText": ""
+                  }
+                ],
+                "commit_calls": 0,
+                "approval_gates": 0,
+                "wire_turns": 1,
+                "finish_reasons": [
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 442,
+                "output": 144,
+                "total": 586,
+                "cost": 0.0,
+                "turns": 1
+              },
+              "final_reply": "m running the standard validator and checking the generated metadata.Added the `incident-review` skill at [.codex/skills/incident-review/SKILL.md](/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3/.codex/skills/incident-review/SKILL.md).\n\nIt requires:\n\n1. Collecting the timeline.\n2. Naming the root cause.\n3. Filing a follow-up issue.\n\nValidation was attempted but unavailable because `yaml` is not installed: `ModuleNotFoundError: No module named 'yaml'`.",
+              "full_reply": "I\u2019m using the skill-creator guidance because this request adds a new Codex skill. I\u2019ll first check the changelog, then scaffold the skill with the required workflow.There is no repository changelog or existing skill directory in the workspace. I\u2019m creating a concise standalone `incident-review` skill with only the requested three-stage sequence.The skill is scaffolded and now contains the required order: timeline, root cause, then follow-up issue. I\u2019m running the standard validator and checking the generated metadata.Added the `incident-review` skill at [.codex/skills/incident-review/SKILL.md](/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3/.codex/skills/incident-review/SKILL.md).\n\nIt requires:\n\n1. Collecting the timeline.\n2. Naming the root cause.\n3. Filing a follow-up issue.\n\nValidation was attempted but unavailable because `yaml` is not installed: `ModuleNotFoundError: No module named 'yaml'`.",
+              "debug_calls": [
+                {
+                  "name": "pwd && rg --files -g 'CHANGELOG*' -g 'SKILL.md' -g 'skills/**' | head -80 && sed -n '1,240p' .codex/skills/.system/skill-creator/SKILL.md",
+                  "input": {
+                    "command": "pwd && rg --files -g 'CHANGELOG*' -g 'SKILL.md' -g 'skills/**' | head -80 && sed -n '1,240p' .codex/skills/.system/skill-creator/SKILL.md",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "\"rg --files -g 'CHANGELOG*' -g '\"'!agent-files/**'\"' | head -20; rg --files -g 'skills/**' -g '.codex-plugin/**' -g 'package.json' | head -80; ls -la\"",
+                  "input": {
+                    "command": "/bin/bash -lc \"rg --files -g 'CHANGELOG*' -g '\"'!agent-files/**'\"' | head -20; rg --files -g 'skills/**' -g '.codex-plugin/**' -g 'package.json' | head -80; ls -la\"",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "rg -n \"init_skill|quick_validate\" .codex/skills/.system/skill-creator/SKILL.md | head -20; find .codex/skills/.system/skill-creator -maxdepth 2 -type f -print",
+                  "input": {
+                    "command": "/bin/bash -lc 'rg -n \"init_skill|quick_validate\" .codex/skills/.system/skill-creator/SKILL.md | head -20; find .codex/skills/.system/skill-creator -maxdepth 2 -type f -print'",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4"
+                  },
+                  "outcome": "error",
+                  "error": ""
+                },
+                {
+                  "name": "List files in 'skill-creator'",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "python3 .codex/skills/.system/skill-creator/scripts/init_skill.py incident-review --path .codex/skills --interface 'display_name=Incident Review' --interface 'short_description=Review incidents from timeline to follow-up' --interface 'default_prompt=Run an incident review: collect the timeline, name the root cause, and file a follow-up issue.'",
+                  "input": {
+                    "command": "python3 .codex/skills/.system/skill-creator/scripts/init_skill.py incident-review --path .codex/skills --interface 'display_name=Incident Review' --interface 'short_description=Review incidents from timeline to follow-up' --interface 'default_prompt=Run an incident review: collect the timeline, name the root cause, and file a follow-up issue.'",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3/.codex/skills/incident-review/SKILL.md'",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "Editing files",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "python3 .codex/skills/.system/skill-creator/scripts/quick_validate.py .codex/skills/incident-review && sed -n '1,120p' .codex/skills/incident-review/agents/openai.yaml && sed -n '1,120p' .codex/skills/incident-review/SKILL.md",
+                  "input": {
+                    "command": "python3 .codex/skills/.system/skill-creator/scripts/quick_validate.py .codex/skills/incident-review && sed -n '1,120p' .codex/skills/incident-review/agents/openai.yaml && sed -n '1,120p' .codex/skills/incident-review/SKILL.md",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3"
+                  },
+                  "outcome": "error",
+                  "error": ""
+                },
+                {
+                  "name": "\"sed -n '1,120p' .codex/skills/incident-review/agents/openai.yaml; sed -n '1,120p' .codex/skills/incident-review/SKILL.md\"",
+                  "input": {
+                    "command": "/bin/bash -lc \"sed -n '1,120p' .codex/skills/incident-review/agents/openai.yaml; sed -n '1,120p' .codex/skills/incident-review/SKILL.md\"",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd930-d276-7f93-acc9-c8fd5b5c73c3"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                }
+              ],
+              "duration_s": 29.3
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-01-add-inline",
+              "class": "skills",
+              "trial": 2,
+              "token": "QA-JZ0H1UA3",
+              "started_at": "2026-08-06T22:28:32Z",
+              "workflow_id": "019fd931-4404-7843-8fbb-4578b16e2cde",
+              "session_id": "e1c48f92-7eba-428a-9214-36b5028a8060",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_matches",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "pattern": "(?i)root cause"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd931-44a0-7610-a9ec-8c83e27a8c88/.codex/skills/.system/skill-creator/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1834,
+                "output": 37,
+                "total": 16594,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added the `incident-review` skill. It requires:\n\n1. Collect the timeline first.\n2. Name the root cause.\n3. File a follow-up issue.",
+              "duration_s": 15.5
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-01-add-inline",
+              "class": "skills",
+              "trial": 3,
+              "token": "QA-8EDXQ5QF",
+              "started_at": "2026-08-06T22:28:47Z",
+              "workflow_id": "019fd931-80a6-74d0-917a-97daf142c00e",
+              "session_id": "d260184b-5e5b-4c1b-bef1-1f6ab9be8883",
+              "outcome": "recovered",
+              "blocked_only_by_harness": true,
+              "one_shot": false,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_matches",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "pattern": "(?i)root cause"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd931-8133-7d11-bf3f-9704defa3b01/.codex/skills/.system/skill-creator/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "\"ls -la .codex/skills && find .codex/skills -maxdepth 2 -type f -name 'SKILL.md' -print\"",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "List files in 'skill-creator'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "\"sed -n '1,160p' .codex/skills/triage/SKILL.md && sed -n '1,120p' .codex/skills/.system/skill-creator/references/openai_yaml.md\"",
+                    "outcome": "error"
+                  },
+                  {
+                    "name": "\"sed -n '1,160p' .codex/skills/triage/SKILL.md && sed -n '1,120p' .codex/skills/.system/skill-creator/references/openai_yaml.md\"",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [
+                  {
+                    "toolName": "\"sed -n '1,160p' .codex/skills/triage/SKILL.md && sed -n '1,120p' .codex/skills/.system/skill-creator/references/openai_yaml.md\"",
+                    "code": null,
+                    "errorText": ""
+                  }
+                ],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1781,
+                "output": 47,
+                "total": 18165,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added the `incident-review` skill.\n\nIt instructs the agent to:\n\n1. Collect the timeline first.\n2. Name the root cause.\n3. File a follow-up issue with an owner and due date.",
+              "full_reply": "I\u2019m using the skill-creator guidance to add this as a proper reusable skill. I\u2019ll first inspect the required format, then create the skill with the three-step workflow you specified.The skill must be added to the agent configuration, not just placed in the rendered workspace copy. I\u2019m reading the current configuration revision so I can commit it through the supported path.\n\nAdded the `incident-review` skill.\n\nIt instructs the agent to:\n\n1. Collect the timeline first.\n2. Name the root cause.\n3. File a follow-up issue with an owner and due date.",
+              "debug_calls": [
+                {
+                  "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd931-8133-7d11-bf3f-9704defa3b01/.codex/skills/.system/skill-creator/SKILL.md'",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "\"ls -la .codex/skills && find .codex/skills -maxdepth 2 -type f -name 'SKILL.md' -print\"",
+                  "input": {
+                    "command": "/bin/bash -lc \"ls -la .codex/skills && find .codex/skills -maxdepth 2 -type f -name 'SKILL.md' -print\"",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd931-8133-7d11-bf3f-9704defa3b01"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "List files in 'skill-creator'",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "\"sed -n '1,160p' .codex/skills/triage/SKILL.md && sed -n '1,120p' .codex/skills/.system/skill-creator/references/openai_yaml.md\"",
+                  "input": {
+                    "command": "/bin/bash -lc \"sed -n '1,160p' .codex/skills/triage/SKILL.md && sed -n '1,120p' .codex/skills/.system/skill-creator/references/openai_yaml.md\"",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4"
+                  },
+                  "outcome": "error",
+                  "error": ""
+                },
+                {
+                  "name": "\"sed -n '1,160p' .codex/skills/triage/SKILL.md && sed -n '1,120p' .codex/skills/.system/skill-creator/references/openai_yaml.md\"",
+                  "input": {
+                    "command": "/bin/bash -lc \"sed -n '1,160p' .codex/skills/triage/SKILL.md && sed -n '1,120p' .codex/skills/.system/skill-creator/references/openai_yaml.md\"",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd931-8133-7d11-bf3f-9704defa3b01"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "mcp.agenta-tools.read_config",
+                  "input": {
+                    "arguments": {
+                      "description": "Read the current skill configuration before adding incident-review.",
+                      "target": {
+                        "path": [
+                          "parameters",
+                          "agent",
+                          "skills"
+                        ]
+                      }
+                    },
+                    "server": "agenta-tools",
+                    "tool": "read_config"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "commit_revision",
+                  "input": {
+                    "description": "Add the incident-review skill with the requested incident analysis and follow-up workflow.",
+                    "workflow_revision": {
+                      "base_revision_id": "019fd931-80d2-7512-8511-960a6b39b921",
+                      "delta": {
+                        "operations": [
+                          {
+                            "operation": "add_item",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              "skills"
+                            ],
+                            "value": {
+                              "body": "# Incident review\n\nFollow this sequence for every incident:\n\n1. Collect the timeline first. Record the key events, timestamps, observed impact, and relevant evidence.\n2. Name the root cause. State the specific failure that led to the incident and distinguish it from contributing factors.\n3. File a follow-up issue. Capture the corrective action, owner, and due date.\n",
+                              "description": "Review incidents and file follow-up actions.",
+                              "name": "incident-review"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "outcome": "available",
+                  "error": ""
+                }
+              ],
+              "duration_s": 24.5
+            }
+          ]
+        },
+        "skill-02-edit-body": {
+          "class": "skills",
+          "trials": [
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-02-edit-body",
+              "class": "skills",
+              "trial": 1,
+              "token": "QA-EVKZTLKT",
+              "started_at": "2026-08-06T22:29:12Z",
+              "workflow_id": "019fd931-e06e-7e41-8435-78c12d90f4ee",
+              "session_id": "33e35596-4805-462b-b1db-afbc4d6ffc4c",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_not_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m smoke"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m release"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "Escalate to the on-call engineer"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "1. Pull the release branch."
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd931-e10a-7ae0-a996-50676fbbaefa/.codex/skills/release-qa/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1546,
+                "output": 20,
+                "total": 13770,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Updated the release QA skill. It now runs:\n\n`pytest -m release`",
+              "duration_s": 16.2
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-02-edit-body",
+              "class": "skills",
+              "trial": 2,
+              "token": "QA-OSYOLEH3",
+              "started_at": "2026-08-06T22:29:28Z",
+              "workflow_id": "019fd932-1f95-7182-a0f4-f125dcd6e19f",
+              "session_id": "a169cf93-6322-47a4-a501-bb904ec0a972",
+              "outcome": "wrong_surface",
+              "blocked_only_by_harness": false,
+              "one_shot": false,
+              "eventual": false,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_not_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m smoke"
+                  },
+                  "failure": "skills[release-qa]/body still contains 'pytest -m smoke'"
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m release"
+                  },
+                  "failure": "skills[release-qa]/body does not contain 'pytest -m release'"
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "Escalate to the on-call engineer"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "1. Pull the release branch."
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": "no new revision was stored (version 0 vs baseline 0)"
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [
+                {
+                  "check": "stored_not_contains",
+                  "why": "skills[release-qa]/body still contains 'pytest -m smoke'"
+                },
+                {
+                  "check": "stored_contains",
+                  "why": "skills[release-qa]/body does not contain 'pytest -m release'"
+                },
+                {
+                  "check": "revision_created",
+                  "why": "no new revision was stored (version 0 vs baseline 0)"
+                }
+              ],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd932-202e-7242-879e-a20cf63b1b44/.codex/skills/release-qa/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Editing files",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 0,
+                "approval_gates": 0,
+                "wire_turns": 1,
+                "finish_reasons": [
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 174,
+                "output": 17,
+                "total": 191,
+                "cost": 0.0,
+                "turns": 1
+              },
+              "final_reply": "I\u2019m using the `release-qa` skill because you asked to update its command. I\u2019ll inspect it and change only the marker line.Updated the release QA skill to use `pytest -m release`.",
+              "full_reply": "I\u2019m using the `release-qa` skill because you asked to update its command. I\u2019ll inspect it and change only the marker line.Updated the release QA skill to use `pytest -m release`.",
+              "debug_calls": [
+                {
+                  "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd932-202e-7242-879e-a20cf63b1b44/.codex/skills/release-qa/SKILL.md'",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "Editing files",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                }
+              ],
+              "duration_s": 7.5
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-02-edit-body",
+              "class": "skills",
+              "trial": 3,
+              "token": "QA-LD1FPWX7",
+              "started_at": "2026-08-06T22:29:36Z",
+              "workflow_id": "019fd932-3cd9-7691-9ad1-473261642d2b",
+              "session_id": "03600b8b-6d94-45a7-ad8b-1ae416980e77",
+              "outcome": "recovered",
+              "blocked_only_by_harness": true,
+              "one_shot": false,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_not_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m smoke"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m release"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "Escalate to the on-call engineer"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "1. Pull the release branch."
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/.codex/skills/release-qa/SKILL.md'",
+                    "outcome": "error"
+                  },
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd932-3df4-7fd2-bcc6-852190f4bbe1/.codex/skills/release-qa/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [
+                  {
+                    "toolName": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/.codex/skills/release-qa/SKILL.md'",
+                    "code": null,
+                    "errorText": ""
+                  }
+                ],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1602,
+                "output": 18,
+                "total": 15914,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Updated only the release-QA command:\n\n`pytest -m release`",
+              "full_reply": "I\u2019m using the release-QA skill because you asked to update that skill\u2019s command. I\u2019ll inspect its instructions, then change only the marker line.\n\nUpdated only the release-QA command:\n\n`pytest -m release`",
+              "debug_calls": [
+                {
+                  "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/.codex/skills/release-qa/SKILL.md'",
+                  "input": null,
+                  "outcome": "error",
+                  "error": ""
+                },
+                {
+                  "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd932-3df4-7fd2-bcc6-852190f4bbe1/.codex/skills/release-qa/SKILL.md'",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "mcp.agenta-tools.read_config",
+                  "input": {
+                    "arguments": {
+                      "description": "Read the release-QA skill so I can update only its pytest marker line.",
+                      "target": {
+                        "path": [
+                          "parameters",
+                          "agent",
+                          {
+                            "key": "release-qa",
+                            "list": "skills"
+                          },
+                          "body"
+                        ]
+                      }
+                    },
+                    "server": "agenta-tools",
+                    "tool": "read_config"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "commit_revision",
+                  "input": {
+                    "description": "Update the release-QA skill's pytest marker from smoke to release, leaving all other lines unchanged.",
+                    "workflow_revision": {
+                      "base_revision_id": "019fd932-3d0f-7383-bd8e-a48da9a58f8d",
+                      "delta": {
+                        "operations": [
+                          {
+                            "edits": [
+                              {
+                                "new_text": "`pytest -m release`",
+                                "old_text": "`pytest -m smoke`"
+                              }
+                            ],
+                            "operation": "edit_text",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              {
+                                "key": "release-qa",
+                                "list": "skills"
+                              },
+                              "body"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "outcome": "available",
+                  "error": ""
+                }
+              ],
+              "duration_s": 15.4
+            }
+          ]
+        },
+        "skill-03-remove": {
+          "class": "skills",
+          "trials": [
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-03-remove",
+              "class": "skills",
+              "trial": 1,
+              "token": "QA-JN5YGEHE",
+              "started_at": "2026-08-06T22:29:51Z",
+              "workflow_id": "019fd932-790a-7b22-b26f-112212d4de86",
+              "session_id": "b9b974c4-45ac-4350-9843-ed5c920fb8e2",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 2
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_absent",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "changelog-writer"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1584,
+                "output": 16,
+                "total": 13970,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Removed the `triage` skill from your agent configuration.",
+              "duration_s": 9.9
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-03-remove",
+              "class": "skills",
+              "trial": 2,
+              "token": "QA-UMC49BMX",
+              "started_at": "2026-08-06T22:30:01Z",
+              "workflow_id": "019fd932-9f95-7dc3-81c3-5b80771fd457",
+              "session_id": "867b06f9-36a2-4014-abff-0d62308b85d6",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 2
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_absent",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "changelog-writer"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1602,
+                "output": 16,
+                "total": 13939,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Removed the `triage` skill from the agent configuration.",
+              "duration_s": 14.4
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-03-remove",
+              "class": "skills",
+              "trial": 3,
+              "token": "QA-CK51BF0S",
+              "started_at": "2026-08-06T22:30:15Z",
+              "workflow_id": "019fd932-d807-7cd2-9875-ed700a39cc05",
+              "session_id": "e54367f0-16fb-4a88-845e-fc200bdbba78",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 2
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_absent",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "changelog-writer"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1514,
+                "output": 16,
+                "total": 15732,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Removed the `triage` skill from the agent configuration.",
+              "duration_s": 10.9
+            }
+          ]
+        },
+        "skill-04-rename": {
+          "class": "skills",
+          "trials": [
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-04-rename",
+              "class": "skills",
+              "trial": 1,
+              "token": "QA-6LT10XIJ",
+              "started_at": "2026-08-06T22:30:26Z",
+              "workflow_id": "019fd933-027a-7f72-a2f5-d8cd4bea2f27",
+              "session_id": "fd1bd24d-530b-4545-bbcb-f9877695a02a",
+              "outcome": "recovered",
+              "blocked_only_by_harness": false,
+              "one_shot": false,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "issue-triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_absent",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "issue-triage"
+                      },
+                      "body"
+                    ],
+                    "text": "Label the issue. Assign a priority."
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "error"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [
+                  {
+                    "toolName": "commit_revision",
+                    "code": null,
+                    "errorText": ""
+                  }
+                ],
+                "commit_calls": 2,
+                "approval_gates": 2,
+                "wire_turns": 3,
+                "finish_reasons": [
+                  "other",
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1663,
+                "output": 24,
+                "total": 29736,
+                "cost": 0.0,
+                "turns": 3
+              },
+              "final_reply": "Renamed `triage` to `issue-triage`. Its content and settings are unchanged.",
+              "full_reply": "I\u2019m using the triage skill instructions first, then I\u2019ll rename only the skill identifier and preserve its contents exactly.\n\n\n\nRenamed `triage` to `issue-triage`. Its content and settings are unchanged.",
+              "debug_calls": [
+                {
+                  "name": "mcp.agenta-tools.read_config",
+                  "input": {
+                    "arguments": {
+                      "description": "Read the current triage skill so I can preserve its body exactly while renaming it.",
+                      "target": {
+                        "path": [
+                          "parameters",
+                          "agent",
+                          {
+                            "key": "triage",
+                            "list": "skills"
+                          }
+                        ]
+                      }
+                    },
+                    "server": "agenta-tools",
+                    "tool": "read_config"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "commit_revision",
+                  "input": {
+                    "description": "Rename the triage skill to issue-triage while preserving its description, body, and settings exactly.",
+                    "workflow_revision": {
+                      "base_revision_id": "019fd933-02e7-76b1-b7ca-d7034878fa70",
+                      "delta": {
+                        "operations": [
+                          {
+                            "operation": "replace_item",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              {
+                                "key": "triage",
+                                "list": "skills"
+                              }
+                            ],
+                            "value": {
+                              "allow_executable_files": false,
+                              "body": "# Triage\n\nLabel the issue. Assign a priority.\n",
+                              "description": "Triage incoming issues.",
+                              "files": [],
+                              "name": "issue-triage"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "outcome": "error",
+                  "error": ""
+                },
+                {
+                  "name": "commit_revision",
+                  "input": {
+                    "description": "Rename the triage skill to issue-triage while preserving its description, body, and settings exactly.",
+                    "workflow_revision": {
+                      "base_revision_id": "019fd933-02e7-76b1-b7ca-d7034878fa70",
+                      "delta": {
+                        "operations": [
+                          {
+                            "operation": "remove_item",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              {
+                                "key": "triage",
+                                "list": "skills"
+                              }
+                            ]
+                          },
+                          {
+                            "operation": "add_item",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              "skills"
+                            ],
+                            "value": {
+                              "allow_executable_files": false,
+                              "body": "# Triage\n\nLabel the issue. Assign a priority.\n",
+                              "description": "Triage incoming issues.",
+                              "files": [],
+                              "name": "issue-triage"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "outcome": "available",
+                  "error": ""
+                }
+              ],
+              "duration_s": 14.7
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-04-rename",
+              "class": "skills",
+              "trial": 2,
+              "token": "QA-UNTKN4C6",
+              "started_at": "2026-08-06T22:30:41Z",
+              "workflow_id": "019fd933-3bb6-7cf3-98ba-e83719a325a9",
+              "session_id": "4e241b38-8d77-4c0d-a510-7c9af741a0ed",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "issue-triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_absent",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "issue-triage"
+                      },
+                      "body"
+                    ],
+                    "text": "Label the issue. Assign a priority."
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1658,
+                "output": 22,
+                "total": 15488,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Renamed `triage` to `issue-triage`. Its content remains unchanged.",
+              "duration_s": 11.3
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "skill-04-rename",
+              "class": "skills",
+              "trial": 3,
+              "token": "QA-09Y8WG3N",
+              "started_at": "2026-08-06T22:30:52Z",
+              "workflow_id": "019fd933-6809-7dc1-82fc-b2b7d121a84c",
+              "session_id": "a5479be8-a108-4f32-8da4-ea4bfa412b8f",
+              "outcome": "recovered",
+              "blocked_only_by_harness": false,
+              "one_shot": false,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "issue-triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_absent",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "triage"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "issue-triage"
+                      },
+                      "body"
+                    ],
+                    "text": "Label the issue. Assign a priority."
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "error"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [
+                  {
+                    "toolName": "commit_revision",
+                    "code": null,
+                    "errorText": ""
+                  }
+                ],
+                "commit_calls": 2,
+                "approval_gates": 2,
+                "wire_turns": 3,
+                "finish_reasons": [
+                  "other",
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1764,
+                "output": 24,
+                "total": 30668,
+                "cost": 0.0,
+                "turns": 3
+              },
+              "final_reply": "Renamed `triage` to `issue-triage`. Its contents and settings are unchanged.",
+              "full_reply": "I\u2019ll inspect the current triage skill and the available configuration interface, then rename only its identifier while preserving the contents exactly.\n\nThe configuration API requires a rename as an atomic remove-and-add operation. The first attempt was rejected without changing anything; I\u2019m applying the required form now.\n\nRenamed `triage` to `issue-triage`. Its contents and settings are unchanged.",
+              "debug_calls": [
+                {
+                  "name": "mcp.agenta-tools.read_config",
+                  "input": {
+                    "arguments": {
+                      "description": "Read the current triage skill so I can preserve its content exactly while renaming it.",
+                      "target": {
+                        "path": [
+                          "parameters",
+                          "agent",
+                          {
+                            "key": "triage",
+                            "list": "skills"
+                          }
+                        ]
+                      }
+                    },
+                    "server": "agenta-tools",
+                    "tool": "read_config"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "commit_revision",
+                  "input": {
+                    "description": "Rename the triage skill to issue-triage while preserving its description, body, and settings exactly.",
+                    "workflow_revision": {
+                      "base_revision_id": "019fd933-6836-7910-9053-a3d2834b0bab",
+                      "delta": {
+                        "operations": [
+                          {
+                            "operation": "replace_item",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              "skills",
+                              {
+                                "key": "triage",
+                                "list": "skills"
+                              }
+                            ],
+                            "value": {
+                              "allow_executable_files": false,
+                              "body": "# Triage\n\nLabel the issue. Assign a priority.\n",
+                              "description": "Triage incoming issues.",
+                              "files": [],
+                              "name": "issue-triage"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "outcome": "error",
+                  "error": ""
+                },
+                {
+                  "name": "commit_revision",
+                  "input": {
+                    "description": "Rename the triage skill to issue-triage while preserving its description, body, and settings exactly.",
+                    "workflow_revision": {
+                      "base_revision_id": "019fd933-6836-7910-9053-a3d2834b0bab",
+                      "delta": {
+                        "operations": [
+                          {
+                            "operation": "remove_item",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              "skills",
+                              {
+                                "key": "triage",
+                                "list": "skills"
+                              }
+                            ]
+                          },
+                          {
+                            "operation": "add_item",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              "skills"
+                            ],
+                            "value": {
+                              "allow_executable_files": false,
+                              "body": "# Triage\n\nLabel the issue. Assign a priority.\n",
+                              "description": "Triage incoming issues.",
+                              "files": [],
+                              "name": "issue-triage"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "outcome": "available",
+                  "error": ""
+                }
+              ],
+              "duration_s": 29.3
+            }
+          ]
+        },
+        "list-03-nested-file-entry": {
+          "class": "list_entries",
+          "trials": [
+            {
+              "cell": "codex-luna-local",
+              "scenario": "list-03-nested-file-entry",
+              "class": "list_entries",
+              "trial": 1,
+              "token": "QA-OBUH47FA",
+              "started_at": "2026-08-06T22:31:22Z",
+              "workflow_id": "019fd933-daab-7ef3-af9e-b9925729a987",
+              "session_id": "14c46d2a-6b05-476b-9975-717d11d113f0",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_matches",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "pattern": "(?i)release notes"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "text": "smoke suite"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "text": "deploy logs"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m smoke"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd933-db89-7cd3-9a67-4451d265f280/.codex/skills/release-qa/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1694,
+                "output": 26,
+                "total": 13814,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added `- [ ] release notes` to the release QA checklist. The existing two checkboxes remain unchanged.",
+              "duration_s": 21.8
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "list-03-nested-file-entry",
+              "class": "list_entries",
+              "trial": 2,
+              "token": "QA-FK136MGB",
+              "started_at": "2026-08-06T22:31:43Z",
+              "workflow_id": "019fd934-2fee-7b61-b5a9-84b7d899a464",
+              "session_id": "fe666e65-9ef4-4a1c-be46-af3ab17b7c52",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_matches",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "pattern": "(?i)release notes"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "text": "smoke suite"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "text": "deploy logs"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m smoke"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-3082-7890-9fb3-eeb82cc01139/.codex/skills/release-qa/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1692,
+                "output": 31,
+                "total": 16300,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Updated the release QA checklist. It now includes:\n\n- [ ] smoke suite\n- [ ] deploy logs\n- [ ] release notes",
+              "duration_s": 27.2
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "list-03-nested-file-entry",
+              "class": "list_entries",
+              "trial": 3,
+              "token": "QA-H8SFLP2I",
+              "started_at": "2026-08-06T22:32:11Z",
+              "workflow_id": "019fd934-9a28-72e2-bbb1-381f8932e5a0",
+              "session_id": "b4d01689-5ca2-48e3-afe1-062bd9a66489",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_matches",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "pattern": "(?i)release notes"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "text": "smoke suite"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      {
+                        "list": "files",
+                        "key": "checklist.md"
+                      },
+                      "content"
+                    ],
+                    "text": "deploy logs"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "release-qa"
+                      },
+                      "body"
+                    ],
+                    "text": "pytest -m smoke"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 3
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-9abe-7dc3-82ea-23c7d7840f8d/.codex/skills/release-qa/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1672,
+                "output": 25,
+                "total": 14213,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added `- [ ] release notes` to the release QA checklist. The existing two items remain unchanged.",
+              "duration_s": 15.9
+            }
+          ]
+        },
+        "import-01-skill-from-folder": {
+          "class": "import",
+          "trials": [
+            {
+              "cell": "codex-luna-local",
+              "scenario": "import-01-skill-from-folder",
+              "class": "import",
+              "trial": 1,
+              "token": "QA-CEBW45SZ",
+              "started_at": "2026-08-06T22:32:26Z",
+              "workflow_id": "019fd934-d85e-7b41-a12c-77a2ef84cc31",
+              "session_id": "550fa441-0705-471b-9c4f-73f2f130519f",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "text": "{{TOKEN}}"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "text": "without naming a person"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "pwd; rg --files -g 'CHANGELOG*' -g 'changelog*' -g 'SKILL.md' -g '*incident*' -g 'agent-files/**' | head -80",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "\"find . -maxdepth 3 -type f -print | sort | head -120; sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-d925-72e2-b6ad-5995345e54c3/.codex/skills/.system/skill-installer/SKILL.md\"",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "find agent-files -maxdepth 3 -ls; find /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4 -type f \\( -iname '*skill*' -o -iname '*incident*' \\) -print 2>/dev/null | head -100; sed -n '1,160p' .codex/config.toml",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-d925-72e2-b6ad-5995345e54c3-agent/incident-review/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Editing files",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1709,
+                "output": 23,
+                "total": 25694,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added `incident-review` to your configured skills. It will be available on your next turn.",
+              "duration_s": 24.9
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "import-01-skill-from-folder",
+              "class": "import",
+              "trial": 2,
+              "token": "QA-17I8P6QJ",
+              "started_at": "2026-08-06T22:32:51Z",
+              "workflow_id": "019fd935-39c5-78d1-a7da-7d4d054abc31",
+              "session_id": "1d8cd933-8afb-484f-850d-8cd55327618d",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "text": "{{TOKEN}}"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "text": "without naming a person"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "pwd && rg --files -g 'SKILL.md' -g '*incident*' -g '*skill*' . /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-3aa3-7fb2-92a9-154cf6f7295c-agent 2>/dev/null | head -80",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "\"sed -n '1,240p' .codex/skills/.system/skill-installer/SKILL.md; sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-3aa3-7fb2-92a9-154cf6f7295c-agent/incident-review/SKILL.md\"",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mkdir -p .agenta-imports/incident-review && cp /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-3aa3-7fb2-92a9-154cf6f7295c-agent/incident-review/SKILL.md .agenta-imports/incident-review/SKILL.md",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1751,
+                "output": 23,
+                "total": 18357,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added `incident-review` to your configured skills. It will be available on your next turn.",
+              "duration_s": 26.9
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "import-01-skill-from-folder",
+              "class": "import",
+              "trial": 3,
+              "token": "QA-Q8KKHOR4",
+              "started_at": "2026-08-06T22:33:18Z",
+              "workflow_id": "019fd935-a2e0-7471-aa84-5347acefca7d",
+              "session_id": "f79bffeb-189b-4425-b844-82b90e70509b",
+              "outcome": "committed_wrong",
+              "blocked_only_by_harness": true,
+              "one_shot": false,
+              "eventual": false,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "text": "{{TOKEN}}"
+                  },
+                  "failure": "skills[incident-review]/body does not contain 'QA-Q8KKHOR4'"
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "incident-review"
+                      },
+                      "body"
+                    ],
+                    "text": "without naming a person"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "stored_unchanged_except",
+                  "spec": {
+                    "allowed": [
+                      "skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [
+                {
+                  "check": "stored_contains",
+                  "why": "skills[incident-review]/body does not contain 'QA-Q8KKHOR4'"
+                }
+              ],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "\"sed -n '1,240p' .codex/skills/.system/skill-creator/SKILL.md && printf '\\\\n---FILES---\\\\n' && rg --files -g '*SKILL.md' -g '*incident*' -g '*.md' | sort | head -80\"",
+                    "outcome": "error"
+                  },
+                  {
+                    "name": "\"sed -n '1,260p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-a3ca-7c43-b37d-900083899f5d/.codex/skills/.system/skill-creator/SKILL.md; printf '\\\\n---FILES---\\\\n'; rg --files -g '*SKILL.md' -g '*incident*' -g '*.md' | sort | head -100\"",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "find . -maxdepth 4 -type f -print | sort; printf '\\n---DURABLE---\\n'; find agent-files -maxdepth 3 -type f -print 2>/dev/null | sort",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "find /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4 -type f \\( -iname '*incident*' -o -name 'SKILL.md' \\) -print 2>/dev/null | sort",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "\"sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-d925-72e2-b6ad-5995345e54c3-agent/incident-review/SKILL.md; printf '\\\\n---IMPORT---\\\\n'; sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-d925-72e2-b6ad-5995345e54c3/.agenta-imports/incident-review/SKILL.md\"",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Editing files",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [
+                  {
+                    "toolName": "\"sed -n '1,240p' .codex/skills/.system/skill-creator/SKILL.md && printf '\\\\n---FILES---\\\\n' && rg --files -g '*SKILL.md' -g '*incident*' -g '*.md' | sort | head -80\"",
+                    "code": null,
+                    "errorText": ""
+                  }
+                ],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1726,
+                "output": 24,
+                "total": 28347,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added `incident-review` to your configured skills.\n\nIt will trigger for blameless incident reviews.",
+              "full_reply": "I\u2019ll inspect the saved skill and the current skill-configuration path, then add it if the required configuration tool is available.I\u2019m using the skill-creator guidance because this is a skill installation/configuration change. I\u2019ll verify the file and its metadata before committing it to the agent configuration.The current workspace does not contain an incident-review skill file, and the configured skill list does not include one. I\u2019m checking the durable agent folder and nearby workspace files now; if it is genuinely absent, I\u2019ll need its path or contents before adding it.\n\nAdded `incident-review` to your configured skills.\n\nIt will trigger for blameless incident reviews.",
+              "debug_calls": [
+                {
+                  "name": "\"sed -n '1,240p' .codex/skills/.system/skill-creator/SKILL.md && printf '\\\\n---FILES---\\\\n' && rg --files -g '*SKILL.md' -g '*incident*' -g '*.md' | sort | head -80\"",
+                  "input": {
+                    "command": "/bin/bash -lc \"sed -n '1,240p' .codex/skills/.system/skill-creator/SKILL.md && printf '\\\\n---FILES---\\\\n' && rg --files -g '*SKILL.md' -g '*incident*' -g '*.md' | sort | head -80\"",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4"
+                  },
+                  "outcome": "error",
+                  "error": ""
+                },
+                {
+                  "name": "\"sed -n '1,260p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-a3ca-7c43-b37d-900083899f5d/.codex/skills/.system/skill-creator/SKILL.md; printf '\\\\n---FILES---\\\\n'; rg --files -g '*SKILL.md' -g '*incident*' -g '*.md' | sort | head -100\"",
+                  "input": {
+                    "command": "/bin/bash -lc \"sed -n '1,260p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-a3ca-7c43-b37d-900083899f5d/.codex/skills/.system/skill-creator/SKILL.md; printf '\\\\n---FILES---\\\\n'; rg --files -g '*SKILL.md' -g '*incident*' -g '*.md' | sort | head -100\"",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-a3ca-7c43-b37d-900083899f5d"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "find . -maxdepth 4 -type f -print | sort; printf '\\n---DURABLE---\\n'; find agent-files -maxdepth 3 -type f -print 2>/dev/null | sort",
+                  "input": {
+                    "command": "find . -maxdepth 4 -type f -print | sort; printf '\\n---DURABLE---\\n'; find agent-files -maxdepth 3 -type f -print 2>/dev/null | sort",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-a3ca-7c43-b37d-900083899f5d"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "mcp.agenta-tools.read_config",
+                  "input": {
+                    "arguments": {
+                      "description": "Check the configured skill list before adding the incident-review skill.",
+                      "target": {
+                        "path": [
+                          "parameters",
+                          "agent",
+                          "skills"
+                        ]
+                      }
+                    },
+                    "server": "agenta-tools",
+                    "tool": "read_config"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "find /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4 -type f \\( -iname '*incident*' -o -name 'SKILL.md' \\) -print 2>/dev/null | sort",
+                  "input": {
+                    "command": "find /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4 -type f \\( -iname '*incident*' -o -name 'SKILL.md' \\) -print 2>/dev/null | sort",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-a3ca-7c43-b37d-900083899f5d"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "\"sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-d925-72e2-b6ad-5995345e54c3-agent/incident-review/SKILL.md; printf '\\\\n---IMPORT---\\\\n'; sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-d925-72e2-b6ad-5995345e54c3/.agenta-imports/incident-review/SKILL.md\"",
+                  "input": {
+                    "command": "/bin/bash -lc \"sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-d925-72e2-b6ad-5995345e54c3-agent/incident-review/SKILL.md; printf '\\\\n---IMPORT---\\\\n'; sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd934-d925-72e2-b6ad-5995345e54c3/.agenta-imports/incident-review/SKILL.md\"",
+                    "cwd": "/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd935-a3ca-7c43-b37d-900083899f5d"
+                  },
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "Editing files",
+                  "input": null,
+                  "outcome": "available",
+                  "error": ""
+                },
+                {
+                  "name": "commit_revision",
+                  "input": {
+                    "description": "Add the user's incident-review skill to the agent's durable skill configuration.",
+                    "workflow_revision": {
+                      "base_revision_id": "019fd935-a313-7a33-bcb1-57620b82a9ed",
+                      "delta": {
+                        "operations": [
+                          {
+                            "operation": "add_item",
+                            "target": [
+                              "parameters",
+                              "agent",
+                              "skills"
+                            ],
+                            "value": {
+                              "body": {
+                                "@ag.file": ".agenta-imports/incident-review/SKILL.md"
+                              },
+                              "description": "Run a blameless incident review.",
+                              "name": "incident-review"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "outcome": "available",
+                  "error": ""
+                }
+              ],
+              "duration_s": 28.6
+            }
+          ]
+        },
+        "fm-03-harness-skills-folder": {
+          "class": "failure_mode",
+          "trials": [
+            {
+              "cell": "codex-luna-local",
+              "scenario": "fm-03-harness-skills-folder",
+              "class": "failure_mode",
+              "trial": 1,
+              "token": "QA-LO7KEVV8",
+              "started_at": "2026-08-06T22:33:47Z",
+              "workflow_id": "019fd936-129b-78a0-97ae-eb7bb15ea23d",
+              "session_id": "34a6e022-f9c2-445c-8a79-ae227b566a49",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "gstack-autoplan"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "gstack-autoplan"
+                      },
+                      "body"
+                    ],
+                    "text": "{{TOKEN}}"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "turn_reply_not_contains",
+                  "spec": {
+                    "any_of": [
+                      ".codex/skills",
+                      ".claude/skills",
+                      ".agents/skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "sed -n '1,240p' .codex/skills/.system/skill-installer/SKILL.md && printf '\\n--- files ---\\n' && rg --files -g '*gstack*' -g 'SKILL.md' . /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd936-1369-7732-a960-3188be33eb1b-agent 2>/dev/null | head -80",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd936-1369-7732-a960-3188be33eb1b/agent-files/gstack-autoplan/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Editing files",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1814,
+                "output": 24,
+                "total": 18079,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added `gstack-autoplan` to your skills. It will be available on your next turn.",
+              "duration_s": 20.0
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "fm-03-harness-skills-folder",
+              "class": "failure_mode",
+              "trial": 2,
+              "token": "QA-GJ0FD4SU",
+              "started_at": "2026-08-06T22:34:07Z",
+              "workflow_id": "019fd936-60d7-7871-bb11-bb4fc65e2260",
+              "session_id": "fbecfaf1-f15f-480b-8570-fb537f0a3039",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "gstack-autoplan"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "gstack-autoplan"
+                      },
+                      "body"
+                    ],
+                    "text": "{{TOKEN}}"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "turn_reply_not_contains",
+                  "spec": {
+                    "any_of": [
+                      ".codex/skills",
+                      ".claude/skills",
+                      ".agents/skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "sed -n '1,240p' /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd936-61ad-72c0-a248-87231ce0c3da/.codex/skills/.system/skill-installer/SKILL.md && echo '---FILES---' && rg --files -g '*gstack*' -g 'SKILL.md' . /tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd936-61ad-72c0-a248-87231ce0c3da-agent 2>/dev/null | head -80",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd936-61ad-72c0-a248-87231ce0c3da-agent/gstack-autoplan/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 2000,
+                "output": 25,
+                "total": 17127,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added `gstack-autoplan` to your configured skills. It will be available on your next turn.",
+              "duration_s": 18.6
+            },
+            {
+              "cell": "codex-luna-local",
+              "scenario": "fm-03-harness-skills-folder",
+              "class": "failure_mode",
+              "trial": 3,
+              "token": "QA-RSAP0NG3",
+              "started_at": "2026-08-06T22:34:26Z",
+              "workflow_id": "019fd936-a975-7172-84b0-645d8dcfa97f",
+              "session_id": "9123a076-d64a-4a4d-9a9c-8ab85f12e0e4",
+              "outcome": "one_shot",
+              "blocked_only_by_harness": false,
+              "one_shot": true,
+              "eventual": true,
+              "settled": {
+                "settled": true
+              },
+              "checks": [
+                {
+                  "check": "stored_present",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "gstack-autoplan"
+                      }
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_contains",
+                  "spec": {
+                    "path": [
+                      {
+                        "list": "skills",
+                        "key": "gstack-autoplan"
+                      },
+                      "body"
+                    ],
+                    "text": "{{TOKEN}}"
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "stored_len",
+                  "spec": {
+                    "path": [
+                      "skills"
+                    ],
+                    "value": 4
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "turn_reply_not_contains",
+                  "spec": {
+                    "any_of": [
+                      ".codex/skills",
+                      ".claude/skills",
+                      ".agents/skills"
+                    ]
+                  },
+                  "failure": null
+                },
+                {
+                  "check": "no_stored_marker",
+                  "spec": {},
+                  "failure": null
+                },
+                {
+                  "check": "revision_created",
+                  "spec": {},
+                  "failure": null
+                }
+              ],
+              "failures": [],
+              "hard_fails": [],
+              "wire": {
+                "tool_calls": [
+                  {
+                    "name": "sed -n '1,240p' .codex/skills/.system/skill-installer/SKILL.md && printf '\\n--- files ---\\n' && rg --files -g '*gstack*' -g 'SKILL.md' . agent-files 2>/dev/null | head -80",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "mcp.agenta-tools.read_config",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Read file '/tmp/agenta/mounts/019fd878-4f4a-7320-be9d-2b69f7b47ea4/019fd936-aa80-76b2-aa5a-b508215656e0/agent-files/gstack-autoplan/SKILL.md'",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "Editing files",
+                    "outcome": "available"
+                  },
+                  {
+                    "name": "commit_revision",
+                    "outcome": "available"
+                  }
+                ],
+                "tool_errors": [],
+                "commit_calls": 1,
+                "approval_gates": 1,
+                "wire_turns": 2,
+                "finish_reasons": [
+                  "other",
+                  "stop"
+                ]
+              },
+              "usage": {
+                "input": 1812,
+                "output": 25,
+                "total": 18004,
+                "cost": 0.0,
+                "turns": 2
+              },
+              "final_reply": "Added `gstack-autoplan` to your configured skills. It will be available on your next turn.",
+              "duration_s": 20.8
+            }
+          ]
+        }
+      }
+    }
+  },
+  "score": {
+    "one_shot_excl_harness": 16,
+    "harness_blocked": 2,
+    "one_shot_excl_harness_rate": 0.762,
+    "trials": 21,
+    "measured": 21,
+    "skipped": 0,
+    "one_shot": 14,
+    "eventual": 18,
+    "hard_fails": 0,
+    "one_shot_rate": 0.667,
+    "eventual_rate": 0.857,
+    "cost_usd": 0.0,
+    "tokens": 354688
+  }
+}

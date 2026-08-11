@@ -9,12 +9,13 @@ from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 import httpx
+from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 
 from oss.src.apis.fastapi.tools.models import (
     ToolCatalogActionResponse,
@@ -1276,21 +1277,41 @@ class ToolsRouter:
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
-        # A business-level failed verdict is still a successful tool call (OK); only an
-        # infrastructure failure (child invoke never completed) surfaces as an error status,
-        # mirroring the adapter path's successful/unsuccessful split.
+        # The boundary reads only the generic result now. It used to reach into a
+        # `TestRunResponse` by field name, so registering any second handler meant teaching
+        # this branch a new response type.
+        #
+        # `STATUS_CODE_ERROR` here ALWAYS means `content` is the canonical `AgentError`
+        # envelope. The runner keys on the status code alone (a mirrored message can stop
+        # being mirrored), so an error status that carried anything else would be parsed as
+        # an envelope and read as a success.
+        # The side effects of a commit travel WITH the commit. They used to live in the
+        # deleted agent route, so moving the write without them would have left the warm
+        # session holding a stale configuration and the playground showing an old revision
+        # until something else invalidated it. The handler says whether it wrote; this
+        # reuses the emitter already here rather than growing a second one.
+        if response.committed_revision:
+            await invalidate_cache(project_id=request.state.project_id)
+            await _emit_committed_revision_data_event_from_outputs(
+                request=request,
+                outputs=response.committed_revision,
+            )
+
+        content = response.content
         result = ToolResult(
             id=uuid4(),
             data=ToolResultData(
                 tool_call_id=body.data.id,
-                content=response.model_dump_json(exclude_none=True),
+                content=(
+                    content.model_dump_json(exclude_none=True)
+                    if isinstance(content, BaseModel)
+                    else json.dumps(content)
+                ),
             ),
             status=Status(
                 timestamp=datetime.now(timezone.utc),
-                code="STATUS_CODE_ERROR"
-                if response.infra_failure
-                else "STATUS_CODE_OK",
-                message=response.verdict_reason if response.infra_failure else None,
+                code="STATUS_CODE_OK" if response.ok else "STATUS_CODE_ERROR",
+                message=response.message,
             ),
         )
 

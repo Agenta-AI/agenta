@@ -5,6 +5,9 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type {
   AgentEvent,
@@ -21,8 +24,13 @@ import {
 import type { PermissionPlan, Verdict } from "../../src/permission-plan.ts";
 import {
   attachPermissionResponder,
+  formatResolutionDetail,
   type PiToolSpecMeta,
 } from "../../src/engines/sandbox_agent/acp-interactions.ts";
+import {
+  buildApprovedContentWiring,
+  createCommitAuthorizationState,
+} from "../../src/engines/sandbox_agent/approved-content.ts";
 import {
   buildPiGateEnvelope,
   PI_GATE_DIALOG_TITLE,
@@ -31,6 +39,17 @@ import {
 
 function flushPromises(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
+}
+
+/** Wait for a condition the gate reaches asynchronously (it now awaits a late harness frame). */
+async function waitUntil(
+  predicate: () => boolean,
+  timeoutMs = 2000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
 }
 
 function makeSession(
@@ -197,6 +216,7 @@ describe("attachPermissionResponder", () => {
       toolName?: string;
       args: unknown;
       kind: string;
+      toolCallId?: string;
     }> = [];
     const pausedToolCalls: string[] = [];
     let pauses = 0;
@@ -208,8 +228,8 @@ describe("attachPermissionResponder", () => {
       onPause: () => {
         pauses += 1;
       },
-      onCreateInteraction: (token, toolName, args, kind) => {
-        created.push({ token, toolName, args, kind });
+      onCreateInteraction: (token, toolName, args, kind, toolCallId) => {
+        created.push({ token, toolName, args, kind, toolCallId });
       },
       onPausedToolCall: (id) => {
         pausedToolCalls.push(id);
@@ -226,12 +246,16 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(replies, []);
     assert.equal(pauses, 1);
     assert.deepEqual(pausedToolCalls, ["tool-9"]);
+    // The interaction token is the permission GATE's id; `toolCallId` is the harness's id for
+    // the gated call. Both are recorded so an answer built from the durable row alone can name
+    // the right call (issue #5593).
     assert.deepEqual(created, [
       {
         token: "perm-pause",
         toolName: "edit",
         args: { path: "a" },
         kind: "user_approval",
+        toolCallId: "tool-9",
       },
     ]);
     assert.deepEqual(events, [
@@ -357,6 +381,7 @@ describe("attachPermissionResponder", () => {
       toolName?: string;
       args: unknown;
       kind: string;
+      toolCallId?: string;
     }> = [];
     let pauses = 0;
 
@@ -368,8 +393,8 @@ describe("attachPermissionResponder", () => {
       onPause: () => {
         pauses += 1;
       },
-      onCreateInteraction: (token, toolName, args, kind) => {
-        created.push({ token, toolName, args, kind });
+      onCreateInteraction: (token, toolName, args, kind, toolCallId) => {
+        created.push({ token, toolName, args, kind, toolCallId });
       },
       onPausedToolCall: (id) => {
         pausedToolCalls.push(id);
@@ -397,6 +422,7 @@ describe("attachPermissionResponder", () => {
         toolName: "request_connection",
         args: { integration: "slack" },
         kind: "client_tool",
+        toolCallId: "tool-client",
       },
     ]);
     assert.deepEqual(events, [
@@ -449,6 +475,230 @@ describe("attachPermissionResponder", () => {
 
     assert.deepEqual(replies, [{ id: "client-1", reply: "once" }]);
     assert.deepEqual(events, []);
+  });
+
+  // A replayed approval and a marker-carrying commit (execution-authorization.md 7.2)
+  // -------------------------------------------------------------------------------------
+  // A cold resume destroys the frozen bytes the human approved, but their `{approved: true}`
+  // is still in the conversation. Answering the new gate with it spends the approval on bytes
+  // nobody saw; the call then dies at the relay with `authorization_missing`, which shows the
+  // user a failed commit instead of a second card.
+
+  const COMMIT_ARGS = {
+    workflow_revision: {
+      base_revision_id: "rev-1",
+      delta: {
+        operations: [
+          {
+            operation: "add_item",
+            target: ["parameters", "agent", "skills"],
+            value: {
+              name: "pdf",
+              files: [
+                {
+                  path: "x.py",
+                  content: { "@ag.file": ".agenta-imports/x.py" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  };
+
+  /** The replayed conversation: the model's commit, and the human's answer to it. */
+  function replayedApproval(): Map<string, unknown[]> {
+    return extractApprovalDecisions({
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_call",
+              toolCallId: "tool-original",
+              toolName: "commit_revision",
+              input: COMMIT_ARGS,
+            },
+          ],
+        },
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool_result",
+              toolCallId: "tool-original",
+              output: { approved: true },
+            },
+          ],
+        },
+      ],
+    } as AgentRunRequest);
+  }
+
+  /** A workspace with a real import root, and the approved-content wiring `runTurn` builds. */
+  function coldWorkspace(permission: "ask" | "allow" = "ask") {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-cold-resume-"));
+    mkdirSync(join(cwd, ".agenta-imports"), { recursive: true });
+    writeFileSync(join(cwd, ".agenta-imports", "x.py"), "print('fresh')\n");
+    const state = createCommitAuthorizationState();
+    const wiring = buildApprovedContentWiring({
+      state,
+      isDaytona: false,
+      workspaceCwd: cwd,
+      sandbox: undefined,
+      callback: undefined,
+      runContext: undefined,
+      permissionPlan: permissionPlan(permission === "allow" ? "allow" : "ask"),
+      toolSpecs: [
+        {
+          name: "commit_revision",
+          kind: "callback",
+          callRef: "tools.agenta.commit_revision",
+          permission,
+          readOnly: false,
+        },
+      ],
+      turnId: "turn-1",
+      sessionId: "session-1",
+    });
+    return { cwd, state, wiring };
+  }
+
+  /** The re-gate path reads a real file, so one macrotask is not enough to settle it. */
+  async function waitFor(predicate: () => boolean): Promise<void> {
+    const deadline = Date.now() + 2000;
+    while (!predicate() && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+
+  function emitCommitGate(emit: (req: unknown) => void) {
+    emit({
+      id: "permission-cold",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        toolCallId: "tool-cold",
+        name: "commit_revision",
+        rawInput: COMMIT_ARGS,
+      },
+    });
+  }
+
+  it("a replayed approval does NOT answer a cold gate; it asks again from a fresh read", async () => {
+    const { cwd, state, wiring } = coldWorkspace();
+    try {
+      const replies: Array<{ id: string; reply: string }> = [];
+      const events: AgentEvent[] = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: (event) => events.push(event) },
+        responder: new ApprovalResponder(
+          permissionPlan("ask"),
+          new ConversationDecisions(replayedApproval()),
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "ask", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await waitFor(() => events.length > 0 || replies.length > 0);
+
+      assert.deepEqual(replies, [], "the harness was never told the call is allowed");
+      assert.equal(events.length, 1);
+      const event = events[0] as {
+        type: string;
+        payload: { manifest?: { files: Array<{ digest: string }> } };
+      };
+      assert.equal(event.type, "interaction_request");
+      assert.equal(
+        event.payload.manifest?.files.length,
+        1,
+        "the new card is built from a fresh read, not from the old approval",
+      );
+      assert.equal(
+        state.store.recordsFor("tool-cold").length,
+        1,
+        "and the record it mints is keyed to the NEW call",
+      );
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("a LIVE resume still consumes its parked approval", async () => {
+    // The narrow half. The environment survived, so the frozen bytes the human saw are still
+    // held and the answer they gave still describes them.
+    const { cwd, wiring } = coldWorkspace();
+    try {
+      await wiring.onResolveApprovedContent({
+        toolName: "commit_revision",
+        toolCallId: "tool-cold",
+        args: COMMIT_ARGS,
+      });
+      const replies: Array<{ id: string; reply: string }> = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: () => {} },
+        responder: new ApprovalResponder(
+          permissionPlan("ask"),
+          new ConversationDecisions(replayedApproval()),
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "ask", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await flushPromises();
+
+      assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("a POLICY allow is never re-gated, so the inline exception survives", async () => {
+    // Contract section 4: an explicit `allow` is a positive statement by the policy owner, and
+    // it resolves inline at the relay. Only a REPLAYED answer is in question here.
+    const { cwd, wiring } = coldWorkspace("allow");
+    try {
+      const replies: Array<{ id: string; reply: string }> = [];
+      const { session, emit } = makeSession(async (id, reply) => {
+        replies.push({ id, reply });
+      });
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: () => {} },
+        responder: new ApprovalResponder(
+          permissionPlan("allow"),
+          new ConversationDecisions(new Map()),
+        ),
+        toolSpecsByName: specsByName([
+          { name: "commit_revision", permission: "allow", readOnly: false },
+        ]),
+        onResolveApprovedContent: wiring.onResolveApprovedContent,
+        shouldRegateStaleApproval: wiring.shouldRegateStaleApproval,
+      });
+      emitCommitGate(emit);
+      await flushPromises();
+
+      assert.deepEqual(replies, [{ id: "permission-cold", reply: "once" }]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("resolves the original interaction token after a cold stored-decision reply", async () => {
@@ -831,6 +1081,517 @@ describe("attachPermissionResponder", () => {
     await flushPromises();
 
     assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("passes server-level MCP permissions into Codex dot-form harness gates", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      serverPermissions: new Map([["github", "deny"]]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp.github.search" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+});
+
+describe("attachPermissionResponder: Codex ACP gates", () => {
+  it("classifies and parks a Codex exec gate by command", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+    const events: AgentEvent[] = [];
+    const gates: any[] = [];
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-1",
+            name: "pnpm test",
+            input: { command: "pnpm test", cwd: "/workspace" },
+          },
+        ],
+      },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      onUserApprovalGate: (info) => gates.push(info),
+    });
+    emit({
+      id: "perm-exec",
+      availableReplies: ["once", "always", "reject"],
+      options: [
+        { optionId: "allow_once", kind: "allow_once" },
+        { optionId: "allow_always", kind: "allow_always" },
+        {
+          optionId: "accept_execpolicy_amendment",
+          kind: "allow_always",
+        },
+        { optionId: "reject_once", kind: "reject_once" },
+      ],
+      toolCall: {
+        kind: "execute",
+        rawInput: { command: "pnpm test", cwd: "/workspace" },
+        status: "pending",
+        toolCallId: "exec-1",
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(seen.permission?.[0].gate, {
+      executor: "harness",
+      toolName: "pnpm test",
+      specPermission: undefined,
+      serverPermission: undefined,
+      readOnlyHint: undefined,
+      args: { command: "pnpm test", cwd: "/workspace" },
+    });
+    assert.equal(gates[0].gateType, "codex-acp-permission");
+    assert.equal((events[0] as any).payload.toolCall.resolvedName, "pnpm test");
+  });
+
+  it("waits for the tool_call frame Codex sends AFTER the approval", async () => {
+    // THE ORDERING, WHICH IS THE WHOLE BUG. Codex sends the permission request BEFORE the
+    // `tool_call` frame carrying the arguments; on the preview stack the gap was 28 ms and the
+    // gate ran first every time. The sibling test above feeds the recorded event synchronously,
+    // so it can never see this: it proves the RECOVERY works once the frame exists, not that the
+    // gate waits for it.
+    //
+    // With no wait, `gate.args` is undefined here, `markersIn(undefined)` finds nothing,
+    // `mintForGate` mints no authorization, and the human approves a commit that can only fail.
+    const { session, emit } = makeSession();
+    const events: AgentEvent[] = [];
+    const recorded: AgentEvent[] = [];
+    const seen: { permission?: any[] } = {};
+    const recordedInput = {
+      server: "agenta-tools",
+      tool: "commit_revision",
+      arguments: { workflow_revision: { message: "ship it" } },
+    };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        events: () => recorded,
+      },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+
+    // The gate arrives with NOTHING: no rawInput, no input, and no recorded event yet.
+    emit({
+      id: "perm-codex-race",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "exec-race-1", kind: "execute" },
+    });
+
+    // The frame lands after the gate is already running, which is the production ordering.
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    recorded.push({
+      type: "tool_call",
+      id: "exec-race-1",
+      name: "mcp.agenta-tools.commit_revision",
+      input: recordedInput,
+    } as AgentEvent);
+
+    await waitUntil(() => (seen.permission?.length ?? 0) > 0);
+
+    assert.deepEqual(
+      seen.permission?.[0].gate.args,
+      recordedInput.arguments,
+      "the gate must carry the arguments the model actually wrote",
+    );
+  });
+
+  it("proceeds without arguments when the frame never arrives, rather than hanging", async () => {
+    // Fail-open, deliberately. A HITL gate that hangs is worse than one that asks about a call it
+    // cannot fully describe, so the wait is bounded and the gate still reaches the human.
+    const { session, emit } = makeSession();
+    const logs: string[] = [];
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {}, events: () => [] },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      log: (message) => logs.push(message),
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+
+    emit({
+      id: "perm-codex-never",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "exec-never-1", kind: "execute" },
+    });
+
+    await waitUntil(() => (seen.permission?.length ?? 0) > 0, 3000);
+
+    assert.equal(seen.permission?.[0].gate.args, undefined);
+    assert.ok(
+      logs.some((line) => line.includes("no recorded tool_call arguments")),
+      "the timeout is announced, not inferred from a later authorization failure",
+    );
+  });
+
+  it("recovers a nearly-empty Codex MCP gate and parks an ask spec", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    const gates: any[] = [];
+    const recordedInput = {
+      server: "agenta-tools",
+      tool: "commit_revision",
+      arguments: { message: "ship it" },
+    };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-mcp-1",
+            name: "mcp.agenta-tools.commit_revision",
+            input: recordedInput,
+          },
+        ],
+      },
+      responder: new ApprovalResponder(
+        { default: "allow", rules: [] },
+        new ConversationDecisions(new Map()),
+      ),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+      onUserApprovalGate: (info) => gates.push(info),
+    });
+    emit({
+      id: "perm-mcp",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "always", "reject"],
+      options: [
+        { optionId: "allow_once", kind: "allow_once" },
+        { optionId: "allow_session", kind: "allow_always" },
+        { optionId: "allow_always", kind: "allow_always" },
+        { optionId: "decline", kind: "reject_once" },
+      ],
+      toolCall: {
+        kind: "execute",
+        status: "pending",
+        toolCallId: "exec-mcp-1",
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, []);
+    assert.equal(gates[0].gateType, "codex-acp-permission");
+    assert.equal(gates[0].toolName, "commit_revision");
+    assert.deepEqual(gates[0].args, recordedInput.arguments);
+    const parkedToolCall = (events[0] as any).payload.toolCall;
+    assert.equal(parkedToolCall.resolvedName, "commit_revision");
+    assert.deepEqual(parkedToolCall.rawInput, recordedInput.arguments);
+  });
+
+  it("unwraps the Codex MCP envelope so the gate can see @ag.file markers", async () => {
+    // The bug Mahmoud hit three times. Codex records an MCP tool_call's input as the JSON-RPC
+    // envelope `{tool, server, arguments}`; Claude records the arguments directly. Everything
+    // downstream reads the Claude shape -- `findAllMarkers` looks for
+    // `workflow_revision.delta.operations` at the TOP level. Handed the envelope it finds no
+    // markers, mints no authorization, and the commit the human just approved dies with
+    // `authorization_missing` while the model reports plain success.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+    const modelArgs = {
+      description: "Add the saved gstack-autoplan skill.",
+      workflow_revision: {
+        base_revision_id: "rev-1",
+        delta: {
+          operations: [
+            {
+              operation: "add_item",
+              target: ["parameters", "agent", "skills"],
+              value: {
+                name: "gstack-autoplan",
+                body: { "@ag.file": ".agenta-imports/gstack-autoplan/SKILL.md" },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: () => {},
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-envelope-1",
+            name: "mcp.agenta-tools.commit_revision",
+            input: {
+              server: "agenta-tools",
+              tool: "commit_revision",
+              arguments: modelArgs,
+            },
+          } as AgentEvent,
+        ],
+      },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+
+    emit({
+      id: "perm-envelope",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "exec-envelope-1", kind: "execute" },
+    });
+
+    await waitUntil(() => (seen.permission?.length ?? 0) > 0);
+
+    const args = seen.permission?.[0].gate.args as Record<string, unknown>;
+    assert.deepEqual(args, modelArgs);
+    assert.ok(
+      (args as any).workflow_revision?.delta?.operations,
+      "the marker scan reads workflow_revision at the TOP level, so the envelope must be gone",
+    );
+  });
+
+  it("leaves a non-envelope argument object alone", async () => {
+    // The unwrap keys off the exact `{tool, server, arguments}` shape. A tool whose OWN
+    // arguments happen to include a `tool` field must not be mistaken for an envelope.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+    const modelArgs = { tool: "hammer", server: "warehouse", quantity: 2 };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: () => {},
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-lookalike-1",
+            name: "mcp.agenta-tools.commit_revision",
+            input: modelArgs,
+          } as AgentEvent,
+        ],
+      },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "commit_revision", permission: "ask", readOnly: false },
+      ]),
+    });
+
+    emit({
+      id: "perm-lookalike",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "exec-lookalike-1", kind: "execute" },
+    });
+
+    await waitUntil(() => (seen.permission?.length ?? 0) > 0);
+    assert.deepEqual(seen.permission?.[0].gate.args, modelArgs);
+  });
+
+  it("recovers a Codex MCP gate and auto-allows an allow spec once", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    let pauses = 0;
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: () => {},
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-mcp-2",
+            name: "mcp.agenta-tools.read_revision",
+            input: {
+              server: "agenta-tools",
+              tool: "read_revision",
+              arguments: { revisionId: "rev-1" },
+            },
+          },
+        ],
+      },
+      responder: new ApprovalResponder(
+        { default: "ask", rules: [] },
+        new ConversationDecisions(new Map()),
+      ),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "read_revision", permission: "allow", readOnly: true },
+      ]),
+      onPause: () => {
+        pauses += 1;
+      },
+    });
+    emit({
+      id: "perm-mcp-allow",
+      rawRequest: { _meta: { is_mcp_tool_approval: true } },
+      availableReplies: ["once", "always", "reject"],
+      toolCall: {
+        kind: "execute",
+        status: "pending",
+        toolCallId: "exec-mcp-2",
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "perm-mcp-allow", reply: "once" }]);
+    assert.equal(pauses, 0);
+  });
+
+  it("grants an execution for an allowed runner-executed tool, BEFORE replying to the harness", async () => {
+    // The same call reaches the runner twice: here at the harness gate, then at the loopback
+    // `agenta-tools` MCP seam. The grant is what stops the seam prompting the human a second
+    // time, and it has to exist before the reply, because the reply releases the tool call.
+    const order: string[] = [];
+    const granted: Array<{ toolName: string | undefined; args: unknown }> = [];
+    const { session, emit } = makeSession(async () => {
+      order.push("reply");
+    });
+    const mcpArgs = {
+      server: "agenta-tools",
+      tool: "read_revision",
+      arguments: { revisionId: "rev-1" },
+    };
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: () => {},
+        events: () => [
+          {
+            type: "tool_call",
+            id: "exec-mcp-3",
+            name: "mcp.agenta-tools.read_revision",
+            input: mcpArgs,
+          } as any,
+        ],
+      },
+      responder: new ApprovalResponder(
+        { default: "ask", rules: [] },
+        new ConversationDecisions(new Map()),
+      ),
+      acpAgent: "codex",
+      toolSpecsByName: specsByName([
+        { name: "read_revision", permission: "allow", readOnly: true },
+      ]),
+      onExecutableGateAllowed: (info) => {
+        order.push("grant");
+        granted.push(info);
+      },
+    });
+    emit({
+      id: "perm-mcp-grant",
+      _meta: { is_mcp_tool_approval: true },
+      availableReplies: ["once", "always", "reject"],
+      toolCall: {
+        kind: "execute",
+        status: "pending",
+        toolCallId: "exec-mcp-3",
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(order, ["grant", "reply"]);
+    // The grant carries the tool's OWN arguments, not the MCP envelope: the relay guard matches
+    // this against what the tool is actually called with.
+    assert.deepEqual(granted, [
+      { toolName: "read_revision", args: mcpArgs.arguments },
+    ]);
+  });
+
+  it("does not grant an execution for a harness builtin, which never reaches the seam", async () => {
+    const granted: unknown[] = [];
+    const { session, emit } = makeSession();
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "allow" }),
+      acpAgent: "codex",
+      onExecutableGateAllowed: (info) => granted.push(info),
+    });
+    emit({
+      id: "perm-shell",
+      availableReplies: ["once", "reject"],
+      toolCall: {
+        kind: "execute",
+        toolCallId: "shell-1",
+        rawInput: { command: "ls" },
+      },
+    });
+    await flushPromises();
+
+    assert.deepEqual(granted, []);
+  });
+
+  it("does not grant an execution when the gate parks or is denied", async () => {
+    for (const verdict of [
+      { kind: "pendingApproval" },
+      { kind: "deny" },
+    ] as const) {
+      const granted: unknown[] = [];
+      const { session, emit } = makeSession();
+
+      attachPermissionResponder({
+        session,
+        run: { emitEvent: () => {} },
+        responder: fakeResponder(verdict),
+        acpAgent: "codex",
+        toolSpecsByName: specsByName([
+          { name: "read_revision", permission: "ask", readOnly: true },
+        ]),
+        onExecutableGateAllowed: (info) => granted.push(info),
+      });
+      emit({
+        id: "perm-mcp-parked",
+        availableReplies: ["once", "reject"],
+        toolCall: {
+          kind: "execute",
+          toolCallId: "exec-mcp-4",
+          name: "read_revision",
+          rawInput: { revisionId: "rev-1" },
+        },
+      });
+      await flushPromises();
+
+      assert.deepEqual(granted, [], `verdict ${verdict.kind} must not grant`);
+    }
   });
 });
 
@@ -1339,5 +2100,44 @@ describe("attachPermissionResponder: Pi dialog gate", () => {
     assert.equal(gates[0].gateType, "claude-acp-permission");
     assert.equal(events.length, 1, "the approval card was emitted");
     assert.equal((events[0] as any).payload.toolCallId, "tc-claude");
+  });
+});
+
+describe("the marker-resolution log detail", () => {
+  it("names the failure, where it sat, and what is really under the import root", () => {
+    // The operator line for a gate that failed on an unresolvable marker. `available` is the
+    // field worth reading: the trailing slash says the entry is a DIRECTORY, which is the whole
+    // correction when a model copied a skill folder in and then referenced a file path.
+    assert.equal(
+      formatResolutionDetail({
+        code: "source_not_found",
+        message: "SKILL.md does not exist under .agenta-imports/.",
+        next_step: "Write the file under .agenta-imports/ first, then send the commit again.",
+        retryable: true,
+        value_pointer: "/workflow_revision/delta/operations/0/value/body",
+        operation_index: 0,
+        available: ["gstack-autoplan/"],
+      }),
+      "(code=source_not_found at=/workflow_revision/delta/operations/0/value/body " +
+        "available=[gstack-autoplan/])",
+    );
+  });
+
+  it("carries no file CONTENT, because this line goes to a log", () => {
+    // The import root holds the USER'S bytes. A detail field that ever starts carrying content
+    // must not reach this formatter, so the formatter names its fields explicitly rather than
+    // spreading whatever it is handed.
+    const line = formatResolutionDetail({
+      code: "source_invalid",
+      message: "secret bytes here",
+      content: "SECRET-FILE-BODY",
+      available: ["a/"],
+    });
+    assert.ok(!line.includes("SECRET-FILE-BODY"));
+    assert.ok(!line.includes("secret bytes here"));
+  });
+
+  it("degrades to an empty string rather than printing an empty bracket", () => {
+    assert.equal(formatResolutionDetail({}), "");
   });
 });
