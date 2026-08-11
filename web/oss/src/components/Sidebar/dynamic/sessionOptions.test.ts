@@ -45,8 +45,10 @@ describe("sidebarSessionFilters", () => {
     })
 
     // A pin is an explicit user request and overrides the sidebar's origin filter — a pinned
-    // automation session must still show (P2-8).
-    it("drops the exclude-trigger filter for the pinned request", () => {
+    // automation session must still show (P2-8). It also carries the `trigger` expansion so a
+    // pinned automation row's name resolves even though the sidebar's own policy never requests
+    // it (without this, the row falls back to "Missing schedule").
+    it("drops the exclude-trigger filter and requests the trigger expansion for the pinned request", () => {
         const pinnedIds = ["pin-1", "pin-2"]
         expect(
             sidebarSessionFilters({
@@ -63,7 +65,7 @@ describe("sidebarSessionFilters", () => {
             lowPriority: true,
             origins: undefined,
             excludeOrigins: undefined,
-            expand: [],
+            expand: ["trigger"],
         })
     })
 

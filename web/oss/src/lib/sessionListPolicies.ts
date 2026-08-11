@@ -12,8 +12,10 @@ export const sessionListPolicies = {
     agentOverviewAutomation: {origin: "trigger-only", expansions: ["trigger"]},
     sidebar: {origin: "exclude-trigger", expansions: []},
     // A pin is an explicit user request and overrides the sidebar's origin filter — a pinned
-    // automation session must still show (P2-8).
-    sidebarPinned: {origin: "all", expansions: []},
+    // automation session must still show (P2-8). It also needs the `trigger` expansion: the
+    // sidebar's own policy never requests it, so a pinned automation row's name would otherwise
+    // never resolve and fall back to "Missing schedule".
+    sidebarPinned: {origin: "all", expansions: ["trigger"]},
     internal: {origin: "all", expansions: []},
     agentActivity: {origin: "all", expansions: []},
 } as const satisfies Record<string, SessionListRequestPolicy>

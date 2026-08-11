@@ -1,6 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
-import {type SessionStream} from "@agenta/entities/session"
+import {type SessionExpansion, type SessionStream} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
@@ -18,7 +18,10 @@ import {
 
 /**
  * A pin is an explicit user request and overrides the surface's origin filter — a pinned
- * automation session must still show on a human-mode (exclude-trigger) card (P2-8).
+ * automation session must still show on a human-mode (exclude-trigger) card (P2-8). It also
+ * needs the `trigger` expansion regardless of the card's own policy: a human-mode card never
+ * requests it, so a pinned automation row's name would otherwise never resolve and fall back to
+ * "Missing schedule".
  */
 export function pinnedSessionListArgs(
     policy: SessionListRequestPolicy,
@@ -28,7 +31,7 @@ export function pinnedSessionListArgs(
 ): SessionListOptions {
     return {
         originPolicy: "all",
-        expansions: policy.expansions,
+        expansions: Array.from(new Set<SessionExpansion>([...policy.expansions, "trigger"])),
         agentId,
         sessionIds: pinnedIds,
         enabled,
