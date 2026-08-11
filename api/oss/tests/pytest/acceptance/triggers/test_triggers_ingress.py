@@ -68,6 +68,46 @@ _requires_connected_account = pytest.mark.skipif(
 )
 
 
+def _create_workflow(authed_api):
+    """Build a workflow + variant + committed revision; return its slug."""
+    slug = f"ing-wf-{uuid4().hex[:8]}"
+
+    wf = authed_api(
+        "POST", "/workflows/", json={"workflow": {"slug": slug, "name": slug}}
+    )
+    assert wf.status_code == 200, wf.text
+    workflow_id = wf.json()["workflow"]["id"]
+
+    variant = authed_api(
+        "POST",
+        "/workflows/variants/",
+        json={
+            "workflow_variant": {
+                "slug": f"{slug}-v",
+                "name": "Default",
+                "workflow_id": workflow_id,
+            }
+        },
+    )
+    assert variant.status_code == 200, variant.text
+    variant_id = variant.json()["workflow_variant"]["id"]
+
+    commit = authed_api(
+        "POST",
+        "/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": f"{slug}-v1",
+                "workflow_id": workflow_id,
+                "workflow_variant_id": variant_id,
+                "message": "initial",
+            }
+        },
+    )
+    assert commit.status_code == 200, commit.text
+    return slug
+
+
 # ---------------------------------------------------------------------------
 # Signature verification is unconditional — unsigned/forged events are rejected.
 # Needs a resolvable webhook secret, which requires Composio enabled.
@@ -202,67 +242,73 @@ class TestTriggerIngressDedup:
         )
         assert conn.status_code == 200, conn.text
         connection_id = conn.json()["connection"]["id"]
+        workflow_slug = _create_workflow(authed_api)
 
-        create = authed_api(
-            "POST",
-            "/triggers/subscriptions/",
-            json={
-                "subscription": {
-                    "name": f"sub-{uuid4().hex[:8]}",
-                    "connection_id": connection_id,
-                    "data": {
-                        "event_key": "GITHUB_STAR_ADDED_EVENT",
-                        "trigger_config": {"owner": "acme", "repo": "widgets"},
-                        "inputs_fields": {"repo": "$.event.attributes.repository"},
-                        "references": {"workflow": {"slug": "triage"}},
-                    },
-                }
-            },
-        )
-        assert create.status_code == 200, create.text
-        sub = create.json()["subscription"]
-        subscription_id = sub["id"]
-        trigger_id = sub["trigger_id"]
-
-        event_id = uuid4().hex
-        envelope = {
-            "type": "github_star_added_event",
-            "metadata": {"trigger_id": trigger_id, "id": event_id},
-            "payload": {"repository": "acme/widgets"},
-        }
-        body = json.dumps(envelope).encode()
-        secret = _resolve_webhook_secret()
-        if not secret:
-            pytest.skip("no Composio webhook secret resolvable; signing would 401")
-
-        # Post the same logical event twice (provider redelivery) as two DISTINCT
-        # provider-level deliveries (own webhook-id/timestamp each) — the
-        # replay guard dedups webhook-id, not metadata.id, so this exercises the
-        # delivery-row dedup layer beneath it.
-        for _ in range(2):
-            webhook_id = f"msg_{uuid4().hex}"
-            timestamp = str(int(time.time()))
-            headers = {
-                "Content-Type": "application/json",
-                "webhook-id": webhook_id,
-                "webhook-timestamp": timestamp,
-                "webhook-signature": _sign(secret, webhook_id, timestamp, body),
-            }
-            ack = unauthed_api(
-                "POST", "/triggers/composio/events/", data=body, headers=headers
+        try:
+            create = authed_api(
+                "POST",
+                "/triggers/subscriptions/",
+                json={
+                    "subscription": {
+                        "name": f"sub-{uuid4().hex[:8]}",
+                        "connection_id": connection_id,
+                        "data": {
+                            "event_key": "GITHUB_STAR_ADDED_EVENT",
+                            "trigger_config": {"owner": "acme", "repo": "widgets"},
+                            "inputs_fields": {"repo": "$.event.attributes.repository"},
+                            "references": {"workflow": {"slug": workflow_slug}},
+                        },
+                    }
+                },
             )
-            assert ack.status_code == 202, ack.text
+            assert create.status_code == 200, create.text
+            sub = create.json()["subscription"]
+            subscription_id = sub["id"]
+            trigger_id = sub["trigger_id"]
 
-        # The dispatch is async; the dedup guard means at most one delivery row
-        # exists for this (subscription, event_id).
-        deliveries = authed_api(
-            "POST",
-            "/triggers/deliveries/query",
-            json={
-                "delivery": {"subscription_id": subscription_id, "event_id": event_id}
-            },
-        ).json()["deliveries"]
-        assert len(deliveries) <= 1
+            event_id = uuid4().hex
+            envelope = {
+                "type": "github_star_added_event",
+                "metadata": {"trigger_id": trigger_id, "id": event_id},
+                "payload": {"repository": "acme/widgets"},
+            }
+            body = json.dumps(envelope).encode()
+            secret = _resolve_webhook_secret()
+            if not secret:
+                pytest.skip("no Composio webhook secret resolvable; signing would 401")
 
-        authed_api("DELETE", f"/triggers/subscriptions/{subscription_id}")
-        authed_api("DELETE", f"/tools/connections/{connection_id}")
+            # Post the same logical event twice (provider redelivery) as two DISTINCT
+            # provider-level deliveries (own webhook-id/timestamp each) — the
+            # replay guard dedups webhook-id, not metadata.id, so this exercises the
+            # delivery-row dedup layer beneath it.
+            for _ in range(2):
+                webhook_id = f"msg_{uuid4().hex}"
+                timestamp = str(int(time.time()))
+                headers = {
+                    "Content-Type": "application/json",
+                    "webhook-id": webhook_id,
+                    "webhook-timestamp": timestamp,
+                    "webhook-signature": _sign(secret, webhook_id, timestamp, body),
+                }
+                ack = unauthed_api(
+                    "POST", "/triggers/composio/events/", data=body, headers=headers
+                )
+                assert ack.status_code == 202, ack.text
+
+            # The dispatch is async; the dedup guard means at most one delivery row
+            # exists for this (subscription, event_id).
+            deliveries = authed_api(
+                "POST",
+                "/triggers/deliveries/query",
+                json={
+                    "delivery": {
+                        "subscription_id": subscription_id,
+                        "event_id": event_id,
+                    }
+                },
+            ).json()["deliveries"]
+            assert len(deliveries) <= 1
+
+            authed_api("DELETE", f"/triggers/subscriptions/{subscription_id}")
+        finally:
+            authed_api("DELETE", f"/tools/connections/{connection_id}")
