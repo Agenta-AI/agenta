@@ -30,6 +30,18 @@ describe("sessionListRequestFilters", () => {
             excludeOrigins: undefined,
             expand: ["last_message", "trigger"],
         })
+        // Agent overview's automation section: needs the trigger name to resolve, but never
+        // requests message previews (unlike Home/Sessions automation mode above).
+        expect(
+            sessionListRequestFilters({
+                origin: "trigger-only",
+                expansions: ["trigger"],
+            }),
+        ).toEqual({
+            origins: ["trigger"],
+            excludeOrigins: undefined,
+            expand: ["trigger"],
+        })
     })
 
     it("selects one policy for both pinned and recent Sessions groups", () => {

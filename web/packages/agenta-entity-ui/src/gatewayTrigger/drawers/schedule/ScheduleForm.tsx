@@ -21,7 +21,7 @@ import {
     type TriggerScheduleEdit,
 } from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowMolecule, workflowVariantsListDataAtomFamily} from "@agenta/entities/workflow"
 import {dayjs} from "@agenta/shared/utils"
 import {message} from "@agenta/ui"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
@@ -40,6 +40,7 @@ import {RequiredTitle} from "../shared/RequiredTitle"
 import {
     RunVersionField,
     buildRunVersionReferences,
+    composeRevisionLabel,
     extractBoundWorkflowId,
     isRunVersionBound,
 } from "../shared/RunVersionField"
@@ -99,6 +100,11 @@ export function ScheduleForm({
     const [workflowSelection, setWorkflowSelection] =
         useState<WorkflowRevisionSelectionResult | null>(null)
     const [workflowLabel, setWorkflowLabel] = useState<string | null>(null)
+    // The bound workflow (app) id from `refs.application`. A stored `application_variant`
+    // pin (the default "runs whatever is deployed variant" bind — see `extractDefaultBindId`)
+    // has no revision id, so `workflowRevId` below holds a VARIANT id — unresolvable by the
+    // revision-keyed selectors. This id is the fallback key that still resolves an app name.
+    const [boundWorkflowId, setBoundWorkflowId] = useState<string | null>(null)
     const [inputsText, setInputsText] = useState("{}")
 
     // Run agent version: bind to a specific revision (the picker) or to an
@@ -120,16 +126,36 @@ export function ScheduleForm({
         workflowMolecule.selectors.variantLabel(workflowRevId ?? ""),
     )
     const resolvedRevData = useAtomValue(workflowMolecule.selectors.data(workflowRevId ?? ""))
+    // Fallback path for a variant-only pin (`workflowRevId` is a VARIANT id, not a revision
+    // id): the selectors above key off a revision/workflow id and resolve to null, so recover
+    // the app name from `boundWorkflowId` and the variant name from its variants list.
+    const fallbackArtifact = useAtomValue(
+        workflowMolecule.selectors.artifactName(boundWorkflowId ?? ""),
+    )
+    const boundWorkflowVariants = useAtomValue(
+        workflowVariantsListDataAtomFamily(boundWorkflowId ?? ""),
+    )
+    const fallbackVariant = useMemo(() => {
+        const variant = boundWorkflowVariants.find((v) => v.id === workflowRevId)
+        return variant?.name ?? variant?.slug ?? null
+    }, [boundWorkflowVariants, workflowRevId])
     const resolvedRevisionName = useMemo(() => {
         if (!workflowRevId) return null
-        const segs: string[] = []
-        if (resolvedArtifact) segs.push(resolvedArtifact)
-        if (resolvedVariant && resolvedVariant !== resolvedArtifact) segs.push(resolvedVariant)
-        let label = segs.join(" / ")
-        const version = resolvedRevData?.version
-        if (version != null) label = label ? `${label} · v${version}` : `v${version}`
-        return label || null
-    }, [workflowRevId, resolvedArtifact, resolvedVariant, resolvedRevData?.version])
+        return composeRevisionLabel({
+            artifact: resolvedArtifact,
+            fallbackArtifact,
+            variant: resolvedVariant,
+            fallbackVariant,
+            version: resolvedRevData?.version,
+        })
+    }, [
+        workflowRevId,
+        resolvedArtifact,
+        resolvedVariant,
+        resolvedRevData?.version,
+        fallbackArtifact,
+        fallbackVariant,
+    ])
 
     // In a playground the workflow is already known (the agent), so scope the picker
     // to that workflow — pick a variant + revision, not an arbitrary workflow. In
@@ -199,6 +225,7 @@ export function ScheduleForm({
         } else {
             setWorkflowRevId(extractBoundWorkflowId(refs))
             // Label is resolved from the revision id below, not stored as the raw id.
+            setBoundWorkflowId(refs?.application?.id ?? null)
         }
         setInputsText(JSON.stringify(schedule.data?.inputs_fields ?? {}, null, 2))
     }, [isEdit, schedule, scheduleFetching, scheduleId])
@@ -218,6 +245,7 @@ export function ScheduleForm({
         const label = state?.defaultBoundLabel ?? appId ?? variantId
         setWorkflowRevId(variantId)
         setWorkflowLabel(label)
+        setBoundWorkflowId(appId)
         setWorkflowSelection({
             type: "workflowRevision",
             id: variantId,

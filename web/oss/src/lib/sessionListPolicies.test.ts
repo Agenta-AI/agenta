@@ -16,7 +16,7 @@ describe("session list caller policies", () => {
                 expansions: ["last_message", "trigger"],
             },
             agentOverviewHuman: {origin: "exclude-trigger", expansions: []},
-            agentOverviewAutomation: {origin: "trigger-only", expansions: []},
+            agentOverviewAutomation: {origin: "trigger-only", expansions: ["trigger"]},
             sidebar: {origin: "exclude-trigger", expansions: []},
             internal: {origin: "all", expansions: []},
             agentActivity: {origin: "all", expansions: []},

@@ -100,6 +100,11 @@ export function SubscriptionForm({
     const [workflowSelection, setWorkflowSelection] =
         useState<WorkflowRevisionSelectionResult | null>(null)
     const [workflowLabel, setWorkflowLabel] = useState<string | null>(null)
+    // The bound workflow (app) id from `refs.application`. A stored `application_variant`
+    // pin (the default "runs whatever is deployed variant" bind) has no revision id, so
+    // `workflowRevId` below can hold a VARIANT id — unresolvable by the revision-keyed
+    // `artifactName` selector. This id is the fallback key that still resolves an app name.
+    const [boundWorkflowId, setBoundWorkflowId] = useState<string | null>(null)
     const [inputsText, setInputsText] = useState(DEFAULT_INPUTS_MAPPING)
     const [inputsError, setInputsError] = useState<string | null>(null)
     // The field UI sources from the RAW event only: a draft's /test probe (raw
@@ -154,9 +159,15 @@ export function SubscriptionForm({
     )
     // Friendly name for the bound revision (used when no fresh-pick label is set, e.g.
     // after create/edit reload) so the version picker never shows a raw id.
-    const resolvedRevisionName = useAtomValue(
+    const resolvedRevisionNameById = useAtomValue(
         workflowMolecule.selectors.artifactName(workflowRevId ?? ""),
     )
+    // Fallback for a variant-only pin: `workflowRevId` is a VARIANT id there, which the
+    // selector above can't resolve — recover the app name from `boundWorkflowId` instead.
+    const fallbackArtifactName = useAtomValue(
+        workflowMolecule.selectors.artifactName(boundWorkflowId ?? ""),
+    )
+    const resolvedRevisionName = resolvedRevisionNameById ?? fallbackArtifactName
 
     /* Unused while the Deployed option is hidden — restore with the call site below.
     const envQuery = useAtomValue(environmentsListQueryAtomFamily(false))
@@ -224,6 +235,7 @@ export function SubscriptionForm({
             // Don't store the raw revision id as the label — resolve a friendly name from
             // the molecule (resolvedRevisionName) for the picker placeholder instead.
             setWorkflowLabel(null)
+            setBoundWorkflowId(refs?.application?.id ?? null)
         }
         setInputsText(
             subscription.data?.inputs_fields
@@ -246,6 +258,7 @@ export function SubscriptionForm({
         const label = state?.defaultBoundLabel ?? playgroundAppName ?? appId ?? variantId
         setWorkflowRevId(variantId)
         setWorkflowLabel(label)
+        setBoundWorkflowId(appId)
         setWorkflowSelection({
             type: "workflowRevision",
             id: variantId,
