@@ -9,6 +9,7 @@ import {eagerAtom} from "jotai-eager"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
+import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
@@ -217,7 +218,11 @@ const AppWithVariants = memo(
             agentState,
             currentViewId: currentSidebarViewIdRef.current,
         })
-        currentSidebarViewIdRef.current = activeSidebarView.id
+        // Commit phase, not render: an abandoned render must not leave its view id behind as the
+        // rail that is "on screen", which is the one thing this ref is asked for.
+        useIsomorphicLayoutEffect(() => {
+            currentSidebarViewIdRef.current = activeSidebarView.id
+        }, [activeSidebarView.id])
 
         useEffect(() => {
             if (activeSidebarView.isBase) {
