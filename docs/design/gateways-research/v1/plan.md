@@ -1,127 +1,267 @@
-# Gateways: work packages
+# Gateways: work packages, merges, checkpoints, waves
 
-Assumes the rest of `v1/`. Packages, not a schedule — no sizing, and no sequencing beyond
+Assumes the rest of `v1/`. Packages and their dependencies — no sizing and no schedule beyond
 what the dependencies force.
 
-A package is a unit that can be built, reviewed and merged on its own. Where two packages
-could be one, they are split if they can land independently or belong to different owners.
-
-**Status: candidate packages.** The set below is a proposal and will not survive contact with
-`entities.md` and `policy.md` unchanged.
-
-The two questions that previously gated it are now answered (`raw/model-call-sites.md`): there
-are four model call paths, three of them in one SDK file, and the routing library runs
-in-process, so the model plane is a library integration rather than a service.
-
-Two consequences for the packages below: the model north port needs an **embeddings** route as
-well as chat, and the `llm_v0` handler's module-level key assignment must be converted before
-anything shares a process.
+**Status: draft for review.** The package boundaries are the proposal; the checkpoint structure
+is the part to argue with first, because everything else hangs off it.
 
 ---
 
-## Prerequisite: the seed
+## The four words
 
-Interfaces land first, on the base branch, before any package starts — the credential
-resolution signature, the adapter ports, the domain exceptions — all declared and all
-unimplemented. Every worktree branches from that commit so interface dependencies do not
-serialise the work.
+**Work package.** A unit that can be built, reviewed and merged on its own, in its own worktree.
+Where two could be one, they are split if they can land independently or belong to different
+owners.
 
-This is the one thing that must be right before anything begins, because every package
-inherits it. The **credential lookup signature** is the critical part: it must take the owner
-as a parameter from the outset even while the only answer is the project.
+**Merge.** A point where packages come together. Most merges are not deployed. At a merge we fix
+static issues — types, lint, contract tests, unit tests — and move on.
 
----
+**Checkpoint.** A merge we **deploy** and run acceptance tests against, because it is the first
+point where something real runs: live processes, live servers, a request that travels. At a
+checkpoint we deploy, fix dynamic issues, and only then start the next fan-out.
 
-## Candidate packages
+**Wave.** Everything between two checkpoints. A wave is fan out, fan in, fan out, fan in, ending
+at a deploy. Each wave gets its own specs, tasks and findings written before it starts.
 
-### WP0 — Secret kinds
-
-The two new kinds and their stack: enum values, settings DTOs and wrappers, union arms,
-validator branches. No gateway code.
-
-**Depends on:** nothing. **Blocks:** WP2, WP3.
-**Done when:** both kinds round-trip through the secrets service encrypted, and an invalid
-payload for either kind is rejected by the validator rather than persisted.
-
-### WP1 — Credential resolution
-
-The resolve function and its three modes, returning credential, owner and payer. Pure logic
-over the secrets service, so it is fully unit testable — and it must be, because the
-interesting cases are the failures: a required user credential absent, a project-only entry
-with a user credential present, and neither present.
-
-**Depends on:** WP0. **Blocks:** WP2, WP3.
-**Done when:** each mode resolves as specified, failures surface as the existing needs-input
-or needs-auth states naming the missing owner, and no path silently returns no credential.
-
-### WP2 — MCP server registry and the client
-
-The registry, its stack, and the SDK's OAuth client wired to a storage adapter over the
-secrets service, with the connect callbacks pointed at the dashboard flow rather than a local
-browser.
-
-**Depends on:** WP0, WP1. **Blocks:** WP4.
-**Done when:** a static-credential server and an OAuth-protected server both register,
-connect, list tools and execute one, and a refresh happens without user interaction.
-
-### WP3 — Model plane domain
-
-The domain the codebase does not have: ports, registry, service, and the provider-settings
-builder moved out of the SDK.
-
-**Depends on:** WP1. **Blocks:** WP5.
-**Done when:** every provider and deployment pair reachable today is reachable through the
-domain, including the cloud-reseller credential shapes, with the endpoint guard preserved.
-
-### WP4 — Tool north port
-
-The MCP surface: routing on headers, allowlist enforcement, list composition.
-
-**Depends on:** WP2, and the endpoint-shape decision. **Blocks:** nothing.
-
-### WP5 — Model north port
-
-The OpenAI-compatible surface, including streaming.
-
-**Depends on:** WP3, and the in-process question. **Blocks:** nothing.
-
-### WP6 — Policy core
-
-Identity threading, the authorization calls, the audit record, the meter keys, and decision
-caching.
-
-**Depends on:** WP1. **Blocks:** nothing, but every other package is incomplete without it.
-*This one is least specified and most likely to split.*
-
-### WP7 — Caller conversion
-
-One package per caller class, converting each to transit the gateway. **Cannot be scoped
-until the call-site count exists.**
-
-### WP8 — Owner dimension
-
-User-level credentials: the secrets service change, the lookup answering something other than
-the project, and the dashboard's per-user view.
-
-**Depends on:** WP1. **Explicitly not scheduled** — designed so that it is additive when
-wanted.
+The rhythm per wave: define the wave → write specs and tasks for its packages and merges →
+prepare → run the packages in parallel → merge and fix static issues → deploy → fix dynamic
+issues → next wave.
 
 ---
 
-## Integration checkpoints
+## Scope confirmation
 
-*To establish.* Channels used checkpoints as the moments the system does something
-end-to-end, distinct from packages. The equivalents here are probably: one static-credential
-MCP server works end to end; one OAuth server works including refresh; one model call transits
-the gateway; the first caller is fully converted; every caller is converted and the direct
-path can be removed.
+Permission checks and entitlement checks are **in for both gateways**. Credit checks are
+**postponed for both**, and arrive with the metering and billing work rather than here.
 
-The last is the only one that makes the transit rule true, and it should be named as such.
+---
+
+## The checkpoints
+
+Three, and the middle one is the big one.
+
+### Checkpoint A — both gateways serve traffic against fakes
+
+The LLM gateway and the MCP gateway both accept a call, authorise it, resolve and inject a
+secret, reach a fake upstream, and return. Policy, audit and usage recording all fire.
+
+**Why here.** It is the first point where anything runs end to end, and it needs no third-party
+dependency, no OAuth and no converted caller. Everything it proves is proved against our own
+fakes, which is what makes it a clean acceptance-test surface.
+
+**Acceptance tests:** a request with no token is refused; a request for an endpoint the caller
+may not use is refused; a permitted request reaches the fake with the caller's token replaced by
+the upstream secret; a streamed response arrives byte for byte; an audit event is written; usage
+is recorded.
+
+### Checkpoint B — the real callers go through the gateways
+
+Agent v0, the runner and the harnesses reach models and MCP servers only through the gateways.
+This is "everything except OAuth works."
+
+**Acceptance tests:** a real agent run completes with no provider secret anywhere in the
+sandbox; the run's model calls and tool calls appear as audit events with the right principal;
+a run naming a model it may not use fails cleanly.
+
+### Checkpoint C — OAuth works
+
+An OAuth-protected MCP server can be connected from the dashboard, used in a run, refreshed
+without a human, and step-up raises an interaction.
+
+**Acceptance tests:** connect an OAuth server end to end; run a tool through it; force a refresh
+and confirm the run continues; force a scope challenge and confirm an interaction is raised;
+revoke and confirm the tool stays listed and the call fails with something actionable.
+
+---
+
+## The waves
+
+| Wave | From | To | What it delivers |
+|---|---|---|---|
+| 1 | seed | **Checkpoint A** | Both gateways, the shared policy core, and the fakes |
+| 2 | A | **Checkpoint B** | Every caller converted |
+| 3 | B | **Checkpoint C** | OAuth end to end |
+
+Intermediate merges inside a wave are listed with the wave. They are not deployed.
+
+---
+
+## Dependency graph
+
+```mermaid
+flowchart LR
+    S["seed<br/>ports + DTOs"]
+    S --> WP1["WP1<br/>domain + storage"]
+    S --> WP2["WP2<br/>secret resolution"]
+    S --> WP3["WP3<br/>policy core"]
+    S --> WP4["WP4<br/>audit events"]
+    WP5["WP5<br/>test doubles<br/>(no deps)"]
+    WP1 & WP2 & WP3 & WP4 --> M1{{"M1<br/>foundation"}}
+    M1 --> WP6["WP6<br/>LLM ingress"]
+    M1 --> WP7["WP7<br/>LLM routing"]
+    M1 --> WP8["WP8<br/>MCP ingress"]
+    M1 --> WP9["WP9<br/>MCP registry"]
+    M1 --> WP10["WP10<br/>endpoint CRUD"]
+    M1 --> WP11["WP11<br/>usage recording"]
+    WP6 & WP7 & WP8 & WP9 & WP10 & WP11 & WP5 --> CA(["Checkpoint A<br/>DEPLOY"])
+    CA --> WP12["WP12<br/>SDK resolution"]
+    WP12 --> WP13["WP13<br/>runner + harnesses"]
+    WP12 --> WP14["WP14<br/>agent v0"]
+    WP12 --> WP15["WP15<br/>MCP on the wire"]
+    WP13 & WP14 & WP15 --> CB(["Checkpoint B<br/>DEPLOY"])
+    CB --> WP16["WP16<br/>secret kinds"]
+    WP16 --> WP17["WP17<br/>OAuth client"]
+    WP17 --> WP18["WP18<br/>consent flow"]
+    WP17 --> WP20["WP20<br/>reachability"]
+    WP18 --> WP19["WP19<br/>step-up"]
+    WP19 & WP20 --> CC(["Checkpoint C<br/>DEPLOY"])
+```
+
+The two fan-outs in wave 1 are the widest points: four packages, then six. Wave 2 is a chain
+behind one package. Wave 3 is mostly serial because OAuth's pieces genuinely depend on each
+other.
+
+---
+
+## The seed
+
+Before any worktree starts, one commit on the base branch carries the declared surface, all
+raising not-implemented: the gateway ports, the endpoint and policy DTOs, the domain exceptions,
+and the secret-resolution signature.
+
+**The one thing that must be right:** the secret resolution signature takes the owner as a
+parameter even though the only answer today is the project (D10). Every package that resolves a
+secret inherits it.
+
+Every worktree branches from that commit, so interface dependencies never serialise the work.
+
+---
+
+## Wave 1 — to Checkpoint A
+
+### Fan-out 1: foundation
+
+**WP1 — Gateway domain and storage.** The entity stack for custom endpoints on both gateways:
+mixins, entities, DAO, mappings, migration. Standard endpoints are generated and store nothing
+(D20).
+*Depends on:* seed. *Blocks:* WP6, WP9, WP10.
+*Done when:* a custom endpoint round-trips, and every DAO verb takes the owner.
+
+**WP2 — Secret resolution.** The resolve function over the secrets service, returning the secret,
+its owner, and its `secret_origin`. Pure logic, so fully unit testable — and it must be, because
+the interesting cases are the failures.
+*Depends on:* seed. *Blocks:* WP5, WP8.
+*Done when:* each resolution mode behaves as specified and no path silently returns no secret.
+
+**WP3 — Policy core.** The principal from the existing auth scope, the permission check on a
+target, and the entitlement check. No credit check.
+*Depends on:* seed. *Blocks:* WP5, WP8.
+*Done when:* a caller without permission on an endpoint is refused before any upstream call.
+
+**WP4 — Audit events.** Emission into the existing events domain (D22), with the principal, the
+target, the decision and the outcome.
+*Depends on:* seed. *Blocks:* nothing; every package is incomplete without it.
+*Done when:* one event per call, queryable through the existing surface.
+
+**WP5 — Test doubles.** A fake LLM endpoint and a fake MCP server, both controllable from tests:
+forced errors, forced slowness, forced scope challenges later.
+*Depends on:* nothing. **Start immediately.** *Blocks:* every acceptance test.
+*Done when:* both fakes run in the local stack and can be driven to fail on demand.
+
+**Merge M1 — foundation.** Static only, not deployed.
+
+### Fan-out 2: the two gateways, in parallel
+
+**WP6 — LLM ingress and relay.** The OpenAI-compatible surface, streaming, the body kept byte for
+byte, timeouts.
+*Depends on:* M1. *Done when:* a streamed response is relayed unmodified and a hung upstream
+times out rather than hanging the gateway.
+
+**WP7 — LLM routing and model allowlist.** The routing library in-process; standard endpoints
+generated from the SDK catalogue; custom endpoints restricted to their declared models.
+*Depends on:* M1. *Done when:* every provider and deployment pair reachable today is reachable
+through the gateway, including reseller shapes, and a model outside a custom endpoint's list is
+refused.
+
+**WP8 — MCP ingress and proxy.** One URL per server, namespaced identifier, transparent
+pass-through with tool names untouched.
+*Depends on:* M1. *Done when:* list and call both relay unchanged and a tool outside the
+allowlist is refused.
+
+**WP9 — MCP registry and tool allowlist.** Custom servers as rows, built-in servers defined by
+us, per-server tool allowlists.
+*Depends on:* M1, WP1. *Done when:* a custom server registers and resolves, and a built-in one
+needs no row.
+
+**WP10 — Endpoint CRUD API.** Routers and models for creating and configuring custom endpoints on
+both gateways. Includes per-endpoint configuration — timeouts, ceilings, extra headers (D21).
+*Depends on:* M1, WP1. *Done when:* a custom endpoint can be created, configured and deleted,
+and a standard one cannot be edited.
+
+**WP11 — Usage recording.** Model tokens and tool calls recorded against the principal, with the
+secret origin. Recording only; no charging.
+*Depends on:* M1. *Done when:* real usage is written for every call even though nothing is
+billed.
+
+**Merge M2 → Checkpoint A.** Deploy. Acceptance tests above.
+
+---
+
+## Wave 2 — to Checkpoint B
+
+**WP12 — SDK connection resolution.** `resolve_connection` returns a gateway route: the provider
+and deployment naming the gateway, the base URL, and the token. The SDK keeps every capability it
+has (D4).
+*Depends on:* Checkpoint A. *Blocks:* WP13, WP14.
+
+**WP13 — Runner and harnesses.** The runner carries a gateway route rather than provider secrets.
+Per the existing wire this is a resolver-side change; verify the credential arrays collapse and
+the redaction set shrinks.
+*Depends on:* WP12.
+
+**WP14 — Agent v0.** The remaining caller.
+*Depends on:* WP12.
+
+**WP15 — MCP servers on the wire.** The runner's MCP server configs point at gateway URLs with a
+gateway token rather than upstream secrets.
+*Depends on:* WP12.
+
+**Merge M3 → Checkpoint B.** Deploy. Acceptance tests above.
+
+---
+
+## Wave 3 — to Checkpoint C
+
+**WP16 — Secret kinds.** `oauth_provider` and `oauth_grant`: enum values, settings DTOs, union
+arms, validator branches (D14). Coordinate with the parallel work adding kinds to the same enum.
+*Depends on:* Checkpoint B. *Blocks:* WP17.
+
+**WP17 — OAuth client.** The official SDK's client provider, with a storage adapter over the
+secrets service; connect callbacks pointed at the dashboard rather than a local browser.
+*Depends on:* WP16.
+
+**WP18 — Consent flow.** Connecting an OAuth server from the dashboard, with scope selection.
+*Depends on:* WP17.
+
+**WP19 — Step-up interaction.** A scope challenge raises an interaction on the existing
+missing-connection path.
+*Depends on:* WP17, WP18.
+
+**WP20 — Callback reachability.** A development path that works, and a documented posture for a
+firewalled deployment (OD6).
+*Depends on:* WP17. **Needed for Checkpoint C to be testable at all.**
+
+**Merge M4 → Checkpoint C.** Deploy. Acceptance tests above.
 
 ---
 
 ## Not packages
 
-- The tool catalog. Settled as out of scope.
-- Triggers. A separate subsystem for structural reasons.
-- Retention. Real, flagged in `entities.md`, and larger than this design.
+- The tool catalog. Out of scope.
+- Triggers. A separate subsystem.
+- Credit checks. Postponed to the metering and billing work.
+- Embeddings, the evaluator path, and every other service. Later scope (D15).
+- Retries, fallbacks, aliasing, list caching, stdio servers. Marked out in
+  `scope-checklist.md`.
+- The legacy credits counter. Left alone until the gateway is the sole mechanism (D24).
