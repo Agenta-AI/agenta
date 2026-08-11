@@ -12,7 +12,7 @@ which is D7 expressed as a directory: one system, two protocol surfaces, one pol
 Three layout decisions are made here and argued in §1: the planes live under a new
 plural parent `core/gateways/`, a **sibling** to the existing singular `core/gateway/`,
 not inside it; the data plane and the management CRUD are **separate router objects** in
-one API folder per plane; and the model plane's folder is named `llm/`, not `models/`.
+one API folder per plane; and the model plane's folder is named `llms/`, not `models/`.
 
 ```text
 core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
@@ -26,7 +26,7 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
     resolution.py     the resolve() implementation over VaultService (WP2)
     service.py        GatewayPolicyService: authorize, audit, usage (WP3, WP4)
     audit.py          EventType members + attribute builders for the events stream (D22)
-  llm/                the model plane (WP1, WP6, WP7)
+  llms/               the model plane (WP1, WP6, WP7)
     dtos.py           enums + core DTOs
     types.py          domain exceptions
     interfaces.py     LlmEndpointsDAOInterface + LlmUpstreamInterface (south port)
@@ -37,7 +37,7 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
       passthrough/adapter.py   OpenAI-compatible upstreams, byte-for-byte relay
       translated/adapter.py    the routing library in-process: shape + reseller signing
       fake/adapter.py          the fake LLM endpoint (D23, WP5)
-  mcp/                the tool plane (WP1, WP8, WP9)
+  mcps/               the tool plane (WP1, WP8, WP9)
     dtos.py
     types.py
     interfaces.py     McpEndpointsDAOInterface + McpGrantsDAOInterface + McpUpstreamInterface
@@ -48,13 +48,13 @@ core/gateways/        <- NEW parent, sibling to the existing core/gateway/ (§1)
       http/adapter.py          remote Streamable HTTP servers
       fake/adapter.py          the fake MCP server (D23, WP5)
 dbs/postgres/gateways/
-  llm/                dbas.py, dbes.py, dao.py, mappings.py
-  mcp/                dbas.py, dbes.py, dao.py, mappings.py
+  llms/               dbas.py, dbes.py, dao.py, mappings.py
+  mcps/               dbas.py, dbes.py, dao.py, mappings.py
 apis/fastapi/gateways/
   exceptions.py       handle_gateway_exceptions(), written once (§9)
-  llm/                models.py, router.py (management CRUD), proxy.py (OpenAI surface),
+  llms/               models.py, router.py (management CRUD), proxy.py (OpenAI surface),
                       utils.py (call-context parsing off the body)
-  mcp/                models.py, router.py (management CRUD), proxy.py (MCP surface),
+  mcps/               models.py, router.py (management CRUD), proxy.py (MCP surface),
                       utils.py (protocol header parsing)
 ```
 
@@ -112,7 +112,7 @@ domain boundary drawn on a shared word is how unrelated code grows entangled.
 
 So the gateways are a **new domain**: `core/gateways/`, plural, a sibling of the existing
 singular folder. The plural parent is deliberate and is D7 as a directory — one system,
-two protocol surfaces (`llm/`, `mcp/`), one shared core (`policy/`), inside one parent —
+two protocol surfaces (`llms/`, `mcps/`), one shared core (`policy/`), inside one parent —
 where three loose top-level siblings would leave the policy core homeless and make the
 "one design" claim invisible in the tree.
 
@@ -123,10 +123,10 @@ it the way any domain references another's entities. A registry referencing a
 neighbouring domain's rows is normal, and it is not a reason to live in that neighbour's
 folder.
 
-**Why `llm/`, not `models/`.** The skeleton proposed `models/` for the model plane.
+**Why `llms/`, not `models/`.** The skeleton proposed `models/` for the model plane.
 Renamed: a folder called `models` whose API layer contains a `models.py` holding wire
-models is self-parody, and the product noun throughout `v1/` is "the LLM gateway". `llm/`
-and `mcp/` are also symmetric, which D19 says the two gateways are.
+models is self-parody, and the product noun throughout `v1/` is "the LLM gateway". `llms/`
+and `mcps/` are also symmetric, which D19 says the two gateways are.
 
 ### Why the table names do not mirror the folder path
 
@@ -137,11 +137,15 @@ mirror-the-path precedent. On purpose: a `gateways_*` prefix would sort directly
 argued its way out of. Table names are read far more often in isolation — in `psql`, in
 migrations, in an incident — than folder paths are, so the name leads with the plane,
 which is the part someone scanning a schema actually needs, and carries `gateway` as the
-qualifier.
+qualifier. The naming rule, stated once so nobody re-derives it wrongly: **directory and
+URL segments are plural** (`gateways/`, `llms/`, `mcps/`, `/gateways/llms/...`);
+**symbols, tables, constraints and operation ids are not** (`LlmGatewayService`,
+`llm_gateway_endpoints`, `llm_gateway_chat_completions`) — there the plural already lives
+in `endpoints` and `grants`, and `llm_`/`mcp_` is an adjective, not a collection.
 
 ### The API folder, and why the data plane and the CRUD do not share a router object
 
-The domain has an API folder per plane, `apis/fastapi/gateways/{llm,mcp}/` — unremarkable
+The domain has an API folder per plane, `apis/fastapi/gateways/{llms,mcps}/` — unremarkable
 in itself; every domain with HTTP surfaces has one. The part that needs deciding is
 inside it.
 
@@ -210,7 +214,7 @@ reused rather than reinvented (`policy.md`).
 the `standard` marker, and the provider's own name (D20). The provider-to-models catalogue
 is already a static map in the SDK (`sdks/python/agenta/sdk/utils/assets.py`,
 `supported_llm_models`, eleven providers), and the API already imports the SDK for exactly
-this kind of static catalogue (`core/workflows/static_catalog.py`). `core/gateways/llm/catalog.py`
+this kind of static catalogue (`core/workflows/static_catalog.py`). `core/gateways/llms/catalog.py`
 wraps that map; a standard endpoint *exists* when a `provider_key` secret exists for its
 provider, and stores nothing.
 
@@ -251,7 +255,7 @@ configuration, and user-owned *endpoints* are not designed anywhere in `v1/`. Th
 dimension enters exactly once, on grants, where it is the owner key (§2.2).
 
 ```python
-# dbs/postgres/gateways/llm/dbas.py
+# dbs/postgres/gateways/llms/dbas.py
 
 class LlmEndpointDBA(
     ProjectScopeDBA, IdentifierDBA, SlugDBA, LifecycleDBA,
@@ -275,7 +279,7 @@ class LlmEndpointDBA(
     # data: { route: {...}, model_slugs: [...], config: {...}, extras: {...} } — §2.4
 
 
-# dbs/postgres/gateways/mcp/dbas.py
+# dbs/postgres/gateways/mcps/dbas.py
 
 class McpEndpointDBA(
     ProjectScopeDBA, IdentifierDBA, SlugDBA, LifecycleDBA,
@@ -380,14 +384,14 @@ D16 requires the identifier in a gateway URL to carry a namespace — an id or a
 a display name. The grammar, shared by both planes:
 
 ```text
-/gateways/llm/{namespace}/{name}/...      namespace ∈ {standard, custom}
-/gateways/mcp/{namespace}/{name}          namespace ∈ {standard, custom}
+/gateways/llms/{namespace}/{name}/...      namespace ∈ {standard, custom}
+/gateways/mcps/{namespace}/{name}          namespace ∈ {standard, custom}
 ```
 
 - **`standard`** — generated endpoints (D20). The name is the provider's own key on the LLM
-  plane (`/gateways/llm/standard/openai/v1`) and the built-in server's key on the MCP plane.
+  plane (`/gateways/llms/standard/openai/v1`) and the built-in server's key on the MCP plane.
   No row, no slug, no collision possible: the set is defined in code
-  (`core/gateways/llm/catalog.py`, and the built-in MCP set which starts empty — its first
+  (`core/gateways/llms/catalog.py`, and the built-in MCP set which starts empty — its first
   members are the fakes).
 - **`custom`** — stored endpoints. The name is the row's `slug`, unique per project
   (`uq_llm_gateway_endpoints_project_slug`, §3), validated by the shared `Slug` DTO's
@@ -509,7 +513,7 @@ triggers tables already do; the
 `secret_id` constraints per §2.1.
 
 ```python
-# dbs/postgres/gateways/llm/dbes.py
+# dbs/postgres/gateways/llms/dbes.py
 
 class LlmEndpointDBE(Base, LlmEndpointDBA):
     __tablename__ = "llm_gateway_endpoints"
@@ -525,7 +529,7 @@ class LlmEndpointDBE(Base, LlmEndpointDBA):
     )
 
 
-# dbs/postgres/gateways/mcp/dbes.py
+# dbs/postgres/gateways/mcps/dbes.py
 
 class McpEndpointDBE(Base, McpEndpointDBA):
     __tablename__ = "mcp_gateway_endpoints"
@@ -765,7 +769,7 @@ typed ref keeps the owner/mode semantics in one body and makes the lookup shape 
 ### 4.3 The LLM plane
 
 ```python
-# core/gateways/llm/dtos.py
+# core/gateways/llms/dtos.py
 
 class LlmDeploymentKind(str, Enum):
     """How a provider is reached — the wire's `deployment` axis, aligned with
@@ -869,7 +873,7 @@ class LlmResolvedRoute(BaseModel):
 ### 4.4 The MCP plane
 
 ```python
-# core/gateways/mcp/dtos.py
+# core/gateways/mcps/dtos.py
 
 class McpToolPolicyMode(str, Enum):
     ALL = "all"
@@ -977,7 +981,7 @@ class McpCallContext(BaseModel):
     """What routing reads from the protocol's method and target headers — the
     body is never parsed for routing (`mcp.md`, header-based routing). The
     exact header names are pinned against the 2026-07-28 revision at
-    implementation time, in apis/fastapi/gateways/mcp/utils.py."""
+    implementation time, in apis/fastapi/gateways/mcps/utils.py."""
     method: str
     target: Optional[str] = None
 
@@ -1216,7 +1220,7 @@ class CeilingExceededError(GatewaysError):
         )
 
 
-# core/gateways/llm/types.py
+# core/gateways/llms/types.py
 
 class LlmEndpointNotFoundError(GatewaysError):
     def __init__(self, *, namespace: str, name: str):
@@ -1248,7 +1252,7 @@ class LlmUpstreamError(GatewaysError):
         super().__init__(f"Upstream {provider_key} failed ({status_code})")
 
 
-# core/gateways/mcp/types.py
+# core/gateways/mcps/types.py
 
 class McpEndpointNotFoundError(GatewaysError):
     def __init__(self, *, namespace: str, name: str):
@@ -1320,7 +1324,7 @@ without touching signatures.
 
 ## 6. models
 
-FastAPI wire models in `apis/fastapi/gateways/{llm,mcp}/models.py`, for the **management
+FastAPI wire models in `apis/fastapi/gateways/{llms,mcps}/models.py`, for the **management
 routers only**. The data-plane proxies have no wire models at all: their request and
 response shapes belong to the OpenAI surface and the MCP transport respectively, are
 relayed as bytes, and wrapping them would break every client (§1). That absence is the
@@ -1331,7 +1335,7 @@ the core DTO under a named field, queries add `Windowing`, responses carry `coun
 the entity:
 
 ```python
-# apis/fastapi/gateways/llm/models.py
+# apis/fastapi/gateways/llms/models.py
 
 class LlmEndpointCreateRequest(BaseModel):
     endpoint: LlmEndpointCreate
@@ -1352,7 +1356,7 @@ class LlmEndpointsResponse(BaseModel):
     endpoints: List[LlmEndpoint] = Field(default_factory=list)
 
 
-# apis/fastapi/gateways/mcp/models.py
+# apis/fastapi/gateways/mcps/models.py
 
 class McpEndpointCreateRequest(BaseModel):
     endpoint: McpEndpointCreate
@@ -1410,8 +1414,8 @@ second consent UI shape.
 
 ## 7. daos
 
-Interfaces in `core/gateways/{llm,mcp}/interfaces.py`, implementations in
-`dbs/postgres/gateways/{llm,mcp}/dao.py`. DAOs open their own sessions; services never
+Interfaces in `core/gateways/{llms,mcps}/interfaces.py`, implementations in
+`dbs/postgres/gateways/{llms,mcps}/dao.py`. DAOs open their own sessions; services never
 touch the engine.
 
 Conventions, each load-bearing:
@@ -1432,7 +1436,7 @@ Conventions, each load-bearing:
   else degrades to `None` / `[]` / `False`.
 
 ```python
-# core/gateways/llm/interfaces.py
+# core/gateways/llms/interfaces.py
 
 class LlmEndpointsDAOInterface(ABC):
     """Persistence contract for custom LLM endpoints. Standard endpoints are
@@ -1511,7 +1515,7 @@ class LlmEndpointsDAOInterface(ABC):
     ) -> List[LlmEndpoint]: ...
 
 
-# core/gateways/mcp/interfaces.py
+# core/gateways/mcps/interfaces.py
 
 class McpEndpointsDAOInterface(ABC):
     """Same six verbs, same semantics, over mcp_gateway_endpoints."""
@@ -1686,7 +1690,7 @@ The result types are dataclasses, not Pydantic models, because a relay result ca
 validated, stored or serialized.
 
 ```python
-# core/gateways/llm/interfaces.py
+# core/gateways/llms/interfaces.py
 
 @dataclass
 class LlmRelayResult:
@@ -1727,7 +1731,7 @@ class LlmUpstreamInterface(ABC):
     # will occupy so nothing in the surface design forecloses it.
 
 
-# core/gateways/mcp/interfaces.py
+# core/gateways/mcps/interfaces.py
 
 @dataclass
 class McpRelayResult:
@@ -1861,12 +1865,12 @@ rather than a signature change.
 
 The OAuth client is not written here — the official MCP SDK's `OAuthClientProvider` is
 adopted whole (`libraries.md`), persisting through a `TokenStorage` protocol we implement.
-The adapter is `core/gateways/mcp/token_storage.py`, and it is deliberately thin: **it is
+The adapter is `core/gateways/mcps/token_storage.py`, and it is deliberately thin: **it is
 the resolve-and-store glue between the SDK's protocol and the shapes this document already
 defined**, not a fourth place credentials live.
 
 ```python
-# core/gateways/mcp/token_storage.py
+# core/gateways/mcps/token_storage.py
 
 class VaultTokenStorage:
     """Implements the pinned MCP SDK's TokenStorage protocol over the vault.
@@ -2106,14 +2110,14 @@ presence (`NEEDS_INPUT` when no provider secret exists). Nothing stores these (�
 
 Two router objects per plane (§1): `router.py` — the management CRUD, house rules — and
 `proxy.py` — the protocol surface, whose shapes are not ours. Both live in
-`apis/fastapi/gateways/{llm,mcp}/` and are mounted at the entrypoint:
+`apis/fastapi/gateways/{llms,mcps}/` and are mounted at the entrypoint:
 
 ```python
 # api/entrypoints/routers.py — mounts
-app.include_router(router=llm_gateway.router,  prefix="/gateways/llm", tags=["Gateway: LLM"])
-app.include_router(router=llm_gateway.proxy,   prefix="/gateways/llm", include_in_schema=False)
-app.include_router(router=mcp_gateway.router,  prefix="/gateways/mcp", tags=["Gateway: MCP"])
-app.include_router(router=mcp_gateway.proxy,   prefix="/gateways/mcp", include_in_schema=False)
+app.include_router(router=llm_gateway.router,  prefix="/gateways/llms", tags=["Gateway: LLM"])
+app.include_router(router=llm_gateway.proxy,   prefix="/gateways/llms", include_in_schema=False)
+app.include_router(router=mcp_gateway.router,  prefix="/gateways/mcps", tags=["Gateway: MCP"])
+app.include_router(router=mcp_gateway.proxy,   prefix="/gateways/mcps", include_in_schema=False)
 ```
 
 The proxies share the plane prefix with the CRUD without collision because their first
@@ -2275,7 +2279,7 @@ class LlmGatewayProxy:
         self.router = APIRouter()
 
         # The OpenAI-compatible surface. base_url for a client is
-        #   {api_url}/gateways/llm/{namespace}/{name}/v1
+        #   {api_url}/gateways/llms/{namespace}/{name}/v1
         self.router.add_api_route(
             "/{namespace}/{name}/v1/chat/completions",
             self.chat_completions, methods=["POST"],
@@ -2316,14 +2320,14 @@ Each proxy's `utils.py` holds the one pure function that reads the caller's requ
 routing, and nothing else — both are fully unit-testable and both fail typed:
 
 ```python
-# apis/fastapi/gateways/llm/utils.py
+# apis/fastapi/gateways/llms/utils.py
 def parse_llm_call_context(*, body: bytes) -> LlmCallContext:
     """Extract model and stream from the JSON body without materializing a
     parsed copy for relay — the body itself stays byte-for-byte (§7.1).
     Raises ValueError when the body names no model; the proxy translates that
     into the surface's own invalid-request error shape."""
 
-# apis/fastapi/gateways/mcp/utils.py
+# apis/fastapi/gateways/mcps/utils.py
 def parse_mcp_call_context(*, headers: Dict[str, str]) -> McpCallContext:
     """Read the protocol's method and target headers (`mcp.md`, header-based
     routing) — the body is never parsed for routing. Header names are pinned

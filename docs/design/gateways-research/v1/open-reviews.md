@@ -50,11 +50,21 @@ callback where it is.
 
 ## Seams to inspect
 
-### OR4. Three duplicated auth-scheme enums
+### OR4. Three duplicated auth-scheme enums — ANSWERED, and the question was mis-framed
 
-The same `oauth | api_key` enum exists as a connection, a tool, and a trigger variant. When
-the gateway lands, review whether they collapse to one shared definition or whether the
-duplication is load-bearing for domain independence.
+The same `oauth | api_key` enum, and the same ready / needs-auth / needs-input state machine,
+exist as a connection, a tool and a trigger variant. The question was whether they collapse into
+one definition or whether the duplication is load-bearing.
+
+**Neither.** The gateways are a separate domain, so they define their own copy, and the three
+existing ones are outside the current scope (D15) — not ours to collapse. A draft that unified
+them at the older domain's root, with its leaves aliasing over, was rejected: it would have
+coupled the gateways to an integrations domain through the back door, which is worse than a
+fourth definition.
+
+If all four ever converge, the neutral home is `core/shared/dtos.py`, which already holds the
+shared identifier, slug and header types. Available later; not done now, and not a prerequisite
+for anything. `entities.md` §4.1 carries the reasoning and the definitions.
 
 ### OR5. `project_id`-only DAO signatures
 
