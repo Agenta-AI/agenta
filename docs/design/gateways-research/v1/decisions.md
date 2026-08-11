@@ -104,15 +104,54 @@ spreads that assumption to every call site; a lookup taking an owner absorbs use
 credentials as a storage change. The caller side needs nothing either way, since the principal
 already carries the user.
 
+## D11. This design owns the gateway
+
+Four efforts specify a model gateway (`raw/related-work.md`). **This one owns the gateway
+design.** The others are inputs to it and consumers of it, not parallel designs.
+
+Concretely: the credits ledger and the trial grant are **callers** of the gateway. They decide
+what a run may spend. They do not decide what the gateway is, nor does either ship a second
+request path.
+
+**Why one owner:** the mechanism in all four is identical — the same signed run token, the same
+endpoint, the same secret swap at the boundary. Only the trigger differs. Four owners of one
+mechanism produces four subtly different versions of it, and the boundary claims then hold for
+none of them.
+
+Work already done elsewhere is adopted rather than repeated. The run token, the north port
+shape, and the process placement all come from the credits design and are better than what this
+document had (D2's open mechanism, in particular).
+
+## D12. The gateway owns all six concerns, delivered incrementally
+
+The gateway owns identity and permissions, governance, secrets, and metering and billing.
+Not a subset.
+
+**This settles the scope conflict** in `raw/related-work.md`. Two parallel efforts scope the
+gateway to funded runs only. That is a **delivery phase, not the design**. D1 stands: the target
+is that everything transits, and a funded-only first version is a step toward it rather than a
+different destination.
+
+**Incrementally means the concerns arrive in an order, not that any is out of scope.** A
+concern may be unimplemented; none may be designed out. The test for each increment is whether
+it forecloses a later one — the credential lookup taking an owner from the outset (D10) is the
+pattern, and recording real usage from the first day even when charging a flat price is the
+same move on the billing side.
+
+**What this rules out:** a second request path for any concern. If billing needs something the
+gateway does not expose, the gateway grows it. Billing does not route around it.
+
 ---
 
 ## Still open
 
-Tracked in [`open-designs.md`](open-designs.md) until they settle here. The ones
-blocking package definition:
+Tracked in [`open-designs.md`](open-designs.md) until they settle here. Two earlier blockers
+are now closed — the model call sites are counted and the routing library runs in-process
+(`raw/model-call-sites.md`).
 
-- The model call-site count — under D1 the caller list *is* the scope.
-- Whether the routing library runs in-process, which decides whether the model plane is a
-  library integration or a service.
+What remains:
+
 - The MCP endpoint shape: one merged endpoint with namespaced tools, or one per server.
 - Step-up scope handling.
+- Whether embeddings share the model registry and resolution path, or need their own.
+- The order the concerns arrive in, under D12.

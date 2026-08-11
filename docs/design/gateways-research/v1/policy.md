@@ -6,6 +6,10 @@ be separate systems.
 
 **Status: skeleton.** The inputs are established; the evaluation and caching are open.
 
+**All six are owned here (D12), and arrive incrementally.** Owned is not scheduled: a concern
+may be unimplemented, but none is designed out, and no other system may route around this one
+to get it. The test for each increment is whether it forecloses a later one.
+
 ## Six concerns, two nouns
 
 | Concern | Model plane | Tool plane |
@@ -61,13 +65,21 @@ outcome. The owner and payer are the two fields that cannot be reconstructed lat
 Open: whether audit rides the existing tracing pipeline or is a separate durable record. They
 have different guarantees — tracing is sampled and lossy by design, compliance is not.
 
-## Metering — open
+## Metering and billing — owned, later
 
 Meters and entitlement layers exist. The gateway is the natural place to record model tokens
-and tool calls, since it is the only point that sees all of both.
+and tool calls, since it is the only point that sees all of both. Under D12 it owns billing
+too, and a ledger or a grant is a **caller** rather than a parallel path.
 
-*To establish:* the meter keys, and how a call on a user-owned credential is recorded so spend
-lands on the right payer.
+Two things must be true from the first increment, because neither can be added retroactively:
+
+- **Record real usage from day one**, even while charging a simpler price. The data to correct
+  a pricing model later does not exist unless it was written at the time.
+- **Record `secret_origin` and the owner** with every entry, so a call paid for by a customer's
+  own secret is not billed as ours.
+
+*To establish:* the meter keys, and where pricing lives. Parallel work has settled much of
+this already — see `raw/related-work.md`.
 
 ## Routing — open
 

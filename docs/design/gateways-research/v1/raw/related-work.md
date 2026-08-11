@@ -3,9 +3,9 @@
 Four efforts include a model gateway. Three of them were written independently of this one.
 This document maps them, so the design stops colliding and starts converging.
 
-**Metering and billing stay a follow-up here.** They are the reason three of these efforts
-exist, and they are not this design's subject. What matters below is the part that constrains
-the gateway itself.
+Ownership and scope are now settled — see the last two sections, and D11 and D12. Metering and
+billing are **owned by the gateway and delivered later**, which is not the same as being out of
+scope.
 
 ## The four
 
@@ -64,28 +64,34 @@ returns plaintext material to any caller holding the view permission, and that t
 resolves straight through it and bypasses the gates. Everything here assumes resolution goes
 through the secrets service safely. **It does not today.** See `open-reviews.md` OR14.
 
-## The one real conflict
+## The scope question — settled
 
-**Scope.** The credits gateway and the activation gateway both cover the *funded* path — our
-money, one model, one provider — and the SDK returns a gateway route only when a run is
-funded. This design's D1 says everything transits, always.
+Two of the four scope the gateway to the *funded* path, and return a gateway route only when a
+run is funded. This design's D1 says everything transits, always.
 
-Both cannot hold. If a funded-only gateway ships as written, D1 is false and the governance
-claims do not follow from it.
+**Settled by D12: funded-only is a delivery phase, not the design.** The target stays "all
+calls transit". A funded-first version is a step toward it, not a different destination.
 
-This is a decision, not a defect. The question: **is the gateway a spend-control mechanism, or
-a governance boundary?** It can become both. The first version's scope decides which claims we
-may make, and when.
+The mechanism was never in conflict — the same signed run token, the same endpoint, the same
+secret swap. Only the trigger differed.
 
-The mechanism is identical either way — the same token, the same endpoint, the same credential
-swap. Only the trigger differs: funded runs only, or all runs. That makes convergence cheap if
-it is decided now and expensive if it is decided after one of them ships.
+## Ownership — settled
 
-## Recommendation
+**This design owns the gateway (D11).** The others are inputs to it and consumers of it.
 
-One gateway, two protocol surfaces, per decision D7. The credits ledger and the trial grant
-become consumers of it rather than parallel systems. This design contributes MCP, the secret
-model, and the transit rule; the credits design contributes the hot path, which is further
-along and more concrete.
+The credits ledger and the trial grant are **callers**. They decide what a run may spend. They
+do not define the gateway, and neither ships a second request path. Under D12 the gateway owns
+identity and permissions, governance, secrets, and metering and billing — so a billing need is
+met by the gateway growing, never by billing routing around it.
 
-Metering and billing then follow, on top of a gateway that already exists.
+What each effort contributes:
+
+- **This one** — MCP, the secret model, the transit rule, and the concern set.
+- **The credits design** — the hot path: the run token, the endpoint shape, the process
+  placement. Further along and more concrete than what this document had.
+- **Activation credits** — the argument that the gateway is the unstrippable piece, and the
+  trial-path requirements.
+- **BYOS** — the vocabulary, `secret_origin`, the sandbox and gateway secret kinds, and the
+  read-surface prerequisite.
+
+Metering and billing then arrive incrementally, on a gateway that already exists.

@@ -8,7 +8,7 @@ are structured but not complete — each states what it must establish and what 
 
 ## Posture
 
-Five claims anchor the design and constrain everything downstream:
+Six claims anchor the design and constrain everything downstream:
 
 1. **Everything transits a gateway.** No bypass, no exceptions, custom providers included —
    what is custom lives *behind* the gateway, never beside it. A governance boundary with an
@@ -16,16 +16,19 @@ Five claims anchor the design and constrain everything downstream:
 2. **Identity is not a new problem.** Every authenticated call already resolves an
    organization, workspace, project and user, and is rejected if any is missing. Both
    gateways inherit that principal rather than inventing one.
-3. **The gateways hold no credential material.** A domain row carries a secret id; the
-   secrets service holds the value; the consumer resolves it at use time. This is the
-   pattern webhook subscriptions and SSO providers already use.
-4. **Most of the credential model is already built.** The auth-scheme axis, the
+3. **The gateways hold no secret material.** A domain row carries a secret id; the secrets
+   service holds the value; the consumer resolves it at use time. This is the pattern
+   webhook subscriptions and SSO providers already use.
+4. **Most of the secret model is already built.** The auth-scheme axis, the
    ready/needs-auth/needs-input state machine, the one hosted-redirect flow serving both
    schemes, and the refresh and revoke ports all exist. This extends that domain family; it
    does not start a new one.
 5. **Transparent on the data path, never on the consent path.** The gateway absorbs
    selection, injection, refresh, retry and audit. It cannot absorb consent, which needs a
    human at first use and again on a step-up scope challenge.
+6. **The gateway owns all six concerns, and this design owns the gateway.** Identity and
+   permissions, governance, secrets, and metering and billing. Three other efforts specify a
+   model gateway; they are callers of this one, not parallel designs (D11, D12).
 
 ## Reading order
 
@@ -35,8 +38,8 @@ Five claims anchor the design and constrain everything downstream:
    existing layering, and the path a call takes in each direction.
 3. **`entities.md`** — the data model and its full stack, layer by layer, following the
    repo's standard domain structure.
-4. **`secrets.md`** — secret kinds, credential ownership, and how user-level and
-   project-level credentials resolve against each other.
+4. **`secrets.md`** — the vocabulary, secret kinds, ownership, and how user-level and
+   project-level secrets resolve against each other.
 5. **`policy.md`** — the shared plane both gateways evaluate against: identity,
    authorization, governance, audit, metering, routing.
 6. **`contract.md`** — the ports. What callers speak to the gateway, and what the gateway
@@ -51,7 +54,7 @@ Five claims anchor the design and constrain everything downstream:
 Alongside the design, not part of its argument:
 
 - **`libraries.md`** — what to reuse rather than build, and what was rejected. Read before
-  implementing anything that looks like an OAuth client or a credential store.
+  implementing anything that looks like an OAuth client or a secret store.
 - **`open-designs.md`** — design questions still open, ordered by what depends on them.
 - **`open-reviews.md`** — what to verify against the code when the ports are implemented.
 - **`raw/`** — the research this design grew out of: the codebase surveys, the protocol
@@ -74,10 +77,14 @@ documents are the ones that have to survive.
 
 ## Scope
 
-In: the outbound plane for every caller — model calls and tool/MCP calls — and the identity,
-policy, audit and metering both need. The credential model, including user-level credentials
-designed but not scheduled. The self-hosted posture, since it is the reason this work exists
-rather than adopting a hosted provider.
+In: the outbound plane for every caller — model calls and tool/MCP calls — and everything the
+gateway owns for both: identity and permissions, governance, secrets, and metering and billing
+(D12). The secret model, including user-level secrets designed but not scheduled. The
+self-hosted posture, since it is the reason this work exists rather than adopting a hosted
+provider.
+
+**Owned is not the same as scheduled.** A concern may arrive later; none is designed out. The
+test for each increment is whether it forecloses a later one.
 
 Out: the tool **catalog** question, settled in the prior research as "do not become a catalog
 vendor." Trigger delivery, which is a separate subsystem for structural reasons — the
