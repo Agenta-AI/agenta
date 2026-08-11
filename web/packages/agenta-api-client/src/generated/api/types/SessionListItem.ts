@@ -2,7 +2,17 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface SessionStream {
+/**
+ * A `/sessions/query` row, enriched at READ time with the session's HIGHEST
+ * `turn_index` turn's `references` — the agent/workflow that produced the latest turn.
+ *
+ * Also carries the session's last message, so a row can say what happened rather than only
+ * when. Both enrichments are batch lookups keyed on the whole page; never one call per row.
+ *
+ * Hydrated by `SessionsService.query_sessions`; never denormalized onto `session_streams`
+ * (see that method's docstring).
+ */
+export interface SessionListItem {
     created_at?: (string | null) | undefined;
     updated_at?: (string | null) | undefined;
     deleted_at?: (string | null) | undefined;
@@ -22,4 +32,6 @@ export interface SessionStream {
     origin?: (AgentaApi.SessionOrigin | null) | undefined;
     trigger?: (AgentaApi.SessionTrigger | null) | undefined;
     delivery?: (AgentaApi.SessionDelivery | null) | undefined;
+    references?: (AgentaApi.Reference[] | null) | undefined;
+    last_message?: (AgentaApi.SessionMessagePreview | null) | undefined;
 }
