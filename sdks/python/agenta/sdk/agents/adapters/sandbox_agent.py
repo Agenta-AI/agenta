@@ -68,6 +68,7 @@ class SandboxAgentSession(Session):
         trace: Optional[TraceContext],
         run_context: Optional[RunContext],
         session_id: Optional[str],
+        effective_parameters: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._backend = backend
         self._sandbox = sandbox
@@ -76,6 +77,7 @@ class SandboxAgentSession(Session):
         self._trace = trace
         self._run_context = run_context
         self._session_id = session_id
+        self._effective_parameters = effective_parameters
 
     @property
     def id(self) -> Optional[str]:
@@ -91,6 +93,7 @@ class SandboxAgentSession(Session):
             trace=self._trace,
             run_context=self._run_context,
             session_id=self._session_id,
+            effective_parameters=self._effective_parameters,
         )
 
     def _absorb_result(self, result: AgentResult) -> None:
@@ -165,6 +168,7 @@ class SandboxAgentBackend(Backend):
         trace: Optional[TraceContext] = None,
         run_context: Optional[RunContext] = None,
         session_id: Optional[str] = None,
+        effective_parameters: Optional[Dict[str, Any]] = None,
     ) -> SandboxAgentSession:
         if not isinstance(sandbox, SandboxAgentSandbox):
             raise TypeError(
@@ -178,6 +182,7 @@ class SandboxAgentBackend(Backend):
             trace=trace,
             run_context=run_context,
             session_id=session_id,
+            effective_parameters=effective_parameters,
         )
 
     async def _deliver_result(self, payload: Dict[str, Any]) -> Dict[str, Any]:

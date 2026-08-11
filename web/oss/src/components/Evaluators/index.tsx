@@ -19,7 +19,6 @@ import {useRouter} from "next/router"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/evaluations/legacy"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {
     onboardingWidgetActivationAtom,
     setOnboardingWidgetActivationAtom,
@@ -48,11 +47,10 @@ const isValidEvaluatorTab = (value: string): value is EvaluatorCategory => {
 const EVALUATOR_PAGE_SIZE = 50
 
 interface EvaluatorsRegistryProps {
-    scope?: "project" | "app"
     mode?: "active" | "archived"
 }
 
-const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegistryProps) => {
+const EvaluatorsRegistry = ({mode = "active"}: EvaluatorsRegistryProps) => {
     const isArchived = mode === "archived"
     const router = useRouter()
     const {projectURL} = useURL()
@@ -384,21 +382,6 @@ const EvaluatorsRegistry = ({scope = "project", mode = "active"}: EvaluatorsRegi
                       },
                   },
         [activeTab, handleRestore, isArchived, openAutomaticEvaluator, openHumanEvaluator],
-    )
-
-    const activeTabLabel = useMemo(() => {
-        return EVALUATOR_TABS.find((tab) => tab.key === activeTab)?.label || "Evaluators"
-    }, [activeTab])
-
-    const breadcrumbKey = scope === "project" ? "projectPage" : "appPage"
-
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {[breadcrumbKey]: {label: activeTabLabel}},
-            type: "append",
-            condition: !isArchived,
-        },
-        [activeTabLabel, breadcrumbKey, isArchived],
     )
 
     const evaluatorTabItems = useMemo(

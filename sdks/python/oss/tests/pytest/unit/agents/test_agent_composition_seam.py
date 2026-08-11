@@ -84,6 +84,7 @@ class _FakeBackend(Backend):
         self._output = output
         self.created_run_contexts: List[Any] = []
         self.created_configs: List[Any] = []
+        self.created_effective_parameters: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -98,9 +99,11 @@ class _FakeBackend(Backend):
         trace=None,
         run_context=None,
         session_id=None,
+        effective_parameters=None,
     ) -> _FakeSession:
         self.created_run_contexts.append(run_context)
         self.created_configs.append(config)
+        self.created_effective_parameters.append(effective_parameters)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
@@ -168,6 +171,31 @@ async def test_absent_run_kind_leaves_composition_run_context_untouched():
     ctx = backend.created_run_contexts[0]
     assert ctx is base
     assert ctx.to_wire() == {"trace": {"trace_id": "trace-1"}}
+
+
+async def test_handler_carries_the_effective_config_onto_the_session():
+    """The config the handler RAN with reaches the session, verbatim.
+
+    The normalizer hands the handler ``request.data.parameters`` after the resolver has
+    hydrated references (or kept the caller's inline draft), so this is the config a HITL gate
+    parked by this turn must be resumable under (effective-turn-config plan, T1). The wire
+    gates emission on ``session_id``; the handler always carries it.
+    """
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+    params = _params(model={"model": "anthropic/claude-sonnet-4-5"})
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=params,
+    )
+
+    assert backend.created_effective_parameters[0] == params
 
 
 # --------------------------------------------------------------------------- #

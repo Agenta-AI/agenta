@@ -1,0 +1,584 @@
+// Assembled from web/oss/src/components/AgentChatSlice/AgentConversation.tsx (2026-07-25) —
+// the headless conversation host for one agent session. Copy-faithful on the shared engine
+// behavior: transport wiring, resume predicate, hydration + revalidate-on-open, queue release,
+// approvals, run-status publish, error stamping, persist-on-settle + expand-prune, stop/rewind.
+// The desktop host keeps its own inline implementation until the re-plumb.
+//
+// Deliberately omitted (desktop-only): onboarding, template strips, and the IDE hand-off — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): the committed-revision switch and playground-controller self-commit handling — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): the run-in-playground seam (trigger drawer pending runs) — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): turn-capture and the Turn/Session Inspector wiring — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): scroll engineering (stick-to-bottom, anchors, jump pill) and list windowing — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): the kill-session-on-stop env flag and its query invalidations — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): drive surfaces and mid-stream file-activity detection — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): first-seen timestamp stamping (display metadata for the desktop rows) — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): session auto-titling and the first-run seed auto-send — the desktop host keeps its own implementation until the re-plumb.
+// Deliberately omitted (desktop-only): the model-key composer gate — compose `useAgentModelKeyStatus` in the skin instead.
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+
+import {revalidateSessionMountsAtom, revalidateSessionRecordsAtom} from "@agenta/entities/session"
+import {markTraceAsFresh} from "@agenta/entities/trace"
+import {
+    agentShouldResumeAfterApproval,
+    buildAgentRequest,
+    type LiveAgentInteraction,
+} from "@agenta/playground"
+import {generateId} from "@agenta/shared/utils"
+import {useChat} from "@ai-sdk/react"
+import type {UIMessage} from "ai"
+import {useSetAtom, useStore} from "jotai"
+
+import {filesToParts} from "../assets/files"
+import {loadSessionMessages, type SessionTranscript} from "../assets/loadSession"
+import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
+import {getMessageTraceId} from "../assets/trace"
+import {parseAgentRunError, type ParsedRunError} from "../model/error"
+import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
+import {
+    buildTurnViewModels,
+    createExecutedToolIdentityCache,
+    type ClientToolPartPredicate,
+    type TurnViewModel,
+} from "../model/turnViewModel"
+import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
+import {clearSessionFresh, composerDraftBySession, isSessionFresh} from "../state/sessionEphemera"
+import {
+    persistSessionMessagesAtom,
+    sessionMessagesAtom,
+    setSessionStatusAtom,
+} from "../state/sessionMessages"
+import {AgentChatTransport} from "../transport/AgentChatTransport"
+
+import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
+import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
+
+/** A stream error/abort is already surfaced via `useChat`'s `onError` + the stamped in-chat
+ * error; swallow the floating `sendMessage`/`regenerate` rejection so it doesn't bubble to a
+ * dev runtime-error overlay (F-033). */
+const ignoreStreamRejection = () => {}
+
+export interface SendInput {
+    text: string
+    files?: File[]
+}
+
+/** The pure scan result of a rewind request; the skin renders any confirm UI and then calls
+ * `confirm()` — the hook never opens dialogs. */
+export interface RewindPlan {
+    /** Side-effecting tools that already ran at/after this message — a rewind cannot undo them;
+     * when non-empty the skin should confirm before calling `confirm()`. */
+    sideEffects: string[]
+    /** For a user-message rewind: the message text to put back into the composer. */
+    restoreText?: string
+    /** Execute the rewind: truncate before a user message, regenerate an assistant one. */
+    confirm: () => void
+}
+
+/** Settle a parked client tool (#4920). The hook maps this onto `addToolOutput` (success or
+ * error) and marks the resume live so the auto-resend fires. */
+export interface ToolOutputSettleInput {
+    toolName: string
+    toolCallId: string
+    output?: Record<string, unknown>
+    errorText?: string
+}
+
+export interface UseAgentConversationArgs {
+    entityId: string
+    sessionId: string
+    /** Registry-backed client-tool predicate for the turn render model; without it no part is
+     * treated as a client tool (they fold into the regular tool groups). */
+    isClientToolPart?: ClientToolPartPredicate
+}
+
+export interface AgentConversation {
+    messages: UIMessage[]
+    /** Raw stream status from `useChat`. */
+    status: "ready" | "submitted" | "streaming" | "error"
+    /** Session-level run state (error > awaiting > running > idle) — also published to
+     * `sessionStatusAtomFamily` for session-list status dots. */
+    runStatus: SessionRunStatus
+    /** Parsed reason of the current stream failure, when there is one. */
+    error?: ParsedRunError
+    /** Pre-grouped per-turn view models (render items, status, empty-collapse, active turn). */
+    turns: TurnViewModel[]
+    /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
+    send: (input: SendInput) => Promise<void>
+    /** Abort the in-flight stream and tag the last assistant turn as user-stopped. */
+    stop: () => void
+    /** Re-run an assistant turn by message id (also the "Resend" action after a stop). */
+    regenerate: (id: string) => void
+    /** Scan a rewind target; null while busy or for an unknown message. */
+    rewind: (message: UIMessage) => RewindPlan | null
+    /** Server hydration for an uncached session is in flight — show a transcript skeleton. */
+    isHydrating: boolean
+    /** No messages at all (skins combine with `isHydrating`/`historyUnavailable` for the hero). */
+    isEmpty: boolean
+    /** A known session hydrated EMPTY from the server — its durable history was pruned or never
+     * persisted; show a notice rather than the new-chat hero. */
+    historyUnavailable: boolean
+    /** The last assistant turn was user-stopped (cleared on the next send/regenerate). */
+    stopped: boolean
+    /** Messages held while a turn is in flight, in FIFO order. */
+    queued: QueuedMessage[]
+    removeQueued: (id: string) => void
+    clearQueue: () => void
+    /** Headless approval-dock state wired to the live-gate-aware response path. */
+    approvals: ApprovalDock
+    /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
+    sendToolOutput: (args: ToolOutputSettleInput) => void
+}
+
+/**
+ * One agent conversation for a single session. A `useChat` whose transport is fed by the
+ * playground request builder (`buildAgentRequest`) — the entity supplies the config/auth/
+ * references, the session id travels to the backend as `session_id`. Messages persist to
+ * localStorage (seeded on mount, written when the stream settles) so the session survives a
+ * reload / revision swap. Headless: every surface (bubbles, composer, dock, notices) is the
+ * skin's job; this hook owns the engine behavior only.
+ */
+export const useAgentConversation = ({
+    entityId,
+    sessionId,
+    isClientToolPart,
+}: UseAgentConversationArgs): AgentConversation => {
+    const store = useStore()
+    const persistMessages = useSetAtom(persistSessionMessagesAtom)
+    const setSessionStatus = useSetAtom(setSessionStatusAtom)
+    const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
+    const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const pruneExpanded = useSetAtom(pruneExpandedAtom)
+
+    // Whether the LAST assistant turn was user-stopped. You can only cancel the in-flight (last)
+    // turn, so this is a single boolean gated on position at render time. Cleared on the next
+    // send/resend.
+    const [stopped, setStopped] = useState(false)
+    // Seed once from the persisted store (read imperatively so our own writes don't feed back).
+    const [initialMessages] = useState(() => store.get(sessionMessagesAtom)[sessionId] ?? [])
+    // Restored (not live-streamed) message ids — the orphaned-resume detection reads this, and a
+    // skin can use it to skip entrance animations for restored rows.
+    const restoredIdsRef = useRef<Set<string>>(new Set(initialMessages.map((m) => m.id)))
+
+    // `useChat` pins its `Chat` (and thus this transport) for the life of the session `id`; it is
+    // NOT recreated when `entityId` changes. So the request builder must read the CURRENT entity
+    // through a ref — capturing `entityId` by value would send every turn with the revision that
+    // was displayed when the session first mounted.
+    const entityIdRef = useRef(entityId)
+    entityIdRef.current = entityId
+
+    // Transport feeds the v6 stream request from the playground pipeline. `api` here is a
+    // placeholder that `prepareSendMessagesRequest` overrides per request.
+    const transport = useMemo(
+        () =>
+            new AgentChatTransport({
+                api: "",
+                prepareSendMessagesRequest: async ({messages, id}) => {
+                    const req = await buildAgentRequest(entityIdRef.current, messages, {
+                        sessionId: id ?? sessionId,
+                    })
+                    if (!req) {
+                        throw new Error(
+                            "This agent workflow has no invocation URL — it can’t be run yet.",
+                        )
+                    }
+                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
+                },
+            }),
+        [sessionId],
+    )
+
+    // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
+    const liveGateInteractionRef = useRef<LiveAgentInteraction | null>(null)
+
+    const {
+        messages,
+        sendMessage,
+        status,
+        stop,
+        regenerate,
+        setMessages,
+        addToolApprovalResponse,
+        addToolOutput,
+        error,
+    } = useChat({
+        id: sessionId,
+        messages: initialMessages,
+        transport,
+        // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
+        // render per token; caps commit frequency independently of the per-commit memo win.
+        experimental_throttle: 50,
+        // Approve AND deny both resume — a deny-only decision must re-send so the runner
+        // gets the denial round-trip and the model continues (no `approval-responded` limbo).
+        sendAutomaticallyWhen: ({messages}) => {
+            const shouldDispatch = agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: liveGateInteractionRef.current,
+            })
+            if (shouldDispatch) liveGateInteractionRef.current = null
+            return shouldDispatch
+        },
+        // The turn's trace may not be ingested yet when a row asks for its summary — marking it
+        // fresh lets the trace queries retry through the ingestion lag. A finished turn may also
+        // have written files: mark the session's drive data stale so every mount surface refetches.
+        onFinish: ({message}) => {
+            markTraceAsFresh(getMessageTraceId(message))
+            revalidateSessionMounts(sessionId)
+            revalidateSessionRecords(sessionId)
+        },
+        onError: (err) => {
+            // The error is stamped in-chat (effect below); swallow it here so an aborted/errored
+            // stream doesn't bubble unhandled to a dev overlay (F-033).
+            console.warn("[useAgentConversation] useChat error (rendered in-chat):", err)
+        },
+    })
+
+    const busy = status === "submitted" || status === "streaming"
+
+    // `messages`/`busy` change every commit; consumers that must stay referentially stable
+    // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
+    const messagesRef = useRef(messages)
+    messagesRef.current = messages
+    const busyRef = useRef(busy)
+    busyRef.current = busy
+
+    // Hybrid history: localStorage holds the cached conversation; the durable content lives in
+    // the backend record log. Cache-first — when this session opens with no locally-cached
+    // messages (never ran here, or after a storage clear), hydrate once from the server and seed.
+    // A to-be-hydrated session (empty local cache, not brand-new) reports `isHydrating` so the
+    // skin shows a transcript skeleton instead of the empty-state hero.
+    const [isHydrating, setIsHydrating] = useState(
+        () => initialMessages.length === 0 && !isSessionFresh(sessionId),
+    )
+    // Set when server hydration for a KNOWN (non-fresh, uncached) session returns no records —
+    // its durable history was pruned by retention or never persisted.
+    const [historyUnavailable, setHistoryUnavailable] = useState(false)
+    useEffect(() => {
+        // A session created brand-new in this browser and not yet run has no backend records —
+        // skip the guaranteed-empty query (cleared on first send; after a reload it re-hydrates).
+        if (initialMessages.length > 0 || isSessionFresh(sessionId)) {
+            setIsHydrating(false)
+            return
+        }
+        // No persistent "already-hydrated" ref: the `cancelled` flag is the whole guard, so React
+        // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
+        // instead of latching a ref that leaves the transcript blank.
+        let cancelled = false
+        // Post-restore revalidation: the first result may be the disk-restored log (paints
+        // instantly); when the guaranteed background refetch lands, adopt it under the same
+        // guards as the revalidate-on-open effect below — never mid-stream, only when ahead.
+        const adoptRefreshed = ({messages: freshMsgs, recordCount}: SessionTranscript) => {
+            if (cancelled || busyRef.current) return
+            if (freshMsgs.length <= messagesRef.current.length) return
+            freshMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
+            // The restore said "no records" but the server has some — clear the notice.
+            setHistoryUnavailable(false)
+            setMessages(freshMsgs)
+            persistMessages({id: sessionId, messages: freshMsgs, recordCount})
+        }
+        loadSessionMessages(sessionId, adoptRefreshed)
+            .then((transcript) => {
+                if (cancelled) return
+                if (!transcript || transcript.messages.length === 0) {
+                    // Known session, but the server has no records for it → history was pruned or
+                    // never persisted. Flag it so the skin shows the "unavailable" notice.
+                    setHistoryUnavailable(true)
+                    return
+                }
+                transcript.messages.forEach((m) => restoredIdsRef.current.add(m.id))
+                setMessages(transcript.messages)
+                persistMessages({
+                    id: sessionId,
+                    messages: transcript.messages,
+                    recordCount: transcript.recordCount,
+                })
+            })
+            .finally(() => {
+                if (!cancelled) setIsHydrating(false)
+            })
+        return () => {
+            cancelled = true
+        }
+        // Seed once per mounted session; `sessionId` is stable for this instance.
+    }, [sessionId])
+
+    // Revalidate-on-open: a cached session paints instantly from localStorage; in the background
+    // we refetch the durable records ONCE and adopt the server transcript ONLY IF it's strictly
+    // ahead of what we're showing (a turn finished on another device). We never clobber a
+    // transcript that's live (`busyRef`), or that the server isn't strictly ahead of — so a local
+    // optimistic/unsent tail is safe. Reconciliation is by message COUNT, not content.
+    useEffect(() => {
+        if (initialMessages.length === 0 || isSessionFresh(sessionId)) return
+        // As above: no persistent ref, so StrictMode's double-mount re-runs the revalidation.
+        let cancelled = false
+        const adopt = (transcript: SessionTranscript | null) => {
+            if (cancelled || !transcript || transcript.messages.length === 0) return
+            const serverMsgs = transcript.messages
+            const prev = messagesRef.current
+            if (busyRef.current || serverMsgs.length <= prev.length) return
+            serverMsgs.forEach((m) => restoredIdsRef.current.add(m.id))
+            setMessages(serverMsgs)
+            persistMessages({
+                id: sessionId,
+                messages: serverMsgs,
+                recordCount: transcript.recordCount,
+            })
+        }
+        // The first result may itself be the disk-restored records log; the callback re-applies
+        // the same guarded adoption when the guaranteed background revalidation lands.
+        loadSessionMessages(sessionId, adopt).then(adopt)
+        return () => {
+            cancelled = true
+        }
+        // Once per mounted session; `sessionId` is stable for this instance.
+    }, [sessionId])
+
+    // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
+    // release effect doesn't churn on every token.
+    const sendQueued = useCallback(
+        (item: QueuedMessage) => {
+            // A real send means this session has run — drop the never-run marker so a later
+            // cache-cleared reopen hydrates from the server.
+            clearSessionFresh(sessionId)
+            // Any actual send supersedes a prior user-stop, so clear the marker here (covers the
+            // queue-release path; the manual path also clears it in `send`).
+            setStopped(false)
+            sendMessage(
+                item.fileParts && item.fileParts.length
+                    ? item.text
+                        ? {text: item.text, files: item.fileParts}
+                        : {files: item.fileParts}
+                    : {text: item.text},
+            ).catch(ignoreStreamRejection)
+        },
+        [sendMessage, sessionId],
+    )
+
+    // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
+    // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
+    // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events — never on
+    // mount — so this resume can't fire and must not hold the queue (AGE-3937).
+    const lastMessage = messages[messages.length - 1]
+    const resumeOrphaned =
+        !liveGateInteractionRef.current &&
+        !!lastMessage &&
+        restoredIdsRef.current.has(lastMessage.id) &&
+        agentShouldResumeAfterApproval({messages})
+
+    // Queue messages typed while a turn is streaming or paused on a HITL approval; released
+    // one-by-one once the turn truly settles (never mid-approval).
+    const {queued, submit, removeQueued, clearQueue, hitlPending} = useAgentChatQueue({
+        status,
+        messages,
+        stopped,
+        resumeOrphaned,
+        sendQueued,
+        sessionId,
+    })
+
+    // Approval responses flow through here (not bare `addToolApprovalResponse`) so a decision
+    // made in THIS mount marks the resume as live — a restored approval-requested tail the user
+    // answers after a reload genuinely auto-resumes, so the queue's pre-resume hold applies.
+    const handleApprovalResponse = useCallback(
+        (args: {id: string; approved: boolean}) => {
+            liveGateInteractionRef.current = {kind: "approval", id: args.id}
+            addToolApprovalResponse(args)
+        },
+        [addToolApprovalResponse],
+    )
+
+    const approvals = useApprovalDock({messages, respond: handleApprovalResponse})
+
+    // Settle a parked client tool (#4920). A widget calls this with the structured reference;
+    // `addToolOutput` matches the part by `toolCallId` on the last turn and the resume predicate
+    // auto-resends. `tool` is only the typed-tools key — matching is by id — so a cast onto the
+    // untyped UIMessage tool map is safe.
+    const sendToolOutput = useCallback(
+        ({toolName, toolCallId, output, errorText}: ToolOutputSettleInput) => {
+            liveGateInteractionRef.current = {kind: "client_tool", id: toolCallId}
+            if (errorText !== undefined) {
+                addToolOutput({
+                    state: "output-error",
+                    tool: toolName as never,
+                    toolCallId,
+                    errorText,
+                }).catch(ignoreStreamRejection)
+            } else {
+                addToolOutput({
+                    tool: toolName as never,
+                    toolCallId,
+                    output: (output ?? {}) as never,
+                }).catch(ignoreStreamRejection)
+            }
+        },
+        [addToolOutput],
+    )
+
+    // Publish this session's run state (single source of truth for session-list status dots).
+    // Precedence error > awaiting approval > running > idle. Reset to idle on unmount so a
+    // closed session keeps no stale dot.
+    const runStatus = deriveSessionRunStatus({error: !!error, hitlPending, busy})
+    useEffect(() => {
+        setSessionStatus({id: sessionId, status: runStatus})
+    }, [runStatus, sessionId, setSessionStatus])
+    useEffect(
+        () => () => setSessionStatus({id: sessionId, status: "idle"}),
+        [sessionId, setSessionStatus],
+    )
+
+    // Surface a stream failure inline: stamp the parsed error onto the failing assistant turn so
+    // it renders as an error bubble with the real reason (and persists with the session via the
+    // effect below), instead of a transient banner + a generic "no response".
+    useEffect(() => {
+        if (!error) return
+        const parsed = parseAgentRunError(error)
+        setMessages((prev) => {
+            const last = prev.length > 0 ? prev[prev.length - 1] : undefined
+            const existing = (last?.metadata as {runError?: {message?: string}} | undefined)
+                ?.runError
+            if (last?.role === "assistant") {
+                if (existing?.message === parsed.message) return prev // already stamped
+                const next = [...prev]
+                next[next.length - 1] = {
+                    ...last,
+                    metadata: {...(last.metadata as object | undefined), runError: parsed},
+                }
+                return next
+            }
+            // No trailing assistant turn (failed before one existed) — add a minimal carrier.
+            return [
+                ...prev,
+                {
+                    id: `run-error-${generateId()}`,
+                    role: "assistant",
+                    parts: [],
+                    metadata: {runError: parsed},
+                } as (typeof prev)[number],
+            ]
+        })
+    }, [error, setMessages])
+
+    // Persist the conversation whenever its stream settles (skip mid-stream).
+    useEffect(() => {
+        if (status === "streaming") return
+        persistMessages({id: sessionId, messages})
+    }, [messages, status, sessionId, persistMessages])
+
+    // Bound the in-message expand-state store: on settle, drop entries whose owning message is
+    // gone (rewound / evicted / closed). Live = every persisted session's messages ∪ this active
+    // one. `store.get` reads without subscribing, so this adds no re-renders mid-stream.
+    useEffect(() => {
+        if (status === "streaming") return
+        const persisted = store.get(sessionMessagesAtom)
+        const live = new Set<string>()
+        for (const sid in persisted)
+            for (const key of expandedKeysForMessages(persisted[sid])) live.add(key)
+        for (const key of expandedKeysForMessages(messages)) live.add(key)
+        pruneExpanded(live)
+    }, [messages, status, store, pruneExpanded])
+
+    // ── DT3 cancelled state: wrap stop() to mark the in-flight assistant turn ──
+    const handleStop = useCallback(() => {
+        const last = messagesRef.current[messagesRef.current.length - 1]
+        if (last && last.role === "assistant") setStopped(true)
+        stop()
+    }, [stop])
+
+    // ── D9 teardown: abort the in-flight stream on unmount (session close / swap) ──
+    useEffect(() => {
+        return () => {
+            stop()
+        }
+    }, [sessionId, stop])
+
+    const send = useCallback(
+        async ({text, files}: SendInput) => {
+            const trimmed = text.trim()
+            const fileObjs = files ?? []
+            if (!trimmed && fileObjs.length === 0) return
+            // Send what encoded. A file that cannot be read no longer takes the text and the
+            // other attachments down with it (`filesToParts` settles each file separately).
+            const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
+            const fileParts = encoded?.parts.length ? encoded.parts : undefined
+            if (encoded?.rejections.length) {
+                console.warn("[useAgentConversation] attachments could not be read:", {
+                    files: encoded.rejections.map((r) => r.name),
+                })
+            }
+            // Clear any prior "stopped" marker — it's resolved by asking again.
+            setStopped(false)
+            // One path: `submit` sends now or queues behind held messages via the release gate.
+            submit({text: trimmed, fileParts})
+            // The message left the composer — drop its persisted draft (per-session store).
+            composerDraftBySession.delete(sessionId)
+        },
+        [submit, sessionId],
+    )
+
+    const regenerateTurn = useCallback(
+        (id: string) => {
+            setStopped(false)
+            regenerate({messageId: id}).catch(ignoreStreamRejection)
+        },
+        [regenerate],
+    )
+
+    // Rewind scan: pure side-effect detection + a deferred `confirm()`. The skin owns the
+    // warning dialog (when `sideEffects` is non-empty) and the composer refill (`restoreText`).
+    const rewind = useCallback(
+        (message: UIMessage): RewindPlan | null => {
+            const msgs = messagesRef.current
+            if (busyRef.current) return null
+            const idx = msgs.findIndex((m) => m.id === message.id)
+            if (idx < 0) return null
+            const isUser = message.role === "user"
+            const sideEffects = sideEffectingToolsInRange(msgs.slice(idx))
+            const confirm = () => {
+                if (isUser) {
+                    // The skin calls this after its warning dialog, so `msgs`/`idx` are a
+                    // snapshot from scan time. A revalidation adopted in that window would be
+                    // thrown away by writing the stale array, so re-resolve against the live
+                    // transcript and bail if the message is no longer in it.
+                    const current = messagesRef.current
+                    const at = current.findIndex((m) => m.id === message.id)
+                    if (at < 0) return
+                    setMessages(current.slice(0, at))
+                } else {
+                    regenerate({messageId: message.id}).catch(ignoreStreamRejection)
+                }
+            }
+            return {sideEffects, restoreText: isUser ? messageText(message) : undefined, confirm}
+        },
+        [regenerate, setMessages],
+    )
+
+    // Per-mount executed-identity cache — the desktop's per-message toolSignature memo,
+    // recreated hook-side so the identity JSON.stringify doesn't re-run per streamed token.
+    const [executedFor] = useState(() => createExecutedToolIdentityCache())
+    const turns = useMemo(
+        () => buildTurnViewModels(messages, {busy, executedFor, isClientToolPart}),
+        [messages, busy, executedFor, isClientToolPart],
+    )
+
+    const parsedError = useMemo(() => (error ? parseAgentRunError(error) : undefined), [error])
+
+    return {
+        messages,
+        status,
+        runStatus,
+        error: parsedError,
+        turns,
+        send,
+        stop: handleStop,
+        regenerate: regenerateTurn,
+        rewind,
+        isHydrating,
+        isEmpty: messages.length === 0,
+        historyUnavailable,
+        stopped,
+        queued,
+        removeQueued,
+        clearQueue,
+        approvals,
+        sendToolOutput,
+    }
+}

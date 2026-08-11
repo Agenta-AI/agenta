@@ -332,6 +332,13 @@ class FakeTurnsDAO(SessionTurnsDAOInterface):
     async def latest_turn_per_harness_kind(self, **kwargs):
         raise NotImplementedError
 
+    async def latest_turn_per_session(self, *, project_id, session_ids):
+        return {
+            session_id: self.turns[session_id]
+            for session_id in session_ids
+            if session_id in self.turns
+        }
+
     async def delete_by_session_id(self, **kwargs):
         raise NotImplementedError
 

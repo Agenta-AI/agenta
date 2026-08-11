@@ -51,6 +51,7 @@ from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
+from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import SimpleTestsetsService, TestsetsService
 from oss.src.core.tracing.service import TracingService
@@ -71,7 +72,12 @@ from oss.src.dbs.postgres.queries.dbes import (
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
-from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
+from oss.src.dbs.postgres.shared.engine import (
+    get_analytics_engine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
 from oss.src.dbs.postgres.testsets.dbes import (
     TestsetArtifactDBE,
@@ -284,7 +290,17 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
     workflows_service.embeds_service = embeds_service
     environments_service.embeds_service = embeds_service
 
-    interactions_service = SessionInteractionsService(interactions_dao=interactions_dao)
+    interactions_service = SessionInteractionsService(
+        interactions_dao=interactions_dao,
+        # M3 live relay: approval resolutions land here (worker process), so this
+        # composition publishes watch notifications too.
+        watch_publisher=SessionsWatchPublisher(),
+    )
+    # Approval answers replay the session's durable records into the resume conversation;
+    # records live on the analytics engine (same as the API composition in routers.py).
+    records_service = RecordsService(
+        records_dao=RecordsDAO(engine=get_analytics_engine()),
+    )
 
     async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
         result = await workflows_service.invoke_workflow_detached(
@@ -297,6 +313,7 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
     interactions_dispatcher = InteractionsDispatcher(
         workflows_service=workflows_service,
         interactions_service=interactions_service,
+        records_service=records_service,
         dispatch_fn=_dispatch_detached_run,
     )
     InteractionsWorker(broker=broker, dispatcher=interactions_dispatcher)

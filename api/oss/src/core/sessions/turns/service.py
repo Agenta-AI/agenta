@@ -5,7 +5,7 @@ query, not a stored fold — a late lower-index write can never win ORDER BY
 turn_index DESC LIMIT 1).
 """
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Windowing
@@ -131,6 +131,19 @@ class SessionTurnsService:
             project_id=project_id,
             session_id=session_id,
             harness_kind=harness_kind,
+        )
+
+    async def latest_turn_per_session(
+        self,
+        *,
+        project_id: UUID,
+        session_ids: List[str],
+    ) -> Dict[str, SessionTurn]:
+        """Batch resume-read across many sessions — one query, not N `latest_turn` calls
+        (WP0-R3, the `/sessions/query` list-row `references` hydration)."""
+        return await self._dao.latest_turn_per_session(
+            project_id=project_id,
+            session_ids=session_ids,
         )
 
     async def delete_by_session_id(
