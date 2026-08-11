@@ -79,11 +79,29 @@ Verify each still exists and widen them together rather than piecemeal.
 
 ## Claims to re-verify
 
-### OR9. Model call sites
+### OR9. Model call sites — CLOSED
 
-The claim that model calls have two distinct callers — agent runs and workflows — is not
-proven exhaustive. Under "everything transits the gateway" the full list is the scope of
-work. **Count them before sizing anything.**
+Counted. Four paths, not two. See `raw/model-call-sites.md`.
+
+Three sit in one SDK file: one chat call through the router, and two embeddings calls that
+use the OpenAI client directly. The fourth is the harness inside the sandbox. **The API calls
+no models at all**, and the runner only picks and checks a model id.
+
+Two consequences carried into the design: the north port needs an embeddings route, and the
+`llm_v0` handler's module-level key assignment must not reach a shared process. See OR13.
+
+### OR13. The global key assignment — do this first
+
+The `llm_v0` handler sets the provider key on **module-level attributes of the router
+library** before it calls. That is process-wide state.
+
+One tenant per workflow process makes it survivable today. A shared gateway process makes it
+a **cross-tenant credential leak**: one caller's key stays set and serves the next caller.
+
+Convert it to per-call arguments before or during the move. The provider-settings builder
+already produces the correct shape, so the correct pattern exists in the same codebase.
+
+Review that no other code assigns to the library's module attributes.
 
 ### OR10. Subscription-authenticated harnesses
 

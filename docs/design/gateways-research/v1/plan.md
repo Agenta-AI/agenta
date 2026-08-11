@@ -7,12 +7,15 @@ A package is a unit that can be built, reviewed and merged on its own. Where two
 could be one, they are split if they can land independently or belong to different owners.
 
 **Status: candidate packages.** The set below is a proposal and will not survive contact with
-`entities.md` and `policy.md` unchanged. Two things must land before it firms up:
+`entities.md` and `policy.md` unchanged.
 
-1. **The model call-site count.** Under the transit rule the list of callers *is* the scope,
-   and it is not proven exhaustive today.
-2. **Whether the routing library runs in-process**, which decides whether the model plane is a
-   library integration or a service.
+The two questions that previously gated it are now answered (`raw/model-call-sites.md`): there
+are four model call paths, three of them in one SDK file, and the routing library runs
+in-process, so the model plane is a library integration rather than a service.
+
+Two consequences for the packages below: the model north port needs an **embeddings** route as
+well as chat, and the `llm_v0` handler's module-level key assignment must be converted before
+anything shares a process.
 
 ---
 

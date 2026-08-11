@@ -32,15 +32,41 @@ It also guards the custom endpoint against server-side request forgery before us
 **Moving that function behind the gateway is the substance of the model-plane work.** Anyone
 sizing it from folder names will size the wrong thing.
 
-## The library
+## The library — settled
 
 The multi-provider client library the SDK already depends on handles provider adapters,
 streaming differences and reseller auth schemes. That work drifts constantly, is identical for
 everyone, and is not ours to own.
 
-*To establish:* whether it is usable as an in-process routing layer inside the gateway or only
-as a separate service. This materially changes the cost of the model plane and is the first
-verification item.
+**It runs in-process.** The library ships an in-process router — retries, fallbacks, load
+balancing, cost tracking, callbacks — and separately a proxy server. The model plane is
+therefore a **library integration, not a second deployment**.
+
+The split helps us. The proxy is the half that competes with our policy plane: its virtual
+keys occupy the same role as our gateway token, and its per-team credential routing the same
+role as our resolution modes. We take the router and own the policy, per decision D9.
+
+Per-request credentials are the supported in-process pattern — the key and base URL travel as
+call arguments. The provider-settings builder already produces that shape.
+
+**One call site does not follow it.** The `llm_v0` handler assigns provider keys to
+module-level attributes of the library. That is process-wide state, and in a shared gateway
+process it is a cross-tenant credential leak. Converting it is a prerequisite of the move, not
+a cleanup. See `open-reviews.md` OR13.
+
+## Embeddings are a second modality
+
+Two of the three SDK call sites call **embeddings**, not chat. Both use the OpenAI client
+directly, read the key straight from the vault list, hardcode the provider, and bypass the
+router entirely.
+
+**The north port therefore needs an embeddings route.** Without one these two sites cannot
+transit the gateway, and decision D1 fails. They are also the least abstracted callers in the
+tree, so they change the most.
+
+*To establish:* whether embeddings share the model registry and resolution path, or need
+their own. They share the credential and the provider; they differ in request shape and in
+what a meter records.
 
 ## What the gateway removes
 
@@ -51,20 +77,22 @@ that category stops existing for gateway-routed runs.
 
 This is the strongest concrete security outcome in the design.
 
-## Callers
+## Callers — counted
 
-At least two, and the list is not proven exhaustive — establishing it is a prerequisite for
-sizing, since under the transit rule the list *is* the scope.
+Four paths. See `raw/model-call-sites.md` for the full result.
 
 - **Agent runs** resolve a connection and inject it into the sandbox, where the harness reads
   a provider key from an environment variable because that is what the underlying agent SDKs
   expect.
 - **Workflows** go through the SDK's model layer and call the provider from the workflow
   process.
+- **Two evaluators** call embeddings directly, in the same SDK file as the chat handler.
 
-They differ in who resolves the credential, where the call originates, and how they fail. Both
+They differ in who resolves the credential, where the call originates, and how they fail. All
 transit the gateway, each behind its own port, and the SDK keeps its secret-fetch and
 secret-injection capabilities — only the adapter behind them changes.
+
+The API is not a caller. It makes no model calls at all.
 
 ## Open
 
