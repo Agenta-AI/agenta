@@ -36,6 +36,12 @@ per-platform page.
 
 ## 0. Two app models, not one
 
+> **The hosted model is designed in full in [hosted-app.md](hosted-app.md)** — the
+> flow, where our own credentials live, why an install is an upsert, and the one
+> thing this section could not see: the signing secret is per *app*, so a hosted
+> connection stores a bot token and nothing else. §2 below and §3's verification
+> apply to the customer-owned model only, and `hosted-app.md` says where each stops.
+
 Revised after research: a comparable platform offers **both**, and declares the
 difference rather than picking one.
 

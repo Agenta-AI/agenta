@@ -241,17 +241,28 @@
 - Resolution: a second adapter with real HMAC now passes the shared suite, and the suite's connection became injectable (`F44`).
 
 
-### F6. No route writes the `connection.data` keys the Slack adapter reads
+### [CLOSED] F6. No route writes the `connection.data` keys the Slack adapter reads
 
 > **Widened by `F47`.** This is not only Slack's four keys nor only a missing
 > route: no channel declares a credential schema, and no channel has an
 > onboarding flow. Read `F47` first.
 
+- **Fixed by WP23 in wave 5.** `create_connection` composes `connection.data`
+  through `_compose_connection_data`: the declared identity subset nests under
+  `connection_locator`, everything else discovered stays flat, and the credential
+  reference is a secret id rather than the credential. `connection.credentials` is
+  cleared before the row is written, so the values the adapter needs are written by a
+  route and the secret is not on the row.
+- **The `F47` half is not closed by this.** A route writes the keys; a *human* still
+  has no way to reach that route, which is WP26's whole subject. Splitting the two is
+  a CU-A item, and closing this one without saying so would make the ledger claim the
+  onboarding flow exists.
+
 - ID: `F6`
 - Origin: `C2 merge`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Completeness`
 - Summary: The Slack adapter reads `signing_secret`, `bot_token`, `bot_user_id`
   and `team_id` off `connection.data`. WP8's configuration API exposes
@@ -670,10 +681,15 @@
   bridge signing secret can now be stored, but no caller has a way to supply one
   through the configured path.
 - Files: `api/oss/src/core/channels/adapters/bridge/adapter.py`
-- Suggested Fix: decide first whether a bridge is meant to be configured through
-  the same form as Slack, or to register itself from its own `hello`. The answer
-  decides whether this is six lines of declaration or a separate registration
-  route. Do not add the fields before that is settled.
+- Suggested Fix: **settled as `D37`, and the premise was wrong.** The bridge is
+  configured through the same setup contract, and it declares no fields correctly —
+  there is nothing only the operator can give us, because only we can mint a bridge
+  secret. What it is missing is the **document** slot: the configuration its
+  operator applies to the bridge process, carrying the delivery URL and a signing
+  secret generated for that connection, shown once at creation and never read back.
+  Self-registration from `hello` was rejected: the `hello` would need a pre-shared
+  credential, and configuring that is this form with an extra route in front of it.
+  Build it in WP-S4, which owns the bridge.
 - Notes: found while fixing F54. The two are one story: the credential could not
   be stored, and separately has nowhere to arrive from. Fixing only the storage
   makes the write path work and the feature still unusable, which is why this is
@@ -700,13 +716,96 @@
 - Notes: the wave that proves Slack end to end is the place this gets settled;
   filed now so it is not discovered as a mystery 401 instead.
 
-### F51. Every DM is silently refused: permission can only be granted to a space that already exists
+### F63. A bridge created through the write path has no `delivery_url`, so every reply fails
+
+- ID: `F63`
+- Origin: `wave-6 design`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: The bridge adapter reads `delivery_url` off the connection to know where
+  to post a reply, and raises `BridgeDeliveryFailed("connection has no
+  delivery_url")` without it. **Nothing in `api/oss/src` writes it.** The only writer
+  is an acceptance fixture that inserts the row directly and so bypasses the write
+  path entirely. So a bridge connection created the supported way accepts inbound
+  events, runs the agent, and then cannot deliver a single answer.
+- Evidence: `bridge/adapter.py` reads `data.get("delivery_url")` and is the only
+  match for that name in the whole of `api/oss/src`. The bridge acceptance
+  `conftest.py` passes `delivery_url` into a direct `ChannelConnectionDBE` insert.
+  `ChannelSecretSettingsDTO` declares only `bot_token` and `signing_secret`, and
+  ignores unknown keys silently, so routing it through `credentials` would drop it
+  without an error.
+- Files: `api/oss/src/core/channels/adapters/bridge/adapter.py`,
+  `api/oss/src/core/channels/dtos.py`
+- Suggested Fix: `delivery_url` is **not a credential** — it is a destination, and a
+  destination is not secret. Put it on the connection's `data` through the create
+  request, beside the locator, rather than in the vault. WP29 owns it, and its
+  generated setup document is the natural place to state both halves of the exchange:
+  the URL we post to, and the secret we minted.
+- Notes: the third read-with-no-writer on this one adapter, after `F54` (the wrong
+  key name) and `F60` (no way for the credential to arrive). All three survived the
+  same way — the acceptance fixtures seed rows directly, so the suite proves the
+  adapter and never the path. A fixture that bypasses the write path cannot fail the
+  way production fails.
+
+### F62. The setup document is only reachable through a connection that cannot exist yet
+
+- ID: `F62`
+- Origin: `wave-6 design`
+- Severity: `P1`
+- Confidence: `high`
+- Status: `open`
+- Category: `Correctness`
+- Summary: `build_slack_manifest` finally has a caller — `SlackAdapter
+  .build_setup_document`, reached by `GET /channels/connections/{connection_id}
+  /setup`. That route takes a connection id and 404s without one. But the manifest
+  is what an operator needs **before** they have anything to connect: they take it
+  to Slack, build the app, install it, and only then hold the two values the
+  connection is created from. So the one document the customer-owned flow depends
+  on is behind the step it precedes.
+- Evidence: `router.py` registers `/connections/{connection_id}/setup` only;
+  `fetch_channel_connection_setup` fetches the connection first and raises 404 when
+  it is absent. `journeys.md` §2.1 orders it S1 → S2 → S3: describe, install and
+  copy, then store. `request_url` is composed from `connection.channel`, which is
+  the only thing the document actually needs and which a channel name supplies
+  directly.
+- Files: `api/oss/src/apis/fastapi/channels/router.py`,
+  `api/oss/src/core/channels/service.py`
+- Suggested Fix: a per-**channel** setup route beside the per-connection one. The
+  per-connection route keeps a job — it is what shows drift for an existing
+  connection — so this is an addition, not a replacement. WP-S1 owns it.
+- Notes: this is the fourth instance of the shape where a capability is built,
+  correct, and unreachable from the place that needs it. It survived because
+  `build_setup_document` has a caller now, so a caller check passes; the check that
+  fails is whether the caller can be reached in the order the journey happens.
+
+### [CLOSED] F51. Every DM is silently refused: permission can only be granted to a space that already exists
+
+- **Fixed in wave 5, in the mechanism `grants.md` prescribed**, and verified against
+  the code rather than against the commit message. `resolve()` get-or-creates the
+  space on first contact and lets the grant decide
+  (`core/channels/service.py`); `channel_grants.kind` and `.space_id` are both
+  nullable with exactly one required at write time (`dbs/postgres/channels/dbas.py`,
+  `core/channels/dtos.py`), landed as an edit to `oss000000021_add_channels.py`
+  rather than a follow-up revision; matching reads `or_(space_id, kind)`
+  (`dbs/postgres/channels/dao.py`) and `evaluate_grant_effect` is deny-first
+  (`core/channels/utils.py`). Two partial unique indexes replaced the constraint
+  that nullable `space_id` would have broken.
+- **The whole F51 scenario is asserted end to end** by
+  `test_kind_allow_admits_a_never_seen_space` — an unseen DM space, no operator
+  pre-approval, a kind-level ALLOW, an agent resolved. Every `return None` in
+  `resolve()` was traced: none of the six inspects `space.kind`, so no path refuses
+  a DM that would not equally refuse a topic.
+- **What is left is not this finding.** No test drives a DM through the HTTP ingress
+  as a real Slack `is_im` payload, and no configuration surface writes a kind-level
+  grant. Both belong to wave 6, and both are package work rather than a defect.
 
 - ID: `F51`
 - Origin: `C4 design read`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `resolve` default-denies when no `channel_spaces` row matches the event's
   composed space key, so permission is encoded as *"somebody pre-created a row"*.
@@ -826,13 +925,23 @@
   guard, because the green run reads as coverage. Found while checking what
   constrains an interface change; it constrains less than it appears to.
 
-### F46. `integration_key` must be globally unique, because its lookup is unscoped
+### [CLOSED] F46. `integration_key` must be globally unique, because its lookup is unscoped
+
+- **Fixed by WP22 in wave 5**, and fixed at the cause rather than by adding a
+  constraint to the shared table: channels owns `channel_connections`, the key is
+  `external_key` composed at `CONNECTION` grain, and it carries
+  `UniqueConstraint("channel", "external_key")` — **not** project-scoped, with the
+  reason written beside it: the ingress resolves the project *from* this key, so the
+  key cannot depend on the scope it establishes. A second constraint on
+  `(project_id, channel, slug)` keeps names unique per project, which is what the
+  old constraint was conflating with identity.
+- Verified against the table definition, not the commit message.
 
 - ID: `F46`
 - Origin: `wave-4 WP17`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Correctness`
 - Summary: `get_project_and_connection_by_external_id` resolves on the
   `(provider_key, integration_key)` pair with `LIMIT 1`, **no project scope and no
@@ -1019,13 +1128,24 @@
   place and not another is exactly the defect a green per-package suite cannot
   see. Worth treating as one fixture rather than three literals.
 
-### F41. The Redis stream round trip for turn events is unproven
+### [CLOSED] F41. The Redis stream round trip for turn events is unproven
+
+- **Proven at C5, by a run rather than by a test.** The exit-condition check drove a
+  real turn end to end against a deployed stack: the turn published to the session
+  stream, the outbox stream worker consumed it, posted a working indicator on
+  `turn_started` and edited it into the answer on `turn_ended`. The round trip is no
+  longer unproven — it is the path that produced the answer.
+- **The residue, stated because it is the part that will rot.** Nothing in CI travels
+  it. The proof is an acceptance-tier run that needs a deployment, so a regression in
+  the serialisation, the consumer group or the stream name would pass every suite and
+  reappear as a bot that goes quiet. That is a coverage gap rather than a defect, and
+  it belongs with the other worker-stream coverage rather than to this finding.
 
 - ID: `F41`
 - Origin: `wave-4 WP18`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Testability`
 - Summary: The outbox now consumes `streams:sessions` via a registered
   `StreamConsumer`, and both halves are tested — payload routing at unit level,
@@ -1109,13 +1229,26 @@
   including WP12's bridge adapter: as written it would have taught the next
   adapter that credential validation is optional.
 
-### F38. Nothing parses a button click: `ChannelEventKind.ACTION` is unreachable
+### [CLOSED] F38. Nothing parses a button click: `ChannelEventKind.ACTION` is unreachable
+
+- **Fixed by WP20 in wave 5**, verified against the code rather than the ledger.
+  `SlackAdapter.parse_event` branches on `block_actions` before the
+  `event_callback` check and delegates to `_parse_block_actions_event`, which emits
+  `ChannelEventKind.ACTION`. `_parse_slack_payload` handles the form-encoded
+  `payload=` field that interactivity arrives in, so the transport difference is
+  covered too, and `resolve()` reads the ACTION kind. Unit coverage in the Slack
+  adapter and mapping suites.
+- **One residue, deliberate rather than missed.** A `block_actions` payload carries
+  no `is_im`/`is_mpim` flag, so the space kind cannot be classified from the click
+  itself. The parser says so in place. Nothing depends on it today; a DM whose first
+  interaction is a click would be the case to check, and WP28's acceptance run is
+  where it would appear.
 
 - ID: `F38`
 - Origin: `wave-4 prep`
 - Severity: `P1`
 - Confidence: `high`
-- Status: `open`
+- Status: `fixed`
 - Category: `Completeness`
 - Summary: `ChannelEventKind.ACTION` exists ("button click, reaction") and the Slack
   manifest requests `interactivity`, but no code path handles an interaction payload.

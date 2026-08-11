@@ -494,6 +494,112 @@ outbox events get no `*Create` wire model and no create route, so there is no wa
 forge a conversation through the API — a property that comes from following the
 pattern, not from a check.
 
+**D32. The hosted app's own credentials are deployment configuration, not vault
+rows.**
+
+Client id, client secret and the app's signing secret belong to one deployment, not
+to one project. The vault is project-scoped, so a row there would be a project-owned
+copy of a deployment-owned credential. They are read through the shared `env` object
+like every other API setting.
+
+This is what `architecture.md` §8.1 already requires of the hosted model — the
+secret held only where tokens are minted, per-installation tokens stored and rotated
+separately. The split falls out of it: our credentials in configuration, every
+workspace's token in its own vault row.
+
+*A deployment that sets none of them does not offer the hosted flow.* The option is
+absent and the routes refuse. Absent and declared, not present and broken — the same
+discipline as an empty setup slot.
+
+**D33. Install state is the HMAC-signed token that already exists, and replay is
+stopped by the authorization code rather than by us.**
+
+`make_oauth_state`/`decode_oauth_state` already sign a payload carrying project,
+user, nonce and timestamp. The install flow uses them rather than inventing a second
+state mechanism, with a shorter age.
+
+The state — not the session — decides which project an installation joins, because
+the callback can legitimately arrive in a different browser from the one that
+started it. That makes it the whole of the authorisation on that route.
+
+*Why a replayable token is enough:* an authorization code is single-use at Slack's
+end, so a replayed callback fails at the exchange instead of producing a second
+install. Stated rather than assumed, because a channel whose codes are replayable
+would need a consumed-state record and this one does not.
+
+**D34. An install is an upsert on the composed connection identity.**
+
+A reinstall — after a revocation, after a scope was added, after somebody clicked
+twice — arrives as a new code for an installation we already have. If it inserts,
+the operator gets a second connection: the first keeps every grant, space and thread
+and stops receiving events; the second receives them and has no grants, so it
+answers nothing. Neither half reports anything.
+
+So the flow composes the key, looks it up, replaces the secret body and keeps the
+row. The identity did not move, because `api_app_id` and the discriminator did not.
+
+**D35. The signing secret is per app, not per connection.**
+
+`oauth.v2.access` returns a bot token and no signing secret, and there is nothing
+for it to return: the signing secret belongs to the app, which in this model is
+ours. One value verifies every event from every workspace that installed it.
+
+So the two app models store different credential bodies for one channel —
+`bot_token` plus `signing_secret` for a customer-owned connection, `bot_token` alone
+for a hosted one — and the adapter resolves the verification secret from the
+connection or from configuration accordingly. Core never learns that app models
+exist.
+
+*The consequence that must be written down:* a hosted connection with no
+`signing_secret` is **complete**. Code that reads a missing field as "not set up
+yet" refuses every hosted connection silently, which is this project's most common
+defect shape wearing a new hat.
+
+**D36. Uninstall deactivates the connection and never deletes it.**
+
+`app_uninstalled` and `tokens_revoked` set `flags.is_active = false`. The grants,
+spaces and threads are the operator's work, and a reinstall should restore service
+rather than ask them to redo it. The routing refusal for an inactive connection
+already exists, so this adds no new refusal path.
+
+*And the reverse direction, which differs from the customer-owned flow:* removing a
+hosted connection in Agenta revokes the installation on Slack's side too, because we
+own the app. The customer-owned removal page has to say we cannot do that; the
+hosted one has to say we did. Same three-slot contract, opposite fillings.
+
+Design: `hosted-app.md`.
+
+**D37. A bridge is configured through the same setup contract as every other
+channel, and its document is one we generate holding a secret we minted. It
+declares no fields, and that was never the defect.**
+
+`F60` asks whether a bridge is configured through the same form as Slack or
+registers itself from its own `hello`. Self-registration collapses on inspection:
+anything that can reach the endpoint could create a connection, unless the `hello`
+carries a pre-shared credential — and something had to configure *that*, which is
+the form again with an extra route in front of it.
+
+What makes the bridge different is not the mechanism but **who mints the secret**:
+
+| channel | who issues the credential | slots filled |
+| --- | --- | --- |
+| Slack, own app | their workspace | instructions, document, our call |
+| Telegram | we choose it, `setWebhook` registers it | instructions, our calls |
+| **bridge** | **only we can** — there is no platform | **document** |
+
+So there is nothing to collect, because there is nothing only the operator can give
+us. `setup.fields` stays empty and that is a correct declaration, not a gap. What
+the bridge is missing is the **document** slot: the configuration its operator
+applies to the bridge process, holding the delivery URL and the signing secret we
+generated for that connection.
+
+*Two consequences.* The secret is shown once, at creation, and never again — reads
+never return a secret, so the create response is the only moment it can be copied,
+exactly as an API key behaves. And the document is **per connection**, because each
+bridge gets its own secret — where Slack's manifest is per channel and needed before
+any connection exists (`F62`). Both setup routes are therefore real, and which one a
+channel uses follows from what its document depends on.
+
 ---
 
 ## Open — product calls

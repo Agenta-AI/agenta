@@ -151,6 +151,13 @@ What holds across every channel, and is worth stating because it decides UI copy
 > existence, or ask BotFather for it. We describe what it must contain, take what
 > only they can give us, and configure what their token entitles us to configure.
 
+**Corrected: this holds for every channel except the hosted Slack app.** It was
+written before `provisioning.md` §0 admitted the second app model, and it is exactly
+wrong for that one — we own the app, and the customer never sees a manifest at all.
+Read it as scoped to customer-owned Slack, Telegram and Discord.
+[`hosted-app.md`](hosted-app.md) is the other column, and it differs in more than
+the click.
+
 ---
 
 ## Part 1: Agenta

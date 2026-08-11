@@ -11,7 +11,9 @@ without.
 
 **Where the redesign starts: [`design-findings.md`](design-findings.md)** — the open
 items, what is parked, and the three user journeys. `prior-art.md` is the research
-behind it; `provisioning.md` and `rendering.md` are the two written designs.
+behind it; `provisioning.md` and `rendering.md` are the two written designs, and
+`hosted-app.md` is the third — the app we own, installed by OAuth, which differs
+from the customer-owned model in more than the click.
 
 ## Posture
 

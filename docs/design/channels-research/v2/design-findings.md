@@ -391,7 +391,17 @@ many connections, one `provider_key`.
 
 ### Still to design
 
+> **All three are now designed and two are built.** Kept as a record of what was open
+> at the time rather than as a live list.
+
 - `connection_locator(request)` replacing `installation_hint(body)` — it must see
   headers and path, because Telegram carries no identity in the body at all.
+  **Built.** The Slack adapter implements it and composes from a request context.
 - Whether an Enterprise Grid org-wide install is one connection or many.
-- What moves with the table: credentials, status, verification state.
+  **Answered in `channel-connections.md`:** one connection, one token, discriminated
+  by `enterprise_id` when the install is org-wide and `team_id` otherwise — and both
+  models coexist for one app, which is what forced `team_id` out of the identity.
+- What moves with the table: credentials, status, verification state. **Settled and
+  built:** credentials are a vault row referenced by id, verification is
+  `flags.is_verified` written only by a successful check, and status carries the last
+  failure.

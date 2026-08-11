@@ -13,10 +13,12 @@ Clean-up work that belongs to no package goes in that wave's `tasks-cu-*.md` led
 and is done at the checkpoint, not in a worktree.
 [`tasks-cu.md`](tasks-cu.md) covered wave 3 and is closed;
 [`tasks-cu-wave4.md`](tasks-cu-wave4.md) is wave 4's;
-[`tasks-cu-wave5.md`](tasks-cu-wave5.md) is wave 5's.
+[`tasks-cu-wave5.md`](tasks-cu-wave5.md) is wave 5's;
+[`tasks-cu-wave6.md`](tasks-cu-wave6.md) is wave 6's.
 
 **Each wave also has a `wave{k}.md`** stating its exit condition, cycle, package
-list, file ownership and collisions. [`wave5.md`](wave5.md) is the current one.
+list, file ownership and collisions. [`wave6.md`](wave6.md) is the current one;
+[`wave5.md`](wave5.md) is closed.
 
 **A wave is a cycle, not a fan-out.** Wave k runs from C(k-1) to Ck as:
 

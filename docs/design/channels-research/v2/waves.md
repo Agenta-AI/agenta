@@ -128,6 +128,13 @@ connection and it silently never fires.
 Designing it while wave 5 builds is what keeps wave 6 from starting with a blocked
 package.
 
+> **Done, late — at the start of wave 6 rather than during wave 5.**
+> [`hosted-app.md`](hosted-app.md) carries the flow and `decisions.md` carries
+> `D32`–`D36`. The delay cost nothing only because it was caught before WP-S2
+> started. It also found what the sketch could not see: the signing secret is per
+> *app*, so a hosted connection stores a bot token and nothing else, and signature
+> verification sources its secret from two places.
+
 ---
 
 ## Wave 6 → C6
@@ -145,6 +152,13 @@ tests find convenient. That is the defect shape this project has now found four
 times.
 
 ### Wave 6 · packages
+
+> **Specified.** WP-S1 to WP-S4 are `WP26` to `WP29` in that order, with a spec and
+> a task list each; [`workstreams/wave6.md`](workstreams/wave6.md) carries the
+> merge points, file ownership and collisions. Two things below changed once the
+> code was checked rather than the ledger: `F51` is already fixed, so WP-S3 is a
+> configuration surface rather than a mechanism, and the manifest WP-S1 hands out
+> is reachable only through a connection that cannot exist yet (`F62`).
 
 **WP-S1 — Slack setup, customer-owned.** The manifest to copy, the pre-filled link,
 the paste form, `auth.test` verification, and the installed-manifest hash so drift
