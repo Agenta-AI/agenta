@@ -14,6 +14,7 @@ import pytest
 pytestmark = pytest.mark.acceptance
 
 _ANSWER = "the mock harness answered"
+_QUESTION = "hello from the acceptance check"
 
 
 @pytest.mark.usefixtures("cls_account")
@@ -52,7 +53,7 @@ class TestAgentaChannelLive:
                 "bot": bot_slug,
                 "user": f"user-{uuid4().hex[:8]}",
                 "id": message_id,
-                "text": "hello from the acceptance check",
+                "text": _QUESTION,
             },
         )
         assert posted.status_code == 202, posted.text
@@ -61,6 +62,9 @@ class TestAgentaChannelLive:
         answer = _poll_for_answer(authed_api, space_id=space_id, contains=_ANSWER)
 
         assert answer is not None, "no answer was posted within the timeout"
+        # the reply is what the agent said, and only that: the inbound turn
+        # is persisted into the same record log the answer is folded from
+        assert _QUESTION not in _answer_text(answer), _answer_text(answer)
 
 
 def _create_mock_agent_application(authed_api) -> str:

@@ -150,10 +150,13 @@ class ChannelsOutboxWorker:
         records = await self.records_service.get_records(
             project_id=project_id, session_id=session_id
         )
+        # The answer is what the agent said. The inbound user turn is persisted
+        # into the same log, and fold() labels every message record `assistant`,
+        # so without this the reply repeats the user back to themselves.
         turn_events = [
             {"type": record.record_type, "data": record.attributes}
             for record in records
-            if record.turn_id == turn_id
+            if record.turn_id == turn_id and record.record_source == "agent"
         ]
 
         folded = fold(turn_events, stop_reason=None)

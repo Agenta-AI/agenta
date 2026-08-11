@@ -624,29 +624,30 @@
 - ID: `F61`
 - Origin: `wave-5 CU-D`
 - Severity: `P1`
-- Confidence: `high` — observed on a real turn
-- Status: `open`
+- Confidence: `high` — observed, then fixed and re-observed
+- Status: `fixed`
 - Category: `Correctness`
-- Summary: A turn's records store the inbound user message and the agent's answer
-  under the same `record_type` of `message`. Nothing on the record says who spoke.
-  `fold` labels every `message` event `role: "assistant"`, so both come back as
-  the agent, and the outbox posts both. Every reply is the user's own text
-  followed by the answer.
-- Evidence: the first real turn ever run end to end. The stored records were
-  `message: "hello from the acceptance check"` and `message: "the mock harness
-  answered"`; the delivered outbox row carried both, joined by a newline. Only the
-  inbound record carries an `attachments` key, and that is incidental, not a role.
-- Files: `sdks/python/agenta/sdk/agents/fold.py`,
-  `api/oss/src/core/sessions/records/utils.py`,
-  `api/oss/src/tasks/asyncio/channels/outbox.py`
-- Suggested Fix: decide where the role belongs. The record normaliser already
-  knows a second vocabulary — it rewrites chunk streams to `agent_message` — so
-  `message` versus `agent_message` is a distinction that half exists. Settle it
-  in one place rather than filtering by shape at the fold.
-- Notes: the end-to-end check passes anyway, because it asserts the answer is
-  present rather than that it is the whole reply. A looser assertion than the
-  defect is exactly how this reaches a user. Worth tightening once the role is
-  settled, not before — a test that fails for a known reason teaches nothing.
+- Summary: The outbox folds every record in the turn, including the inbound user
+  message, which is persisted into the same log. `fold` labels every message
+  record `role: "assistant"`, so the user's own text came back as the agent's and
+  was posted ahead of the answer. The outbox now folds only agent-authored
+  records.
+- Evidence: the first real turn ever run end to end delivered
+  `"hello from the acceptance check\nthe mock harness answered"`. After the fix
+  the same turn delivers only `"the mock harness answered"`.
+- Files: `api/oss/src/tasks/asyncio/channels/outbox.py`
+- Notes: my first reading of this was wrong and is worth recording. I reported
+  that nothing on the record said who spoke, and proposed settling a record-type
+  vocabulary. The authorship was already there: `record_source` is `"agent"` for
+  engine-emitted events and `"user"` for the inbound turn, documented at the
+  persist site and populated on every row. The outbox simply never read the
+  column. The defect was a missing filter, not a missing concept — I had looked
+  at `record_type` and concluded from its silence, without checking the column
+  next to it.
+- Notes: the end-to-end check asserted only that the answer was present, so it
+  passed while the bot echoed the user. It now asserts the reply does not contain
+  the inbound text. An assertion looser than the defect is how this would have
+  reached a user.
 
 ### F60. The bridge declares no setup fields, so its credential has no way in
 
