@@ -10,49 +10,56 @@ engineering one.
 
 ## Open
 
-### OD10. The order the concerns arrive in
+### OD10. What is in the first increment of each gateway
 
-The gateway owns identity and permissions, governance, secrets, and metering and billing, and
-they arrive incrementally (D12). Nothing says in which order.
+Both gateways are being built. What is open is what each one does first.
 
-**Hinges on** what the first version has to prove. The parallel credits and trial work implies
-spend control first. The security argument — provider secrets leaving the platform into
-agent-controlled sandboxes — implies secret containment first. These are not the same order.
+`scope-checklist.md` lists every item for the LLM gateway, the MCP gateway, and the shared
+policy core, so each can be marked in, out, or ordered.
+
+One thing that narrows it: **containment is not a separate choice.** Refusing a call on
+balance requires knowing who is calling, which requires the minted token, which means the
+sandbox no longer holds a provider secret. Spend control cannot be built without containment
+falling out of it; the reverse is not true.
 
 **Blocks the work-package list**, which cannot be sequenced without it.
 
-### OD2. Is a user's own secret the norm or the exception
+### OD2. Is a user's own secret the norm or the exception — parked
 
-The mechanism is designed (`secrets.md`): an owner on every secret, and three resolution modes
-so an organization can mandate or forbid the shared fallback. The default is not decided.
+User-owned secrets are not implemented, so this is deferred until they are. The mechanism is
+designed in `secrets.md` and the lookup already takes an owner (D10), so nothing is foreclosed
+by leaving it open.
 
-**Hinges on** whether users bring their own provider secrets or consume an organizational one
-under quota. The answer decides how much existing configuration is revisited when user-level
-secrets ship.
+### OD6. Which existing relay pattern carries the OAuth callback
 
-Not urgent — everything is project-owned today, and D10 keeps the lookup ready either way.
+An OAuth flow needs a reachable redirect, and the modern registration mechanism needs a public
+HTTPS URL serving client metadata. A firewalled deployment has neither.
 
-### OD6. The self-hosted OAuth posture
+**This is not a new problem and no relay needs inventing.** The codebase already solves the
+same shape three ways, listed in `scope-checklist.md`: a provider-side relay with a routing key
+so many developers share one registered webhook; a socket tunnel that delivers over a WebSocket
+in development while the registered URL stays a placeholder; and an optional ngrok container,
+gated on a token, present in the development compose files and absent from the production ones.
 
-An OAuth flow needs a publicly reachable redirect, and the modern registration mechanism needs
-a public HTTPS URL serving client metadata. A firewalled deployment has neither.
+**Hinges on** which shape fits. The socket pattern needs no inbound reachability at all, which
+is the constraint a firewalled deployment actually has.
 
-Static-credential servers are unaffected. **Hinges on** whether "static secrets work
-everywhere, OAuth needs a reachable deployment" is an acceptable documented posture, or whether
-a relay is worth building.
+### OD11. What the token carries beyond the principal
 
-### OD11. What a minted gateway token names
+The token itself is not new: a 15-minute HS256 JWT carrying user, project, workspace and
+organization, verified by decode with no database read, and already minted per run by the
+workflow invoke prelude (D13).
 
-Inbound tokens are minted, ephemeral and never stored (D13), and one is minted per target. Two
-details remain.
+What is open is the **target**, since the payload says who you are and nothing about what you
+may reach.
 
-**Does one token name one server, or the whole permitted set?** One per server bounds a leak to
-one server. A single token for the run is fewer moving parts. The batch-minting call makes the
-first cheap, so this leans one-per-server unless something argues otherwise.
+**Does the permitted set ride the token?** Putting the model, the tools and the caps in the
+payload keeps verification to a signature check, which is what makes the hot path cheap. The
+cost is that anything signed is frozen until expiry, so revoking a permission mid-run does not
+take effect until the next mint. At a 15-minute expiry that window is bounded but real.
 
-**What the audience claim contains.** The existing signer carries the principal but no target,
-so the gateways need an audience so a token minted for one server cannot be replayed against
-another. Its exact form is undecided.
+**One token per target, or one per run?** One per target bounds a leak to one target, and
+batch-minting makes it nearly free.
 
 ---
 

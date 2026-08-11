@@ -1,6 +1,6 @@
 # Related work: who else is designing this gateway
 
-Four efforts include a model gateway. Three of them were written independently of this one.
+Four efforts include an LLM gateway. Three of them were written independently of this one.
 This document maps them, so the design stops colliding and starts converging.
 
 Ownership and scope are now settled — see the last two sections, and D11 and D12. Metering and
@@ -12,7 +12,7 @@ scope.
 | Effort | Where | Gateway scope |
 |---|---|---|
 | This design | `gateways-research` | models **and** MCP, every caller, every provider |
-| Credits and the model gateway | a separate private repo | models only, the funded path |
+| Credits and the LLM gateway | a separate private repo | models only, the funded path |
 | Activation credits | `docs/activation-credits-proposal` | models only, one model, the trial path |
 | Bring-your-own secrets | `feat/metering-track-d` | secrets and their origin, not a request path |
 

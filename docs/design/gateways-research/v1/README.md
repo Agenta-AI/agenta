@@ -28,7 +28,7 @@ Six claims anchor the design and constrain everything downstream:
    human at first use and again on a step-up scope challenge.
 6. **The gateway owns all six concerns, and this design owns the gateway.** Identity and
    permissions, governance, secrets, and metering and billing. Three other efforts specify a
-   model gateway; they are callers of this one, not parallel designs (D11, D12).
+   LLM gateway; they are callers of this one, not parallel designs (D11, D12).
 
 ## Reading order
 

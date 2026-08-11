@@ -109,7 +109,7 @@ already carries the user.
 
 ## D11. This design owns the gateway
 
-Four efforts specify a model gateway (`raw/related-work.md`). **This one owns the gateway
+Four efforts specify an LLM gateway (`raw/related-work.md`). **This one owns the gateway
 design.** The others are inputs to it and consumers of it, not parallel designs.
 
 Concretely: the credits ledger and the trial grant are **callers** of the gateway. They decide
@@ -150,10 +150,13 @@ The credential that authenticates a caller **into** a gateway is not a new kind 
 does not live in the vault. By the established vocabulary it is a *credential* — Agenta's own
 auth — not a *secret*, which is customer provider material.
 
-**It is minted per use and expires.** The platform already signs short-lived scope-carrying
-tokens for exactly this purpose: the access router re-mints a fresh ephemeral token on every
-permission check rather than echoing an API key, and services and the runner refresh
-periodically. The gateways use that same signer.
+**It is minted per use and expires, and the mechanism already exists.** `sign_secret_token`
+produces an HS256 JWT carrying the user, project, workspace and organization plus an expiry,
+currently 15 minutes. It travels as `Secret <token>`, one of three accepted authorization
+schemes beside `Bearer` and `ApiKey`, and the middleware verifies it by decode alone — no
+database read. The access router re-mints one on every permission check rather than echoing an
+API key, and **the workflow invoke prelude already signs one per run** for batch and detached
+invokes, centralised so the two paths cannot drift on auth. The gateways use that signer.
 
 **One token per target, minted in a batch.** A run reaching three MCP servers gets three
 tokens in one minting call, each valid for one target. A leaked token then reaches one server,
@@ -169,9 +172,11 @@ this.
 rotated without breaking their other integrations, and it would sit inside an agent-controlled
 sandbox.
 
-The one extension needed: the existing signer carries the principal but not a target. The
-gateways need an audience claim so a token minted for one server cannot be replayed against
-another.
+**The one extension needed** is a target. The payload carries who you are and nothing about
+what you may reach, so a token minted for one gateway target could today be presented to
+another. Whether the permitted set — which model, which tools, which caps — also rides the
+token is open: putting it there keeps verification to a signature check, at the cost of a
+permission change not taking effect until the next mint.
 
 **The known failure mode.** Per-turn credential material must stay out of any session
 fingerprint that decides whether a warm session may be reused. The runner already excludes its
