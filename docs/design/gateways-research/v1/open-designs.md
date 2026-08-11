@@ -1,103 +1,121 @@
 # Open designs
 
-Design questions that are still open, with what each hinges on. Settled items move to
-`decisions.md`; things that were tried and replaced move to `notes.md`.
+Design questions still open, with what each hinges on. Settled items move to `decisions.md`;
+things tried and replaced move to `notes.md`.
 
-Ordered by how much else depends on them.
-
----
-
-## OD1. New secret kinds — not a new store
-
-**Status: narrowed. There is no new store to build.**
-
-The gateway does not store credentials. It follows the established pattern: **the domain row
-holds a `secret_id`, the secrets service holds the material, and the consumer resolves it at
-use time.** Webhook subscriptions and SSO providers already work exactly this way — a
-dispatcher resolves `secret_id` through the vault service and reads the key off the returned
-DTO, and the secret itself never appears on the domain's own responses.
-
-So the question is not "how do we store tokens" but **"which secret kinds do we add."** See
-`secrets.md` for the proposal and the shape of the change.
-
-Everything that made this look like a new component — encryption at rest, key management,
-scoping, lifecycle — belongs to the secrets service and is already solved there. Adding a
-kind touches the enum, a settings DTO, the discriminated union, and its validation branch.
-
-**Still open:** whether the OAuth token set is one kind or two (a static credential and a
-grant have different lifecycles), and the naming. Recorded in `secrets.md`.
+Grouped by who decides. Within each group, ordered by how much else depends on the answer.
 
 ---
 
-## OD2. User-level secrets and the resolution order
+## Prerequisites — neither is a design question
 
-**Status: designed, not implemented.** See `secrets.md`.
+Both block work rather than shape it. They are recorded here because they gate everything
+below.
 
-The design is settled on paper; what is open is the product default — whether a user
-credential overriding a project one is the norm or the exception, and which upstreams should
-forbid the shared fallback outright.
+**The secrets read surface is not safe.** The read route returns plaintext material to any
+caller holding the view permission, and the agent path resolves straight through it, past the
+gates. Every claim here assumes resolution through the secrets service is safe. Parallel work
+on bring-your-own secrets names the fix as its own first task, so coordinate rather than fix it
+twice. See `open-reviews.md` OR14.
+
+**One handler sets provider keys as module-level state.** One tenant per process makes it
+survivable today. A shared gateway process makes it a cross-tenant leak. Convert it before
+anything shares a process. See OR13.
 
 ---
 
-## OD3. One endpoint or one per MCP server
+## Group A — decidable without a product call
 
-Either one gateway endpoint whose tool list merges every registered server, with names
-namespaced to avoid collisions, or one endpoint per server.
+### OD3. One MCP endpoint, or one per server
+
+Either one endpoint whose tool list merges every registered server, with names namespaced
+against collisions, or one endpoint per server.
 
 **Hinges on** whether renaming tools is acceptable. Namespacing changes the names the model
-sees, which affects prompts and any per-tool permission rules keyed on those names.
+sees, which affects prompts and any per-tool rule keyed on a name.
 
-Header-based routing in the current MCP revision makes the merged endpoint cheap to
-implement, so this is a naming and ergonomics question rather than a routing one.
+Header routing makes the merged form cheap, so this is an ergonomics question, not a routing
+one. **Most depended-on item in this group** — it decides what an agent's MCP configuration
+looks like.
 
----
+### OD4. Step-up scope handling
 
-## OD4. Step-up scope handling
+A call can need a permission the user never granted, and the required scopes can depend on the
+call's own arguments, so they cannot always be pre-granted.
 
-A call can demand a permission the user never granted, and required scopes may depend on
-the call's own arguments, so they cannot always be pre-granted.
+Three options: over-request at connect time, fail actionably and send the user to the
+dashboard, or pause the run. The specification prefers least privilege with incremental
+step-up; an agent platform may reasonably prefer fewer interruptions.
 
-Three options, recorded in `raw/credential-model.md`: over-request at connect time, fail
-actionably and send the user back to the dashboard, or pause the run.
+**Hinges on** how often it fires in practice, which we cannot know before running real
+servers. Choose a default now and revisit with evidence.
 
-**Hinges on** how often it actually fires in practice, which we cannot know before running
-real servers. Worth choosing a default now and revisiting with evidence.
+### OD9. Do embeddings share the model registry
 
----
+Two callers use embeddings rather than chat (`raw/model-call-sites.md`). They share the secret
+and the provider with chat. They differ in request shape and in what a meter records.
 
-## OD5. Where the policy plane runs relative to the data path
+**Hinges on** whether one registry entry can carry both modalities without a branch at every
+use, or whether a second entry kind is cleaner.
 
-Carried from `decisions.md` D2. Splitting a thin data plane from a control plane in the API
-is the leaning; the cached-decision mechanism is the part still to design.
+### OD7. Dead-secret semantics
 
----
+When a secret is revoked or cannot refresh, do that server's tools disappear from the list, or
+stay and fail?
 
-## OD6. Self-hosted OAuth reachability
+Disappearing is kinder to the model's context. It also makes the tool list vary with secret
+health, which fights the list caching the current protocol revision encourages.
 
-An OAuth flow needs a publicly reachable redirect URI, and the modern registration
-mechanism needs a public HTTPS URL serving client metadata. A firewalled deployment has
-neither.
+### OD1. One new secret kind, or two
 
-Static-credential servers are unaffected. **Hinges on** whether we accept "static
-credentials work everywhere, OAuth needs a reachable deployment" as the documented posture,
-or invest in a relay.
+Narrowed, not closed. The proposal is two — a static kind and a grant kind — because they have
+different lifecycles and because a grant is not MCP-specific. The single-kind alternative is
+recorded in `secrets.md`.
 
----
-
-## OD7. Dead-credential semantics
-
-When a credential is revoked or unrefreshable, does the affected server's tools disappear
-from the list or stay and fail? Disappearing is kinder to the model's context but makes the
-tool list vary with credential health, which makes list caching harder — and the current
-MCP revision explicitly encourages caching list results.
+**Coordinate before deciding.** The bring-your-own-secrets track is adding kinds for sandbox
+providers and the gateway provider key to the same table. Design the kinds once.
 
 ---
 
-## OD8. Spend attribution when a user credential is used
+## Group B — needs a product decision
 
-If a call runs on a user's own provider credential, the cost lands on that user's account
-rather than the organization's. Metering that records only the principal will attribute
-spend to the wrong payer.
+### OD10. The order the concerns arrive in
 
-**Hinges on** OD2's outcome. If user credentials stay rare this is minor; if they become the
-norm for models, the meter has to record which credential paid.
+D12 gives the gateway all six concerns and says they arrive incrementally. Nothing says in
+which order.
+
+**Hinges on** what the first version must prove. The parallel efforts imply spend control
+first. The security argument implies secret containment first. These are not the same order.
+
+### OD2. Is a user secret the norm or the exception
+
+The mechanism is designed (`secrets.md`); the default is not. Is `user_optional` the norm and
+`project_only` the exception, or the reverse?
+
+**Hinges on** whether users bring their own provider secrets or consume an organizational one
+under quota. Both are implementable. The answer decides how much existing configuration is
+revisited when user-level secrets ship.
+
+### OD6. The self-hosted OAuth posture
+
+An OAuth flow needs a publicly reachable redirect, and the modern registration mechanism needs
+a public HTTPS URL serving client metadata. A firewalled deployment has neither.
+
+Static-credential servers are unaffected. **Hinges on** whether "static secrets work
+everywhere, OAuth needs a reachable deployment" is an acceptable documented posture, or whether
+a relay is worth building.
+
+---
+
+## Closed since the last revision
+
+- **Where the policy plane runs.** Settled by the parallel credits design: its own process,
+  from the same image and codebase, with its own workers and stream timeouts, so two writes
+  commit in one local transaction. An internal HTTP hop is rejected because it adds a network
+  dependency to every stream. See `raw/related-work.md`.
+- **How a policy decision is cached.** The signed run token carries it. Same source.
+- **The token store.** There is none; the gateways reference secrets by id (D3).
+- **Spend attribution mechanism.** `secret_origin` carries it. Only the meter key remains, and
+  that belongs with OD10.
+- **The model call-site count** and **whether the routing library runs in-process.** Both in
+  `raw/model-call-sites.md`.
