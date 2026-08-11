@@ -131,9 +131,22 @@ checks the **seams**, which could not be checked before both sides had landed.
 The first integration run against a real stack found four defects last time. Budget
 for it.
 
-- [ ] Acceptance suite against the deployed stack.
-- [ ] The C5 exit condition, run by hand: create a bot, open a conversation, send,
-      read the answer, click a choice. No platform credentials.
+- [x] Integration suite against the deployed stack: **59 pass**, after four
+      failures. One was a real defect — the default-grant index was declared over
+      two nullable columns, so a second default agent in one space did not collide.
+      Three were test defects, one of them the enum name-versus-value confusion an
+      earlier checkpoint had already recorded once.
+- [x] Acceptance suite: **12 pass, 3 skip, 1 fail**, after five failures. Two more
+      real defects: a grain fed to the session-scope vocabulary, which raised for
+      any platform without threads before the clamp built for that case could run;
+      and the bridge calling its one identity by two names, storing it outside the
+      recorded locator so the ownership check could never match.
+- [ ] **The C5 exit condition is NOT demonstrated.** The end-to-end check never
+      configures an agent or a grant, so nothing routes and no answer is ever
+      posted. Verified against the real stack up to that point: the connection
+      write path, the public ingress answering 202 on an API key alone, and a space
+      created on first contact with no pre-created row. From the invoke onward,
+      nothing has run.
 - [ ] **Diagnostic, not a gate:** create a Slack connection through WP23's generic
       write path with real credentials and DM the bot. Grants by kind land in WP22,
       so a DM should resolve for the first time. If Slack is broken in some new way,
