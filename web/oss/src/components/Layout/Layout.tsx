@@ -20,6 +20,7 @@ import {
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
 import {urlAtom} from "@/oss/state/url"
+import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
 import CustomWorkflowBanner from "../CustomWorkflow/CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
@@ -206,10 +207,17 @@ const AppWithVariants = memo(
         const isAnnotations = appState.pathname.includes("/annotations")
         const lastBasePathRef = useRef<string | null>(null)
         const lastNonSettingsPathRef = useRef<string | null>(null)
+        // Agents keep the project rail; only classic apps swap to the app-context one. Same early,
+        // app-id-keyed signal the playground shell uses, so both commit at the same instant.
+        const agentState = useAtomValue(playgroundEarlyAgentStateAtom)
+        const currentSidebarViewIdRef = useRef<string | undefined>(undefined)
         const activeSidebarView = resolveSidebarView({
             pathname: appState.pathname,
             routeLayer: appState.routeLayer,
+            agentState,
+            currentViewId: currentSidebarViewIdRef.current,
         })
+        currentSidebarViewIdRef.current = activeSidebarView.id
 
         useEffect(() => {
             if (activeSidebarView.isBase) {

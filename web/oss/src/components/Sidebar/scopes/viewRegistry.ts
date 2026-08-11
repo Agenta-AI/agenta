@@ -1,4 +1,5 @@
 import type {RouteLayer} from "@/oss/state/appState"
+import type {PlaygroundAgentState} from "@/oss/state/workflow"
 
 import type {SidebarScope} from "../engine/types"
 
@@ -14,6 +15,10 @@ import {createWorkflowSidebarScope} from "./workflowScope"
 export interface SidebarViewMatchContext {
     pathname: string
     routeLayer: RouteLayer
+    /** Agent-ness of the routed app — "unknown" until its workflow type resolves. */
+    agentState: PlaygroundAgentState
+    /** The view on screen right now; held while `agentState` is unknown so the rail can't flash. */
+    currentViewId?: string
 }
 
 export interface SidebarViewContext {
@@ -40,7 +45,10 @@ export const SIDEBAR_VIEWS = [
     },
     {
         id: WORKFLOW_SIDEBAR_SCOPE_ID,
-        matches: (ctx: SidebarViewMatchContext) => ctx.routeLayer === "app",
+        // Agents navigate flat: they keep the project rail and never swap to the app-context one.
+        // Only classic prompt apps and evaluators get this view.
+        matches: (ctx: SidebarViewMatchContext) =>
+            ctx.routeLayer === "app" && ctx.agentState === "non-agent",
         create: ({lastPath}: SidebarViewContext) => createWorkflowSidebarScope({lastPath}),
     },
     {
@@ -56,8 +64,25 @@ export type SidebarViewId = (typeof SIDEBAR_VIEWS)[number]["id"]
 const BASE_VIEW = SIDEBAR_VIEWS[SIDEBAR_VIEWS.length - 1]
 
 /** First view whose `matches` accepts the path; falls back to the base view. */
-export const resolveSidebarView = (ctx: SidebarViewMatchContext): SidebarViewDefinition =>
-    SIDEBAR_VIEWS.find((view) => view.matches(ctx)) ?? BASE_VIEW
+export const resolveSidebarView = (ctx: SidebarViewMatchContext): SidebarViewDefinition => {
+    const matched: SidebarViewDefinition =
+        SIDEBAR_VIEWS.find((view) => view.matches(ctx)) ?? BASE_VIEW
+
+    // App route whose agent-ness hasn't resolved yet. An agent ends on the base view and a classic
+    // app on the workflow view, so committing now would swap the rail a moment later: hold the
+    // workflow rail if it is already up. A cold load with no rail to hold lands on the base view,
+    // which is where agents — the common case — belong anyway.
+    if (
+        matched.isBase &&
+        ctx.routeLayer === "app" &&
+        ctx.agentState === "unknown" &&
+        ctx.currentViewId === WORKFLOW_SIDEBAR_SCOPE_ID
+    ) {
+        return getSidebarViewDefinition(WORKFLOW_SIDEBAR_SCOPE_ID)
+    }
+
+    return matched
+}
 
 /** Look up a view definition by id; falls back to the base view. */
 export const getSidebarViewDefinition = (id: string): SidebarViewDefinition =>

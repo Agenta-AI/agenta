@@ -271,6 +271,13 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                                     {labelNode}
                                 </div>
                             </Tooltip>
+                        ) : item.tooltip ? (
+                            // Expanded: only rows that ASK for a tooltip get one — the collapsed
+                            // rail falls back to the title because the label is hidden there, but
+                            // here that fallback would just repeat the visible text on every row.
+                            <Tooltip title={item.tooltip} placement="right" mouseEnterDelay={0.8}>
+                                <span className="w-full">{labelNode}</span>
+                            </Tooltip>
                         ) : (
                             labelNode
                         ),
