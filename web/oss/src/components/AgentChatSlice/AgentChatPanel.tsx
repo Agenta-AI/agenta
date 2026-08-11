@@ -1,20 +1,26 @@
 import {lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties} from "react"
 
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {Splitter, Tabs} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {DriveSessionProvider} from "@/oss/components/Drives/driveSessionContext"
+import {SessionFilesPane, useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 
 // Direct file import — the barrel would statically pull the inspector drawer into this chunk.
 import {ConversationSkeleton, SessionBarSkeleton} from "./components/AgentChatSkeleton"
 import InspectSessionButton from "./components/Inspector/InspectSessionButton"
 import MountFade from "./components/MountFade"
+import OpenFilesPaneButton from "./components/OpenFilesPaneButton"
+import RightPanelSplit from "./components/RightPanel/RightPanelSplit"
 import ShowConfigPanelButton from "./components/ShowConfigPanelButton"
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "./state/panelLayout"
 import {pendingSessionOpenAtom} from "./state/pendingSessionOpen"
 import {useReconcileServerSessions} from "./state/projectSessions"
+import {FILES_PANE_MAX, FILES_PANE_MIN, filesPaneWidthAtom} from "./state/rightPanel"
 import {useChatScopeKey} from "./state/scope"
 import {
     activeSessionIdAtomFamily,
@@ -138,6 +144,14 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // Tolerate a stale active id (its tab was closed) by falling back to the first tab.
     const activeId = sessions.some((s) => s.id === rawActiveId) ? rawActiveId : sessions[0]?.id
 
+    // Docked Files pane — a full-height sibling of the WHOLE chat column (session bar included),
+    // like the config pane on the other side: its divider runs to the top and the session bar
+    // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
+    const filesPane = useSessionFilesPane(activeId ?? "")
+    // Workflow artifact id — the key for the agent's durable `agent-files` mount; the pane's
+    // DriveSessionProvider needs it here because it sits OUTSIDE the per-tab conversations.
+    const artifactId = useAtomValue(workflowMolecule.selectors.workflowId(entityId))
+
     // A trigger test asks for a fresh session: create + activate one, then clear the flag so the
     // new session's conversation consumes the turn (the per-session consumer skips flagged runs).
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
@@ -215,86 +229,108 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 </div>
             </Splitter.Panel>
             <Splitter.Panel collapsible={false} className="!overflow-hidden !p-0">
-                <Tabs
-                    animated={false}
-                    // The session bar is an ABSOLUTE overlay (`.ant-tabs-nav` pinned top) so its
-                    // presence never reflows the content. The build↔chat motion is published as a
-                    // CSS var (`--agent-bar-inset`: 48 in build, 0 in chat) that the TRANSCRIPT column
-                    // consumes as its top padding — so only the transcript eases, not the context rail
-                    // beside it (which the shared content-holder padding used to drag up too).
-                    style={
-                        {
-                            "--agent-bar-inset": chromeHidden || chatMaximized ? "0px" : "48px",
-                        } as CSSProperties
+                {/* [chat column | Files pane] — the pane pushes the tabs (bar included) aside and
+                    collapses to 0; the bar's "«/»" toggle and the pane header's "»" both drive it. */}
+                <RightPanelSplit
+                    open={filesPane.open}
+                    widthAtom={filesPaneWidthAtom}
+                    min={FILES_PANE_MIN}
+                    max={FILES_PANE_MAX}
+                    panel={
+                        activeId ? (
+                            <DriveSessionProvider sessionId={activeId} artifactId={artifactId}>
+                                <SessionFilesPane sessionId={activeId} />
+                            </DriveSessionProvider>
+                        ) : null
                     }
-                    className="relative flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-nav]:!mb-0"
-                    activeKey={activeId}
-                    onChange={setActiveSession}
-                    renderTabBar={() => (
-                        // renderTabBar's node stands in for the nav, so making IT absolute (pinned top,
-                        // bounded to the pane width) takes the bar out of flow — the transcript no longer
-                        // reflows when it appears, and the strip has a bounded width so tabs scroll. It just
-                        // fades (opacity) out in chat mode / onboarding while the content padding animates.
-                        <div
-                            className="absolute inset-x-0 top-0 z-10 min-w-0 overflow-hidden motion-safe:transition-opacity motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
-                            style={{
-                                opacity: chromeHidden || chatMaximized ? 0 : 1,
-                                pointerEvents: chromeHidden || chatMaximized ? "none" : undefined,
-                            }}
-                            // opacity/pointerEvents hide it visually + for the mouse; `inert` also drops
-                            // the hidden tabs from keyboard tab order + a11y (mirrors the rail above).
-                            inert={chromeHidden || chatMaximized}
-                        >
-                            {/* Region fallback = the same bar skeleton the pre-confirmation gate
+                >
+                    <Tabs
+                        animated={false}
+                        // The session bar is an ABSOLUTE overlay (`.ant-tabs-nav` pinned top) so its
+                        // presence never reflows the content. The build↔chat motion is published as a
+                        // CSS var (`--agent-bar-inset`: 48 in build, 0 in chat) that the TRANSCRIPT column
+                        // consumes as its top padding — so only the transcript eases, not the context rail
+                        // beside it (which the shared content-holder padding used to drag up too).
+                        style={
+                            {
+                                "--agent-bar-inset": chromeHidden || chatMaximized ? "0px" : "48px",
+                            } as CSSProperties
+                        }
+                        className="relative flex h-full min-h-0 min-w-0 w-full flex-col [&_.ant-tabs-content]:h-full [&_.ant-tabs-content-holder]:min-h-0 [&_.ant-tabs-content-holder]:flex-1 [&_.ant-tabs-tabpane]:h-full [&_.ant-tabs-nav]:!mb-0"
+                        activeKey={activeId}
+                        onChange={setActiveSession}
+                        renderTabBar={() => (
+                            // renderTabBar's node stands in for the nav, so making IT absolute (pinned top,
+                            // bounded to the pane width) takes the bar out of flow — the transcript no longer
+                            // reflows when it appears, and the strip has a bounded width so tabs scroll. It just
+                            // fades (opacity) out in chat mode / onboarding while the content padding animates.
+                            <div
+                                className="absolute inset-x-0 top-0 z-10 min-w-0 overflow-hidden motion-safe:transition-opacity motion-safe:duration-[240ms] motion-safe:ease-[cubic-bezier(0.4,0,0.2,1)]"
+                                style={{
+                                    opacity: chromeHidden || chatMaximized ? 0 : 1,
+                                    pointerEvents:
+                                        chromeHidden || chatMaximized ? "none" : undefined,
+                                }}
+                                // opacity/pointerEvents hide it visually + for the mouse; `inert` also drops
+                                // the hidden tabs from keyboard tab order + a11y (mirrors the rail above).
+                                inert={chromeHidden || chatMaximized}
+                            >
+                                {/* Region fallback = the same bar skeleton the pre-confirmation gate
                             renders, so the strip's lane holds its shape while this chunk loads; the
                             real bar eases in over it (MountFade) instead of popping. */}
-                            <Suspense fallback={<SessionBarSkeleton />}>
-                                <MountFade>
-                                    <SessionTagBar
-                                        sessions={sessions}
-                                        activeId={activeId}
-                                        onSelect={setActiveSession}
-                                        onAdd={addSession}
-                                        addDisabled={addLocked}
-                                        onClose={closeSession}
-                                        onRename={handleRename}
-                                        showSessions={!chatMaximized}
-                                        leftExtra={
-                                            !chatMaximized && configPanelCollapsed ? (
-                                                <ShowConfigPanelButton />
-                                            ) : undefined
-                                        }
-                                        extra={
-                                            chatMaximized ? undefined : (
-                                                <InspectSessionButton
-                                                    sessionId={activeId ?? null}
-                                                />
-                                            )
-                                        }
-                                    />
-                                </MountFade>
-                            </Suspense>
-                        </div>
-                    )}
-                    items={sessions.map((session) => ({
-                        key: session.id,
-                        // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
-                        label: null,
-                        children: (
-                            // The heavy conversation body hydrates behind its own transcript/composer
-                            // skeleton (same shape the frame reserves) and eases in over it.
-                            <Suspense fallback={<ConversationSkeleton />}>
-                                <MountFade className="h-full min-h-0 w-full">
-                                    <AgentConversation
-                                        entityId={entityId}
-                                        sessionId={session.id}
-                                        revealPlayedRef={composerRevealPlayedRef}
-                                    />
-                                </MountFade>
-                            </Suspense>
-                        ),
-                    }))}
-                />
+                                <Suspense fallback={<SessionBarSkeleton />}>
+                                    <MountFade>
+                                        <SessionTagBar
+                                            sessions={sessions}
+                                            activeId={activeId}
+                                            onSelect={setActiveSession}
+                                            onAdd={addSession}
+                                            addDisabled={addLocked}
+                                            onClose={closeSession}
+                                            onRename={handleRename}
+                                            showSessions={!chatMaximized}
+                                            leftExtra={
+                                                !chatMaximized && configPanelCollapsed ? (
+                                                    <ShowConfigPanelButton />
+                                                ) : undefined
+                                            }
+                                            extra={
+                                                chatMaximized ? undefined : (
+                                                    <>
+                                                        <InspectSessionButton
+                                                            sessionId={activeId ?? null}
+                                                        />
+                                                        <OpenFilesPaneButton
+                                                            sessionId={activeId ?? null}
+                                                        />
+                                                    </>
+                                                )
+                                            }
+                                        />
+                                    </MountFade>
+                                </Suspense>
+                            </div>
+                        )}
+                        items={sessions.map((session) => ({
+                            key: session.id,
+                            // Bar is rendered by `renderTabBar` (SessionTagBar); the per-item label is unused.
+                            label: null,
+                            children: (
+                                // The heavy conversation body hydrates behind its own transcript/composer
+                                // skeleton (same shape the frame reserves) and eases in over it.
+                                <Suspense fallback={<ConversationSkeleton />}>
+                                    <MountFade className="h-full min-h-0 w-full">
+                                        <AgentConversation
+                                            entityId={entityId}
+                                            sessionId={session.id}
+                                            revealPlayedRef={composerRevealPlayedRef}
+                                        />
+                                    </MountFade>
+                                </Suspense>
+                            ),
+                        }))}
+                    />
+                </RightPanelSplit>
             </Splitter.Panel>
         </Splitter>
     )

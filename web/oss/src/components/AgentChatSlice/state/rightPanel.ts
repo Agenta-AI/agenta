@@ -14,3 +14,10 @@ export const rightPanelWidthAtom = atomWithStorage<number>(
 export const RIGHT_PANEL_MIN = 360
 export const RIGHT_PANEL_MAX = 900
 export const CHAT_MIN = 460
+
+/** The Files pane (the drawer-turned-pane) shares RightPanelSplit but keeps its own persisted
+ * width + bounds — two-pane tree + preview needs more room than the Inspector, and the max stays
+ * generous so it can be dragged near-drawer-wide (the chat floor still caps it on small screens). */
+export const filesPaneWidthAtom = atomWithStorage<number>("agenta:agent-chat:files-pane-width", 620)
+export const FILES_PANE_MIN = 420
+export const FILES_PANE_MAX = 1600

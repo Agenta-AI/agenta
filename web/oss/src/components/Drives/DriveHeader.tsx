@@ -3,6 +3,7 @@ import {CopyButton} from "@agenta/ui/components/presentational"
 import {
     ArrowsIn,
     ArrowsOut,
+    CaretDoubleRight,
     DotsThree,
     DownloadSimple,
     GitBranch,
@@ -38,6 +39,7 @@ export const DriveHeader = ({
     onToggleDetails,
     onNavigate,
     onClose,
+    closeVariant = "close",
     copyText,
     ids,
     downloadMount,
@@ -72,6 +74,8 @@ export const DriveHeader = ({
     onToggleDetails: () => void
     onNavigate: (path: string) => void
     onClose: () => void
+    /** How `onClose` reads: an "×" (overlay drawer) or a "»" that collapses the docked pane. */
+    closeVariant?: "close" | "collapse"
     copyText: (text: string, successMessage?: string) => void
     ids: DriveId[]
     downloadMount: Mount | null
@@ -113,12 +117,27 @@ export const DriveHeader = ({
         },
     ]
     return (
-        <div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-colorBorderSecondary px-3 py-2">
-            <Tooltip title="Close">
+        // Docked-pane variant: pin the header to the session bar's exact height + border token so
+        // its bottom border CONTINUES the bar's line across the divider (offset heights read as
+        // two stacked lines at the junction).
+        <div
+            className={`flex shrink-0 items-center gap-2 border-0 border-b border-solid px-3 ${
+                closeVariant === "collapse"
+                    ? "h-[48px] border-[var(--ag-surface-card-border)]"
+                    : "border-colorBorderSecondary py-2"
+            }`}
+        >
+            <Tooltip title={closeVariant === "collapse" ? "Collapse files" : "Close"}>
                 <Button
                     type="text"
-                    aria-label="Close"
-                    icon={<X size={16} />}
+                    aria-label={closeVariant === "collapse" ? "Collapse files pane" : "Close"}
+                    icon={
+                        closeVariant === "collapse" ? (
+                            <CaretDoubleRight size={16} />
+                        ) : (
+                            <X size={16} />
+                        )
+                    }
                     onClick={onClose}
                     className="!h-7 !w-7 !p-0 !text-colorTextSecondary hover:!text-colorText"
                 />

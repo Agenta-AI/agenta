@@ -1,7 +1,7 @@
 import {useEffect, useState, type ReactNode} from "react"
 
 import {Splitter} from "antd"
-import {useAtom} from "jotai"
+import {useAtom, type WritableAtom} from "jotai"
 
 import {
     CHAT_MIN,
@@ -11,11 +11,8 @@ import {
 } from "../../state/rightPanel"
 
 /** Clamp the panel width to [min, max] AND never let the chat fall below its floor. */
-const clampWidth = (w: number, total: number) =>
-    Math.max(
-        RIGHT_PANEL_MIN,
-        Math.min(w, RIGHT_PANEL_MAX, Math.max(RIGHT_PANEL_MIN, total - CHAT_MIN)),
-    )
+const clampWidth = (w: number, total: number, min: number, max: number) =>
+    Math.max(min, Math.min(w, max, Math.max(min, total - CHAT_MIN)))
 
 // Open/close slide duration. The class must be a static string (Tailwind JIT can't see
 // interpolated names), so the 240ms is duplicated there
@@ -61,12 +58,20 @@ const RightPanelSplit = ({
     open,
     panel,
     children,
+    widthAtom = rightPanelWidthAtom,
+    min = RIGHT_PANEL_MIN,
+    max = RIGHT_PANEL_MAX,
 }: {
     open: boolean
     panel: ReactNode
     children: ReactNode
+    /** Persisted width store + clamp bounds — defaults are the Inspector's; the Files pane passes
+     * its own so the two right-edge panes keep independent widths. */
+    widthAtom?: WritableAtom<number, [number], void>
+    min?: number
+    max?: number
 }) => {
-    const [persisted, setPersisted] = useAtom(rightPanelWidthAtom)
+    const [persisted, setPersisted] = useAtom(widthAtom)
     const [live, setLive] = useState(persisted)
     const [dragging, setDragging] = useState(false)
 
@@ -121,26 +126,26 @@ const RightPanelSplit = ({
     // settle to the target (open → live, closed → 0) so the slide runs off a painted prior value.
     const panelSize = preFrame ? (open ? 0 : live) : open ? live : 0
     // Suppress the min clamp on the collapsed frames so the 0-basis "from"/"to" isn't snapped up
-    // to RIGHT_PANEL_MIN by antd (which would erase the slide).
-    const panelMin = open && !preFrame ? `${RIGHT_PANEL_MIN}px` : 0
+    // to the pane min by antd (which would erase the slide).
+    const panelMin = open && !preFrame ? `${min}px` : 0
 
     return (
         <Splitter
             className={`h-full min-h-0 w-full flex-1 ${FILL_PANE_CLASS} ${BAR_INSET_CLASS} ${animate ? DRIVEN_SLIDE_CLASS : ""}`}
             onResizeStart={() => setDragging(true)}
             onResize={(sizes) => {
-                if (open) setLive(clampWidth(sizes[1], sizes[0] + sizes[1]))
+                if (open) setLive(clampWidth(sizes[1], sizes[0] + sizes[1], min, max))
             }}
             onResizeEnd={(sizes) => {
                 setDragging(false)
-                if (open) setPersisted(clampWidth(sizes[1], sizes[0] + sizes[1]))
+                if (open) setPersisted(clampWidth(sizes[1], sizes[0] + sizes[1], min, max))
             }}
         >
             <Splitter.Panel min={`${CHAT_MIN}px`}>{children}</Splitter.Panel>
             <Splitter.Panel
                 size={panelSize}
                 min={panelMin}
-                max={`${RIGHT_PANEL_MAX}px`}
+                max={`${max}px`}
                 resizable={open && !preFrame}
             >
                 {open || closing ? panel : null}

@@ -145,9 +145,9 @@ const IOBlock = ({label, value, danger}: {label: string; value: string; danger?:
     </div>
 )
 
-/** One tool's row: name + status, plus (in Build's `detailed` step log) the tool's input and its
- * output/error as monospace blocks. Chat mode keeps the quiet one-line summary. The Approve/Deny
- * action lives in the persistent ApprovalDock, so a gate here is just marked "Awaiting approval". */
+/** One tool's row: humanized name + status + one-line summary; in Build (`detailed`) the row also
+ * expands to the tool's input and output/error as monospace blocks. The Approve/Deny action lives
+ * in the persistent ApprovalDock, so a gate here is just marked "Awaiting approval". */
 const ToolRow = ({
     part,
     live,
@@ -158,22 +158,20 @@ const ToolRow = ({
     detailed?: boolean
 }) => {
     const name = partToolName(part)
-    // Build keeps the raw wire name (debuggers steer by it); Chat shows the humanized label with
-    // the raw name on the tooltip — same split the ApprovalDock made for HITL gates.
+    // Humanized label in both modes; the raw wire name stays reachable via the tooltip.
     const display = resolveToolDisplay(name)
-    const shownName = detailed ? name : display.label
+    const shownName = display.label
     const state = part.state as string
     const input = (part as {input?: unknown}).input
     const output = (part as {output?: unknown}).output
     const errorText = (part as {errorText?: string}).errorText
     const nonFinalError = state === "output-error" && isNonFinalRunnerError(errorText)
-    const notHandled = state === "output-available" && isNotHandledOutput(output)
     // `approval-responded` is resolved (the user answered) — not "running". Its execution shows on
     // a sibling part, so this must not spin forever (the cold-replay lingering-gate spinner).
     const running =
         !isSettled(state) && state !== "approval-requested" && state !== "approval-responded"
-    // The line after the name: an awaiting-approval marker, a live "running…", the settled one-line
-    // summary (Chat), or a short status word (Build shows the full output block below instead).
+    // The line after the name: an awaiting-approval marker, a live "running…", or the settled
+    // one-line summary (Build's full payload lives in the row expander below).
     const midText =
         state === "approval-requested"
             ? "Awaiting approval"
@@ -183,17 +181,7 @@ const ToolRow = ({
                   : "approved"
               : live && running
                 ? "running…"
-                : detailed
-                  ? nonFinalError
-                      ? rowSummary(part, display)
-                      : state === "output-error"
-                        ? "failed"
-                        : state === "output-denied"
-                          ? "denied"
-                          : notHandled
-                            ? "not handled by this client"
-                            : null
-                  : rowSummary(part, display)
+                : rowSummary(part, display)
 
     // Track presence explicitly: a legit `null` output is real (don't hide it), and
     // `output-available` with no `output` key must not open an empty expander.
@@ -217,7 +205,7 @@ const ToolRow = ({
             <Text className="!text-xs !font-medium min-w-0 truncate" title={name}>
                 {shownName}
             </Text>
-            {!detailed && display.source ? (
+            {display.source ? (
                 <Text type="secondary" className="!text-xs shrink-0 whitespace-nowrap">
                     {display.source}
                 </Text>
@@ -292,18 +280,17 @@ interface ToolActivityProps {
     parts: ToolUIPart[]
     /** This turn is the one being generated right now. */
     isStreaming?: boolean
-    /** Build mode: render the full step log (per-tool input + output/error inline), instead of the
-     * calm collapsed "Used N tools" summary Chat mode shows. */
+    /** Build mode: rows in the expanded list also expose the tool's input + output/error as
+     * expandable monospace blocks (the full payloads; Chat keeps one-line summaries only). */
     detailed?: boolean
 }
 
 /**
- * Renders a group of tool calls inside an agent turn. Three modes:
- *  - **Build step log** (`detailed`): a left-gutter timeline of every tool with its input and
- *    output/error as monospace blocks — the power-user view, scoped to Build mode.
- *  - **Live** (streaming + a tool still in flight, Chat mode): the same gutter but one-line rows,
- *    so you watch each tool fire.
- *  - **Chat settled**: a single quiet "Used N tools" line; click to expand a one-line-summary list.
+ * Renders a group of tool calls inside an agent turn. Two modes:
+ *  - **Live** (streaming + a tool still in flight): a left-gutter timeline of every tool, so you
+ *    watch each tool fire. In Build the rows also expand to full payloads.
+ *  - **Settled**: a single quiet "Used N tools" line; click to expand the row list. Build rows
+ *    keep their per-tool input/output/error expanders there, so no payload is ever out of reach.
  *
  * An `approval-requested` tool is marked "Awaiting approval" in every mode; the Approve/Deny action
  * lives in the persistent ApprovalDock. The FE only renders tool calls — it never executes them.
@@ -313,19 +300,16 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
     const live = isStreaming && anyUnsettled
     const approvalPending = parts.some((p) => (p.state as string) === "approval-requested")
 
-    // Chat-mode in-thread file cards: one artifact card per file this group wrote/updated
-    // (successful calls only), deduped by path with the LAST op winning. The card is anchored to
-    // the TOOL step that produced it; a bare filename the reply mentions renders as a compact
-    // inline reference instead (see the markdown file-link resolver), never a second block card.
-    // Not rendered in the Build step log — there the raw tool rows already show the writes.
-    const fileCards = detailed
-        ? []
-        : dedupeByPath(
-              parts
-                  .filter((p) => (p.state as string) === "output-available")
-                  .map((p) => detectFileActivity(partToolName(p), (p as {input?: unknown}).input))
-                  .filter((a): a is FileActivity => Boolean(a)),
-          )
+    // In-thread file cards: one artifact card per file this group wrote/updated (successful calls
+    // only), deduped by path with the LAST op winning. The card is anchored to the TOOL step that
+    // produced it; a bare filename the reply mentions renders as a compact inline reference
+    // instead (see the markdown file-link resolver), never a second block card.
+    const fileCards = dedupeByPath(
+        parts
+            .filter((p) => (p.state as string) === "output-available")
+            .map((p) => detectFileActivity(partToolName(p), (p as {input?: unknown}).input))
+            .filter((a): a is FileActivity => Boolean(a)),
+    )
 
     // Persisted by the group's first tool-call id so the expanded list survives a Virtuoso unmount.
     const groupKey = toolGroupKey(parts[0]?.toolCallId ?? "grp")
@@ -335,8 +319,8 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
     // Keep the gate visible in-context: force the list open whenever one is awaiting approval.
     const expanded = open || approvalPending
 
-    // ---- Build step log (detailed) OR live streaming: the gutter timeline, always visible ----
-    if (detailed || live) {
+    // ---- Live streaming: the gutter timeline, always visible while tools are in flight ----
+    if (live) {
         return (
             <div className="flex min-w-0 flex-col border-0 border-l-2 border-solid border-colorBorderSecondary pl-3">
                 {parts.map((part, i) => (
@@ -411,6 +395,7 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
                             key={`${part.toolCallId || part.type}-${i}`}
                             part={part}
                             live={false}
+                            detailed={detailed}
                         />
                     ))}
                 </div>

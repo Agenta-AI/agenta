@@ -17,6 +17,7 @@ export function DriveTreePane({
     treeDropProps,
     rows,
     children,
+    mirrored = false,
 }: {
     pane: DriveTreePaneState
     treeScrollRef: (el: HTMLDivElement | null) => void
@@ -27,6 +28,9 @@ export function DriveTreePane({
     rows: ReactNode
     /** The content pane: the folder grid or the file preview. */
     children: ReactNode
+    /** Dock the tree on the RIGHT and the content on the LEFT (row-reverse keeps DOM/focus order:
+     * tree first). Pair with `useDriveTreePane({mirrored})` so the resize drag direction matches. */
+    mirrored?: boolean
 }) {
     const {
         paneW,
@@ -42,12 +46,14 @@ export function DriveTreePane({
     // continuous pass. The tree's INNER content is a FIXED TREE_WIDTH box clipped by the outer
     // `overflow-hidden`, so it slides out cleanly (its rows never reflow as the pane narrows).
     return (
-        <div className="flex min-h-0 w-full flex-1">
+        <div className={`flex min-h-0 w-full flex-1 ${mirrored ? "flex-row-reverse" : ""}`}>
             {/* Width rides the `paneW` MotionValue: the toggle animates it (see the effect above),
                     a drag writes it per pointer move — either way motion updates the DOM directly,
                     no React render per frame. */}
             <motion.div
-                className="min-h-0 shrink-0 overflow-hidden border-0 border-r border-solid border-colorBorderSecondary"
+                className={`min-h-0 shrink-0 overflow-hidden border-0 border-solid border-colorBorderSecondary ${
+                    mirrored ? "border-l" : "border-r"
+                }`}
                 style={{width: paneW}}
             >
                 {/* Inner rides `innerW`, which a DRAG updates (content reflows to the new width)

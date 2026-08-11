@@ -3,29 +3,28 @@
  *
  * One flat file view (no App/Session split — the config surface is "simply files"): the active
  * conversation's working files, newest first, with the full relative path (mono) so the raw
- * cwd/session UUIDs stay abstracted away. Rows open the DriveDrawer preselected on the clicked
- * file; the Files header count (StorageFilesHeader) opens it at the tree root. The agent's durable
- * folder is a subfolder of this working folder, so it needs no separate drive here. Lives in the
- * app layer because it reads the chat slice's session state.
+ * cwd/session UUIDs stay abstracted away. Rows open the chat's docked Files pane preselected on
+ * the clicked file; the Files header count (StorageFilesHeader) opens it at the tree root. The
+ * agent's durable folder is a subfolder of this working folder, so it needs no separate drive
+ * here. Lives in the app layer because it reads the chat slice's session state.
  */
-import {useMemo} from "react"
-
 import {CircleNotch} from "@phosphor-icons/react"
 import {Typography} from "antd"
-import {useAtom} from "jotai"
+import {useSetAtom} from "jotai"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {isAgentFileUploadsEnabled} from "@/oss/components/AgentChatSlice/assets/constants"
 
-import {configFilesDrawerAtomFamily, useConfigDrive} from "./configDrive"
-import {type DriveId} from "./DriveExplorer"
+import {useConfigDrive} from "./configDrive"
 import {DriveFileRow, DriveRetryButton, SKELETON_ROW_COUNT} from "./DriveFileRow"
 import {DriveItemContextMenu, useCopyDrivePath, useDriveItemDownload} from "./DriveItemContextMenu"
 import {listArrowKeyDown} from "./driveKeyboard"
 import {FILE_ITEM_VARIANTS, FILE_SPRING} from "./driveMotion"
 import {humanSize, relativeTime} from "./driveTree"
-import {FilesDrawer} from "./FilesDrawer"
+import {driveQuickLookAtomFamily} from "./quickLook"
 import {isRecentlyChanged, useRecentChangeClock} from "./recentChange"
+import {filesDrawerStagedAtomFamily} from "./SessionFilesDrawer"
+import {useSessionFilesPane} from "./SessionFilesPane"
 import {useStageDrop} from "./useDriveDrop"
 import {driveHasMixedOrigins, type DriveRecentFile} from "./useSessionDrive"
 
@@ -78,29 +77,24 @@ const RecentFileRow = ({
 
 export default function StorageSection({revisionId}: {revisionId?: string | null}) {
     const {drive, sessionId} = useConfigDrive(revisionId)
-    // Drawer request is shared with the Files header (which opens it at the root); rows open it
-    // preselected on the clicked file.
-    const [drawer, setDrawer] = useAtom(configFilesDrawerAtomFamily(revisionId ?? ""))
-    const openDrawer = (initialPath: string | null) =>
-        setDrawer({open: true, initialPath, staged: []})
-    // Drop-to-stage: a file drag over the Files peek opens the drawer with the files staged, so the
+    // Openers land in the chat's DOCKED Files pane (the same state every chat opener drives):
+    // rows preselect the clicked file, the header opens the root.
+    const {openPane: openPaneRoot} = useSessionFilesPane(sessionId)
+    const setQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId))
+    const setPaneStaged = useSetAtom(filesDrawerStagedAtomFamily(sessionId))
+    const openPane = (initialPath: string | null) => {
+        if (initialPath) setQuickLook({path: initialPath})
+        else openPaneRoot()
+    }
+    // Drop-to-stage: a file drag over the Files peek opens the pane with the files staged, so the
     // destination folder is chosen there (this flat peek has no folder of its own).
     const {dropActive, dropProps: stageDropProps} = useStageDrop(
-        isAgentFileUploadsEnabled() && drive.mount
-            ? (files) => setDrawer({open: true, initialPath: null, staged: files})
+        isAgentFileUploadsEnabled() && drive.mount && sessionId
+            ? (files) => setPaneStaged(files)
             : undefined,
     )
     const copyPath = useCopyDrivePath()
     const download = useDriveItemDownload(drive)
-    // Raw ids for the drawer header's overflow menu (the drive id + the session it belongs to).
-    const driveIds = useMemo(
-        () =>
-            [
-                drive.mount?.id ? {key: "mount", label: "Drive ID", value: drive.mount.id} : null,
-                sessionId ? {key: "owner", label: "Session ID", value: sessionId} : null,
-            ].filter(Boolean) as DriveId[],
-        [drive.mount?.id, sessionId],
-    )
 
     const now = useRecentChangeClock(drive.lastTouchedAt)
     // Render the drive's canonical recents verbatim (no local filtering) so the config Files list and
@@ -181,7 +175,7 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                                                           now,
                                                       )}
                                                       showOrigin={showOrigin}
-                                                      onOpen={() => openDrawer(file.path)}
+                                                      onOpen={() => openPane(file.path)}
                                                       onCopyPath={copyPath}
                                                       onDownload={download}
                                                   />
@@ -237,19 +231,6 @@ export default function StorageSection({revisionId}: {revisionId?: string | null
                     )}
                 </motion.div>
             </AnimatePresence>
-
-            {/* The ONE Files drawer (DriveExplorer: lazy per-directory loading + the single header).
-                Same component the chat uses; only the open-atom + resolved drive differ. */}
-            <FilesDrawer
-                open={drawer.open}
-                onClose={() => setDrawer((prev) => ({...prev, open: false, staged: []}))}
-                drive={drive}
-                driveIds={driveIds}
-                scope="session"
-                initialPath={drawer.initialPath}
-                stagedFiles={drawer.staged}
-                onStagedChange={(files) => setDrawer((prev) => ({...prev, staged: files}))}
-            />
         </div>
     )
 }
