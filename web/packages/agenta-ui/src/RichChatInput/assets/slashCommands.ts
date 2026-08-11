@@ -59,6 +59,18 @@ export function readCommandRun(textUpToCaret: string): CommandRun | null {
 }
 
 /**
+ * Whether a run flush against the start of its own text node may still open the menu.
+ *
+ * `readCommandRun` only sees one node's text, and formatting splits a paragraph into adjacent text
+ * nodes — so a bolded `/model` after a plain `hello ` starts its node while the message reads
+ * `hello /model`. Starting a NODE is not starting the MESSAGE: the run qualifies when everything
+ * before it in the block is empty or ends in whitespace, which is the same rule the regex applies
+ * inside a single node.
+ */
+export const runFollowsBoundary = (textBefore: string): boolean =>
+    textBefore === "" || /\s$/.test(textBefore)
+
+/**
  * Whether two runs are the same run. Dismissal is keyed on this — on POSITION, not on the run's
  * text (a retyped `/` gives an identical query) and not on mere existence (that leaks the dismissal
  * onto the next run, so a paste after an Escape would never open the menu).

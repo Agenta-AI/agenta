@@ -7,7 +7,11 @@ import {
 } from "@agenta/entity-ui/drill-in"
 import HarnessPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/HarnessPickerPanel"
 import PermissionsPickerPanel from "@agenta/oss/src/components/AgentChatSlice/components/SlashCommand/PermissionsPickerPanel"
-import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {
+    RichChatInput,
+    type RichChatInputHandle,
+    type SlashCommandSection,
+} from "@agenta/ui/rich-chat-input"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {
     ChatCircleDots,
@@ -118,7 +122,7 @@ export const Disabled: Story = {
     ),
 }
 
-const SLASH_SECTIONS = [
+const SLASH_SECTIONS: SlashCommandSection[] = [
     {
         key: "commands",
         title: "Commands",
@@ -250,11 +254,6 @@ export const SlashCommands: Story = {
             const [applied, setApplied] = useState<string>("")
             const boxRef = useRef<HTMLDivElement | null>(null)
             const inputRef = useRef<RichChatInputHandle | null>(null)
-            // The dock clears the typed command once a picker applies; mirror it so the story
-            // behaves like the real composer.
-            const clearCommand = () => {
-                inputRef.current?.clear()
-            }
             // Mirrors the dock: focus can only return AFTER the picker unmounts, and an outside
             // click is the one close that must not pull it back.
             const skipFocusRestore = useRef(false)
@@ -278,11 +277,10 @@ export const SlashCommands: Story = {
             // Mirrors the dock: "back to commands" restores the `/` the picker consumed.
             const backToCommands = () => {
                 setPicker(null)
-                inputRef.current?.setMarkdown("/")
+                inputRef.current?.insertText("/")
             }
             const openPicker = (which: "model" | "harness" | "permissions") => {
                 inputRef.current?.blur()
-                inputRef.current?.clear()
                 requestAnimationFrame(() => setPicker(which))
             }
 
@@ -306,7 +304,6 @@ export const SlashCommands: Story = {
                                     // Mirrors the dock: the action runs, then the host clears the
                                     // command it consumed. No picker, so focus never leaves.
                                     setApplied("new session")
-                                    clearCommand()
                                 }
                               : undefined,
                 })),
@@ -347,7 +344,6 @@ export const SlashCommands: Story = {
                                         setHarness(kind)
                                         setApplied(`harness → ${kind}`)
                                         setPicker(null)
-                                        clearCommand()
                                     }}
                                     onDismiss={dismissPicker}
                                     onBackToCommands={backToCommands}
@@ -364,7 +360,6 @@ export const SlashCommands: Story = {
                                         setPermission(next)
                                         setApplied(`permissions → ${next}`)
                                         setPicker(null)
-                                        clearCommand()
                                     }}
                                     onDismiss={dismissPicker}
                                     onBackToCommands={backToCommands}
@@ -391,7 +386,6 @@ export const SlashCommands: Story = {
                                 setModel(next)
                                 setApplied(`model → ${next}`)
                                 setPicker(null)
-                                clearCommand()
                             }}
                             searchSuffix="/model"
                             panelFooter={footer}

@@ -16,7 +16,14 @@ import {MarkdownShortcutPlugin} from "@lexical/react/LexicalMarkdownShortcutPlug
 import {TabIndentationPlugin} from "@lexical/react/LexicalTabIndentationPlugin"
 import {RichTextExtension} from "@lexical/rich-text"
 import clsx from "clsx"
-import {$createParagraphNode, $getRoot, defineExtension, type LexicalEditor} from "lexical"
+import {
+    $createParagraphNode,
+    $getRoot,
+    $getSelection,
+    $isRangeSelection,
+    defineExtension,
+    type LexicalEditor,
+} from "lexical"
 
 import type {SlashCommandSection} from "./assets/slashCommands"
 import {chatInputTheme} from "./assets/theme"
@@ -38,6 +45,11 @@ export interface RichChatInputHandle {
     /** Drop focus before handing the keyboard to an overlay — see `blur` in the implementation. */
     blur: () => void
     clear: () => void
+    /**
+     * Type text at the caret, leaving the rest of the message alone. `setMarkdown` REPLACES the
+     * document, which would discard whatever the user had already written.
+     */
+    insertText: (text: string) => void
     setMarkdown: (markdown: string) => void
     /** Read the current content as markdown without submitting (e.g. non-Enter actions). */
     getMarkdown: () => string
@@ -193,6 +205,23 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         root.clear()
                         root.append($createParagraphNode())
                     }),
+                insertText: (text: string) => {
+                    const editor = editorRef.current
+                    if (!editor) return
+                    // Focus first: the caller may have blurred us to hand an overlay the keyboard,
+                    // and an insert with no range selection would land nowhere.
+                    editor.focus()
+                    editor.update(() => {
+                        const selection = $getSelection()
+                        if ($isRangeSelection(selection)) {
+                            selection.insertText(text)
+                            return
+                        }
+                        $getRoot().selectEnd()
+                        const restored = $getSelection()
+                        if ($isRangeSelection(restored)) restored.insertText(text)
+                    })
+                },
                 setMarkdown: (markdown: string) =>
                     editorRef.current?.update(() => {
                         $convertFromMarkdownString(markdown, CHAT_TRANSFORMERS)

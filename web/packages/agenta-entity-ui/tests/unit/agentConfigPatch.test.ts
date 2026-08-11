@@ -41,7 +41,10 @@ describe("withModel", () => {
         expect((next as any).agent).toBeUndefined()
     })
 
-    it("keeps the stored connection when the patch does not name one", () => {
+    // The slug names a connection belonging to the OLD provider and the backend rejects a
+    // provider/slug mismatch, so an unqualified pick must drop it — the drawer's writer nulls it
+    // the same way. `agenta` with no slug IS the default connection, so the key collapses away.
+    it("drops the stored connection slug when the patch does not name one", () => {
         const params = nested({
             llm: {
                 model: "gpt-4o",
@@ -50,6 +53,39 @@ describe("withModel", () => {
             },
         })
         const next = withModel(params, {modelId: "gpt-5", provider: "openai"})
+        expect((next as any).agent.llm.connection).toBeUndefined()
+    })
+
+    it("keeps a non-default mode while still dropping the slug", () => {
+        const params = nested({
+            llm: {
+                model: "gpt-4o",
+                provider: "openai",
+                connection: {mode: "self_managed", slug: "prod-key"},
+            },
+        })
+        const next = withModel(params, {modelId: "gpt-5", provider: "openai"})
+        expect((next as any).agent.llm.connection).toEqual({mode: "self_managed"})
+    })
+
+    it("does not carry a named connection across a provider change", () => {
+        const params = nested({
+            llm: {
+                model: "claude-sonnet-4-5",
+                provider: "anthropic",
+                connection: {mode: "self_managed", slug: "bedrock-prod"},
+            },
+        })
+        const next = withModel(params, {modelId: "gpt-5", provider: "openai"})
+        expect((next as any).agent.llm.provider).toBe("openai")
+        expect((next as any).agent.llm.connection?.slug).toBeUndefined()
+    })
+
+    it("keeps a connection the caller explicitly supplies", () => {
+        const params = nested({
+            llm: {model: "gpt-4o", provider: "openai", connection: {mode: "agenta", slug: "old"}},
+        })
+        const next = withModel(params, {modelId: "gpt-5", provider: "openai", slug: "prod-key"})
         expect((next as any).agent.llm.connection).toEqual({mode: "agenta", slug: "prod-key"})
     })
 

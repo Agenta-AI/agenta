@@ -22,14 +22,21 @@ export interface ModelPatch {
     provider: string | null
     /** Defaults to the stored connection's mode. */
     mode?: ConnectionMode
-    /** Defaults to the stored connection's slug. */
+    /**
+     * The named connection to attach. Omit it and the stored one is DROPPED, not inherited — see
+     * `withModel`. Pass it only when the picked option supplies matching connection metadata.
+     */
     slug?: string | null
 }
 
 /**
- * Set `agent.llm` to a new ModelRef. The stored connection (mode + slug) and any extra keys on the
- * prior ref ride through unless the patch overrides them — a model swap must not silently drop a
- * named vault connection or the raw-JSON `extras` hatch.
+ * Set `agent.llm` to a new ModelRef. The stored `mode` and any extra keys on the prior ref ride
+ * through, so a model swap never drops the raw-JSON `extras` hatch.
+ *
+ * The connection `slug` is the exception: it names a vault/custom connection belonging to the OLD
+ * provider, and the backend rejects a provider/slug mismatch. So an unqualified model pick clears
+ * it, matching the drawer's writer in `useModelHarness`, which nulls the slug whenever `modelId` is
+ * patched without one.
  */
 export function withModel(parameters: unknown, patch: ModelPatch): Record<string, unknown> | null {
     if (!isRecord(parameters) || !patch.modelId) return null
@@ -42,7 +49,7 @@ export function withModel(parameters: unknown, patch: ModelPatch): Record<string
             modelId: patch.modelId,
             provider: patch.provider,
             mode: patch.mode ?? stored.mode,
-            slug: patch.slug !== undefined ? patch.slug : stored.slug,
+            slug: patch.slug ?? null,
             existing,
         }),
     })

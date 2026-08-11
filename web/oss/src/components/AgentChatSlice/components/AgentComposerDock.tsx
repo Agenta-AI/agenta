@@ -167,28 +167,20 @@ const AgentComposerDock = ({
     const composerBoxRef = useRef<HTMLDivElement | null>(null)
     const openConfigSection = useSetAtom(openAgentConfigSectionAtom)
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
-    const clearDraft = composer.clearDraft
+
     // A click outside is a deliberate move elsewhere, so it is the one close that must NOT pull
     // focus back. Everything else — apply, Escape, back to commands — returns you to typing.
     const skipFocusRestoreRef = useRef(false)
     const slash = useChatSlashCommands({
         entityId,
         suspended: onboardingActive,
-        // The command has served its purpose once the picker is up; leaving it behind just reads
-        // as text the user now has to delete before typing a message. Blur first — the picker
-        // autofocuses its search, and a still-focused editor takes focus back on the next
-        // reconcile, which Radix reads as an outside interaction and dismisses on.
+        // Blur only. The palette has already removed the `/…` run it consumed — and ONLY that run,
+        // so a `hello /model` keeps its `hello` — which clearing the composer here would destroy.
+        // Blur matters because the picker autofocuses its search, and a still-focused editor takes
+        // focus back on the next reconcile, which Radix reads as an outside interaction.
         onPickerOpen: useCallback(() => {
             richInputRef.current?.blur()
-            richInputRef.current?.clear()
-            clearDraft()
-        }, [clearDraft, richInputRef]),
-        // `/new` opens no picker, so nothing blurs the editor — clear the command and leave the
-        // caret where it is, ready for the first message of the session that just opened.
-        onCommandRun: useCallback(() => {
-            richInputRef.current?.clear()
-            clearDraft()
-        }, [clearDraft, richInputRef]),
+        }, [richInputRef]),
     })
     // Restoring focus can only happen AFTER the picker unmounts: a focus() call in the handler is
     // undone when the still-focused panel (or Radix popover) leaves the DOM.
@@ -214,10 +206,11 @@ const AgentComposerDock = ({
         [closePicker],
     )
     // Step back one level. The picker consumed the `/` that opened it, so returning to the palette
-    // means putting it back — typing it again is what "back to commands" exists to avoid.
+    // means putting it back — typing it again is what "back to commands" exists to avoid. Insert
+    // rather than setMarkdown: the rest of the message is still there and must stay.
     const backToCommands = useCallback(() => {
         closePicker()
-        richInputRef.current?.setMarkdown("/")
+        richInputRef.current?.insertText("/")
     }, [closePicker, richInputRef])
     const openConfigFor = useCallback(
         (section: "model-harness" | "advanced") => {
@@ -385,7 +378,9 @@ const AgentComposerDock = ({
                         showSearch
                         options={slash.modelGroups}
                         value={slash.currentModel}
-                        onChange={slash.applyModel}
+                        // The option carries a vault pick's connection slug + kind; `applyModel`
+                        // needs it to attach the right connection instead of guessing by model id.
+                        onChange={(next, option) => slash.applyModel(next, option)}
                         searchSuffix="/model"
                         panelFooter={
                             <div className="flex items-center gap-1.5 text-[10.5px] text-[var(--ag-colorTextTertiary)]">

@@ -25,6 +25,7 @@ import {
     KEY_ENTER_COMMAND,
     KEY_ESCAPE_COMMAND,
     KEY_TAB_COMMAND,
+    type LexicalNode,
 } from "lexical"
 import {createPortal} from "react-dom"
 
@@ -34,6 +35,7 @@ import {
     isSameRun,
     matchLabel,
     readCommandRun,
+    runFollowsBoundary,
     type SlashCommandItem,
     type SlashCommandSection,
 } from "../assets/slashCommands"
@@ -51,6 +53,15 @@ interface LocatedRun {
     query: string
     nodeKey: string
     start: number
+}
+
+/** Everything written before this node within its block, across formatting-split siblings. */
+const $textBeforeInBlock = (node: LexicalNode): string => {
+    let text = ""
+    for (let prev = node.getPreviousSibling(); prev; prev = prev.getPreviousSibling()) {
+        text = prev.getTextContent() + text
+    }
+    return text
 }
 
 export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommandPluginProps) {
@@ -94,8 +105,9 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
             if (!$isTextNode(node)) return null
             const run = readCommandRun(node.getTextContent().slice(0, selection.anchor.offset))
             if (!run) return null
-            // A run flush against the node start opens the menu only when it also starts the block.
-            if (!run.afterSpace && node.getPreviousSibling() !== null) return null
+            // A run flush against the node start has to be judged against the rest of the block,
+            // not the node: formatting splits a paragraph into siblings.
+            if (!run.afterSpace && !runFollowsBoundary($textBeforeInBlock(node))) return null
             return {query: run.query, nodeKey: node.getKey(), start: run.start}
         }
         return editor.registerUpdateListener(({editorState}) => {
@@ -122,33 +134,38 @@ export function SlashCommandPlugin({sections, anchorRef, disabled}: SlashCommand
         if (activeIndex > 0 && activeIndex >= items.length) setActiveIndex(0)
     }, [activeIndex, items.length])
 
+    /**
+     * Swap the run the caret sits in for `text`. EVERY kind goes through this — an `insert` puts its
+     * slug there, an `open`/`action` puts nothing — because the surrounding message must survive
+     * either way, now that a run can start mid-sentence. The host must not clear the composer
+     * instead: `hello /model` would lose `hello`.
+     */
+    const replaceRun = useCallback(
+        (text: string) => {
+            editor.update(() => {
+                const selection = $getSelection()
+                if (!$isRangeSelection(selection)) return
+                const node = selection.anchor.getNode()
+                if (!$isTextNode(node)) return
+                const full = node.getTextContent()
+                const caret = selection.anchor.offset
+                const run = readCommandRun(full.slice(0, caret))
+                const head = full.slice(0, run ? run.start : caret)
+                const upToCaret = head + text
+                node.setTextContent(upToCaret + full.slice(caret))
+                node.select(upToCaret.length, upToCaret.length)
+            })
+        },
+        [editor],
+    )
+
     const select = useCallback(
         (item: SlashCommandItem) => {
-            if (item.kind === "insert") {
-                const text = `${item.insertText ?? item.label} `
-                editor.update(() => {
-                    const selection = $getSelection()
-                    if (!$isRangeSelection(selection)) return
-                    const node = selection.anchor.getNode()
-                    if (!$isTextNode(node)) return
-                    // Replace the typed run ONLY — anything the user wrote before it must survive,
-                    // now that a run can start mid-message.
-                    const full = node.getTextContent()
-                    const caret = selection.anchor.offset
-                    const run = readCommandRun(full.slice(0, caret))
-                    const head = full.slice(0, run ? run.start : caret)
-                    const upToCaret = head + text
-                    node.setTextContent(upToCaret + full.slice(caret))
-                    node.select(upToCaret.length, upToCaret.length)
-                })
-                close()
-                return
-            }
-            // The host clears the typed command when its picker opens.
+            replaceRun(item.kind === "insert" ? `${item.insertText ?? item.label} ` : "")
             close()
-            item.onSelect?.()
+            if (item.kind !== "insert") item.onSelect?.()
         },
-        [close, editor],
+        [close, replaceRun],
     )
 
     // Keyboard. Registered above SubmitPlugin's HIGH so a selection never leaks through as a send.

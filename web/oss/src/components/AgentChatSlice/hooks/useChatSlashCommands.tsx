@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {customSecretsAtom} from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {
     buildModelOptionGroups,
@@ -16,11 +17,14 @@ import {
     CLIENT_TOOLS,
     PLATFORM_OPS,
     providerForModel,
+    vaultModelGroups,
+    vaultPickedProviderFamily,
     readAgentItems,
     readHarnessKind,
     readModelId,
     readRunnerPermission,
     selectableHarnesses,
+    staticEmbedSlug,
     toolName,
     withHarnessKind,
     withModel,
@@ -64,15 +68,12 @@ export function useChatSlashCommands({
     entityId,
     /** Onboarding runs on an uncommitted agent with a different Enter — no palette there. */
     suspended,
-    /** Fires as a picker opens, so the host can clear the command that opened it. */
+    /** Fires as a picker opens, so the host can hand it the keyboard. */
     onPickerOpen,
-    /** Fires after a command that opens no picker has run, for the same reason. */
-    onCommandRun,
 }: {
     entityId: string
     suspended?: boolean
     onPickerOpen?: () => void
-    onCommandRun?: () => void
 }) {
     const config = useAtomValue(
         useMemo(() => workflowMolecule.selectors.configuration(entityId), [entityId]),
@@ -81,6 +82,7 @@ export function useChatSlashCommands({
         useMemo(() => workflowMolecule.selectors.parametersSchema(entityId), [entityId]),
     )
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(""))
+    const customSecrets = useAtomValue(customSecretsAtom)
     const setConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const raiseDraftSignal = useSetAtom(draftConfigChangeSignalAtom)
 
@@ -89,10 +91,6 @@ export function useChatSlashCommands({
     const scope = useChatScopeKey()
     const addSession = useSetAtom(addSessionAtomFamily(scope))
     const newSessionLocked = !!useOptionalOnboardingContext()?.newSessionLocked
-    const startNewSession = useCallback(() => {
-        addSession()
-        onCommandRun?.()
-    }, [addSession, onCommandRun])
 
     const [picker, setPicker] = useState<SlashPicker>(null)
 
@@ -129,10 +127,22 @@ export function useChatSlashCommands({
         (!parametersSchema || permissionPolicySchema(parametersSchema) !== null) &&
         permissionOptions.length > 0
 
+    /**
+     * The same model source the config drawer uses: the harness-filtered inspect catalog PLUS the
+     * vault's custom_provider models, so a configured Bedrock/custom connection is selectable here
+     * too. Built from one recipe with `useModelHarness` so the two pickers cannot list different
+     * models for the same agent.
+     */
     const modelGroups = useMemo(
-        () => buildModelOptionGroups(capabilities, currentHarness),
-        [capabilities, currentHarness],
+        () => [
+            ...buildModelOptionGroups(capabilities, currentHarness),
+            ...vaultModelGroups(customSecrets, capabilities, currentHarness),
+        ],
+        [capabilities, currentHarness, customSecrets],
     )
+    // With neither source the drawer falls back to a schema-driven picker, which this palette does
+    // not host — so offer no `/model` at all rather than a command that opens an empty panel.
+    const modelAvailable = modelGroups.length > 0
 
     const harnessIds = useMemo(
         () => selectableHarnesses(capabilities ? Object.keys(capabilities) : []),
@@ -160,11 +170,29 @@ export function useChatSlashCommands({
         [entityId, raiseDraftSignal, setConfiguration],
     )
 
+    /**
+     * Apply a picked model. A vault-hosted option carries its own connection slug and deployment
+     * kind in `metadata` (put there by `vaultModelGroups`); a catalog option carries neither. Read
+     * them off the PICKED option rather than re-deriving from the model id — duplicate ids exist
+     * across providers/connections — and mirror the drawer's provider rule: a vault pick resolves
+     * to the model FAMILY, since a connection's own kind (bedrock/…) would fail the harness check.
+     */
     const applyModel = useCallback(
-        (modelId: string) => {
-            const provider = providerForModel(capabilities, currentHarness, modelId)
+        (modelId: string, option?: {metadata?: Record<string, unknown>}) => {
+            const metadata = option?.metadata
+            const connectionSlug =
+                typeof metadata?.connectionSlug === "string" ? metadata.connectionSlug : null
+            const metadataProvider =
+                typeof metadata?.provider === "string" ? metadata.provider : null
+            const provider = connectionSlug
+                ? (vaultPickedProviderFamily(modelId, metadataProvider, capabilities) ??
+                  providerForModel(capabilities, currentHarness, modelId))
+                : providerForModel(capabilities, currentHarness, modelId)
             const label = modelLabel(capabilities, currentHarness, modelId) ?? modelId
-            write(withModel(config, {modelId, provider}), `Model set to ${label}`)
+            write(
+                withModel(config, {modelId, provider, slug: connectionSlug}),
+                `Model set to ${label}`,
+            )
             setPicker(null)
         },
         [capabilities, config, currentHarness, write],
@@ -289,15 +317,17 @@ export function useChatSlashCommands({
         const SHOW_TOOLS = false
 
         const commandItems = compact([
-            {
-                key: "model",
-                label: "/model",
-                description: "Switch the model for this agent",
-                tail: currentModelLabel ? `${currentModelLabel} ›` : "›",
-                icon: <Cpu size={14} />,
-                kind: "open" as const,
-                onSelect: () => openPicker("model"),
-            },
+            modelAvailable
+                ? {
+                      key: "model",
+                      label: "/model",
+                      description: "Switch the model for this agent",
+                      tail: currentModelLabel ? `${currentModelLabel} ›` : "›",
+                      icon: <Cpu size={14} />,
+                      kind: "open" as const,
+                      onSelect: () => openPicker("model"),
+                  }
+                : null,
             {
                 key: "harness",
                 label: "/harness",
@@ -326,12 +356,26 @@ export function useChatSlashCommands({
                       description: "Start a fresh session with this agent",
                       icon: <ChatCircleDots size={14} />,
                       kind: "action" as const,
-                      onSelect: startNewSession,
+                      onSelect: () => addSession(),
                   },
         ])
 
+        /**
+         * A skill's typeable slug. An `@ag.embed` entry keeps it under
+         * `@ag.embed.@ag.references.workflow` (or `workflow_revision` when pinned), NOT at the top
+         * level — `staticEmbedSlug` is the reader the config panel already uses for exactly that.
+         * Inline skills carry a plain top-level slug, so they fall through to `entryToken`.
+         */
+        const skillToken = (skill: unknown): string | undefined => {
+            const embedded = skill && typeof skill === "object"
+            return (
+                (embedded ? staticEmbedSlug(skill as Record<string, unknown>) : undefined) ??
+                entryToken(skill)
+            )
+        }
+
         const skillItems = compact(
-            skills.map((skill, i) => row(describeSkill(skill), entryToken(skill), i, "skill")),
+            skills.map((skill, i) => row(describeSkill(skill), skillToken(skill), i, "skill")),
         )
         /**
          * Platform ops (`commit_revision`, `list_connections`, schedules) and browser-fulfilled
@@ -363,10 +407,11 @@ export function useChatSlashCommands({
         currentHarness,
         currentModelLabel,
         currentPermissionLabel,
+        modelAvailable,
         newSessionLocked,
+        addSession,
         openPicker,
         permissionsAvailable,
-        startNewSession,
         suspended,
     ])
 

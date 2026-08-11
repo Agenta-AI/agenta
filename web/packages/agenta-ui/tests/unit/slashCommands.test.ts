@@ -6,6 +6,7 @@ import {
     isSameRun,
     matchLabel,
     readCommandRun,
+    runFollowsBoundary,
     type SlashCommandSection,
 } from "../../src/RichChatInput/assets/slashCommands"
 
@@ -43,6 +44,28 @@ describe("readCommandRun", () => {
     it("tracks the run's start as it moves through the message", () => {
         expect(readCommandRun("a /x")?.start).toBe(2)
         expect(readCommandRun("aa /x")?.start).toBe(3)
+    })
+})
+
+describe("runFollowsBoundary", () => {
+    // A run flush against its node's start is only disqualified by real preceding TEXT. Formatting
+    // splits a paragraph into sibling text nodes, so `hello ` + bold `/model` must still open —
+    // the old check rejected any previous sibling at all.
+    it("allows a run that starts the block", () => {
+        expect(runFollowsBoundary("")).toBe(true)
+    })
+
+    it("allows a run whose preceding sibling ends in a space", () => {
+        expect(runFollowsBoundary("hello ")).toBe(true)
+    })
+
+    it("allows a run preceded by a newline", () => {
+        expect(runFollowsBoundary("hello\n")).toBe(true)
+    })
+
+    it("rejects a run butted against a word, the `and/or` case across nodes", () => {
+        expect(runFollowsBoundary("and")).toBe(false)
+        expect(runFollowsBoundary("https:/")).toBe(false)
     })
 })
 

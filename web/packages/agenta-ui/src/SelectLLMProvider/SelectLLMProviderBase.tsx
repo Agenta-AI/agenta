@@ -104,6 +104,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     const rid = useId()
     const listId = `${rid}-listbox`
     const optionId = (index: number) => `${rid}-opt-${index}`
+    // The grouped view is TWO listboxes side by side and the keyboard moves between them, so each
+    // column needs its own id space for `aria-activedescendant` to name a row in either.
+    const providerListId = `${rid}-providers`
+    const providerOptionId = (index: number) => `${rid}-prov-${index}`
+    const modelListId = `${rid}-models`
+    const modelOptionId = (index: number) => `${rid}-model-${index}`
 
     // Normalize the loose incoming option shapes ONCE, before filtering, so the trigger can
     // still resolve the selected label while a search is narrowing the list.
@@ -169,6 +175,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
     const showPanels = shouldUseProviderPanels && !isSearching
     const hoveredGroup = useMemo(
         () => filteredProviders.find((group) => group.label === hoveredProvider) ?? null,
+        [filteredProviders, hoveredProvider],
+    )
+    /** Where the provider cursor sits, so the search field can name that row to a screen reader. */
+    const activeProviderIndex = useMemo(
+        () => filteredProviders.findIndex((group) => group.label === hoveredProvider),
         [filteredProviders, hoveredProvider],
     )
     // Anchored to a caller's element (the composer's `/model`), the panel spans that element —
@@ -480,11 +491,26 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 ref={inputRef}
                                 placeholder="Search"
                                 aria-label="Search"
-                                aria-controls={showPanels ? undefined : listId}
+                                // Focus stays here in BOTH views, so this field is what names the
+                                // active row. In the grouped view that row lives in the provider
+                                // column until you step right into the models column.
+                                aria-controls={
+                                    showPanels
+                                        ? activeModelIndex === null
+                                            ? providerListId
+                                            : modelListId
+                                        : listId
+                                }
                                 aria-activedescendant={
-                                    showPanels || !flatItems[activeIndex]
-                                        ? undefined
-                                        : optionId(activeIndex)
+                                    showPanels
+                                        ? activeModelIndex === null
+                                            ? activeProviderIndex >= 0
+                                                ? providerOptionId(activeProviderIndex)
+                                                : undefined
+                                            : modelOptionId(activeModelIndex)
+                                        : flatItems[activeIndex]
+                                          ? optionId(activeIndex)
+                                          : undefined
                                 }
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -574,7 +600,12 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                 className="flex min-w-0 flex-col"
                                 style={{width: providerPanelWidth}}
                             >
-                                <div className="py-1">
+                                <div
+                                    className="py-1"
+                                    role="listbox"
+                                    id={providerListId}
+                                    aria-label="Providers"
+                                >
                                     {filteredProviders.map((group, idx) => {
                                         const Icon = getProviderIcon(group.label || "")
                                         const isHovered = hoveredProvider === group.label
@@ -585,6 +616,11 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                         return (
                                             <div
                                                 key={`provider-${group.label}-${idx}`}
+                                                id={providerOptionId(idx)}
+                                                role="option"
+                                                // The open column IS this listbox's chosen row —
+                                                // there is no other provider value to mark.
+                                                aria-selected={isHovered}
                                                 data-active={isHovered && activeModelIndex === null}
                                                 onMouseEnter={() => {
                                                     setHoveredProvider(group.label || null)
@@ -620,6 +656,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                             {hoveredGroup && (
                                 <div
                                     role="listbox"
+                                    id={modelListId}
                                     aria-label={hoveredGroup.label ?? "Models"}
                                     className="absolute inset-y-0 right-0 overflow-y-auto border-0 border-l border-solid border-border py-1"
                                     style={{width: modelListWidthCss}}
@@ -628,6 +665,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                     {hoveredGroup.options.map((option, index) => (
                                         <div
                                             key={option.key ?? option.value}
+                                            id={modelOptionId(index)}
                                             role="option"
                                             aria-selected={option.value === value}
                                             data-active={index === activeModelIndex}

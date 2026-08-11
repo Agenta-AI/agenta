@@ -115,10 +115,18 @@ export {
     harnessAllowsModel,
     modelLabel,
     providerForModel,
+    vaultModelGroups,
+    vaultPickedProviderFamily,
 } from "./connectionUtils"
 export type {ModelOptionGroup} from "./connectionUtils"
 // Row presentation for config items (name/description/tags), shared with the `/` palette.
-export {describeMcp, describeSkill, describeTool, toolName} from "./agentTemplate/itemDescriptors"
+export {
+    describeMcp,
+    describeSkill,
+    describeTool,
+    staticEmbedSlug,
+    toolName,
+} from "./agentTemplate/itemDescriptors"
 export type {ItemDescriptor} from "./agentTemplate/itemDescriptors"
 export {HARNESS_META, harnessMetaFor, selectableHarnesses} from "./harnessMeta"
 export type {HarnessMeta} from "./harnessMeta"
