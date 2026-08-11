@@ -37,8 +37,13 @@ the owner resolves from `AuthScope` rather than being passed separately.
 
 The model-routing logic to move behind the gateway is the provider-settings builder in the
 SDK's secrets manager, not the callback handler in the SDK's model folder — the folder name
-is misleading. Review that the extraction takes the builder plus the call, and leaves the
-observability callback where it is.
+is misleading. Confirmed against the code.
+
+**There are two copies of the builder**, differing only in which execution context they read
+secrets from: the older routing context and the newer workflow context. The workflow copy is the
+one both production chat call sites use. An extraction taking only one leaves a live second
+implementation behind, so review that it takes both, plus the call, and leaves the observability
+callback where it is.
 
 ---
 
@@ -69,26 +74,48 @@ The per-run deny-set is built from every credential value on the wire. Once thos
 to one short-lived token, review whether the deny-set construction still earns its
 complexity.
 
-### OR8. Provider enum coupling
+### OR8. Provider enum coupling — enumerated
 
-Prior research flagged several hard-coded provider couplings — a default provider value on
-the tool config, a provider enum, a resolver allow-list that rejects unknown providers.
-Verify each still exists and widen them together rather than piecemeal.
+Verified, and there are more than the three previously flagged. Widen them together rather than
+piecemeal; the full set, all in the Python SDK unless noted:
+
+- The static model catalogue itself, eleven providers each with a model list, plus the flat
+  model-to-provider map derived from it, plus the per-model cost table derived from that.
+- Two secret-kind enums naming providers: one for standard providers, one for custom ones, which
+  additionally carries the reseller deployment kinds.
+- In the harness capability table: the set of providers reachable with a vault key, the
+  subscription-authenticated set, per-harness model alias lists, and a per-harness map of which
+  provider family that harness's OpenAI-compatible deployment accepts. **That last one is the
+  table a gateway route has to satisfy.**
+- The canonical provider-to-environment-variable map, which the runner **mirrors by hand** in
+  TypeScript for its clear-then-apply step. Two copies that must agree.
+- A hard-coded provider-to-base-URL map used when no custom endpoint is supplied.
+- A provider-kind alias map fixing one vendor spelling.
+
+Two of these are worth separating from the rest: the environment-variable map is duplicated
+across languages, and the harness deployment map is the one the gateway must satisfy rather than
+merely widen.
 
 ---
 
 ## Claims to re-verify
 
-### OR9. Model call sites — CLOSED
+### OR9. Model call sites — CLOSED, and recounted
 
-Counted. Four paths, not two. See `raw/model-call-sites.md`.
+Counted twice. **Six sites across three shapes**, not the four first recorded. See
+`raw/model-call-sites.md`, which also records what the first count got wrong.
 
-Three sit in one SDK file: one chat call through the router, and two embeddings calls that
-use the OpenAI client directly. The fourth is the harness inside the sandbox. **The API calls
-no models at all**, and the runner only picks and checks a model id.
+Five sit in one SDK file, `sdks/python/agenta/sdk/engines/running/handlers.py`: three chat calls
+(two through a shared retry wrapper, one bypassing it) and two similarity evaluators using the
+OpenAI client directly for embeddings. The sixth is the harness inside the sandbox. **The API
+calls no models at all**, and the runner only picks and checks a model id.
 
-Two consequences carried into the design: the north port needs an embeddings route, and the
-`llm_v0` handler's module-level key assignment must not reach a shared process. See OR13.
+Three things carried into the design. The embeddings sites are deferred with the whole evaluator
+path (D15) rather than forcing a route now. The `llm_v0` handler's module-level key assignment
+must not reach a shared process, as an outcome of the conversion rather than a gate in front of
+it — see OR13. And **the routing library's `Router` class is never instantiated anywhere in this
+repo**, so none of its retry, fallback or load-balancing behaviour is inherited by moving the
+call.
 
 ### OR14. The secrets read surface — close it once nothing needs it
 
@@ -124,8 +151,18 @@ does when pointed at a gateway, and whether it must stay an exception to the tra
 Establish what policy, if any, runs on each current model call site. This is the baseline
 the gateway has to at least preserve.
 
-### OR12. MCP SDK is not currently a dependency
+### OR12. MCP SDK is not a direct dependency — CONFIRMED, with a wrinkle
 
-Neither the runner nor the Python projects declare an MCP SDK directly. Adding one is a new
-dependency decision, not an upgrade — review version pinning and the transitive situation in
-the runner before assuming it is already available.
+Neither the runner nor any Python project declares an MCP SDK. Verified: no
+`@modelcontextprotocol/*` entry in the runner's package manifest, and no `mcp` package in any of
+the four Python lock files.
+
+**The wrinkle: it is already resolved transitively and deliberately not used.** The runner's lock
+file pins the official TypeScript SDK, but only underneath the harness adapter packages. The
+runner's own internal MCP server — the loopback channel that delivers first-party tools to a
+harness — **hand-rolls the JSON-RPC framing rather than importing it**, with a comment saying to
+pin against whatever version the installed harness bundles if the framing drifts.
+
+So adding an SDK is still a new dependency decision, and there is now a second question beside
+version pinning: whether the gateway's own MCP surface follows the hand-rolled precedent or
+breaks with it.

@@ -136,6 +136,31 @@ request payload.
 The lesson generalizes: this design's remaining novelty is much smaller than it first
 appeared, and the reflex should be to look for the existing shape before proposing one.
 
+### The OAuth callback machinery is already built, twice
+
+Proposed here as work, then found in the tree.
+
+**A signed state parameter.** The connections domain already mints a server-owned, HMAC-signed
+OAuth state carrying the project and the user, with a one-hour default validity, and decodes it
+on the way back. The callback route is the one endpoint in the whole gateway family with no
+permission check, because it authenticates on that signed state rather than on a tenant
+credential, and it answers with a small HTML page that closes the popup.
+
+**A signed inbound webhook.** The triggers ingress verifies an HMAC over an identifier, a
+timestamp and the body, with a freshness window and a replay check, then enqueues and returns
+immediately. An inbound OAuth callback to a firewalled deployment is the same shape.
+
+The MCP OAuth work therefore inherits the state signer, the unauthenticated-callback pattern and
+the popup-closing response. What it does not inherit is reachability, which is why that stays
+open — see `open-designs.md`.
+
+### One flaw in that machinery, worth fixing rather than copying
+
+The callback path the connections service builds is hardcoded to the tool domain's mount, even
+though the trigger domain creates connections through the same service. A third consumer would
+make that three. The comment in the code says the public contract was kept unchanged when the
+connection moved into its own domain, which explains it without justifying inheriting it.
+
 ### The two-axis credential model came from a real gap
 
 "API key versus OAuth" conflates authentication method with credential ownership. Personal

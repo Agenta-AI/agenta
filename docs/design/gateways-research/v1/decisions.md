@@ -326,9 +326,13 @@ Tracked in [`open-designs.md`](open-designs.md) until they settle here. Two earl
 are now closed — the model call sites are counted and the routing library runs in-process
 (`raw/model-call-sites.md`).
 
+Four items previously listed here have since settled and are now decisions above: the MCP
+endpoint shape (D16), step-up scope handling (D17), and embeddings, which are deferred with the
+whole evaluator path (D15) rather than answered.
+
 What remains:
 
-- The MCP endpoint shape: one merged endpoint with namespaced tools, or one per server.
-- Step-up scope handling.
-- Whether embeddings share the model registry and resolution path, or need their own.
 - The order the concerns arrive in, under D12.
+- What each gateway does in its first increment, marked in `scope-checklist.md`.
+- Whether a clamped parameter fails the call or is silently lowered.
+- How an OAuth redirect reaches a firewalled deployment. Belongs to the OAuth checkpoint.

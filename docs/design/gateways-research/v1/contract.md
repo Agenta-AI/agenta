@@ -32,9 +32,12 @@ injects no credential today.
 MCP over Streamable HTTP, targeting the stateless revision. Routing reads the required method
 and target headers rather than the body.
 
-*To establish:* the endpoint shape — one merged endpoint with namespaced tools or one per
-server — which `mcp.md` carries as open, and how list caching interacts with per-caller tool
-allowlists given list results now carry a shared-intermediary scope flag.
+The endpoint shape is settled: **one URL per server**, the identifier in it namespaced, and the
+proxy transparent — same tool names, same schemas, same errors (D19 and D20 on what an endpoint
+is and which ones are stored; D16 on the shape).
+
+*To establish:* how list caching interacts with per-caller tool allowlists, given list results
+now carry a shared-intermediary scope flag.
 
 ### What the wire looks like from the runner
 

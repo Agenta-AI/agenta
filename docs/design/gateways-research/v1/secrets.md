@@ -47,9 +47,13 @@ several things that would otherwise be design work:
 ## New secret kinds
 
 Existing kinds are `provider_key`, `custom_provider`, `sso_provider`, `webhook_provider` and
-`custom_secret`. Adding one touches four places: the kind enum, a settings DTO plus its
-wrapper, the discriminated union on the secret DTO, and a validation branch in the kind
-validator.
+`custom_secret`. Adding one touches four places and **no schema at all**, because the payload is
+one encrypted blob: the kind enum, a settings DTO plus its wrapper, the union member list on the
+secret DTO, and a branch in the kind validator.
+
+That validator is a hand-written `model_validator(mode="before")` dispatching on the sibling
+`kind` field, not a Pydantic discriminated union — so a new kind must add its own branch or it
+is rejected outright.
 
 **Never overload an existing kind.** The general-purpose custom secret and custom provider
 kinds exist for other things, and reusing one to avoid adding a kind is a false economy.

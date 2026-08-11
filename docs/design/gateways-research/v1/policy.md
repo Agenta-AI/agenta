@@ -99,5 +99,5 @@ precedent to follow rather than invent around.
 ## The test that matters
 
 If this document ends up being two documents — one per plane — with little in common, then
-`decisions.md` D1 is wrong and the gateways should be separate systems with separate
-lifecycles. **Watch for that outcome rather than defending against it.**
+`decisions.md` D7, which claims one policy core under two protocol surfaces, is wrong and the
+gateways should be separate systems with separate lifecycles. **Watch for that outcome rather than defending against it.**
