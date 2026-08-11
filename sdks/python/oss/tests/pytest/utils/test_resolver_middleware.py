@@ -731,6 +731,7 @@ class TestArchivedReferenceGuard:
         assert fallback_body["include_archived"] is False
         assert probe_body["include_archived"] is True
 
+
 class TestResolverMiddlewareHydrationIntent:
     """Tests for WHEN reference hydration fires.
 
