@@ -83,7 +83,7 @@ export const PanelSection = ({
     const isRail = variant === "rail"
     return (
         <section
-            className={`flex flex-col ${
+            className={`ag-panel-section flex flex-col ${
                 isRail
                     ? // Each section is its own card. Stacked inside one, they read as a single
                       // block: same surface, same colour, a hairline carrying every boundary.
@@ -94,7 +94,7 @@ export const PanelSection = ({
             } ${minHeightClassName ?? ""}`}
         >
             <div
-                className={`flex shrink-0 items-center justify-between gap-2 ${
+                className={`ag-panel-section-header flex shrink-0 items-center justify-between gap-2 ${
                     isRail
                         ? `bg-colorBgElevated px-4 pb-2 pt-4 ${sticky ? "sticky top-0 z-10" : ""}`
                         : `px-2 pb-2 pt-2 ${

@@ -45,8 +45,8 @@ const wrapHeader = (columnKey: string, content: React.ReactNode, label?: string)
 
 const STATUS_STYLE_MAP: Record<string, {dotClass: string; textClass: string}> = {
     success: {
-        dotClass: "bg-emerald-500",
-        textClass: "text-emerald-700",
+        dotClass: "bg-[#2E7D3A] dark:bg-[#8FBF7A]",
+        textClass: "text-[#2E7D3A] dark:text-[#8FBF7A]",
     },
     failed: {
         dotClass: "bg-red-500",
@@ -301,6 +301,7 @@ export function buildPreviewColumns<RowType>({
                             <Tooltip title={tooltipLabel} placement="topLeft">
                                 <span className="inline-flex items-center gap-2 text-xs font-medium">
                                     <span
+                                        data-status-dot={statusKey}
                                         className={clsx("h-2 w-2 rounded-full", style.dotClass)}
                                     />
                                     <span className={clsx(style.textClass)}>{displayValue}</span>

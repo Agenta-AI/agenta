@@ -5,7 +5,7 @@ import {type UIMessage} from "ai"
 import {Button} from "antd"
 import {Virtuoso} from "react-virtuoso"
 
-import {EDGE_FADE_MASK} from "../assets/conversationLayout"
+import {BOTTOM_FADE_OVERLAY_STYLE, EDGE_FADE_MASK} from "../assets/conversationLayout"
 import {type ScrollIntent} from "../hooks/useScrollIntent"
 import {type useTranscriptScroll} from "../hooks/useTranscriptScroll"
 import {type VirtCtx, type useVirtuosoTranscript} from "../hooks/useVirtuosoTranscript"
@@ -139,6 +139,15 @@ const AgentTranscript = ({
                     )}
                 </div>
             )}
+
+            {/* Bottom-edge fade, painted as a sibling OUTSIDE the scroll container's masked
+            subtree (see EDGE_FADE_MASK's comment) so a hovering message's stats chip — z-10,
+            deep inside that subtree — can render above it instead of being masked out. */}
+            <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-0 z-[5]"
+                style={BOTTOM_FADE_OVERLAY_STYLE}
+            />
 
             {/* Always mounted so it can fade + slide in/out; hidden state is non-interactive and
                 keeps `-translate-x-1/2` (Tailwind composes x/y translate on one transform). */}

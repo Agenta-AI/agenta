@@ -311,6 +311,9 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 }
                 defaultOpen={scopedSubscriptions.length > 0}
                 animateInitialOpen
+                // Same expanded-header band Tools uses (see AgentTemplateSectionList): white while
+                // collapsed, recoloured while open. The bleed matches this region's px-4 container.
+                headerBand="-mx-4 px-4"
             >
                 {scopedSubscriptions.length > 0 ? (
                     // Grouped by provider. The connections + catalog queries live inside this child
@@ -341,6 +344,7 @@ export function TriggerManagementSection({entityId, disabled}: TriggerManagement
                 defaultOpen={scopedSchedules.length > 0}
                 noDivider
                 animateInitialOpen
+                headerBand="-mx-4 px-4"
             >
                 {scopedSchedules.length > 0 ? (
                     <div className="flex flex-col gap-2">

@@ -1,7 +1,11 @@
-import React, {memo, useCallback, useEffect, useMemo, useRef} from "react"
+import React, {type CSSProperties, memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {Divider, Layout} from "antd"
 import {useAtom} from "jotai"
+
+import {SIDEBAR_COLLAPSED_WIDTH} from "@/oss/lib/atoms/sidebar"
+
+import {useSidebarResize} from "../hooks/useSidebarResize"
 
 import SidebarMenu from "./SidebarMenu"
 import type {SidebarConfig, SidebarScope, SidebarSection, SidebarShellProps} from "./types"
@@ -157,6 +161,8 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     theme,
 }) => {
     const [collapsed] = useAtom(collapsedAtom)
+    const railRef = useRef<HTMLDivElement>(null)
+    const {width, handleProps} = useSidebarResize({railRef, disabled: collapsed})
     const openGroupsAtom = useMemo(
         () => openGroupsAtomFamily(scope.id),
         [openGroupsAtomFamily, scope.id],
@@ -294,22 +300,27 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
     const bottomSections = visibleSections.filter((section) => section.placement === "bottom")
 
     return (
-        <div className="border-0 border-r border-solid border-[var(--ag-shell-line)]">
+        <div
+            ref={railRef}
+            // Width lives in --ag-sidebar-w so a drag can repaint it without a React render;
+            // data-resizing kills the collapse transition so the rail tracks the pointer 1:1.
+            className="group/rail relative border-0 border-r border-solid border-[var(--ag-shell-line)] [&[data-resizing=true]_*]:!transition-none"
+            style={
+                {
+                    "--ag-sidebar-w": `${collapsed ? SIDEBAR_COLLAPSED_WIDTH : width}px`,
+                } as CSSProperties
+            }
+        >
             <Sider
                 theme={theme}
                 // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
                 // document-scrolling routes; 0px everywhere else.
                 className="sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] bg-[var(--ag-sidebar-bg)]"
                 collapsible
-                width={collapsed ? 48 : 236}
+                width="var(--ag-sidebar-w)"
                 trigger={null}
             >
-                <div
-                    className={[
-                        "flex flex-col h-full transition-all duration-300",
-                        collapsed ? "w-[48px]" : "w-[236px]",
-                    ].join(" ")}
-                >
+                <div className="flex flex-col h-full w-[var(--ag-sidebar-w)] transition-all duration-300">
                     {renderSlot(scope.header, collapsed, scope.lastPath)}
                     <SidebarErrorBoundary>
                         <div className="flex flex-col justify-between items-center h-full overflow-y-auto">
@@ -325,6 +336,17 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     </SidebarErrorBoundary>
                 </div>
             </Sider>
+            {!collapsed && (
+                <div
+                    // Invisible 9px grab strip straddling the hairline; the ::after is the
+                    // hairline itself, tinted only while hovering or dragging.
+                    className="absolute inset-y-0 -right-1 z-10 w-[9px] cursor-col-resize touch-none after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors hover:after:bg-colorBorder group-data-[resizing=true]/rail:after:bg-colorPrimary"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize sidebar"
+                    {...handleProps}
+                />
+            )}
         </div>
     )
 }

@@ -316,6 +316,10 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 "[&_.ant-menu-item]:relative [&_.ant-menu-submenu-title]:relative",
                 "[&_.ant-menu-item-disabled_a]:pointer-events-none [&_.ant-menu-submenu-disabled_a]:pointer-events-none",
                 "[&_.ant-menu-item]:!rounded-md [&_.ant-menu-submenu-title]:!rounded-md",
+                // The selected pill's hairline. An inset ring, not a border, so the row's box
+                // never changes size between states. The token is transparent in dark, which
+                // leaves the shipped dark selection (olive bg + olive text) exactly as-is.
+                "[&_.ant-menu-item-selected]:!shadow-[inset_0_0_0_1px_var(--ag-shell-selected-border)]",
                 "[&_.ant-menu-item-icon]:!shrink-0",
                 "!border-0 [&_.ant-menu-item-divider]:!w-full [&_.ant-menu-item-divider]:!my-2",
                 {

@@ -2,6 +2,7 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {buildRunIndex, type RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
+import {CHART_SERIES_LIGHT} from "@/oss/lib/helpers/chartPalette"
 
 import {evaluationRunQueryAtomFamily} from "./table/run"
 import type {EvaluationRunQueryResult} from "./table/run"
@@ -16,14 +17,12 @@ export const MAX_COMPARISON_RUNS = 4
  */
 // `tint` routes through CSS vars (see theme-variables.css --ag-cmp-tint-*) so the
 // light pastel row backgrounds become a subtle dark wash in dark mode instead of
-// bright light bands. `solid` colors work on either theme as-is.
-export const RUN_COMPARISON_PALETTE = [
-    {solid: "#3B82F6", tint: "var(--ag-cmp-tint-0)"}, // Blue
-    {solid: "#F97316", tint: "var(--ag-cmp-tint-1)"}, // Orange
-    {solid: "#8B5CF6", tint: "var(--ag-cmp-tint-2)"}, // Purple
-    {solid: "#10B981", tint: "var(--ag-cmp-tint-3)"}, // Green
-    {solid: "#EC4899", tint: "var(--ag-cmp-tint-4)"}, // Pink
-]
+// bright light bands. `solid` is the categorical series set in fixed order; these are
+// read from non-React modules, so they carry the light order in both themes.
+export const RUN_COMPARISON_PALETTE = CHART_SERIES_LIGHT.map((solid, index) => ({
+    solid,
+    tint: `var(--ag-cmp-tint-${index})`,
+}))
 
 /** Light background colors for table row distinction */
 export const COMPARISON_COLORS = RUN_COMPARISON_PALETTE.map((c) => c.tint)

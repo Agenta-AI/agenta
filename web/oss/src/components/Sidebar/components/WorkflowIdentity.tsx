@@ -14,7 +14,9 @@ const WORKFLOW_DISPLAY_META: Record<
     agent: {
         label: "Agent",
         Icon: RobotIcon,
-        className: "bg-[var(--ant-purple-1)] text-[var(--ant-purple-6)]",
+        // Recolor spec: the olive accent chip in dark, the Agent tag pair in light.
+        className:
+            "bg-[#E5F1F9] text-[#113955] dark:bg-[rgba(209,209,81,0.15)] dark:text-[#D1D151]",
     },
     prompt: {
         label: "Prompt",

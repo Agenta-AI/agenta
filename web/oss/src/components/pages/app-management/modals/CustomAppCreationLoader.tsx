@@ -1,3 +1,7 @@
+import clsx from "clsx"
+
+/** The arc and the checkmark ride on currentColor: the categorical blue while it spins, the
+ * success step once it lands. */
 const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
     return (
         <div className="loading-circle">
@@ -7,7 +11,10 @@ const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
                 viewBox="0 0 160 160"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className={`${isFinish && "*:!stroke-[var(--ag-c-36CFC9)] *:!shadow-[0px_0px_10px_0px_#B2F8FF]"}`}
+                className={clsx(
+                    "text-[#113955] dark:text-[#8CCFFF]",
+                    isFinish && "!text-[#2E7D3A] dark:!text-[#8FBF7A] *:!stroke-current",
+                )}
             >
                 <path
                     d="M77 140C62.0921 139.336 47.9729 133.117 37.4232 122.568C26.8734 112.018 20.6577 97.902 20 83"
@@ -16,7 +23,7 @@ const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
 
                 <path
                     d="M20 77C20.6632 62.0925 26.882 47.9737 37.4317 37.4239C47.9815 26.8742 62.0975 20.6582 77 20"
-                    stroke="#36CFC9"
+                    stroke="currentColor"
                     strokeWidth="2"
                 />
 
@@ -88,7 +95,7 @@ const CustomAppCreationLoader = ({isFinish}: {isFinish: boolean}) => {
                                 y="41"
                                 width="77.7436"
                                 height="77.7436"
-                                fill="#36CFC9"
+                                fill="currentColor"
                             />
                         </g>
                         <defs>
