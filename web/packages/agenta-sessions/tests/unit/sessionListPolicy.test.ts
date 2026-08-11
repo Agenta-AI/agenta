@@ -2,6 +2,7 @@ import type {SessionStream} from "@agenta/entities/session"
 import {describe, expect, it} from "vitest"
 
 import {
+    awaitingHiddenRows,
     isStartedSession,
     selectedSessionListPolicy,
     sessionListIdGroupLimit,
@@ -149,5 +150,41 @@ describe("shouldLoadMoreForHiddenRows", () => {
                 isFetchingNextPage: false,
             }),
         ).toBe(false)
+    })
+
+    // A failed `fetchNextPage` leaves `hasNextPage` true, so retrying on it spins forever.
+    it("does not retry a page that just failed", () => {
+        expect(
+            shouldLoadMoreForHiddenRows({
+                visibleRows: 0,
+                hasNextPage: true,
+                isFetchingNextPage: false,
+                isError: true,
+            }),
+        ).toBe(false)
+    })
+})
+
+describe("awaitingHiddenRows", () => {
+    // The status the list renders from: it must outlast the fetch trigger, or the empty state
+    // appears the moment the request starts and disappears again when it lands.
+    it("stays true while the top-up request is in flight", () => {
+        expect(awaitingHiddenRows({visibleRows: 0, hasNextPage: true})).toBe(true)
+        expect(
+            shouldLoadMoreForHiddenRows({
+                visibleRows: 0,
+                hasNextPage: true,
+                isFetchingNextPage: true,
+            }),
+        ).toBe(false)
+    })
+
+    it("ends the wait when the page fails, so the list stops hiding the empty state", () => {
+        expect(awaitingHiddenRows({visibleRows: 0, hasNextPage: true, isError: true})).toBe(false)
+    })
+
+    it("is not waiting once a row shows, or at the last page", () => {
+        expect(awaitingHiddenRows({visibleRows: 1, hasNextPage: true})).toBe(false)
+        expect(awaitingHiddenRows({visibleRows: 0, hasNextPage: false})).toBe(false)
     })
 })

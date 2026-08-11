@@ -18,6 +18,7 @@ export {
     selectedSessionListPolicy,
     isStartedSession,
     startedSessions,
+    awaitingHiddenRows,
     shouldLoadMoreForHiddenRows,
     type SessionOriginPolicy,
     type SessionListRequestPolicy,

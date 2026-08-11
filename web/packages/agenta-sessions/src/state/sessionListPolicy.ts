@@ -45,19 +45,39 @@ export const startedSessions = <T extends SessionStream>(rows: readonly T[]): T[
     rows.filter(isStartedSession)
 
 /**
- * Should the list pull its next page before rendering? A page is 30 rows and unstarted ones are
- * the NEWEST, so a burst of opened-but-unused chats can fill the whole first page — hiding them
- * would otherwise leave a "No sessions yet" over a list that has plenty, one click down.
+ * Is the list still waiting on a top-up? A page is 30 rows and unstarted ones are the NEWEST, so a
+ * burst of opened-but-unused chats can fill the whole first page — hiding them would otherwise
+ * leave a "No sessions yet" over a list that has plenty, one click down.
+ *
+ * Stays true for the WHOLE top-up, including while the request is in flight, so the list holds its
+ * loading state instead of flashing the empty one. A failed page ends the wait: `hasNextPage` is
+ * still true after a failure, so without this the list would wait forever on a page that never lands.
+ */
+export const awaitingHiddenRows = ({
+    visibleRows,
+    hasNextPage,
+    isError = false,
+}: {
+    visibleRows: number
+    hasNextPage: boolean
+    isError?: boolean
+}): boolean => visibleRows === 0 && hasNextPage && !isError
+
+/**
+ * The narrower "fire the request now" edge: only when nothing is already in flight, and never after
+ * a failure — `fetchNextPage` failing leaves `hasNextPage` true, so retrying on it would spin.
  */
 export const shouldLoadMoreForHiddenRows = ({
     visibleRows,
     hasNextPage,
     isFetchingNextPage,
+    isError = false,
 }: {
     visibleRows: number
     hasNextPage: boolean
     isFetchingNextPage: boolean
-}): boolean => visibleRows === 0 && hasNextPage && !isFetchingNextPage
+    isError?: boolean
+}): boolean => awaitingHiddenRows({visibleRows, hasNextPage, isError}) && !isFetchingNextPage
 
 export const sessionListIdGroupLimit = (
     sessionIds: readonly string[] | undefined,

@@ -18,6 +18,7 @@ import {
 } from "./filters"
 import {isSessionPinnedAtom, pinnedSessionIdsAtom, toggleSessionPinAtom} from "./pins"
 import {
+    awaitingHiddenRows,
     selectedSessionListPolicy,
     shouldLoadMoreForHiddenRows,
     startedSessions,
@@ -177,15 +178,18 @@ export const useSessionsList = ({
 
     // A whole page can be unstarted rows (they are the newest); pull the next one instead of
     // showing "No sessions yet" over a list that has plenty one page down.
-    const {hasNextPage, isFetchingNextPage, fetchNextPage} = listQuery
-    const topUp = shouldLoadMoreForHiddenRows({
+    const {hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage} = listQuery
+    const topUpArgs = {
         visibleRows: listRows.length,
         hasNextPage: Boolean(hasNextPage),
-        isFetchingNextPage,
-    })
+        isError: isFetchNextPageError,
+    }
+    // Held across the in-flight request too, or the list would flash empty mid-top-up.
+    const awaitingTopUp = awaitingHiddenRows(topUpArgs)
+    const shouldTopUp = shouldLoadMoreForHiddenRows({...topUpArgs, isFetchingNextPage})
     useEffect(() => {
-        if (topUp) void fetchNextPage()
-    }, [topUp, fetchNextPage])
+        if (shouldTopUp) void fetchNextPage()
+    }, [shouldTopUp, fetchNextPage])
 
     const refetchList = listQuery.refetch
     const refetchPinned = pinnedQuery.refetch
@@ -198,7 +202,7 @@ export const useSessionsList = ({
         groups,
         // Not "empty" while a top-up is on its way — that would flash the empty state over a
         // list whose first page happened to be all unstarted rows.
-        isEmpty: !topUp && groups.every((group) => group.rows.length === 0),
+        isEmpty: !awaitingTopUp && groups.every((group) => group.rows.length === 0),
         paging: {
             hasNext: Boolean(hasNextPage),
             isLoadingNext: isFetchingNextPage,

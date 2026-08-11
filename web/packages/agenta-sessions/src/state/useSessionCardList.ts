@@ -8,6 +8,7 @@ import {sessionRowVm, type SessionRowVm} from "../row/viewModel"
 
 import {pinnedSessionIdsAtom} from "./pins"
 import {
+    awaitingHiddenRows,
     shouldLoadMoreForHiddenRows,
     startedSessions,
     type SessionListRequestPolicy,
@@ -201,19 +202,22 @@ export const useSessionCardList = ({
 
     // A whole page can be unstarted rows (they are the newest) — pull the next one rather than
     // showing the card's empty state over sessions that exist one page down.
-    const topUp = shouldLoadMoreForHiddenRows({
+    const topUpArgs = {
         visibleRows: shownCount,
         hasNextPage: Boolean(hasNextPage),
-        isFetchingNextPage,
-    })
+        isError: listQuery.isFetchNextPageError,
+    }
+    // Held across the in-flight request too, or the card would flash empty mid-top-up.
+    const awaitingTopUp = awaitingHiddenRows(topUpArgs)
+    const shouldTopUp = shouldLoadMoreForHiddenRows({...topUpArgs, isFetchingNextPage})
     useEffect(() => {
-        if (topUp) void fetchNextPage()
-    }, [topUp, fetchNextPage])
+        if (shouldTopUp) void fetchNextPage()
+    }, [shouldTopUp, fetchNextPage])
 
     return {
         groups,
-        isPending: listQuery.isPending || topUp,
-        isEmpty: isEmpty && !topUp,
+        isPending: listQuery.isPending || awaitingTopUp,
+        isEmpty: isEmpty && !awaitingTopUp,
         /** All gated rows in this card's scope — the header's "N waiting" badge. */
         waitingTotal: waitingRowsAll.length,
         canShowMore,
