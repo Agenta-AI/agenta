@@ -24,6 +24,21 @@ SESSION_ORIGIN_TAG_KEY = "ag.origin"
 SESSION_TRIGGER_ID_TAG_KEY = "ag.trigger.id"
 SESSION_TRIGGER_KIND_TAG_KEY = "ag.trigger.kind"
 SESSION_TRIGGER_DELIVERY_ID_TAG_KEY = "ag.trigger.delivery_id"
+# Legacy: no current writer, but rows stamped before this diff may still carry it.
+SESSION_TRIGGER_NAME_TAG_KEY = "ag.trigger.name"
+
+# Single source of truth for "which tag keys are system attribution, never
+# caller-owned" — the writer (`trigger_attribution_tags`) and every sanitizer
+# import this instead of hand-copying the key list (P1-7: it had already drifted).
+SESSION_RESERVED_TAG_KEYS = frozenset(
+    {
+        SESSION_ORIGIN_TAG_KEY,
+        SESSION_TRIGGER_ID_TAG_KEY,
+        SESSION_TRIGGER_KIND_TAG_KEY,
+        SESSION_TRIGGER_DELIVERY_ID_TAG_KEY,
+        SESSION_TRIGGER_NAME_TAG_KEY,
+    }
+)
 
 
 def trigger_attribution_tags(
@@ -37,16 +52,44 @@ def trigger_attribution_tags(
     }
 
 
+def _strip_reserved_tags(
+    tags: Optional[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """The sanitization chokepoint (P1-6): every read path constructs its
+    `SessionStream` through `map_stream_dbe_to_dto`, so stripping here — rather
+    than in each of the API's seven hand-copied router call sites — is the one
+    place a future eighth read path automatically inherits the guarantee."""
+    if not tags:
+        return None
+    sanitized = {
+        key: value
+        for key, value in tags.items()
+        if key not in SESSION_RESERVED_TAG_KEYS
+    }
+    # All-reserved tags must read back as absent, not `{}` (P3-8).
+    return sanitized or None
+
+
 def decode_session_attribution(
     tags: Optional[Dict[str, Any]],
 ) -> tuple[
     Optional[SessionOrigin], Optional[SessionTrigger], Optional[SessionDelivery]
 ]:
-    tags = tags or {}
-    try:
-        origin = SessionOrigin(tags.get(SESSION_ORIGIN_TAG_KEY))
-    except (TypeError, ValueError):
-        origin = None
+    # A malformed JSONB value (e.g. a list) must not 500 every list containing the
+    # row (P3-10) — treat anything but a dict as untagged.
+    tags = tags if isinstance(tags, dict) else {}
+
+    origin_value = tags.get(SESSION_ORIGIN_TAG_KEY)
+    if origin_value is None:
+        # No stamp at all means a human session — every writer of `ag.origin` sets
+        # "trigger"; nothing ever stamped "manual" (P1-1). Default it here so a
+        # human session reports an origin instead of null.
+        origin = SessionOrigin.manual
+    else:
+        try:
+            origin = SessionOrigin(origin_value)
+        except (TypeError, ValueError):
+            origin = None
 
     try:
         trigger = SessionTrigger(
@@ -105,7 +148,7 @@ def map_stream_dbe_to_dto(
         flags=SessionStreamFlags.model_validate(stream_dbe.flags)
         if stream_dbe.flags
         else SessionStreamFlags(),
-        tags=stream_dbe.tags,
+        tags=_strip_reserved_tags(stream_dbe.tags),
         meta=stream_dbe.meta,
         origin=origin,
         trigger=trigger,

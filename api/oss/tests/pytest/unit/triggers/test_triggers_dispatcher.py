@@ -69,11 +69,11 @@ def _make_dao(*, seen=False, claim_lost=False):
     dao = MagicMock()
     dao.dedup_seen = AsyncMock(return_value=seen)
     dao.dedup_seen_schedule = AsyncMock(return_value=seen)
-    dao.write_delivery = AsyncMock()
     dao.write_subscription_delivery_if_live = AsyncMock()
 
     dao.claim_trigger_delivery = AsyncMock(return_value=not claim_lost)
     dao.update_delivery = AsyncMock()
+    dao.abandon_claimed_session = AsyncMock()
     return dao
 
 
@@ -149,7 +149,6 @@ async def test_inactive_entity_is_skipped():
     )
 
     dao.dedup_seen.assert_not_awaited()
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_invalid_subscription_is_not_silently_skipped():
@@ -198,7 +197,6 @@ async def test_duplicate_event_is_skipped():
     )
 
     dao.dedup_seen.assert_awaited_once()
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_missing_reference_writes_failed_delivery():
@@ -225,10 +223,17 @@ async def test_missing_reference_writes_failed_delivery():
     assert "no bound workflow" in update_kwargs["data"].error.lower()
     assert update_kwargs["delivery_id"] == claim["attribution"].delivery_id
     assert update_kwargs["data"].session_id == claim["session_id"]
-    dao.write_delivery.assert_not_awaited()
+    # P0-3: the claim inserted a session_streams row before this failure — it must
+    # be abandoned (soft-deleted), or it lingers forever as an un-sweepable phantom
+    # session (flags=NULL at claim time, so the orphan sweep can never match it).
+    dao.abandon_claimed_session.assert_awaited_once_with(
+        project_id=project_id, session_id=claim["session_id"]
+    )
 
 
-async def test_mapping_failure_keeps_claimed_session_and_skips_invoke(monkeypatch):
+async def test_mapping_failure_abandons_the_claimed_session_and_skips_invoke(
+    monkeypatch,
+):
     project_id = uuid4()
     subscription = _make_subscription(
         references={"workflow": Reference(slug="wf-1")},
@@ -260,6 +265,9 @@ async def test_mapping_failure_keeps_claimed_session_and_skips_invoke(monkeypatc
     assert completion["data"].session_id == claim["session_id"]
     assert completion["delivery_id"] == claim["attribution"].delivery_id
     workflows.invoke_workflow.assert_not_awaited()
+    dao.abandon_claimed_session.assert_awaited_once_with(
+        project_id=project_id, session_id=claim["session_id"]
+    )
 
 
 async def test_happy_path_invokes_workflow_and_writes_success():
@@ -314,7 +322,9 @@ async def test_happy_path_invokes_workflow_and_writes_success():
     assert update_kwargs["status"].code == "200"
     assert update_kwargs["data"].session_id == request.session_id
     assert update_kwargs["data"].inputs == {"number": 7}
-    dao.write_delivery.assert_not_awaited()
+    # The invoke succeeded, so the claimed session is real — it must not be
+    # abandoned (P0-3 only fires on the pre-invoke failure paths).
+    dao.abandon_claimed_session.assert_not_awaited()
 
 
 async def test_test_subscription_captures_event_and_skips_workflow():
@@ -357,7 +367,6 @@ async def test_test_subscription_dedups():
         project_id=project_id, subscription=subscription, event_id="e1", event=_EVENT
     )
 
-    dao.write_delivery.assert_not_awaited()
     workflows.invoke_workflow.assert_not_awaited()
 
 
@@ -387,7 +396,6 @@ async def test_workflow_non_200_writes_failed_delivery():
     dao.update_delivery.assert_awaited_once()
     update_kwargs = dao.update_delivery.await_args.kwargs
     assert update_kwargs["status"].code == "500"
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_detached_dispatch_writes_dispatched_delivery():
@@ -429,7 +437,6 @@ async def test_detached_dispatch_writes_dispatched_delivery():
     assert request.session_id == claim["session_id"]
     assert update_kwargs["data"].session_id == claim["session_id"]
     assert update_kwargs["delivery_id"] == claim["attribution"].delivery_id
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_detached_dispatch_failure_before_acceptance_marks_delivery_failed():
@@ -463,6 +470,11 @@ async def test_detached_dispatch_failure_before_acceptance_marks_delivery_failed
     assert completion["data"].session_id == claim["session_id"]
     assert completion["delivery_id"] == claim["attribution"].delivery_id
     workflows.invoke_workflow.assert_not_awaited()
+    # P0-3: dispatch never accepted the run, so the claimed row must be abandoned
+    # here too, not just on the input/reference-resolution failure path.
+    dao.abandon_claimed_session.assert_awaited_once_with(
+        project_id=project_id, session_id=claim["session_id"]
+    )
 
 
 # --- SCHEDULES ---------------------------------------------------------------- #
@@ -491,7 +503,6 @@ async def test_inactive_schedule_is_skipped():
     )
 
     dao.dedup_seen_schedule.assert_not_awaited()
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_duplicate_schedule_event_is_skipped():
@@ -519,7 +530,6 @@ async def test_duplicate_schedule_event_is_skipped():
     assert kwargs["event_id"] == "e1"
 
     workflows.invoke_workflow.assert_not_awaited()
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_first_schedule_event_invokes_workflow():
@@ -562,7 +572,6 @@ async def test_first_schedule_event_invokes_workflow():
     update_kwargs = dao.update_delivery.await_args.kwargs
     assert update_kwargs["delivery_id"] == attribution.delivery_id
     assert update_kwargs["status"].code == "200"
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_failed_schedule_invoke_records_the_row_the_retry_dedups_on():
@@ -594,7 +603,6 @@ async def test_failed_schedule_invoke_records_the_row_the_retry_dedups_on():
     dao.update_delivery.assert_awaited_once()
     update_kwargs = dao.update_delivery.await_args.kwargs
     assert update_kwargs["status"].code == "500"
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_claim_lost_skips_invoke_even_when_dedup_precheck_missed_it():
@@ -618,7 +626,6 @@ async def test_claim_lost_skips_invoke_even_when_dedup_precheck_missed_it():
     dao.claim_trigger_delivery.assert_awaited_once()
     workflows.invoke_workflow.assert_not_awaited()
     dao.update_delivery.assert_not_awaited()
-    dao.write_delivery.assert_not_awaited()
 
 
 async def test_claim_lost_skips_invoke_for_schedule_too():

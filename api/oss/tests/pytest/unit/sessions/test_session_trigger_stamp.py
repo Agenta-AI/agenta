@@ -125,6 +125,16 @@ async def test_claim_compiles_as_one_postgres_statement():
     assert "ON CONFLICT (project_id, session_id) DO UPDATE" in sql
     assert "coalesce(session_streams.tags" in sql
     assert " || excluded.tags" in sql
+    # The session_streams INSERT's SELECT must read FROM the delivery CTE, not run
+    # unconditionally — that's what makes a lost delivery claim (empty CTE) insert
+    # zero rows instead of stamping a session anyway. The fake session below always
+    # returns a UUID regardless of statement shape (`assert claimed is True` alone
+    # is tautological), so this checks the actual SQL dependency: removing
+    # `.select_from(claimed_delivery)` from the DAO would drop this substring.
+    session_streams_insert = sql.split("INSERT INTO session_streams", 1)[1].split(
+        "ON CONFLICT", 1
+    )[0]
+    assert "FROM claimed_trigger_delivery" in session_streams_insert
     object_parameters = [
         value for value in compiled.params.values() if isinstance(value, dict)
     ]

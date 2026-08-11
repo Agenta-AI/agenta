@@ -174,6 +174,7 @@ class _FakeStreamsService:
         windowing=None,
         session_ids=None,
         exclude_session_ids=None,
+        read_options=None,
     ):
         self.captured = {
             "filter": filter,
@@ -205,6 +206,9 @@ class _FakeTurnsService:
 
     async def query_turns(self, *, project_id, query):
         return [_FakeTurn(sid) for sid in self.session_ids]
+
+    async def query_session_ids_by_references(self, *, project_id, references, limit):
+        return list(self.session_ids)[:limit]
 
     async def latest_turn_per_session(self, *, project_id, session_ids):
         return {}

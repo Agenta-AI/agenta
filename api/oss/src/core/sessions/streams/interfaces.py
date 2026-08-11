@@ -155,3 +155,18 @@ class TriggerSessionClaimsDAOInterface(ABC):
     ) -> bool:
         """Atomically claim one trigger delivery and attribute its session."""
         ...
+
+    @abstractmethod
+    async def abandon_claimed_session(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        """Soft-delete a session_streams row claimed via `claim_trigger_delivery`.
+
+        Called when dispatch fails before a turn ever starts, so the row never
+        lingers as a permanent, un-sweepable phantom session (it has `flags=NULL`
+        at claim time, which the orphan sweep can never match).
+        """
+        ...

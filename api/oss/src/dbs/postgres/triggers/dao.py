@@ -243,6 +243,30 @@ class TriggersDAO(TriggersDAOInterface):
             await session.commit()
             return bool(result.rowcount)
 
+    async def mark_subscription_needs_provider_cleanup(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+    ) -> None:
+        async with self.engine.session() as session:
+            merged_meta = cast(
+                func.coalesce(
+                    cast(TriggerSubscriptionDBE.meta, JSONB), cast({}, JSONB)
+                ).op("||")(cast({"needs_provider_cleanup": True}, JSONB)),
+                JSON,
+            )
+            stmt = (
+                update(TriggerSubscriptionDBE)
+                .where(
+                    TriggerSubscriptionDBE.project_id == project_id,
+                    TriggerSubscriptionDBE.id == subscription_id,
+                )
+                .values(meta=merged_meta)
+            )
+            await session.execute(stmt)
+            await session.commit()
+
     async def query_subscriptions(
         self,
         *,
@@ -339,6 +363,12 @@ class TriggersDAO(TriggersDAOInterface):
             result = await session.execute(stmt)
             subscription_dbes = result.scalars().all()
             if len(subscription_dbes) != 1:
+                if len(subscription_dbes) > 1:
+                    log.warning(
+                        "[TRIGGERS] Ambiguous trigger_id across projects — "
+                        "failing closed",
+                        trigger_id=trigger_id,
+                    )
                 return None
             subscription_dbe = subscription_dbes[0]
 
@@ -444,6 +474,12 @@ class TriggersDAO(TriggersDAOInterface):
                 TriggerSubscriptionDBE.project_id == project_id,
                 TriggerSubscriptionDBE.id == delivery.subscription_id,
                 TriggerSubscriptionDBE.deleted_at.is_(None),
+                # Deliberately `is_active` only, NOT `is_active AND is_valid` like
+                # `claim_trigger_delivery`'s real-invocation gate. The dispatcher
+                # calls this to record the "subscription is invalid" 409 delivery
+                # itself (dispatcher.py's `is_valid` branch), reached precisely
+                # when is_valid is False — requiring is_valid here would silently
+                # drop that failure explanation instead of recording it.
                 TriggerSubscriptionDBE.flags.contains({"is_active": True}),
             )
             .with_for_update()
@@ -467,7 +503,16 @@ class TriggersDAO(TriggersDAOInterface):
             index_where=TriggerDeliveryDBE.subscription_id.isnot(None),
             set_={
                 "status": stmt.excluded.status,
-                "data": stmt.excluded.data,
+                # Merge, not replace (P2-4): two redeliveries racing `dedup_seen` can
+                # both reach this upsert; a wholesale replace can drop fields the
+                # first write set (e.g. `data.session_id`) while the session still
+                # points at this delivery. Mirrors `update_delivery`'s merge.
+                "data": cast(
+                    func.coalesce(
+                        cast(TriggerDeliveryDBE.data, JSONB), cast({}, JSONB)
+                    ).op("||")(cast(stmt.excluded.data, JSONB)),
+                    JSON,
+                ),
                 "updated_at": datetime.now(timezone.utc),
                 "updated_by_id": stmt.excluded.created_by_id,
             },

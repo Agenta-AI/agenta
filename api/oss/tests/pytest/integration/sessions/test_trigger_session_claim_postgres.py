@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401
 from oss.src.core.sessions.dtos import (
+    SessionOrigin,
     SessionTriggerAttribution,
     SessionTriggerKind,
 )
@@ -276,9 +277,8 @@ async def test_claim_atomically_merges_tags_flags_and_delivery_data(trigger_proj
 
     assert claimed is True
     assert heartbeat_result is not None
-    assert heartbeat_result.tags["ag.trigger.delivery_id"] == str(
-        attribution.delivery_id
-    )
+    assert heartbeat_result.delivery is not None
+    assert heartbeat_result.delivery.id == attribution.delivery_id
 
     stream = await streams_dao.get_by_session_id(
         project_id=project_id, session_id=session_id
@@ -289,7 +289,32 @@ async def test_claim_atomically_merges_tags_flags_and_delivery_data(trigger_proj
     assert stream.turn_id == turn_id
     assert stream.meta == {"source": "existing"}
     assert stream.flags.is_running is True
+    # Reserved attribution keys are stripped at the DTO mapping chokepoint (P1-6) —
+    # only caller-owned tags survive on `stream.tags`. The typed fields carry the
+    # attribution instead.
     assert stream.tags == {
+        "customer": "acme",
+        "ag.private": "keep",
+    }
+    assert stream.origin == SessionOrigin.trigger
+    assert stream.trigger is not None
+    assert stream.trigger.id == schedule_id
+    assert stream.trigger.kind == SessionTriggerKind.schedule
+    assert stream.delivery is not None
+    assert stream.delivery.id == attribution.delivery_id
+
+    # The raw row still carries the full merged tag set — the origin predicate
+    # (and the orphan-sweep/list filters) read the SQL column directly, never the
+    # sanitized DTO.
+    async with engine.session() as session:
+        raw_tags = await session.scalar(
+            text(
+                "SELECT tags FROM session_streams "
+                "WHERE project_id = :project_id AND session_id = :session_id"
+            ),
+            {"project_id": project_id, "session_id": session_id},
+        )
+    assert raw_tags == {
         "customer": "acme",
         "ag.private": "keep",
         "ag.origin": "trigger",
@@ -297,7 +322,6 @@ async def test_claim_atomically_merges_tags_flags_and_delivery_data(trigger_proj
         "ag.trigger.kind": "schedule",
         "ag.trigger.delivery_id": str(attribution.delivery_id),
     }
-    assert "ag.trigger.name" not in stream.tags
 
     delivery = await triggers_dao.fetch_delivery(
         project_id=project_id, delivery_id=attribution.delivery_id
@@ -441,7 +465,8 @@ async def test_different_events_create_distinct_delivery_session_pairs(trigger_p
         assert delivery.event_id == event_id
         assert delivery.data.session_id == session_id
         assert stream is not None
-        assert stream.tags["ag.trigger.delivery_id"] == str(attribution.delivery_id)
+        assert stream.delivery is not None
+        assert stream.delivery.id == attribution.delivery_id
 
 
 async def test_attribution_failure_rolls_back_claim_and_allows_retry(trigger_project):
@@ -481,3 +506,54 @@ async def test_attribution_failure_rolls_back_claim_and_allows_retry(trigger_pro
         attribution=attribution,
     )
     assert retried is True
+
+
+async def test_abandon_claimed_session_soft_deletes_the_phantom_row(trigger_project):
+    """P0-3: a claim followed by a pre-invoke dispatch failure must not leave a
+    permanent, un-sweepable phantom session. `abandon_claimed_session` is the
+    dispatcher's cleanup call for that path — verify it actually soft-deletes the
+    row the claim inserted (flags=NULL, so nothing else can end it)."""
+    engine = get_transactions_engine()
+    streams_dao = SessionStreamsDAO(engine=engine)
+    project_id = trigger_project["project_id"]
+    user_id = trigger_project["user_id"]
+    schedule_id = trigger_project["schedule_id"]
+    session_id = uuid.uuid4().hex
+
+    claimed = await streams_dao.claim_trigger_delivery(
+        project_id=project_id,
+        user_id=user_id,
+        event_id="phantom-event",
+        session_id=session_id,
+        attribution=SessionTriggerAttribution(
+            configuration_id=schedule_id,
+            kind=SessionTriggerKind.schedule,
+            delivery_id=uuid.uuid4(),
+        ),
+    )
+    assert claimed is True
+
+    claimed_stream = await streams_dao.get_by_session_id(
+        project_id=project_id, session_id=session_id
+    )
+    assert claimed_stream is not None
+    assert claimed_stream.flags.is_alive is False  # flags=NULL decodes to all-False
+
+    abandoned = await streams_dao.abandon_claimed_session(
+        project_id=project_id, session_id=session_id
+    )
+    assert abandoned is True
+
+    # Soft-deleted: gone from the default (non-deleted) read, matching a killed
+    # session's tombstone semantics — not a permanent, visible phantom.
+    assert (
+        await streams_dao.get_by_session_id(
+            project_id=project_id, session_id=session_id
+        )
+        is None
+    )
+    tombstoned = await streams_dao.get_by_session_id_including_archived(
+        project_id=project_id, session_id=session_id
+    )
+    assert tombstoned is not None
+    assert tombstoned.deleted_at is not None

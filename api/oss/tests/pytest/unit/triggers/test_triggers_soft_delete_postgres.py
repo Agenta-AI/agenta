@@ -349,9 +349,9 @@ async def test_soft_delete_retains_subscription_and_delivery_until_explicit_purg
     )
 
 
-@pytest.mark.parametrize("is_active", [False, True])
+@pytest.mark.parametrize("soft_deleted", [False, True])
 async def test_atomic_claim_rejects_disabled_or_deleted_schedule(
-    trigger_scope, is_active
+    trigger_scope, soft_deleted
 ):
     engine = get_transactions_engine()
     triggers_dao = TriggersDAO(engine=engine)
@@ -365,7 +365,7 @@ async def test_atomic_claim_rejects_disabled_or_deleted_schedule(
             data=TriggerScheduleData(event_key="cron.tick", schedule="* * * * *"),
         ),
     )
-    if is_active:
+    if soft_deleted:
         await triggers_dao.delete_schedule(
             project_id=project_id,
             user_id=user_id,

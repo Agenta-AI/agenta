@@ -152,6 +152,7 @@ class _FakeStreamsService:
         windowing=None,
         session_ids=None,
         exclude_session_ids=None,
+        read_options=None,
     ):
         self.query_calls.append({"project_id": project_id, "filter": filter})
         return [self.row] if self.row else []

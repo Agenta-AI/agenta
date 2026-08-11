@@ -63,10 +63,15 @@ class _DummySessionContext:
 
 
 class _Row:
-    def __init__(self, session_id, record_source, attributes, timestamp=None):
+    """Mirrors the columns the DAO's `select(...)` now projects: `text` is already
+    the truncated `left(attributes->>'text', ...)` expression, not the raw
+    `attributes` blob — the fake session below skips real SQL execution, so it
+    must hand back what the query would have computed, not the pre-image."""
+
+    def __init__(self, session_id, record_source, text, timestamp=None):
         self.session_id = session_id
         self.record_source = record_source
-        self.attributes = attributes
+        self.text = text
         self.timestamp = timestamp
         self.created_at = None
 
@@ -131,8 +136,16 @@ async def test_text_is_checked_after_newest_message_selection_without_fallback()
 
     await dao.latest_message_per_session(project_id=uuid4(), session_ids=["a"])
 
-    compiled = session.captured_stmt.compile(dialect=postgresql.dialect())
-    assert "text" not in compiled.params.values()
+    sql = str(session.captured_stmt.compile(dialect=postgresql.dialect())).replace(
+        "\n", " "
+    )
+    where_clause = sql.split(" WHERE ", 1)[1].split(" ORDER BY ", 1)[0]
+
+    # Row selection (WHERE + DISTINCT ON + ORDER BY) never filters on message
+    # content — `text` is only ever projected (truncated) in the SELECT list, so a
+    # message with no/blank text is still the newest row chosen, and gets skipped
+    # in Python afterward rather than falling back to an older row that has text.
+    assert "text" not in where_clause
 
 
 @pytest.mark.asyncio
@@ -150,9 +163,9 @@ async def test_a_message_without_text_has_nothing_to_preview():
     # An attachment-only message carries no `text`; a row must not preview an empty string.
     dao, _ = _dao(
         rows=[
-            _Row("with-text", "user", {"type": "message", "text": "  ship it  "}),
-            _Row("no-text", "agent", {"type": "message"}),
-            _Row("blank", "agent", {"type": "message", "text": "   "}),
+            _Row("with-text", "user", "  ship it  "),
+            _Row("no-text", "agent", None),
+            _Row("blank", "agent", "   "),
             _Row("no-attributes", "agent", None),
         ]
     )

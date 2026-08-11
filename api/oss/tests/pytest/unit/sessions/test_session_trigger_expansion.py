@@ -50,8 +50,12 @@ def test_trigger_expansion_joins_both_configuration_tables_by_typed_identity():
     assert "trigger_schedules.id = CASE WHEN" in sql
     assert "trigger_subscriptions.id = CASE WHEN" in sql
     assert "ag.trigger.kind" in sql
-    assert "schedule" in sql
-    assert "subscription" in sql
+    # Not `"schedule" in sql` / `"subscription" in sql` — the table names
+    # `trigger_schedules`/`trigger_subscriptions` (already asserted above)
+    # contain both substrings, so those checks would pass even if the CASE
+    # predicate's literal comparison were deleted. Assert the literal itself.
+    assert "= 'schedule'" in sql
+    assert "= 'subscription'" in sql
     assert "ag.trigger.id" in sql
     assert " AS UUID" in sql
     assert "trigger_schedules.deleted_at" not in sql

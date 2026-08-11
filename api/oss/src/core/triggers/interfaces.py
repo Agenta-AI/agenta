@@ -159,6 +159,19 @@ class TriggersDAOInterface(ABC):
         ...
 
     @abstractmethod
+    async def mark_subscription_needs_provider_cleanup(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+    ) -> None:
+        """Best-effort marker for reconciliation: local state (soft-delete /
+        is_active=false) already committed, but the matching provider cleanup
+        call failed. Not scoped to `deleted_at IS NULL` — the caller may be
+        marking a row it just soft-deleted."""
+        ...
+
+    @abstractmethod
     async def query_subscriptions(
         self,
         *,

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated, Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from oss.src.core.sessions.dtos import (
     SessionExpansion,
@@ -25,6 +25,7 @@ from oss.src.core.sessions.interactions.dtos import (
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
 from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
+from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
 
 # ---------------------------------------------------------------------------
@@ -82,6 +83,20 @@ class SessionQueryRequest(BaseModel):
     origin: Optional[SessionOrigin] = None
     # Its negation — hides one origin while still showing sessions with no stamp at all.
     exclude_origin: Optional[SessionOrigin] = None
+
+    @field_validator("windowing")
+    @classmethod
+    def _bound_windowing_limit(cls, value: Optional[Windowing]) -> Optional[Windowing]:
+        # `Windowing` is the shared SDK model (also used by tracing/otel), so its
+        # `limit` carries no bound of its own. `limit: 0` compiled to no SQL LIMIT
+        # at all — an authenticated caller could dump the whole project in one
+        # request (P0-1). Bound it here, at the request model.
+        if value is not None and value.limit is not None:
+            if not (1 <= value.limit <= MAX_SESSION_QUERY_LIMIT):
+                raise ValueError(
+                    f"windowing.limit must be between 1 and {MAX_SESSION_QUERY_LIMIT}."
+                )
+        return value
 
 
 class SessionsResponse(BaseModel):

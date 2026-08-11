@@ -93,7 +93,10 @@ async def test_query_sessions_rejects_without_view_permission():
             await router.query_sessions(request=request, body=SessionQueryRequest())
 
     assert exc_info.value.status_code == 403
-    sessions_service.query_sessions.assert_not_awaited()
+    # The router calls `query_sessions_page`, not `query_sessions` — asserting on
+    # the latter is tautological (an AsyncMock auto-creates it and it's never
+    # awaited regardless of what the router actually does).
+    sessions_service.query_sessions_page.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

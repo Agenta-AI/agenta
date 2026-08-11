@@ -31,7 +31,6 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamReadOptions,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.core.sessions.turns.dtos import SessionTurnQuery
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
@@ -40,6 +39,12 @@ from oss.src.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+# Hard cap on the id set resolved from `turn_references` (P2-12): the explicit
+# `session_ids`/`exclude_session_ids` request fields are already capped at 500;
+# this derived set rode along unbounded (a full turns-table scan for a broad
+# reference filter).
+TURN_REFERENCES_SESSION_ID_CAP = 500
 
 
 def _stream_filter(
@@ -154,18 +159,16 @@ class SessionsService:
         if session_ids is not None and not session_ids:
             return []
 
-        stream_kwargs = dict(
+        streams = await self.streams_service.query_streams(
             project_id=project_id,
             filter=_stream_filter(query, lifecycle),
             windowing=windowing,
             session_ids=session_ids,
             exclude_session_ids=query.exclude_session_ids if query else None,
+            read_options=SessionStreamReadOptions(
+                include_trigger_details=SessionExpansion.trigger in options.expand
+            ),
         )
-        if SessionExpansion.trigger in options.expand:
-            stream_kwargs["read_options"] = SessionStreamReadOptions(
-                include_trigger_details=True
-            )
-        streams = await self.streams_service.query_streams(**stream_kwargs)
 
         if not streams:
             return []
@@ -223,6 +226,7 @@ class SessionsService:
             log.warning(
                 "[SESSIONS] latest-message lookup failed",
                 project_id=str(project_id),
+                exc_info=True,
             )
             return {}
 
@@ -284,11 +288,13 @@ class SessionsService:
         if query.turn_references is not None:
             if not query.turn_references:
                 return []
-            matching_turns = await self.turns_service.query_turns(
-                project_id=project_id,
-                query=SessionTurnQuery(references=query.turn_references),
+            from_references = set(
+                await self.turns_service.query_session_ids_by_references(
+                    project_id=project_id,
+                    references=query.turn_references,
+                    limit=TURN_REFERENCES_SESSION_ID_CAP,
+                )
             )
-            from_references = {turn.session_id for turn in matching_turns}
 
         explicit: Optional[Set[str]] = (
             set(query.session_ids) if query.session_ids is not None else None

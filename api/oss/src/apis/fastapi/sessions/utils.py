@@ -12,14 +12,7 @@ from oss.src.core.sessions.dtos import (
 )
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.core.shared.dtos import Windowing
-
-_RESERVED_ATTRIBUTION_TAGS = {
-    "ag.origin",
-    "ag.trigger.id",
-    "ag.trigger.kind",
-    "ag.trigger.delivery_id",
-    "ag.trigger.name",
-}
+from oss.src.dbs.postgres.sessions.streams.mappings import SESSION_RESERVED_TAG_KEYS
 
 SessionStreamT = TypeVar("SessionStreamT", bound=SessionStream)
 
@@ -88,6 +81,25 @@ def normalize_session_query_request(
 ) -> NormalizedSessionQuery:
     session = body.session
     exclude = body.exclude
+    windowing = body.windowing
+
+    if windowing is not None and windowing.next is not None:
+        # `apply_windowing` nests the cursor predicate under its companion bound
+        # (`.newest` descending / `.oldest` ascending); `next` without it compiles
+        # to no WHERE clause at all — a silent "page 1 again" infinite loop rather
+        # than a diagnostic (P1-2). Contained here, not in the shared helper that
+        # tracing/otel also use.
+        ascending = (windowing.order or "descending").lower() == "ascending"
+        if ascending and windowing.oldest is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="windowing.next requires windowing.oldest when windowing.order is 'ascending'.",
+            )
+        if not ascending and windowing.newest is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="windowing.next requires windowing.newest.",
+            )
 
     search = _merge_compatibility_value(
         name="session.search/search",
@@ -203,6 +215,8 @@ def compute_session_response_windowing(
             oldest=activity,
             limit=requested.limit,
             order=requested.order,
+            interval=requested.interval,
+            rate=requested.rate,
         )
     return Windowing(
         next=last.id,
@@ -210,6 +224,8 @@ def compute_session_response_windowing(
         oldest=requested.oldest,
         limit=requested.limit,
         order=requested.order,
+        interval=requested.interval,
+        rate=requested.rate,
     )
 
 
@@ -219,7 +235,7 @@ def sanitize_session_tags(tags: Optional[dict[str, Any]]) -> Optional[dict[str, 
     return {
         key: value
         for key, value in tags.items()
-        if key not in _RESERVED_ATTRIBUTION_TAGS
+        if key not in SESSION_RESERVED_TAG_KEYS
     }
 
 

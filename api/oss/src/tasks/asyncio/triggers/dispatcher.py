@@ -321,6 +321,9 @@ class TriggersDispatcher:
                 status=Status(code="400", message="failed"),
                 data=delivery_data.model_copy(update={"error": str(e)}),
             )
+            await self._abandon_claimed_session(
+                project_id=project_id, session_id=session_id
+            )
             return
 
         if self._dispatch_fn is not None:
@@ -339,6 +342,9 @@ class TriggersDispatcher:
                     delivery_id=delivery_id,
                     status=Status(code="500", message="failed"),
                     data=delivery_data.model_copy(update={"error": str(e)}),
+                )
+                await self._abandon_claimed_session(
+                    project_id=project_id, session_id=session_id
                 )
                 raise
             await self._complete_delivery(
@@ -427,7 +433,7 @@ class TriggersDispatcher:
         status: Status,
         data: TriggerDeliveryData,
     ) -> None:
-        await self.triggers_dao.write_subscription_delivery_if_live(
+        written = await self.triggers_dao.write_subscription_delivery_if_live(
             project_id=project_id,
             user_id=user_id,
             delivery=TriggerDeliveryCreate(
@@ -439,6 +445,37 @@ class TriggersDispatcher:
                 data=data,
             ),
         )
+        if written is None:
+            # The subscription went inactive/was deleted between the dispatcher's
+            # gate check and this write — not an error, but a silent no-op here
+            # otherwise looks identical to a normal write from the logs alone.
+            log.info(
+                "[TRIGGERS DISPATCHER] delivery write skipped — subscription %s "
+                "is no longer live/active (event=%s)",
+                subscription_id,
+                event_id,
+            )
+
+    async def _abandon_claimed_session(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> None:
+        """Soft-delete the session_streams row `_run`'s claim inserted, when dispatch
+        fails before a turn ever starts. Its `flags` are NULL at claim time — the
+        orphan sweep only matches `is_alive: true` — so left alone it becomes a
+        permanent, un-sweepable phantom session (P0-3)."""
+        try:
+            await self.session_claims_dao.abandon_claimed_session(
+                project_id=project_id, session_id=session_id
+            )
+        except Exception:
+            log.error(
+                "[TRIGGERS DISPATCHER] failed to abandon claimed session=%s",
+                session_id,
+                exc_info=True,
+            )
 
     async def _complete_delivery(
         self,

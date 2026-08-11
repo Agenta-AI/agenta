@@ -13,6 +13,7 @@ from oss.src.core.triggers.dtos import (
     TriggerScheduleData,
     TriggerSubscription,
     TriggerSubscriptionData,
+    TriggerSubscriptionFlags,
 )
 from oss.src.core.triggers.exceptions import (
     AdapterError,
@@ -22,13 +23,14 @@ from oss.src.core.triggers.exceptions import (
 from oss.src.core.triggers.service import TriggersService
 
 
-def _subscription():
+def _subscription(*, is_test=False):
     return TriggerSubscription(
         id=uuid4(),
         created_by_id=uuid4(),
         connection_id=uuid4(),
         trigger_id="ti_lifecycle",
         data=TriggerSubscriptionData(event_key="github.issue.opened"),
+        flags=TriggerSubscriptionFlags(is_test=is_test),
     )
 
 
@@ -57,6 +59,7 @@ def _service(*, subscription=None):
     dao.delete_subscription = AsyncMock(return_value=True)
     dao.purge_subscription = AsyncMock(return_value=True)
     dao.delete_schedule = AsyncMock(return_value=True)
+    dao.mark_subscription_needs_provider_cleanup = AsyncMock()
 
     service = TriggersService(
         adapter_registry=registry,
@@ -68,7 +71,7 @@ def _service(*, subscription=None):
     return service, dao, adapter
 
 
-async def test_normal_subscription_delete_cleans_provider_before_soft_delete():
+async def test_normal_subscription_delete_writes_local_state_before_provider_cleanup():
     subscription = _subscription()
     service, dao, adapter = _service(subscription=subscription)
     calls = []
@@ -83,13 +86,16 @@ async def test_normal_subscription_delete_cleans_provider_before_soft_delete():
     )
 
     assert deleted is True
-    assert calls == ["provider", "local"]
+    # Local-first (P0-2): a degraded provider must never block the local delete.
+    assert calls == ["local", "provider"]
     assert dao.delete_subscription.await_args.kwargs["user_id"] == user_id
     dao.purge_subscription.assert_not_awaited()
+    dao.mark_subscription_needs_provider_cleanup.assert_not_awaited()
 
 
-async def test_normal_subscription_delete_stops_on_provider_failure():
+async def test_normal_subscription_delete_survives_provider_failure():
     subscription = _subscription()
+    project_id = uuid4()
     service, dao, adapter = _service(subscription=subscription)
     adapter.delete_subscription.side_effect = AdapterError(
         provider_key="composio",
@@ -97,17 +103,101 @@ async def test_normal_subscription_delete_stops_on_provider_failure():
         detail="already gone",
     )
 
+    # The local delete must succeed despite the provider being unreachable — the
+    # old contract raised here and left the subscription both undeletable and
+    # unstoppable (P0-2). The failure is recorded for reconciliation, not raised.
+    deleted = await service.delete_subscription(
+        project_id=project_id,
+        user_id=uuid4(),
+        subscription_id=subscription.id,
+    )
+
+    assert deleted is True
+    dao.delete_subscription.assert_awaited_once()
+    dao.mark_subscription_needs_provider_cleanup.assert_awaited_once_with(
+        project_id=project_id,
+        subscription_id=subscription.id,
+    )
+
+
+async def test_subscription_stop_writes_local_state_before_provider_sync():
+    subscription = _subscription()
+    service, dao, adapter = _service(subscription=subscription)
+    stopped = subscription.model_copy(
+        update={"flags": subscription.flags.model_copy(update={"is_active": False})}
+    )
+    calls = []
+    adapter.set_subscription_status.side_effect = lambda **_: calls.append("provider")
+    dao.edit_subscription = AsyncMock(
+        side_effect=lambda **_: calls.append("local") or stopped
+    )
+
+    updated = await service.set_subscription_active(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        subscription_id=subscription.id,
+        is_active=False,
+    )
+
+    assert updated.flags.is_active is False
+    assert calls == ["local", "provider"]
+    dao.mark_subscription_needs_provider_cleanup.assert_not_awaited()
+
+
+async def test_subscription_stop_survives_provider_failure():
+    subscription = _subscription()
+    project_id = uuid4()
+    service, dao, adapter = _service(subscription=subscription)
+    dao.edit_subscription = AsyncMock(
+        return_value=subscription.model_copy(
+            update={"flags": subscription.flags.model_copy(update={"is_active": False})}
+        )
+    )
+    adapter.set_subscription_status.side_effect = AdapterError(
+        provider_key="composio",
+        operation="set_subscription_status",
+        detail="unreachable",
+    )
+
+    # A provider outage must not prevent a user from stopping a firing automation
+    # (P0-2's other half — /stop must not raise the same way /delete used to).
+    updated = await service.set_subscription_active(
+        project_id=project_id,
+        user_id=uuid4(),
+        subscription_id=subscription.id,
+        is_active=False,
+    )
+
+    assert updated.flags.is_active is False
+    dao.mark_subscription_needs_provider_cleanup.assert_awaited_once_with(
+        project_id=project_id,
+        subscription_id=subscription.id,
+    )
+
+
+async def test_subscription_start_stays_provider_first():
+    subscription = _subscription()
+    service, dao, adapter = _service(subscription=subscription)
+    adapter.set_subscription_status.side_effect = AdapterError(
+        provider_key="composio",
+        operation="set_subscription_status",
+        detail="unreachable",
+    )
+
+    # Starting keeps the old provider-first contract: an enable that can't reach
+    # the provider must not silently mark the subscription active.
     with pytest.raises(AdapterError):
-        await service.delete_subscription(
+        await service.set_subscription_active(
             project_id=uuid4(),
             user_id=uuid4(),
             subscription_id=subscription.id,
+            is_active=True,
         )
-    dao.delete_subscription.assert_not_awaited()
+    dao.edit_subscription.assert_not_called()
 
 
 async def test_test_cleanup_does_not_purge_after_provider_failure():
-    subscription = _subscription()
+    subscription = _subscription(is_test=True)
     service, dao, adapter = _service(subscription=subscription)
     adapter.delete_subscription.side_effect = AdapterError(
         provider_key="composio",
@@ -124,7 +214,7 @@ async def test_test_cleanup_does_not_purge_after_provider_failure():
 
 
 async def test_test_cleanup_deletes_provider_before_physical_purge():
-    subscription = _subscription()
+    subscription = _subscription(is_test=True)
     service, dao, adapter = _service(subscription=subscription)
     calls = []
     adapter.delete_subscription.side_effect = lambda **_: calls.append("provider")
@@ -138,6 +228,21 @@ async def test_test_cleanup_deletes_provider_before_physical_purge():
     assert purged is True
     assert calls == ["provider", "purge"]
     dao.delete_subscription.assert_not_awaited()
+
+
+async def test_cleanup_test_subscription_refuses_a_non_test_subscription():
+    # A physical, unrecoverable purge must never run against real automation
+    # history — only the short-lived is_test row `test_subscription`'s own
+    # teardown created.
+    subscription = _subscription(is_test=False)
+    service, dao, _ = _service(subscription=subscription)
+
+    with pytest.raises(ValueError, match="only purges test subscriptions"):
+        await service.cleanup_test_subscription(
+            project_id=uuid4(),
+            subscription_id=subscription.id,
+        )
+    dao.purge_subscription.assert_not_awaited()
 
 
 async def test_exact_retrieval_returns_deleted_configurations_with_lifecycle_fields():

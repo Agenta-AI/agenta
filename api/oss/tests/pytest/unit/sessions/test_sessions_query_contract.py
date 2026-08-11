@@ -27,6 +27,7 @@ from oss.src.core.sessions.dtos import (
     SessionQueryLifecycle,
     SessionQueryOptions,
     SessionQueryPage,
+    SessionTriggerAttribution,
     SessionTriggerKind,
 )
 from oss.src.core.sessions.service import SessionsService
@@ -39,7 +40,9 @@ from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.streams.mappings import (
+    SESSION_RESERVED_TAG_KEYS,
     decode_session_attribution,
+    trigger_attribution_tags,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 
@@ -356,12 +359,9 @@ class _Turns:
         self.reference_session_ids = list(reference_session_ids)
         self.query_calls = []
 
-    async def query_turns(self, **kwargs):
+    async def query_session_ids_by_references(self, **kwargs):
         self.query_calls.append(kwargs)
-        return [
-            type("Turn", (), {"session_id": session_id})()
-            for session_id in self.reference_session_ids
-        ]
+        return list(self.reference_session_ids)
 
     async def latest_turn_per_session(self, **kwargs):
         return {}
@@ -480,6 +480,27 @@ def test_ascending_response_cursor_uses_oldest_and_uuid_tiebreak():
     assert result.next == last_id
     assert result.oldest == activity
     assert result.newest is None
+
+
+@pytest.mark.parametrize("order", ["ascending", "descending"])
+def test_response_cursor_carries_interval_and_rate_across_pages(order):
+    # `terminal` (the no-more-pages branch) already copied these; the cursor
+    # branches dropped them, so a client-supplied interval/rate silently
+    # vanished the moment paging actually produced a `next` cursor.
+    created_at = datetime(2026, 8, 10, tzinfo=timezone.utc)
+    sessions = [
+        _item(created_at=created_at, item_id=UUID(int=1)),
+        _item(created_at=created_at, item_id=UUID(int=2)),
+    ]
+
+    result = compute_session_response_windowing(
+        sessions=sessions,
+        requested=Windowing(limit=2, order=order, interval=60, rate=0.5),
+    )
+
+    assert result.next is not None
+    assert result.interval == 60
+    assert result.rate == 0.5
 
 
 @pytest.mark.parametrize("order", ["ascending", "descending"])
@@ -647,6 +668,19 @@ def test_reserved_attribution_tag_sanitizer_is_enabled_and_narrow():
         "team": "support",
     }
     assert len(tags) == 8
+
+    # P1-7: the reserved-key list had already drifted across three hand-copied
+    # spots. Pin the writer's output as a subset of the single exported set, so a
+    # future fifth attribution key added to `trigger_attribution_tags` fails here
+    # instead of silently leaking on every read path.
+    written = trigger_attribution_tags(
+        SessionTriggerAttribution(
+            configuration_id=uuid4(),
+            kind=SessionTriggerKind.schedule,
+            delivery_id=uuid4(),
+        )
+    )
+    assert set(written) <= SESSION_RESERVED_TAG_KEYS
 
 
 def _request(project_id, user_id):

@@ -95,6 +95,7 @@ from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.turns.types import SessionTurnNotFound
+from oss.src.core.sessions.dtos import SessionExpansion
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
@@ -1708,6 +1709,26 @@ class SessionsRootRouter:
             permission=Permission.VIEW_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+
+        if SessionExpansion.trigger in body.expand and not await check_action_access(
+            user_uid=str(user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_TRIGGERS,
+        ):
+            # Every other trigger read gates on VIEW_TRIGGERS; this one only checked
+            # VIEW_SESSIONS, so a custom role with the former but not the latter could
+            # read trigger names through the expansion (P2-3). Degrade rather than 403 —
+            # drop the expansion so `trigger.name` comes back None like an unrequested
+            # expansion, and the rest of the row still renders.
+            body = body.model_copy(
+                update={
+                    "expand": [
+                        expansion
+                        for expansion in body.expand
+                        if expansion != SessionExpansion.trigger
+                    ]
+                }
+            )
 
         normalized = normalize_session_query_request(body)
         page = await self.sessions_service.query_sessions_page(

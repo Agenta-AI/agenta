@@ -3,11 +3,12 @@ from typing import List, Optional
 from uuid import UUID
 
 import uuid_utils.compat as uuid
-from sqlalchemy import case, cast, delete as sa_delete, func, literal, not_, or_, select
+from sqlalchemy import case, cast, delete as sa_delete, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID, insert
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.dtos import (
+    SessionOrigin,
     SessionTriggerAttribution,
     SessionTriggerKind,
 )
@@ -55,6 +56,12 @@ _UUID_PATTERN = (
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
     r"[0-9a-f]{4}-[0-9a-f]{12}$"
 )
+
+# Defense-in-depth clamp (P0-1): the API request model already bounds
+# `windowing.limit` to [1, 200] with a 422, but this DAO is also reachable from
+# internal callers that build a `Windowing` directly — never let one of those
+# reach Postgres with an unbounded or negative `LIMIT`.
+MAX_SESSION_QUERY_LIMIT = 200
 
 
 class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInterface):
@@ -188,6 +195,17 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
 
         return claimed
 
+    async def abandon_claimed_session(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        return await self.delete_by_session_id(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
     async def get_by_session_id(
         self,
         *,
@@ -272,20 +290,19 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             )
             if flags_filter:
                 stmt = stmt.where(SessionStreamDBE.flags.contains(flags_filter))
-        if filter.tags:
-            stmt = stmt.where(SessionStreamDBE.tags.contains(filter.tags))
-        if filter.exclude_tags:
-            # `NOT (tags @> …)` is NULL — not true — for a row with no tags, which would drop
-            # every session written before origins were stamped. Admit those explicitly.
-            stmt = stmt.where(
-                or_(
-                    SessionStreamDBE.tags.is_(None),
-                    not_(SessionStreamDBE.tags.contains(filter.exclude_tags)),
-                )
-            )
         origin = SessionStreamDBE.tags[SESSION_ORIGIN_TAG_KEY].astext
         if filter.origins is not None:
-            stmt = stmt.where(origin.in_([value.value for value in filter.origins]))
+            origin_values = [value.value for value in filter.origins]
+            if SessionOrigin.manual.value in origin_values:
+                # Nothing has ever stamped "manual" — every human session has a NULL
+                # origin (only `trigger_attribution_tags` writes the tag, and only
+                # ever "trigger"). Admit NULL when "manual" is requested, or
+                # `origins: ["manual"]` matches zero rows and
+                # `origins: ["manual", "trigger"]` silently drops every human
+                # session (P1-1).
+                stmt = stmt.where(or_(origin.in_(origin_values), origin.is_(None)))
+            else:
+                stmt = stmt.where(origin.in_(origin_values))
         if filter.exclude_origins:
             stmt = stmt.where(
                 or_(
@@ -344,6 +361,14 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                 exclude_session_ids=exclude_session_ids,
             )
             if windowing:
+                if windowing.limit is not None:
+                    windowing = windowing.model_copy(
+                        update={
+                            "limit": min(
+                                max(windowing.limit, 1), MAX_SESSION_QUERY_LIMIT
+                            )
+                        }
+                    )
                 stmt = apply_windowing(
                     stmt=stmt,
                     DBE=SessionStreamDBE,
