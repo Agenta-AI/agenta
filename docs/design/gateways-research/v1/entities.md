@@ -1,7 +1,10 @@
 # Gateways: entities
 
-**Status: skeleton.** The layout and the table inventory are proposals; column lists are the
-remaining work.
+**Status: skeleton — this document is wave 0.** The layout and the table inventory are
+proposals; the column lists, method signatures and layer contents are the work.
+
+Nothing forks until this is filled in, because the seed commit is taken verbatim from it. See
+`plan.md`.
 
 The data model and its full stack, following the codebase's existing layering. Column lists
 will be the proposal, not migrations.

@@ -79,11 +79,19 @@ revoke and confirm the tool stays listed and the call fails with something actio
 
 | Wave | From | To | What it delivers |
 |---|---|---|---|
+| 0 | — | the seed | The shared state: every layer declared, column by column |
 | 1 | seed | **Checkpoint A** | Both gateways, the shared policy core, and the fakes |
 | 2 | A | **Checkpoint B** | Every caller converted |
 | 3 | B | **Checkpoint C** | OAuth end to end |
 
 Intermediate merges inside a wave are listed with the wave. They are not deployed.
+
+**Wave 0 ends at the seed, not at a checkpoint.** Nothing runs, so there is nothing to deploy or
+acceptance-test. It is the one wave whose output is a document and a commit rather than
+behaviour.
+
+**Checkpoint A is not split.** Separating the registry from the rest was considered and is not
+worth the extra deploy; the two fan-outs inside wave 1 already give the parallelism.
 
 ---
 
@@ -91,7 +99,7 @@ Intermediate merges inside a wave are listed with the wave. They are not deploye
 
 ```mermaid
 flowchart LR
-    S["seed<br/>ports + DTOs"]
+    W0["wave 0<br/>entities.md<br/>shared state"] --> S["seed<br/>ports + DTOs<br/>(verbatim)"]
     S --> WP1["WP1<br/>domain + storage"]
     S --> WP2["WP2<br/>secret resolution"]
     S --> WP3["WP3<br/>policy core"]
@@ -124,11 +132,37 @@ other.
 
 ---
 
-## The seed
+## Wave 0 — the shared state
 
-Before any worktree starts, one commit on the base branch carries the declared surface, all
-raising not-implemented: the gateway ports, the endpoint and policy DTOs, the domain exceptions,
-and the secret-resolution signature.
+**Nothing forks until the shared state is written down.** `entities.md` is a skeleton today: it
+proposes the layout and the table inventory and marks the rest to establish. Wave 0 fills it in,
+column by column, following the repo's standard domain structure.
+
+What it has to define, for the gateway domain, the policy core and the new secret kinds:
+
+| Layer | What wave 0 settles |
+|---|---|
+| `dbas` | Shared mixins, including whatever the owner dimension needs |
+| `dbes` | Concrete entities and every column |
+| `dtos` | Domain contracts, including the new secret kinds' settings and union arms |
+| `types` | Domain exceptions, and whether the existing connection-state enums are reused or unified |
+| `models` | Request and response schemas for the routers |
+| DAO methods | Every verb and its exact signature — each taking the owner (D10) |
+| Service methods | Orchestration, depending on interfaces and never on concrete DAOs or adapters |
+| Router methods | Route declarations, noting that the two ingress surfaces have externally fixed shapes |
+
+This is the same move the channels design made, and for the same reason: the seed commit is
+taken **verbatim** from the entity document, so anything vague there becomes a conflict later
+across every worktree that inherited it.
+
+**Done when:** every symbol a wave 1 package needs to import exists in the document, with its
+signature, and no package's surface is described only in prose.
+
+### The seed
+
+The output of wave 0. One commit on the base branch carrying the declared surface, all raising
+not-implemented: the gateway ports, the endpoint and policy DTOs, the domain exceptions, and the
+secret-resolution signature — each taken from `entities.md` rather than invented at commit time.
 
 **The one thing that must be right:** the secret resolution signature takes the owner as a
 parameter even though the only answer today is the project (D10). Every package that resolves a
@@ -151,12 +185,12 @@ mixins, entities, DAO, mappings, migration. Standard endpoints are generated and
 **WP2 — Secret resolution.** The resolve function over the secrets service, returning the secret,
 its owner, and its `secret_origin`. Pure logic, so fully unit testable — and it must be, because
 the interesting cases are the failures.
-*Depends on:* seed. *Blocks:* WP5, WP8.
+*Depends on:* seed. *Blocks:* WP6, WP8.
 *Done when:* each resolution mode behaves as specified and no path silently returns no secret.
 
 **WP3 — Policy core.** The principal from the existing auth scope, the permission check on a
 target, and the entitlement check. No credit check.
-*Depends on:* seed. *Blocks:* WP5, WP8.
+*Depends on:* seed. *Blocks:* WP6, WP8.
 *Done when:* a caller without permission on an endpoint is refused before any upstream call.
 
 **WP4 — Audit events.** Emission into the existing events domain (D22), with the principal, the
