@@ -11,6 +11,10 @@ const agentVoiceInputAtomFamily = atomFamily((userId: string) =>
     atomWithStorage<boolean>(`agenta:settings:${userId}:agent-voice-input`, false),
 )
 
+const agentaChannelSurfaceAtomFamily = atomFamily((userId: string) =>
+    atomWithStorage<boolean>(`agenta:settings:${userId}:agenta-channel-surface`, false),
+)
+
 /** Experimental switch for the agent chat composer's dictation + voice-message controls. */
 export const agentVoiceInputEnabledAtom = atom(
     (get) => {
@@ -35,5 +39,19 @@ export const playgroundInspectorEnabledAtom = atom(
         const userId = get(onboardingStorageUserIdAtom)
         if (!userId) return
         set(playgroundInspectorAtomFamily(userId), next)
+    },
+)
+
+/** Throwaway probe surface for the Agenta channel API — off by default, gates the whole page. */
+export const agentaChannelSurfaceEnabledAtom = atom(
+    (get) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return false
+        return get(agentaChannelSurfaceAtomFamily(userId))
+    },
+    (get, set, next: boolean) => {
+        const userId = get(onboardingStorageUserIdAtom)
+        if (!userId) return
+        set(agentaChannelSurfaceAtomFamily(userId), next)
     },
 )

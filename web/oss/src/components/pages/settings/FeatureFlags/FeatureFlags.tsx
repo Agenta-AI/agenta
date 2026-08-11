@@ -6,6 +6,7 @@ import {navSimplifiedOverrideAtom} from "@/oss/lib/onboarding/atoms"
 import {advancedNavHiddenAtom} from "@/oss/state/onboarding/selectors"
 import {
     agentVoiceInputEnabledAtom,
+    agentaChannelSurfaceEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@/oss/state/settings/featureFlags"
 
@@ -40,6 +41,9 @@ const FeatureFlags = () => {
         playgroundInspectorEnabledAtom,
     )
     const [agentVoiceInputEnabled, setAgentVoiceInputEnabled] = useAtom(agentVoiceInputEnabledAtom)
+    const [agentaChannelSurfaceEnabled, setAgentaChannelSurfaceEnabled] = useAtom(
+        agentaChannelSurfaceEnabledAtom,
+    )
 
     return (
         <section className="flex max-w-[640px] flex-col gap-8">
@@ -76,6 +80,12 @@ const FeatureFlags = () => {
                     description="Show controls for inspecting Playground sessions and individual turns."
                     enabled={playgroundInspectorEnabled}
                     onChange={setPlaygroundInspectorEnabled}
+                />
+                <FlagRow
+                    title="Agenta channel surface"
+                    description="A minimal probe page for the Agenta channel API: bots, conversations, and the rendering vocabulary. Not the real chat surface."
+                    enabled={agentaChannelSurfaceEnabled}
+                    onChange={setAgentaChannelSurfaceEnabled}
                 />
             </div>
         </section>
