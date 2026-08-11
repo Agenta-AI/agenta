@@ -172,17 +172,17 @@ this.
 rotated without breaking their other integrations, and it would sit inside an agent-controlled
 sandbox.
 
-**The extension is a target, and the permitted set.** The payload carries who you are and
-nothing about what you may reach, so a token minted for one gateway target could today be
-presented to another. The token gains both a target and the permitted set — which model, which
-tools, which caps — so authorisation stays a signature check with no database read on the hot
-path.
+**One gateway-wide token, unchanged, for now.** The existing secret token is enough: a caller
+presents it and the gateway authorises per call through the normal permission path. No target
+claim, no permitted set, no new claims.
 
-The accepted cost: anything signed is frozen until expiry, so a permission change does not take
-effect until the next mint. The current fifteen-minute expiry bounds that window.
+Per-endpoint tokens and a permitted set in the payload are a **later** step, arriving with
+user-owned secrets. The grain then goes project, then user, then endpoint — finer at each step.
+Batch minting is an optimisation and not part of any of this.
 
-Minting in a batch is an optimisation, not part of the decision. One at a time is fine until it
-is not.
+The cost of the simple version is a permission lookup per call rather than a signature check.
+That is what the rest of the API already does, and it keeps a revoked permission effective
+immediately rather than at the next mint.
 
 **The known failure mode.** Per-turn credential material must stay out of any session
 fingerprint that decides whether a warm session may be reused. The runner already excludes its
@@ -259,6 +259,64 @@ The existing escalation and interaction paths let the user reconnect.
 
 Hiding tools was rejected because it changes what the agent can do without telling anyone.
 Anything beyond this is a question about the interface, which this design does not settle.
+
+## D19. A gateway endpoint is a server, not a model or a tool
+
+An LLM gateway endpoint is a **provider**, which may serve many models. An MCP gateway endpoint
+is a **server**, which may serve many tools. The two gateways are symmetric.
+
+This is why a per-model endpoint is wrong: it would make the LLM gateway asymmetric with the MCP
+one and multiply endpoints by the size of a provider's catalogue.
+
+## D20. Standard endpoints are generated; only custom ones are stored
+
+Everything needed to reach a standard provider is deterministic. The provider-to-models
+catalogue already lives in the SDK as a static map — eleven providers, each with its model list,
+with costs derived from the routing library. So a standard endpoint's route is derivable rather
+than persisted: a stable prefix, the standard marker, and the provider's own name. No slug,
+because the provider name is the identifier.
+
+**The CRUD surface therefore stores only custom endpoints.** A standard endpoint exists when a
+key exists for it. The same split applies to MCP: built-in servers are ours to define, custom
+ones are rows.
+
+## D21. Configuration is per endpoint, and only custom endpoints are configurable
+
+Timeouts, ceilings and extra headers are one concern, not three, and they apply to both
+gateways.
+
+**Editability follows the same split as D20.** Standard and built-in endpoints are ours to
+define; users do not edit them. The configuration surface exists for **custom** endpoints on
+both gateways.
+
+Configuration lives **per endpoint**. A per-provider-kind layer may earn its place as a static
+default; a global layer does not. Each additional layer needs somewhere to live and a precedence
+rule, so add them only when something needs them.
+
+## D22. The audit record is an event, not a new table
+
+An events domain already exists across core, API, storage and an asynchronous worker. Its event
+type carries a request id and event id, a request type and event type, a timestamp, a status
+code and message, and a free-form attributes map, with a query surface beside it.
+
+The gateways emit into that. They do not add a second event pipeline or an audit table.
+
+## D23. The gateways must be mockable, and the fakes come first
+
+Nothing behind either gateway can be a third-party dependency in tests. A fake LLM endpoint and
+a fake MCP server are **first-class deliverables of the first checkpoint**, not test scaffolding
+added afterwards.
+
+This is also what makes the first checkpoint coherent: with no OAuth and no static secret kind
+in it, the only reachable targets are our own servers and the fakes. That is a complete target
+set rather than a gap.
+
+## D24. The legacy credits counter is left alone
+
+A credits counter is incremented today when a caller checks access to platform-owned secrets.
+It is legacy. It is not moved, not reinterpreted, and not fixed as part of this work.
+
+It is removed only once the gateway is the sole mechanism the whole system uses.
 
 ---
 

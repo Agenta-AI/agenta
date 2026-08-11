@@ -12,23 +12,23 @@ engineering one.
 
 ### OD10. What is in the first increment of each gateway
 
-Both gateways are being built. What is open is what each one does first.
+Both gateways are being built. What is open is what each one does first, and the checklist in
+`scope-checklist.md` is where that gets marked.
 
-`scope-checklist.md` lists every item for the LLM gateway, the MCP gateway, and the shared
-policy core, so each can be marked in, out, or ordered.
-
-One thing that narrows it: **containment is not a separate choice.** Refusing a call on
-balance requires knowing who is calling, which requires the minted token, which means the
-sandbox no longer holds a provider secret. Spend control cannot be built without containment
-falling out of it; the reverse is not true.
+The MCP side has a shape: **the first checkpoint has no OAuth**, and OAuth becomes its own
+checkpoint carrying consent, step-up and callback reachability together — the last one so it can
+be tested in development at all. With the static secret kind also deferred, the first
+checkpoint's reachable targets are our own servers and the fakes (D23), which is a complete set
+rather than a gap.
 
 **Blocks the work-package list**, which cannot be sequenced without it.
 
 ### OD2. Is a user's own secret the norm or the exception — parked
 
-User-owned secrets are not implemented, so this is deferred until they are. The mechanism is
-designed in `secrets.md` and the lookup already takes an owner (D10), so nothing is foreclosed
-by leaving it open.
+User-owned secrets are not implemented, so this waits until they are. The mechanism is designed
+in `secrets.md` and the lookup already takes an owner (D10), so nothing is foreclosed.
+
+Per-endpoint tokens arrive with this, not before.
 
 ### OD6. How an OAuth redirect reaches a firewalled deployment
 
@@ -36,33 +36,23 @@ An OAuth flow needs a redirect the user's browser can reach, and the modern regi
 mechanism needs a public HTTPS URL serving client metadata. A firewalled deployment has neither.
 
 **The three existing relay patterns do not solve it**, and `scope-checklist.md` records why: two
-are server-to-server event delivery, and one of those works only because the provider's own SDK
-offers a subscribe call. A browser redirect cannot travel down an outbound socket.
-
-Only ngrok produces a reachable URL, and it is development-only by design — gated on a token and
-absent from the production compose files.
+are server-to-server event delivery, one of those working only because the provider's own SDK
+offers a subscribe call, and a browser redirect cannot travel down an outbound socket. Only
+ngrok produces a reachable URL, and it is development-only by design.
 
 **The real options:** a hosted relay that receives the redirect and holds the code while the
 deployment polls outward for it, which keeps the deployment outbound-only but reintroduces a
 cloud dependency; or documenting that OAuth-protected servers need a reachable deployment while
 static-credential servers work everywhere.
 
-### OD11. What the token carries beyond the principal
+Belongs to the OAuth checkpoint, not the first one.
 
-The token itself is not new: a 15-minute HS256 JWT carrying user, project, workspace and
-organization, verified by decode with no database read, and already minted per run by the
-workflow invoke prelude (D13).
+### OD12. Should a clamped parameter be silent
 
-What is open is the **target**, since the payload says who you are and nothing about what you
-may reach.
+A ceiling can reject the call or quietly lower the value. Silent clamping keeps a run working
+and hides that it happened; rejecting is honest and breaks a harness that did nothing wrong.
 
-**Does the permitted set ride the token?** Putting the model, the tools and the caps in the
-payload keeps verification to a signature check, which is what makes the hot path cheap. The
-cost is that anything signed is frozen until expiry, so revoking a permission mid-run does not
-take effect until the next mint. At a 15-minute expiry that window is bounded but real.
-
-**One token per target, or one per run?** One per target bounds a leak to one target, and
-batch-minting makes it nearly free.
+**To establish** by looking at what comparable gateways do, rather than by assertion.
 
 ---
 

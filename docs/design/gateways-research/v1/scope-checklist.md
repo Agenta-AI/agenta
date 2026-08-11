@@ -21,7 +21,8 @@ Without these there is no gateway, only an open proxy. They are not markable.
 | Secret resolution | The gateway has to find the upstream secret |
 | Secret injection | This is the containment property, and the point of the gateway |
 | Forward and return | Including streaming, since every harness streams |
-| Server registry (MCP) | Routing needs to know where a server is |
+| Endpoint CRUD (both) | Custom endpoints need creating and configuring; standard ones are generated |
+| Test doubles | A fake LLM endpoint and a fake MCP server; nothing third-party in tests |
 
 **What already exists.** `sign_secret_token` produces an HS256 JWT carrying `user_id`,
 `user_email`, `project_id`, `workspace_id`, `organization_id`, `organization_name` and an
@@ -30,11 +31,15 @@ beside `Bearer` and `ApiKey`, and the middleware verifies it by decode alone —
 The workflow invoke prelude already mints one per run, centralised so batch and detached cannot
 drift on auth.
 
-**Settled:** the token also carries the **permitted set** — which model, which tools, which
-caps — so authorisation stays a signature check with no database read. The cost is that a
-permission change does not take effect until the next mint, bounded by the token's expiry.
+**Settled:** one gateway-wide token, unchanged. No target claim and no permitted set — the
+gateway authorises per call through the normal permission path. Per-endpoint tokens and a
+permitted set arrive later with user-owned secrets, when the grain goes project, then user, then
+endpoint. Batch minting is an optimisation, not a scope item.
 
-Minting in a batch is an optimisation, not a scope item. Mint one at a time until it hurts.
+**An endpoint is a server** (D19): an LLM endpoint is a provider serving many models, an MCP
+endpoint is a server serving many tools. **Standard endpoints are generated, not stored** (D20)
+— the provider-to-models catalogue is already a static map in the SDK, so a standard route is
+derivable from the provider name and no slug is needed. Only custom endpoints become rows.
 
 ---
 
@@ -44,10 +49,11 @@ Minting in a batch is an optimisation, not a scope item. Mint one at a time unti
 |---|---|---|
 | | Permission check on the target | **In** — otherwise any authenticated user reaches any registered target |
 | | Entitlement check | **Out** — coarser plan gating already exists elsewhere |
-| | Audit record | **In** — cannot be backfilled |
+| | Audit record | **In**, emitted into the existing events domain rather than a new table |
 | | Usage recorded | **In** — cannot be backfilled |
 | | Usage charged | **Out** — the ledger is a separate effort |
-| | `secret_origin` stamp | **In** — one field, unreconstructable later |
+| | `secret_origin` stamp | **In** — one field, unreconstructable later; `local` is ours, `vault` is the user's |
+| | Endpoint configuration | **In** for custom endpoints only — timeouts, ceilings and extra headers, per endpoint |
 
 ---
 
@@ -55,9 +61,7 @@ Minting in a batch is an optimisation, not a scope item. Mint one at a time unti
 
 | ? | Item | Suggestion |
 |---|---|---|
-| | Model allowlist | **In** — the control that actually bounds exposure, and it is a string compare |
-| | Parameter ceilings | **In** — one clamp, bounds a runaway call |
-| | Timeouts | **In** — a gateway without one is an outage |
+| | Model allowlist | **In** — custom providers already declare their models by slug; standard providers expose their whole catalogue |
 | | Retry policy | **Out** — the caller already retries |
 | | Body byte-for-byte | **In** — a constraint, not a feature; prompt caching then works for free |
 | | Fallbacks and aliasing | **Out** — makes the gateway a product surface with behaviour the caller cannot predict |
